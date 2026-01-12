@@ -8,6 +8,8 @@
  * - Activity logging
  */
 
+import 'dotenv/config'
+
 import { Job } from 'bullmq'
 import { PrismaClient } from '../node_modules/@prisma/client'
 import { BeINAutomation } from './automation/bein-automation'

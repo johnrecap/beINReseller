@@ -10,6 +10,8 @@
  * All settings are loaded from the database dynamically.
  */
 
+import 'dotenv/config'
+
 import { Browser, Page, chromium, BrowserContext } from 'playwright'
 import { PrismaClient } from '../../node_modules/@prisma/client'
 import { TOTPGenerator } from '../utils/totp-generator'

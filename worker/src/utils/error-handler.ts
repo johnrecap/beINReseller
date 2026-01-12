@@ -2,6 +2,8 @@
  * Error Handler - Centralized error handling and refund logic
  */
 
+import 'dotenv/config'
+
 import { PrismaClient } from '../../node_modules/@prisma/client'
 
 const prisma = new PrismaClient()

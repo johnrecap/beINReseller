@@ -1,0 +1,33 @@
+{
+    "name": "bein-worker",
+    "version": "1.0.0",
+    "description": "beIN Panel Automation Worker - Playwright-based queue processor",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "dev": "ts-node src/index.ts",
+        "install:browser": "npx playwright install chromium"
+    },
+    "keywords": [
+        "bein",
+        "automation",
+        "playwright",
+        "worker"
+    ],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@prisma/client": "^6.3.1",
+        "bullmq": "^5.34.10",
+        "dotenv": "^16.4.7",
+        "ioredis": "^5.4.2",
+        "otplib": "^12.0.1",
+        "playwright": "^1.50.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.7",
+        "typescript": "^5.7.3",
+        "ts-node": "^10.9.2"
+    }
+}

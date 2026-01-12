@@ -42,8 +42,8 @@ const typeColors: Record<string, string> = {
     SIGNAL_REFRESH: 'bg-green-100 text-green-700',
 }
 
-// Statuses that can be cancelled
-const CANCELLABLE_STATUSES = ['PENDING', 'AWAITING_CAPTCHA', 'FAILED']
+// Statuses that can be cancelled (FAILED is excluded - auto-refunded by worker)
+const CANCELLABLE_STATUSES = ['PENDING', 'AWAITING_CAPTCHA']
 
 export default function OperationsTable({
     operations,

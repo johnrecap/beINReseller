@@ -38,10 +38,26 @@ export async function POST(
             )
         }
 
-        // PENDING, AWAITING_CAPTCHA, and FAILED can be cancelled
-        if (!['PENDING', 'AWAITING_CAPTCHA', 'FAILED'].includes(operation.status)) {
+        // Only PENDING and AWAITING_CAPTCHA can be cancelled
+        // FAILED operations are auto-refunded by the worker, so they cannot be cancelled again
+        if (!['PENDING', 'AWAITING_CAPTCHA'].includes(operation.status)) {
             return NextResponse.json(
-                { error: 'لا يمكن إلغاء هذه العملية - فقط العمليات قيد الانتظار أو الفاشلة يمكن إلغاؤها' },
+                { error: 'لا يمكن إلغاء هذه العملية - فقط العمليات قيد الانتظار يمكن إلغاؤها' },
+                { status: 400 }
+            )
+        }
+
+        // Safety check: Prevent double refund by checking if a refund already exists
+        const existingRefund = await prisma.transaction.findFirst({
+            where: {
+                operationId: id,
+                type: 'REFUND'
+            }
+        })
+
+        if (existingRefund) {
+            return NextResponse.json(
+                { error: 'تم استرداد المبلغ مسبقاً لهذه العملية' },
                 { status: 400 }
             )
         }

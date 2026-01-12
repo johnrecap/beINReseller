@@ -16,7 +16,13 @@ import { BeINAutomation } from './automation/bein-automation'
 import { withRetry, calculateDelay } from './utils/retry-strategy'
 import { classifyError, refundUser, markOperationFailed } from './utils/error-handler'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+    datasources: {
+        db: {
+            url: process.env.DATABASE_URL
+        }
+    }
+})
 
 interface OperationJobData {
     operationId: string

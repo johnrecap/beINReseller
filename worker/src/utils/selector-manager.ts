@@ -26,7 +26,7 @@ export class SelectorManager {
                 }
             })
 
-            settings.forEach(s => {
+            settings.forEach((s: any) => {
                 // Remove the 'bein_' prefix for easier access
                 const key = s.key.replace('bein_', '')
                 this.selectors.set(key, s.value)

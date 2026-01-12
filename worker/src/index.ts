@@ -21,7 +21,7 @@ for (const envVar of requiredEnvVars) {
 }
 
 const REDIS_URL = process.env.REDIS_URL!
-const connection = new Redis(REDIS_URL, { maxRetriesPerRequest: null })
+const connection = new Redis(REDIS_URL, { maxRetriesPerRequest: null }) as any
 
 let automation: BeINAutomation | null = null
 

@@ -5,6 +5,11 @@
  * Cost: ~$3 per 1000 CAPTCHAs
  */
 
+interface CaptchaResponse {
+    status: number;
+    request: string;
+}
+
 export class CaptchaSolver {
     private apiKey: string
     private readonly API_URL = 'http://2captcha.com'
@@ -35,7 +40,7 @@ export class CaptchaSolver {
             })
         })
 
-        const submitResult = await submitResponse.json()
+        const submitResult = await submitResponse.json() as CaptchaResponse
 
         if (submitResult.status !== 1) {
             throw new Error(`CAPTCHA submission failed: ${submitResult.request}`)
@@ -52,7 +57,7 @@ export class CaptchaSolver {
             const resultResponse = await fetch(
                 `${this.API_URL}/res.php?key=${this.apiKey}&action=get&id=${requestId}&json=1`
             )
-            const resultData = await resultResponse.json()
+            const resultData = await resultResponse.json() as CaptchaResponse
 
             if (resultData.status === 1) {
                 console.log(`✅ CAPTCHA solved: ${resultData.request}`)
@@ -85,7 +90,7 @@ export class CaptchaSolver {
         const response = await fetch(
             `${this.API_URL}/res.php?key=${this.apiKey}&action=getbalance&json=1`
         )
-        const data = await response.json()
+        const data = await response.json() as CaptchaResponse
         return parseFloat(data.request)
     }
 

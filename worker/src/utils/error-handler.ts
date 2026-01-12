@@ -39,7 +39,7 @@ export function classifyError(error: any): OperationError {
 }
 
 export async function refundUser(operationId: string, userId: string, amount: number, reason: string): Promise<void> {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
         // Update user balance
         const user = await tx.user.update({
             where: { id: userId },

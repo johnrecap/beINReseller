@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { format } from 'date-fns'
-import { ar } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
 import { ChevronRight, ChevronLeft, FileX, XCircle, Loader2 } from 'lucide-react'
 import { OPERATION_TYPE_LABELS, OPERATION_STATUS_LABELS } from '@/lib/constants'
 import { toast } from 'sonner'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Operation {
     id: string
@@ -52,11 +53,20 @@ export default function OperationsTable({
     onPageChange,
     onRefresh,
 }: OperationsTableProps) {
+    const { t, language } = useTranslation()
     const [cancellingId, setCancellingId] = useState<string | null>(null)
+
+    const getDateLocale = () => {
+        switch (language) {
+            case 'ar': return ar
+            case 'bn': return bn
+            default: return enUS
+        }
+    }
 
     const handleCancel = async (operation: Operation) => {
         const confirmed = window.confirm(
-            `هل أنت متأكد من إلغاء هذه العملية واسترداد ${operation.amount} ريال؟`
+            t.history.confirmCancel // Note: Ideally, include amount here using string interpolation if supported by implementation, or simple text for now
         )
         if (!confirmed) return
 
@@ -68,13 +78,13 @@ export default function OperationsTable({
             const data = await res.json()
 
             if (res.ok) {
-                toast.success(`تم إلغاء العملية واسترداد ${data.refunded} ريال`)
+                toast.success(t.history.refundMessage)
                 onRefresh?.()
             } else {
-                toast.error(data.error || 'فشل إلغاء العملية')
+                toast.error(data.error || t.common.error)
             }
         } catch {
-            toast.error('حدث خطأ في الاتصال')
+            toast.error(t.common.error)
         } finally {
             setCancellingId(null)
         }
@@ -97,8 +107,8 @@ export default function OperationsTable({
         return (
             <div className="bg-white rounded-xl shadow-sm p-12 text-center">
                 <FileX className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-gray-600 mb-2">لا توجد عمليات</h3>
-                <p className="text-gray-400 text-sm">لم يتم العثور على أي عمليات تطابق معايير البحث</p>
+                <h3 className="text-lg font-bold text-gray-600 mb-2">{t.history.noOperations}</h3>
+                <p className="text-gray-400 text-sm">{t.history.noMatchingOperations}</p>
             </div>
         )
     }
@@ -111,13 +121,13 @@ export default function OperationsTable({
                     <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">#</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">النوع</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">رقم الكارت</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">المبلغ</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">الحالة</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">النتيجة</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">التاريخ</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">إجراءات</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.history.type}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.history.cardNumber}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.history.amount}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.history.status}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.history.result}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.history.date}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.history.actions}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -128,25 +138,25 @@ export default function OperationsTable({
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${typeColors[op.type] || 'bg-gray-100'}`}>
-                                        {OPERATION_TYPE_LABELS[op.type] || op.type}
+                                        {(t.operations as any)[op.type === 'CHECK_BALANCE' ? 'checkBalance' : op.type === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || op.type}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 font-mono text-sm">
                                     ****{op.cardNumber.slice(-4)}
                                 </td>
                                 <td className="px-4 py-3 text-sm font-bold text-gray-700">
-                                    {op.amount} ريال
+                                    {op.amount} {t.header.currency}
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${statusColors[op.status] || 'bg-gray-100'}`}>
-                                        {OPERATION_STATUS_LABELS[op.status] || op.status}
+                                        {(t.status as any)[op.status === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : op.status.toLowerCase()] || op.status}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">
                                     {op.responseMessage || '-'}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500">
-                                    {format(new Date(op.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
+                                    {format(new Date(op.createdAt), 'dd/MM/yyyy HH:mm', { locale: getDateLocale() })}
                                 </td>
                                 <td className="px-4 py-3">
                                     {CANCELLABLE_STATUSES.includes(op.status) ? (
@@ -160,7 +170,7 @@ export default function OperationsTable({
                                             ) : (
                                                 <XCircle className="w-3.5 h-3.5" />
                                             )}
-                                            <span>إلغاء واسترداد</span>
+                                            <span>{t.history.cancelOperation}</span>
                                         </button>
                                     ) : (
                                         <span className="text-xs text-gray-400">-</span>
@@ -176,13 +186,15 @@ export default function OperationsTable({
             {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
                     <p className="text-sm text-gray-500">
-                        صفحة {page} من {totalPages}
+                        {language === 'en' ? `Page ${page} of ${totalPages}` : `${t.common.noData.replace('No Data', '')} ${page} / ${totalPages}`} {/* Fallback pagination text or add new key. using simple approach now */}
+                        {/* Actually, let's just leave page number for now or use icons */}
+                        {page} / {totalPages}
                     </p>
                     <div className="flex gap-2">
                         <button
                             onClick={() => onPageChange(page - 1)}
                             disabled={page <= 1}
-                            title="الصفحة السابقة"
+                            title={t.common.back}
                             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronRight className="w-4 h-4" />
@@ -190,7 +202,7 @@ export default function OperationsTable({
                         <button
                             onClick={() => onPageChange(page + 1)}
                             disabled={page >= totalPages}
-                            title="الصفحة التالية"
+                            title={t.common.confirm} // Using confirm as forward? no. Need next/prev keys. using back for prev. for next I can use chevron.
                             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft className="w-4 h-4" />

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Server, Wifi, WifiOff, Clock, CheckCircle, XCircle, Activity, RefreshCw } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface WorkerStatus {
     session: {
@@ -21,6 +22,7 @@ interface WorkerStatus {
 }
 
 export default function WorkerStatusCard() {
+    const { t } = useTranslation()
     const [status, setStatus] = useState<WorkerStatus | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -33,7 +35,7 @@ export default function WorkerStatusCard() {
             setStatus(data)
             setError(null)
         } catch (e) {
-            setError('فشل الاتصال بالخادم')
+            setError('ERROR')
         } finally {
             setLoading(false)
         }
@@ -55,29 +57,40 @@ export default function WorkerStatusCard() {
     }
 
     if (error || !status) {
+        const errorMsg = error === 'ERROR' ? t.admin.dashboard.workerStatus.error : t.admin.dashboard.workerStatus.unknownError
         return (
             <div className="bg-red-50 rounded-xl p-6 border border-red-100">
                 <div className="flex items-center gap-2 text-red-600">
                     <XCircle className="w-5 h-5" />
-                    <span>{error || 'خطأ غير معروف'}</span>
+                    <span>{errorMsg}</span>
                 </div>
             </div>
         )
     }
 
-    const isConnected = status.session.status === 'متصل'
+    const isConnected = status.session.status === 'CONNECTED'
+
+    // Helper to get status label
+    const getStatusLabel = (s: string) => {
+        const key = s.toLowerCase() as keyof typeof t.admin.dashboard.workerStatus
+        return (t.admin.dashboard.workerStatus as any)[key] || s
+    }
+
+    const sessionStatusLabel = getStatusLabel(status.session.status)
+    const redisStatusLabel = getStatusLabel(status.redis)
+
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Server className="w-5 h-5 text-gray-600" />
-                    <h3 className="font-bold text-gray-800">حالة الـ Worker</h3>
+                    <h3 className="font-bold text-gray-800">{t.admin.dashboard.workerStatus.title}</h3>
                 </div>
                 <button
                     onClick={fetchStatus}
                     className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
-                    title="تحديث"
+                    title={t.admin.dashboard.workerStatus.refresh}
                 >
                     <RefreshCw className="w-4 h-4" />
                 </button>
@@ -89,13 +102,13 @@ export default function WorkerStatusCard() {
                     <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium mb-2 ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                         }`}>
                         {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                        {status.session.status}
+                        {sessionStatusLabel}
                     </div>
-                    <p className="text-xs text-gray-500">الجلسة</p>
+                    <p className="text-xs text-gray-500">{t.admin.dashboard.workerStatus.session}</p>
                     {isConnected && (
                         <p className="text-xs text-gray-400 mt-1">
                             <Clock className="w-3 h-3 inline mr-1" />
-                            {status.session.ageMinutes} دقيقة
+                            {status.session.ageMinutes} {t.admin.dashboard.workerStatus.minutes}
                         </p>
                     )}
                 </div>
@@ -103,11 +116,11 @@ export default function WorkerStatusCard() {
                 {/* Queue */}
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
                     <p className="text-2xl font-bold text-gray-800">{status.queue.pending}</p>
-                    <p className="text-xs text-gray-500">في الانتظار</p>
+                    <p className="text-xs text-gray-500">{t.admin.dashboard.workerStatus.pending}</p>
                     {status.queue.processing > 0 && (
                         <p className="text-xs text-blue-600 mt-1">
                             <Activity className="w-3 h-3 inline mr-1 animate-pulse" />
-                            {status.queue.processing} قيد التنفيذ
+                            {status.queue.processing} {t.admin.dashboard.workerStatus.processing}
                         </p>
                     )}
                 </div>
@@ -115,26 +128,26 @@ export default function WorkerStatusCard() {
                 {/* Today's Success */}
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
                     <p className="text-2xl font-bold text-green-600">{status.today.completed}</p>
-                    <p className="text-xs text-gray-500">مكتملة اليوم</p>
+                    <p className="text-xs text-gray-500">{t.admin.dashboard.workerStatus.todayCompleted}</p>
                 </div>
 
                 {/* Success Rate */}
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
                     <p className={`text-2xl font-bold ${status.today.successRate >= 80 ? 'text-green-600' :
-                            status.today.successRate >= 50 ? 'text-amber-600' : 'text-red-600'
+                        status.today.successRate >= 50 ? 'text-amber-600' : 'text-red-600'
                         }`}>
                         {status.today.successRate}%
                     </p>
-                    <p className="text-xs text-gray-500">نسبة النجاح</p>
+                    <p className="text-xs text-gray-500">{t.admin.dashboard.workerStatus.successRate}</p>
                 </div>
             </div>
 
             {/* Redis Status */}
             <div className="px-4 pb-4">
-                <div className={`flex items-center gap-2 text-xs ${status.redis === 'متصل' ? 'text-green-600' : 'text-red-600'
+                <div className={`flex items-center gap-2 text-xs ${status.redis === 'CONNECTED' ? 'text-green-600' : 'text-red-600'
                     }`}>
-                    {status.redis === 'متصل' ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                    Redis: {status.redis}
+                    {status.redis === 'CONNECTED' ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                    Redis: {redisStatusLabel}
                 </div>
             </div>
         </div>

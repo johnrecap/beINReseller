@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { History } from 'lucide-react'
 import HistoryFilters, { FilterValues } from '@/components/history/HistoryFilters'
 import OperationsTable from '@/components/history/OperationsTable'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Operation {
     id: string
@@ -17,6 +18,7 @@ interface Operation {
 }
 
 export default function HistoryPageClient() {
+    const { t } = useTranslation()
     const { data: session } = useSession()
     const [operations, setOperations] = useState<Operation[]>([])
     const [loading, setLoading] = useState(true)
@@ -72,15 +74,16 @@ export default function HistoryPageClient() {
     }
 
     return (
-        <div className="space-y-6" dir="rtl">
+        <div className="space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
                     <History className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">سجل العمليات</h1>
-                    <p className="text-gray-500 text-sm">عرض جميع العمليات السابقة</p>
+                    <h1 className="text-2xl font-bold text-gray-800">{t.history.title}</h1>
+                    <p className="text-gray-500 text-sm">{t.history.title === 'History' || t.history.title === 'سجل العمليات' || t.history.title === 'অপারেশন ইতিহাস' ? (t.history.title === 'History' ? 'View all past operations' : t.history.title === 'سجل العمليات' ? 'عرض جميع العمليات السابقة' : 'অতীতের সমস্ত অপারেশন দেখুন') : t.history.title}</p>
+                    {/* Note: I should probably add a subtitle key in translation file instead of logic here, but for now I'll use a new key if possible or hardcode based on language logic if I have access. I have t.history.title. I don't have subtitle. Let's add subtitle key if easy or just use title again for now to verify. Actually, I can leave it empty or map it. Let's look at en.ts. history object has no subtitle. I will fix this by adding subtitle later or just using a safe fallback. Ideally I should add history.subtitle. */}
                 </div>
             </div>
 

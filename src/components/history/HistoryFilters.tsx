@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Search, RotateCcw } from 'lucide-react'
 import { OPERATION_TYPE_LABELS, OPERATION_STATUS_LABELS } from '@/lib/constants'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface HistoryFiltersProps {
     onFilter: (filters: FilterValues) => void
@@ -24,6 +25,7 @@ const initialFilters: FilterValues = {
 }
 
 export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProps) {
+    const { t } = useTranslation()
     const [filters, setFilters] = useState<FilterValues>(initialFilters)
 
     const handleChange = (key: keyof FilterValues, value: string) => {
@@ -45,37 +47,37 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 {/* Type Filter */}
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">نوع العملية</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.history.type}</label>
                     <select
                         value={filters.type}
                         onChange={(e) => handleChange('type', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-sm"
                     >
-                        <option value="">الكل</option>
-                        {Object.entries(OPERATION_TYPE_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
+                        <option value="">{t.common.all}</option>
+                        {Object.entries(OPERATION_TYPE_LABELS).map(([value]) => (
+                            <option key={value} value={value}>{(t.operations as any)[value === 'CHECK_BALANCE' ? 'checkBalance' : value === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || value}</option>
                         ))}
                     </select>
                 </div>
 
                 {/* Status Filter */}
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">الحالة</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.history.status}</label>
                     <select
                         value={filters.status}
                         onChange={(e) => handleChange('status', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-sm"
                     >
-                        <option value="">الكل</option>
-                        {Object.entries(OPERATION_STATUS_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
+                        <option value="">{t.common.all}</option>
+                        {Object.entries(OPERATION_STATUS_LABELS).map(([value]) => (
+                            <option key={value} value={value}>{(t.status as any)[value === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : value.toLowerCase()] || value}</option>
                         ))}
                     </select>
                 </div>
 
                 {/* From Date */}
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">من تاريخ</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.history.fromDate}</label>
                     <input
                         type="date"
                         value={filters.from}
@@ -86,7 +88,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
 
                 {/* To Date */}
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">إلى تاريخ</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.history.toDate}</label>
                     <input
                         type="date"
                         value={filters.to}
@@ -103,13 +105,13 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all text-sm font-medium"
                     >
                         <Search className="w-4 h-4" />
-                        بحث
+                        {t.common.search}
                     </button>
                     <button
                         type="button"
                         onClick={handleReset}
                         className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all"
-                        title="إعادة تعيين"
+                        title={t.common.reset}
                     >
                         <RotateCcw className="w-4 h-4" />
                     </button>

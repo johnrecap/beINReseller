@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { MIN_BALANCE_WARNING, DURATION_OPTIONS } from '@/lib/constants'
 import { usePrices } from '@/hooks/usePrices'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface OperationResult {
     cardNumber: string
@@ -16,6 +17,7 @@ interface OperationResult {
 export default function BulkRenewForm() {
     const { data: session, update: updateSession } = useSession()
     const { getPrice, loading: pricesLoading } = usePrices()
+    const { t } = useTranslation()
     const [cardNumbers, setCardNumbers] = useState('')
     const [duration, setDuration] = useState('1_month')
     const [loading, setLoading] = useState(false)
@@ -53,7 +55,7 @@ export default function BulkRenewForm() {
             const data = await res.json()
 
             if (!res.ok) {
-                setError(data.error || 'حدث خطأ')
+                setError(data.error || t.common.error)
                 if (data.blockedCards) {
                     setBlockedCards(data.blockedCards)
                 }
@@ -75,7 +77,7 @@ export default function BulkRenewForm() {
             // Update session
             await updateSession()
         } catch (err) {
-            setError('فشل في إرسال الطلب')
+            setError(t.common.error)
         } finally {
             setLoading(false)
         }
@@ -94,7 +96,7 @@ export default function BulkRenewForm() {
             {/* Low Balance Warning */}
             {balance < MIN_BALANCE_WARNING && (
                 <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
-                    ⚠️ رصيدك منخفض ({balance} ريال). يرجى شحن الرصيد.
+                    ⚠️ {t.forms.lowBalanceWarning} ({balance} {t.header.currency})
                 </div>
             )}
 
@@ -103,29 +105,29 @@ export default function BulkRenewForm() {
                     {/* Card Numbers Textarea */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            أرقام الكروت (رقم واحد في كل سطر)
+                            {t.forms.enterCards}
                         </label>
                         <textarea
                             value={cardNumbers}
                             onChange={(e) => setCardNumbers(e.target.value)}
-                            placeholder={`مثال:\n1234567890\n0987654321\n5555666677`}
+                            placeholder={t.forms.enterCardsPlaceholder}
                             rows={6}
                             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none transition-colors text-left dir-ltr font-mono"
                             disabled={loading}
                         />
                         <div className="flex justify-between mt-2 text-xs text-gray-500">
-                            <span>{cards.length} كارت</span>
-                            <span>الحد الأقصى: 10</span>
+                            <span>{cards.length} {t.forms.cardCount}</span>
+                            <span>{t.forms.max10}</span>
                         </div>
                         {cards.length > 10 && (
-                            <p className="text-xs text-red-500 mt-1">الحد الأقصى 10 كروت في الطلب الواحد</p>
+                            <p className="text-xs text-red-500 mt-1">{t.forms.max10CardsError}</p>
                         )}
                     </div>
 
                     {/* Duration Select */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            مدة التجديد (لجميع الكروت)
+                            {t.forms.renewDuration}
                         </label>
                         <div className="grid grid-cols-2 gap-3">
                             {DURATION_OPTIONS.map((option) => (
@@ -139,8 +141,12 @@ export default function BulkRenewForm() {
                                         : 'border-gray-200 hover:border-amber-300'
                                         }`}
                                 >
-                                    <div className="font-bold">{option.label}</div>
-                                    <div className="text-sm text-amber-600">{option.price} ريال/كارت</div>
+                                    <div className="font-bold">
+                                        {(t.forms as any)[`duration_${option.value}`] || option.label}
+                                    </div>
+                                    <div className="text-sm text-amber-600">
+                                        {option.price} {t.header.currency}/{t.forms.perCard}
+                                    </div>
                                 </button>
                             ))}
                         </div>
@@ -150,23 +156,23 @@ export default function BulkRenewForm() {
                     <div className="bg-gradient-to-r from-amber-50 to-amber-100 rounded-xl p-4">
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-gray-600">عدد الكروت:</span>
+                                <span className="text-gray-600">{t.forms.totalCards}:</span>
                                 <span className="font-bold">{cards.length}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-600">سعر الكارت:</span>
-                                <span className="font-bold">{pricePerCard} ريال</span>
+                                <span className="text-gray-600">{t.forms.price}:</span>
+                                <span className="font-bold">{pricePerCard} {t.header.currency}</span>
                             </div>
                         </div>
                         <div className="border-t border-amber-200 mt-3 pt-3">
                             <div className="flex justify-between items-center">
-                                <span className="text-gray-600">الإجمالي:</span>
-                                <span className="text-2xl font-bold text-amber-700">{totalPrice} ريال</span>
+                                <span className="text-gray-600">{t.forms.totalPrice}:</span>
+                                <span className="text-2xl font-bold text-amber-700">{totalPrice} {t.header.currency}</span>
                             </div>
                             <div className="flex justify-between items-center mt-1 text-sm">
-                                <span className="text-gray-500">رصيدك:</span>
+                                <span className="text-gray-500">{t.forms.yourBalance}:</span>
                                 <span className={balance >= totalPrice ? 'text-green-600' : 'text-red-600'}>
-                                    {balance} ريال
+                                    {balance} {t.header.currency}
                                 </span>
                             </div>
                         </div>
@@ -182,7 +188,7 @@ export default function BulkRenewForm() {
                     {/* Blocked Cards Warning */}
                     {blockedCards.length > 0 && (
                         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
-                            <p className="font-bold mb-2">⚠️ الكروت التالية لديها عمليات جارية:</p>
+                            <p className="font-bold mb-2">⚠️ {t.forms.blockedCardsWarning}</p>
                             <ul className="list-disc list-inside">
                                 {blockedCards.map(card => (
                                     <li key={card} className="font-mono">****{card.slice(-4)}</li>
@@ -203,11 +209,11 @@ export default function BulkRenewForm() {
                         {loading ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                جاري الإرسال...
+                                {t.forms.processing}
                             </>
                         ) : (
                             <>
-                                تجديد {cards.length} كارت
+                                {t.forms.submit} {cards.length} {t.forms.cardCount}
                             </>
                         )}
                     </button>
@@ -215,7 +221,7 @@ export default function BulkRenewForm() {
             ) : (
                 /* Results Display */
                 <div className="space-y-4">
-                    <h3 className="text-lg font-bold text-gray-800">نتائج العمليات</h3>
+                    <h3 className="text-lg font-bold text-gray-800">{t.forms.resultsTitle}</h3>
 
                     {/* Results List */}
                     <div className="space-y-2">
@@ -237,8 +243,8 @@ export default function BulkRenewForm() {
                                     <span className="font-mono">****{result.cardNumber.slice(-4)}</span>
                                 </div>
                                 <span className="text-sm text-gray-500">
-                                    {result.status === 'pending' && 'قيد التنفيذ'}
-                                    {result.status === 'success' && 'تم بنجاح'}
+                                    {result.status === 'pending' && t.resultDisplay.status.PENDING}
+                                    {result.status === 'success' && t.resultDisplay.status.COMPLETED}
                                     {result.status === 'error' && result.error}
                                 </span>
                             </div>
@@ -250,9 +256,11 @@ export default function BulkRenewForm() {
                         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
                             <div className="flex items-center gap-2 mb-2">
                                 <AlertCircle className="w-5 h-5" />
-                                <span className="font-bold">تم تخطي {blockedCards.length} كارت</span>
+                                <span className="font-bold">
+                                    {t.forms.skippedCards.replace('{{count}}', blockedCards.length.toString())}
+                                </span>
                             </div>
-                            <p className="text-xs">هذه الكروت لديها عمليات جارية بالفعل</p>
+                            <p className="text-xs">{t.forms.skippedCardsNote}</p>
                         </div>
                     )}
 
@@ -261,7 +269,7 @@ export default function BulkRenewForm() {
                         onClick={handleReset}
                         className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all"
                     >
-                        عملية جديدة
+                        {t.forms.newOperation}
                     </button>
                 </div>
             )}

@@ -5,11 +5,13 @@ import { useSession } from 'next-auth/react'
 import { Zap, Loader2 } from 'lucide-react'
 import { DURATION_OPTIONS, MIN_BALANCE_WARNING } from '@/lib/constants'
 import { usePrices } from '@/hooks/usePrices'
+import { useTranslation } from '@/hooks/useTranslation'
 import ResultDisplay from './ResultDisplay'
 
 export default function RenewForm() {
     const { data: session, update: updateSession } = useSession()
     const { getPrice, loading: pricesLoading } = usePrices()
+    const { t } = useTranslation()
     const [cardNumber, setCardNumber] = useState('')
     const [duration, setDuration] = useState('1_month')
     const [loading, setLoading] = useState(false)
@@ -43,7 +45,7 @@ export default function RenewForm() {
             const data = await res.json()
 
             if (!res.ok) {
-                setError(data.error || 'حدث خطأ')
+                setError(data.error || t.common.error)
                 return
             }
 
@@ -53,7 +55,7 @@ export default function RenewForm() {
             // Update session to reflect new balance
             await updateSession()
         } catch (err) {
-            setError('فشل في إرسال الطلب')
+            setError(t.common.error)
         } finally {
             setLoading(false)
         }
@@ -70,7 +72,7 @@ export default function RenewForm() {
             {/* Low Balance Warning */}
             {balance < MIN_BALANCE_WARNING && (
                 <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
-                    ⚠️ رصيدك منخفض ({balance} ريال). يرجى شحن الرصيد لإجراء العمليات.
+                    ⚠️ {t.forms.lowBalanceWarning} ({balance} {t.header.currency})
                 </div>
             )}
 
@@ -78,25 +80,25 @@ export default function RenewForm() {
                 {/* Card Number Input */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                        رقم الكارت
+                        {t.forms.cardNumber}
                     </label>
                     <input
                         type="text"
                         value={cardNumber}
                         onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                        placeholder="أدخل رقم الكارت (10-16 رقم)"
+                        placeholder={t.forms.enterCardNumber}
                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-colors text-left dir-ltr font-mono"
                         disabled={loading || !!operationId}
                     />
                     {cardNumber && cardNumber.length < 10 && (
-                        <p className="text-xs text-red-500 mt-1">رقم الكارت يجب أن يكون 10 أرقام على الأقل</p>
+                        <p className="text-xs text-red-500 mt-1">{t.forms.invalidCard}</p>
                     )}
                 </div>
 
                 {/* Duration Select */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                        مدة التجديد
+                        {t.forms.duration}
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                         {DURATION_OPTIONS.map((option) => (
@@ -110,8 +112,12 @@ export default function RenewForm() {
                                     : 'border-gray-200 hover:border-purple-300'
                                     }`}
                             >
-                                <div className="font-bold">{option.label}</div>
-                                <div className="text-sm text-purple-600">{option.price} ريال</div>
+                                <div className="font-bold">
+                                    {(t.forms as any)[`duration_${option.value}`] || option.label}
+                                </div>
+                                <div className="text-sm text-purple-600">
+                                    {getPrice(`RENEW_${option.value.toUpperCase()}` as any)} {t.header.currency}
+                                </div>
                             </button>
                         ))}
                     </div>
@@ -120,13 +126,13 @@ export default function RenewForm() {
                 {/* Price Summary */}
                 <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4">
                     <div className="flex justify-between items-center">
-                        <span className="text-gray-600">المبلغ المطلوب:</span>
-                        <span className="text-2xl font-bold text-purple-700">{price} ريال</span>
+                        <span className="text-gray-600">{t.forms.price}:</span>
+                        <span className="text-2xl font-bold text-purple-700">{price} {t.header.currency}</span>
                     </div>
                     <div className="flex justify-between items-center mt-2 text-sm">
-                        <span className="text-gray-500">رصيدك الحالي:</span>
+                        <span className="text-gray-500">{t.forms.yourBalance}:</span>
                         <span className={balance >= price ? 'text-green-600' : 'text-red-600'}>
-                            {balance} ريال
+                            {balance} {t.header.currency}
                         </span>
                     </div>
                 </div>
@@ -151,12 +157,12 @@ export default function RenewForm() {
                         {loading ? (
                             <>
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                جاري الإرسال...
+                                {t.forms.processing}
                             </>
                         ) : (
                             <>
                                 <Zap className="w-5 h-5" />
-                                تجديد الاشتراك
+                                {t.dashboard.renewSubscription}
                             </>
                         )}
                     </button>

@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { UserCheck } from 'lucide-react'
 import ProfileInfo from '@/components/profile/ProfileInfo'
 import ChangePasswordForm from '@/components/profile/ChangePasswordForm'
+import { useTranslation } from '@/hooks/useTranslation'
 
 export default function ProfilePageClient() {
+    const { t } = useTranslation()
     const [user, setUser] = useState(null)
     const [loading, setLoading] = useState(true)
 
@@ -39,15 +41,15 @@ export default function ProfilePageClient() {
     if (!user) return null
 
     return (
-        <div className="space-y-6" dir="rtl">
+        <div className="space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
                     <UserCheck className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">الملف الشخصي</h1>
-                    <p className="text-gray-500 text-sm">إدارة معلومات حسابك وكلمة المرور</p>
+                    <h1 className="text-2xl font-bold text-gray-800">{t.profile.title}</h1>
+                    <p className="text-gray-500 text-sm">{t.profile.subtitle}</p>
                 </div>
             </div>
 

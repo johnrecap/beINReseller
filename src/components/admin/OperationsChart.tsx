@@ -1,3 +1,5 @@
+import { useTranslation } from '@/hooks/useTranslation'
+
 interface ChartData {
     date: string
     total: number
@@ -6,11 +8,12 @@ interface ChartData {
 }
 
 export default function OperationsChart({ data }: { data: ChartData[] }) {
+    const { t } = useTranslation()
     const maxVal = Math.max(...data.map(d => d.total), 1)
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 mb-6">إحصائيات العمليات (7 أيام)</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-6">{t.admin.dashboard.chart.title}</h3>
 
             <div className="h-64 flex items-end justify-between gap-2">
                 {data.map((item, i) => {
@@ -46,11 +49,11 @@ export default function OperationsChart({ data }: { data: ChartData[] }) {
             <div className="flex justify-center gap-6 mt-6 text-sm">
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="text-gray-600">ناجحة</span>
+                    <span className="text-gray-600">{t.admin.dashboard.chart.successful}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-red-100 rounded-full"></div>
-                    <span className="text-gray-600">فاشلة</span>
+                    <span className="text-gray-600">{t.admin.dashboard.chart.failed}</span>
                 </div>
             </div>
         </div>

@@ -7,8 +7,10 @@ import OperationsChart from '@/components/admin/OperationsChart'
 import RecentFailures from '@/components/admin/RecentFailures'
 import RecentDeposits from '@/components/admin/RecentDeposits'
 import WorkerStatusCard from '@/components/admin/WorkerStatusCard'
+import { useTranslation } from '@/hooks/useTranslation'
 
 export default function AdminDashboardClient() {
+    const { t } = useTranslation()
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -18,8 +20,8 @@ export default function AdminDashboardClient() {
             try {
                 const res = await fetch('/api/admin/dashboard')
                 if (!res.ok) {
-                    if (res.status === 401) throw new Error('غير مصرح')
-                    throw new Error('فشل تحميل البيانات')
+                    const json = await res.json()
+                    throw new Error(json.error || 'SERVER_ERROR')
                 }
                 const jsonData = await res.json()
                 setData(jsonData)
@@ -48,10 +50,15 @@ export default function AdminDashboardClient() {
     }
 
     if (error) {
+        const errorMsg = error === 'UNAUTHORIZED' ? t.common.error /* placeholder for unauthorized? */ : t.admin.dashboard.workerStatus.error // fallback
+        // Better error handling:
+        const displayError = (error === 'UNAUTHORIZED' || error === 'غير مصرح') ? 'Unauthorized' :
+            (error === 'SERVER_ERROR' || error === 'حدث خطأ في الخادم') ? t.admin.dashboard.workerStatus.error : error
+
         return (
             <div className="p-8 text-center">
                 <div className="bg-red-50 text-red-600 p-4 rounded-xl inline-block">
-                    ❌ {error}
+                    ❌ {displayError}
                 </div>
             </div>
         )
@@ -60,15 +67,15 @@ export default function AdminDashboardClient() {
     if (!data) return null
 
     return (
-        <div className="space-y-8" dir="rtl">
+        <div className="space-y-8">
             {/* Header */}
             <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-lg">
                     <LayoutDashboard className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">لوحة تحكم الإدارة</h1>
-                    <p className="text-gray-500 text-sm">نظرة عامة على النظام والعمليات</p>
+                    <h1 className="text-2xl font-bold text-gray-800">{t.admin.dashboard.title}</h1>
+                    <p className="text-gray-500 text-sm">{t.admin.dashboard.subtitle}</p>
                 </div>
             </div>
 

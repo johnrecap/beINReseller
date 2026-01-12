@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, MoreVertical, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft } from 'lucide-react'
 import { format } from 'date-fns'
-import { ar } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
 import EditUserDialog from './EditUserDialog'
 import AddBalanceDialog from './AddBalanceDialog'
 import ResetPasswordDialog from './ResetPasswordDialog'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface User {
     id: string
@@ -22,6 +23,7 @@ interface User {
 }
 
 export default function UsersTable() {
+    const { t, language } = useTranslation()
     const [users, setUsers] = useState<User[]>([])
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
@@ -34,6 +36,14 @@ export default function UsersTable() {
     const [editUser, setEditUser] = useState<User | null>(null)
     const [balanceUser, setBalanceUser] = useState<User | null>(null)
     const [resetUser, setResetUser] = useState<User | null>(null)
+
+    const localeMap = {
+        ar: ar,
+        en: enUS,
+        bn: bn
+    }
+
+    const currentLocale = localeMap[language as keyof typeof localeMap] || ar
 
     // Debounce Search
     useEffect(() => {
@@ -62,7 +72,7 @@ export default function UsersTable() {
     }, [fetchUsers])
 
     const handleToggleStatus = async (user: User) => {
-        if (!confirm(user.isActive ? 'هل أنت متأكد من تعطيل هذا المستخدم؟' : 'هل أنت متأكد من تفعيل هذا المستخدم؟')) return
+        if (!confirm(user.isActive ? t.admin.users.actions.disableConfirm : t.admin.users.actions.enableConfirm)) return
 
         try {
             const res = await fetch(`/api/admin/users/${user.id}`, {
@@ -84,7 +94,7 @@ export default function UsersTable() {
                     <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
                         type="text"
-                        placeholder="بحث باسم المستخدم أو البريد..."
+                        placeholder={t.admin.users.actions.searchPlaceholder}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="w-full pr-10 pl-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-500"
@@ -95,7 +105,7 @@ export default function UsersTable() {
                     className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
                 >
                     <Plus className="w-5 h-5" />
-                    <span>إضافة موزع جديد</span>
+                    <span>{t.admin.users.actions.addUser}</span>
                 </button>
             </div>
 
@@ -105,12 +115,12 @@ export default function UsersTable() {
                     <table className="w-full">
                         <thead className="bg-gray-50 border-b border-gray-100">
                             <tr>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">المستخدم</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">الرصيد</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">الحالة</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">النشاط</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">تاريخ الإنشاء</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 pl-6">إجراءات</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.user}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.balance}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.status}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.activity}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.created}</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 pl-6">{t.admin.users.table.actions}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -127,7 +137,7 @@ export default function UsersTable() {
                                 ))
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-gray-400">لا يوجد مستخدمين</td>
+                                    <td colSpan={6} className="p-8 text-center text-gray-400">{t.admin.users.table.noUsers}</td>
                                 </tr>
                             ) : (
                                 users.map((user) => (
@@ -139,54 +149,54 @@ export default function UsersTable() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <p className="font-bold text-gray-800 dir-ltr text-right">{user.balance.toLocaleString()} ريال</p>
+                                            <p className="font-bold text-gray-800 dir-ltr text-right">{user.balance.toLocaleString()} {t.header.currency}</p>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.isActive
-                                                    ? 'bg-green-100 text-green-700'
-                                                    : 'bg-red-100 text-red-700'
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'bg-red-100 text-red-700'
                                                 }`}>
                                                 {user.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                                                {user.isActive ? 'نشط' : 'معطل'}
+                                                {user.isActive ? t.admin.users.table.active : t.admin.users.table.inactive}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-xs text-gray-500">
-                                            <p>{user.operationCount} عملية</p>
-                                            <p>{user.transactionCount} معاملة</p>
+                                            <p>{user.operationCount} {t.admin.users.table.operation}</p>
+                                            <p>{user.transactionCount} {t.admin.users.table.transaction}</p>
                                         </td>
                                         <td className="px-4 py-3 text-xs text-gray-500">
-                                            {format(new Date(user.createdAt), 'dd/MM/yyyy', { locale: ar })}
+                                            {format(new Date(user.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={() => setBalanceUser(user)}
                                                     className="p-1.5 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
-                                                    title="شحن رصيد"
+                                                    title={t.admin.users.actions.addBalance}
                                                 >
                                                     <Wallet className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => setResetUser(user)}
                                                     className="p-1.5 hover:bg-amber-50 text-amber-600 rounded-lg transition-colors"
-                                                    title="إعادة تعيين كلمة المرور"
+                                                    title={t.admin.users.actions.resetPassword}
                                                 >
                                                     <KeyRound className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => setEditUser(user)}
                                                     className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                                                    title="تعديل"
+                                                    title={t.admin.users.actions.edit}
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleToggleStatus(user)}
                                                     className={`p-1.5 rounded-lg transition-colors ${user.isActive
-                                                            ? 'hover:bg-red-50 text-red-600'
-                                                            : 'hover:bg-green-50 text-green-600'
+                                                        ? 'hover:bg-red-50 text-red-600'
+                                                        : 'hover:bg-green-50 text-green-600'
                                                         }`}
-                                                    title={user.isActive ? 'تعطيل' : 'تفعيل'}
+                                                    title={user.isActive ? t.admin.users.actions.disable : t.admin.users.actions.enable}
                                                 >
                                                     {user.isActive ? <Ban className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
                                                 </button>
@@ -203,7 +213,7 @@ export default function UsersTable() {
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
                         <p className="text-sm text-gray-500">
-                            صفحة {page} من {totalPages}
+                            {t.admin.logs.pagination.page} {page} {t.admin.logs.pagination.of} {totalPages}
                         </p>
                         <div className="flex gap-2">
                             <button

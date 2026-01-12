@@ -15,7 +15,7 @@ export async function GET(request: Request) {
             where: { key: 'worker_browser_session' }
         })
 
-        let sessionStatus = 'غير متصل'
+        let sessionStatus = 'DISCONNECTED'
         let sessionAge = 0
 
         if (sessionSetting) {
@@ -25,41 +25,17 @@ export async function GET(request: Request) {
                 sessionAge = Math.floor((Date.now() - createdAt.getTime()) / 1000 / 60) // minutes
 
                 if (sessionAge < 25) {
-                    sessionStatus = 'متصل'
+                    sessionStatus = 'CONNECTED'
                 } else {
-                    sessionStatus = 'منتهي'
+                    sessionStatus = 'EXPIRED'
                 }
             } catch (e) {
-                sessionStatus = 'خطأ'
+                sessionStatus = 'ERROR'
             }
         }
 
-        // Get pending operations count
-        const pendingCount = await prisma.operation.count({
-            where: { status: 'PENDING' }
-        })
-
-        const processingCount = await prisma.operation.count({
-            where: { status: 'PROCESSING' }
-        })
-
-        // Get today's stats
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-
-        const todayStats = await prisma.operation.groupBy({
-            by: ['status'],
-            where: {
-                createdAt: { gte: today }
-            },
-            _count: { id: true }
-        })
-
-        const todayCompleted = todayStats.find(s => s.status === 'COMPLETED')?._count.id || 0
-        const todayFailed = todayStats.find(s => s.status === 'FAILED')?._count.id || 0
-
         // Check Redis connection
-        let redisStatus = 'غير متصل'
+        let redisStatus = 'DISCONNECTED'
         try {
             const redis = new Redis(process.env.REDIS_URL || '', {
                 maxRetriesPerRequest: 1,
@@ -67,10 +43,10 @@ export async function GET(request: Request) {
             })
             await redis.connect()
             await redis.ping()
-            redisStatus = 'متصل'
+            redisStatus = 'CONNECTED'
             await redis.quit()
         } catch (e) {
-            redisStatus = 'غير متصل'
+            redisStatus = 'DISCONNECTED'
         }
 
         return NextResponse.json({
@@ -78,22 +54,13 @@ export async function GET(request: Request) {
                 status: sessionStatus,
                 ageMinutes: sessionAge
             },
-            queue: {
-                pending: pendingCount,
-                processing: processingCount
-            },
-            today: {
-                completed: todayCompleted,
-                failed: todayFailed,
-                successRate: todayCompleted + todayFailed > 0
-                    ? Math.round((todayCompleted / (todayCompleted + todayFailed)) * 100)
-                    : 0
-            },
-            redis: redisStatus
+            redis: {
+                status: redisStatus
+            }
         })
 
     } catch (error) {
         console.error('Worker status error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'SERVER_ERROR' }, { status: 500 })
     }
 }

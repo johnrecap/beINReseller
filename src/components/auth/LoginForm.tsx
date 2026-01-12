@@ -8,8 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 export default function LoginForm() {
+    const { t } = useTranslation()
     const router = useRouter()
     const searchParams = useSearchParams()
     const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
@@ -58,7 +60,7 @@ export default function LoginForm() {
             {/* Username Field */}
             <div className="space-y-2">
                 <Label htmlFor="username" className="text-white font-medium">
-                    اسم المستخدم
+                    {t.auth.username}
                 </Label>
                 <div className="relative">
                     <User className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-purple-300" />
@@ -67,7 +69,7 @@ export default function LoginForm() {
                         type="text"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        placeholder="أدخل اسم المستخدم"
+                        placeholder={t.auth.enterUsername}
                         className="h-12 pr-10 bg-white/10 border-white/20 text-white placeholder:text-purple-300 focus:border-amber-400 focus:ring-amber-400"
                         disabled={isLoading}
                         required
@@ -78,7 +80,7 @@ export default function LoginForm() {
             {/* Password Field */}
             <div className="space-y-2">
                 <Label htmlFor="password" className="text-white font-medium">
-                    كلمة المرور
+                    {t.auth.password}
                 </Label>
                 <div className="relative">
                     <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-purple-300" />
@@ -87,7 +89,7 @@ export default function LoginForm() {
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="أدخل كلمة المرور"
+                        placeholder={t.auth.enterPassword}
                         className="h-12 pr-10 pl-10 bg-white/10 border-white/20 text-white placeholder:text-purple-300 focus:border-amber-400 focus:ring-amber-400"
                         disabled={isLoading}
                         required
@@ -111,10 +113,10 @@ export default function LoginForm() {
                 {isLoading ? (
                     <>
                         <Loader2 className="ml-2 h-5 w-5 animate-spin" />
-                        جاري تسجيل الدخول...
+                        {t.auth.loggingIn}
                     </>
                 ) : (
-                    'تسجيل الدخول'
+                    t.auth.loginButton
                 )}
             </Button>
         </form>

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Save, Loader2, Eye, EyeOff, HelpCircle, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Save, Loader2, Eye, EyeOff, HelpCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface ConfigSection {
     title: string
@@ -18,82 +19,83 @@ interface ConfigField {
     hint?: string
 }
 
-const CONFIG_SECTIONS: ConfigSection[] = [
-    {
-        title: 'بيانات تسجيل الدخول',
-        icon: '🔐',
-        fields: [
-            { key: 'bein_username', label: 'البريد الإلكتروني', type: 'text', placeholder: 'admin@example.com' },
-            { key: 'bein_password', label: 'كلمة المرور', type: 'password', placeholder: '••••••••' },
-            { key: 'bein_totp_secret', label: 'TOTP Secret (Google Authenticator)', type: 'password', placeholder: 'JBSWY3DPEHPK3PXP', hint: 'المفتاح السري من إعداد Google Authenticator' },
-        ]
-    },
-    {
-        title: 'إعدادات الكابتشا (2Captcha)',
-        icon: '🧩',
-        fields: [
-            { key: 'captcha_2captcha_key', label: 'API Key', type: 'password', placeholder: 'مفتاح API من 2captcha.com' },
-            { key: 'captcha_enabled', label: 'تفعيل حل الكابتشا تلقائياً', type: 'checkbox' },
-        ]
-    },
-    {
-        title: 'روابط الصفحات',
-        icon: '🔗',
-        fields: [
-            { key: 'bein_login_url', label: 'صفحة تسجيل الدخول', type: 'text', placeholder: 'https://sbs.bein.com/' },
-            { key: 'bein_renew_url', label: 'صفحة التجديد', type: 'text', placeholder: '/Renew' },
-            { key: 'bein_check_url', label: 'صفحة الاستعلام', type: 'text', placeholder: '/CheckBalance' },
-            { key: 'bein_signal_url', label: 'صفحة تحديث الإشارة', type: 'text', placeholder: '/RefreshSignal' },
-        ]
-    },
-    {
-        title: 'محددات صفحة تسجيل الدخول (Login Selectors)',
-        icon: '🎯',
-        fields: [
-            { key: 'bein_sel_username', label: 'حقل اسم المستخدم', type: 'text', placeholder: '#Login1_UserName' },
-            { key: 'bein_sel_password', label: 'حقل كلمة المرور', type: 'text', placeholder: '#Login1_Password' },
-            { key: 'bein_sel_2fa', label: 'حقل رمز 2FA', type: 'text', placeholder: 'input[placeholder="Enter 2FA"]' },
-            { key: 'bein_sel_captcha_img', label: 'صورة الكابتشا', type: 'text', placeholder: 'img[src*="captcha"]' },
-            { key: 'bein_sel_captcha_input', label: 'حقل الكابتشا', type: 'text', placeholder: 'input[name="captcha"]' },
-            { key: 'bein_sel_submit', label: 'زر تسجيل الدخول', type: 'text', placeholder: 'input[value="Sign In"]' },
-        ]
-    },
-    {
-        title: 'محددات صفحة التجديد (Renew Selectors)',
-        icon: '🔄',
-        fields: [
-            { key: 'bein_sel_card_input', label: 'حقل رقم البطاقة', type: 'text', placeholder: '#CardNumber' },
-            { key: 'bein_sel_duration', label: 'قائمة اختيار المدة', type: 'text', placeholder: '#Duration' },
-            { key: 'bein_sel_renew_submit', label: 'زر التجديد', type: 'text', placeholder: '#btnRenew' },
-            { key: 'bein_sel_success_msg', label: 'رسالة النجاح', type: 'text', placeholder: '.alert-success' },
-            { key: 'bein_sel_error_msg', label: 'رسالة الخطأ', type: 'text', placeholder: '.alert-danger' },
-        ]
-    },
-    {
-        title: 'محددات صفحة الاستعلام (Check Balance Selectors)',
-        icon: '💰',
-        fields: [
-            { key: 'bein_sel_check_card', label: 'حقل رقم البطاقة', type: 'text', placeholder: '#CardNumber' },
-            { key: 'bein_sel_check_submit', label: 'زر الاستعلام', type: 'text', placeholder: '#btnCheck' },
-            { key: 'bein_sel_balance_result', label: 'نتيجة الرصيد', type: 'text', placeholder: '.balance-info' },
-        ]
-    },
-    {
-        title: 'إعدادات متقدمة',
-        icon: '⚙️',
-        fields: [
-            { key: 'worker_session_timeout', label: 'مدة الجلسة (بالدقائق)', type: 'number', placeholder: '25' },
-            { key: 'worker_max_retries', label: 'أقصى عدد محاولات', type: 'number', placeholder: '3' },
-            { key: 'worker_headless', label: 'تشغيل بدون واجهة (Headless)', type: 'checkbox' },
-        ]
-    },
-]
-
 export default function BeINConfigForm() {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [config, setConfig] = useState<Record<string, string>>({})
     const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
+
+    const CONFIG_SECTIONS: ConfigSection[] = useMemo(() => [
+        {
+            title: t.admin.config.sections.loginData,
+            icon: '🔐',
+            fields: [
+                { key: 'bein_username', label: t.admin.config.fields.email, type: 'text', placeholder: 'admin@example.com' },
+                { key: 'bein_password', label: t.admin.config.fields.password, type: 'password', placeholder: '••••••••' },
+                { key: 'bein_totp_secret', label: t.admin.config.fields.totp, type: 'password', placeholder: 'JBSWY3DPEHPK3PXP', hint: t.admin.config.fields.totpHint },
+            ]
+        },
+        {
+            title: t.admin.config.sections.captcha,
+            icon: '🧩',
+            fields: [
+                { key: 'captcha_2captcha_key', label: t.admin.config.fields.apiKey, type: 'password', placeholder: t.admin.config.fields.apiKeyPlaceholder },
+                { key: 'captcha_enabled', label: t.admin.config.fields.autoCaptcha, type: 'checkbox' },
+            ]
+        },
+        {
+            title: t.admin.config.sections.urls,
+            icon: '🔗',
+            fields: [
+                { key: 'bein_login_url', label: t.admin.config.fields.loginPage, type: 'text', placeholder: 'https://sbs.bein.com/' },
+                { key: 'bein_renew_url', label: t.admin.config.fields.renewPage, type: 'text', placeholder: '/Renew' },
+                { key: 'bein_check_url', label: t.admin.config.fields.checkPage, type: 'text', placeholder: '/CheckBalance' },
+                { key: 'bein_signal_url', label: t.admin.config.fields.signalPage, type: 'text', placeholder: '/RefreshSignal' },
+            ]
+        },
+        {
+            title: t.admin.config.sections.loginSelectors,
+            icon: '🎯',
+            fields: [
+                { key: 'bein_sel_username', label: t.admin.config.fields.usernameField, type: 'text', placeholder: '#Login1_UserName' },
+                { key: 'bein_sel_password', label: t.admin.config.fields.passwordField, type: 'text', placeholder: '#Login1_Password' },
+                { key: 'bein_sel_2fa', label: t.admin.config.fields.faField, type: 'text', placeholder: 'input[placeholder="Enter 2FA"]' },
+                { key: 'bein_sel_captcha_img', label: t.admin.config.fields.captchaImg, type: 'text', placeholder: 'img[src*="captcha"]' },
+                { key: 'bein_sel_captcha_input', label: t.admin.config.fields.captchaInput, type: 'text', placeholder: 'input[name="captcha"]' },
+                { key: 'bein_sel_submit', label: t.admin.config.fields.submitBtn, type: 'text', placeholder: 'input[value="Sign In"]' },
+            ]
+        },
+        {
+            title: t.admin.config.sections.renewSelectors,
+            icon: '🔄',
+            fields: [
+                { key: 'bein_sel_card_input', label: t.admin.config.fields.cardInput, type: 'text', placeholder: '#CardNumber' },
+                { key: 'bein_sel_duration', label: t.admin.config.fields.durationList, type: 'text', placeholder: '#Duration' },
+                { key: 'bein_sel_renew_submit', label: t.admin.config.fields.renewSubmit, type: 'text', placeholder: '#btnRenew' },
+                { key: 'bein_sel_success_msg', label: t.admin.config.fields.successMsg, type: 'text', placeholder: '.alert-success' },
+                { key: 'bein_sel_error_msg', label: t.admin.config.fields.errorMsg, type: 'text', placeholder: '.alert-danger' },
+            ]
+        },
+        {
+            title: t.admin.config.sections.checkSelectors,
+            icon: '💰',
+            fields: [
+                { key: 'bein_sel_check_card', label: t.admin.config.fields.cardInput, type: 'text', placeholder: '#CardNumber' },
+                { key: 'bein_sel_check_submit', label: t.admin.config.fields.checkSubmit, type: 'text', placeholder: '#btnCheck' },
+                { key: 'bein_sel_balance_result', label: t.admin.config.fields.balanceResult, type: 'text', placeholder: '.balance-info' },
+            ]
+        },
+        {
+            title: t.admin.config.sections.advanced,
+            icon: '⚙️',
+            fields: [
+                { key: 'worker_session_timeout', label: t.admin.config.fields.sessionTimeout, type: 'number', placeholder: '25' },
+                { key: 'worker_max_retries', label: t.admin.config.fields.maxRetries, type: 'number', placeholder: '3' },
+                { key: 'worker_headless', label: t.admin.config.fields.headless, type: 'checkbox' },
+            ]
+        },
+    ], [t])
 
     useEffect(() => {
         fetch('/api/admin/bein-config')
@@ -103,10 +105,10 @@ export default function BeINConfigForm() {
                 setLoading(false)
             })
             .catch(() => {
-                toast.error('فشل تحميل الإعدادات')
+                toast.error(t.admin.config.messages.loadError)
                 setLoading(false)
             })
-    }, [])
+    }, [t])
 
     const handleChange = (key: string, value: string | boolean) => {
         setConfig(prev => ({ ...prev, [key]: String(value) }))
@@ -123,11 +125,11 @@ export default function BeINConfigForm() {
                 body: JSON.stringify(config),
             })
 
-            if (!res.ok) throw new Error('فشل الحفظ')
+            if (!res.ok) throw new Error(t.admin.config.messages.saveError)
 
-            toast.success('تم حفظ الإعدادات بنجاح')
+            toast.success(t.admin.config.messages.saveSuccess)
         } catch {
-            toast.error('حدث خطأ أثناء الحفظ')
+            toast.error(t.admin.config.messages.saveError)
         } finally {
             setSaving(false)
         }
@@ -141,7 +143,7 @@ export default function BeINConfigForm() {
         return (
             <div className="p-8 text-center text-gray-500">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-                جاري التحميل...
+                {t.common.loading}...
             </div>
         )
     }
@@ -213,7 +215,7 @@ export default function BeINConfigForm() {
                     className="flex items-center gap-2 bg-purple-600 text-white px-8 py-3 rounded-full shadow-2xl hover:bg-purple-700 transition-all hover:scale-105 active:scale-95 disabled:opacity-70 disabled:hover:scale-100"
                 >
                     {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                    <span>حفظ الإعدادات</span>
+                    <span>{saving ? t.admin.config.actions.saving : t.admin.config.actions.save}</span>
                 </button>
             </div>
         </form>

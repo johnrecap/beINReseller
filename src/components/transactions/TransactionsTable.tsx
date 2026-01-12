@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { format } from 'date-fns'
-import { ar } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
 import { ChevronRight, ChevronLeft, FileX } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Transaction {
     id: string
@@ -16,10 +17,10 @@ interface Transaction {
 }
 
 const typeLabels: Record<string, string> = {
-    DEPOSIT: 'شحن رصيد',
-    WITHDRAW: 'سحب رصيد',
-    REFUND: 'استرداد',
-    OPERATION_DEDUCT: 'عملية',
+    DEPOSIT: 'shahnRaseed', // Placeholder for key
+    WITHDRAW: 'withdrawRaseed',
+    REFUND: 'istirdad',
+    OPERATION_DEDUCT: 'operationDeduct',
 }
 
 const typeColors: Record<string, string> = {
@@ -30,10 +31,19 @@ const typeColors: Record<string, string> = {
 }
 
 export default function TransactionsTable() {
+    const { t, language } = useTranslation()
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
+
+    const getDateLocale = () => {
+        switch (language) {
+            case 'ar': return ar
+            case 'bn': return bn
+            default: return enUS
+        }
+    }
 
     const fetchTransactions = useCallback(async () => {
         setLoading(true)
@@ -73,8 +83,8 @@ export default function TransactionsTable() {
         return (
             <div className="bg-white rounded-xl shadow-sm p-12 text-center">
                 <FileX className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-gray-600 mb-2">لا توجد معاملات</h3>
-                <p className="text-gray-400 text-sm">لم يتم العثور على أي معاملات مالية</p>
+                <h3 className="text-lg font-bold text-gray-600 mb-2">{t.transactions.noTransactions}</h3>
+                <p className="text-gray-400 text-sm">{t.transactions.noMatchingTransactions}</p>
             </div>
         )
     }
@@ -87,11 +97,11 @@ export default function TransactionsTable() {
                     <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">#</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">النوع</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">المبلغ</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">الرصيد بعد</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">ملاحظات</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">التاريخ</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.type}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.amount}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.balanceAfter}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.notes}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.date}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -102,14 +112,14 @@ export default function TransactionsTable() {
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${typeColors[tx.type] || 'bg-gray-100'}`}>
-                                        {typeLabels[tx.type] || tx.type}
+                                        {(t.transactions as any)[tx.type === 'DEPOSIT' ? 'deposit' : tx.type === 'WITHDRAW' ? 'withdrawal' : tx.type === 'OPERATION_DEDUCT' ? 'operationDeduction' : 'refund'] || tx.type}
                                     </span>
                                 </td>
                                 <td className={`px-4 py-3 text-sm font-bold ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'} dir-ltr text-right`}>
-                                    {tx.amount > 0 ? '+' : ''}{tx.amount} ريال
+                                    {tx.amount > 0 ? '+' : ''}{tx.amount} {t.header.currency}
                                 </td>
                                 <td className="px-4 py-3 text-sm font-mono text-gray-700">
-                                    {tx.balanceAfter} ريال
+                                    {tx.balanceAfter} {t.header.currency}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">
                                     {tx.notes || '-'}
@@ -118,7 +128,7 @@ export default function TransactionsTable() {
                                     )}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500">
-                                    {format(new Date(tx.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
+                                    {format(new Date(tx.createdAt), 'dd/MM/yyyy HH:mm', { locale: getDateLocale() })}
                                 </td>
                             </tr>
                         ))}
@@ -130,7 +140,7 @@ export default function TransactionsTable() {
             {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
                     <p className="text-sm text-gray-500">
-                        صفحة {page} من {totalPages}
+                        {page} / {totalPages}
                     </p>
                     <div className="flex gap-2">
                         <button

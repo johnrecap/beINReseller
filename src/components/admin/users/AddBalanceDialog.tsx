@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Wallet, X, Loader2 } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface AddBalanceDialogProps {
     isOpen: boolean
@@ -12,6 +13,7 @@ interface AddBalanceDialogProps {
 }
 
 export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, username }: AddBalanceDialogProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -36,7 +38,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
             const json = await res.json()
 
             if (!res.ok) {
-                throw new Error(json.error || 'حدث خطأ')
+                throw new Error(json.error || t.admin.users.messages.error)
             }
 
             onSuccess()
@@ -56,7 +58,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                 <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-green-50">
                     <h3 className="font-bold text-green-800 flex items-center gap-2">
                         <Wallet className="w-5 h-5" />
-                        شحن رصيد
+                        {t.admin.users.dialogs.balanceTitle}
                     </h3>
                     <button onClick={onClose} className="p-1 hover:bg-white/50 rounded-lg text-green-700">
                         <X className="w-5 h-5" />
@@ -64,12 +66,12 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                 </div>
 
                 <div className="p-4 bg-gray-50 border-b border-gray-100 text-sm">
-                    إضافة رصيد للمستخدم: <span className="font-bold">{username}</span>
+                    {t.admin.users.dialogs.balanceLabel}: <span className="font-bold">{username}</span>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">المبلغ (ريال)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.admin.users.dialogs.amount} ({t.header.currency})</label>
                         <input
                             name="amount"
                             type="number"
@@ -83,12 +85,12 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">ملاحظات (اختياري)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.admin.users.dialogs.notes}</label>
                         <textarea
                             name="notes"
                             rows={2}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-green-500 text-sm"
-                            placeholder="سبب الإضافة..."
+                            placeholder={t.admin.users.dialogs.notesPlaceholder}
                         />
                     </div>
 
@@ -104,7 +106,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                             onClick={onClose}
                             className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                         >
-                            إلغاء
+                            {t.admin.users.actions.cancel}
                         </button>
                         <button
                             type="submit"
@@ -112,7 +114,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
                         >
                             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                            تأكيد الشحن
+                            {t.admin.users.actions.confirmBalance}
                         </button>
                     </div>
                 </form>

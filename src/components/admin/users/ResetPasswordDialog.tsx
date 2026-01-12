@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { KeyRound, X, Loader2, Copy, Check } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface ResetPasswordDialogProps {
     isOpen: boolean
@@ -11,6 +12,7 @@ interface ResetPasswordDialogProps {
 }
 
 export default function ResetPasswordDialog({ isOpen, onClose, userId, username }: ResetPasswordDialogProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [newPassword, setNewPassword] = useState<string | null>(null)
@@ -31,7 +33,7 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
 
             const json = await res.json()
 
-            if (!res.ok) throw new Error(json.error || 'حدث خطأ')
+            if (!res.ok) throw new Error(json.error || t.admin.users.messages.error)
 
             setNewPassword(json.newPassword)
         } catch (err: any) {
@@ -63,7 +65,7 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                 <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-amber-50">
                     <h3 className="font-bold text-amber-800 flex items-center gap-2">
                         <KeyRound className="w-5 h-5" />
-                        إعادة تعيين كلمة المرور
+                        {t.admin.users.dialogs.resetTitle}
                     </h3>
                     <button onClick={handleClose} className="p-1 hover:bg-white/50 rounded-lg text-amber-700">
                         <X className="w-5 h-5" />
@@ -74,14 +76,16 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                     {!newPassword ? (
                         <>
                             <p className="text-gray-600">
-                                هل أنت متأكد من رغبتك في إعادة تعيين كلمة المرور للمستخدم <span className="font-bold">{username}</span>؟
+                                {t.admin.users.dialogs.resetConfirm.split('{name}')[0]}
+                                <span className="font-bold">{username}</span>
+                                {t.admin.users.dialogs.resetConfirm.split('{name}')[1]}
                             </p>
                             <div className="flex gap-3 justify-center">
                                 <button
                                     onClick={handleClose}
                                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                                 >
-                                    إلغاء
+                                    {t.admin.users.actions.cancel}
                                 </button>
                                 <button
                                     onClick={handleReset}
@@ -89,7 +93,7 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                                     className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 flex items-center gap-2"
                                 >
                                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    تأكيد وإعادة تعيين
+                                    {t.admin.users.actions.resetPassword}
                                 </button>
                             </div>
                         </>
@@ -98,28 +102,28 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                                 <Check className="w-6 h-6 text-green-600" />
                             </div>
-                            <h4 className="font-bold text-gray-800">تم تغيير كلمة المرور</h4>
+                            <h4 className="font-bold text-gray-800">{t.admin.users.messages.resetSuccess}</h4>
 
                             <div className="bg-gray-100 p-4 rounded-xl flex items-center justify-between border border-gray-200">
                                 <code className="font-mono text-lg text-gray-800 font-bold tracking-wider">{newPassword}</code>
                                 <button
                                     onClick={copyToClipboard}
                                     className="p-2 hover:bg-white rounded-lg text-gray-500 transition-colors"
-                                    title="نسخ"
+                                    title={t.common.copy}
                                 >
                                     {copied ? <Check className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5" />}
                                 </button>
                             </div>
 
                             <p className="text-xs text-gray-500">
-                                انسخ كلمة المرور هذه وأرسلها للمستخدم. لن تظهر مرة أخرى.
+                                {t.admin.users.messages.copyPassword}
                             </p>
 
                             <button
                                 onClick={handleClose}
                                 className="w-full px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-black"
                             >
-                                إغلاق
+                                {t.common.close}
                             </button>
                         </div>
                     )}

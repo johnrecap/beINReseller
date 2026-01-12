@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Loader2, CheckCircle2, XCircle, Clock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { OPERATION_STATUS_LABELS, POLLING_INTERVAL_MS } from '@/lib/constants'
+import { POLLING_INTERVAL_MS } from '@/lib/constants'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Operation {
     id: string
@@ -22,6 +23,7 @@ interface ResultDisplayProps {
 }
 
 export default function ResultDisplay({ operationId, onClose, onStatusChange }: ResultDisplayProps) {
+    const { t } = useTranslation()
     const [operation, setOperation] = useState<Operation | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -41,7 +43,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
             const data = await res.json()
 
             if (!res.ok) {
-                setError(data.error || 'حدث خطأ')
+                setError(data.error || t.common.error)
                 return
             }
 
@@ -63,9 +65,9 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
                 setLoading(false)
             }
         } catch (err) {
-            setError('فشل في جلب حالة العملية')
+            setError(t.common.retry)
         }
-    }, [operationId, onStatusChange])
+    }, [operationId, onStatusChange, t.common.error, t.common.retry])
 
     useEffect(() => {
         if (!operationId) return
@@ -98,7 +100,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
 
             if (!res.ok) {
                 const data = await res.json()
-                setError(data.error || 'فشل إرسال رمز التحقق')
+                setError(data.error || t.common.error)
                 setSubmittingCaptcha(false)
                 return
             }
@@ -108,7 +110,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
             setCaptchaImage(null)
             fetchOperation()
         } catch (err) {
-            setError('فشل إرسال رمز التحقق')
+            setError(t.common.error)
         } finally {
             setSubmittingCaptcha(false)
         }
@@ -132,7 +134,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
             // Refresh operation status
             fetchOperation()
         } catch (err) {
-            setError('فشل في إلغاء العملية')
+            setError(t.resultDisplay.status.FAILED)
         } finally {
             setCancelling(false)
         }
@@ -185,7 +187,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
             <button
                 onClick={onClose}
                 className="absolute top-2 left-2 p-1 rounded-full hover:bg-white/50"
-                aria-label="إغلاق"
+                aria-label={t.common.close}
             >
                 <X className="w-4 h-4 text-gray-400" />
             </button>
@@ -196,7 +198,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
 
                 {/* Status Text */}
                 <h3 className="text-lg font-bold mb-2">
-                    {operation ? (operation.status === 'AWAITING_CAPTCHA' ? 'مطلوب رمز التحقق' : OPERATION_STATUS_LABELS[operation.status] || operation.status) : 'جاري التحميل...'}
+                    {operation ? (operation.status === 'AWAITING_CAPTCHA' ? t.resultDisplay.awaitingCaptcha : (t.resultDisplay.status as any)[operation.status] || operation.status) : t.common.loading}
                 </h3>
 
                 {/* Response Message */}
@@ -218,7 +220,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
                 {operation?.status === 'AWAITING_CAPTCHA' && captchaImage && (
                     <div className="w-full max-w-sm bg-white/80 p-4 rounded-xl shadow-sm border border-yellow-200 mb-4 animate-in fade-in zoom-in duration-300">
                         <h4 className="font-bold text-yellow-800 mb-3 flex items-center justify-center gap-2">
-                            <span>🔐</span> أدخل رمز التحقق
+                            <span>🔐</span> {t.resultDisplay.enterCaptcha}
                         </h4>
 
                         <div className="bg-white p-2 rounded-lg border mb-3 flex justify-center">
@@ -234,7 +236,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
                                 type="text"
                                 value={captchaSolution}
                                 onChange={(e) => setCaptchaSolution(e.target.value)}
-                                placeholder="اكتب الرموز هنا..."
+                                placeholder={t.resultDisplay.typeHere}
                                 className="flex-1 p-2 border rounded-lg text-center font-mono text-lg focus:ring-2 focus:ring-yellow-400 outline-none"
                                 onKeyDown={(e) => e.key === 'Enter' && submitCaptcha()}
                                 autoFocus
@@ -244,12 +246,12 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
                                 disabled={!captchaSolution || submittingCaptcha}
                                 className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50 transition-colors font-bold"
                             >
-                                {submittingCaptcha ? <Loader2 className="w-5 h-5 animate-spin" /> : 'إرسال'}
+                                {submittingCaptcha ? <Loader2 className="w-5 h-5 animate-spin" /> : t.resultDisplay.send}
                             </button>
                         </div>
                         {captchaExpiry && (
                             <p className="text-xs text-center text-gray-500 mt-2">
-                                ينتهي خلال {Math.round(captchaExpiry)} ثانية
+                                {t.resultDisplay.captchaExpires.replace('{{seconds}}', Math.round(captchaExpiry).toString())}
                             </p>
                         )}
                     </div>
@@ -259,12 +261,12 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
                 {operation && (
                     <div className="w-full bg-white/50 rounded-lg p-4 text-sm text-right space-y-2">
                         <div className="flex justify-between">
-                            <span className="text-gray-500">رقم الكارت:</span>
+                            <span className="text-gray-500">{t.forms.cardNumber}:</span>
                             <span className="font-mono">****{operation.cardNumber.slice(-4)}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-gray-500">المبلغ:</span>
-                            <span className="font-bold">{operation.amount} ريال</span>
+                            <span className="text-gray-500">{t.forms.amount}:</span>
+                            <span className="font-bold">{operation.amount} {t.header.currency}</span>
                         </div>
                     </div>
                 )}
@@ -279,10 +281,10 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
                         {cancelling ? (
                             <>
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                جاري الإلغاء...
+                                {t.resultDisplay.cancelling}
                             </>
                         ) : (
-                            'إلغاء العملية'
+                            t.resultDisplay.cancelOperation
                         )}
                     </button>
                 )}

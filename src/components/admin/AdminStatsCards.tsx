@@ -1,4 +1,5 @@
 import { Users, CreditCard, Activity, TrendingUp } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Stats {
     totalUsers: number
@@ -8,6 +9,8 @@ interface Stats {
 }
 
 export default function AdminStatsCards({ stats }: { stats: Stats }) {
+    const { t } = useTranslation()
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {/* Total Users */}
@@ -17,10 +20,10 @@ export default function AdminStatsCards({ stats }: { stats: Stats }) {
                         <Users className="w-6 h-6 text-blue-600" />
                     </div>
                     <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full">
-                        نشط
+                        {t.admin.dashboard.stats.active}
                     </span>
                 </div>
-                <h3 className="text-gray-500 text-sm font-medium mb-1">إجمالي الموزعين</h3>
+                <h3 className="text-gray-500 text-sm font-medium mb-1">{t.admin.dashboard.stats.totalUsers}</h3>
                 <p className="text-2xl font-bold text-gray-800">{stats.totalUsers}</p>
             </div>
 
@@ -31,8 +34,8 @@ export default function AdminStatsCards({ stats }: { stats: Stats }) {
                         <CreditCard className="w-6 h-6 text-purple-600" />
                     </div>
                 </div>
-                <h3 className="text-gray-500 text-sm font-medium mb-1">إجمالي الأرصدة</h3>
-                <p className="text-2xl font-bold text-gray-800">{stats.totalBalance.toLocaleString()} ريال</p>
+                <h3 className="text-gray-500 text-sm font-medium mb-1">{t.admin.dashboard.stats.totalBalance}</h3>
+                <p className="text-2xl font-bold text-gray-800">{stats.totalBalance.toLocaleString()} {t.header.currency}</p>
             </div>
 
             {/* Today's Operations */}
@@ -42,10 +45,10 @@ export default function AdminStatsCards({ stats }: { stats: Stats }) {
                         <Activity className="w-6 h-6 text-amber-600" />
                     </div>
                     <span className="text-xs font-medium px-2 py-1 bg-amber-100 text-amber-700 rounded-full">
-                        اليوم
+                        {t.admin.dashboard.stats.today}
                     </span>
                 </div>
-                <h3 className="text-gray-500 text-sm font-medium mb-1">عمليات اليوم</h3>
+                <h3 className="text-gray-500 text-sm font-medium mb-1">{t.admin.dashboard.stats.todayOperations}</h3>
                 <p className="text-2xl font-bold text-gray-800">{stats.todayOperations}</p>
             </div>
 
@@ -55,9 +58,9 @@ export default function AdminStatsCards({ stats }: { stats: Stats }) {
                     <div className="p-3 bg-green-50 rounded-lg">
                         <TrendingUp className="w-6 h-6 text-green-600" />
                     </div>
-                    <span className="text-xs text-gray-400">آخر 7 أيام</span>
+                    <span className="text-xs text-gray-400">{t.admin.dashboard.stats.last7Days}</span>
                 </div>
-                <h3 className="text-gray-500 text-sm font-medium mb-1">نسبة النجاح</h3>
+                <h3 className="text-gray-500 text-sm font-medium mb-1">{t.admin.dashboard.stats.successRate}</h3>
                 <p className="text-2xl font-bold text-gray-800 dir-ltr text-right">{stats.successRate}%</p>
             </div>
         </div>

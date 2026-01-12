@@ -7,9 +7,7 @@
 
 import { PrismaClient } from '../../node_modules/@prisma/client'
 
-const prisma = new PrismaClient({
-    datasourceUrl: process.env.DATABASE_URL
-})
+const prisma = new PrismaClient()
 
 export class SelectorManager {
     private selectors: Map<string, string> = new Map()

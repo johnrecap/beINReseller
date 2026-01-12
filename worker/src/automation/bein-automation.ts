@@ -16,9 +16,7 @@ import { TOTPGenerator } from '../utils/totp-generator'
 import { CaptchaSolver } from '../utils/captcha-solver'
 import { SessionManager } from '../utils/session-manager'
 
-const prisma = new PrismaClient({
-    datasourceUrl: process.env.DATABASE_URL
-})
+const prisma = new PrismaClient()
 
 interface BeINConfig {
     // Credentials

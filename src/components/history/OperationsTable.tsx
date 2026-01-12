@@ -1,9 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { format } from 'date-fns'
 import { ar } from 'date-fns/locale'
-import { ChevronRight, ChevronLeft, FileX } from 'lucide-react'
+import { ChevronRight, ChevronLeft, FileX, XCircle, Loader2 } from 'lucide-react'
 import { OPERATION_TYPE_LABELS, OPERATION_STATUS_LABELS } from '@/lib/constants'
+import { toast } from 'sonner'
 
 interface Operation {
     id: string
@@ -21,11 +23,13 @@ interface OperationsTableProps {
     page: number
     totalPages: number
     onPageChange: (page: number) => void
+    onRefresh?: () => void
 }
 
 const statusColors: Record<string, string> = {
     PENDING: 'bg-amber-100 text-amber-700',
     PROCESSING: 'bg-blue-100 text-blue-700',
+    AWAITING_CAPTCHA: 'bg-yellow-100 text-yellow-700',
     COMPLETED: 'bg-green-100 text-green-700',
     FAILED: 'bg-red-100 text-red-700',
     CANCELLED: 'bg-gray-100 text-gray-600',
@@ -37,13 +41,45 @@ const typeColors: Record<string, string> = {
     SIGNAL_REFRESH: 'bg-green-100 text-green-700',
 }
 
+// Statuses that can be cancelled
+const CANCELLABLE_STATUSES = ['PENDING', 'AWAITING_CAPTCHA', 'FAILED']
+
 export default function OperationsTable({
     operations,
     loading,
     page,
     totalPages,
     onPageChange,
+    onRefresh,
 }: OperationsTableProps) {
+    const [cancellingId, setCancellingId] = useState<string | null>(null)
+
+    const handleCancel = async (operation: Operation) => {
+        const confirmed = window.confirm(
+            `هل أنت متأكد من إلغاء هذه العملية واسترداد ${operation.amount} ريال؟`
+        )
+        if (!confirmed) return
+
+        setCancellingId(operation.id)
+        try {
+            const res = await fetch(`/api/operations/${operation.id}/cancel`, {
+                method: 'POST',
+            })
+            const data = await res.json()
+
+            if (res.ok) {
+                toast.success(`تم إلغاء العملية واسترداد ${data.refunded} ريال`)
+                onRefresh?.()
+            } else {
+                toast.error(data.error || 'فشل إلغاء العملية')
+            }
+        } catch {
+            toast.error('حدث خطأ في الاتصال')
+        } finally {
+            setCancellingId(null)
+        }
+    }
+
     if (loading) {
         return (
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -81,6 +117,7 @@ export default function OperationsTable({
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">الحالة</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">النتيجة</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">التاريخ</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">إجراءات</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -111,6 +148,24 @@ export default function OperationsTable({
                                 <td className="px-4 py-3 text-sm text-gray-500">
                                     {format(new Date(op.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
                                 </td>
+                                <td className="px-4 py-3">
+                                    {CANCELLABLE_STATUSES.includes(op.status) ? (
+                                        <button
+                                            onClick={() => handleCancel(op)}
+                                            disabled={cancellingId === op.id}
+                                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {cancellingId === op.id ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                                <XCircle className="w-3.5 h-3.5" />
+                                            )}
+                                            <span>إلغاء واسترداد</span>
+                                        </button>
+                                    ) : (
+                                        <span className="text-xs text-gray-400">-</span>
+                                    )}
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -127,6 +182,7 @@ export default function OperationsTable({
                         <button
                             onClick={() => onPageChange(page - 1)}
                             disabled={page <= 1}
+                            title="الصفحة السابقة"
                             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronRight className="w-4 h-4" />
@@ -134,6 +190,7 @@ export default function OperationsTable({
                         <button
                             onClick={() => onPageChange(page + 1)}
                             disabled={page >= totalPages}
+                            title="الصفحة التالية"
                             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft className="w-4 h-4" />

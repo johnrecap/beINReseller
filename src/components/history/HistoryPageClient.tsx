@@ -94,6 +94,7 @@ export default function HistoryPageClient() {
                 page={page}
                 totalPages={totalPages}
                 onPageChange={handlePageChange}
+                onRefresh={fetchOperations}
             />
         </div>
     )

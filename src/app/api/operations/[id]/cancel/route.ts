@@ -38,10 +38,10 @@ export async function POST(
             )
         }
 
-        // PENDING and AWAITING_CAPTCHA can be cancelled
-        if (!['PENDING', 'AWAITING_CAPTCHA'].includes(operation.status)) {
+        // PENDING, AWAITING_CAPTCHA, and FAILED can be cancelled
+        if (!['PENDING', 'AWAITING_CAPTCHA', 'FAILED'].includes(operation.status)) {
             return NextResponse.json(
-                { error: 'لا يمكن إلغاء هذه العملية - فقط العمليات قيد الانتظار يمكن إلغاؤها' },
+                { error: 'لا يمكن إلغاء هذه العملية - فقط العمليات قيد الانتظار أو الفاشلة يمكن إلغاؤها' },
                 { status: 400 }
             )
         }

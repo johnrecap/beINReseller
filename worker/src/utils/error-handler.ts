@@ -2,17 +2,7 @@
  * Error Handler - Centralized error handling and refund logic
  */
 
-import 'dotenv/config'
-
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient({
-    datasources: {
-        db: {
-            url: process.env.DATABASE_URL
-        }
-    }
-})
+import { prisma } from '../lib/prisma'
 
 export interface OperationError {
     type: 'LOGIN_FAILED' | 'CAPTCHA_FAILED' | 'TIMEOUT' | 'NETWORK' | 'ELEMENT_NOT_FOUND' | 'UNKNOWN'

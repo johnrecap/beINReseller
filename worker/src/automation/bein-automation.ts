@@ -10,21 +10,11 @@
  * All settings are loaded from the database dynamically.
  */
 
-import 'dotenv/config'
-
 import { Browser, Page, chromium, BrowserContext } from 'playwright'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import { TOTPGenerator } from '../utils/totp-generator'
 import { CaptchaSolver } from '../utils/captcha-solver'
 import { SessionManager } from '../utils/session-manager'
-
-const prisma = new PrismaClient({
-    datasources: {
-        db: {
-            url: process.env.DATABASE_URL
-        }
-    }
-})
 
 interface BeINConfig {
     // Credentials

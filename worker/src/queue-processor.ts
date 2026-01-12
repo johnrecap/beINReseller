@@ -8,21 +8,11 @@
  * - Activity logging
  */
 
-import 'dotenv/config'
-
 import { Job } from 'bullmq'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from './lib/prisma'
 import { BeINAutomation } from './automation/bein-automation'
 import { withRetry, calculateDelay } from './utils/retry-strategy'
 import { classifyError, refundUser, markOperationFailed } from './utils/error-handler'
-
-const prisma = new PrismaClient({
-    datasources: {
-        db: {
-            url: process.env.DATABASE_URL
-        }
-    }
-})
 
 interface OperationJobData {
     operationId: string

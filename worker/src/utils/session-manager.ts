@@ -5,16 +5,7 @@
  * repeated logins within the session timeout window.
  */
 
-import 'dotenv/config'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient({
-    datasources: {
-        db: {
-            url: process.env.DATABASE_URL
-        }
-    }
-})
+import { prisma } from '../lib/prisma'
 
 interface SavedSession {
     storageState: any

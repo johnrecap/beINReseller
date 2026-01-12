@@ -20,6 +20,7 @@ import {
     BarChart3
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/hooks/useTranslation'
 
 const resellerLinks = [
     { href: '/dashboard', label: 'الرئيسية', icon: Home },
@@ -46,7 +47,26 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname()
     const { data: session } = useSession()
+    const { t, dir } = useTranslation() // Hook usage
     const isAdmin = session?.user?.role === 'ADMIN'
+
+    // Moved inside to access 't'
+    const resellerLinks = [
+        { href: '/dashboard', label: t.sidebar.home, icon: Home },
+        { href: '/dashboard/operations', label: t.sidebar.operations, icon: Zap },
+        { href: '/dashboard/history', label: t.sidebar.history, icon: History },
+        { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
+        { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },
+    ]
+
+    const adminLinks = [
+        { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home }, // Using mainMenu as 'Admin Panel' key equivalent or fallback
+        { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
+        { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
+        { href: '/dashboard/admin/bein-config', label: t.sidebar.beinConfig, icon: Bot },
+        { href: '/dashboard/admin/settings', label: t.sidebar.settings, icon: Settings },
+        { href: '/dashboard/admin/logs', label: t.sidebar.logs, icon: FileText },
+    ]
 
     const handleLogout = async () => {
         await signOut({ callbackUrl: '/login' })
@@ -62,21 +82,26 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 />
             )}
 
-            {/* Sidebar - Fixed on LEFT */}
+            {/* Sidebar - Fixed on LEFT or RIGHT based on dir */}
             <aside
                 className={cn(
-                    "fixed top-0 left-0 h-screen w-72 bg-gradient-to-b from-gray-900 to-gray-800 text-white flex flex-col z-50 transition-transform duration-300",
-                    // Mobile: hidden (-translate-x-full = slide left off screen)
-                    isOpen ? "translate-x-0" : "-translate-x-full",
+                    "fixed top-0 h-screen w-72 bg-gradient-to-b from-gray-900 to-gray-800 text-white flex flex-col z-50 transition-transform duration-300",
+                    dir === 'rtl' ? "right-0 border-l border-white/10" : "left-0 border-r border-white/10",
+                    // Mobile: hidden logic
+                    isOpen ? "translate-x-0" : (dir === 'rtl' ? "translate-x-full" : "-translate-x-full"),
                     // Desktop: always visible
                     "lg:translate-x-0"
                 )}
+                dir={dir}
             >
                 {/* Close button for mobile */}
                 <button
                     onClick={onClose}
-                    className="absolute top-4 left-4 p-2 rounded-lg hover:bg-white/10 lg:hidden"
-                    aria-label="إغلاق القائمة"
+                    className={cn(
+                        "absolute top-4 p-2 rounded-lg hover:bg-white/10 lg:hidden",
+                        dir === 'rtl' ? "left-4" : "right-4"
+                    )}
+                    aria-label="Close Menu"
                 >
                     <X className="w-5 h-5" />
                 </button>
@@ -89,7 +114,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         </div>
                         <div>
                             <h1 className="text-xl font-bold">beIN Panel</h1>
-                            <p className="text-xs text-gray-400">لوحة تحكم الموزعين</p>
+                            <p className="text-xs text-gray-400">{t.sidebar.resellerPanel}</p>
                         </div>
                     </div>
                 </div>
@@ -97,7 +122,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     <div className="mb-6">
-                        <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 px-3">القائمة الرئيسية</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 px-3">{t.sidebar.mainMenu}</p>
                         {resellerLinks.map((link) => {
                             const Icon = link.icon
                             const isActive = pathname === link.href
@@ -115,7 +140,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 >
                                     <Icon className="w-5 h-5" />
                                     <span>{link.label}</span>
-                                    {isActive && <ChevronLeft className="w-4 h-4 mr-auto" />}
+                                    {isActive && <ChevronLeft className={cn("w-4 h-4", dir === 'rtl' ? 'mr-auto' : 'ml-auto')} />}
                                 </Link>
                             )
                         })}
@@ -123,7 +148,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                     {isAdmin && (
                         <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 px-3">الإدارة</p>
+                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 px-3">{t.sidebar.admin}</p>
                             {adminLinks.map((link) => {
                                 const Icon = link.icon
                                 const isActive = pathname === link.href || pathname.startsWith(link.href + '/')

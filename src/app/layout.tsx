@@ -14,16 +14,20 @@ export const metadata: Metadata = {
   description: "لوحة تحكم موزعي خدمات beIN Sports",
 };
 
+import Providers from "@/components/providers/Providers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="ltr">
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body className={`${cairo.variable} font-arabic antialiased bg-gray-50`}>
-        {children}
-        <Toaster position="top-center" richColors />
+        <Providers>
+          {children}
+          <Toaster position="top-center" richColors />
+        </Providers>
       </body>
     </html>
   );

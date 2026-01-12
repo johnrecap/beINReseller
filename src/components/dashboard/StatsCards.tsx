@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Wallet, Activity, Clock, TrendingUp } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { ar } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Stats {
     balance: number
@@ -19,8 +20,18 @@ interface Stats {
 }
 
 export default function StatsCards() {
+    const { t, language } = useTranslation()
     const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
+
+    // Map language to date-fns locale
+    const getDateLocale = () => {
+        switch (language) {
+            case 'ar': return ar
+            case 'bn': return bn
+            default: return enUS
+        }
+    }
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -59,34 +70,35 @@ export default function StatsCards() {
         )
     }
 
+
     const cards = [
         {
-            title: 'رصيدي',
+            title: t.dashboard.myBalance,
             value: stats?.balance?.toFixed(2) || '0.00',
-            subtitle: 'ريال سعودي',
+            subtitle: t.header.currency,
             icon: Wallet,
             gradient: 'from-purple-500 to-purple-600'
         },
         {
-            title: 'عمليات اليوم',
+            title: t.dashboard.todayOperations,
             value: stats?.todayOperations || 0,
-            subtitle: 'عملية',
+            subtitle: t.common.operations || 'Operations',
             icon: Activity,
             gradient: 'from-emerald-500 to-emerald-600'
         },
         {
-            title: 'آخر عملية',
+            title: t.dashboard.lastOperation,
             value: stats?.lastOperation
-                ? formatDistanceToNow(new Date(stats.lastOperation.createdAt), { addSuffix: true, locale: ar })
+                ? formatDistanceToNow(new Date(stats.lastOperation.createdAt), { addSuffix: true, locale: getDateLocale() })
                 : '-',
-            subtitle: stats?.lastOperation ? `${stats.lastOperation.type}` : 'لا توجد عمليات',
+            subtitle: stats?.lastOperation ? `${stats.lastOperation.type}` : t.common.noData,
             icon: Clock,
             gradient: 'from-amber-500 to-amber-600'
         },
         {
-            title: 'نسبة النجاح',
+            title: t.dashboard.successRate,
             value: `${stats?.successRate || 100}%`,
-            subtitle: 'آخر 7 أيام',
+            subtitle: t.common.status,
             icon: TrendingUp,
             gradient: 'from-blue-500 to-blue-600'
         }

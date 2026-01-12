@@ -5,6 +5,7 @@ import { Wallet } from 'lucide-react'
 import { MobileMenuButton } from './Sidebar'
 import NotificationBell from '@/components/NotificationBell'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface HeaderProps {
     title: string
@@ -13,6 +14,7 @@ interface HeaderProps {
 
 export default function Header({ title, onMenuClick }: HeaderProps) {
     const { data: session } = useSession()
+    const { t } = useTranslation()
 
     return (
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
@@ -34,9 +36,9 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
                 <div className="flex items-center gap-2 px-3 lg:px-4 py-2 bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl">
                     <Wallet className="w-4 lg:w-5 h-4 lg:h-5 text-purple-600" />
                     <div className="text-right">
-                        <p className="text-[10px] lg:text-xs text-purple-600">رصيدي</p>
+                        <p className="text-[10px] lg:text-xs text-purple-600">{t.header.balance}</p>
                         <p className="font-bold text-sm lg:text-base text-purple-700">
-                            {session?.user?.balance?.toFixed(2) || '0.00'} <span className="hidden sm:inline">ريال</span>
+                            {session?.user?.balance?.toFixed(2) || '0.00'} <span className="hidden sm:inline">{t.header.currency}</span>
                         </p>
                     </div>
                 </div>

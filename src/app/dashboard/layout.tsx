@@ -1,6 +1,6 @@
 import { requireAuth } from '@/lib/auth-utils'
 import DashboardShell from '@/components/layout/DashboardShell'
-import Providers from '@/components/providers/Providers'
+
 
 export default async function DashboardLayout({
     children,
@@ -11,10 +11,8 @@ export default async function DashboardLayout({
     await requireAuth()
 
     return (
-        <Providers>
-            <DashboardShell>
-                {children}
-            </DashboardShell>
-        </Providers>
+        <DashboardShell>
+            {children}
+        </DashboardShell>
     )
 }

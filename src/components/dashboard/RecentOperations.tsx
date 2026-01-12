@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatDistanceToNow } from 'date-fns'
-import { ar } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Operation {
     id: string
@@ -23,22 +24,36 @@ const statusColors: Record<string, string> = {
     FAILED: 'bg-red-100 text-red-700'
 }
 
-const statusLabels: Record<string, string> = {
-    PENDING: 'قيد الانتظار',
-    PROCESSING: 'جاري التنفيذ',
-    COMPLETED: 'مكتمل',
-    FAILED: 'فشل'
-}
 
-const typeLabels: Record<string, string> = {
-    RENEW: 'تجديد',
-    CHECK: 'استعلام',
-    SIGNAL_REFRESH: 'تنشيط إشارة'
-}
+
+
 
 export default function RecentOperations() {
+    const { t, language } = useTranslation()
     const [operations, setOperations] = useState<Operation[]>([])
     const [loading, setLoading] = useState(true)
+
+    const getDateLocale = () => {
+        switch (language) {
+            case 'ar': return ar
+            case 'bn': return bn
+            default: return enUS
+        }
+    }
+
+    const statusLabels: Record<string, string> = {
+        PENDING: t.status.pending,
+        PROCESSING: t.status.processing,
+        COMPLETED: t.status.completed,
+        FAILED: t.status.failed,
+        AWAITING_CAPTCHA: t.status.awaitingCaptcha,
+    }
+
+    const typeLabels: Record<string, string> = {
+        RENEW: t.operations.renew,
+        CHECK: t.operations.checkBalance,
+        SIGNAL_REFRESH: t.operations.refreshSignal
+    }
 
     useEffect(() => {
         const fetchOperations = async () => {
@@ -62,7 +77,7 @@ export default function RecentOperations() {
         return (
             <Card className="bg-white border-0 shadow-lg">
                 <CardHeader>
-                    <CardTitle className="text-lg text-gray-800">آخر العمليات</CardTitle>
+                    <CardTitle className="text-lg text-gray-800">{t.dashboard.recentOperations}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
@@ -85,19 +100,19 @@ export default function RecentOperations() {
     return (
         <Card className="bg-white border-0 shadow-lg">
             <CardHeader>
-                <CardTitle className="text-lg text-gray-800">آخر العمليات</CardTitle>
+                <CardTitle className="text-lg text-gray-800">{t.dashboard.recentOperations}</CardTitle>
             </CardHeader>
             <CardContent>
                 {operations.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
-                        <p>لا توجد عمليات بعد</p>
+                        <p>{t.common.noData}</p>
                     </div>
                 ) : (
                     <div className="space-y-4">
                         {operations.map((op) => (
                             <div key={op.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${op.type === 'RENEW' ? 'bg-purple-100' :
-                                        op.type === 'CHECK' ? 'bg-emerald-100' : 'bg-amber-100'
+                                    op.type === 'CHECK' ? 'bg-emerald-100' : 'bg-amber-100'
                                     }`}>
                                     <span className="text-lg">
                                         {op.type === 'RENEW' ? '⚡' : op.type === 'CHECK' ? '🔍' : '📡'}
@@ -108,7 +123,7 @@ export default function RecentOperations() {
                                         {typeLabels[op.type] || op.type}
                                     </p>
                                     <p className="text-sm text-gray-400 truncate">
-                                        {op.cardNumber} • {formatDistanceToNow(new Date(op.createdAt), { addSuffix: true, locale: ar })}
+                                        {op.cardNumber} • {formatDistanceToNow(new Date(op.createdAt), { addSuffix: true, locale: getDateLocale() })}
                                     </p>
                                 </div>
                                 <Badge className={`${statusColors[op.status]} border-0`}>

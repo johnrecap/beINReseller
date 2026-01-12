@@ -3,19 +3,21 @@
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Search, Loader2 } from 'lucide-react'
-import { OPERATION_PRICES, MIN_BALANCE_WARNING } from '@/lib/constants'
+import { MIN_BALANCE_WARNING } from '@/lib/constants'
+import { usePrices } from '@/hooks/usePrices'
 import ResultDisplay from './ResultDisplay'
 
 export default function CheckBalanceForm() {
     const { data: session, update: updateSession } = useSession()
+    const { getPrice, loading: pricesLoading } = usePrices()
     const [cardNumber, setCardNumber] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [operationId, setOperationId] = useState<string | null>(null)
 
-    const price = OPERATION_PRICES.CHECK_BALANCE
+    const price = getPrice('CHECK_BALANCE')
     const balance = session?.user?.balance || 0
-    const canSubmit = cardNumber.length >= 10 && balance >= price && !loading
+    const canSubmit = cardNumber.length >= 10 && balance >= price && !loading && !pricesLoading
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -108,8 +110,8 @@ export default function CheckBalanceForm() {
                         type="submit"
                         disabled={!canSubmit}
                         className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${canSubmit
-                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
-                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/25'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             }`}
                     >
                         {loading ? (

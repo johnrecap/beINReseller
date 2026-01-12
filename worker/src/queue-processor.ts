@@ -13,6 +13,7 @@ import { prisma } from './lib/prisma'
 import { BeINAutomation } from './automation/bein-automation'
 import { withRetry, calculateDelay } from './utils/retry-strategy'
 import { classifyError, refundUser, markOperationFailed } from './utils/error-handler'
+import { createNotification } from './utils/notification'
 
 interface OperationJobData {
     operationId: string
@@ -23,7 +24,7 @@ interface OperationJobData {
     amount: number
 }
 
-const CAPTCHA_TIMEOUT_MS = 120 * 1000 // 2 minutes
+const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT || '120') * 1000
 
 export async function processOperation(job: Job<OperationJobData>, automation: BeINAutomation): Promise<void> {
     const { operationId, type, cardNumber, duration, userId, amount } = job.data
@@ -54,6 +55,15 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
                         captchaImage: loginResult.captchaImage,
                         captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
                     }
+                })
+
+                // Notify User Action Required
+                await createNotification({
+                    userId,
+                    title: 'مطلوب إدخال كود التحقق',
+                    message: 'يرجى إدخال كود التحقق لإكمال العملية',
+                    type: 'warning',
+                    link: '/dashboard/operations'
                 })
 
                 // Wait for solution
@@ -101,6 +111,16 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
                     captchaExpiry: null
                 }
             })
+
+            // Notify Success
+            await createNotification({
+                userId,
+                title: 'تمت العملية بنجاح',
+                message: result.message,
+                type: 'success',
+                link: '/dashboard/history'
+            })
+
             console.log(`✅ Operation ${operationId} completed: ${result.message}`)
         } else {
             throw new Error(result.message)
@@ -147,6 +167,18 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
             // Permanent failure - mark as failed and refund
             await markOperationFailed(operationId, classifiedError, retryCount)
             await refundUser(operationId, userId, amount, classifiedError.message)
+
+            // Notify Failure
+            // IMPORTANT: refundUser handles the refund notification, but we can send a general failure notification if needed.
+            // Assuming refundUser handles it or we add one here. Let's add explicit failure notification here for clarity 
+            // since refundUser might only notify about refund.
+            await createNotification({
+                userId,
+                title: 'فشلت العملية',
+                message: classifiedError.message,
+                type: 'error',
+                link: '/dashboard/history'
+            })
 
             console.log(`💔 Operation ${operationId} permanently failed after ${retryCount} attempts`)
         }

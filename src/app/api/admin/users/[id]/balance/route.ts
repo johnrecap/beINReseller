@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { createNotification } from '@/lib/notification'
 
 const addBalanceSchema = z.object({
     amount: z.number().min(1, 'المبلغ يجب أن يكون أكبر من 0'),
@@ -17,6 +19,18 @@ export async function PATCH(
         const session = await auth()
         if (!session?.user?.id || session.user.role !== 'ADMIN') {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        }
+
+        // Rate Limit
+        const { allowed, result: limitResult } = await withRateLimit(
+            `admin:${session.user.id}`,
+            RATE_LIMITS.admin
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { status: 429, headers: rateLimitHeaders(limitResult) }
+            )
         }
 
         const body = await request.json()
@@ -66,6 +80,15 @@ export async function PATCH(
                     details: `Added ${amount} to user ${currentUser.username}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
                 }
+            })
+
+            // 5. Notify User
+            await createNotification({
+                userId: id,
+                title: 'تم إضافة رصيد',
+                message: `تم إضافة ${amount} إلى رصيدك. الرصيد الحالي: ${updatedUser.balance}`,
+                type: 'success',
+                link: '/dashboard/history'
             })
 
             return updatedUser

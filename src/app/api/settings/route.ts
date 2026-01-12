@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 // Allow public read or restricted? 
 // For now, let's say some settings might be public (maintenance), but for this API it's the ADMIN management API.
@@ -37,6 +38,18 @@ export async function PUT(request: Request) {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
         }
 
+        // Rate Limit
+        const { allowed, result: limitResult } = await withRateLimit(
+            `admin:${session.user.id}`,
+            RATE_LIMITS.admin
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { status: 429, headers: rateLimitHeaders(limitResult) }
+            )
+        }
+
         const body = await request.json()
         // Body is expected to be { key: value, key2: value2 }
 
@@ -50,12 +63,26 @@ export async function PUT(request: Request) {
 
         await prisma.$transaction(updates)
 
+        // Filter sensitive data for logging
+        const SENSITIVE_KEYS = [
+            'bein_password',
+            'bein_totp_secret',
+            'captcha_2captcha_key'
+        ]
+
+        const safeDetails = Object.fromEntries(
+            Object.entries(body).map(([key, value]) => [
+                key,
+                SENSITIVE_KEYS.includes(key) ? '********' : value
+            ])
+        )
+
         // Log activity
         await prisma.activityLog.create({
             data: {
                 userId: session.user.id,
                 action: 'ADMIN_UPDATE_SETTINGS',
-                details: JSON.stringify(body),
+                details: JSON.stringify(safeDetails),
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
             }
         })

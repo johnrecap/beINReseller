@@ -3,19 +3,21 @@
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Radio, Loader2 } from 'lucide-react'
-import { OPERATION_PRICES, MIN_BALANCE_WARNING } from '@/lib/constants'
+import { MIN_BALANCE_WARNING } from '@/lib/constants'
+import { usePrices } from '@/hooks/usePrices'
 import ResultDisplay from './ResultDisplay'
 
 export default function SignalRefreshForm() {
     const { data: session, update: updateSession } = useSession()
+    const { getPrice, loading: pricesLoading } = usePrices()
     const [cardNumber, setCardNumber] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [operationId, setOperationId] = useState<string | null>(null)
 
-    const price = OPERATION_PRICES.SIGNAL_REFRESH
+    const price = getPrice('SIGNAL_REFRESH')
     const balance = session?.user?.balance || 0
-    const canSubmit = cardNumber.length >= 10 && balance >= price && !loading
+    const canSubmit = cardNumber.length >= 10 && balance >= price && !loading && !pricesLoading
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -108,8 +110,8 @@ export default function SignalRefreshForm() {
                         type="submit"
                         disabled={!canSubmit}
                         className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${canSubmit
-                                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-500/25'
-                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-500/25'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             }`}
                     >
                         {loading ? (

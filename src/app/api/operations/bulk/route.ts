@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { getOperationPrice } from '@/lib/constants'
+import { getOperationPriceFromDB } from '@/lib/pricing'
 import { addOperationJob } from '@/lib/queue'
+import { createNotification } from '@/lib/notification'
 
 const MAX_CARDS_PER_REQUEST = 10
 
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
         const uniqueCardNumbers = [...new Set(cardNumbers)]
 
         // Calculate total price
-        const pricePerOperation = getOperationPrice(type, duration)
+        const pricePerOperation = await getOperationPriceFromDB(type, duration)
         const totalPrice = pricePerOperation * uniqueCardNumbers.length
 
         // Get user and check balance
@@ -153,11 +154,22 @@ export async function POST(request: Request) {
                     type,
                     cardNumber: op.cardNumber,
                     duration,
+                    userId: user.id,
+                    amount: pricePerOperation,
                 })
             } catch (err) {
                 console.error(`Failed to queue operation ${op.operationId}:`, err)
             }
         }
+
+        // Notify Success
+        await createNotification({
+            userId: user.id,
+            title: 'تم استلام طلب الجملة',
+            message: `جاري معالجة ${result.length} عملية`,
+            type: 'info',
+            link: '/dashboard/history'
+        })
 
         return NextResponse.json({
             success: true,

@@ -43,7 +43,8 @@ export const RATE_LIMITS = {
     login: { limit: 5, windowSeconds: 15 * 60 },
 
     /** Operation creation: 30 per minute */
-    operations: { limit: 30, windowSeconds: 60 },
+    /** Operation creation: 15 per minute - Reduced for security */
+    operations: { limit: 15, windowSeconds: 60 },
 
     /** API general: 100 per minute */
     api: { limit: 100, windowSeconds: 60 },

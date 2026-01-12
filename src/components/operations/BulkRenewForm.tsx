@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
-import { DURATION_OPTIONS, getOperationPrice, MIN_BALANCE_WARNING } from '@/lib/constants'
+import { MIN_BALANCE_WARNING, DURATION_OPTIONS } from '@/lib/constants'
+import { usePrices } from '@/hooks/usePrices'
 
 interface OperationResult {
     cardNumber: string
@@ -14,6 +15,7 @@ interface OperationResult {
 
 export default function BulkRenewForm() {
     const { data: session, update: updateSession } = useSession()
+    const { getPrice, loading: pricesLoading } = usePrices()
     const [cardNumbers, setCardNumbers] = useState('')
     const [duration, setDuration] = useState('1_month')
     const [loading, setLoading] = useState(false)
@@ -21,11 +23,12 @@ export default function BulkRenewForm() {
     const [results, setResults] = useState<OperationResult[] | null>(null)
     const [blockedCards, setBlockedCards] = useState<string[]>([])
 
-    const pricePerCard = getOperationPrice('RENEW', duration)
+    const priceKey = `RENEW_${duration.toUpperCase()}` as any
+    const pricePerCard = getPrice(priceKey)
     const cards = cardNumbers.split('\n').map(c => c.trim()).filter(c => c.length >= 10)
     const totalPrice = pricePerCard * cards.length
     const balance = session?.user?.balance || 0
-    const canSubmit = cards.length > 0 && cards.length <= 10 && balance >= totalPrice && !loading
+    const canSubmit = cards.length > 0 && cards.length <= 10 && balance >= totalPrice && !loading && !pricesLoading
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -132,8 +135,8 @@ export default function BulkRenewForm() {
                                     onClick={() => setDuration(option.value)}
                                     disabled={loading}
                                     className={`p-4 rounded-xl border-2 transition-all text-right ${duration === option.value
-                                            ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                            : 'border-gray-200 hover:border-amber-300'
+                                        ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                        : 'border-gray-200 hover:border-amber-300'
                                         }`}
                                 >
                                     <div className="font-bold">{option.label}</div>
@@ -193,8 +196,8 @@ export default function BulkRenewForm() {
                         type="submit"
                         disabled={!canSubmit}
                         className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${canSubmit
-                                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/25'
-                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/25'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             }`}
                     >
                         {loading ? (

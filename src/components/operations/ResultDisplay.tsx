@@ -178,7 +178,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
 
     return (
         <div className={cn(
-            "mt-6 p-6 rounded-xl border-2 transition-all",
+            "mt-6 p-6 rounded-xl border-2 transition-all relative",
             getStatusColor()
         )}>
             {/* Close button */}

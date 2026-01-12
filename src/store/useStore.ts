@@ -38,6 +38,10 @@ interface AppStore {
     sidebarOpen: boolean
     setSidebarOpen: (open: boolean) => void
 
+    // Language state
+    language: string
+    setLanguage: (language: string) => void
+
     // Loading states
     isLoading: boolean
     setIsLoading: (loading: boolean) => void
@@ -62,6 +66,10 @@ export const useStore = create<AppStore>()(
             sidebarOpen: true,
             setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
+            // Language state
+            language: 'ar',
+            setLanguage: (language) => set({ language }),
+
             // Loading states
             isLoading: false,
             setIsLoading: (loading) => set({ isLoading: loading }),
@@ -70,6 +78,7 @@ export const useStore = create<AppStore>()(
             name: 'bein-store',
             partialize: (state) => ({
                 sidebarOpen: state.sidebarOpen,
+                language: state.language,
             }),
         }
     )

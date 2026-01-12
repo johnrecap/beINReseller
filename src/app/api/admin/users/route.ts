@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { hash } from 'bcryptjs'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
@@ -15,6 +16,18 @@ export async function GET(request: Request) {
         const session = await auth()
         if (!session?.user?.id || session.user.role !== 'ADMIN') {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        }
+
+        // Rate Limit
+        const { allowed, result: limitResult } = await withRateLimit(
+            `admin:${session.user.id}`,
+            RATE_LIMITS.admin
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { status: 429, headers: rateLimitHeaders(limitResult) }
+            )
         }
 
         const { searchParams } = new URL(request.url)

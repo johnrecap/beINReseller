@@ -36,6 +36,8 @@ export function classifyError(error: any): OperationError {
     return { type: 'UNKNOWN', message: error.message || 'خطأ غير معروف', recoverable: true }
 }
 
+import { createNotification } from './notification'
+
 export async function refundUser(operationId: string, userId: string, amount: number, reason: string): Promise<void> {
     await prisma.$transaction(async (tx: any) => {
         // Update user balance
@@ -55,6 +57,17 @@ export async function refundUser(operationId: string, userId: string, amount: nu
                 amount: amount,
                 balanceAfter: user.balance,
                 notes: `استرداد تلقائي: ${reason}`
+            }
+        })
+
+        // Create notification within transaction
+        await tx.notification.create({
+            data: {
+                userId,
+                title: 'استرداد مبلغ',
+                message: `تم استرداد مبلغ ${amount} ر.س. السبب: ${reason}`,
+                type: 'info',
+                link: '/dashboard/transactions'
             }
         })
 

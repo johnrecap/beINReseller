@@ -27,6 +27,8 @@ export async function addOperationJob(data: {
     type: string
     cardNumber: string
     duration?: string
+    userId?: string
+    amount?: number
 }) {
     return operationsQueue.add('process-operation', data, {
         priority: 1,

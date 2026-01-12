@@ -3,20 +3,23 @@
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Zap, Loader2 } from 'lucide-react'
-import { DURATION_OPTIONS, getOperationPrice, MIN_BALANCE_WARNING } from '@/lib/constants'
+import { DURATION_OPTIONS, MIN_BALANCE_WARNING } from '@/lib/constants'
+import { usePrices } from '@/hooks/usePrices'
 import ResultDisplay from './ResultDisplay'
 
 export default function RenewForm() {
     const { data: session, update: updateSession } = useSession()
+    const { getPrice, loading: pricesLoading } = usePrices()
     const [cardNumber, setCardNumber] = useState('')
     const [duration, setDuration] = useState('1_month')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [operationId, setOperationId] = useState<string | null>(null)
 
-    const price = getOperationPrice('RENEW', duration)
+    const priceKey = `RENEW_${duration.toUpperCase()}` as any
+    const price = getPrice(priceKey)
     const balance = session?.user?.balance || 0
-    const canSubmit = cardNumber.length >= 10 && balance >= price && !loading
+    const canSubmit = cardNumber.length >= 10 && balance >= price && !loading && !pricesLoading
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -103,8 +106,8 @@ export default function RenewForm() {
                                 onClick={() => setDuration(option.value)}
                                 disabled={loading || !!operationId}
                                 className={`p-4 rounded-xl border-2 transition-all text-right ${duration === option.value
-                                        ? 'border-purple-500 bg-purple-50 text-purple-700'
-                                        : 'border-gray-200 hover:border-purple-300'
+                                    ? 'border-purple-500 bg-purple-50 text-purple-700'
+                                    : 'border-gray-200 hover:border-purple-300'
                                     }`}
                             >
                                 <div className="font-bold">{option.label}</div>
@@ -141,8 +144,8 @@ export default function RenewForm() {
                         type="submit"
                         disabled={!canSubmit}
                         className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${canSubmit
-                                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/25'
-                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/25'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             }`}
                     >
                         {loading ? (

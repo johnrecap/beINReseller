@@ -48,6 +48,7 @@ model User {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
   lastLoginAt     DateTime?     @map("last_login_at")
+  deletedAt       DateTime?     @map("deleted_at")
 
   operations    Operation[]
   transactions  Transaction[] @relation("UserTransactions")
@@ -85,6 +86,8 @@ model Operation {
   @@index([userId])
   @@index([cardNumber])
   @@index([status])
+  @@index([userId, status, createdAt])
+  @@index([cardNumber, status])
   @@map("operations")
 }
 

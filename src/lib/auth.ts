@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs"
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import pg from "pg"
+import { SECURITY_CONFIG } from "@/lib/config"
+import { refreshSessionOnActivity } from "@/lib/session-refresh"
 
 // Create database connection for auth
 const pool = new pg.Pool({
@@ -33,8 +35,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     where: { username },
                 })
 
-                if (!user) {
-                    throw new Error("اسم المستخدم غير موجود")
+                if (!user || !user.passwordHash) {
+                    // Unified error for user enumeration protection
+                    throw new Error("اسم المستخدم أو كلمة المرور غير صحيحة")
                 }
 
                 // Check if user is active
@@ -45,7 +48,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 // Verify password
                 const isValidPassword = await bcrypt.compare(password, user.passwordHash)
                 if (!isValidPassword) {
-                    throw new Error("كلمة المرور غير صحيحة")
+                    // Unified error for user enumeration protection
+                    throw new Error("اسم المستخدم أو كلمة المرور غير صحيحة")
                 }
 
                 // Update last login
@@ -66,14 +70,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }),
     ],
     callbacks: {
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger, session }) {
             if (user) {
                 token.id = user.id as string
                 token.username = (user as { username: string }).username
                 token.role = (user as { role: string }).role
                 token.balance = (user as { balance: number }).balance
             }
-            return token
+
+            // Refresh logic
+            if (trigger === 'update') {
+                return { ...token, ...session }
+            }
+
+            return refreshSessionOnActivity(token)
         },
         async session({ session, token }) {
             if (token) {
@@ -91,7 +101,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     session: {
         strategy: "jwt",
-        maxAge: 7 * 24 * 60 * 60, // 7 days
+        maxAge: SECURITY_CONFIG.sessionMaxAge,
+        updateAge: 0, // Always update on access if we want aggressive sliding, but standard is fine
     },
     secret: process.env.NEXTAUTH_SECRET,
 })

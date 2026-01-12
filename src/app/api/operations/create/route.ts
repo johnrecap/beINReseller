@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { getOperationPrice, OPERATION_TYPES, OPERATION_STATUSES } from '@/lib/constants'
+import { OPERATION_TYPES, OPERATION_STATUSES } from '@/lib/constants'
+import { getOperationPriceFromDB } from '@/lib/pricing'
 import { addOperationJob } from '@/lib/queue'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { createNotification } from '@/lib/notification'
 
 // Validation schema
 const createOperationSchema = z.object({
@@ -50,23 +52,8 @@ export async function POST(request: Request) {
 
         const { type, cardNumber, duration } = validationResult.data
 
-        // 3. Check for duplicate pending/processing operations for same card
-        const existingOperation = await prisma.operation.findFirst({
-            where: {
-                cardNumber,
-                status: { in: ['PENDING', 'PROCESSING'] },
-            },
-        })
-
-        if (existingOperation) {
-            return NextResponse.json(
-                { error: 'هناك عملية جارية لهذا الكارت' },
-                { status: 400 }
-            )
-        }
-
         // 4. Calculate price
-        const price = getOperationPrice(type, duration)
+        const price = await getOperationPriceFromDB(type, duration)
         if (price <= 0) {
             return NextResponse.json(
                 { error: 'نوع العملية غير صالح' },
@@ -96,6 +83,18 @@ export async function POST(request: Request) {
 
         // 6. Create operation in a transaction
         const result = await prisma.$transaction(async (tx) => {
+            // Check for duplicate pending/processing operations INSIDE transaction
+            const existingOperation = await tx.operation.findFirst({
+                where: {
+                    cardNumber,
+                    status: { in: ['PENDING', 'PROCESSING'] },
+                },
+            })
+
+            if (existingOperation) {
+                throw new Error('DUPLICATE_OPERATION')
+            }
+
             // Deduct balance
             await tx.user.update({
                 where: { id: user.id },
@@ -146,11 +145,25 @@ export async function POST(request: Request) {
                 type,
                 cardNumber,
                 duration,
+                userId: user.id,
+                amount: price,
             })
+
+            // Send notification
+            await createNotification({
+                userId: user.id,
+                title: 'تم استلام طلبك',
+                message: `جاري معالجة عملية ${type === 'RENEW' ? 'التجديد' : type === 'CHECK_BALANCE' ? 'الاستعلام' : 'تنشيط الإشارة'}`,
+                type: 'info',
+                link: '/dashboard/history'
+            })
+
         } catch (queueError) {
             console.error('Failed to add job to queue:', queueError)
             // Don't fail the request, the operation is saved in DB
         }
+
+
 
         // 8. Return success
         return NextResponse.json({
@@ -160,8 +173,16 @@ export async function POST(request: Request) {
             newBalance: user.balance - price,
         })
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Create operation error:', error)
+
+        if (error.message === 'DUPLICATE_OPERATION') {
+            return NextResponse.json(
+                { error: 'هناك عملية جارية لهذا الكارت' },
+                { status: 400 }
+            )
+        }
+
         return NextResponse.json(
             { error: 'حدث خطأ في الخادم' },
             { status: 500 }

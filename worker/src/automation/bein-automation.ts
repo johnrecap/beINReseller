@@ -13,7 +13,7 @@
 import 'dotenv/config'
 
 import { Browser, Page, chromium, BrowserContext } from 'playwright'
-import { PrismaClient } from '../../node_modules/@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import { TOTPGenerator } from '../utils/totp-generator'
 import { CaptchaSolver } from '../utils/captcha-solver'
 import { SessionManager } from '../utils/session-manager'

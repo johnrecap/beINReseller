@@ -61,29 +61,32 @@ export async function POST(request: Request) {
             )
         }
 
-        // 5. Get user and check balance
-        const user = await prisma.user.findUnique({
+        // 5. Get user (basic check)
+        const userExists = await prisma.user.findUnique({
             where: { id: session.user.id },
-            select: { id: true, balance: true },
+            select: { id: true },
         })
 
-        if (!user) {
+        if (!userExists) {
             return NextResponse.json(
                 { error: 'المستخدم غير موجود' },
                 { status: 404 }
             )
         }
 
-        if (user.balance < price) {
-            return NextResponse.json(
-                { error: 'رصيد غير كافي', required: price, available: user.balance },
-                { status: 400 }
-            )
-        }
-
-        // 6. Create operation in a transaction
+        // 6. Create operation in a transaction with balance check INSIDE
         const result = await prisma.$transaction(async (tx) => {
-            // Check for duplicate pending/processing operations INSIDE transaction
+            // Get fresh user balance inside transaction (prevents race condition)
+            const user = await tx.user.findUnique({
+                where: { id: session.user.id },
+                select: { id: true, balance: true },
+            })
+
+            if (!user || user.balance < price) {
+                throw new Error('INSUFFICIENT_BALANCE')
+            }
+
+            // Check for duplicate pending/processing operations
             const existingOperation = await tx.operation.findFirst({
                 where: {
                     cardNumber,
@@ -95,11 +98,16 @@ export async function POST(request: Request) {
                 throw new Error('DUPLICATE_OPERATION')
             }
 
-            // Deduct balance
-            await tx.user.update({
+            // Deduct balance (atomic with balance check above)
+            const updatedUser = await tx.user.update({
                 where: { id: user.id },
                 data: { balance: { decrement: price } },
             })
+
+            // Double-check balance didn't go negative (safety net)
+            if (updatedUser.balance < 0) {
+                throw new Error('INSUFFICIENT_BALANCE')
+            }
 
             // Create operation
             const operation = await tx.operation.create({
@@ -119,7 +127,7 @@ export async function POST(request: Request) {
                     userId: user.id,
                     type: 'OPERATION_DEDUCT',
                     amount: -price,
-                    balanceAfter: user.balance - price,
+                    balanceAfter: updatedUser.balance,
                     operationId: operation.id,
                     notes: `خصم عملية ${type === 'RENEW' ? 'تجديد' : type === 'CHECK_BALANCE' ? 'استعلام' : 'تنشيط إشارة'}`,
                 },
@@ -135,23 +143,23 @@ export async function POST(request: Request) {
                 },
             })
 
-            return operation
+            return { operation, newBalance: updatedUser.balance }
         })
 
         // 7. Add job to queue (async, don't await)
         try {
             await addOperationJob({
-                operationId: result.id,
+                operationId: result.operation.id,
                 type,
                 cardNumber,
                 duration,
-                userId: user.id,
+                userId: session.user.id,
                 amount: price,
             })
 
             // Send notification
             await createNotification({
-                userId: user.id,
+                userId: session.user.id,
                 title: 'تم استلام طلبك',
                 message: `جاري معالجة عملية ${type === 'RENEW' ? 'التجديد' : type === 'CHECK_BALANCE' ? 'الاستعلام' : 'تنشيط الإشارة'}`,
                 type: 'info',
@@ -168,13 +176,20 @@ export async function POST(request: Request) {
         // 8. Return success
         return NextResponse.json({
             success: true,
-            operationId: result.id,
+            operationId: result.operation.id,
             deducted: price,
-            newBalance: user.balance - price,
+            newBalance: result.newBalance,
         })
 
     } catch (error: any) {
         console.error('Create operation error:', error)
+
+        if (error.message === 'INSUFFICIENT_BALANCE') {
+            return NextResponse.json(
+                { error: 'رصيد غير كافي' },
+                { status: 400 }
+            )
+        }
 
         if (error.message === 'DUPLICATE_OPERATION') {
             return NextResponse.json(

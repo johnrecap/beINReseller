@@ -5,9 +5,11 @@
  * repeated logins within the session timeout window.
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '../../node_modules/@prisma/client'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+    datasourceUrl: process.env.DATABASE_URL
+})
 
 interface SavedSession {
     storageState: any

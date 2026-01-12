@@ -11,12 +11,14 @@
  */
 
 import { Browser, Page, chromium, BrowserContext } from 'playwright'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '../../node_modules/@prisma/client'
 import { TOTPGenerator } from '../utils/totp-generator'
 import { CaptchaSolver } from '../utils/captcha-solver'
 import { SessionManager } from '../utils/session-manager'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+    datasourceUrl: process.env.DATABASE_URL
+})
 
 interface BeINConfig {
     // Credentials

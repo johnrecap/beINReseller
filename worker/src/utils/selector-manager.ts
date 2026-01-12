@@ -5,9 +5,11 @@
  * without needing to redeploy the worker.
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '../../node_modules/@prisma/client'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+    datasourceUrl: process.env.DATABASE_URL
+})
 
 export class SelectorManager {
     private selectors: Map<string, string> = new Map()

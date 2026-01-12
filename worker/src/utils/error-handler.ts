@@ -2,9 +2,11 @@
  * Error Handler - Centralized error handling and refund logic
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '../../node_modules/@prisma/client'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+    datasourceUrl: process.env.DATABASE_URL
+})
 
 export interface OperationError {
     type: 'LOGIN_FAILED' | 'CAPTCHA_FAILED' | 'TIMEOUT' | 'NETWORK' | 'ELEMENT_NOT_FOUND' | 'UNKNOWN'

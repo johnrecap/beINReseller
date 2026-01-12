@@ -9,12 +9,14 @@
  */
 
 import { Job } from 'bullmq'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '../node_modules/@prisma/client'
 import { BeINAutomation } from './automation/bein-automation'
 import { withRetry, calculateDelay } from './utils/retry-strategy'
 import { classifyError, refundUser, markOperationFailed } from './utils/error-handler'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+    datasourceUrl: process.env.DATABASE_URL
+})
 
 interface OperationJobData {
     operationId: string

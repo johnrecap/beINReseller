@@ -1,15 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { useSession } from 'next-auth/react'
 import { Radio, Loader2 } from 'lucide-react'
 import { MIN_BALANCE_WARNING } from '@/lib/constants'
 import { usePrices } from '@/hooks/usePrices'
 import { useTranslation } from '@/hooks/useTranslation'
+import { useBalance } from '@/hooks/useBalance'
 import ResultDisplay from './ResultDisplay'
 
 export default function SignalRefreshForm() {
-    const { data: session, update: updateSession } = useSession()
+    const { balance, loading: balanceLoading, refetch: refetchBalance } = useBalance()
     const { getPrice, loading: pricesLoading } = usePrices()
     const { t } = useTranslation()
     const [cardNumber, setCardNumber] = useState('')
@@ -18,8 +18,7 @@ export default function SignalRefreshForm() {
     const [operationId, setOperationId] = useState<string | null>(null)
 
     const price = getPrice('SIGNAL_REFRESH')
-    const balance = session?.user?.balance || 0
-    const canSubmit = cardNumber.length >= 10 && balance >= price && !loading && !pricesLoading
+    const canSubmit = cardNumber.length >= 10 && balance >= price && !loading && !pricesLoading && !balanceLoading
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -47,7 +46,7 @@ export default function SignalRefreshForm() {
             }
 
             setOperationId(data.operationId)
-            await updateSession()
+            await refetchBalance()
         } catch (err) {
             setError(t.common.error)
         } finally {
@@ -138,7 +137,7 @@ export default function SignalRefreshForm() {
                     onClose={handleClose}
                     onStatusChange={(status) => {
                         if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(status)) {
-                            updateSession()
+                            refetchBalance()
                         }
                     }}
                 />

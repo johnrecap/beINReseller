@@ -1,6 +1,7 @@
 'use client'
 
 import { SessionProvider } from 'next-auth/react'
+import { ThemeProvider } from 'next-themes'
 import { ReactNode, useEffect } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 
@@ -22,8 +23,16 @@ function LanguageSync() {
 export default function Providers({ children }: ProvidersProps) {
     return (
         <SessionProvider>
-            <LanguageSync />
-            {children}
+            <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange={false}
+            >
+                <LanguageSync />
+                {children}
+            </ThemeProvider>
         </SessionProvider>
     )
 }
+

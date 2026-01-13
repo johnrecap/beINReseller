@@ -1,32 +1,79 @@
+'use client'
+
 import { Suspense } from 'react'
 import LoginForm from "@/components/auth/LoginForm"
+import { AnimatedBackground } from '@/components/effects'
+import { motion } from 'framer-motion'
 
 function LoginPageContent() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 flex items-center justify-center p-4">
-            {/* Background Pattern */}
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%23ffffff%22 fill-opacity=%220.05%22%3E%3Cpath d=%22M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Animated Background */}
+            <AnimatedBackground variant="login" />
 
-            <div className="relative w-full max-w-md">
+            {/* Content */}
+            <motion.div
+                className="relative w-full max-w-md z-10"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+            >
                 {/* Logo */}
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 shadow-2xl mb-4">
+                <motion.div
+                    className="text-center mb-8"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                >
+                    <motion.div
+                        className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 shadow-2xl shadow-amber-500/40 mb-4"
+                        whileHover={{ scale: 1.05, rotate: 5 }}
+                        transition={{ type: "spring", stiffness: 400 }}
+                    >
                         <span className="text-4xl">📺</span>
-                    </div>
-                    <h1 className="text-3xl font-bold text-white mb-2">beIN Panel</h1>
-                    <p className="text-purple-200">لوحة تحكم موزعي الخدمات</p>
-                </div>
+                    </motion.div>
+                    <motion.h1
+                        className="text-3xl font-bold text-white mb-2"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                    >
+                        beIN Panel
+                    </motion.h1>
+                    <motion.p
+                        className="text-purple-200"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.4 }}
+                    >
+                        لوحة تحكم موزعي الخدمات
+                    </motion.p>
+                </motion.div>
 
                 {/* Login Card */}
-                <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
+                <motion.div
+                    className="glass-strong rounded-3xl p-8 shadow-2xl border border-white/20"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.3 }}
+                    style={{
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        backdropFilter: 'blur(24px)',
+                    }}
+                >
                     <LoginForm />
-                </div>
+                </motion.div>
 
                 {/* Footer */}
-                <p className="text-center text-purple-300 text-sm mt-6">
+                <motion.p
+                    className="text-center text-purple-300 text-sm mt-6"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.6 }}
+                >
                     © 2024 beIN Sports Reseller Panel
-                </p>
-            </div>
+                </motion.p>
+            </motion.div>
         </div>
     )
 }
@@ -35,7 +82,14 @@ export default function LoginPage() {
     return (
         <Suspense fallback={
             <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 flex items-center justify-center">
-                <div className="text-white text-xl">جاري التحميل...</div>
+                <motion.div
+                    className="text-white text-xl"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ repeat: Infinity, repeatType: "reverse", duration: 1 }}
+                >
+                    جاري التحميل...
+                </motion.div>
             </div>
         }>
             <LoginPageContent />

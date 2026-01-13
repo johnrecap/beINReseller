@@ -25,7 +25,7 @@ export default function BulkRenewForm() {
     const [results, setResults] = useState<OperationResult[] | null>(null)
     const [blockedCards, setBlockedCards] = useState<string[]>([])
 
-    const priceKey = `RENEW_${duration.toUpperCase()}` as any
+    const priceKey = `RENEW_${duration.toUpperCase()}` as 'RENEW_1_MONTH' | 'RENEW_3_MONTHS' | 'RENEW_6_MONTHS' | 'RENEW_1_YEAR'
     const pricePerCard = getPrice(priceKey)
     const cards = cardNumbers.split('\n').map(c => c.trim()).filter(c => c.length >= 10)
     const totalPrice = pricePerCard * cards.length
@@ -63,7 +63,7 @@ export default function BulkRenewForm() {
             }
 
             // Set results
-            const operationResults: OperationResult[] = data.operations.map((op: any) => ({
+            const operationResults: OperationResult[] = data.operations.map((op: { cardNumber: string; operationId: string }) => ({
                 cardNumber: op.cardNumber,
                 operationId: op.operationId,
                 status: 'pending',
@@ -142,7 +142,7 @@ export default function BulkRenewForm() {
                                         }`}
                                 >
                                     <div className="font-bold">
-                                        {(t.forms as any)[`duration_${option.value}`] || option.label}
+                                        {(t.forms as Record<string, string>)[`duration_${option.value}`] || option.label}
                                     </div>
                                     <div className="text-sm text-amber-600">
                                         {option.price} {t.header.currency}/{t.forms.perCard}

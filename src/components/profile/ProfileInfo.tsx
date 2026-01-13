@@ -58,8 +58,8 @@ export default function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
 
             setIsEditing(false)
             onUpdate()
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
             setLoading(false)
         }

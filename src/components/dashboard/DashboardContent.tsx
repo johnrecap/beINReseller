@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { Zap, Search, RefreshCw } from 'lucide-react'
 
 interface DashboardContentProps {
-    user: any
+    user: { username: string; role: string }
 }
 
 export default function DashboardContent({ user }: DashboardContentProps) {
@@ -66,7 +66,14 @@ export default function DashboardContent({ user }: DashboardContentProps) {
     )
 }
 
-function QuickAction({ href, icon: Icon, title, desc }: any) {
+interface QuickActionProps {
+    href: string
+    icon: React.ComponentType<{ className?: string }>
+    title: string
+    desc: string
+}
+
+function QuickAction({ href, icon: Icon, title, desc }: QuickActionProps) {
     return (
         <Link
             href={href}

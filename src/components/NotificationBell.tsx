@@ -36,6 +36,7 @@ export default function NotificationBell() {
     }
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional initial fetch
         fetchNotifications()
 
         // Poll for new notifications every 30 seconds

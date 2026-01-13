@@ -27,6 +27,7 @@ export function MouseSpotlight({
     const y = useSpring(mouseY, springConfig)
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true)
 
         if (!enabled) return

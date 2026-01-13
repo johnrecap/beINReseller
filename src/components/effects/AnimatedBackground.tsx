@@ -7,6 +7,15 @@ interface AnimatedBackgroundProps {
     className?: string
 }
 
+// Pre-compute particle positions to avoid Math.random during render
+const PARTICLES = Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    left: (i * 5 + 3) % 100,
+    top: ((i * 7 + 11) % 100),
+    duration: 3 + (i % 4),
+    delay: (i % 5) * 0.4,
+}))
+
 export function AnimatedBackground({ variant = 'default', className = '' }: AnimatedBackgroundProps) {
     if (variant === 'login') {
         return (
@@ -55,22 +64,22 @@ export function AnimatedBackground({ variant = 'default', className = '' }: Anim
                 />
 
                 {/* Particles */}
-                {[...Array(20)].map((_, i) => (
+                {PARTICLES.map((particle) => (
                     <motion.div
-                        key={i}
+                        key={particle.id}
                         className="absolute w-1 h-1 bg-white/30 rounded-full"
                         style={{
-                            left: `${Math.random() * 100}%`,
-                            top: `${Math.random() * 100}%`,
+                            left: `${particle.left}%`,
+                            top: `${particle.top}%`,
                         }}
                         animate={{
                             y: [0, -30, 0],
                             opacity: [0.2, 0.8, 0.2],
                         }}
                         transition={{
-                            duration: 3 + Math.random() * 4,
+                            duration: particle.duration,
                             repeat: Infinity,
-                            delay: Math.random() * 2,
+                            delay: particle.delay,
                             ease: "easeInOut"
                         }}
                     />

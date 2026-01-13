@@ -40,8 +40,8 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
 
             onSuccess()
             onClose()
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : t.admin.users.messages.error)
         } finally {
             setLoading(false)
         }

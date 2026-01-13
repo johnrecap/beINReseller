@@ -55,7 +55,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                     >
                         <option value="">{t.common.all}</option>
                         {Object.entries(OPERATION_TYPE_LABELS).map(([value]) => (
-                            <option key={value} value={value}>{(t.operations as any)[value === 'CHECK_BALANCE' ? 'checkBalance' : value === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || value}</option>
+                            <option key={value} value={value}>{(t.operations as Record<string, string>)[value === 'CHECK_BALANCE' ? 'checkBalance' : value === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || value}</option>
                         ))}
                     </select>
                 </div>

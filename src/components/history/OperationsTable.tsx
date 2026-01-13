@@ -138,7 +138,7 @@ export default function OperationsTable({
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${typeColors[op.type] || 'bg-gray-100'}`}>
-                                        {(t.operations as any)[op.type === 'CHECK_BALANCE' ? 'checkBalance' : op.type === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || op.type}
+                                        {(t.operations as Record<string, string>)[op.type === 'CHECK_BALANCE' ? 'checkBalance' : op.type === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || op.type}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 font-mono text-sm">

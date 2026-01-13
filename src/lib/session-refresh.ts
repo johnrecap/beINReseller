@@ -2,7 +2,7 @@
  * Activity-based session refresh
  * Updates the session timestamp to extend validity
  */
-export async function refreshSessionOnActivity(token: any) {
+export async function refreshSessionOnActivity(token: Record<string, unknown>) {
     // Return token with updated timestamps if needed
     // In NextAuth v5, returning the token from jwt callback with a new timestamp 
     // effectively potentially slides the window if configured correctly, 

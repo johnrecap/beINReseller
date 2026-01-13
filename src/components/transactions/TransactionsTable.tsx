@@ -16,13 +16,6 @@ interface Transaction {
     operationId?: string
 }
 
-const typeLabels: Record<string, string> = {
-    DEPOSIT: 'shahnRaseed', // Placeholder for key
-    WITHDRAW: 'withdrawRaseed',
-    REFUND: 'istirdad',
-    OPERATION_DEDUCT: 'operationDeduct',
-}
-
 const typeColors: Record<string, string> = {
     DEPOSIT: 'bg-green-100 text-green-700',
     WITHDRAW: 'bg-red-100 text-red-700',
@@ -112,7 +105,7 @@ export default function TransactionsTable() {
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${typeColors[tx.type] || 'bg-gray-100'}`}>
-                                        {(t.transactions as any)[tx.type === 'DEPOSIT' ? 'deposit' : tx.type === 'WITHDRAW' ? 'withdrawal' : tx.type === 'OPERATION_DEDUCT' ? 'operationDeduction' : 'refund'] || tx.type}
+                                        {(t.transactions as Record<string, string>)[tx.type === 'DEPOSIT' ? 'deposit' : tx.type === 'WITHDRAW' ? 'withdrawal' : tx.type === 'OPERATION_DEDUCT' ? 'operationDeduction' : 'refund'] || tx.type}
                                     </span>
                                 </td>
                                 <td className={`px-4 py-3 text-sm font-bold ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'} dir-ltr text-right`}>
@@ -146,6 +139,7 @@ export default function TransactionsTable() {
                         <button
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page <= 1}
+                            title={t.common.back}
                             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronRight className="w-4 h-4" />
@@ -153,6 +147,7 @@ export default function TransactionsTable() {
                         <button
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                             disabled={page >= totalPages}
+                            title={t.common.confirm}
                             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft className="w-4 h-4" />

@@ -18,7 +18,7 @@ export default function RenewForm() {
     const [error, setError] = useState<string | null>(null)
     const [operationId, setOperationId] = useState<string | null>(null)
 
-    const priceKey = `RENEW_${duration.toUpperCase()}` as any
+    const priceKey = `RENEW_${duration.toUpperCase()}` as 'RENEW_1_MONTH' | 'RENEW_3_MONTHS' | 'RENEW_6_MONTHS' | 'RENEW_1_YEAR'
     const price = getPrice(priceKey)
     const canSubmit = cardNumber.length >= 10 && balance >= price && !loading && !pricesLoading && !balanceLoading
 
@@ -112,10 +112,10 @@ export default function RenewForm() {
                                     }`}
                             >
                                 <div className="font-bold">
-                                    {(t.forms as any)[`duration_${option.value}`] || option.label}
+                                    {(t.forms as Record<string, string>)[`duration_${option.value}`] || option.label}
                                 </div>
                                 <div className="text-sm text-purple-600">
-                                    {getPrice(`RENEW_${option.value.toUpperCase()}` as any)} {t.header.currency}
+                                    {getPrice(`RENEW_${option.value.toUpperCase()}` as 'RENEW_1_MONTH' | 'RENEW_3_MONTHS' | 'RENEW_6_MONTHS' | 'RENEW_1_YEAR')} {t.header.currency}
                                 </div>
                             </button>
                         ))}

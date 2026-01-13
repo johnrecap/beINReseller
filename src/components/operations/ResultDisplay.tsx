@@ -13,7 +13,7 @@ interface Operation {
     amount: number
     status: string
     responseMessage?: string
-    responseData?: any
+    responseData?: Record<string, unknown>
 }
 
 interface ResultDisplayProps {
@@ -198,7 +198,7 @@ export default function ResultDisplay({ operationId, onClose, onStatusChange }: 
 
                 {/* Status Text */}
                 <h3 className="text-lg font-bold mb-2">
-                    {operation ? (operation.status === 'AWAITING_CAPTCHA' ? t.resultDisplay.awaitingCaptcha : (t.resultDisplay.status as any)[operation.status] || operation.status) : t.common.loading}
+                    {operation ? (operation.status === 'AWAITING_CAPTCHA' ? t.resultDisplay.awaitingCaptcha : (t.resultDisplay.status as Record<string, string>)[operation.status] || operation.status) : t.common.loading}
                 </h3>
 
                 {/* Response Message */}

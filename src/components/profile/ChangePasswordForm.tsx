@@ -44,8 +44,8 @@ export default function ChangePasswordForm() {
             setCurrentPassword('')
             setNewPassword('')
             setConfirmPassword('')
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
             setLoading(false)
         }

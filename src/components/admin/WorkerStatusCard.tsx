@@ -68,15 +68,16 @@ export default function WorkerStatusCard() {
         )
     }
 
-    const isConnected = status.session.status === 'CONNECTED'
+    const isConnected = status.session?.status === 'CONNECTED'
 
-    // Helper to get status label
-    const getStatusLabel = (s: string) => {
+    // Helper to get status label - with type safety
+    const getStatusLabel = (s: unknown): string => {
+        if (typeof s !== 'string' || !s) return 'Unknown'
         const key = s.toLowerCase() as keyof typeof t.admin.dashboard.workerStatus
         return (t.admin.dashboard.workerStatus as any)[key] || s
     }
 
-    const sessionStatusLabel = getStatusLabel(status.session.status)
+    const sessionStatusLabel = getStatusLabel(status.session?.status)
     const redisStatusLabel = getStatusLabel(status.redis)
 
 

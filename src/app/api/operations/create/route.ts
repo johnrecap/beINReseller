@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { OPERATION_TYPES, OPERATION_STATUSES } from '@/lib/constants'
+
 import { getOperationPriceFromDB } from '@/lib/pricing'
 import { addOperationJob } from '@/lib/queue'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
             const operation = await tx.operation.create({
                 data: {
                     userId: user.id,
-                    type: type as any,
+                    type: type as 'RENEW' | 'CHECK_BALANCE' | 'SIGNAL_REFRESH',
                     cardNumber,
                     amount: price,
                     status: 'PENDING',
@@ -181,17 +181,18 @@ export async function POST(request: Request) {
             newBalance: result.newBalance,
         })
 
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error('Create operation error:', error)
 
-        if (error.message === 'INSUFFICIENT_BALANCE') {
+        if (errorMessage === 'INSUFFICIENT_BALANCE') {
             return NextResponse.json(
                 { error: 'رصيد غير كافي' },
                 { status: 400 }
             )
         }
 
-        if (error.message === 'DUPLICATE_OPERATION') {
+        if (errorMessage === 'DUPLICATE_OPERATION') {
             return NextResponse.json(
                 { error: 'هناك عملية جارية لهذا الكارت' },
                 { status: 400 }

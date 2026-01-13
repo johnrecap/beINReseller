@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Bell, Check, CheckCheck, X, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react'
+import { Bell, CheckCheck, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { ar } from 'date-fns/locale'
@@ -20,8 +20,20 @@ export default function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false)
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
-    const [loading, setLoading] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
+
+    const fetchNotifications = async () => {
+        try {
+            const res = await fetch('/api/notifications?limit=10')
+            if (res.ok) {
+                const data = await res.json()
+                setNotifications(data.notifications)
+                setUnreadCount(data.unreadCount)
+            }
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error)
+        }
+    }
 
     useEffect(() => {
         fetchNotifications()
@@ -40,19 +52,6 @@ export default function NotificationBell() {
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
-
-    const fetchNotifications = async () => {
-        try {
-            const res = await fetch('/api/notifications?limit=10')
-            if (res.ok) {
-                const data = await res.json()
-                setNotifications(data.notifications)
-                setUnreadCount(data.unreadCount)
-            }
-        } catch (error) {
-            console.error('Failed to fetch notifications:', error)
-        }
-    }
 
     const markAsRead = async (notificationId: string) => {
         try {

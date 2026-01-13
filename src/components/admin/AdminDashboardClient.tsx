@@ -11,6 +11,7 @@ import { useTranslation } from '@/hooks/useTranslation'
 
 export default function AdminDashboardClient() {
     const { t } = useTranslation()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -25,8 +26,8 @@ export default function AdminDashboardClient() {
                 }
                 const jsonData = await res.json()
                 setData(jsonData)
-            } catch (err: any) {
-                setError(err.message)
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Unknown error')
             } finally {
                 setLoading(false)
             }
@@ -50,7 +51,6 @@ export default function AdminDashboardClient() {
     }
 
     if (error) {
-        const errorMsg = error === 'UNAUTHORIZED' ? t.common.error /* placeholder for unauthorized? */ : t.admin.dashboard.workerStatus.error // fallback
         // Better error handling:
         const displayError = (error === 'UNAUTHORIZED' || error === 'غير مصرح') ? 'Unauthorized' :
             (error === 'SERVER_ERROR' || error === 'حدث خطأ في الخادم') ? t.admin.dashboard.workerStatus.error : error

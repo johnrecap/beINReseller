@@ -54,6 +54,7 @@ export const ar = {
         users: 'المستخدمين',
         analytics: 'التحليلات',
         beinConfig: 'إعدادات beIN',
+        beinAccounts: 'حسابات beIN',
         settings: 'الإعدادات',
         logs: 'السجلات',
         logout: 'تسجيل الخروج',

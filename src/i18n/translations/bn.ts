@@ -55,6 +55,7 @@ export const bn = {
         users: 'ব্যবহারকারী',
         analytics: 'অ্যানালিটিক্স',
         beinConfig: 'beIN সেটিংস',
+        beinAccounts: 'beIN অ্যাকাউন্ট',
         settings: 'সেটিংস',
         logs: 'লগ',
         logout: 'লগআউট',

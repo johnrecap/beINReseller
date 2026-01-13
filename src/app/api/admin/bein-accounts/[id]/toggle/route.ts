@@ -1,0 +1,55 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+
+interface RouteParams {
+    params: Promise<{ id: string }>
+}
+
+// POST /api/admin/bein-accounts/[id]/toggle - Toggle account active status
+export async function POST(request: NextRequest, { params }: RouteParams) {
+    try {
+        const session = await auth()
+
+        if (!session?.user || session.user.role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const { id } = await params
+
+        const account = await prisma.beinAccount.findUnique({
+            where: { id }
+        })
+
+        if (!account) {
+            return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 })
+        }
+
+        // Toggle status
+        const updatedAccount = await prisma.beinAccount.update({
+            where: { id },
+            data: {
+                isActive: !account.isActive,
+                // Reset failures when reactivating
+                ...(account.isActive === false && {
+                    consecutiveFailures: 0,
+                    cooldownUntil: null
+                })
+            }
+        })
+
+        return NextResponse.json({
+            success: true,
+            account: {
+                id: updatedAccount.id,
+                username: updatedAccount.username,
+                isActive: updatedAccount.isActive
+            },
+            message: updatedAccount.isActive ? 'تم تفعيل الحساب' : 'تم إيقاف الحساب'
+        })
+
+    } catch (error) {
+        console.error('Toggle beIN account error:', error)
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
+}

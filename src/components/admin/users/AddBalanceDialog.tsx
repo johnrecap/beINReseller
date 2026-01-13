@@ -43,8 +43,8 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
 
             onSuccess()
             onClose()
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
             setLoading(false)
         }

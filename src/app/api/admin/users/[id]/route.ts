@@ -92,7 +92,7 @@ export async function DELETE(
         }
 
         // Soft delete by deactivating
-        const user = await prisma.user.update({
+        await prisma.user.update({
             where: { id },
             data: { isActive: false }
         })

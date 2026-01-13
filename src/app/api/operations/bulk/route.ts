@@ -107,7 +107,7 @@ export async function POST(request: Request) {
                 const operation = await tx.operation.create({
                     data: {
                         userId: user.id,
-                        type: type as any,
+                        type: type as 'RENEW' | 'CHECK_BALANCE' | 'SIGNAL_REFRESH',
                         cardNumber,
                         amount: pricePerOperation,
                         status: 'PENDING',

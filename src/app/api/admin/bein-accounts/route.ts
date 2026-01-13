@@ -1,0 +1,181 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import Redis from 'ioredis'
+
+// Initialize Redis for pool status
+const getRedis = () => {
+    return new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
+}
+
+// GET /api/admin/bein-accounts - List all accounts with pool status
+export async function GET() {
+    try {
+        const session = await auth()
+
+        if (!session?.user || session.user.role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        // Get all accounts
+        const accounts = await prisma.beinAccount.findMany({
+            orderBy: [
+                { priority: 'desc' },
+                { createdAt: 'asc' }
+            ],
+            select: {
+                id: true,
+                username: true,
+                label: true,
+                isActive: true,
+                priority: true,
+                lastUsedAt: true,
+                usageCount: true,
+                cooldownUntil: true,
+                consecutiveFailures: true,
+                totalFailures: true,
+                totalSuccess: true,
+                lastError: true,
+                lastErrorAt: true,
+                createdAt: true,
+                updatedAt: true,
+                // Count operations for this account
+                _count: {
+                    select: { operations: true }
+                }
+            }
+        })
+
+        // Calculate success rate for each account
+        const accountsWithStats = accounts.map(account => {
+            const total = account.totalSuccess + account.totalFailures
+            const successRate = total > 0 ? (account.totalSuccess / total) * 100 : 100
+
+            return {
+                ...account,
+                successRate: Math.round(successRate * 100) / 100,
+                operationsCount: account._count.operations,
+                _count: undefined
+            }
+        })
+
+        // Get pool status from Redis
+        const poolStatus = {
+            totalAccounts: accounts.length,
+            activeAccounts: accounts.filter(a => a.isActive).length,
+            availableNow: 0,
+            inCooldown: 0,
+            rateLimited: 0
+        }
+
+        try {
+            const redis = getRedis()
+
+            for (const account of accounts) {
+                if (!account.isActive) continue
+
+                // Check cooldown
+                const cooldownKey = `bein:account:cooldown:${account.id}`
+                const cooldownTTL = await redis.ttl(cooldownKey)
+
+                if (cooldownTTL > 0) {
+                    poolStatus.inCooldown++
+                    continue
+                }
+
+                // Check rate limit
+                const requestsKey = `bein:account:${account.id}:requests`
+                const windowSeconds = 300 // 5 minutes
+                const windowStart = Date.now() - (windowSeconds * 1000)
+                const requestCount = await redis.zcount(requestsKey, windowStart, '+inf')
+
+                if (requestCount >= 5) { // max 5 requests per window
+                    poolStatus.rateLimited++
+                    continue
+                }
+
+                poolStatus.availableNow++
+            }
+
+            await redis.quit()
+        } catch (redisError) {
+            console.error('Redis error when getting pool status:', redisError)
+            // Fall back to basic calculation
+            poolStatus.availableNow = accounts.filter(a =>
+                a.isActive && (!a.cooldownUntil || a.cooldownUntil < new Date())
+            ).length
+        }
+
+        return NextResponse.json({
+            success: true,
+            accounts: accountsWithStats,
+            poolStatus
+        })
+
+    } catch (error) {
+        console.error('Get beIN accounts error:', error)
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
+}
+
+// POST /api/admin/bein-accounts - Create new account
+export async function POST(request: NextRequest) {
+    try {
+        const session = await auth()
+
+        if (!session?.user || session.user.role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const body = await request.json()
+        const { username, password, totpSecret, label, priority } = body
+
+        // Validate required fields
+        if (!username || !password) {
+            return NextResponse.json(
+                { error: 'اسم المستخدم وكلمة المرور مطلوبان' },
+                { status: 400 }
+            )
+        }
+
+        // Check if username already exists
+        const existing = await prisma.beinAccount.findUnique({
+            where: { username }
+        })
+
+        if (existing) {
+            return NextResponse.json(
+                { error: 'اسم المستخدم موجود بالفعل' },
+                { status: 400 }
+            )
+        }
+
+        // Create account
+        const account = await prisma.beinAccount.create({
+            data: {
+                username,
+                password, // In production, consider encrypting this
+                totpSecret: totpSecret || null,
+                label: label || null,
+                priority: priority || 0,
+                isActive: true
+            }
+        })
+
+        return NextResponse.json({
+            success: true,
+            account: {
+                id: account.id,
+                username: account.username,
+                label: account.label,
+                isActive: account.isActive,
+                priority: account.priority,
+                createdAt: account.createdAt
+            }
+        })
+
+    } catch (error) {
+        console.error('Create beIN account error:', error)
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
+}

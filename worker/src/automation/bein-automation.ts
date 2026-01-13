@@ -2,6 +2,7 @@
  * beIN Automation - Core Playwright-based automation class
  * 
  * Handles all interactions with the beIN management portal:
+ * - Multi-account support with per-account sessions
  * - Login with 2FA (TOTP) and CAPTCHA solving
  * - Card renewal
  * - Balance checking
@@ -15,13 +16,9 @@ import { prisma } from '../lib/prisma'
 import { TOTPGenerator } from '../utils/totp-generator'
 import { CaptchaSolver } from '../utils/captcha-solver'
 import { SessionManager } from '../utils/session-manager'
+import { BeinAccount } from '../pool/types'
 
 interface BeINConfig {
-    // Credentials
-    username: string
-    password: string
-    totpSecret: string
-
     // Captcha
     captchaApiKey: string
     captchaEnabled: boolean
@@ -58,17 +55,21 @@ interface BeINConfig {
     headless: boolean
 }
 
+interface AccountSession {
+    context: BrowserContext
+    page: Page
+    lastLoginTime: Date | null
+}
+
 export class BeINAutomation {
     private browser: Browser | null = null
-    private context: BrowserContext | null = null
-    private page: Page | null = null
-
     private totp: TOTPGenerator
     private captcha!: CaptchaSolver
     private session: SessionManager
     private config!: BeINConfig
 
-    private lastLoginTime: Date | null = null
+    // Multi-account session management
+    private accountSessions: Map<string, AccountSession> = new Map()
 
     constructor() {
         this.totp = new TOTPGenerator()
@@ -76,7 +77,7 @@ export class BeINAutomation {
     }
 
     /**
-     * Load configuration from database
+     * Load configuration from database (URLs, selectors, etc.)
      */
     private async loadConfig(): Promise<void> {
         const settings = await prisma.setting.findMany({
@@ -104,10 +105,6 @@ export class BeINAutomation {
         }
 
         this.config = {
-            username: get('bein_username'),
-            password: get('bein_password'),
-            totpSecret: get('bein_totp_secret'),
-
             captchaApiKey: get('captcha_2captcha_key'),
             captchaEnabled: get('captcha_enabled', 'true') === 'true',
 
@@ -153,48 +150,74 @@ export class BeINAutomation {
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         })
 
-        // Try to restore session
-        const savedSession = await this.session.loadSession()
-        if (savedSession) {
-            this.context = await this.browser.newContext({
-                storageState: savedSession.storageState
-            })
-            this.lastLoginTime = new Date(savedSession.createdAt)
-            console.log('📦 Restored previous session')
-        } else {
-            this.context = await this.browser.newContext()
-        }
-
-        this.page = await this.context.newPage()
-
-        // Set reasonable timeouts
-        this.page.setDefaultTimeout(30000)
-        this.page.setDefaultNavigationTimeout(60000)
+        console.log('🌐 Browser launched')
     }
 
-    async ensureLogin(): Promise<{ requiresCaptcha?: boolean; captchaImage?: string }> {
-        if (!this.page) throw new Error('Browser not initialized')
+    /**
+     * Get or create a session for a specific account
+     */
+    private async getOrCreateAccountSession(account: BeinAccount): Promise<AccountSession> {
+        // Check if we already have a session for this account
+        const existing = this.accountSessions.get(account.id)
+        if (existing && this.isSessionValidForAccount(account.id)) {
+            return existing
+        }
+
+        if (!this.browser) throw new Error('Browser not initialized')
+
+        // Try to load saved session from database
+        const savedSession = await this.session.loadSessionForAccount(account.id)
+
+        let context: BrowserContext
+        let lastLoginTime: Date | null = null
+
+        if (savedSession) {
+            context = await this.browser.newContext({
+                storageState: savedSession.storageState
+            })
+            lastLoginTime = new Date(savedSession.createdAt)
+            console.log(`📦 Restored session for account ${account.label || account.username}`)
+        } else {
+            context = await this.browser.newContext()
+        }
+
+        const page = await context.newPage()
+        page.setDefaultTimeout(30000)
+        page.setDefaultNavigationTimeout(60000)
+
+        const session: AccountSession = { context, page, lastLoginTime }
+        this.accountSessions.set(account.id, session)
+
+        return session
+    }
+
+    /**
+     * Ensure login for a specific account (Multi-Account)
+     */
+    async ensureLoginWithAccount(account: BeinAccount): Promise<{ requiresCaptcha?: boolean; captchaImage?: string }> {
+        const session = await this.getOrCreateAccountSession(account)
+        const { page, context } = session
 
         // Check if session is still valid
-        if (this.isSessionValid()) {
-            console.log('✅ Session still valid, skipping login')
+        if (this.isSessionValidForAccount(account.id)) {
+            console.log(`✅ Session still valid for ${account.label || account.username}, skipping login`)
             return {}
         }
 
-        console.log('🔐 Starting login process...')
+        console.log(`🔐 Starting login for account: ${account.label || account.username}`)
 
-        await this.page.goto(this.config.loginUrl)
-        await this.page.waitForLoadState('networkidle')
+        await page.goto(this.config.loginUrl)
+        await page.waitForLoadState('networkidle')
 
-        // Fill credentials
-        await this.page.fill(this.config.selUsername, this.config.username)
-        await this.page.fill(this.config.selPassword, this.config.password)
+        // Fill credentials from account (not from settings)
+        await page.fill(this.config.selUsername, account.username)
+        await page.fill(this.config.selPassword, account.password)
 
         // Handle 2FA (TOTP)
-        if (this.config.totpSecret) {
+        if (account.totpSecret) {
             try {
-                const totpCode = this.totp.generate(this.config.totpSecret)
-                await this.page.fill(this.config.sel2fa, totpCode)
+                const totpCode = this.totp.generate(account.totpSecret)
+                await page.fill(this.config.sel2fa, totpCode)
                 console.log('🔢 2FA code entered')
             } catch (e) {
                 console.log('ℹ️ 2FA field not found or not required')
@@ -203,7 +226,7 @@ export class BeINAutomation {
 
         // Handle CAPTCHA - Manual Mode
         try {
-            const captchaElement = await this.page.$(this.config.selCaptchaImg)
+            const captchaElement = await page.$(this.config.selCaptchaImg)
             if (captchaElement) {
                 const captchaBuffer = await captchaElement.screenshot()
                 const captchaBase64 = captchaBuffer.toString('base64')
@@ -219,46 +242,54 @@ export class BeINAutomation {
             console.log('ℹ️ No CAPTCHA found, continuing...')
         }
 
-        // Submit form (only if no CAPTCHA or auto-submit logic if needed later)
-        await this.page.click(this.config.selSubmit)
-        await this.page.waitForLoadState('networkidle')
+        // Submit form
+        await page.click(this.config.selSubmit)
+        await page.waitForLoadState('networkidle')
 
         // Verify login success
-        const currentUrl = this.page.url()
+        const currentUrl = page.url()
         if (currentUrl.includes('login') || currentUrl.includes('error')) {
             throw new Error('Login failed - check credentials or portal status')
         }
 
         // Save session
-        const storageState = await this.context!.storageState()
-        await this.session.saveSession(storageState)
-        this.lastLoginTime = new Date()
+        const storageState = await context.storageState()
+        await this.session.saveSessionForAccount(account.id, storageState)
 
-        console.log('✅ Login successful')
+        // Update session last login time
+        session.lastLoginTime = new Date()
+
+        console.log(`✅ Login successful for ${account.label || account.username}`)
         return {}
     }
 
-    async completeCaptcha(solution: string): Promise<void> {
-        if (!this.page) throw new Error('Browser not initialized')
+    /**
+     * Complete CAPTCHA for a specific account
+     */
+    async completeCaptchaForAccount(accountId: string, solution: string): Promise<void> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) throw new Error(`No session found for account ${accountId}`)
+
+        const { page, context } = session
 
         try {
-            await this.page.fill(this.config.selCaptchaInput, solution)
+            await page.fill(this.config.selCaptchaInput, solution)
             console.log('🧩 Manual CAPTCHA solution entered')
 
             // Submit form
-            await this.page.click(this.config.selSubmit)
-            await this.page.waitForLoadState('networkidle')
+            await page.click(this.config.selSubmit)
+            await page.waitForLoadState('networkidle')
 
             // Verify login success
-            const currentUrl = this.page.url()
+            const currentUrl = page.url()
             if (currentUrl.includes('login') || currentUrl.includes('error')) {
                 throw new Error('Login failed after CAPTCHA - check solution')
             }
 
             // Save session
-            const storageState = await this.context!.storageState()
-            await this.session.saveSession(storageState)
-            this.lastLoginTime = new Date()
+            const storageState = await context.storageState()
+            await this.session.saveSessionForAccount(accountId, storageState)
+            session.lastLoginTime = new Date()
 
             console.log('✅ Login successful after CAPTCHA')
         } catch (error: any) {
@@ -266,27 +297,33 @@ export class BeINAutomation {
         }
     }
 
-    async renewCard(cardNumber: string, duration: string): Promise<{ success: boolean; message: string }> {
-        if (!this.page) throw new Error('Browser not initialized')
+    /**
+     * Renew card with a specific account
+     */
+    async renewCardWithAccount(accountId: string, cardNumber: string, duration: string): Promise<{ success: boolean; message: string }> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) throw new Error(`No session found for account ${accountId}`)
+
+        const { page } = session
 
         try {
             const renewUrl = this.config.loginUrl + this.config.renewUrl
-            await this.page.goto(renewUrl)
-            await this.page.waitForLoadState('networkidle')
+            await page.goto(renewUrl)
+            await page.waitForLoadState('networkidle')
 
-            await this.page.fill(this.config.selCardInput, cardNumber)
-            await this.page.selectOption(this.config.selDuration, duration)
-            await this.page.click(this.config.selRenewSubmit)
+            await page.fill(this.config.selCardInput, cardNumber)
+            await page.selectOption(this.config.selDuration, duration)
+            await page.click(this.config.selRenewSubmit)
 
-            await this.page.waitForLoadState('networkidle')
+            await page.waitForLoadState('networkidle')
 
-            const successElement = await this.page.$(this.config.selSuccessMsg)
+            const successElement = await page.$(this.config.selSuccessMsg)
             if (successElement) {
                 const message = await successElement.textContent()
                 return { success: true, message: message || 'تم التجديد بنجاح' }
             }
 
-            const errorElement = await this.page.$(this.config.selErrorMsg)
+            const errorElement = await page.$(this.config.selErrorMsg)
             if (errorElement) {
                 const message = await errorElement.textContent()
                 return { success: false, message: message || 'فشل التجديد' }
@@ -299,20 +336,26 @@ export class BeINAutomation {
         }
     }
 
-    async checkBalance(cardNumber: string): Promise<{ success: boolean; message: string }> {
-        if (!this.page) throw new Error('Browser not initialized')
+    /**
+     * Check balance with a specific account
+     */
+    async checkBalanceWithAccount(accountId: string, cardNumber: string): Promise<{ success: boolean; message: string }> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) throw new Error(`No session found for account ${accountId}`)
+
+        const { page } = session
 
         try {
             const checkUrl = this.config.loginUrl + this.config.checkUrl
-            await this.page.goto(checkUrl)
-            await this.page.waitForLoadState('networkidle')
+            await page.goto(checkUrl)
+            await page.waitForLoadState('networkidle')
 
-            await this.page.fill(this.config.selCheckCard, cardNumber)
-            await this.page.click(this.config.selCheckSubmit)
+            await page.fill(this.config.selCheckCard, cardNumber)
+            await page.click(this.config.selCheckSubmit)
 
-            await this.page.waitForLoadState('networkidle')
+            await page.waitForLoadState('networkidle')
 
-            const balanceElement = await this.page.$(this.config.selBalanceResult)
+            const balanceElement = await page.$(this.config.selBalanceResult)
             if (balanceElement) {
                 const balance = await balanceElement.textContent()
                 return { success: true, message: balance || 'تم الاستعلام' }
@@ -325,18 +368,24 @@ export class BeINAutomation {
         }
     }
 
-    async refreshSignal(cardNumber: string): Promise<{ success: boolean; message: string }> {
-        if (!this.page) throw new Error('Browser not initialized')
+    /**
+     * Refresh signal with a specific account
+     */
+    async refreshSignalWithAccount(accountId: string, cardNumber: string): Promise<{ success: boolean; message: string }> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) throw new Error(`No session found for account ${accountId}`)
+
+        const { page } = session
 
         try {
             const signalUrl = this.config.loginUrl + this.config.signalUrl
-            await this.page.goto(signalUrl)
-            await this.page.waitForLoadState('networkidle')
+            await page.goto(signalUrl)
+            await page.waitForLoadState('networkidle')
 
-            await this.page.fill(this.config.selCardInput, cardNumber)
-            await this.page.click(this.config.selSubmit)
+            await page.fill(this.config.selCardInput, cardNumber)
+            await page.click(this.config.selSubmit)
 
-            await this.page.waitForLoadState('networkidle')
+            await page.waitForLoadState('networkidle')
 
             return { success: true, message: 'تم تحديث الإشارة بنجاح' }
 
@@ -345,20 +394,77 @@ export class BeINAutomation {
         }
     }
 
+    // ===== Legacy methods for backward compatibility =====
+
+    async ensureLogin(): Promise<{ requiresCaptcha?: boolean; captchaImage?: string }> {
+        console.warn('⚠️ ensureLogin() is deprecated. Use ensureLoginWithAccount() instead.')
+        throw new Error('Multi-account mode requires ensureLoginWithAccount()')
+    }
+
+    async completeCaptcha(solution: string): Promise<void> {
+        console.warn('⚠️ completeCaptcha() is deprecated. Use completeCaptchaForAccount() instead.')
+        throw new Error('Multi-account mode requires completeCaptchaForAccount()')
+    }
+
+    async renewCard(cardNumber: string, duration: string): Promise<{ success: boolean; message: string }> {
+        console.warn('⚠️ renewCard() is deprecated. Use renewCardWithAccount() instead.')
+        throw new Error('Multi-account mode requires renewCardWithAccount()')
+    }
+
+    async checkBalance(cardNumber: string): Promise<{ success: boolean; message: string }> {
+        console.warn('⚠️ checkBalance() is deprecated. Use checkBalanceWithAccount() instead.')
+        throw new Error('Multi-account mode requires checkBalanceWithAccount()')
+    }
+
+    async refreshSignal(cardNumber: string): Promise<{ success: boolean; message: string }> {
+        console.warn('⚠️ refreshSignal() is deprecated. Use refreshSignalWithAccount() instead.')
+        throw new Error('Multi-account mode requires refreshSignalWithAccount()')
+    }
+
+    // ===== Utility methods =====
+
     async reloadConfig(): Promise<void> {
         await this.loadConfig()
     }
 
     async close(): Promise<void> {
-        if (this.page) await this.page.close()
-        if (this.context) await this.context.close()
+        // Close all account sessions
+        for (const [accountId, session] of this.accountSessions) {
+            try {
+                await session.page.close()
+                await session.context.close()
+            } catch (e) {
+                // Ignore errors during cleanup
+            }
+        }
+        this.accountSessions.clear()
+
         if (this.browser) await this.browser.close()
         console.log('🔒 Browser closed')
     }
 
-    private isSessionValid(): boolean {
-        if (!this.lastLoginTime) return false
-        const elapsed = Date.now() - this.lastLoginTime.getTime()
+    /**
+     * Close a specific account session
+     */
+    async closeAccountSession(accountId: string): Promise<void> {
+        const session = this.accountSessions.get(accountId)
+        if (session) {
+            try {
+                await session.page.close()
+                await session.context.close()
+            } catch (e) {
+                // Ignore errors during cleanup
+            }
+            this.accountSessions.delete(accountId)
+            console.log(`🔒 Session closed for account ${accountId}`)
+        }
+    }
+
+    private isSessionValidForAccount(accountId: string): boolean {
+        const session = this.accountSessions.get(accountId)
+        if (!session?.lastLoginTime) return false
+        const elapsed = Date.now() - session.lastLoginTime.getTime()
         return elapsed < (this.config.sessionTimeout * 60 * 1000)
     }
 }
+

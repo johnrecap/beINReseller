@@ -1,5 +1,4 @@
 import { Suspense } from 'react'
-import { requireAuth } from '@/lib/auth-utils'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import UsersTable from '@/components/admin/users/UsersTable'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import {
@@ -75,11 +75,7 @@ export default function AnalyticsPage() {
         }
     }, [session, status])
 
-    useEffect(() => {
-        fetchAnalytics()
-    }, [period])
-
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = useCallback(async () => {
         setLoading(true)
         try {
             const res = await fetch(`/api/admin/analytics?days=${period}`)
@@ -92,7 +88,11 @@ export default function AnalyticsPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [period])
+
+    useEffect(() => {
+        fetchAnalytics()
+    }, [period, fetchAnalytics])
 
     if (loading || !data) {
         return (
@@ -325,7 +325,6 @@ function SummaryCard({ icon, label, value, color }: {
         purple: 'from-purple-500 to-purple-600 bg-purple-50 text-purple-600',
         amber: 'from-amber-500 to-amber-600 bg-amber-50 text-amber-600',
     }
-    const gradient = colors[color].split(' ')[0] + ' ' + colors[color].split(' ')[1]
     const bgColor = colors[color].split(' ')[2]
     const textColor = colors[color].split(' ')[3]
 

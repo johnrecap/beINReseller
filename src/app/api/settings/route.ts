@@ -8,7 +8,7 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 // We might need a separate public endpoint or use this one with filtering. 
 // Given the requirements, this seems to be the ADMIN route.
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
     try {
         const session = await auth()
         if (!session?.user?.id || session.user.role !== 'ADMIN') {

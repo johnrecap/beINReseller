@@ -55,6 +55,7 @@ export const en = {
         users: 'Users',
         analytics: 'Analytics',
         beinConfig: 'beIN Settings',
+        beinAccounts: 'beIN Accounts',
         settings: 'Settings',
         logs: 'Logs',
         logout: 'Logout',

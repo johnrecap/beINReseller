@@ -36,8 +36,8 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
             if (!res.ok) throw new Error(json.error || t.admin.users.messages.error)
 
             setNewPassword(json.newPassword)
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
             setLoading(false)
         }

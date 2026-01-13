@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
 
 interface CreateUserDialogProps {
@@ -38,8 +38,8 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
 
             onSuccess()
             onClose()
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
             setLoading(false)
         }

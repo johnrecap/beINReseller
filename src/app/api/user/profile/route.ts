@@ -7,7 +7,7 @@ const profileSchema = z.object({
     email: z.string().email('البريد الإلكتروني غير صالح').optional(),
 })
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
     try {
         const session = await auth()
         if (!session?.user?.id) {

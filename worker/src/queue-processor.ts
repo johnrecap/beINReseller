@@ -2,6 +2,7 @@
  * Queue Processor - Handles individual operation jobs
  * 
  * Features:
+ * - Multi-account support via AccountPoolManager
  * - Retry with exponential backoff
  * - Auto-refund on permanent failure
  * - Error classification
@@ -11,6 +12,7 @@
 import { Job } from 'bullmq'
 import { prisma } from './lib/prisma'
 import { BeINAutomation } from './automation/bein-automation'
+import { AccountPoolManager } from './pool'
 import { withRetry, calculateDelay } from './utils/retry-strategy'
 import { classifyError, refundUser, markOperationFailed } from './utils/error-handler'
 import { createNotification } from './utils/notification'
@@ -26,8 +28,13 @@ interface OperationJobData {
 
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT || '120') * 1000
 
-export async function processOperation(job: Job<OperationJobData>, automation: BeINAutomation): Promise<void> {
+export async function processOperation(
+    job: Job<OperationJobData>,
+    automation: BeINAutomation,
+    accountPool: AccountPoolManager
+): Promise<void> {
     const { operationId, type, cardNumber, duration, userId, amount } = job.data
+    let selectedAccountId: string | null = null
 
     console.log(`📥 Processing operation ${operationId}: ${type} for card ${cardNumber.slice(0, 4)}****`)
 
@@ -38,11 +45,30 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
             data: { status: 'PROCESSING' }
         })
 
-        // 2. Ensure we're logged in (with manual CAPTCHA support)
-        // We cannot use withRetry here for the full login flow if it involves manual interaction
-        // So we handle the login directly
+        // 2. Get next available account from pool
+        const selectedAccount = await accountPool.getNextAvailableAccount()
+        if (!selectedAccount) {
+            // No accounts available - put back in queue for retry
+            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة حالياً')
+        }
+        selectedAccountId = selectedAccount.id
+
+        // Link operation to the selected account
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: { beinAccountId: selectedAccountId }
+        })
+
+        console.log(`🔑 Using account: ${selectedAccount.label || selectedAccount.username}`)
+
+        // 3. Apply random delay for human-like behavior
+        const delay = accountPool.getRandomDelay()
+        console.log(`⏳ Waiting ${delay}ms before processing...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+
+        // 4. Ensure we're logged in with the selected account
         try {
-            const loginResult = await automation.ensureLogin()
+            const loginResult = await automation.ensureLoginWithAccount(selectedAccount)
 
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
                 console.log(`🧩 Operation ${operationId} requires manual CAPTCHA`)
@@ -73,23 +99,23 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
                 }
 
                 // Resume login with solution
-                await automation.completeCaptcha(solution)
+                await automation.completeCaptchaForAccount(selectedAccount.id, solution)
             }
         } catch (loginError: any) {
             // Rethrow specific errors to be handled by outer catch
             throw loginError
         }
 
-        // 3. Execute based on type (with retry for the actual operation)
+        // 5. Execute based on type (with retry for the actual operation)
         const result = await withRetry(
             async () => {
                 switch (type) {
                     case 'RENEW':
-                        return automation.renewCard(cardNumber, duration!)
+                        return automation.renewCardWithAccount(selectedAccount.id, cardNumber, duration!)
                     case 'CHECK_BALANCE':
-                        return automation.checkBalance(cardNumber)
+                        return automation.checkBalanceWithAccount(selectedAccount.id, cardNumber)
                     case 'REFRESH_SIGNAL':
-                        return automation.refreshSignal(cardNumber)
+                        return automation.refreshSignalWithAccount(selectedAccount.id, cardNumber)
                     default:
                         throw new Error(`Unknown operation type: ${type}`)
                 }
@@ -97,7 +123,7 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
             { maxRetries: 2, initialDelayMs: 3000 }
         )
 
-        // 4. Update operation based on result
+        // 6. Update operation based on result
         if (result.success) {
             await prisma.operation.update({
                 where: { id: operationId },
@@ -111,6 +137,11 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
                     captchaExpiry: null
                 }
             })
+
+            // Mark account as successfully used
+            if (selectedAccountId) {
+                await accountPool.markAccountUsed(selectedAccountId)
+            }
 
             // Notify Success
             await createNotification({
@@ -129,8 +160,14 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
     } catch (error: any) {
         console.error(`❌ Operation ${operationId} failed:`, error.message)
 
+        // Mark account as failed if we had one selected
+        if (selectedAccountId) {
+            await accountPool.markAccountFailed(selectedAccountId, error.message)
+        }
+
         const classifiedError = classifyError(error)
         const isCaptchaTimeout = error.message.includes('CAPTCHA_TIMEOUT')
+        const isNoAccounts = error.message.includes('NO_AVAILABLE_ACCOUNTS')
 
         // Get current retry count
         const operation = await prisma.operation.findUnique({
@@ -140,8 +177,9 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
         const retryCount = (operation?.retryCount || 0) + 1
         const maxRetries = 3
 
-        // Don't retry on CAPTCHA timeout
-        if (classifiedError.recoverable && retryCount < maxRetries && !isCaptchaTimeout) {
+        // Retry if recoverable error (not CAPTCHA timeout)
+        // For NO_AVAILABLE_ACCOUNTS, we should retry (accounts may become available)
+        if ((classifiedError.recoverable || isNoAccounts) && retryCount < maxRetries && !isCaptchaTimeout) {
             // Update retry count and schedule for retry
             const nextDelay = calculateDelay(retryCount)
 
@@ -169,9 +207,6 @@ export async function processOperation(job: Job<OperationJobData>, automation: B
             await refundUser(operationId, userId, amount, classifiedError.message)
 
             // Notify Failure
-            // IMPORTANT: refundUser handles the refund notification, but we can send a general failure notification if needed.
-            // Assuming refundUser handles it or we add one here. Let's add explicit failure notification here for clarity 
-            // since refundUser might only notify about refund.
             await createNotification({
                 userId,
                 title: 'فشلت العملية',
@@ -209,3 +244,4 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
 
     return null
 }
+

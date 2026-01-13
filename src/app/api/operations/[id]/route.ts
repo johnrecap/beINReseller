@@ -50,7 +50,7 @@ export async function GET(
         }
 
         // Remove userId from response
-        const { userId, ...operationData } = operation
+        const { userId: _userId, ...operationData } = operation
 
         return NextResponse.json(operationData)
 

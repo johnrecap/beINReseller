@@ -86,7 +86,7 @@ export async function GET() {
         for (let i = 0; i < 7; i++) {
             const date = subDays(today, 6 - i)
             const dateStr = format(date, 'yyyy-MM-dd')
-            const dayData = (dailyOperations as any[]).find(d =>
+            const dayData = (dailyOperations as { date: string; total: number; completed: number; failed: number }[]).find(d =>
                 format(new Date(d.date), 'yyyy-MM-dd') === dateStr
             )
             chartData.push({

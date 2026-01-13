@@ -11,7 +11,7 @@ interface Log {
     userId: string
     username: string
     action: string
-    details: any
+    details: string | Record<string, unknown>
     ipAddress: string
     createdAt: string
 }

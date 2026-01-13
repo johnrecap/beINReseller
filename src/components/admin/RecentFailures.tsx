@@ -10,7 +10,7 @@ interface Failure {
     date: string
 }
 
-export default function RecentFailures({ data }: { data: Failure[] }) {
+export default function RecentFailures({ data = [] }: { data?: Failure[] }) {
     const { t, language } = useTranslation()
 
     const localeMap = {
@@ -21,6 +21,9 @@ export default function RecentFailures({ data }: { data: Failure[] }) {
 
     const currentLocale = localeMap[language as keyof typeof localeMap] || ar
 
+    // Safe data array
+    const safeData = data ?? []
+
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-4">
@@ -29,10 +32,10 @@ export default function RecentFailures({ data }: { data: Failure[] }) {
             </div>
 
             <div className="space-y-4">
-                {data.length === 0 ? (
+                {safeData.length === 0 ? (
                     <p className="text-center text-gray-400 py-4">{t.admin.dashboard.recent.noFailures}</p>
                 ) : (
-                    data.map((fail) => (
+                    safeData.map((fail) => (
                         <div key={fail.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                             <div>
                                 <p className="text-sm font-bold text-gray-800">{fail.user}</p>

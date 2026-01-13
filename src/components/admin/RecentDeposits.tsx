@@ -10,7 +10,7 @@ interface Deposit {
     date: string
 }
 
-export default function RecentDeposits({ data }: { data: Deposit[] }) {
+export default function RecentDeposits({ data = [] }: { data?: Deposit[] }) {
     const { t, language } = useTranslation()
 
     const localeMap = {
@@ -21,6 +21,9 @@ export default function RecentDeposits({ data }: { data: Deposit[] }) {
 
     const currentLocale = localeMap[language as keyof typeof localeMap] || ar
 
+    // Safe data array
+    const safeData = data ?? []
+
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-4">
@@ -29,10 +32,10 @@ export default function RecentDeposits({ data }: { data: Deposit[] }) {
             </div>
 
             <div className="space-y-4">
-                {data.length === 0 ? (
+                {safeData.length === 0 ? (
                     <p className="text-center text-gray-400 py-4">{t.admin.dashboard.recent.noDeposits}</p>
                 ) : (
-                    data.map((deposit) => (
+                    safeData.map((deposit) => (
                         <div key={deposit.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                             <div>
                                 <p className="text-sm font-bold text-gray-800">{deposit.user}</p>

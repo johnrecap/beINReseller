@@ -7,16 +7,30 @@ interface ChartData {
     failed: number
 }
 
-export default function OperationsChart({ data }: { data: ChartData[] }) {
+export default function OperationsChart({ data = [] }: { data?: ChartData[] }) {
     const { t } = useTranslation()
-    const maxVal = Math.max(...data.map(d => d.total), 1)
+
+    // Safe data array
+    const safeData = data ?? []
+    const maxVal = safeData.length > 0 ? Math.max(...safeData.map(d => d.total), 1) : 1
+
+    if (safeData.length === 0) {
+        return (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 className="text-lg font-bold text-gray-800 mb-6">{t.admin.dashboard.chart.title}</h3>
+                <div className="h-64 flex items-center justify-center text-gray-400">
+                    {t.common.noData}
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h3 className="text-lg font-bold text-gray-800 mb-6">{t.admin.dashboard.chart.title}</h3>
 
             <div className="h-64 flex items-end justify-between gap-2">
-                {data.map((item, i) => {
+                {safeData.map((item, i) => {
                     const heightPercent = (item.total / maxVal) * 100
                     const successHeight = item.total > 0 ? (item.completed / item.total) * 100 : 0
 

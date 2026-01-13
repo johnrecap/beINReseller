@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
-import { AnimatedBackground } from '@/components/effects'
 import { useTranslation } from '@/hooks/useTranslation'
 import { cn } from '@/lib/utils'
 
@@ -16,14 +15,11 @@ export default function DashboardShell({ children }: DashboardShellProps) {
     const { t, dir } = useTranslation()
 
     return (
-        <div className="min-h-screen bg-background transition-colors duration-300" dir={dir}>
-            {/* Subtle animated background */}
-            <AnimatedBackground variant="subtle" />
-
-            {/* Sidebar - Fixed on the left/right */}
+        <div className="min-h-screen bg-background" dir={dir}>
+            {/* Sidebar */}
             <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-            {/* Main Content - margin for sidebar */}
+            {/* Main Content Area */}
             <div className={cn(
                 "min-h-screen transition-all duration-300",
                 dir === 'rtl' ? "lg:mr-72" : "lg:ml-72"
@@ -32,7 +28,7 @@ export default function DashboardShell({ children }: DashboardShellProps) {
                 <Header title={t.common.controlPanel} onMenuClick={() => setSidebarOpen(true)} />
 
                 {/* Page Content */}
-                <main className="p-4 lg:p-6 relative">
+                <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
                     {children}
                 </main>
             </div>

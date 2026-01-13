@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
     Home,
     Zap,
@@ -14,7 +13,6 @@ import {
     Users,
     FileText,
     LogOut,
-    ChevronLeft,
     Menu,
     X,
     Bot,
@@ -22,16 +20,11 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
+import { Button } from '@/components/ui/button'
 
 interface SidebarProps {
     isOpen: boolean
     onClose: () => void
-}
-
-const linkVariants = {
-    initial: { opacity: 0, x: -20 },
-    animate: { opacity: 1, x: 0 },
-    hover: { x: 4, transition: { duration: 0.2 } }
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
@@ -64,199 +57,132 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return (
         <>
             {/* Overlay for mobile */}
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                    />
-                )}
-            </AnimatePresence>
+            {isOpen && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                    onClick={onClose}
+                />
+            )}
 
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "fixed top-0 h-screen w-72 z-50 transition-transform duration-300",
-                    "bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950 dark:from-gray-950 dark:via-gray-900 dark:to-black",
-                    "text-white flex flex-col",
-                    dir === 'rtl' ? "right-0 border-l border-white/10" : "left-0 border-r border-white/10",
+                    "fixed top-0 bottom-0 z-50 w-72 transition-transform duration-300 ease-in-out bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl lg:shadow-none",
+                    dir === 'rtl' ? "right-0 border-l border-r-0" : "left-0",
                     isOpen ? "translate-x-0" : (dir === 'rtl' ? "translate-x-full" : "-translate-x-full"),
                     "lg:translate-x-0"
                 )}
                 dir={dir}
             >
-                {/* Glow overlay */}
-                <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute -top-20 -right-20 w-60 h-60 bg-purple-500/10 rounded-full blur-3xl" />
-                    <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl" />
-                </div>
-
-                {/* Close button for mobile */}
-                <motion.button
-                    onClick={onClose}
-                    className={cn(
-                        "absolute top-4 p-2 rounded-lg hover:bg-white/10 lg:hidden transition-colors",
-                        dir === 'rtl' ? "left-4" : "right-4"
-                    )}
-                    aria-label="Close Menu"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                >
-                    <X className="w-5 h-5" />
-                </motion.button>
-
-                {/* Logo */}
-                <div className="relative p-6 border-b border-white/10">
-                    <div className="flex items-center gap-3">
-                        <motion.div
-                            className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/30"
-                            whileHover={{ scale: 1.05, rotate: 5 }}
-                            transition={{ type: "spring", stiffness: 400 }}
-                        >
-                            <span className="text-2xl">📺</span>
-                        </motion.div>
-                        <div>
-                            <h1 className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">beIN Panel</h1>
-                            <p className="text-xs text-gray-400">{t.sidebar.resellerPanel}</p>
+                <div className="flex h-full flex-col">
+                    {/* Header */}
+                    <div className="flex h-16 items-center px-6 border-b border-sidebar-border">
+                        <span className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                            📺 beIN Panel
+                        </span>
+                        <div className="ml-auto lg:hidden">
+                            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 text-sidebar-foreground">
+                                <X className="h-5 w-5" />
+                            </Button>
                         </div>
                     </div>
-                </div>
 
-                {/* Navigation */}
-                <nav className="relative flex-1 p-4 space-y-1 overflow-y-auto">
-                    <div className="mb-6">
-                        <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 px-3">{t.sidebar.mainMenu}</p>
-                        {resellerLinks.map((link, index) => {
-                            const Icon = link.icon
-                            const isActive = pathname === link.href
-                            return (
-                                <motion.div
-                                    key={link.href}
-                                    initial="initial"
-                                    animate="animate"
-                                    variants={linkVariants}
-                                    transition={{ delay: index * 0.05 }}
-                                    whileHover="hover"
-                                >
-                                    <Link
-                                        href={link.href}
-                                        onClick={onClose}
-                                        className={cn(
-                                            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 relative",
-                                            isActive
-                                                ? "bg-white/10 text-white font-medium"
-                                                : "text-gray-400 hover:bg-white/5 hover:text-white"
-                                        )}
-                                    >
-                                        {/* Active indicator glow */}
-                                        {isActive && (
-                                            <motion.div
-                                                className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/20 to-indigo-500/20"
-                                                layoutId="activeLink"
-                                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                            />
-                                        )}
-                                        <Icon className={cn("w-5 h-5 relative z-10", isActive && "text-purple-300")} />
-                                        <span className="relative z-10">{link.label}</span>
-                                        {isActive && (
-                                            <ChevronLeft className={cn(
-                                                "w-4 h-4 relative z-10",
-                                                dir === 'rtl' ? 'mr-auto' : 'ml-auto'
-                                            )} />
-                                        )}
-                                    </Link>
-                                </motion.div>
-                            )
-                        })}
-                    </div>
+                    {/* Navigation */}
+                    <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 scrollbar-thin scrollbar-thumb-sidebar-accent scrollbar-track-transparent">
 
-                    {isAdmin && (
+                        {/* Reseller Menu */}
                         <div>
-                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3 px-3">{t.sidebar.admin}</p>
-                            {adminLinks.map((link, index) => {
-                                const Icon = link.icon
-                                const isActive = pathname === link.href || pathname.startsWith(link.href + '/')
-                                return (
-                                    <motion.div
-                                        key={link.href}
-                                        initial="initial"
-                                        animate="animate"
-                                        variants={linkVariants}
-                                        transition={{ delay: (index + resellerLinks.length) * 0.05 }}
-                                        whileHover="hover"
-                                    >
+                            <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+                                {t.sidebar.mainMenu}
+                            </h4>
+                            <div className="space-y-1">
+                                {resellerLinks.map((link) => {
+                                    const Icon = link.icon
+                                    const isActive = pathname === link.href
+                                    return (
                                         <Link
+                                            key={link.href}
                                             href={link.href}
                                             onClick={onClose}
                                             className={cn(
-                                                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 relative",
+                                                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                                                 isActive
-                                                    ? "bg-purple-500/20 text-purple-300 font-medium"
-                                                    : "text-gray-400 hover:bg-white/5 hover:text-white"
+                                                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                                                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
                                             )}
                                         >
-                                            {isActive && (
-                                                <motion.div
-                                                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/20"
-                                                    layoutId="adminActiveLink"
-                                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                                />
-                                            )}
-                                            <Icon className={cn("w-5 h-5 relative z-10", isActive && "text-purple-400")} />
-                                            <span className="relative z-10">{link.label}</span>
+                                            <Icon className="h-4 w-4" />
+                                            {link.label}
                                         </Link>
-                                    </motion.div>
-                                )
-                            })}
+                                    )
+                                })}
+                            </div>
                         </div>
-                    )}
-                </nav>
 
-                {/* User Info & Logout */}
-                <div className="relative p-4 border-t border-white/10">
-                    <div className="flex items-center gap-3 mb-4 px-2">
-                        <motion.div
-                            className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30"
-                            whileHover={{ scale: 1.1 }}
-                        >
-                            <User className="w-5 h-5" />
-                        </motion.div>
-                        <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{session?.user?.username}</p>
-                            <p className="text-xs text-gray-400">
-                                {session?.user?.role === 'ADMIN' ? 'مدير' : 'موزع'}
-                            </p>
-                        </div>
+                        {/* Admin Menu */}
+                        {isAdmin && (
+                            <div>
+                                <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+                                    {t.sidebar.admin}
+                                </h4>
+                                <div className="space-y-1">
+                                    {adminLinks.map((link) => {
+                                        const Icon = link.icon
+                                        const isActive = pathname === link.href || pathname.startsWith(link.href + '/')
+                                        return (
+                                            <Link
+                                                key={link.href}
+                                                href={link.href}
+                                                onClick={onClose}
+                                                className={cn(
+                                                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                                                    isActive
+                                                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                                                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
+                                                )}
+                                            >
+                                                <Icon className="h-4 w-4" />
+                                                {link.label}
+                                            </Link>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                    <motion.button
-                        onClick={handleLogout}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all border border-red-500/20"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                    >
-                        <LogOut className="w-5 h-5" />
-                        <span>تسجيل الخروج</span>
-                    </motion.button>
+
+                    {/* Footer / User Profile */}
+                    <div className="border-t border-sidebar-border p-4 bg-sidebar-accent/30">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-primary text-white">
+                                <User className="h-4 w-4" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-white">{session?.user?.username}</span>
+                                <span className="text-xs text-sidebar-foreground/60 capitalize">
+                                    {session?.user?.role?.toLowerCase() || 'User'}
+                                </span>
+                            </div>
+                        </div>
+                        <Button
+                            variant="outline"
+                            className="w-full justify-start gap-2 border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
+                            onClick={handleLogout}
+                        >
+                            <LogOut className="h-4 w-4" />
+                            <span>{t.common.logout || "Logout"}</span>
+                        </Button>
+                    </div>
                 </div>
             </aside>
         </>
     )
 }
 
-// Menu button for mobile header
 export function MobileMenuButton({ onClick }: { onClick: () => void }) {
     return (
-        <motion.button
-            onClick={onClick}
-            className="p-2 rounded-xl hover:bg-muted lg:hidden transition-colors"
-            aria-label="فتح القائمة"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-        >
-            <Menu className="w-6 h-6 text-foreground" />
-        </motion.button>
+        <Button variant="ghost" size="sm" onClick={onClick} className="lg:hidden">
+            <Menu className="h-5 w-5" />
+        </Button>
     )
 }

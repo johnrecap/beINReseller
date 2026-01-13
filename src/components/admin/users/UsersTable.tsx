@@ -149,7 +149,7 @@ export default function UsersTable() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <p className="font-bold text-gray-800 dir-ltr text-right">{user.balance.toLocaleString()} {t.header.currency}</p>
+                                            <p className="font-bold text-gray-800 dir-ltr text-right">{(user.balance ?? 0).toLocaleString()} {t.header.currency}</p>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.isActive

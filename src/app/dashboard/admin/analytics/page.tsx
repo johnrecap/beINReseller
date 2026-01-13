@@ -140,7 +140,7 @@ export default function AnalyticsPage() {
                 <SummaryCard
                     icon={<Activity className="w-6 h-6" />}
                     label="إجمالي العمليات"
-                    value={data.summary.totalOperations.toLocaleString('ar-SA')}
+                    value={(data.summary.totalOperations ?? 0).toLocaleString('ar-SA')}
                     color="blue"
                 />
                 <SummaryCard
@@ -158,7 +158,7 @@ export default function AnalyticsPage() {
                 <SummaryCard
                     icon={<TrendingUp className="w-6 h-6" />}
                     label="متوسط العمليات/يوم"
-                    value={data.summary.avgOperationsPerDay.toLocaleString('ar-SA')}
+                    value={(data.summary.avgOperationsPerDay ?? 0).toLocaleString('ar-SA')}
                     color="amber"
                 />
             </div>
@@ -294,7 +294,7 @@ export default function AnalyticsPage() {
                                         </span>
                                     </td>
                                     <td className="py-3 px-4 font-medium text-gray-800">{reseller.username}</td>
-                                    <td className="py-3 px-4 text-gray-600">{reseller.operationsCount.toLocaleString('ar-SA')}</td>
+                                    <td className="py-3 px-4 text-gray-600">{(reseller.operationsCount ?? 0).toLocaleString('ar-SA')}</td>
                                     <td className="py-3 px-4 text-green-600 font-medium">{reseller.totalRevenue.toFixed(2)} ر.س</td>
                                 </tr>
                             ))}

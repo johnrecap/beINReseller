@@ -8,8 +8,16 @@ interface Stats {
     successRate: number
 }
 
-export default function AdminStatsCards({ stats }: { stats: Stats }) {
+export default function AdminStatsCards({ stats }: { stats?: Stats }) {
     const { t } = useTranslation()
+
+    // Safe stats object with defaults
+    const safeStats = {
+        totalUsers: stats?.totalUsers ?? 0,
+        totalBalance: stats?.totalBalance ?? 0,
+        todayOperations: stats?.todayOperations ?? 0,
+        successRate: stats?.successRate ?? 0
+    }
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -24,7 +32,7 @@ export default function AdminStatsCards({ stats }: { stats: Stats }) {
                     </span>
                 </div>
                 <h3 className="text-gray-500 text-sm font-medium mb-1">{t.admin.dashboard.stats.totalUsers}</h3>
-                <p className="text-2xl font-bold text-gray-800">{stats.totalUsers}</p>
+                <p className="text-2xl font-bold text-gray-800">{safeStats.totalUsers}</p>
             </div>
 
             {/* Total Balance */}
@@ -35,7 +43,7 @@ export default function AdminStatsCards({ stats }: { stats: Stats }) {
                     </div>
                 </div>
                 <h3 className="text-gray-500 text-sm font-medium mb-1">{t.admin.dashboard.stats.totalBalance}</h3>
-                <p className="text-2xl font-bold text-gray-800">{stats.totalBalance.toLocaleString()} {t.header.currency}</p>
+                <p className="text-2xl font-bold text-gray-800">{safeStats.totalBalance.toLocaleString()} {t.header.currency}</p>
             </div>
 
             {/* Today's Operations */}
@@ -49,7 +57,7 @@ export default function AdminStatsCards({ stats }: { stats: Stats }) {
                     </span>
                 </div>
                 <h3 className="text-gray-500 text-sm font-medium mb-1">{t.admin.dashboard.stats.todayOperations}</h3>
-                <p className="text-2xl font-bold text-gray-800">{stats.todayOperations}</p>
+                <p className="text-2xl font-bold text-gray-800">{safeStats.todayOperations}</p>
             </div>
 
             {/* Success Rate */}
@@ -61,7 +69,7 @@ export default function AdminStatsCards({ stats }: { stats: Stats }) {
                     <span className="text-xs text-gray-400">{t.admin.dashboard.stats.last7Days}</span>
                 </div>
                 <h3 className="text-gray-500 text-sm font-medium mb-1">{t.admin.dashboard.stats.successRate}</h3>
-                <p className="text-2xl font-bold text-gray-800 dir-ltr text-right">{stats.successRate}%</p>
+                <p className="text-2xl font-bold text-gray-800 dir-ltr text-right">{safeStats.successRate}%</p>
             </div>
         </div>
     )

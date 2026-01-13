@@ -149,7 +149,7 @@ export default function OperationsTable({
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${statusColors[op.status] || 'bg-gray-100'}`}>
-                                        {(t.status as any)[op.status === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : op.status.toLowerCase()] || op.status}
+                                        {(t.status as Record<string, string>)?.[op.status === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : (typeof op.status === 'string' ? op.status.toLowerCase() : 'pending')] ?? op.status ?? 'Unknown'}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">

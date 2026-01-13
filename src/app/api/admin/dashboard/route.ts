@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { startOfDay, subDays, format } from 'date-fns'
 
-export async function GET(request: Request) {
+export async function GET() {
     try {
         const session = await auth()
 
@@ -19,63 +19,110 @@ export async function GET(request: Request) {
 
         const [
             usersCount,
-            activeUsersCount,
+            totalBalance,
             todayOperationsCount,
-            todayRevenue,
-            recentOperations,
-            dailyStats
+            last7DaysOperations,
+            recentFailedOperations,
+            recentDeposits,
+            dailyOperations
         ] = await Promise.all([
+            // Total users
             prisma.user.count(),
-            prisma.user.count({ where: { isActive: true } }),
+
+            // Total balance across all users
+            prisma.user.aggregate({
+                _sum: { balance: true }
+            }),
+
+            // Today's operations count
             prisma.operation.count({
                 where: { createdAt: { gte: today } }
             }),
-            prisma.operation.aggregate({
-                where: {
-                    createdAt: { gte: today },
-                    status: 'COMPLETED'
-                },
-                _sum: { amount: true }
-            }),
-            prisma.operation.findMany({
-                take: 5,
-                orderBy: { createdAt: 'desc' },
-                include: { user: true }
-            }),
+
+            // Last 7 days operations for success rate
             prisma.operation.groupBy({
-                by: ['createdAt', 'status'],
+                by: ['status'],
                 where: { createdAt: { gte: last7Days } },
                 _count: { id: true }
-            })
+            }),
+
+            // Recent failed operations
+            prisma.operation.findMany({
+                where: { status: 'FAILED' },
+                take: 5,
+                orderBy: { createdAt: 'desc' },
+                include: { user: { select: { username: true } } }
+            }),
+
+            // Recent deposits (transactions)
+            prisma.transaction.findMany({
+                where: { type: 'DEPOSIT' },
+                take: 5,
+                orderBy: { createdAt: 'desc' },
+                include: { user: { select: { username: true } } }
+            }),
+
+            // Daily stats for chart
+            prisma.$queryRaw<{ date: string; total: number; completed: number; failed: number }[]>`
+                SELECT 
+                    DATE("createdAt") as date,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed
+                FROM "Operation"
+                WHERE "createdAt" >= ${last7Days}
+                GROUP BY DATE("createdAt")
+                ORDER BY date ASC
+            `.catch(() => []) // Fallback if raw query fails
         ])
 
-        // Process daily stats
+        // Calculate success rate from last 7 days
+        const totalOps = last7DaysOperations.reduce((sum, g) => sum + g._count.id, 0)
+        const completedOps = last7DaysOperations.find(g => g.status === 'COMPLETED')?._count.id ?? 0
+        const successRate = totalOps > 0 ? Math.round((completedOps / totalOps) * 100) : 0
+
+        // Format chart data - ensure 7 days
         const chartData = []
         for (let i = 0; i < 7; i++) {
             const date = subDays(today, 6 - i)
             const dateStr = format(date, 'yyyy-MM-dd')
-
-            // This is a simplified grouping, ideally we group by date(createdAt) in DB or process properly here
-            // Since default grouping by createdAt includes time, this simple approach might not work perfectly with raw groupBy depending on DB
-            // But assuming low volume or consistent timestamps for now, or just returning empty for visual mock if complex
-
-            // Fixing simple count logic for chart
+            const dayData = (dailyOperations as any[]).find(d =>
+                format(new Date(d.date), 'yyyy-MM-dd') === dateStr
+            )
             chartData.push({
                 date: format(date, 'MM/dd'),
-                success: 0,
-                failed: 0
+                total: Number(dayData?.total ?? 0),
+                completed: Number(dayData?.completed ?? 0),
+                failed: Number(dayData?.failed ?? 0)
             })
         }
+
+        // Format recent failures for component
+        const recentFailures = recentFailedOperations.map(op => ({
+            id: op.id,
+            user: op.user?.username ?? 'Unknown',
+            status: op.status,
+            date: op.createdAt.toISOString()
+        }))
+
+        // Format recent deposits for component
+        const formattedRecentDeposits = recentDeposits.map(tx => ({
+            id: tx.id,
+            user: tx.user?.username ?? 'Unknown',
+            amount: tx.amount,
+            date: tx.createdAt.toISOString()
+        }))
 
         return NextResponse.json({
             stats: {
                 totalUsers: usersCount,
-                activeUsers: activeUsersCount,
+                totalBalance: totalBalance._sum.balance ?? 0,
                 todayOperations: todayOperationsCount,
-                todayRevenue: todayRevenue._sum.amount || 0
+                successRate: successRate
             },
-            recentOperations,
-            chartData
+            chartData,
+            recentFailures,
+            recentDeposits: formattedRecentDeposits
         })
     } catch (error) {
         console.error('Admin dashboard error:', error)

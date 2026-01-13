@@ -24,8 +24,8 @@ export default async function AdminSettingsPage() {
                     <Settings className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">إعدادات النظام</h1>
-                    <p className="text-gray-500 text-sm">تحديد الأسعار والتحكم في وضع الصيانة</p>
+                    <h1 className="text-2xl font-bold text-foreground">إعدادات النظام</h1>
+                    <p className="text-muted-foreground text-sm">تحديد الأسعار والتحكم في وضع الصيانة</p>
                 </div>
             </div>
 

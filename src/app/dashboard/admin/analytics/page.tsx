@@ -97,13 +97,13 @@ export default function AnalyticsPage() {
     if (loading || !data) {
         return (
             <div className="p-6 animate-pulse space-y-6">
-                <div className="h-8 bg-gray-200 rounded w-48" />
+                <div className="h-8 bg-muted rounded w-48" />
                 <div className="grid grid-cols-4 gap-4">
                     {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-32 bg-gray-200 rounded-xl" />
+                        <div key={i} className="h-32 bg-muted rounded-xl" />
                     ))}
                 </div>
-                <div className="h-80 bg-gray-200 rounded-xl" />
+                <div className="h-80 bg-muted rounded-xl" />
             </div>
         )
     }
@@ -166,8 +166,8 @@ export default function AnalyticsPage() {
             {/* Charts Row 1 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Daily Operations Trend */}
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6">
+                    <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-blue-500" />
                         العمليات اليومية
                     </h3>
@@ -197,8 +197,8 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* Operations by Type */}
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6">
+                    <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                         <PieChart className="w-5 h-5 text-purple-500" />
                         العمليات حسب النوع
                     </h3>
@@ -228,8 +228,8 @@ export default function AnalyticsPage() {
             {/* Charts Row 2 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Hourly Distribution */}
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6">
+                    <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                         <Clock className="w-5 h-5 text-amber-500" />
                         توزيع العمليات بالساعة
                     </h3>
@@ -245,8 +245,8 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* Operations by Status */}
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <div className="bg-card rounded-xl shadow-sm border border-border p-6">
+                    <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                         <Activity className="w-5 h-5 text-green-500" />
                         العمليات حسب الحالة
                     </h3>
@@ -267,24 +267,24 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Top Resellers Table */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <div className="bg-card rounded-xl shadow-sm border border-border p-6">
+                <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                     <Users className="w-5 h-5 text-indigo-500" />
                     أفضل 10 موزعين
                 </h3>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-gray-100">
-                                <th className="text-right py-3 px-4 font-medium text-gray-500">#</th>
-                                <th className="text-right py-3 px-4 font-medium text-gray-500">الموزع</th>
-                                <th className="text-right py-3 px-4 font-medium text-gray-500">عدد العمليات</th>
-                                <th className="text-right py-3 px-4 font-medium text-gray-500">إجمالي الإيرادات</th>
+                            <tr className="border-b border-border">
+                                <th className="text-right py-3 px-4 font-medium text-muted-foreground">#</th>
+                                <th className="text-right py-3 px-4 font-medium text-muted-foreground">الموزع</th>
+                                <th className="text-right py-3 px-4 font-medium text-muted-foreground">عدد العمليات</th>
+                                <th className="text-right py-3 px-4 font-medium text-muted-foreground">إجمالي الإيرادات</th>
                             </tr>
                         </thead>
                         <tbody>
                             {data.topResellers.map((reseller, index) => (
-                                <tr key={reseller.id} className="border-b border-gray-50 hover:bg-gray-50">
+                                <tr key={reseller.id} className="border-b border-border/50 hover:bg-secondary">
                                     <td className="py-3 px-4">
                                         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${index === 0 ? 'bg-yellow-500' :
                                             index === 1 ? 'bg-gray-400' :
@@ -293,14 +293,14 @@ export default function AnalyticsPage() {
                                             {index + 1}
                                         </span>
                                     </td>
-                                    <td className="py-3 px-4 font-medium text-gray-800">{reseller.username}</td>
-                                    <td className="py-3 px-4 text-gray-600">{(reseller.operationsCount ?? 0).toLocaleString('ar-SA')}</td>
+                                    <td className="py-3 px-4 font-medium text-foreground">{reseller.username}</td>
+                                    <td className="py-3 px-4 text-muted-foreground">{(reseller.operationsCount ?? 0).toLocaleString('ar-SA')}</td>
                                     <td className="py-3 px-4 text-green-600 font-medium">{reseller.totalRevenue.toFixed(2)} ر.س</td>
                                 </tr>
                             ))}
                             {data.topResellers.length === 0 && (
                                 <tr>
-                                    <td colSpan={4} className="py-8 text-center text-gray-500">
+                                    <td colSpan={4} className="py-8 text-center text-muted-foreground">
                                         لا توجد بيانات
                                     </td>
                                 </tr>
@@ -319,24 +319,22 @@ function SummaryCard({ icon, label, value, color }: {
     value: string
     color: 'blue' | 'green' | 'purple' | 'amber'
 }) {
-    const colors = {
-        blue: 'from-blue-500 to-blue-600 bg-blue-50 text-blue-600',
-        green: 'from-green-500 to-green-600 bg-green-50 text-green-600',
-        purple: 'from-purple-500 to-purple-600 bg-purple-50 text-purple-600',
-        amber: 'from-amber-500 to-amber-600 bg-amber-50 text-amber-600',
+    const colorClasses = {
+        blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600',
+        green: 'bg-green-50 dark:bg-green-900/30 text-green-600',
+        purple: 'bg-purple-50 dark:bg-purple-900/30 text-purple-600',
+        amber: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600',
     }
-    const bgColor = colors[color].split(' ')[2]
-    const textColor = colors[color].split(' ')[3]
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-card rounded-xl shadow-sm border border-border p-6">
             <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${bgColor} ${textColor}`}>
+                <div className={`p-3 rounded-xl ${colorClasses[color]}`}>
                     {icon}
                 </div>
                 <div>
-                    <p className="text-sm text-gray-500">{label}</p>
-                    <p className="text-2xl font-bold text-gray-800">{value}</p>
+                    <p className="text-sm text-muted-foreground">{label}</p>
+                    <p className="text-2xl font-bold text-foreground">{value}</p>
                 </div>
             </div>
         </div>

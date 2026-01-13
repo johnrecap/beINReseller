@@ -17,10 +17,10 @@ interface Transaction {
 }
 
 const typeColors: Record<string, string> = {
-    DEPOSIT: 'bg-green-100 text-green-700',
-    WITHDRAW: 'bg-red-100 text-red-700',
-    REFUND: 'bg-yellow-100 text-yellow-700',
-    OPERATION_DEDUCT: 'bg-blue-100 text-blue-700',
+    DEPOSIT: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+    WITHDRAW: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+    REFUND: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
+    OPERATION_DEDUCT: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
 }
 
 export default function TransactionsTable() {
@@ -61,11 +61,11 @@ export default function TransactionsTable() {
 
     if (loading) {
         return (
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-card rounded-xl shadow-sm overflow-hidden">
                 <div className="animate-pulse">
-                    <div className="h-12 bg-gray-100"></div>
+                    <div className="h-12 bg-muted"></div>
                     {[...Array(5)].map((_, i) => (
-                        <div key={i} className="h-16 bg-gray-50 border-t border-gray-100"></div>
+                        <div key={i} className="h-16 bg-secondary border-t border-border"></div>
                     ))}
                 </div>
             </div>
@@ -74,33 +74,33 @@ export default function TransactionsTable() {
 
     if (transactions.length === 0) {
         return (
-            <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-                <FileX className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-gray-600 mb-2">{t.transactions.noTransactions}</h3>
-                <p className="text-gray-400 text-sm">{t.transactions.noMatchingTransactions}</p>
+            <div className="bg-card rounded-xl shadow-sm p-12 text-center">
+                <FileX className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-foreground mb-2">{t.transactions.noTransactions}</h3>
+                <p className="text-muted-foreground text-sm">{t.transactions.noMatchingTransactions}</p>
             </div>
         )
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-card rounded-xl shadow-sm overflow-hidden">
             {/* Table */}
             <div className="overflow-x-auto">
                 <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-100">
+                    <thead className="bg-secondary border-b border-border">
                         <tr>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">#</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.type}</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.amount}</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.balanceAfter}</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.notes}</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.transactions.date}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">#</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.transactions.type}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.transactions.amount}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.transactions.balanceAfter}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.transactions.notes}</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.transactions.date}</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border">
                         {transactions.map((tx, index) => (
-                            <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-4 py-3 text-sm text-gray-500">
+                            <tr key={tx.id} className="hover:bg-secondary transition-colors">
+                                <td className="px-4 py-3 text-sm text-muted-foreground">
                                     {(page - 1) * 10 + index + 1}
                                 </td>
                                 <td className="px-4 py-3">
@@ -111,16 +111,16 @@ export default function TransactionsTable() {
                                 <td className={`px-4 py-3 text-sm font-bold ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'} dir-ltr text-right`}>
                                     {tx.amount > 0 ? '+' : ''}{tx.amount} {t.header.currency}
                                 </td>
-                                <td className="px-4 py-3 text-sm font-mono text-gray-700">
+                                <td className="px-4 py-3 text-sm font-mono text-foreground">
                                     {tx.balanceAfter} {t.header.currency}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">
+                                <td className="px-4 py-3 text-sm text-muted-foreground max-w-[200px] truncate">
                                     {tx.notes || '-'}
                                     {tx.operationId && (
-                                        <span className="block text-xs text-gray-400 font-mono mt-1">Op: #{tx.operationId.slice(-4)}</span>
+                                        <span className="block text-xs text-muted-foreground/70 font-mono mt-1">Op: #{tx.operationId.slice(-4)}</span>
                                     )}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-500">
+                                <td className="px-4 py-3 text-sm text-muted-foreground">
                                     {format(new Date(tx.createdAt), 'dd/MM/yyyy HH:mm', { locale: getDateLocale() })}
                                 </td>
                             </tr>
@@ -131,8 +131,8 @@ export default function TransactionsTable() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-                    <p className="text-sm text-gray-500">
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                    <p className="text-sm text-muted-foreground">
                         {page} / {totalPages}
                     </p>
                     <div className="flex gap-2">
@@ -140,7 +140,7 @@ export default function TransactionsTable() {
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page <= 1}
                             title={t.common.back}
-                            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronRight className="w-4 h-4" />
                         </button>
@@ -148,7 +148,7 @@ export default function TransactionsTable() {
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                             disabled={page >= totalPages}
                             title={t.common.confirm}
-                            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>

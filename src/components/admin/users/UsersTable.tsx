@@ -91,13 +91,13 @@ export default function UsersTable() {
             {/* Header Actions */}
             <div className="flex flex-col sm:flex-row justify-between gap-4">
                 <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                     <input
                         type="text"
                         placeholder={t.admin.users.actions.searchPlaceholder}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pr-10 pl-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-500"
+                        className="w-full pr-10 pl-4 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground"
                     />
                 </div>
                 <button
@@ -110,61 +110,61 @@ export default function UsersTable() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+            <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
                 <div className="overflow-x-auto">
                     <table className="w-full">
-                        <thead className="bg-gray-50 border-b border-gray-100">
+                        <thead className="bg-secondary border-b border-border">
                             <tr>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.user}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.balance}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.status}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.activity}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">{t.admin.users.table.created}</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 pl-6">{t.admin.users.table.actions}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.activity}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-border">
                             {loading ? (
                                 [...Array(5)].map((_, i) => (
                                     <tr key={i} className="animate-pulse">
-                                        <td className="p-4"><div className="h-4 bg-gray-100 rounded w-24"></div></td>
-                                        <td className="p-4"><div className="h-4 bg-gray-100 rounded w-16"></div></td>
-                                        <td className="p-4"><div className="h-6 bg-gray-100 rounded-full w-12"></div></td>
-                                        <td className="p-4"><div className="h-4 bg-gray-100 rounded w-20"></div></td>
-                                        <td className="p-4"><div className="h-4 bg-gray-100 rounded w-24"></div></td>
-                                        <td className="p-4"><div className="h-8 bg-gray-100 rounded w-8"></div></td>
+                                        <td className="p-4"><div className="h-4 bg-muted rounded w-24"></div></td>
+                                        <td className="p-4"><div className="h-4 bg-muted rounded w-16"></div></td>
+                                        <td className="p-4"><div className="h-6 bg-muted rounded-full w-12"></div></td>
+                                        <td className="p-4"><div className="h-4 bg-muted rounded w-20"></div></td>
+                                        <td className="p-4"><div className="h-4 bg-muted rounded w-24"></div></td>
+                                        <td className="p-4"><div className="h-8 bg-muted rounded w-8"></div></td>
                                     </tr>
                                 ))
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-gray-400">{t.admin.users.table.noUsers}</td>
+                                    <td colSpan={6} className="p-8 text-center text-muted-foreground">{t.admin.users.table.noUsers}</td>
                                 </tr>
                             ) : (
                                 users.map((user) => (
-                                    <tr key={user.id} className="hover:bg-gray-50 transition-colors group">
+                                    <tr key={user.id} className="hover:bg-secondary transition-colors group">
                                         <td className="px-4 py-3">
                                             <div>
-                                                <p className="font-semibold text-gray-800">{user.username}</p>
-                                                <p className="text-xs text-gray-500 dir-ltr text-right">{user.email}</p>
+                                                <p className="font-semibold text-foreground">{user.username}</p>
+                                                <p className="text-xs text-muted-foreground dir-ltr text-right">{user.email}</p>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <p className="font-bold text-gray-800 dir-ltr text-right">{(user.balance ?? 0).toLocaleString()} {t.header.currency}</p>
+                                            <p className="font-bold text-foreground dir-ltr text-right">{(user.balance ?? 0).toLocaleString()} {t.header.currency}</p>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.isActive
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-red-100 text-red-700'
+                                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                                                 }`}>
                                                 {user.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
                                                 {user.isActive ? t.admin.users.table.active : t.admin.users.table.inactive}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-gray-500">
+                                        <td className="px-4 py-3 text-xs text-muted-foreground">
                                             <p>{user.operationCount} {t.admin.users.table.operation}</p>
                                             <p>{user.transactionCount} {t.admin.users.table.transaction}</p>
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-gray-500">
+                                        <td className="px-4 py-3 text-xs text-muted-foreground">
                                             {format(new Date(user.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
                                         </td>
                                         <td className="px-4 py-3">
@@ -211,22 +211,22 @@ export default function UsersTable() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-                        <p className="text-sm text-gray-500">
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                        <p className="text-sm text-muted-foreground">
                             {t.admin.logs.pagination.page} {page} {t.admin.logs.pagination.of} {totalPages}
                         </p>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 disabled={page <= 1}
-                                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <ArrowRight className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 disabled={page >= totalPages}
-                                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <ArrowLeft className="w-4 h-4" />
                             </button>

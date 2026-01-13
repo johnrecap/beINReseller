@@ -16,9 +16,9 @@ export default function OperationsChart({ data = [] }: { data?: ChartData[] }) {
 
     if (safeData.length === 0) {
         return (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800 mb-6">{t.admin.dashboard.chart.title}</h3>
-                <div className="h-64 flex items-center justify-center text-gray-400">
+            <div className="bg-card p-6 rounded-xl shadow-sm border border-border">
+                <h3 className="text-lg font-bold text-foreground mb-6">{t.admin.dashboard.chart.title}</h3>
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
                     {t.common.noData}
                 </div>
             </div>
@@ -26,8 +26,8 @@ export default function OperationsChart({ data = [] }: { data?: ChartData[] }) {
     }
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-800 mb-6">{t.admin.dashboard.chart.title}</h3>
+        <div className="bg-card p-6 rounded-xl shadow-sm border border-border">
+            <h3 className="text-lg font-bold text-foreground mb-6">{t.admin.dashboard.chart.title}</h3>
 
             <div className="h-64 flex items-end justify-between gap-2">
                 {safeData.map((item, i) => {
@@ -43,7 +43,7 @@ export default function OperationsChart({ data = [] }: { data?: ChartData[] }) {
 
                             {/* Bar Container */}
                             <div
-                                className="w-full max-w-[40px] bg-red-100 rounded-t-lg relative overflow-hidden transition-all duration-500"
+                                className="w-full max-w-[40px] bg-red-100 dark:bg-red-900/30 rounded-t-lg relative overflow-hidden transition-all duration-500"
                                 style={{ height: `${heightPercent}%` }}
                             >
                                 {/* Success Portion */}
@@ -54,7 +54,7 @@ export default function OperationsChart({ data = [] }: { data?: ChartData[] }) {
                             </div>
 
                             {/* Label */}
-                            <span className="text-xs text-gray-500 font-medium">{item.date}</span>
+                            <span className="text-xs text-muted-foreground font-medium">{item.date}</span>
                         </div>
                     )
                 })}
@@ -63,11 +63,11 @@ export default function OperationsChart({ data = [] }: { data?: ChartData[] }) {
             <div className="flex justify-center gap-6 mt-6 text-sm">
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="text-gray-600">{t.admin.dashboard.chart.successful}</span>
+                    <span className="text-muted-foreground">{t.admin.dashboard.chart.successful}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-100 rounded-full"></div>
-                    <span className="text-gray-600">{t.admin.dashboard.chart.failed}</span>
+                    <div className="w-3 h-3 bg-red-100 dark:bg-red-900/30 rounded-full"></div>
+                    <span className="text-muted-foreground">{t.admin.dashboard.chart.failed}</span>
                 </div>
             </div>
         </div>

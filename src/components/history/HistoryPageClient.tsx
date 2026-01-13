@@ -81,8 +81,8 @@ export default function HistoryPageClient() {
                     <History className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">{t.history.title}</h1>
-                    <p className="text-gray-500 text-sm">{t.history.title === 'History' || t.history.title === 'سجل العمليات' || t.history.title === 'অপারেশন ইতিহাস' ? (t.history.title === 'History' ? 'View all past operations' : t.history.title === 'سجل العمليات' ? 'عرض جميع العمليات السابقة' : 'অতীতের সমস্ত অপারেশন দেখুন') : t.history.title}</p>
+                    <h1 className="text-2xl font-bold text-foreground">{t.history.title}</h1>
+                    <p className="text-muted-foreground text-sm">{t.history.title === 'History' || t.history.title === 'سجل العمليات' || t.history.title === 'অপারেশন ইতিহাস' ? (t.history.title === 'History' ? 'View all past operations' : t.history.title === 'سجل العمليات' ? 'عرض جميع العمليات السابقة' : 'অতীতের সমস্ত অপারেশন দেখুন') : t.history.title}</p>
                     {/* Note: I should probably add a subtitle key in translation file instead of logic here, but for now I'll use a new key if possible or hardcode based on language logic if I have access. I have t.history.title. I don't have subtitle. Let's add subtitle key if easy or just use title again for now to verify. Actually, I can leave it empty or map it. Let's look at en.ts. history object has no subtitle. I will fix this by adding subtitle later or just using a safe fallback. Ideally I should add history.subtitle. */}
                 </div>
             </div>

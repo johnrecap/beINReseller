@@ -32,8 +32,8 @@ export default function ProfilePageClient() {
     if (loading) {
         return (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-pulse">
-                <div className="h-64 bg-gray-200 rounded-2xl"></div>
-                <div className="h-64 bg-gray-200 rounded-2xl"></div>
+                <div className="h-64 bg-muted rounded-2xl"></div>
+                <div className="h-64 bg-muted rounded-2xl"></div>
             </div>
         )
     }
@@ -48,8 +48,8 @@ export default function ProfilePageClient() {
                     <UserCheck className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">{t.profile.title}</h1>
-                    <p className="text-gray-500 text-sm">{t.profile.subtitle}</p>
+                    <h1 className="text-2xl font-bold text-foreground">{t.profile.title}</h1>
+                    <p className="text-muted-foreground text-sm">{t.profile.subtitle}</p>
                 </div>
             </div>
 

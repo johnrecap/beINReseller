@@ -52,8 +52,8 @@ export default function ChangePasswordForm() {
     }
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm p-6 h-full">
-            <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+        <div className="bg-card rounded-2xl shadow-sm p-6 h-full">
+            <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
                 <Lock className="w-5 h-5 text-purple-600" />
                 {t.profile.changePassword}
             </h2>
@@ -61,14 +61,14 @@ export default function ChangePasswordForm() {
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Current Password */}
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.profile.currentPassword}</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">{t.profile.currentPassword}</label>
                     <div className="relative">
                         <input
                             type={showCurrent ? 'text' : 'password'}
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
                             title={t.profile.currentPassword}
-                            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr pr-10"
+                            className="w-full px-4 py-2 border border-border rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr pr-10 bg-background text-foreground"
                             required
                         />
                         <button
@@ -84,14 +84,14 @@ export default function ChangePasswordForm() {
 
                 {/* New Password */}
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.profile.newPassword}</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">{t.profile.newPassword}</label>
                     <div className="relative">
                         <input
                             type={showNew ? 'text' : 'password'}
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             title={t.profile.newPassword}
-                            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr pr-10"
+                            className="w-full px-4 py-2 border border-border rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr pr-10 bg-background text-foreground"
                             minLength={6}
                             required
                         />
@@ -108,25 +108,25 @@ export default function ChangePasswordForm() {
 
                 {/* Confirm Password */}
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t.profile.confirmPassword}</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">{t.profile.confirmPassword}</label>
                     <input
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         title={t.profile.confirmPassword}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr"
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr bg-background text-foreground"
                         required
                     />
                 </div>
 
                 {/* Messages */}
                 {error && (
-                    <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs">
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-xs">
                         ❌ {error}
                     </div>
                 )}
                 {success && (
-                    <div className="p-3 bg-green-50 text-green-600 rounded-lg text-xs">
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg text-xs">
                         ✅ {success}
                     </div>
                 )}

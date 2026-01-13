@@ -49,17 +49,17 @@ export default function WorkerStatusCard() {
 
     if (loading) {
         return (
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 animate-pulse">
-                <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-                <div className="h-20 bg-gray-100 rounded"></div>
+            <div className="bg-card rounded-xl p-6 shadow-sm border border-border animate-pulse">
+                <div className="h-6 bg-muted rounded w-1/3 mb-4"></div>
+                <div className="h-20 bg-muted rounded"></div>
             </div>
         )
     }
 
     if (error || !status) {
         return (
-            <div className="bg-red-50 rounded-xl p-6 border border-red-100">
-                <div className="flex items-center gap-2 text-red-600">
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-6 border border-red-100 dark:border-red-800">
+                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                     <XCircle className="w-5 h-5" />
                     <span>{t.admin.dashboard.workerStatus?.error ?? 'Error loading worker status'}</span>
                 </div>
@@ -93,15 +93,15 @@ export default function WorkerStatusCard() {
     const redisStatusLabel = getStatusLabel(redisStatus)
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Server className="w-5 h-5 text-gray-600" />
-                    <h3 className="font-bold text-gray-800">{t.admin.dashboard.workerStatus?.title ?? 'Worker Status'}</h3>
+                    <Server className="w-5 h-5 text-muted-foreground" />
+                    <h3 className="font-bold text-foreground">{t.admin.dashboard.workerStatus?.title ?? 'Worker Status'}</h3>
                 </div>
                 <button
                     onClick={fetchStatus}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                    className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground"
                     title={t.admin.dashboard.workerStatus?.refresh ?? 'Refresh'}
                 >
                     <RefreshCw className="w-4 h-4" />
@@ -110,15 +110,15 @@ export default function WorkerStatusCard() {
 
             <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                 {/* Session Status */}
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium mb-2 ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                <div className="text-center p-3 bg-secondary rounded-lg">
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium mb-2 ${isConnected ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                         }`}>
                         {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
                         {sessionStatusLabel}
                     </div>
-                    <p className="text-xs text-gray-500">{t.admin.dashboard.workerStatus?.session ?? 'Session'}</p>
+                    <p className="text-xs text-muted-foreground">{t.admin.dashboard.workerStatus?.session ?? 'Session'}</p>
                     {isConnected && (
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-muted-foreground/70 mt-1">
                             <Clock className="w-3 h-3 inline mr-1" />
                             {sessionAge} {t.admin.dashboard.workerStatus?.minutes ?? 'min'}
                         </p>
@@ -126,11 +126,11 @@ export default function WorkerStatusCard() {
                 </div>
 
                 {/* Queue */}
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-800">{queuePending}</p>
-                    <p className="text-xs text-gray-500">{t.admin.dashboard.workerStatus?.pending ?? 'Pending'}</p>
+                <div className="text-center p-3 bg-secondary rounded-lg">
+                    <p className="text-2xl font-bold text-foreground">{queuePending}</p>
+                    <p className="text-xs text-muted-foreground">{t.admin.dashboard.workerStatus?.pending ?? 'Pending'}</p>
                     {queueProcessing > 0 && (
-                        <p className="text-xs text-blue-600 mt-1">
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                             <Activity className="w-3 h-3 inline mr-1 animate-pulse" />
                             {queueProcessing} {t.admin.dashboard.workerStatus?.processing ?? 'processing'}
                         </p>
@@ -138,19 +138,19 @@ export default function WorkerStatusCard() {
                 </div>
 
                 {/* Today's Success */}
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-center p-3 bg-secondary rounded-lg">
                     <p className="text-2xl font-bold text-green-600">{todayCompleted}</p>
-                    <p className="text-xs text-gray-500">{t.admin.dashboard.workerStatus?.todayCompleted ?? 'Completed Today'}</p>
+                    <p className="text-xs text-muted-foreground">{t.admin.dashboard.workerStatus?.todayCompleted ?? 'Completed Today'}</p>
                 </div>
 
                 {/* Success Rate */}
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-center p-3 bg-secondary rounded-lg">
                     <p className={`text-2xl font-bold ${todaySuccessRate >= 80 ? 'text-green-600' :
                         todaySuccessRate >= 50 ? 'text-amber-600' : 'text-red-600'
                         }`}>
                         {todaySuccessRate}%
                     </p>
-                    <p className="text-xs text-gray-500">{t.admin.dashboard.workerStatus?.successRate ?? 'Success Rate'}</p>
+                    <p className="text-xs text-muted-foreground">{t.admin.dashboard.workerStatus?.successRate ?? 'Success Rate'}</p>
                 </div>
             </div>
 

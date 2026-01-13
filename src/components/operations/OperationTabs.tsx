@@ -17,9 +17,9 @@ export default function OperationTabs() {
     const [activeTab, setActiveTab] = useState('renew')
 
     return (
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="bg-card rounded-2xl shadow-lg overflow-hidden">
             {/* Tabs Header */}
-            <div className="flex border-b border-gray-100">
+            <div className="flex border-b border-border">
                 {tabs.map((tab) => {
                     const Icon = tab.icon
                     const isActive = activeTab === tab.id
@@ -30,8 +30,8 @@ export default function OperationTabs() {
                             className={cn(
                                 "flex-1 flex items-center justify-center gap-2 py-4 px-4 font-medium transition-all",
                                 isActive
-                                    ? "bg-gradient-to-b from-purple-50 to-white border-b-2 border-purple-500 text-purple-700"
-                                    : "text-gray-500 hover:bg-gray-50"
+                                    ? "bg-gradient-to-b from-purple-50 dark:from-purple-900/20 to-transparent border-b-2 border-purple-500 text-purple-700 dark:text-purple-400"
+                                    : "text-muted-foreground hover:bg-secondary"
                             )}
                         >
                             <Icon className={cn("w-5 h-5", isActive ? tab.color : "")} />

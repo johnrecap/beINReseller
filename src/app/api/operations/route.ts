@@ -67,8 +67,14 @@ export async function GET(request: Request) {
             prisma.operation.count({ where }),
         ])
 
+        // Mask card numbers for security (show only last 4 digits)
+        const maskedOperations = operations.map(op => ({
+            ...op,
+            cardNumber: `****${op.cardNumber.slice(-4)}`
+        }))
+
         return NextResponse.json({
-            operations,
+            operations: maskedOperations,
             total,
             page,
             limit,

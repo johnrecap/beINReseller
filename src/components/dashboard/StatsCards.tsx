@@ -97,7 +97,7 @@ export default function StatsCards() {
         },
         {
             title: t.dashboard.successRate,
-            value: `${stats?.successRate || 100}%`,
+            value: `${stats?.successRate ?? 0}%`,
             subtitle: t.common.status,
             icon: TrendingUp,
             gradient: 'from-blue-500 to-blue-600'

@@ -42,6 +42,7 @@ export async function GET() {
         })
 
         // Calculate success rate (last 7 days)
+        // Only count COMPLETED and FAILED (exclude PENDING, PROCESSING, CANCELLED)
         const sevenDaysAgo = new Date()
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
@@ -49,16 +50,19 @@ export async function GET() {
             by: ['status'],
             where: {
                 userId,
-                createdAt: { gte: sevenDaysAgo }
+                createdAt: { gte: sevenDaysAgo },
+                status: { in: ['COMPLETED', 'FAILED'] }
             },
             _count: true
         })
 
-        let successRate = 100
-        const totalOps = recentOps.reduce((sum, op) => sum + op._count, 0)
-        if (totalOps > 0) {
-            const completedOps = recentOps.find(op => op.status === 'COMPLETED')?._count || 0
-            successRate = Math.round((completedOps / totalOps) * 100)
+        let successRate = 0
+        const completedOps = recentOps.find(op => op.status === 'COMPLETED')?._count || 0
+        const failedOps = recentOps.find(op => op.status === 'FAILED')?._count || 0
+        const totalFinished = completedOps + failedOps
+
+        if (totalFinished > 0) {
+            successRate = Math.round((completedOps / totalFinished) * 100)
         }
 
         return NextResponse.json({

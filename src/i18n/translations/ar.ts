@@ -263,6 +263,7 @@ export const ar = {
                 loginSelectors: 'محددات صفحة تسجيل الدخول',
                 renewSelectors: 'محددات صفحة التجديد',
                 checkSelectors: 'محددات صفحة الاستعلام',
+                poolSettings: 'إعدادات توزيع الحسابات',
                 advanced: 'إعدادات متقدمة'
             },
             fields: {
@@ -292,7 +293,21 @@ export const ar = {
                 balanceResult: 'نتيجة الرصيد',
                 sessionTimeout: 'مدة الجلسة (بالدقائق)',
                 maxRetries: 'أقصى عدد محاولات',
-                headless: 'تشغيل بدون واجهة (Headless)'
+                headless: 'تشغيل بدون واجهة (Headless)',
+                // Pool Settings Fields
+                maxRequestsPerAccount: 'الحد الأقصى للطلبات لكل حساب',
+                rateLimitWindow: 'نافذة Rate Limit (ثانية)',
+                cooldownAfterFailures: 'عدد الفشل قبل Cooldown',
+                cooldownDuration: 'مدة Cooldown (ثانية)',
+                minDelay: 'الحد الأدنى للتأخير (مللي ثانية)',
+                maxDelay: 'الحد الأقصى للتأخير (مللي ثانية)',
+                maxConsecutiveFailures: 'الحد الأقصى للفشل المتتالي',
+                autoDisable: 'تعطيل الحساب تلقائياً عند الفشل المتكرر'
+            },
+            hints: {
+                maxRequestsPerAccount: 'عدد الطلبات المسموحة لكل حساب في النافذة الزمنية',
+                rateLimitWindow: '300 = 5 دقائق',
+                cooldownDuration: '600 = 10 دقائق'
             },
             actions: {
                 save: 'حفظ الإعدادات',

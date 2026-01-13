@@ -3,12 +3,9 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 
 // All beIN-related setting keys
+// NOTE: Credentials (bein_username, bein_password, bein_totp_secret) are now stored
+// in the BeinAccount table for multi-account support
 const BEIN_SETTINGS_KEYS = [
-    // Credentials
-    'bein_username',
-    'bein_password',
-    'bein_totp_secret',
-
     // Captcha
     'captcha_2captcha_key',
     'captcha_enabled',
@@ -39,7 +36,17 @@ const BEIN_SETTINGS_KEYS = [
     'bein_sel_check_submit',
     'bein_sel_balance_result',
 
-    // Advanced
+    // Pool Settings (Account Distribution)
+    'pool_max_requests_per_account',
+    'pool_rate_limit_window_seconds',
+    'pool_cooldown_after_failures',
+    'pool_cooldown_duration_seconds',
+    'pool_min_delay_ms',
+    'pool_max_delay_ms',
+    'pool_max_consecutive_failures',
+    'pool_auto_disable_on_error',
+
+    // Advanced Worker Settings
     'worker_session_timeout',
     'worker_max_retries',
     'worker_headless',
@@ -63,11 +70,7 @@ export async function GET() {
 
         settings.forEach(s => {
             // Mask sensitive fields
-            if (s.key === 'bein_password' && s.value) {
-                config[s.key] = '••••••••'
-            } else if (s.key === 'bein_totp_secret' && s.value) {
-                config[s.key] = s.value.slice(0, 4) + '••••••••'
-            } else if (s.key === 'captcha_2captcha_key' && s.value) {
+            if (s.key === 'captcha_2captcha_key' && s.value) {
                 config[s.key] = '••••••••' + s.value.slice(-4)
             } else {
                 config[s.key] = s.value
@@ -99,8 +102,6 @@ export async function PUT(request: Request) {
         // Skip masked values (don't overwrite with masked data)
         const validUpdates = updates.filter(([key, value]) => {
             const val = value as string
-            if (key === 'bein_password' && val === '••••••••') return false
-            if (key === 'bein_totp_secret' && val.includes('••••••••')) return false
             if (key === 'captcha_2captcha_key' && val.startsWith('••••••••')) return false
             return true
         })

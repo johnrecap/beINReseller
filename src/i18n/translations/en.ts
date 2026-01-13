@@ -264,6 +264,7 @@ export const en = {
                 loginSelectors: 'Login Selectors',
                 renewSelectors: 'Renew Selectors',
                 checkSelectors: 'Check Balance Selectors',
+                poolSettings: 'Account Distribution Settings',
                 advanced: 'Advanced Settings'
             },
             fields: {
@@ -293,7 +294,21 @@ export const en = {
                 balanceResult: 'Balance Result',
                 sessionTimeout: 'Session Timeout (Minutes)',
                 maxRetries: 'Max Retries',
-                headless: 'Headless Mode'
+                headless: 'Headless Mode',
+                // Pool Settings Fields
+                maxRequestsPerAccount: 'Max Requests Per Account',
+                rateLimitWindow: 'Rate Limit Window (seconds)',
+                cooldownAfterFailures: 'Failures Before Cooldown',
+                cooldownDuration: 'Cooldown Duration (seconds)',
+                minDelay: 'Min Delay (ms)',
+                maxDelay: 'Max Delay (ms)',
+                maxConsecutiveFailures: 'Max Consecutive Failures',
+                autoDisable: 'Auto-disable Account on Repeated Failures'
+            },
+            hints: {
+                maxRequestsPerAccount: 'Number of requests allowed per account in the time window',
+                rateLimitWindow: '300 = 5 minutes',
+                cooldownDuration: '600 = 10 minutes'
             },
             actions: {
                 save: 'Save Settings',

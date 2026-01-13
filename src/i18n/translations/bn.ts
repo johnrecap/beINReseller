@@ -264,6 +264,7 @@ export const bn = {
                 loginSelectors: 'লগইন সিলেক্টর',
                 renewSelectors: 'রিনিউ সিলেক্টর',
                 checkSelectors: 'চেক ব্যালেন্স সিলেক্টর',
+                poolSettings: 'অ্যাকাউন্ট বিতরণ সেটিংস',
                 advanced: 'উন্নত সেটিংস'
             },
             fields: {
@@ -285,7 +286,7 @@ export const bn = {
                 captchaInput: 'ক্যাপচা ইনপুট',
                 submitBtn: 'সাবমিট বাটন',
                 cardInput: 'কার্ড নম্বর ইনপুট',
-                durationList: 'সময়কাল তালিকা',
+                durationList: 'সময়কাল তালিকা',
                 renewSubmit: 'রিনিউ বাটন',
                 successMsg: 'সফল বার্তা',
                 errorMsg: 'ত্রুটি বার্তা',
@@ -293,7 +294,21 @@ export const bn = {
                 balanceResult: 'ব্যালেন্স ফলাফল',
                 sessionTimeout: 'সেশন টাইমআউট (মিনিট)',
                 maxRetries: 'সর্বোচ্চ প্রচেষ্টা',
-                headless: 'হেডলেস মোড'
+                headless: 'হেডলেস মোড',
+                // Pool Settings Fields
+                maxRequestsPerAccount: 'প্রতি অ্যাকাউন্টে সর্বোচ্চ অনুরোধ',
+                rateLimitWindow: 'রেট লিমিট উইন্ডো (সেকেন্ড)',
+                cooldownAfterFailures: 'কুলডাউনের আগে ব্যর্থতা',
+                cooldownDuration: 'কুলডাউন সময়কাল (সেকেন্ড)',
+                minDelay: 'ন্যূনতম বিলম্ব (মিলিসেকেন্ড)',
+                maxDelay: 'সর্বোচ্চ বিলম্ব (মিলিসেকেন্ড)',
+                maxConsecutiveFailures: 'সর্বোচ্চ পরপর ব্যর্থতা',
+                autoDisable: 'পুনরাবৃত্তি ব্যর্থতায় অ্যাকাউন্ট স্বয়ংক্রিয়-অক্ষম'
+            },
+            hints: {
+                maxRequestsPerAccount: 'সময় উইন্ডোতে প্রতি অ্যাকাউন্টে অনুমোদিত অনুরোধের সংখ্যা',
+                rateLimitWindow: '300 = 5 মিনিট',
+                cooldownDuration: '600 = 10 মিনিট'
             },
             actions: {
                 save: 'সেটিংস সংরক্ষণ করুন',

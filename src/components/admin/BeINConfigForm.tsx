@@ -28,15 +28,6 @@ export default function BeINConfigForm() {
 
     const CONFIG_SECTIONS: ConfigSection[] = useMemo(() => [
         {
-            title: t.admin.config.sections.loginData,
-            icon: '🔐',
-            fields: [
-                { key: 'bein_username', label: t.admin.config.fields.email, type: 'text', placeholder: 'admin@example.com' },
-                { key: 'bein_password', label: t.admin.config.fields.password, type: 'password', placeholder: '••••••••' },
-                { key: 'bein_totp_secret', label: t.admin.config.fields.totp, type: 'password', placeholder: 'JBSWY3DPEHPK3PXP', hint: t.admin.config.fields.totpHint },
-            ]
-        },
-        {
             title: t.admin.config.sections.captcha,
             icon: '🧩',
             fields: [
@@ -84,6 +75,20 @@ export default function BeINConfigForm() {
                 { key: 'bein_sel_check_card', label: t.admin.config.fields.cardInput, type: 'text', placeholder: '#CardNumber' },
                 { key: 'bein_sel_check_submit', label: t.admin.config.fields.checkSubmit, type: 'text', placeholder: '#btnCheck' },
                 { key: 'bein_sel_balance_result', label: t.admin.config.fields.balanceResult, type: 'text', placeholder: '.balance-info' },
+            ]
+        },
+        {
+            title: t.admin.config.sections.poolSettings || 'إعدادات توزيع الحسابات',
+            icon: '🔀',
+            fields: [
+                { key: 'pool_max_requests_per_account', label: t.admin.config.fields.maxRequestsPerAccount || 'الحد الأقصى للطلبات لكل حساب', type: 'number', placeholder: '5', hint: t.admin.config.hints?.maxRequestsPerAccount || 'عدد الطلبات المسموحة لكل حساب في النافذة الزمنية' },
+                { key: 'pool_rate_limit_window_seconds', label: t.admin.config.fields.rateLimitWindow || 'نافذة Rate Limit (ثانية)', type: 'number', placeholder: '300', hint: t.admin.config.hints?.rateLimitWindow || '300 = 5 دقائق' },
+                { key: 'pool_cooldown_after_failures', label: t.admin.config.fields.cooldownAfterFailures || 'عدد الفشل قبل Cooldown', type: 'number', placeholder: '3' },
+                { key: 'pool_cooldown_duration_seconds', label: t.admin.config.fields.cooldownDuration || 'مدة Cooldown (ثانية)', type: 'number', placeholder: '600', hint: t.admin.config.hints?.cooldownDuration || '600 = 10 دقائق' },
+                { key: 'pool_min_delay_ms', label: t.admin.config.fields.minDelay || 'الحد الأدنى للتأخير (مللي ثانية)', type: 'number', placeholder: '2000' },
+                { key: 'pool_max_delay_ms', label: t.admin.config.fields.maxDelay || 'الحد الأقصى للتأخير (مللي ثانية)', type: 'number', placeholder: '5000' },
+                { key: 'pool_max_consecutive_failures', label: t.admin.config.fields.maxConsecutiveFailures || 'الحد الأقصى للفشل المتتالي', type: 'number', placeholder: '5' },
+                { key: 'pool_auto_disable_on_error', label: t.admin.config.fields.autoDisable || 'تعطيل الحساب تلقائياً عند الفشل المتكرر', type: 'checkbox' },
             ]
         },
         {

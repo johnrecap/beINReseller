@@ -63,6 +63,10 @@ interface AccountSession {
 
 export class BeINAutomation {
     private browser: Browser | null = null
+    private browserLaunching: Promise<Browser> | null = null
+    private lastBrowserActivity: number = 0
+    private idleTimeoutMs: number = 300000 // 5 min default
+
     private totp: TOTPGenerator
     private captcha!: CaptchaSolver
     private session: SessionManager
@@ -145,12 +149,45 @@ export class BeINAutomation {
         // Load config first
         await this.loadConfig()
 
-        this.browser = await chromium.launch({
+        // Load idle timeout from config (sessionTimeout is in minutes)
+        this.idleTimeoutMs = (this.config.sessionTimeout || 5) * 60 * 1000
+
+        // Browser NOT launched here - lazy loaded on first use
+        console.log('🌐 Automation ready (browser will launch on demand)')
+    }
+
+    /**
+     * Lazily launch browser on first use
+     */
+    private async ensureBrowser(): Promise<Browser> {
+        // Return existing browser if available
+        if (this.browser) {
+            this.lastBrowserActivity = Date.now()
+            return this.browser
+        }
+
+        // Avoid multiple simultaneous launches
+        if (this.browserLaunching) {
+            return this.browserLaunching
+        }
+
+        console.log('🚀 Launching browser on demand...')
+        this.browserLaunching = chromium.launch({
             headless: this.config.headless,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+            ]
         })
 
-        console.log('🌐 Browser launched')
+        this.browser = await this.browserLaunching
+        this.browserLaunching = null
+        this.lastBrowserActivity = Date.now()
+
+        console.log('🌐 Browser launched on demand')
+        return this.browser
     }
 
     /**
@@ -160,10 +197,12 @@ export class BeINAutomation {
         // Check if we already have a session for this account
         const existing = this.accountSessions.get(account.id)
         if (existing && this.isSessionValidForAccount(account.id)) {
+            this.lastBrowserActivity = Date.now()
             return existing
         }
 
-        if (!this.browser) throw new Error('Browser not initialized')
+        // Ensure browser is launched (lazy loading)
+        const browser = await this.ensureBrowser()
 
         // Try to load saved session from database
         const savedSession = await this.session.loadSessionForAccount(account.id)
@@ -172,13 +211,13 @@ export class BeINAutomation {
         let lastLoginTime: Date | null = null
 
         if (savedSession) {
-            context = await this.browser.newContext({
+            context = await browser.newContext({
                 storageState: savedSession.storageState
             })
             lastLoginTime = new Date(savedSession.createdAt)
             console.log(`📦 Restored session for account ${account.label || account.username}`)
         } else {
-            context = await this.browser.newContext()
+            context = await browser.newContext()
         }
 
         const page = await context.newPage()
@@ -465,6 +504,73 @@ export class BeINAutomation {
         if (!session?.lastLoginTime) return false
         const elapsed = Date.now() - session.lastLoginTime.getTime()
         return elapsed < (this.config.sessionTimeout * 60 * 1000)
+    }
+
+    /**
+     * Close browser if idle for too long
+     * Called periodically by IdleMonitor
+     */
+    async closeBrowserIfIdle(): Promise<boolean> {
+        if (!this.browser) return false
+
+        // Don't close if there are active sessions
+        if (this.accountSessions.size > 0) {
+            this.lastBrowserActivity = Date.now()
+            return false
+        }
+
+        const idleTime = Date.now() - this.lastBrowserActivity
+        if (idleTime > this.idleTimeoutMs) {
+            await this.browser.close()
+            this.browser = null
+            console.log(`💤 Browser closed after ${Math.round(idleTime / 1000)}s idle`)
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * Cleanup idle sessions (sessions not used for a while)
+     */
+    async cleanupIdleSessions(maxIdleMs: number = 600000): Promise<number> {
+        let closedCount = 0
+        const now = Date.now()
+
+        for (const [accountId, session] of this.accountSessions) {
+            if (session.lastLoginTime) {
+                const elapsed = now - session.lastLoginTime.getTime()
+                if (elapsed > maxIdleMs) {
+                    await this.closeAccountSession(accountId)
+                    closedCount++
+                }
+            }
+        }
+
+        // If all sessions are closed and browser is idle, close browser too
+        if (this.accountSessions.size === 0 && this.browser) {
+            await this.closeBrowserIfIdle()
+        }
+
+        return closedCount
+    }
+
+    /**
+     * Check if browser is currently active
+     */
+    isBrowserActive(): boolean {
+        return this.browser !== null
+    }
+
+    /**
+     * Get current stats for monitoring
+     */
+    getStats(): { browserActive: boolean; activeSessions: number; lastActivity: number } {
+        return {
+            browserActive: this.browser !== null,
+            activeSessions: this.accountSessions.size,
+            lastActivity: this.lastBrowserActivity
+        }
     }
 }
 

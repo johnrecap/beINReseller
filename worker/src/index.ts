@@ -12,10 +12,11 @@
 
 import 'dotenv/config'
 import { Worker } from 'bullmq'
-import Redis from 'ioredis'
 import { BeINAutomation } from './automation/bein-automation'
 import { processOperation } from './queue-processor'
 import { initializePoolManager, AccountPoolManager } from './pool'
+import { IdleMonitor } from './utils/idle-monitor'
+import { getRedisConnection, closeRedisConnection } from './lib/redis'
 
 // Validate environment
 const requiredEnvVars = ['DATABASE_URL', 'REDIS_URL']
@@ -31,10 +32,12 @@ const WORKER_ID = process.env.WORKER_ID || `worker-${process.pid}`
 const WORKER_CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '3')
 const WORKER_RATE_LIMIT = parseInt(process.env.WORKER_RATE_LIMIT || '30')
 
-const connection = new Redis(REDIS_URL, { maxRetriesPerRequest: null }) as any
+// Get shared Redis connection
+const connection = getRedisConnection(REDIS_URL)
 
 let automation: BeINAutomation | null = null
 let accountPool: AccountPoolManager | null = null
+let idleMonitor: IdleMonitor | null = null
 
 async function main() {
     console.log('🚀 beIN Worker Starting...')
@@ -42,7 +45,7 @@ async function main() {
     console.log(`🆔 Worker ID: ${WORKER_ID}`)
     console.log(`⚡ Concurrency: ${WORKER_CONCURRENCY}, Rate Limit: ${WORKER_RATE_LIMIT}/min`)
 
-    // Initialize Account Pool Manager
+    // Initialize Account Pool Manager (uses shared Redis connection)
     accountPool = await initializePoolManager(REDIS_URL, WORKER_ID)
     console.log('🔄 Account Pool Manager initialized')
 
@@ -50,10 +53,18 @@ async function main() {
     const poolStatus = await accountPool.getPoolStatus()
     console.log(`📊 Pool Status: ${poolStatus.availableNow}/${poolStatus.activeAccounts} accounts available`)
 
-    // Initialize automation instance
+    // Initialize automation instance (lazy browser)
     automation = new BeINAutomation()
     await automation.initialize()
-    console.log('🌐 Browser initialized')
+    console.log('🌐 Automation initialized (lazy browser)')
+
+    // Start idle monitor for automatic resource cleanup
+    idleMonitor = new IdleMonitor(
+        automation,
+        60000,  // Check browser idle every 1 min
+        300000  // Cleanup sessions every 5 min
+    )
+    idleMonitor.start()
 
     // Create worker with increased concurrency and rate limit
     const worker = new Worker(
@@ -63,7 +74,7 @@ async function main() {
             return processOperation(job, automation!, accountPool!)
         },
         {
-            connection,
+            connection: connection as any,
             concurrency: WORKER_CONCURRENCY,
             limiter: {
                 max: WORKER_RATE_LIMIT,
@@ -89,6 +100,12 @@ async function main() {
     // Graceful shutdown
     const shutdown = async () => {
         console.log(`\n🛑 [${WORKER_ID}] Shutting down worker...`)
+
+        // Stop idle monitor first
+        if (idleMonitor) {
+            idleMonitor.stop()
+        }
+
         await worker.close()
         if (automation) {
             await automation.close()
@@ -96,7 +113,8 @@ async function main() {
         if (accountPool) {
             await accountPool.close()
         }
-        await connection.quit()
+        // Close shared Redis connection last
+        await closeRedisConnection()
         console.log(`👋 [${WORKER_ID}] Worker stopped`)
         process.exit(0)
     }

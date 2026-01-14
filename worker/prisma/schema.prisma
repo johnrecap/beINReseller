@@ -1,0 +1,234 @@
+// Prisma Schema for beIN Sports Service Reseller Panel
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  RESELLER
+}
+
+enum OperationType {
+  RENEW
+  CHECK_BALANCE
+  SIGNAL_REFRESH
+}
+
+enum OperationStatus {
+  PENDING
+  PROCESSING
+  AWAITING_CAPTCHA
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  REFUND
+  OPERATION_DEDUCT
+}
+
+model User {
+  id              String        @id @default(cuid())
+  username        String        @unique
+  email           String        @unique
+  passwordHash    String        @map("password_hash")
+  role            Role          @default(RESELLER)
+  balance         Float         @default(0)
+  isActive        Boolean       @default(true) @map("is_active")
+  lowBalanceAlert Float         @default(50) @map("low_balance_alert")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  lastLoginAt     DateTime?     @map("last_login_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  operations    Operation[]
+  transactions  Transaction[] @relation("UserTransactions")
+  adminActions  Transaction[] @relation("AdminTransactions")
+  activityLogs  ActivityLog[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Operation {
+  id              String          @id @default(cuid())
+  userId          String          @map("user_id")
+  type            OperationType
+  cardNumber      String          @map("card_number")
+  amount          Float
+  status          OperationStatus @default(PENDING)
+  responseMessage String?         @map("response_message")
+  responseData    Json?           @map("response_data")
+  
+  // Captcha Fields
+  captchaImage    String?         @map("captcha_image")    // Base64
+  captchaSolution String?         @map("captcha_solution") 
+  captchaExpiry   DateTime?       @map("captcha_expiry")
+
+  // beIN Account used for this operation
+  beinAccountId   String?         @map("bein_account_id")
+
+  duration        String?         // 1, 3, 6, 12 months (for RENEW)
+  retryCount      Int             @default(0) @map("retry_count")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  completedAt     DateTime?       @map("completed_at")
+
+  user         User          @relation(fields: [userId], references: [id])
+  beinAccount  BeinAccount?  @relation(fields: [beinAccountId], references: [id])
+  transactions Transaction[] @relation("OperationTransactions")
+
+  @@index([userId])
+  @@index([cardNumber])
+  @@index([status])
+  @@index([userId, status, createdAt])
+  @@index([cardNumber, status])
+  @@index([beinAccountId])
+  @@map("operations")
+}
+
+model Transaction {
+  id           String          @id @default(cuid())
+  userId       String          @map("user_id")
+  adminId      String?         @map("admin_id")
+  operationId  String?         @map("operation_id")
+  amount       Float
+  balanceAfter Float           @map("balance_after")
+  type         TransactionType
+  notes        String?
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  user      User       @relation("UserTransactions", fields: [userId], references: [id])
+  admin     User?      @relation("AdminTransactions", fields: [adminId], references: [id])
+  operation Operation? @relation("OperationTransactions", fields: [operationId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("transactions")
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  action    String
+  details   Json?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@map("activity_logs")
+}
+
+model WorkerSession {
+  id        String   @id @default(cuid())
+  cookies   Json
+  isValid   Boolean  @default(true) @map("is_valid")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("worker_sessions")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  type      String   @default("info") // success, error, info, warning
+  read      Boolean  @default(false)
+  link      String?  // Optional link to related content
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ===== beIN Multi-Account System =====
+
+model BeinAccount {
+  id            String   @id @default(cuid())
+  
+  // ===== Login Credentials =====
+  username      String   @unique          // beIN email
+  password      String                    // Encrypted password
+  totpSecret    String?  @map("totp_secret")  // 2FA secret
+  
+  // ===== Status =====
+  isActive      Boolean  @default(true) @map("is_active")
+  priority      Int      @default(0)      // Higher = first in Round Robin
+  label         String?                   // Optional display name
+  
+  // ===== Rate Limiting =====
+  lastUsedAt    DateTime? @map("last_used_at")
+  usageCount    Int       @default(0) @map("usage_count")
+  cooldownUntil DateTime? @map("cooldown_until")
+  
+  // ===== Health Tracking =====
+  consecutiveFailures Int    @default(0) @map("consecutive_failures")
+  totalFailures       Int    @default(0) @map("total_failures")
+  totalSuccess        Int    @default(0) @map("total_success")
+  lastError           String? @map("last_error")
+  lastErrorAt         DateTime? @map("last_error_at")
+  
+  // ===== Timestamps =====
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  // ===== Relations =====
+  operations    Operation[]
+  sessions      BeinAccountSession[]
+
+  @@index([isActive])
+  @@index([cooldownUntil])
+  @@index([priority])
+  @@map("bein_accounts")
+}
+
+model BeinAccountSession {
+  id           String   @id @default(cuid())
+  accountId    String   @map("account_id")
+  
+  // ===== Session Data =====
+  cookies      Json                       // Cookies JSON
+  storageState Json?    @map("storage_state")  // Full Playwright state
+  
+  // ===== Validity =====
+  isValid      Boolean  @default(true) @map("is_valid")
+  expiresAt    DateTime @map("expires_at")
+  
+  // ===== Timestamps =====
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  
+  // ===== Relations =====
+  account      BeinAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([isValid, expiresAt])
+  @@map("bein_account_sessions")
+}

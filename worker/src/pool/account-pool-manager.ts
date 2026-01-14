@@ -6,6 +6,7 @@
 
 import Redis from 'ioredis'
 import { prisma } from '../lib/prisma'
+import { getRedisConnection } from '../lib/redis'
 import { PoolConfig, AccountHealth, PoolStatus, BeinAccount } from './types'
 import { checkRateLimit, recordRequest } from './rate-limiter'
 import { lockAccount, unlockAccount, isAccountLocked } from './account-locking'
@@ -19,8 +20,9 @@ export class AccountPoolManager {
     private workerId: string
     private configLoaded: boolean = false
 
-    constructor(redisUrl: string, workerId?: string) {
-        this.redis = new Redis(redisUrl)
+    constructor(redisUrl?: string, workerId?: string) {
+        // Use shared Redis connection instead of creating a new one
+        this.redis = getRedisConnection(redisUrl)
         this.workerId = workerId || `worker-${process.pid}-${Date.now()}`
 
         // Default config (will be overwritten by loadConfig)
@@ -344,11 +346,12 @@ export class AccountPoolManager {
     }
 
     /**
-     * Close Redis connection
+     * Close connection (no-op since we use shared Redis)
      */
     async close(): Promise<void> {
-        await this.redis.quit()
-        console.log('🔌 AccountPoolManager connection closed')
+        // Don't close Redis - it's shared with other components
+        // The main index.ts will close it during shutdown
+        console.log('🔌 AccountPoolManager disconnected (shared Redis remains open)')
     }
 }
 

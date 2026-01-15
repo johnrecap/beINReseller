@@ -271,7 +271,27 @@ export class BeINAutomation {
             throw new Error('فشل إدخال بيانات الحساب - تحقق من إعدادات beIN')
         }
 
-        // Handle 2FA (TOTP)
+        // Check for CAPTCHA FIRST - if found, we'll enter 2FA AFTER captcha solution
+        // This prevents the 2FA code from expiring while waiting for CAPTCHA
+        try {
+            const captchaElement = await page.$(this.config.selCaptchaImg)
+            if (captchaElement) {
+                const captchaBuffer = await captchaElement.screenshot()
+                const captchaBase64 = captchaBuffer.toString('base64')
+
+                // DON'T enter 2FA now - will be entered fresh after CAPTCHA solution
+                console.log('🧩 CAPTCHA found, skipping 2FA entry for now...')
+                console.log('🧩 CAPTCHA will be solved manually, then 2FA will be generated fresh')
+                return {
+                    requiresCaptcha: true,
+                    captchaImage: captchaBase64
+                }
+            }
+        } catch (e) {
+            console.log('ℹ️ No CAPTCHA found, continuing with 2FA...')
+        }
+
+        // Handle 2FA (TOTP) - only if NO CAPTCHA was found
         if (account.totpSecret) {
             try {
                 const totpCode = this.totp.generate(account.totpSecret)
@@ -299,24 +319,6 @@ export class BeINAutomation {
             } catch (e: any) {
                 console.log(`ℹ️ 2FA handling: ${e.message}`)
             }
-        }
-
-        // Handle CAPTCHA - Manual Mode
-        try {
-            const captchaElement = await page.$(this.config.selCaptchaImg)
-            if (captchaElement) {
-                const captchaBuffer = await captchaElement.screenshot()
-                const captchaBase64 = captchaBuffer.toString('base64')
-
-                // Pause and return image for manual entry
-                console.log('🧩 CAPTCHA found, waiting for manual solution...')
-                return {
-                    requiresCaptcha: true,
-                    captchaImage: captchaBase64
-                }
-            }
-        } catch (e) {
-            console.log('ℹ️ No CAPTCHA found, continuing...')
         }
 
         // Submit form
@@ -374,29 +376,33 @@ export class BeINAutomation {
             await page.fill(this.config.selCaptchaInput, solution)
             console.log('🧩 Manual CAPTCHA solution entered')
 
-            // CRITICAL: Get a FRESH 2FA code from a NEW time window!
-            // beIN seems to reject codes that were already entered (even if regenerated in same window)
+            // Generate fresh 2FA code and enter it
+            // Since we didn't enter 2FA before CAPTCHA, this is the first and only time
             if (totpSecret) {
-                const currentCode = this.totp.generate(totpSecret)
-                let timeRemaining = this.totp.getTimeRemaining()
+                // Wait a moment for the page to be ready
+                await page.waitForTimeout(500)
 
-                // If same code might have been used, wait for a new one
-                if (timeRemaining < 25) {
-                    console.log(`⏳ Waiting ${timeRemaining}s for fresh 2FA code...`)
-                    // Wait for the next 30-second window
-                    await page.waitForTimeout(timeRemaining * 1000 + 1000)
-                    timeRemaining = this.totp.getTimeRemaining()
-                }
-
+                // Generate fresh 2FA code
                 const freshTotpCode = this.totp.generate(totpSecret)
-                console.log(`🔢 Fresh 2FA code: ${freshTotpCode} (time remaining: ${timeRemaining}s)`)
+                const timeRemaining = this.totp.getTimeRemaining()
+                console.log(`🔢 Generated 2FA code: ${freshTotpCode} (time remaining: ${timeRemaining}s)`)
 
-                // Clear and re-fill the 2FA field with fresh code
+                // Enter the 2FA code
                 const faField = await page.$(this.config.sel2fa)
                 if (faField) {
-                    await faField.fill('')  // Clear first
                     await page.fill(this.config.sel2fa, freshTotpCode)
-                    console.log('🔢 2FA code refreshed with NEW code!')
+                    console.log(`🔢 2FA code entered in field: ${this.config.sel2fa}`)
+                } else {
+                    // Try alternative selectors
+                    const altSelectors = ['#Login1_txt2FaCode', '#txt2FaCode', 'input[id*="2Fa"]', 'input[name*="2fa"]']
+                    for (const sel of altSelectors) {
+                        const altField = await page.$(sel)
+                        if (altField) {
+                            await page.fill(sel, freshTotpCode)
+                            console.log(`🔢 2FA code entered in alternative field: ${sel}`)
+                            break
+                        }
+                    }
                 }
             }
 

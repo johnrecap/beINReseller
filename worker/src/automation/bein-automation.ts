@@ -733,13 +733,39 @@ export class BeINAutomation {
                 throw new Error('انتهت جلسة الحساب - يرجى إعادة تسجيل الدخول')
             }
 
-            // Enter card number on renewal page (if needed)
+            // ===== STEP 2.1: Select Item Type = Smartcard: CISCO =====
+            const itemTypeDropdown = await page.$('#ContentPlaceHolder1_ddlItemType') ||
+                await page.$('select[id*="ddlItemType"]') ||
+                await page.$('select[name*="ItemType"]')
+
+            if (itemTypeDropdown) {
+                // Select "Smartcard: CISCO" option
+                await page.selectOption('#ContentPlaceHolder1_ddlItemType', { label: 'Smartcard: CISCO' })
+                console.log(`✅ Selected Item Type: Smartcard: CISCO`)
+
+                // Wait for page to update after dropdown selection
+                await page.waitForTimeout(3000)
+
+                try {
+                    await page.waitForLoadState('load', { timeout: 15000 })
+                } catch {
+                    console.log('⚠️ Dropdown selection page update timeout - continuing')
+                }
+            } else {
+                console.log('⚠️ Item Type dropdown not found - may already be on correct view')
+            }
+
+            // ===== STEP 2.2: Enter card number on renewal page =====
             const cardInput = await page.$('#ContentPlaceHolder1_txtSerialNumber') ||
                 await page.$('#ContentPlaceHolder1_txtCardNumber') ||
+                await page.$('input[id*="txtSerial"]') ||
+                await page.$('input[id*="Serial"]') ||
                 await page.$(this.config.selCardInput)
             if (cardInput) {
                 await cardInput.fill(cardNumber)
-                console.log(`📝 Card number entered on renewal page`)
+                console.log(`📝 Card number entered on renewal page: ${cardNumber.slice(0, 4)}****`)
+            } else {
+                console.log('⚠️ Card input field not found on renewal page')
             }
 
             // Click "Load Another" or similar button to load packages

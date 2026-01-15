@@ -245,12 +245,23 @@ export class BeINAutomation {
 
         console.log(`🔐 Starting login for account: ${account.label || account.username}`)
 
-        await page.goto(this.config.loginUrl)
-        await page.waitForLoadState('networkidle')
+        try {
+            // Navigate to login page with timeout
+            await page.goto(this.config.loginUrl, { timeout: 30000 })
+            await page.waitForLoadState('networkidle', { timeout: 30000 })
+        } catch (navError: any) {
+            console.error(`❌ Navigation to login page failed: ${navError.message}`)
+            throw new Error('فشل الاتصال بموقع beIN - تحقق من الاتصال بالإنترنت')
+        }
 
-        // Fill credentials from account (not from settings)
-        await page.fill(this.config.selUsername, account.username)
-        await page.fill(this.config.selPassword, account.password)
+        try {
+            // Fill credentials from account (not from settings)
+            await page.fill(this.config.selUsername, account.username)
+            await page.fill(this.config.selPassword, account.password)
+        } catch (fillError: any) {
+            console.error(`❌ Failed to fill credentials: ${fillError.message}`)
+            throw new Error('فشل إدخال بيانات الحساب - تحقق من إعدادات beIN')
+        }
 
         // Handle 2FA (TOTP)
         if (account.totpSecret) {
@@ -282,13 +293,18 @@ export class BeINAutomation {
         }
 
         // Submit form
-        await page.click(this.config.selSubmit)
-        await page.waitForLoadState('networkidle')
+        try {
+            await page.click(this.config.selSubmit)
+            await page.waitForLoadState('networkidle', { timeout: 30000 })
+        } catch (submitError: any) {
+            console.error(`❌ Form submission failed: ${submitError.message}`)
+            throw new Error('فشل تسجيل الدخول - حاول مرة أخرى')
+        }
 
         // Verify login success
         const currentUrl = page.url()
         if (currentUrl.includes('login') || currentUrl.includes('error')) {
-            throw new Error('Login failed - check credentials or portal status')
+            throw new Error('فشل تسجيل الدخول - تحقق من بيانات الحساب')
         }
 
         // Save session

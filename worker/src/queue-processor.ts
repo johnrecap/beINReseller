@@ -57,7 +57,22 @@ export async function processOperation(
 
     } catch (error: any) {
         console.error(`❌ Operation ${operationId} failed:`, error.message)
-        await handleOperationError(operationId, error, selectedAccountId, userId, amount, accountPool)
+
+        // For Wizard operations, fetch userId and amount from database since they're not in job data
+        let opUserId = userId
+        let opAmount = amount
+
+        if (!opUserId || !opAmount) {
+            const op = await prisma.operation.findUnique({
+                where: { id: operationId },
+                select: { userId: true, amount: true, beinAccountId: true }
+            })
+            opUserId = opUserId || op?.userId
+            opAmount = opAmount || op?.amount
+            selectedAccountId = op?.beinAccountId || selectedAccountId
+        }
+
+        await handleOperationError(operationId, error, selectedAccountId, opUserId, opAmount, accountPool)
     }
 }
 
@@ -76,6 +91,14 @@ async function handleStartRenewal(
     accountPool: AccountPoolManager
 ): Promise<void> {
     console.log(`🚀 Starting renewal wizard for operation ${operationId}`)
+
+    // 0. Get operation with userId for notifications
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: { userId: true }
+    })
+
+    const userId = operation?.userId
 
     // 1. Mark as PROCESSING
     await prisma.operation.update({

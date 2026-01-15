@@ -761,10 +761,10 @@ export class BeINAutomation {
 
             // Try multiple selectors for the dropdown
             const dropdownSelectors = [
+                '#ContentPlaceHolder1_ddlType',
+                'select[id*="ddlType"]',
                 '#ContentPlaceHolder1_ddlItemType',
-                'select[id*="ddlItemType"]',
-                'select[id*="ItemType"]',
-                'select[name*="ItemType"]'
+                'select[id*="ItemType"]'
             ]
 
             let dropdownFound = false
@@ -840,12 +840,11 @@ export class BeINAutomation {
             console.log('🔍 Step 2.2: Looking for card number input field...')
 
             const cardInputSelectors = [
+                '#ContentPlaceHolder1_tbSerial1',
+                'input[id*="tbSerial"]',
                 '#ContentPlaceHolder1_txtSerialNumber',
                 '#ContentPlaceHolder1_txtCardNumber',
-                'input[id*="txtSerialNumber"]',
-                'input[id*="SerialNumber"]',
-                'input[id*="txtSerial"]',
-                'input[name*="SerialNumber"]',
+                'input[id*="Serial"]',
                 this.config.selCardInput
             ]
 

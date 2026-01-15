@@ -273,10 +273,29 @@ export class BeINAutomation {
         if (account.totpSecret) {
             try {
                 const totpCode = this.totp.generate(account.totpSecret)
-                await page.fill(this.config.sel2fa, totpCode)
-                console.log('🔢 2FA code entered')
-            } catch (e) {
-                console.log('ℹ️ 2FA field not found or not required')
+                console.log(`🔢 Generated 2FA code: ${totpCode} (from secret: ${account.totpSecret.substring(0, 6)}...)`)
+                console.log(`🔢 Time remaining: ${this.totp.getTimeRemaining()}s`)
+
+                // Try to find the 2FA field
+                const faField = await page.$(this.config.sel2fa)
+                if (faField) {
+                    await page.fill(this.config.sel2fa, totpCode)
+                    console.log(`🔢 2FA code entered in field: ${this.config.sel2fa}`)
+                } else {
+                    console.log(`⚠️ 2FA field not found with selector: ${this.config.sel2fa}`)
+                    // Try alternative selectors
+                    const altSelectors = ['#Login1_txt2FaCode', '#txt2FaCode', 'input[id*="2Fa"]', 'input[name*="2fa"]']
+                    for (const sel of altSelectors) {
+                        const altField = await page.$(sel)
+                        if (altField) {
+                            await page.fill(sel, totpCode)
+                            console.log(`🔢 2FA code entered in alternative field: ${sel}`)
+                            break
+                        }
+                    }
+                }
+            } catch (e: any) {
+                console.log(`ℹ️ 2FA handling: ${e.message}`)
             }
         }
 

@@ -837,41 +837,56 @@ export class BeINAutomation {
             }
 
             // ===== STEP 2.2: Enter card number on renewal page =====
-            console.log('🔍 Step 2.2: Looking for card number input field...')
+            console.log('🔍 Step 2.2: Looking for card number input fields...')
 
-            const cardInputSelectors = [
+            // beIN requires card number WITHOUT the last digit (check digit)
+            // Full: 7511394806 → Enter: 751139480
+            const formattedCard = cardNumber.slice(0, -1)
+            console.log(`📝 Original card: ${cardNumber.slice(0, 4)}****${cardNumber.slice(-2)}`)
+            console.log(`📝 Formatted for beIN (no last digit): ${formattedCard.slice(0, 4)}****${formattedCard.slice(-2)}`)
+
+            // Find and fill Serial Number field (tbSerial1)
+            const serial1Selectors = [
                 '#ContentPlaceHolder1_tbSerial1',
-                'input[id*="tbSerial"]',
-                '#ContentPlaceHolder1_txtSerialNumber',
-                '#ContentPlaceHolder1_txtCardNumber',
-                'input[id*="Serial"]',
-                this.config.selCardInput
+                'input[id*="tbSerial1"]',
+                'input[name*="tbSerial1"]'
             ]
 
-            let cardInputFound = false
-            for (const selector of cardInputSelectors) {
-                if (!selector) continue
+            let serial1Found = false
+            for (const selector of serial1Selectors) {
                 const input = await page.$(selector)
                 if (input) {
-                    console.log(`✅ Found card input with selector: ${selector}`)
-
-                    // beIN requires card number WITHOUT the last digit (check digit)
-                    // Full: 7511394806 → Enter: 751139480
-                    const formattedCard = cardNumber.slice(0, -1)
-                    console.log(`📝 Original card: ${cardNumber.slice(0, 4)}****${cardNumber.slice(-2)}`)
-                    console.log(`📝 Formatted for beIN (no last digit): ${formattedCard.slice(0, 4)}****${formattedCard.slice(-2)}`)
-
+                    console.log(`✅ Found Serial Number field: ${selector}`)
                     await input.fill(formattedCard)
-                    console.log(`✅ Card number entered in field`)
-                    cardInputFound = true
+                    console.log(`✅ Serial Number entered`)
+                    serial1Found = true
                     break
                 }
             }
 
-            if (!cardInputFound) {
-                console.log('❌ Card input field not found! Tried:', cardInputSelectors.filter(s => s).join(', '))
-                throw new Error('لم يتم العثور على حقل إدخال رقم الكارت')
+            if (!serial1Found) {
+                console.log('❌ Serial Number field (tbSerial1) not found!')
+                throw new Error('لم يتم العثور على حقل رقم الكارت')
             }
+
+            // Find and fill Confirm Serial Number field (tbSerial2) - CISCO form has this
+            const serial2Selectors = [
+                '#ContentPlaceHolder1_tbSerial2',
+                'input[id*="tbSerial2"]',
+                'input[name*="tbSerial2"]',
+                'input[id*="ConfirmSerial"]'
+            ]
+
+            for (const selector of serial2Selectors) {
+                const input = await page.$(selector)
+                if (input) {
+                    console.log(`✅ Found Confirm Serial Number field: ${selector}`)
+                    await input.fill(formattedCard)
+                    console.log(`✅ Confirm Serial Number entered`)
+                    break
+                }
+            }
+            // Note: Confirm field might not exist on all forms, so no error if not found
 
             // ===== STEP 2.3: Click Load button =====
             console.log('🔍 Step 2.3: Looking for Load button...')

@@ -254,6 +254,39 @@ export default function RenewWizardPage() {
         }
     }
 
+    // Apply promo code and refresh packages
+    const handleApplyPromo = async () => {
+        if (!operationId || !promoCode) return
+
+        setLoading(true)
+        try {
+            const res = await fetch(`/api/operations/${operationId}/apply-promo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ promoCode }),
+            })
+            const data = await res.json()
+
+            if (!res.ok) {
+                toast.error(data.error || 'فشل تطبيق الكود')
+                return
+            }
+
+            // Update packages with new prices
+            if (data.packages && data.packages.length > 0) {
+                setPackages(data.packages)
+                setSelectedPackageIndex(null) // Reset selection
+                toast.success('تم تطبيق الكود! الأسعار محدثة')
+            } else {
+                toast.warning('تم تطبيق الكود لكن الباقات لم تتغير')
+            }
+        } catch {
+            toast.error('حدث خطأ في تطبيق الكود')
+        } finally {
+            setLoading(false)
+        }
+    }
+
     // Reset wizard
     const handleReset = () => {
         setStep('card-input')
@@ -435,15 +468,30 @@ export default function RenewWizardPage() {
                             <>
                                 <div>
                                     <Label htmlFor="promoCode">كود الخصم (اختياري)</Label>
-                                    <Input
-                                        id="promoCode"
-                                        type="text"
-                                        value={promoCode}
-                                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                                        placeholder="SAVE20"
-                                        className="mt-2"
-                                        dir="ltr"
-                                    />
+                                    <div className="flex gap-2 mt-2">
+                                        <Input
+                                            id="promoCode"
+                                            type="text"
+                                            value={promoCode}
+                                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                            placeholder="SAVE20"
+                                            dir="ltr"
+                                            className="flex-1"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={handleApplyPromo}
+                                            disabled={!promoCode || loading}
+                                            className="shrink-0"
+                                        >
+                                            {loading ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                'تطبيق'
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">

@@ -1383,6 +1383,84 @@ export class BeINAutomation {
 
     // ===== Utility methods =====
 
+    /**
+     * Apply promo code on beIN and refresh packages with updated prices
+     */
+    async applyPromoAndRefreshPackages(
+        accountId: string,
+        cardNumber: string,
+        promoCode: string
+    ): Promise<{ success: boolean; packages: Array<{ index: number; name: string; price: number; checkboxSelector: string }> }> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) {
+            throw new Error('لا توجد جلسة نشطة لهذا الحساب')
+        }
+
+        const page = session.page
+        console.log(`🎫 Applying promo code: ${promoCode}`)
+
+        try {
+            // Find promo code input
+            const promoInput = await page.$('#ContentPlaceHolder1_txtPromoCode') ||
+                await page.$('input[id*="PromoCode"]')
+
+            if (!promoInput) {
+                console.log('⚠️ Promo code input not found')
+                return { success: false, packages: [] }
+            }
+
+            await promoInput.fill(promoCode)
+            console.log('✅ Promo code entered')
+
+            // Find and click Submit button
+            const submitBtn = await page.$('#ContentPlaceHolder1_btnPromoCode') ||
+                await page.$('input[value="Submit"]')
+
+            if (submitBtn) {
+                await submitBtn.click()
+                console.log('🔄 Submit clicked, waiting for refresh...')
+                await page.waitForTimeout(5000)
+            }
+
+            // Re-extract packages with updated prices
+            const packageRows = await page.$$('#ContentPlaceHolder1_gvAvailablePackages tr.GridRow, #ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow')
+
+            const packages: Array<{ index: number; name: string; price: number; checkboxSelector: string }> = []
+
+            for (let i = 0; i < packageRows.length; i++) {
+                const row = packageRows[i]
+                const cells = await row.$$('td')
+
+                if (cells.length >= 3) {
+                    const checkbox = await cells[0].$('input[type="checkbox"]')
+                    const nameCell = await cells[1].textContent()
+                    const priceCell = await cells[2].textContent()
+
+                    if (checkbox && nameCell && priceCell) {
+                        const checkboxId = await checkbox.getAttribute('id')
+                        const priceMatch = priceCell.match(/[\d,.]+/)
+                        const price = priceMatch ? parseFloat(priceMatch[0].replace(',', '')) : 0
+
+                        packages.push({
+                            index: i,
+                            name: nameCell.trim(),
+                            price,
+                            checkboxSelector: checkboxId ? `#${checkboxId}` : `#ContentPlaceHolder1_gvAvailablePackages_cbSelect_${i}`
+                        })
+                    }
+                }
+            }
+
+            console.log(`✅ Extracted ${packages.length} packages with updated prices`)
+            return { success: true, packages }
+
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+            console.error('❌ Failed to apply promo:', errorMessage)
+            return { success: false, packages: [] }
+        }
+    }
+
     async reloadConfig(): Promise<void> {
         await this.loadConfig()
     }

@@ -20,7 +20,7 @@ import { createNotification } from './utils/notification'
 
 interface OperationJobData {
     operationId: string
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'START_RENEWAL' | 'COMPLETE_PURCHASE'
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO'
     cardNumber: string
     duration?: string
     promoCode?: string
@@ -52,6 +52,11 @@ export async function processOperation(
 
         if (type === 'COMPLETE_PURCHASE') {
             await handleCompletePurchase(operationId, promoCode, automation, accountPool)
+            return
+        }
+
+        if (type === 'APPLY_PROMO') {
+            await handleApplyPromo(operationId, promoCode || '', automation, accountPool)
             return
         }
 
@@ -264,6 +269,55 @@ async function handleCompletePurchase(
 
         throw new Error(result.message)
     }
+}
+
+/**
+ * Handle Apply Promo - Apply promo code on beIN and return updated packages
+ */
+async function handleApplyPromo(
+    operationId: string,
+    promoCode: string,
+    automation: BeINAutomation,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`🎫 Applying promo code ${promoCode} for operation ${operationId}`)
+
+    // 1. Get operation
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+    })
+
+    if (!operation) {
+        throw new Error('العملية غير موجودة')
+    }
+
+    if (!operation.beinAccountId) {
+        throw new Error('لا يوجد حساب beIN مرتبط')
+    }
+
+    // 2. Apply promo code on beIN and get updated packages
+    const result = await automation.applyPromoAndRefreshPackages(
+        operation.beinAccountId,
+        operation.cardNumber,
+        promoCode
+    )
+
+    // 3. Save updated packages to responseData
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: {
+            responseData: JSON.stringify({
+                promoApplied: true,
+                packages: result.packages || [],
+                promoCode,
+            }),
+        },
+    })
+
+    // Mark account as used
+    await accountPool.markAccountUsed(operation.beinAccountId)
+
+    console.log(`✅ Promo applied, ${result.packages?.length || 0} packages with updated prices`)
 }
 
 /**

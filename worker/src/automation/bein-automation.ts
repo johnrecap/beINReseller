@@ -608,8 +608,12 @@ export class BeINAutomation {
                 ? this.config.checkUrl
                 : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.checkUrl
             console.log(`📍 Step 1: Navigating to check page: ${checkUrl}`)
-            await page.goto(checkUrl)
-            await page.waitForLoadState('networkidle')
+            await page.goto(checkUrl, { timeout: 60000 })
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+            } catch {
+                console.log('⚠️ Check page load timeout - continuing anyway')
+            }
             // Wait for beIN page to fully load
             await page.waitForTimeout(7000)
 
@@ -642,8 +646,12 @@ export class BeINAutomation {
 
             if (checkBtn) {
                 await checkBtn.click()
-                await page.waitForLoadState('networkidle')
-                await page.waitForTimeout(2000)
+                try {
+                    await page.waitForLoadState('load', { timeout: 30000 })
+                } catch {
+                    console.log('⚠️ Check button response timeout - continuing')
+                }
+                await page.waitForTimeout(3000)
                 console.log(`✅ Card checked successfully`)
             }
 
@@ -652,8 +660,12 @@ export class BeINAutomation {
                 ? this.config.renewUrl
                 : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
             console.log(`📍 Step 2: Navigating to renewal page: ${renewUrl}`)
-            await page.goto(renewUrl)
-            await page.waitForLoadState('networkidle')
+            await page.goto(renewUrl, { timeout: 60000 })
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+            } catch {
+                console.log('⚠️ Renewal page load timeout - continuing anyway')
+            }
             // Wait for beIN page to fully load
             await page.waitForTimeout(7000)
 

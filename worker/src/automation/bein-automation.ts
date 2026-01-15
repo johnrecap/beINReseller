@@ -143,6 +143,12 @@ export class BeINAutomation {
         this.captcha = new CaptchaSolver(this.config.captchaApiKey)
 
         console.log('📋 Configuration loaded from database')
+        console.log('🔧 Login Selectors:', {
+            username: this.config.selUsername,
+            password: this.config.selPassword,
+            submit: this.config.selSubmit,
+            loginUrl: this.config.loginUrl
+        })
     }
 
     async initialize(): Promise<void> {

@@ -40,6 +40,9 @@ export async function processOperation(
 
     console.log(`📥 Processing operation ${operationId}: ${type} for card ${cardNumber.slice(0, 4)}****`)
 
+    // Reload config to get latest settings from database
+    await automation.reloadConfig()
+
     try {
         // Handle Wizard flow types
         if (type === 'START_RENEWAL') {

@@ -354,14 +354,33 @@ export class BeINAutomation {
             await page.click(this.config.selSubmit)
             await page.waitForLoadState('networkidle')
 
-            // Verify login success
+            // === DEBUG: Check what happened after login ===
             const currentUrl = page.url()
-            if (currentUrl.includes('login') || currentUrl.includes('error')) {
+            const pageTitle = await page.title()
+            console.log(`🔍 After CAPTCHA login - URL: ${currentUrl}`)
+            console.log(`🔍 After CAPTCHA login - Title: ${pageTitle}`)
+
+            // Check for login page indicators
+            const loginIndicators = await page.$('#Login1_UserName, #Login1_LoginButton')
+            if (loginIndicators) {
+                console.log('❌ Still on login page after CAPTCHA!')
+                throw new Error('CAPTCHA incorrect or login failed')
+            }
+
+            if (currentUrl.toLowerCase().includes('login') || currentUrl.toLowerCase().includes('error')) {
                 throw new Error('Login failed after CAPTCHA - check solution')
             }
 
             // Save session
             const storageState = await context.storageState()
+            const cookieCount = storageState.cookies?.length || 0
+            console.log(`💾 Saving session with ${cookieCount} cookies`)
+
+            // Log cookies for debugging
+            if (storageState.cookies && storageState.cookies.length > 0) {
+                console.log(`🍪 Cookies: ${storageState.cookies.map(c => c.name).join(', ')}`)
+            }
+
             await this.session.saveSessionForAccount(accountId, storageState)
             session.lastLoginTime = new Date()
 

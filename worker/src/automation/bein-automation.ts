@@ -475,42 +475,82 @@ export class BeINAutomation {
         const packages: Array<{ index: number; name: string; price: number; checkboxSelector: string }> = []
 
         try {
-            // Navigate to renewal page
-            // Check if renewUrl is absolute (starts with http) or relative
-            const renewUrl = this.config.renewUrl.startsWith('http')
-                ? this.config.renewUrl
-                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
-            console.log(`📍 Navigating to renewal page: ${renewUrl}`)
-            await page.goto(renewUrl)
+            // ===== STEP 1: Go to Check page first to validate card and get STB number =====
+            const checkUrl = this.config.checkUrl.startsWith('http')
+                ? this.config.checkUrl
+                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.checkUrl
+            console.log(`📍 Step 1: Navigating to check page: ${checkUrl}`)
+            await page.goto(checkUrl)
             await page.waitForLoadState('networkidle')
 
-            // ===== Session Check: Verify we're not redirected to login page =====
-            const currentUrl = page.url()
-            const isLoginPage = currentUrl.includes('Login') ||
-                currentUrl.includes('login') ||
-                await page.$('#ContentPlaceHolder1_txtUserName') ||
-                await page.$('input[name*="UserName"]')
-
-            if (isLoginPage) {
+            // Session Check
+            let currentUrl = page.url()
+            if (currentUrl.includes('Login') || currentUrl.includes('login')) {
                 console.log('⚠️ Session expired! Redirected to login page')
                 throw new Error('انتهت جلسة الحساب - يرجى إعادة تسجيل الدخول')
             }
 
-            // Enter card number - beIN uses specific selector
+            // Enter card number on check page
+            const checkCardInput = await page.$('#ContentPlaceHolder1_txtSerialNumber') ||
+                await page.$('#ContentPlaceHolder1_txtCardNumber') ||
+                await page.$('input[id*="Serial"]') ||
+                await page.$('input[id*="Card"]')
+
+            if (checkCardInput) {
+                await checkCardInput.fill(cardNumber)
+                console.log(`📝 Card number entered on check page`)
+            } else {
+                throw new Error('لم يتم العثور على حقل رقم الكارت في صفحة الفحص')
+            }
+
+            // Click check/search button
+            const checkBtn = await page.$('#ContentPlaceHolder1_btnCheck') ||
+                await page.$('#ContentPlaceHolder1_btnSearch') ||
+                await page.$('input[value*="Check"]') ||
+                await page.$('input[value*="Search"]') ||
+                await page.$('input[type="submit"]')
+
+            if (checkBtn) {
+                await checkBtn.click()
+                await page.waitForLoadState('networkidle')
+                await page.waitForTimeout(2000)
+                console.log(`✅ Card checked successfully`)
+            }
+
+            // ===== STEP 2: Now navigate to Sell Packages page =====
+            const renewUrl = this.config.renewUrl.startsWith('http')
+                ? this.config.renewUrl
+                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
+            console.log(`📍 Step 2: Navigating to renewal page: ${renewUrl}`)
+            await page.goto(renewUrl)
+            await page.waitForLoadState('networkidle')
+
+            // Session Check again
+            currentUrl = page.url()
+            if (currentUrl.includes('Login') || currentUrl.includes('login')) {
+                console.log('⚠️ Session expired on renewal page!')
+                throw new Error('انتهت جلسة الحساب - يرجى إعادة تسجيل الدخول')
+            }
+
+            // Enter card number on renewal page (if needed)
             const cardInput = await page.$('#ContentPlaceHolder1_txtSerialNumber') ||
+                await page.$('#ContentPlaceHolder1_txtCardNumber') ||
                 await page.$(this.config.selCardInput)
             if (cardInput) {
                 await cardInput.fill(cardNumber)
-            } else {
-                throw new Error('لم يتم العثور على حقل رقم الكارت')
+                console.log(`📝 Card number entered on renewal page`)
             }
 
-            // Click "Load Another" button to load packages
+            // Click "Load Another" or similar button to load packages
             const loadBtn = await page.$('#ContentPlaceHolder1_btnLoadAnother') ||
-                await page.$('input[value="Load Another"]')
+                await page.$('#ContentPlaceHolder1_btnLoad') ||
+                await page.$('#ContentPlaceHolder1_btnSearch') ||
+                await page.$('input[value*="Load"]') ||
+                await page.$('input[value*="Search"]')
             if (loadBtn) {
                 await loadBtn.click()
                 await page.waitForLoadState('networkidle')
+                console.log(`✅ Packages loaded`)
             }
 
             // Wait for packages table to load

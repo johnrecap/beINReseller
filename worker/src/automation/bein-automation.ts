@@ -59,6 +59,7 @@ interface AccountSession {
     context: BrowserContext
     page: Page
     lastLoginTime: Date | null
+    stbNumber?: string  // STB number extracted from Check page
 }
 
 export class BeINAutomation {
@@ -653,6 +654,38 @@ export class BeINAutomation {
                 }
                 await page.waitForTimeout(3000)
                 console.log(`✅ Card checked successfully`)
+
+                // Extract STB number from Check page results
+                const stbElement = await page.$('#ContentPlaceHolder1_lblSTB') ||
+                    await page.$('#ContentPlaceHolder1_lblSTBNumber') ||
+                    await page.$('span[id*="STB"]') ||
+                    await page.$('span[id*="stb"]') ||
+                    await page.$('td:has-text("STB")') ||
+                    await page.$('.stb-number')
+
+                if (stbElement) {
+                    const stbText = await stbElement.textContent()
+                    if (stbText) {
+                        // Extract numbers (STB is usually 10+ digits)
+                        const stbMatch = stbText.match(/\d{10,}/)?.[0]
+                        if (stbMatch) {
+                            console.log(`📺 STB Number found: ${stbMatch}`)
+                            // Store in session for later use
+                            session.stbNumber = stbMatch
+                        }
+                    }
+                }
+
+                // Also try to extract from page content
+                if (!session.stbNumber) {
+                    const pageContent = await page.content()
+                    const stbMatch = pageContent.match(/STB[:\s]*(\d{10,})/i)?.[1] ||
+                        pageContent.match(/رقم الريسيفر[:\s]*(\d{10,})/)?.[1]
+                    if (stbMatch) {
+                        console.log(`📺 STB Number found in page: ${stbMatch}`)
+                        session.stbNumber = stbMatch
+                    }
+                }
             }
 
             // ===== STEP 2: Now navigate to Sell Packages page =====
@@ -820,10 +853,17 @@ export class BeINAutomation {
 
     /**
      * Extract STB (Set-Top Box) number from the page
+     * First checks if STB was already extracted during Check page processing
      */
     async extractSTBNumber(accountId: string): Promise<string | null> {
         const session = this.accountSessions.get(accountId)
         if (!session) return null
+
+        // First, check if we already extracted STB from Check page
+        if (session.stbNumber) {
+            console.log(`📺 Using cached STB Number: ${session.stbNumber}`)
+            return session.stbNumber
+        }
 
         const { page } = session
 

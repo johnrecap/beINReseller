@@ -358,8 +358,9 @@ export class BeINAutomation {
 
     /**
      * Complete CAPTCHA for a specific account
+     * @param totpSecret - Optional TOTP secret to regenerate 2FA code (since original may have expired)
      */
-    async completeCaptchaForAccount(accountId: string, solution: string): Promise<void> {
+    async completeCaptchaForAccount(accountId: string, solution: string, totpSecret?: string): Promise<void> {
         const session = this.accountSessions.get(accountId)
         if (!session) throw new Error(`No session found for account ${accountId}`)
 
@@ -368,6 +369,21 @@ export class BeINAutomation {
         try {
             await page.fill(this.config.selCaptchaInput, solution)
             console.log('🧩 Manual CAPTCHA solution entered')
+
+            // CRITICAL: Regenerate 2FA code before submitting!
+            // The original 2FA code was entered before waiting for CAPTCHA and may have expired
+            if (totpSecret) {
+                const freshTotpCode = this.totp.generate(totpSecret)
+                const timeRemaining = this.totp.getTimeRemaining()
+                console.log(`🔢 Regenerating 2FA code: ${freshTotpCode} (time remaining: ${timeRemaining}s)`)
+
+                // Re-fill the 2FA field with fresh code
+                const faField = await page.$(this.config.sel2fa)
+                if (faField) {
+                    await page.fill(this.config.sel2fa, freshTotpCode)
+                    console.log('🔢 2FA code refreshed!')
+                }
+            }
 
             // Submit form
             await page.click(this.config.selSubmit)

@@ -149,7 +149,7 @@ async function handleStartRenewal(
             throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق')
         }
 
-        await automation.completeCaptchaForAccount(selectedAccount.id, solution)
+        await automation.completeCaptchaForAccount(selectedAccount.id, solution, selectedAccount.totpSecret || undefined)
     }
 
     // 5. Navigate and extract packages
@@ -330,7 +330,7 @@ async function handleLegacyOperation(
             throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق في الوقت المحدد')
         }
 
-        await automation.completeCaptchaForAccount(selectedAccount.id, solution)
+        await automation.completeCaptchaForAccount(selectedAccount.id, solution, selectedAccount.totpSecret || undefined)
     }
 
     // 5. Execute based on type

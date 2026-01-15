@@ -368,7 +368,9 @@ export class BeINAutomation {
         const { page } = session
 
         try {
-            const renewUrl = this.config.loginUrl + this.config.renewUrl
+            const renewUrl = this.config.renewUrl.startsWith('http')
+                ? this.config.renewUrl
+                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
             await page.goto(renewUrl)
             await page.waitForLoadState('networkidle')
 
@@ -407,7 +409,9 @@ export class BeINAutomation {
         const { page } = session
 
         try {
-            const checkUrl = this.config.loginUrl + this.config.checkUrl
+            const checkUrl = this.config.checkUrl.startsWith('http')
+                ? this.config.checkUrl
+                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.checkUrl
             await page.goto(checkUrl)
             await page.waitForLoadState('networkidle')
 
@@ -439,7 +443,9 @@ export class BeINAutomation {
         const { page } = session
 
         try {
-            const signalUrl = this.config.loginUrl + this.config.signalUrl
+            const signalUrl = this.config.signalUrl.startsWith('http')
+                ? this.config.signalUrl
+                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.signalUrl
             await page.goto(signalUrl)
             await page.waitForLoadState('networkidle')
 
@@ -470,7 +476,11 @@ export class BeINAutomation {
 
         try {
             // Navigate to renewal page
-            const renewUrl = this.config.loginUrl + this.config.renewUrl
+            // Check if renewUrl is absolute (starts with http) or relative
+            const renewUrl = this.config.renewUrl.startsWith('http')
+                ? this.config.renewUrl
+                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
+            console.log(`📍 Navigating to renewal page: ${renewUrl}`)
             await page.goto(renewUrl)
             await page.waitForLoadState('networkidle')
 

@@ -19,7 +19,7 @@ export async function GET(request: Request) {
         const page = parseInt(searchParams.get('page') || '1')
         const limit = parseInt(searchParams.get('limit') || '10')
         const type = searchParams.get('type') as OperationType | null
-        const status = searchParams.get('status') as OperationStatus | null
+        const status = searchParams.get('status') // Can be OperationStatus or 'active'
         const from = searchParams.get('from')
         const to = searchParams.get('to')
 
@@ -32,8 +32,13 @@ export async function GET(request: Request) {
             where.type = type
         }
 
-        if (status) {
-            where.status = status
+        // Handle 'active' as a special case - filter by multiple active statuses
+        if (status === 'active') {
+            where.status = {
+                in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING']
+            }
+        } else if (status) {
+            where.status = status as OperationStatus
         }
 
         if (from || to) {

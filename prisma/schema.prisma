@@ -148,16 +148,7 @@ model ActivityLog {
   @@map("activity_logs")
 }
 
-model WorkerSession {
-  id        String   @id @default(cuid())
-  cookies   Json
-  isValid   Boolean  @default(true) @map("is_valid")
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("worker_sessions")
-}
+// NOTE: WorkerSession model was removed (legacy - replaced by BeinAccountSession)
 
 model Notification {
   id        String   @id @default(cuid())

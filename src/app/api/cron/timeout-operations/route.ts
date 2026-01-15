@@ -6,11 +6,21 @@ import prisma from '@/lib/prisma'
 
 export async function GET(request: Request) {
     try {
-        // Verify cron secret (optional - for security)
+        // ===== MANDATORY: Verify cron secret for security =====
         const authHeader = request.headers.get('authorization')
         const cronSecret = process.env.CRON_SECRET
 
-        if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        // CRITICAL: Fail if secret is not configured
+        if (!cronSecret) {
+            console.error('CRON_SECRET is not configured - refusing to process')
+            return NextResponse.json(
+                { error: 'Server configuration error' },
+                { status: 500 }
+            )
+        }
+
+        // CRITICAL: Always require valid authorization
+        if (authHeader !== `Bearer ${cronSecret}`) {
             return NextResponse.json(
                 { error: 'Unauthorized' },
                 { status: 401 }
@@ -19,7 +29,7 @@ export async function GET(request: Request) {
 
         // Timeout settings (in minutes)
         const PROCESSING_TIMEOUT = 5        // 5 minutes for PROCESSING
-        const AWAITING_PACKAGE_TIMEOUT = 1  // 1 minute for AWAITING_PACKAGE (user must choose quickly)
+        const AWAITING_PACKAGE_TIMEOUT = 15 // 15 minutes for AWAITING_PACKAGE (user must choose)
         const COMPLETING_TIMEOUT = 5        // 5 minutes for COMPLETING
 
         const now = Date.now()
@@ -60,7 +70,7 @@ export async function GET(request: Request) {
                 // Determine timeout reason based on status
                 let timeoutMessage = 'انتهت مهلة العملية'
                 if (operation.status === 'AWAITING_PACKAGE') {
-                    timeoutMessage = 'انتهت مهلة اختيار الباقة (15 دقيقة)'
+                    timeoutMessage = `انتهت مهلة اختيار الباقة (${AWAITING_PACKAGE_TIMEOUT} دقيقة)`
                 } else if (operation.status === 'COMPLETING') {
                     timeoutMessage = 'انتهت مهلة إتمام الشراء'
                 } else if (operation.status === 'PROCESSING') {

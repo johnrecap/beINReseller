@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { compare, hash } from 'bcryptjs'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 const changePasswordSchema = z.object({
     currentPassword: z.string().min(1, 'كلمة المرور الحالية مطلوبة'),
@@ -16,6 +17,19 @@ export async function POST(request: Request) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
+            )
+        }
+
+        // Rate limit password change attempts (3 per hour)
+        const { allowed, result: rateLimitResult } = await withRateLimit(
+            `password-change:${session.user.id}`,
+            RATE_LIMITS.passwordChange
+        )
+
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح من المحاولات، حاول مرة أخرى لاحقاً' },
+                { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
 

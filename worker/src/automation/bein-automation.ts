@@ -112,9 +112,9 @@ export class BeINAutomation {
             captchaApiKey: get('captcha_2captcha_key'),
             captchaEnabled: get('captcha_enabled', 'true') === 'true',
 
-            loginUrl: get('bein_login_url', 'https://sbs.bein.com/'),
-            renewUrl: get('bein_renew_url', '/Renew'),
-            checkUrl: get('bein_check_url', '/CheckBalance'),
+            loginUrl: get('bein_login_url', 'https://sbs.beinsports.net/Dealers/NLogin.aspx'),
+            renewUrl: get('bein_renew_url', '/Dealers/Pages/frmSellPackages.aspx'),
+            checkUrl: get('bein_check_url', '/Dealers/Pages/frmCheck.aspx'),
             signalUrl: get('bein_signal_url', '/RefreshSignal'),
 
             selUsername: get('bein_sel_username', '#Login1_UserName'),
@@ -255,6 +255,8 @@ export class BeINAutomation {
             // Navigate to login page with timeout
             await page.goto(this.config.loginUrl, { timeout: 30000 })
             await page.waitForLoadState('networkidle', { timeout: 30000 })
+            // Wait for page to fully load (beIN pages need 5-10 seconds)
+            await page.waitForTimeout(7000)
         } catch (navError: any) {
             console.error(`❌ Navigation to login page failed: ${navError.message}`)
             throw new Error('فشل الاتصال بموقع beIN - تحقق من الاتصال بالإنترنت')
@@ -320,6 +322,8 @@ export class BeINAutomation {
         // Submit form
         try {
             await page.click(this.config.selSubmit)
+            // Wait 10 seconds after login button click for page to process
+            await page.waitForTimeout(10000)
             await page.waitForLoadState('networkidle', { timeout: 30000 })
         } catch (submitError: any) {
             console.error(`❌ Form submission failed: ${submitError.message}`)
@@ -399,12 +403,10 @@ export class BeINAutomation {
             // Submit form
             await page.click(this.config.selSubmit)
 
-            // Wait for page to load/redirect with longer timeout
-            console.log('⏳ Waiting for login to complete...')
+            // Wait 10 seconds after login button click for page to process
+            console.log('⏳ Waiting for login to complete (10 seconds)...')
+            await page.waitForTimeout(10000)
             await page.waitForLoadState('networkidle', { timeout: 60000 })
-
-            // Additional wait for any JavaScript redirects
-            await page.waitForTimeout(3000)
 
             // Wait for URL to change (if there's a redirect)
             try {
@@ -482,6 +484,8 @@ export class BeINAutomation {
                 : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
             await page.goto(renewUrl)
             await page.waitForLoadState('networkidle')
+            // Wait for beIN page to fully load
+            await page.waitForTimeout(7000)
 
             await page.fill(this.config.selCardInput, cardNumber)
             await page.selectOption(this.config.selDuration, duration)
@@ -523,6 +527,8 @@ export class BeINAutomation {
                 : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.checkUrl
             await page.goto(checkUrl)
             await page.waitForLoadState('networkidle')
+            // Wait for beIN page to fully load
+            await page.waitForTimeout(7000)
 
             await page.fill(this.config.selCheckCard, cardNumber)
             await page.click(this.config.selCheckSubmit)
@@ -591,6 +597,8 @@ export class BeINAutomation {
             console.log(`📍 Step 1: Navigating to check page: ${checkUrl}`)
             await page.goto(checkUrl)
             await page.waitForLoadState('networkidle')
+            // Wait for beIN page to fully load
+            await page.waitForTimeout(7000)
 
             // Session Check
             let currentUrl = page.url()
@@ -633,6 +641,8 @@ export class BeINAutomation {
             console.log(`📍 Step 2: Navigating to renewal page: ${renewUrl}`)
             await page.goto(renewUrl)
             await page.waitForLoadState('networkidle')
+            // Wait for beIN page to fully load
+            await page.waitForTimeout(7000)
 
             // Session Check again
             currentUrl = page.url()

@@ -836,8 +836,24 @@ export class BeINAutomation {
                 }
             }
 
+            // Extra wait after dropdown selection for form to fully update
+            await page.waitForTimeout(2000)
+
             // ===== STEP 2.2: Enter card number on renewal page =====
             console.log('🔍 Step 2.2: Looking for card number input fields...')
+
+            // DEBUG: List all input fields after CISCO selection
+            const allInputsAfterCisco = await page.$$('input')
+            console.log(`🔍 DEBUG - Found ${allInputsAfterCisco.length} total input elements after CISCO selection`)
+            for (let i = 0; i < Math.min(allInputsAfterCisco.length, 10); i++) {
+                const id = await allInputsAfterCisco[i].getAttribute('id')
+                const name = await allInputsAfterCisco[i].getAttribute('name')
+                const type = await allInputsAfterCisco[i].getAttribute('type')
+                const value = await allInputsAfterCisco[i].getAttribute('value')
+                if (id || name) {
+                    console.log(`   Input ${i}: id="${id}", name="${name}", type="${type}", value="${value?.slice(0, 20) || ''}"`)
+                }
+            }
 
             // beIN requires card number WITHOUT the last digit (check digit)
             // Full: 7511394806 → Enter: 751139480

@@ -370,18 +370,29 @@ export class BeINAutomation {
             await page.fill(this.config.selCaptchaInput, solution)
             console.log('🧩 Manual CAPTCHA solution entered')
 
-            // CRITICAL: Regenerate 2FA code before submitting!
-            // The original 2FA code was entered before waiting for CAPTCHA and may have expired
+            // CRITICAL: Get a FRESH 2FA code from a NEW time window!
+            // beIN seems to reject codes that were already entered (even if regenerated in same window)
             if (totpSecret) {
-                const freshTotpCode = this.totp.generate(totpSecret)
-                const timeRemaining = this.totp.getTimeRemaining()
-                console.log(`🔢 Regenerating 2FA code: ${freshTotpCode} (time remaining: ${timeRemaining}s)`)
+                const currentCode = this.totp.generate(totpSecret)
+                let timeRemaining = this.totp.getTimeRemaining()
 
-                // Re-fill the 2FA field with fresh code
+                // If same code might have been used, wait for a new one
+                if (timeRemaining < 25) {
+                    console.log(`⏳ Waiting ${timeRemaining}s for fresh 2FA code...`)
+                    // Wait for the next 30-second window
+                    await page.waitForTimeout(timeRemaining * 1000 + 1000)
+                    timeRemaining = this.totp.getTimeRemaining()
+                }
+
+                const freshTotpCode = this.totp.generate(totpSecret)
+                console.log(`🔢 Fresh 2FA code: ${freshTotpCode} (time remaining: ${timeRemaining}s)`)
+
+                // Clear and re-fill the 2FA field with fresh code
                 const faField = await page.$(this.config.sel2fa)
                 if (faField) {
+                    await faField.fill('')  // Clear first
                     await page.fill(this.config.sel2fa, freshTotpCode)
-                    console.log('🔢 2FA code refreshed!')
+                    console.log('🔢 2FA code refreshed with NEW code!')
                 }
             }
 

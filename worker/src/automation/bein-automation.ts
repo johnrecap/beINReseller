@@ -496,8 +496,12 @@ export class BeINAutomation {
             const renewUrl = this.config.renewUrl.startsWith('http')
                 ? this.config.renewUrl
                 : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
-            await page.goto(renewUrl)
-            await page.waitForLoadState('networkidle')
+            await page.goto(renewUrl, { timeout: 60000 })
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+            } catch {
+                console.log('⚠️ Page load timeout - continuing')
+            }
             // Wait for beIN page to fully load
             await page.waitForTimeout(7000)
 
@@ -505,7 +509,11 @@ export class BeINAutomation {
             await page.selectOption(this.config.selDuration, duration)
             await page.click(this.config.selRenewSubmit)
 
-            await page.waitForLoadState('networkidle')
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+            } catch {
+                console.log('⚠️ Submit response timeout - continuing')
+            }
 
             const successElement = await page.$(this.config.selSuccessMsg)
             if (successElement) {
@@ -539,15 +547,23 @@ export class BeINAutomation {
             const checkUrl = this.config.checkUrl.startsWith('http')
                 ? this.config.checkUrl
                 : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.checkUrl
-            await page.goto(checkUrl)
-            await page.waitForLoadState('networkidle')
+            await page.goto(checkUrl, { timeout: 60000 })
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+            } catch {
+                console.log('⚠️ Page load timeout - continuing')
+            }
             // Wait for beIN page to fully load
             await page.waitForTimeout(7000)
 
             await page.fill(this.config.selCheckCard, cardNumber)
             await page.click(this.config.selCheckSubmit)
 
-            await page.waitForLoadState('networkidle')
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+            } catch {
+                console.log('⚠️ Check submit timeout - continuing')
+            }
 
             const balanceElement = await page.$(this.config.selBalanceResult)
             if (balanceElement) {
@@ -575,13 +591,21 @@ export class BeINAutomation {
             const signalUrl = this.config.signalUrl.startsWith('http')
                 ? this.config.signalUrl
                 : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.signalUrl
-            await page.goto(signalUrl)
-            await page.waitForLoadState('networkidle')
+            await page.goto(signalUrl, { timeout: 60000 })
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+            } catch {
+                console.log('⚠️ Page load timeout - continuing')
+            }
 
             await page.fill(this.config.selCardInput, cardNumber)
             await page.click(this.config.selSubmit)
 
-            await page.waitForLoadState('networkidle')
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+            } catch {
+                console.log('⚠️ Submit response timeout - continuing')
+            }
 
             return { success: true, message: 'تم تحديث الإشارة بنجاح' }
 
@@ -726,7 +750,11 @@ export class BeINAutomation {
                 await page.$('input[value*="Search"]')
             if (loadBtn) {
                 await loadBtn.click()
-                await page.waitForLoadState('networkidle')
+                try {
+                    await page.waitForLoadState('load', { timeout: 30000 })
+                } catch {
+                    console.log('⚠️ Load packages timeout - continuing')
+                }
                 console.log(`✅ Packages loaded`)
             }
 

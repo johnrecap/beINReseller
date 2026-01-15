@@ -91,6 +91,7 @@ export default function RenewWizardPage() {
     const [result, setResult] = useState<OperationResult | null>(null)
     const [loading, setLoading] = useState(false)
     const [stbNumber, setStbNumber] = useState<string | null>(null)
+    const [showConfirmation, setShowConfirmation] = useState(false)  // Show price confirmation dialog
 
     // Check URL for existing operationId (for resuming operations)
     useEffect(() => {
@@ -264,6 +265,7 @@ export default function RenewWizardPage() {
         setCaptchaImage(null)
         setCaptchaSolution('')
         setCaptchaSubmitted(false)  // Reset CAPTCHA submitted state
+        setShowConfirmation(false)  // Reset confirmation dialog
         setResult(null)
         setStbNumber(null)
     }
@@ -453,20 +455,82 @@ export default function RenewWizardPage() {
                                     </div>
                                 </div>
 
-                                <Button
-                                    onClick={handleSelectPackage}
-                                    disabled={selectedPackageIndex === null || loading}
-                                    className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600"
-                                >
-                                    {loading ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                            جاري الشراء...
-                                        </>
-                                    ) : (
-                                        'إتمام الشراء'
-                                    )}
-                                </Button>
+                                {/* Show confirmation only when package is selected */}
+                                {selectedPackageIndex !== null && !showConfirmation && (
+                                    <Button
+                                        onClick={() => setShowConfirmation(true)}
+                                        disabled={loading}
+                                        className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+                                    >
+                                        عرض التفاصيل والموافقة
+                                    </Button>
+                                )}
+
+                                {/* Confirmation Dialog */}
+                                {showConfirmation && selectedPackageIndex !== null && (
+                                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-6 space-y-4">
+                                        <div className="text-center">
+                                            <h3 className="text-xl font-bold text-amber-800 dark:text-amber-200 mb-2">
+                                                ⚠️ تأكيد الشراء
+                                            </h3>
+                                            <p className="text-gray-600 dark:text-gray-400 text-sm">
+                                                يرجى مراجعة التفاصيل قبل المتابعة
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 space-y-3">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-gray-600 dark:text-gray-400">الباقة المختارة:</span>
+                                                <span className="font-bold text-lg">
+                                                    {packages.find(p => p.index === selectedPackageIndex)?.name}
+                                                </span>
+                                            </div>
+                                            <hr className="border-gray-200 dark:border-gray-700" />
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-gray-600 dark:text-gray-400">المبلغ الإجمالي:</span>
+                                                <span className="font-bold text-2xl text-green-600 dark:text-green-400">
+                                                    {packages.find(p => p.index === selectedPackageIndex)?.price} USD
+                                                </span>
+                                            </div>
+                                            {promoCode && (
+                                                <>
+                                                    <hr className="border-gray-200 dark:border-gray-700" />
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600 dark:text-gray-400">كود الخصم:</span>
+                                                        <span className="font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
+                                                            {promoCode}
+                                                        </span>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="flex gap-3">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => setShowConfirmation(false)}
+                                                disabled={loading}
+                                                className="flex-1"
+                                            >
+                                                تعديل الاختيار
+                                            </Button>
+                                            <Button
+                                                onClick={handleSelectPackage}
+                                                disabled={loading}
+                                                className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600"
+                                            >
+                                                {loading ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                                                        جاري الشراء...
+                                                    </>
+                                                ) : (
+                                                    '✓ موافق - إتمام الشراء'
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
                     </CardContent>

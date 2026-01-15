@@ -854,8 +854,15 @@ export class BeINAutomation {
                 const input = await page.$(selector)
                 if (input) {
                     console.log(`✅ Found card input with selector: ${selector}`)
-                    await input.fill(cardNumber)
-                    console.log(`📝 Card number entered: ${cardNumber.slice(0, 4)}****${cardNumber.slice(-2)}`)
+
+                    // beIN requires card number WITHOUT first digit (7, pre-filled) and WITHOUT last digit
+                    // Full: 7511394806 → Enter: 51139480
+                    const formattedCard = cardNumber.slice(1, -1)
+                    console.log(`📝 Original card: ${cardNumber.slice(0, 4)}****${cardNumber.slice(-2)}`)
+                    console.log(`📝 Formatted for beIN: ${formattedCard.slice(0, 3)}****${formattedCard.slice(-2)}`)
+
+                    await input.fill(formattedCard)
+                    console.log(`✅ Card number entered in field`)
                     cardInputFound = true
                     break
                 }
@@ -902,7 +909,25 @@ export class BeINAutomation {
             }
 
             // Wait for packages table to load
-            await page.waitForTimeout(2000)
+            await page.waitForTimeout(3000)
+
+            // ===== DEBUG: Check for error messages after Load =====
+            const errorLabels = await page.$$('span[id*="lbl"], label[id*="lbl"], .error, .alert, [style*="color: red"], [style*="color:red"]')
+            console.log(`🔍 DEBUG - Found ${errorLabels.length} potential error/message labels`)
+            for (let e = 0; e < errorLabels.length; e++) {
+                const text = await errorLabels[e].textContent()
+                if (text && text.trim()) {
+                    console.log(`   Label ${e}: "${text.trim().slice(0, 100)}"`)
+                }
+            }
+
+            // DEBUG: Get main content area text to understand what's shown
+            const mainContent = await page.$('#ContentPlaceHolder1') || await page.$('.content') || await page.$('body')
+            if (mainContent) {
+                const contentText = await mainContent.textContent()
+                const cleanText = contentText?.replace(/\s+/g, ' ').trim().slice(0, 500)
+                console.log(`🔍 DEBUG - Page content preview: "${cleanText}"`)
+            }
 
             // ===== DEBUG: Find all tables on page =====
             const allTables = await page.$$('table')

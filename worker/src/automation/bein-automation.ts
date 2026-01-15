@@ -352,7 +352,22 @@ export class BeINAutomation {
 
             // Submit form
             await page.click(this.config.selSubmit)
-            await page.waitForLoadState('networkidle')
+
+            // Wait for page to load/redirect with longer timeout
+            console.log('⏳ Waiting for login to complete...')
+            await page.waitForLoadState('networkidle', { timeout: 60000 })
+
+            // Additional wait for any JavaScript redirects
+            await page.waitForTimeout(3000)
+
+            // Wait for URL to change (if there's a redirect)
+            try {
+                await page.waitForURL(/^(?!.*NLogin).*$/i, { timeout: 10000 })
+                console.log('✅ URL changed - login successful!')
+            } catch {
+                // URL didn't change, check if still on login page
+                console.log('⚠️ URL did not change within timeout')
+            }
 
             // === DEBUG: Check what happened after login ===
             const currentUrl = page.url()
@@ -360,14 +375,30 @@ export class BeINAutomation {
             console.log(`🔍 After CAPTCHA login - URL: ${currentUrl}`)
             console.log(`🔍 After CAPTCHA login - Title: ${pageTitle}`)
 
+            // Check for error messages on the page FIRST
+            const errorMsg = await page.$('.error, .alert-danger, .validation-error, span[style*="color:Red"], span[style*="color: Red"]')
+            if (errorMsg) {
+                const errorText = await errorMsg.textContent()
+                console.log(`❌ Error message on page: ${errorText}`)
+            }
+
             // Check for login page indicators
             const loginIndicators = await page.$('#Login1_UserName, #Login1_LoginButton')
             if (loginIndicators) {
                 console.log('❌ Still on login page after CAPTCHA!')
+
+                // Try to get more info about why login failed
+                const errorSpan = await page.$('span[id*="Error"], span[style*="Red"]')
+                if (errorSpan) {
+                    const spanText = await errorSpan.textContent()
+                    console.log(`❌ Login error: ${spanText}`)
+                    throw new Error(`Login failed: ${spanText}`)
+                }
+
                 throw new Error('CAPTCHA incorrect or login failed')
             }
 
-            if (currentUrl.toLowerCase().includes('login') || currentUrl.toLowerCase().includes('error')) {
+            if (currentUrl.toLowerCase().includes('nlogin') || currentUrl.toLowerCase().includes('error')) {
                 throw new Error('Login failed after CAPTCHA - check solution')
             }
 

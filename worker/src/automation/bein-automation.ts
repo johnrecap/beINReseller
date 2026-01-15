@@ -1238,7 +1238,17 @@ export class BeINAutomation {
             const row = await checkbox.evaluateHandle((el: any) => el.closest('tr'))
             const rowText = await row.evaluate((el: any) => el?.innerText || el?.textContent || '')
 
-            // Verify the price matches (security check)
+            // Verify the PACKAGE NAME matches (security check #1)
+            const packageNameInRow = selectedPackage.name.split('(')[0].trim().toLowerCase()
+            const rowTextLower = rowText.toLowerCase()
+            if (!rowTextLower.includes(packageNameInRow)) {
+                console.log(`⚠️ Expected package name: "${packageNameInRow}"`)
+                console.log(`⚠️ Row text: "${rowText.slice(0, 100)}"`)
+                throw new Error(`Package name mismatch! Expected "${selectedPackage.name}" but row doesn't contain it. Aborting to prevent wrong purchase.`)
+            }
+            console.log(`✅ Package name verified: "${packageNameInRow}" found in row`)
+
+            // Verify the PRICE matches (security check #2)
             const priceInRow = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i)
             if (priceInRow) {
                 const extractedPrice = parseFloat(priceInRow[1])

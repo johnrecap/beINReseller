@@ -87,6 +87,7 @@ export default function RenewWizardPage() {
     const [promoCode, setPromoCode] = useState('')
     const [captchaImage, setCaptchaImage] = useState<string | null>(null)
     const [captchaSolution, setCaptchaSolution] = useState('')
+    const [captchaSubmitted, setCaptchaSubmitted] = useState(false)  // Track if user already submitted CAPTCHA
     const [result, setResult] = useState<OperationResult | null>(null)
     const [loading, setLoading] = useState(false)
     const [stbNumber, setStbNumber] = useState<string | null>(null)
@@ -109,15 +110,15 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (data.status === 'AWAITING_CAPTCHA') {
-                // Check if we already submitted a solution (worker is still processing)
-                // Don't show CAPTCHA again if we're in processing step
-                if (step === 'processing') {
-                    // Worker is processing our CAPTCHA solution, keep polling
+                // Only skip showing CAPTCHA if user already submitted a solution
+                // (worker is still processing it)
+                if (captchaSubmitted) {
+                    // User already submitted CAPTCHA, worker is processing it
                     setTimeout(pollStatus, 2000)
                     return
                 }
 
-                // Need captcha
+                // First time seeing CAPTCHA - show it
                 const captchaRes = await fetch(`/api/operations/${operationId}/captcha`)
                 const captchaData = await captchaRes.json()
                 if (captchaData.captchaImage) {
@@ -144,7 +145,7 @@ export default function RenewWizardPage() {
             console.error('Poll error:', error)
             setTimeout(pollStatus, 3000)
         }
-    }, [operationId, refetchBalance])
+    }, [operationId, refetchBalance, captchaSubmitted])
 
     useEffect(() => {
         if (step === 'processing' || step === 'completing') {
@@ -203,6 +204,7 @@ export default function RenewWizardPage() {
             }
 
             setCaptchaSolution('')
+            setCaptchaSubmitted(true)  // Mark that we submitted CAPTCHA
             setStep('processing')
             toast.success('جاري تحميل الباقات...')
         } catch {
@@ -261,6 +263,7 @@ export default function RenewWizardPage() {
         setPromoCode('')
         setCaptchaImage(null)
         setCaptchaSolution('')
+        setCaptchaSubmitted(false)  // Reset CAPTCHA submitted state
         setResult(null)
         setStbNumber(null)
     }

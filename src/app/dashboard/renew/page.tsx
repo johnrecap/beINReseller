@@ -352,7 +352,7 @@ export default function RenewWizardPage() {
                                 id="captcha"
                                 type="text"
                                 value={captchaSolution}
-                                onChange={(e) => setCaptchaSolution(e.target.value.toUpperCase())}
+                                onChange={(e) => setCaptchaSolution(e.target.value)}
                                 placeholder="ABCD"
                                 className="mt-2 text-center font-mono text-xl tracking-widest"
                                 dir="ltr"

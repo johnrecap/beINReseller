@@ -309,12 +309,25 @@ export class BeINAutomation {
 
         // Verify login success
         const currentUrl = page.url()
-        if (currentUrl.includes('login') || currentUrl.includes('error')) {
+        const pageTitle = await page.title()
+        console.log(`🔍 After login - URL: ${currentUrl}`)
+        console.log(`🔍 After login - Title: ${pageTitle}`)
+
+        // Check for login page indicators (means login failed)
+        const loginIndicators = await page.$('#Login1_UserName, #Login1_LoginButton, input[id*="Login"]')
+        if (loginIndicators) {
+            console.log('❌ Login failed - still on login page!')
+            throw new Error('فشل تسجيل الدخول - تحقق من بيانات الحساب')
+        }
+
+        if (currentUrl.toLowerCase().includes('login') || currentUrl.toLowerCase().includes('error')) {
+            console.log('❌ Login failed - URL contains login/error')
             throw new Error('فشل تسجيل الدخول - تحقق من بيانات الحساب')
         }
 
         // Save session
         const storageState = await context.storageState()
+        console.log(`💾 Saving session with ${storageState.cookies?.length || 0} cookies`)
         await this.session.saveSessionForAccount(account.id, storageState)
 
         // Update session last login time

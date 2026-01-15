@@ -734,54 +734,149 @@ export class BeINAutomation {
             }
 
             // ===== STEP 2.1: Select Item Type = Smartcard: CISCO =====
-            const itemTypeDropdown = await page.$('#ContentPlaceHolder1_ddlItemType') ||
-                await page.$('select[id*="ddlItemType"]') ||
-                await page.$('select[name*="ItemType"]')
+            console.log('🔍 Step 2.1: Looking for Item Type dropdown...')
 
-            if (itemTypeDropdown) {
-                // Select "Smartcard: CISCO" option
-                await page.selectOption('#ContentPlaceHolder1_ddlItemType', { label: 'Smartcard: CISCO' })
-                console.log(`✅ Selected Item Type: Smartcard: CISCO`)
+            // Try multiple selectors for the dropdown
+            const dropdownSelectors = [
+                '#ContentPlaceHolder1_ddlItemType',
+                'select[id*="ddlItemType"]',
+                'select[id*="ItemType"]',
+                'select[name*="ItemType"]'
+            ]
 
-                // Wait for page to update after dropdown selection
-                await page.waitForTimeout(3000)
+            let dropdownFound = false
+            for (const selector of dropdownSelectors) {
+                const dropdown = await page.$(selector)
+                if (dropdown) {
+                    console.log(`✅ Found dropdown with selector: ${selector}`)
 
-                try {
-                    await page.waitForLoadState('load', { timeout: 15000 })
-                } catch {
-                    console.log('⚠️ Dropdown selection page update timeout - continuing')
+                    // Log current options
+                    const options = await page.$$eval(selector + ' option', opts =>
+                        opts.map(o => ({ value: o.value, text: o.textContent }))
+                    )
+                    console.log(`📋 Dropdown options:`, JSON.stringify(options))
+
+                    // Try to select Smartcard: CISCO
+                    try {
+                        // Method 1: Select by label (text content)
+                        await page.selectOption(selector, { label: 'Smartcard: CISCO' })
+                        console.log(`✅ Selected by label: Smartcard: CISCO`)
+                        dropdownFound = true
+                    } catch (e1) {
+                        console.log(`⚠️ Select by label failed, trying by value...`)
+                        try {
+                            // Method 2: Select by value containing CISCO
+                            const ciscoOption = options.find(o =>
+                                o.text?.includes('CISCO') || o.value?.includes('CISCO')
+                            )
+                            if (ciscoOption?.value) {
+                                await page.selectOption(selector, ciscoOption.value)
+                                console.log(`✅ Selected by value: ${ciscoOption.value}`)
+                                dropdownFound = true
+                            }
+                        } catch (e2) {
+                            console.log(`⚠️ Select by value failed, trying by index...`)
+                            try {
+                                // Method 3: Select second option (index 1)
+                                await page.selectOption(selector, { index: 1 })
+                                console.log(`✅ Selected by index: 1`)
+                                dropdownFound = true
+                            } catch (e3) {
+                                console.log(`❌ All dropdown selection methods failed`)
+                            }
+                        }
+                    }
+
+                    if (dropdownFound) {
+                        // Wait for page to update after dropdown selection
+                        console.log('⏳ Waiting for page to update after dropdown selection...')
+                        await page.waitForTimeout(3000)
+
+                        try {
+                            await page.waitForLoadState('load', { timeout: 15000 })
+                            console.log('✅ Page updated after dropdown selection')
+                        } catch {
+                            console.log('⚠️ Page update timeout - continuing anyway')
+                        }
+                    }
+                    break
                 }
-            } else {
-                console.log('⚠️ Item Type dropdown not found - may already be on correct view')
+            }
+
+            if (!dropdownFound) {
+                console.log('⚠️ Item Type dropdown not found with any selector - checking page state...')
+                const pageContent = await page.content()
+                if (pageContent.includes('Serial Number') || pageContent.includes('SerialNumber')) {
+                    console.log('✅ Already on correct form view')
+                } else {
+                    console.log('⚠️ May need to configure dropdown selector')
+                }
             }
 
             // ===== STEP 2.2: Enter card number on renewal page =====
-            const cardInput = await page.$('#ContentPlaceHolder1_txtSerialNumber') ||
-                await page.$('#ContentPlaceHolder1_txtCardNumber') ||
-                await page.$('input[id*="txtSerial"]') ||
-                await page.$('input[id*="Serial"]') ||
-                await page.$(this.config.selCardInput)
-            if (cardInput) {
-                await cardInput.fill(cardNumber)
-                console.log(`📝 Card number entered on renewal page: ${cardNumber.slice(0, 4)}****`)
-            } else {
-                console.log('⚠️ Card input field not found on renewal page')
+            console.log('🔍 Step 2.2: Looking for card number input field...')
+
+            const cardInputSelectors = [
+                '#ContentPlaceHolder1_txtSerialNumber',
+                '#ContentPlaceHolder1_txtCardNumber',
+                'input[id*="txtSerialNumber"]',
+                'input[id*="SerialNumber"]',
+                'input[id*="txtSerial"]',
+                'input[name*="SerialNumber"]',
+                this.config.selCardInput
+            ]
+
+            let cardInputFound = false
+            for (const selector of cardInputSelectors) {
+                if (!selector) continue
+                const input = await page.$(selector)
+                if (input) {
+                    console.log(`✅ Found card input with selector: ${selector}`)
+                    await input.fill(cardNumber)
+                    console.log(`📝 Card number entered: ${cardNumber.slice(0, 4)}****${cardNumber.slice(-2)}`)
+                    cardInputFound = true
+                    break
+                }
             }
 
-            // Click "Load Another" or similar button to load packages
-            const loadBtn = await page.$('#ContentPlaceHolder1_btnLoadAnother') ||
-                await page.$('#ContentPlaceHolder1_btnLoad') ||
-                await page.$('#ContentPlaceHolder1_btnSearch') ||
-                await page.$('input[value*="Load"]') ||
-                await page.$('input[value*="Search"]')
-            if (loadBtn) {
-                await loadBtn.click()
-                try {
-                    await page.waitForLoadState('load', { timeout: 30000 })
-                } catch {
-                    console.log('⚠️ Load packages timeout - continuing')
+            if (!cardInputFound) {
+                console.log('❌ Card input field not found! Tried:', cardInputSelectors.filter(s => s).join(', '))
+                throw new Error('لم يتم العثور على حقل إدخال رقم الكارت')
+            }
+
+            // ===== STEP 2.3: Click Load button =====
+            console.log('🔍 Step 2.3: Looking for Load button...')
+
+            const loadBtnSelectors = [
+                '#ContentPlaceHolder1_btnLoad',
+                '#ContentPlaceHolder1_btnLoadAnother',
+                '#ContentPlaceHolder1_btnSearch',
+                'input[value="Load"]',
+                'input[value*="Load"]',
+                'input[type="submit"]'
+            ]
+
+            let loadBtnFound = false
+            for (const selector of loadBtnSelectors) {
+                const btn = await page.$(selector)
+                if (btn) {
+                    console.log(`✅ Found Load button with selector: ${selector}`)
+                    await btn.click()
+                    console.log('⏳ Waiting for packages to load...')
+                    try {
+                        await page.waitForLoadState('load', { timeout: 30000 })
+                    } catch {
+                        console.log('⚠️ Load timeout - continuing')
+                    }
+                    await page.waitForTimeout(3000)
+                    console.log(`✅ Load button clicked, packages should be loaded`)
+                    loadBtnFound = true
+                    break
                 }
-                console.log(`✅ Packages loaded`)
+            }
+
+            if (!loadBtnFound) {
+                console.log('⚠️ Load button not found - packages may already be loaded')
             }
 
             // Wait for packages table to load

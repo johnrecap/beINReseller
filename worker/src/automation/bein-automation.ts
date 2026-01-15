@@ -1423,30 +1423,57 @@ export class BeINAutomation {
             }
 
             // Re-extract packages with updated prices
-            const packageRows = await page.$$('#ContentPlaceHolder1_gvAvailablePackages tr.GridRow, #ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow')
+            console.log('🔍 DEBUG - Re-extracting packages after promo...')
+
+            // Try primary selector
+            let packageRows = await page.$$('#ContentPlaceHolder1_gvAvailablePackages tr.GridRow, #ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow')
+            console.log(`🔍 DEBUG - Found ${packageRows.length} rows with primary selector`)
+
+            // Fallback to alternative selector if needed
+            if (packageRows.length === 0) {
+                packageRows = await page.$$('#ContentPlaceHolder1_gvAvailablePackages tr:not(.GridHeader)')
+                console.log(`🔍 DEBUG - Found ${packageRows.length} rows with fallback selector`)
+            }
 
             const packages: Array<{ index: number; name: string; price: number; checkboxSelector: string }> = []
 
             for (let i = 0; i < packageRows.length; i++) {
                 const row = packageRows[i]
                 const cells = await row.$$('td')
+                console.log(`🔍 DEBUG - Row ${i}: ${cells.length} cells`)
 
-                if (cells.length >= 3) {
+                if (cells.length >= 2) {
+                    // Try to find checkbox in first cell
                     const checkbox = await cells[0].$('input[type="checkbox"]')
-                    const nameCell = await cells[1].textContent()
-                    const priceCell = await cells[2].textContent()
 
-                    if (checkbox && nameCell && priceCell) {
-                        const checkboxId = await checkbox.getAttribute('id')
+                    // Find name and price cells (might be different based on checkbox presence)
+                    let nameCell: string | null = null
+                    let priceCell: string | null = null
+
+                    if (checkbox) {
+                        // Checkbox present: name is in cell[1], price in cell[2]
+                        nameCell = await cells[1]?.textContent() || null
+                        priceCell = await cells[2]?.textContent() || null
+                    } else {
+                        // No checkbox: name might be in cell[0], price in cell[1]
+                        nameCell = await cells[0]?.textContent() || null
+                        priceCell = await cells[1]?.textContent() || null
+                    }
+
+                    if (nameCell && priceCell) {
+                        const checkboxId = checkbox ? await checkbox.getAttribute('id') : null
                         const priceMatch = priceCell.match(/[\d,.]+/)
                         const price = priceMatch ? parseFloat(priceMatch[0].replace(',', '')) : 0
 
-                        packages.push({
-                            index: i,
-                            name: nameCell.trim(),
-                            price,
-                            checkboxSelector: checkboxId ? `#${checkboxId}` : `#ContentPlaceHolder1_gvAvailablePackages_cbSelect_${i}`
-                        })
+                        if (price > 0) {
+                            packages.push({
+                                index: i,
+                                name: nameCell.trim(),
+                                price,
+                                checkboxSelector: checkboxId ? `#${checkboxId}` : `#ContentPlaceHolder1_gvAvailablePackages_cbSelect_${i}`
+                            })
+                            console.log(`   📦 Package ${i}: "${nameCell.trim()}" - ${price} USD`)
+                        }
                     }
                 }
             }

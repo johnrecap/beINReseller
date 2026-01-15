@@ -38,8 +38,8 @@ export async function POST(
             )
         }
 
-        // Allow cancellation for operations that are pending or awaiting user action
-        const cancellableStatuses = ['PENDING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'PROCESSING']
+        // Allow cancellation for operations that are pending, awaiting, or stuck
+        const cancellableStatuses = ['PENDING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'PROCESSING', 'COMPLETING', 'FAILED']
         if (!cancellableStatuses.includes(operation.status)) {
             return NextResponse.json(
                 { error: 'لا يمكن إلغاء هذه العملية - فقط العمليات قيد الانتظار أو المعالجة يمكن إلغاؤها' },

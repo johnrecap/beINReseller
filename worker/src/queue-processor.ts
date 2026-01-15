@@ -302,10 +302,13 @@ async function handleApplyPromo(
         promoCode
     )
 
-    // 3. Save updated packages to responseData
+    // 3. Update availablePackages with new prices (IMPORTANT: select-package uses this!)
     await prisma.operation.update({
         where: { id: operationId },
         data: {
+            // Update the actual packages array with new prices
+            availablePackages: result.packages as unknown as never[],
+            // Also save to responseData for API polling
             responseData: JSON.stringify({
                 promoApplied: true,
                 packages: result.packages || [],

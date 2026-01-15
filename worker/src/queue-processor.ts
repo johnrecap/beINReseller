@@ -28,6 +28,30 @@ interface OperationJobData {
     amount?: number
 }
 
+// Custom error for cancelled operations
+class OperationCancelledError extends Error {
+    constructor(operationId: string) {
+        super(`Operation ${operationId} was cancelled`)
+        this.name = 'OperationCancelledError'
+    }
+}
+
+/**
+ * Check if operation was cancelled - call this before critical steps
+ */
+async function checkIfCancelled(operationId: string): Promise<void> {
+    const op = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: { status: true }
+    })
+
+    if (op?.status === 'CANCELLED') {
+        console.log(`🚫 Operation ${operationId} was cancelled - stopping processing`)
+        throw new OperationCancelledError(operationId)
+    }
+}
+
+
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT || '120') * 1000
 
 export async function processOperation(
@@ -99,6 +123,9 @@ async function handleStartRenewal(
     accountPool: AccountPoolManager
 ): Promise<void> {
     console.log(`🚀 Starting renewal wizard for operation ${operationId}`)
+
+    // Check if operation was cancelled before starting
+    await checkIfCancelled(operationId)
 
     // 0. Get operation with userId for notifications
     const operation = await prisma.operation.findUnique({
@@ -192,6 +219,9 @@ async function handleCompletePurchase(
 ): Promise<void> {
     console.log(`💳 Completing purchase for operation ${operationId}`)
 
+    // Check if operation was cancelled before starting
+    await checkIfCancelled(operationId)
+
     // 1. Get operation with package info
     const operation = await prisma.operation.findUnique({
         where: { id: operationId },
@@ -281,6 +311,9 @@ async function handleApplyPromo(
     accountPool: AccountPoolManager
 ): Promise<void> {
     console.log(`🎫 Applying promo code ${promoCode} for operation ${operationId}`)
+
+    // Check if operation was cancelled before starting
+    await checkIfCancelled(operationId)
 
     // 1. Get operation
     const operation = await prisma.operation.findUnique({

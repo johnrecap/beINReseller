@@ -3,6 +3,7 @@
  * 
  * Features:
  * - Multi-account support via AccountPoolManager
+ * - Wizard flow (START_RENEWAL, COMPLETE_PURCHASE)
  * - Retry with exponential backoff
  * - Auto-refund on permanent failure
  * - Error classification
@@ -19,11 +20,12 @@ import { createNotification } from './utils/notification'
 
 interface OperationJobData {
     operationId: string
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL'
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'START_RENEWAL' | 'COMPLETE_PURCHASE'
     cardNumber: string
     duration?: string
-    userId: string
-    amount: number
+    promoCode?: string
+    userId?: string
+    amount?: number
 }
 
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT || '120') * 1000
@@ -33,117 +35,314 @@ export async function processOperation(
     automation: BeINAutomation,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    const { operationId, type, cardNumber, duration, userId, amount } = job.data
+    const { operationId, type, cardNumber, duration, promoCode, userId, amount } = job.data
     let selectedAccountId: string | null = null
 
     console.log(`📥 Processing operation ${operationId}: ${type} for card ${cardNumber.slice(0, 4)}****`)
 
     try {
-        // 1. Mark operation as PROCESSING
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: { status: 'PROCESSING' }
-        })
-
-        // 2. Get next available account from pool
-        const selectedAccount = await accountPool.getNextAvailableAccount()
-        if (!selectedAccount) {
-            // No accounts available - put back in queue for retry
-            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة حالياً')
+        // Handle Wizard flow types
+        if (type === 'START_RENEWAL') {
+            await handleStartRenewal(operationId, cardNumber, automation, accountPool)
+            return
         }
-        selectedAccountId = selectedAccount.id
 
-        // Link operation to the selected account
+        if (type === 'COMPLETE_PURCHASE') {
+            await handleCompletePurchase(operationId, promoCode, automation, accountPool)
+            return
+        }
+
+        // Original flow for legacy operations
+        await handleLegacyOperation(job, automation, accountPool)
+
+    } catch (error: any) {
+        console.error(`❌ Operation ${operationId} failed:`, error.message)
+        await handleOperationError(operationId, error, selectedAccountId, userId, amount, accountPool)
+    }
+}
+
+/**
+ * Handle START_RENEWAL - Wizard Step 1
+ * - Login to beIN
+ * - Navigate to packages page
+ * - Extract available packages
+ * - Save to operation.availablePackages
+ * - Set status to AWAITING_PACKAGE
+ */
+async function handleStartRenewal(
+    operationId: string,
+    cardNumber: string,
+    automation: BeINAutomation,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`🚀 Starting renewal wizard for operation ${operationId}`)
+
+    // 1. Mark as PROCESSING
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'PROCESSING' }
+    })
+
+    // 2. Get next available account
+    const selectedAccount = await accountPool.getNextAvailableAccount()
+    if (!selectedAccount) {
+        throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة حالياً')
+    }
+
+    // Link account to operation
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { beinAccountId: selectedAccount.id }
+    })
+
+    console.log(`🔑 Using account: ${selectedAccount.label || selectedAccount.username}`)
+
+    // 3. Apply delay for human-like behavior
+    const delay = accountPool.getRandomDelay()
+    await new Promise(resolve => setTimeout(resolve, delay))
+
+    // 4. Ensure login
+    const loginResult = await automation.ensureLoginWithAccount(selectedAccount)
+
+    if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+        console.log(`🧩 Operation ${operationId} requires CAPTCHA`)
+
+        // Update with captcha
         await prisma.operation.update({
             where: { id: operationId },
-            data: { beinAccountId: selectedAccountId }
-        })
-
-        console.log(`🔑 Using account: ${selectedAccount.label || selectedAccount.username}`)
-
-        // 3. Apply random delay for human-like behavior
-        const delay = accountPool.getRandomDelay()
-        console.log(`⏳ Waiting ${delay}ms before processing...`)
-        await new Promise(resolve => setTimeout(resolve, delay))
-
-        // 4. Ensure we're logged in with the selected account
-        try {
-            const loginResult = await automation.ensureLoginWithAccount(selectedAccount)
-
-            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                console.log(`🧩 Operation ${operationId} requires manual CAPTCHA`)
-
-                // Update status to AWAITING_CAPTCHA
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        status: 'AWAITING_CAPTCHA',
-                        captchaImage: loginResult.captchaImage,
-                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
-                    }
-                })
-
-                // Notify User Action Required
-                await createNotification({
-                    userId,
-                    title: 'مطلوب إدخال كود التحقق',
-                    message: 'يرجى إدخال كود التحقق لإكمال العملية',
-                    type: 'warning',
-                    link: '/dashboard/operations'
-                })
-
-                // Wait for solution
-                const solution = await waitForCaptchaSolution(operationId)
-                if (!solution) {
-                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق في الوقت المحدد')
-                }
-
-                // Resume login with solution
-                await automation.completeCaptchaForAccount(selectedAccount.id, solution)
+            data: {
+                status: 'AWAITING_CAPTCHA',
+                captchaImage: loginResult.captchaImage,
+                captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
             }
-        } catch (loginError: any) {
-            // Rethrow specific errors to be handled by outer catch
-            throw loginError
+        })
+
+        // Wait for captcha solution
+        const solution = await waitForCaptchaSolution(operationId)
+        if (!solution) {
+            throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق')
         }
 
-        // 5. Execute based on type (with retry for the actual operation)
-        const result = await withRetry(
-            async () => {
-                switch (type) {
-                    case 'RENEW':
-                        return automation.renewCardWithAccount(selectedAccount.id, cardNumber, duration!)
-                    case 'CHECK_BALANCE':
-                        return automation.checkBalanceWithAccount(selectedAccount.id, cardNumber)
-                    case 'REFRESH_SIGNAL':
-                        return automation.refreshSignalWithAccount(selectedAccount.id, cardNumber)
-                    default:
-                        throw new Error(`Unknown operation type: ${type}`)
-                }
-            },
-            { maxRetries: 2, initialDelayMs: 3000 }
-        )
+        await automation.completeCaptchaForAccount(selectedAccount.id, solution)
+    }
 
-        // 6. Update operation based on result
-        if (result.success) {
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    status: 'COMPLETED',
-                    responseMessage: result.message,
-                    completedAt: new Date(),
-                    // Clear captcha fields
-                    captchaImage: null,
-                    captchaSolution: null,
-                    captchaExpiry: null
-                }
+    // 5. Navigate and extract packages
+    const packages = await automation.startRenewalSession(selectedAccount.id, cardNumber)
+    const stbNumber = await automation.extractSTBNumber(selectedAccount.id)
+
+    // 6. Update operation with packages
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: {
+            status: 'AWAITING_PACKAGE',
+            stbNumber: stbNumber,
+            availablePackages: packages,
+            captchaImage: null,
+            captchaSolution: null,
+            captchaExpiry: null
+        }
+    })
+
+    console.log(`✅ Packages extracted for ${operationId}: ${packages.length} packages`)
+}
+
+/**
+ * Handle COMPLETE_PURCHASE - Wizard Step 2
+ * - Select the package
+ * - Apply promo code if provided
+ * - Complete the purchase
+ * - Update status to COMPLETED or FAILED
+ */
+async function handleCompletePurchase(
+    operationId: string,
+    promoCode: string | undefined,
+    automation: BeINAutomation,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`💳 Completing purchase for operation ${operationId}`)
+
+    // 1. Get operation with package info
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: {
+            id: true,
+            userId: true,
+            beinAccountId: true,
+            selectedPackage: true,
+            promoCode: true,
+            stbNumber: true,
+            amount: true
+        }
+    })
+
+    if (!operation) {
+        throw new Error('Operation not found')
+    }
+
+    if (!operation.beinAccountId) {
+        throw new Error('No beIN account assigned')
+    }
+
+    // Update to COMPLETING
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'COMPLETING' }
+    })
+
+    // 2. Complete the purchase
+    const selectedPackage = operation.selectedPackage as { index: number; name: string; price: number; checkboxSelector: string } | null
+    if (!selectedPackage) {
+        throw new Error('No package selected')
+    }
+
+    const result = await automation.completePackagePurchase(
+        operation.beinAccountId,
+        selectedPackage,
+        operation.promoCode || promoCode,
+        operation.stbNumber || ''
+    )
+
+    // 3. Update operation
+    if (result.success) {
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'COMPLETED',
+                responseMessage: result.message,
+                completedAt: new Date()
+            }
+        })
+
+        // Mark account as used
+        await accountPool.markAccountUsed(operation.beinAccountId)
+
+        // Notify success
+        if (operation.userId) {
+            await createNotification({
+                userId: operation.userId,
+                title: 'تم التجديد بنجاح',
+                message: `${selectedPackage.name} - ${result.message}`,
+                type: 'success',
+                link: '/dashboard/history'
             })
+        }
 
-            // Mark account as successfully used
-            if (selectedAccountId) {
-                await accountPool.markAccountUsed(selectedAccountId)
+        console.log(`✅ Purchase completed for ${operationId}: ${result.message}`)
+    } else {
+        // Refund and mark failed
+        if (operation.userId && operation.amount) {
+            await refundUser(operationId, operation.userId, operation.amount, result.message)
+        }
+
+        await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1)
+
+        throw new Error(result.message)
+    }
+}
+
+/**
+ * Handle legacy operation types (RENEW, CHECK_BALANCE, REFRESH_SIGNAL)
+ */
+async function handleLegacyOperation(
+    job: Job<OperationJobData>,
+    automation: BeINAutomation,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    const { operationId, type, cardNumber, duration, userId, amount } = job.data
+    let selectedAccountId: string | null = null
+
+    // 1. Mark operation as PROCESSING
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'PROCESSING' }
+    })
+
+    // 2. Get next available account from pool
+    const selectedAccount = await accountPool.getNextAvailableAccount()
+    if (!selectedAccount) {
+        throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة حالياً')
+    }
+    selectedAccountId = selectedAccount.id
+
+    // Link operation to the selected account
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { beinAccountId: selectedAccountId }
+    })
+
+    console.log(`🔑 Using account: ${selectedAccount.label || selectedAccount.username}`)
+
+    // 3. Apply random delay for human-like behavior
+    const delay = accountPool.getRandomDelay()
+    await new Promise(resolve => setTimeout(resolve, delay))
+
+    // 4. Ensure we're logged in with the selected account
+    const loginResult = await automation.ensureLoginWithAccount(selectedAccount)
+
+    if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'AWAITING_CAPTCHA',
+                captchaImage: loginResult.captchaImage,
+                captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
             }
+        })
 
-            // Notify Success
+        if (userId) {
+            await createNotification({
+                userId,
+                title: 'مطلوب إدخال كود التحقق',
+                message: 'يرجى إدخال كود التحقق لإكمال العملية',
+                type: 'warning',
+                link: '/dashboard/operations'
+            })
+        }
+
+        const solution = await waitForCaptchaSolution(operationId)
+        if (!solution) {
+            throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق في الوقت المحدد')
+        }
+
+        await automation.completeCaptchaForAccount(selectedAccount.id, solution)
+    }
+
+    // 5. Execute based on type
+    const result = await withRetry(
+        async () => {
+            switch (type) {
+                case 'RENEW':
+                    return automation.renewCardWithAccount(selectedAccount.id, cardNumber, duration!)
+                case 'CHECK_BALANCE':
+                    return automation.checkBalanceWithAccount(selectedAccount.id, cardNumber)
+                case 'REFRESH_SIGNAL':
+                    return automation.refreshSignalWithAccount(selectedAccount.id, cardNumber)
+                default:
+                    throw new Error(`Unknown operation type: ${type}`)
+            }
+        },
+        { maxRetries: 2, initialDelayMs: 3000 }
+    )
+
+    // 6. Update operation based on result
+    if (result.success) {
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'COMPLETED',
+                responseMessage: result.message,
+                completedAt: new Date(),
+                captchaImage: null,
+                captchaSolution: null,
+                captchaExpiry: null
+            }
+        })
+
+        if (selectedAccountId) {
+            await accountPool.markAccountUsed(selectedAccountId)
+        }
+
+        if (userId) {
             await createNotification({
                 userId,
                 title: 'تمت العملية بنجاح',
@@ -151,62 +350,65 @@ export async function processOperation(
                 type: 'success',
                 link: '/dashboard/history'
             })
-
-            console.log(`✅ Operation ${operationId} completed: ${result.message}`)
-        } else {
-            throw new Error(result.message)
         }
 
-    } catch (error: any) {
-        console.error(`❌ Operation ${operationId} failed:`, error.message)
+        console.log(`✅ Operation ${operationId} completed: ${result.message}`)
+    } else {
+        throw new Error(result.message)
+    }
+}
 
-        // Mark account as failed if we had one selected
-        if (selectedAccountId) {
-            await accountPool.markAccountFailed(selectedAccountId, error.message)
-        }
+/**
+ * Handle operation errors with retry logic
+ */
+async function handleOperationError(
+    operationId: string,
+    error: any,
+    selectedAccountId: string | null,
+    userId?: string,
+    amount?: number,
+    accountPool?: AccountPoolManager
+): Promise<void> {
+    if (selectedAccountId && accountPool) {
+        await accountPool.markAccountFailed(selectedAccountId, error.message)
+    }
 
-        const classifiedError = classifyError(error)
-        const isCaptchaTimeout = error.message.includes('CAPTCHA_TIMEOUT')
-        const isNoAccounts = error.message.includes('NO_AVAILABLE_ACCOUNTS')
+    const classifiedError = classifyError(error)
+    const isCaptchaTimeout = error.message.includes('CAPTCHA_TIMEOUT')
+    const isNoAccounts = error.message.includes('NO_AVAILABLE_ACCOUNTS')
 
-        // Get current retry count
-        const operation = await prisma.operation.findUnique({
-            where: { id: operationId }
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId }
+    })
+
+    const retryCount = (operation?.retryCount || 0) + 1
+    const maxRetries = 3
+
+    if ((classifiedError.recoverable || isNoAccounts) && retryCount < maxRetries && !isCaptchaTimeout) {
+        const nextDelay = calculateDelay(retryCount)
+
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                retryCount,
+                status: 'PENDING',
+                responseMessage: `فشل المحاولة ${retryCount}: ${classifiedError.message}`,
+                captchaImage: null,
+                captchaSolution: null,
+                captchaExpiry: null
+            }
         })
 
-        const retryCount = (operation?.retryCount || 0) + 1
-        const maxRetries = 3
+        console.log(`🔄 Operation ${operationId} will retry (${retryCount}/${maxRetries})`)
+        throw error
 
-        // Retry if recoverable error (not CAPTCHA timeout)
-        // For NO_AVAILABLE_ACCOUNTS, we should retry (accounts may become available)
-        if ((classifiedError.recoverable || isNoAccounts) && retryCount < maxRetries && !isCaptchaTimeout) {
-            // Update retry count and schedule for retry
-            const nextDelay = calculateDelay(retryCount)
-
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    retryCount,
-                    status: 'PENDING',
-                    responseMessage: `فشل المحاولة ${retryCount}: ${classifiedError.message}. إعادة المحاولة بعد ${Math.round(nextDelay / 1000)} ثانية`,
-                    // Reseting captcha fields
-                    captchaImage: null,
-                    captchaSolution: null,
-                    captchaExpiry: null
-                }
-            })
-
-            console.log(`🔄 Operation ${operationId} will retry (${retryCount}/${maxRetries})`)
-
-            // Re-throw to trigger BullMQ retry
-            throw error
-
-        } else {
-            // Permanent failure - mark as failed and refund
-            await markOperationFailed(operationId, classifiedError, retryCount)
+    } else {
+        await markOperationFailed(operationId, classifiedError, retryCount)
+        if (userId && amount) {
             await refundUser(operationId, userId, amount, classifiedError.message)
+        }
 
-            // Notify Failure
+        if (userId) {
             await createNotification({
                 userId,
                 title: 'فشلت العملية',
@@ -214,15 +416,15 @@ export async function processOperation(
                 type: 'error',
                 link: '/dashboard/history'
             })
-
-            console.log(`💔 Operation ${operationId} permanently failed after ${retryCount} attempts`)
         }
+
+        console.log(`💔 Operation ${operationId} permanently failed after ${retryCount} attempts`)
     }
 }
 
 async function waitForCaptchaSolution(operationId: string): Promise<string | null> {
     const startTime = Date.now()
-    const pollingInterval = 2000 // 2 seconds
+    const pollingInterval = 2000
 
     while (Date.now() - startTime < CAPTCHA_TIMEOUT_MS) {
         const operation = await prisma.operation.findUnique({
@@ -230,7 +432,6 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
             select: { captchaSolution: true, status: true }
         })
 
-        // If cancelled or failed externally
         if (!operation || ['FAILED', 'CANCELLED'].includes(operation.status)) {
             return null
         }
@@ -244,4 +445,3 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
 
     return null
 }
-

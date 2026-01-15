@@ -53,7 +53,7 @@ export default function RenewForm() {
 
             // Refresh balance to reflect new balance
             await refetchBalance()
-        } catch (err) {
+        } catch {
             setError(t.common.error)
         } finally {
             setLoading(false)

@@ -38,7 +38,20 @@ export function classifyError(error: any): OperationError {
 
 import { createNotification } from './notification'
 
-export async function refundUser(operationId: string, userId: string, amount: number, reason: string): Promise<void> {
+export async function refundUser(operationId: string, userId: string, amount: number, reason: string): Promise<boolean> {
+    // ===== CRITICAL: Check for existing refund to prevent double refund =====
+    const existingRefund = await prisma.transaction.findFirst({
+        where: {
+            operationId,
+            type: 'REFUND'
+        }
+    })
+
+    if (existingRefund) {
+        console.log(`⚠️ Refund already exists for operation ${operationId}, skipping to prevent double refund`)
+        return false
+    }
+
     await prisma.$transaction(async (tx: any) => {
         // Update user balance
         const user = await tx.user.update({
@@ -73,6 +86,8 @@ export async function refundUser(operationId: string, userId: string, amount: nu
 
         console.log(`💰 Refunded ${amount} to user ${userId} for operation ${operationId}`)
     })
+
+    return true
 }
 
 export async function markOperationFailed(

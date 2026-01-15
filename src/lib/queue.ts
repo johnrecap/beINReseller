@@ -27,6 +27,7 @@ export async function addOperationJob(data: {
     type: string
     cardNumber: string
     duration?: string
+    promoCode?: string      // Promo code for discount (Wizard flow)
     userId?: string
     amount?: number
 }) {

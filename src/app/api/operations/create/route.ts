@@ -39,7 +39,7 @@ export async function POST(request: Request) {
             )
         }
 
-        // 2. Parse and validate input
+        // 3. Parse and validate input
         const body = await request.json()
         const validationResult = createOperationSchema.safeParse(body)
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
         const { type, cardNumber, duration } = validationResult.data
 
-        // 4. Calculate price
+        // 4. Calculate price from settings
         const price = await getOperationPriceFromDB(type, duration)
         if (price <= 0) {
             return NextResponse.json(
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
             return { operation, newBalance: updatedUser.balance }
         })
 
-        // 7. Add job to queue (async, don't await)
+        // 7. Add job to queue
         try {
             await addOperationJob({
                 operationId: result.operation.id,
@@ -170,8 +170,6 @@ export async function POST(request: Request) {
             console.error('Failed to add job to queue:', queueError)
             // Don't fail the request, the operation is saved in DB
         }
-
-
 
         // 8. Return success
         return NextResponse.json({

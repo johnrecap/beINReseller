@@ -433,6 +433,352 @@ export class BeINAutomation {
         }
     }
 
+    // ===== Wizard Flow Methods =====
+
+    /**
+     * Start renewal session and extract available packages
+     * This navigates to the renewal page, enters card number, and scrapes all available packages
+     */
+    async startRenewalSession(accountId: string, cardNumber: string): Promise<Array<{ index: number; name: string; price: number; checkboxSelector: string }>> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) throw new Error(`No session found for account ${accountId}`)
+
+        const { page } = session
+        const packages: Array<{ index: number; name: string; price: number; checkboxSelector: string }> = []
+
+        try {
+            // Navigate to renewal page
+            const renewUrl = this.config.loginUrl + this.config.renewUrl
+            await page.goto(renewUrl)
+            await page.waitForLoadState('networkidle')
+
+            // ===== Session Check: Verify we're not redirected to login page =====
+            const currentUrl = page.url()
+            const isLoginPage = currentUrl.includes('Login') ||
+                currentUrl.includes('login') ||
+                await page.$('#ContentPlaceHolder1_txtUserName') ||
+                await page.$('input[name*="UserName"]')
+
+            if (isLoginPage) {
+                console.log('⚠️ Session expired! Redirected to login page')
+                throw new Error('انتهت جلسة الحساب - يرجى إعادة تسجيل الدخول')
+            }
+
+            // Enter card number - beIN uses specific selector
+            const cardInput = await page.$('#ContentPlaceHolder1_txtSerialNumber') ||
+                await page.$(this.config.selCardInput)
+            if (cardInput) {
+                await cardInput.fill(cardNumber)
+            } else {
+                throw new Error('لم يتم العثور على حقل رقم الكارت')
+            }
+
+            // Click "Load Another" button to load packages
+            const loadBtn = await page.$('#ContentPlaceHolder1_btnLoadAnother') ||
+                await page.$('input[value="Load Another"]')
+            if (loadBtn) {
+                await loadBtn.click()
+                await page.waitForLoadState('networkidle')
+            }
+
+            // Wait for packages table to load
+            await page.waitForTimeout(2000)
+
+            // ===== beIN Specific Package Extraction =====
+            // Pattern: ContentPlaceHolder1_gvAvailablePackages_cbSelect_{index}
+            // Table: ContentPlaceHolder1_gvAvailablePackages
+
+            // Find all package rows in the table
+            const packageRows = await page.$$('#ContentPlaceHolder1_gvAvailablePackages tr.GridRow, #ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow')
+
+            console.log(`📋 Found ${packageRows.length} package rows in beIN table`)
+
+            for (let i = 0; i < packageRows.length; i++) {
+                const row = packageRows[i]
+
+                // Get checkbox
+                const checkbox = await row.$('input[type="checkbox"]')
+                if (!checkbox) continue
+
+                // Get checkbox ID to build the selector
+                const checkboxId = await checkbox.getAttribute('id')
+                const checkboxSelector = checkboxId ? `#${checkboxId}` : `#ContentPlaceHolder1_gvAvailablePackages_cbSelect_${i}`
+
+                // Get all cells in this row
+                const cells = await row.$$('td')
+
+                let name = ''
+                let price = 0
+
+                // Find name cell (usually has ContentPlaceHolder1_gvAvailablePackages_lblName_X)
+                const nameSpan = await row.$('span[id*="lblName"]')
+                if (nameSpan) {
+                    name = await nameSpan.textContent() || ''
+                }
+
+                // Find price from cells (look for USD pattern)
+                for (const cell of cells) {
+                    const cellText = await cell.textContent() || ''
+                    // Match price patterns: "174 USD", "174USD", "330 USD"
+                    const priceMatch = cellText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i)
+                    if (priceMatch) {
+                        price = parseFloat(priceMatch[1])
+                        break
+                    }
+                }
+
+                // If name not found in span, try to get from cell text
+                if (!name) {
+                    for (const cell of cells) {
+                        const cellText = await cell.textContent() || ''
+                        // Skip cells that only contain price or checkbox
+                        if (cellText.includes('USD') || cellText.trim().length < 5) continue
+                        if (cellText.includes('Months') || cellText.includes('Payment')) {
+                            name = cellText.trim()
+                            break
+                        }
+                    }
+                }
+
+                if (name && price > 0) {
+                    packages.push({
+                        index: i,
+                        name: name.trim(),
+                        price,
+                        checkboxSelector
+                    })
+                    console.log(`  📦 Package ${i}: "${name}" - ${price} USD [${checkboxSelector}]`)
+                }
+            }
+
+            // Fallback: If no packages found with specific pattern, try generic approach
+            if (packages.length === 0) {
+                console.log('⚠️ No packages found with beIN pattern, trying generic approach...')
+
+                const allCheckboxes = await page.$$('input[type="checkbox"][id*="cbSelect"]')
+                for (let i = 0; i < allCheckboxes.length; i++) {
+                    const checkbox = allCheckboxes[i]
+                    const checkboxId = await checkbox.getAttribute('id')
+                    const checkboxSelector = checkboxId ? `#${checkboxId}` : `input[type="checkbox"]:nth-of-type(${i + 1})`
+
+                    // Try to get parent row text
+                    const parentRow = await checkbox.evaluateHandle((el: any) => el.closest('tr'))
+                    const rowText = await parentRow.evaluate((el: any) => el?.innerText || el?.textContent || '')
+
+                    const priceMatch = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i)
+                    const price = priceMatch ? parseFloat(priceMatch[1]) : 0
+                    const name = rowText.replace(/\d+\s*USD/gi, '').replace(/\s+/g, ' ').trim().slice(0, 80)
+
+                    if (price > 0) {
+                        packages.push({
+                            index: i,
+                            name: name || `Package ${i + 1}`,
+                            price,
+                            checkboxSelector
+                        })
+                    }
+                }
+            }
+
+            console.log(`✅ Extracted ${packages.length} packages from beIN`)
+
+            // ===== Error handling: No packages found =====
+            if (packages.length === 0) {
+                // Check for error messages on the page
+                const errorMsg = await page.$('.alert-danger, .error-message, [class*="error"]')
+                if (errorMsg) {
+                    const errorText = await errorMsg.textContent()
+                    throw new Error(`beIN Error: ${errorText?.trim() || 'لم يتم العثور على باقات'}`)
+                }
+
+                throw new Error('لم يتم العثور على باقات متاحة لهذا الكارت')
+            }
+
+            return packages
+
+        } catch (error: any) {
+            console.error('Error extracting packages:', error.message)
+            throw new Error(`فشل في استخراج الباقات: ${error.message}`)
+        }
+    }
+
+    /**
+     * Extract STB (Set-Top Box) number from the page
+     */
+    async extractSTBNumber(accountId: string): Promise<string | null> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) return null
+
+        const { page } = session
+
+        try {
+            // Common selectors for STB number display
+            const stbSelectors = [
+                '#stbNumber',
+                '.stb-number',
+                '[data-stb]',
+                'td:has-text("STB")',
+                'span:has-text("رقم الريسيفر")'
+            ]
+
+            for (const selector of stbSelectors) {
+                const element = await page.$(selector)
+                if (element) {
+                    const text = await element.textContent()
+                    if (text) {
+                        // Extract numbers from the text
+                        const stbMatch = text.match(/\d{10,}/)?.[0]
+                        if (stbMatch) return stbMatch
+                    }
+                }
+            }
+
+            // Try to find in page content
+            const pageContent = await page.content()
+            const stbMatch = pageContent.match(/STB[:\s]*(\d{10,})/i)?.[1]
+            return stbMatch || null
+
+        } catch (error) {
+            console.error('Error extracting STB number:', error)
+            return null
+        }
+    }
+
+    /**
+     * Complete package purchase with optional promo code
+     * beIN-specific implementation
+     */
+    async completePackagePurchase(
+        accountId: string,
+        selectedPackage: { index: number; name: string; price: number; checkboxSelector: string },
+        promoCode?: string | null,
+        stbNumber?: string
+    ): Promise<{ success: boolean; message: string }> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) throw new Error(`No session found for account ${accountId}`)
+
+        const { page } = session
+
+        try {
+            console.log(`📦 Selecting package: ${selectedPackage.name} (${selectedPackage.price} USD)`)
+            console.log(`   Using selector: ${selectedPackage.checkboxSelector}`)
+
+            // ===== Step 1: Verify and click the correct checkbox =====
+            const checkbox = await page.$(selectedPackage.checkboxSelector)
+            if (!checkbox) {
+                throw new Error(`Checkbox not found: ${selectedPackage.checkboxSelector}`)
+            }
+
+            // Double-check: verify this is the correct package by checking nearby text
+            const row = await checkbox.evaluateHandle((el: any) => el.closest('tr'))
+            const rowText = await row.evaluate((el: any) => el?.innerText || el?.textContent || '')
+
+            // Verify the price matches (security check)
+            const priceInRow = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i)
+            if (priceInRow) {
+                const extractedPrice = parseFloat(priceInRow[1])
+                if (extractedPrice !== selectedPackage.price) {
+                    throw new Error(`Price mismatch! Expected ${selectedPackage.price} USD but found ${extractedPrice} USD in row. Aborting to prevent wrong purchase.`)
+                }
+                console.log(`✅ Price verified: ${extractedPrice} USD matches selected package`)
+            }
+
+            // Click the checkbox
+            await checkbox.click()
+            await page.waitForTimeout(500)
+
+            // Verify checkbox is now checked
+            const isChecked = await checkbox.isChecked()
+            if (!isChecked) {
+                await checkbox.check() // Force check if click didn't work
+            }
+            console.log(`☑️ Checkbox selected`)
+
+            // ===== Step 2: Apply promo code if provided =====
+            if (promoCode) {
+                // beIN specific promo code input
+                const promoInput = await page.$('#ContentPlaceHolder1_txtPromoCode') ||
+                    await page.$('input[id*="PromoCode"]') ||
+                    await page.$('input[name*="PromoCode"]')
+
+                if (promoInput) {
+                    await promoInput.fill(promoCode)
+                    console.log(`🎫 Promo code entered: ${promoCode}`)
+
+                    // beIN Submit button for promo
+                    const submitPromoBtn = await page.$('#ContentPlaceHolder1_btnSubmitPromo') ||
+                        await page.$('input[value="Submit"]') ||
+                        await page.$('input[id*="Submit"]')
+                    if (submitPromoBtn) {
+                        await submitPromoBtn.click()
+                        await page.waitForTimeout(1000)
+                    }
+                } else {
+                    console.log('⚠️ Promo code input not found, skipping...')
+                }
+            }
+
+            // ===== Step 3: Click "Add >" button =====
+            const addButton = await page.$('#ContentPlaceHolder1_btnAddToCart') ||
+                await page.$('input[value="Add >"]') ||
+                await page.$('input[id*="btnAdd"]')
+
+            if (!addButton) {
+                throw new Error('Add button not found')
+            }
+
+            console.log(`🛒 Clicking Add button...`)
+            await addButton.click()
+            await page.waitForLoadState('networkidle')
+            await page.waitForTimeout(2000)
+
+            // ===== Step 4: Check Shopping Cart and confirm =====
+            // Check if there's a confirmation or final submit needed
+            const finalSubmitBtn = await page.$('#ContentPlaceHolder1_btnConfirm') ||
+                await page.$('input[value*="Confirm"]') ||
+                await page.$('input[value*="Complete"]') ||
+                await page.$('input[value*="Submit"]')
+
+            if (finalSubmitBtn) {
+                console.log(`✅ Clicking final confirm button...`)
+                await finalSubmitBtn.click()
+                await page.waitForLoadState('networkidle')
+            }
+
+            // ===== Step 5: Check result =====
+            // Check for success message
+            const successElement = await page.$(this.config.selSuccessMsg) ||
+                await page.$('.alert-success') ||
+                await page.$('[class*="success"]')
+            if (successElement) {
+                const message = await successElement.textContent()
+                return { success: true, message: message?.trim() || 'تم التجديد بنجاح' }
+            }
+
+            // Check for error message
+            const errorElement = await page.$(this.config.selErrorMsg) ||
+                await page.$('.alert-danger') ||
+                await page.$('[class*="error"]')
+            if (errorElement) {
+                const message = await errorElement.textContent()
+                return { success: false, message: message?.trim() || 'فشل التجديد' }
+            }
+
+            // Check page content for indicators
+            const pageContent = await page.content()
+            if (pageContent.toLowerCase().includes('success') || pageContent.includes('تم')) {
+                return { success: true, message: `تم تجديد ${selectedPackage.name} بنجاح` }
+            }
+
+            // Default: assume success if no error shown
+            return { success: true, message: `تم إضافة ${selectedPackage.name} للسلة` }
+
+        } catch (error: any) {
+            console.error('❌ Error completing purchase:', error.message)
+            return { success: false, message: `فشل في إتمام الشراء: ${error.message}` }
+        }
+    }
+
     // ===== Legacy methods for backward compatibility =====
 
     async ensureLogin(): Promise<{ requiresCaptcha?: boolean; captchaImage?: string }> {

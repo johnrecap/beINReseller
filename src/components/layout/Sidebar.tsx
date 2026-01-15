@@ -16,7 +16,9 @@ import {
     Menu,
     X,
     Bot,
-    BarChart3
+    BarChart3,
+    Sparkles,
+    Loader2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -35,6 +37,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const resellerLinks = [
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
+        { href: '/dashboard/renew', label: 'تجديد تفاعلي', icon: Sparkles },
+        { href: '/dashboard/operations/active', label: 'العمليات الجارية', icon: Loader2 },
         { href: '/dashboard/operations', label: t.sidebar.operations, icon: Zap },
         { href: '/dashboard/history', label: t.sidebar.history, icon: History },
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },

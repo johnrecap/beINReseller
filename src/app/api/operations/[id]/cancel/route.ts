@@ -38,11 +38,11 @@ export async function POST(
             )
         }
 
-        // Only PENDING and AWAITING_CAPTCHA can be cancelled
-        // FAILED operations are auto-refunded by the worker, so they cannot be cancelled again
-        if (!['PENDING', 'AWAITING_CAPTCHA'].includes(operation.status)) {
+        // Allow cancellation for operations that are pending or awaiting user action
+        const cancellableStatuses = ['PENDING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'PROCESSING']
+        if (!cancellableStatuses.includes(operation.status)) {
             return NextResponse.json(
-                { error: 'لا يمكن إلغاء هذه العملية - فقط العمليات قيد الانتظار يمكن إلغاؤها' },
+                { error: 'لا يمكن إلغاء هذه العملية - فقط العمليات قيد الانتظار أو المعالجة يمكن إلغاؤها' },
                 { status: 400 }
             )
         }

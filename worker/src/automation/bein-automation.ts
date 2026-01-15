@@ -1279,24 +1279,30 @@ export class BeINAutomation {
                     await page.$('input[name*="PromoCode"]')
 
                 if (promoInput) {
-                    await promoInput.fill(promoCode)
-                    console.log(`✅ Promo code entered: ${promoCode}`)
-
-                    // beIN Submit button for promo - correct ID from screenshot
-                    const submitPromoBtn = await page.$('#ContentPlaceHolder1_btnPromoCode') ||
-                        await page.$('input[value="Submit"]') ||
-                        await page.$('input[id*="btnPromo"]')
-
-                    if (submitPromoBtn) {
-                        console.log('🔄 Clicking Submit to apply promo code...')
-                        await submitPromoBtn.click()
-
-                        // Wait for page to refresh and show updated prices
-                        console.log('⏳ Waiting for promo code to be applied (5 seconds)...')
-                        await page.waitForTimeout(5000)
-                        console.log('✅ Promo code applied, page should show updated prices')
+                    // Check if input is enabled (might be disabled if promo was already applied)
+                    const isDisabled = await promoInput.isDisabled()
+                    if (isDisabled) {
+                        console.log('⏭️ Promo code input is disabled - promo was already applied, skipping...')
                     } else {
-                        console.log('⚠️ Promo Submit button not found')
+                        await promoInput.fill(promoCode)
+                        console.log(`✅ Promo code entered: ${promoCode}`)
+
+                        // beIN Submit button for promo - correct ID from screenshot
+                        const submitPromoBtn = await page.$('#ContentPlaceHolder1_btnPromoCode') ||
+                            await page.$('input[value="Submit"]') ||
+                            await page.$('input[id*="btnPromo"]')
+
+                        if (submitPromoBtn) {
+                            console.log('🔄 Clicking Submit to apply promo code...')
+                            await submitPromoBtn.click()
+
+                            // Wait for page to refresh and show updated prices
+                            console.log('⏳ Waiting for promo code to be applied (5 seconds)...')
+                            await page.waitForTimeout(5000)
+                            console.log('✅ Promo code applied, page should show updated prices')
+                        } else {
+                            console.log('⚠️ Promo Submit button not found')
+                        }
                     }
                 } else {
                     console.log('⚠️ Promo code input not found, skipping...')

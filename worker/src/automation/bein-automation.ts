@@ -904,12 +904,46 @@ export class BeINAutomation {
             // Wait for packages table to load
             await page.waitForTimeout(2000)
 
+            // ===== DEBUG: Find all tables on page =====
+            const allTables = await page.$$('table')
+            console.log(`🔍 DEBUG - Found ${allTables.length} tables on page`)
+            for (let t = 0; t < allTables.length; t++) {
+                const tableId = await allTables[t].getAttribute('id')
+                const tableClass = await allTables[t].getAttribute('class')
+                const rowCount = await allTables[t].$$eval('tr', rows => rows.length)
+                console.log(`   Table ${t}: id="${tableId}", class="${tableClass}", rows=${rowCount}`)
+            }
+
+            // DEBUG: Look for any GridView or data table
+            const gridViews = await page.$$('table[id*="gv"], table[id*="GridView"], table[class*="Grid"]')
+            console.log(`🔍 DEBUG - Found ${gridViews.length} potential GridView tables`)
+            for (let g = 0; g < gridViews.length; g++) {
+                const gvId = await gridViews[g].getAttribute('id')
+                const gvRows = await gridViews[g].$$('tr')
+                console.log(`   GridView ${g}: id="${gvId}", rows=${gvRows.length}`)
+
+                // Log first few rows to understand structure
+                for (let r = 0; r < Math.min(gvRows.length, 3); r++) {
+                    const rowClass = await gvRows[r].getAttribute('class')
+                    const cells = await gvRows[r].$$eval('td', tds => tds.map(td => td.textContent?.slice(0, 30)))
+                    console.log(`      Row ${r}: class="${rowClass}", cells=${JSON.stringify(cells)}`)
+                }
+            }
+
             // ===== beIN Specific Package Extraction =====
             // Pattern: ContentPlaceHolder1_gvAvailablePackages_cbSelect_{index}
             // Table: ContentPlaceHolder1_gvAvailablePackages
 
-            // Find all package rows in the table
-            const packageRows = await page.$$('#ContentPlaceHolder1_gvAvailablePackages tr.GridRow, #ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow')
+            // Find all package rows in the table - try multiple patterns
+            let packageRows = await page.$$('#ContentPlaceHolder1_gvAvailablePackages tr.GridRow, #ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow')
+
+            // If not found, try alternative table selectors
+            if (packageRows.length === 0) {
+                console.log('🔍 Trying alternative table selectors...')
+                packageRows = await page.$$('table[id*="gv"] tr:not(:first-child)') ||
+                    await page.$$('table[id*="Package"] tr:not(:first-child)') ||
+                    await page.$$('.GridRow, .GridAlternatingRow')
+            }
 
             console.log(`📋 Found ${packageRows.length} package rows in beIN table`)
 

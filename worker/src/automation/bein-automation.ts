@@ -957,6 +957,31 @@ export class BeINAutomation {
             console.log('⏳ Waiting for packages table to appear...')
             await page.waitForTimeout(5000)
 
+            // DEBUG: List all inputs AFTER Load button click
+            const inputsAfterLoad = await page.$$('input[type="text"]')
+            console.log(`🔍 DEBUG - Found ${inputsAfterLoad.length} text inputs after Load`)
+            for (let i = 0; i < inputsAfterLoad.length; i++) {
+                const id = await inputsAfterLoad[i].getAttribute('id')
+                const value = await inputsAfterLoad[i].getAttribute('value')
+                console.log(`   Input ${i}: id="${id}", value="${value?.slice(0, 10)}"`)
+            }
+
+            // Check if tbSerial2 NOW exists (appears after Load if confirmation needed)
+            const serial2AfterLoad = await page.$('#ContentPlaceHolder1_tbSerial2')
+            if (serial2AfterLoad) {
+                console.log('✅ Confirm Serial Number field appeared after Load!')
+                await serial2AfterLoad.fill(formattedCard)
+                console.log('✅ Confirm Serial Number entered')
+
+                // Click Load button again
+                const loadBtn2 = await page.$('input[value="Load"]')
+                if (loadBtn2) {
+                    console.log('🔄 Clicking Load button again...')
+                    await loadBtn2.click()
+                    await page.waitForTimeout(5000)
+                }
+            }
+
             // Try to wait for the packages table specifically
             try {
                 await page.waitForSelector('#ContentPlaceHolder1_gvAvailablePackages', { timeout: 10000 })

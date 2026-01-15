@@ -736,6 +736,29 @@ export class BeINAutomation {
             // ===== STEP 2.1: Select Item Type = Smartcard: CISCO =====
             console.log('🔍 Step 2.1: Looking for Item Type dropdown...')
 
+            // DEBUG: Log current page state
+            const renewPageUrl = page.url()
+            const renewPageTitle = await page.title()
+            console.log(`🔍 DEBUG - Current URL: ${renewPageUrl}`)
+            console.log(`🔍 DEBUG - Page Title: ${renewPageTitle}`)
+
+            // DEBUG: Look for key elements on the page
+            const allSelects = await page.$$('select')
+            console.log(`🔍 DEBUG - Found ${allSelects.length} select elements on page`)
+            for (let i = 0; i < allSelects.length; i++) {
+                const id = await allSelects[i].getAttribute('id')
+                const name = await allSelects[i].getAttribute('name')
+                console.log(`   Select ${i}: id="${id}", name="${name}"`)
+            }
+
+            const allInputs = await page.$$('input[type="text"]')
+            console.log(`🔍 DEBUG - Found ${allInputs.length} text input elements on page`)
+            for (let i = 0; i < Math.min(allInputs.length, 5); i++) {
+                const id = await allInputs[i].getAttribute('id')
+                const name = await allInputs[i].getAttribute('name')
+                console.log(`   Input ${i}: id="${id}", name="${name}"`)
+            }
+
             // Try multiple selectors for the dropdown
             const dropdownSelectors = [
                 '#ContentPlaceHolder1_ddlItemType',

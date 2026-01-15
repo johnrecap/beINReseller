@@ -109,6 +109,14 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (data.status === 'AWAITING_CAPTCHA') {
+                // Check if we already submitted a solution (worker is still processing)
+                // Don't show CAPTCHA again if we're in processing step
+                if (step === 'processing') {
+                    // Worker is processing our CAPTCHA solution, keep polling
+                    setTimeout(pollStatus, 2000)
+                    return
+                }
+
                 // Need captcha
                 const captchaRes = await fetch(`/api/operations/${operationId}/captcha`)
                 const captchaData = await captchaRes.json()

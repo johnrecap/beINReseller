@@ -875,6 +875,11 @@ export class BeINAutomation {
                     console.log(`✅ Found Serial Number field: ${selector}`)
                     await input.fill(formattedCard)
                     console.log(`✅ Serial Number entered`)
+
+                    // Trigger blur event to potentially reveal Confirm field
+                    await page.keyboard.press('Tab')
+                    await page.waitForTimeout(1000)
+
                     serial1Found = true
                     break
                 }
@@ -885,6 +890,10 @@ export class BeINAutomation {
                 throw new Error('لم يتم العثور على حقل رقم الكارت')
             }
 
+            // Wait for Confirm Serial Number field to appear (it appears dynamically after tbSerial1 is filled)
+            console.log('⏳ Waiting for Confirm Serial Number field to appear...')
+            await page.waitForTimeout(2000)
+
             // Find and fill Confirm Serial Number field (tbSerial2) - CISCO form has this
             const serial2Selectors = [
                 '#ContentPlaceHolder1_tbSerial2',
@@ -893,16 +902,21 @@ export class BeINAutomation {
                 'input[id*="ConfirmSerial"]'
             ]
 
+            let serial2Found = false
             for (const selector of serial2Selectors) {
                 const input = await page.$(selector)
                 if (input) {
                     console.log(`✅ Found Confirm Serial Number field: ${selector}`)
                     await input.fill(formattedCard)
                     console.log(`✅ Confirm Serial Number entered`)
+                    serial2Found = true
                     break
                 }
             }
-            // Note: Confirm field might not exist on all forms, so no error if not found
+
+            if (!serial2Found) {
+                console.log('⚠️ Confirm Serial Number field not found - may not be required for this card type')
+            }
 
             // ===== STEP 2.3: Click Load button =====
             console.log('🔍 Step 2.3: Looking for Load button...')

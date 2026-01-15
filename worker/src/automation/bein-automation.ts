@@ -1261,6 +1261,8 @@ export class BeINAutomation {
 
             // ===== Step 2: Apply promo code if provided =====
             if (promoCode) {
+                console.log(`🎫 Applying promo code: ${promoCode}`)
+
                 // beIN specific promo code input
                 const promoInput = await page.$('#ContentPlaceHolder1_txtPromoCode') ||
                     await page.$('input[id*="PromoCode"]') ||
@@ -1268,15 +1270,23 @@ export class BeINAutomation {
 
                 if (promoInput) {
                     await promoInput.fill(promoCode)
-                    console.log(`🎫 Promo code entered: ${promoCode}`)
+                    console.log(`✅ Promo code entered: ${promoCode}`)
 
-                    // beIN Submit button for promo
-                    const submitPromoBtn = await page.$('#ContentPlaceHolder1_btnSubmitPromo') ||
+                    // beIN Submit button for promo - correct ID from screenshot
+                    const submitPromoBtn = await page.$('#ContentPlaceHolder1_btnPromoCode') ||
                         await page.$('input[value="Submit"]') ||
-                        await page.$('input[id*="Submit"]')
+                        await page.$('input[id*="btnPromo"]')
+
                     if (submitPromoBtn) {
+                        console.log('🔄 Clicking Submit to apply promo code...')
                         await submitPromoBtn.click()
-                        await page.waitForTimeout(1000)
+
+                        // Wait for page to refresh and show updated prices
+                        console.log('⏳ Waiting for promo code to be applied (5 seconds)...')
+                        await page.waitForTimeout(5000)
+                        console.log('✅ Promo code applied, page should show updated prices')
+                    } else {
+                        console.log('⚠️ Promo Submit button not found')
                     }
                 } else {
                     console.log('⚠️ Promo code input not found, skipping...')

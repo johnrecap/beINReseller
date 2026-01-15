@@ -855,11 +855,11 @@ export class BeINAutomation {
                 if (input) {
                     console.log(`✅ Found card input with selector: ${selector}`)
 
-                    // beIN requires card number WITHOUT first digit (7, pre-filled) and WITHOUT last digit
-                    // Full: 7511394806 → Enter: 51139480
-                    const formattedCard = cardNumber.slice(1, -1)
+                    // beIN requires card number WITHOUT the last digit (check digit)
+                    // Full: 7511394806 → Enter: 751139480
+                    const formattedCard = cardNumber.slice(0, -1)
                     console.log(`📝 Original card: ${cardNumber.slice(0, 4)}****${cardNumber.slice(-2)}`)
-                    console.log(`📝 Formatted for beIN: ${formattedCard.slice(0, 3)}****${formattedCard.slice(-2)}`)
+                    console.log(`📝 Formatted for beIN (no last digit): ${formattedCard.slice(0, 4)}****${formattedCard.slice(-2)}`)
 
                     await input.fill(formattedCard)
                     console.log(`✅ Card number entered in field`)
@@ -908,8 +908,17 @@ export class BeINAutomation {
                 console.log('⚠️ Load button not found - packages may already be loaded')
             }
 
-            // Wait for packages table to load
-            await page.waitForTimeout(3000)
+            // Wait for packages table to load (beIN does a postback)
+            console.log('⏳ Waiting for packages table to appear...')
+            await page.waitForTimeout(5000)
+
+            // Try to wait for the packages table specifically
+            try {
+                await page.waitForSelector('#ContentPlaceHolder1_gvAvailablePackages', { timeout: 10000 })
+                console.log('✅ Packages table appeared!')
+            } catch {
+                console.log('⚠️ Packages table not found within timeout, checking page state...')
+            }
 
             // ===== DEBUG: Check for error messages after Load =====
             const errorLabels = await page.$$('span[id*="lbl"], label[id*="lbl"], .error, .alert, [style*="color: red"], [style*="color:red"]')

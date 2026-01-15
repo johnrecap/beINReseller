@@ -409,14 +409,21 @@ export class BeINAutomation {
             // Submit form
             await page.click(this.config.selSubmit)
 
-            // Wait 10 seconds after login button click for page to process
-            console.log('⏳ Waiting for login to complete (10 seconds)...')
+            // Wait for page to process - beIN can be slow
+            console.log('⏳ Waiting for login to complete...')
             await page.waitForTimeout(10000)
-            await page.waitForLoadState('networkidle', { timeout: 60000 })
+
+            // Try to wait for page load, but don't fail if it times out
+            try {
+                await page.waitForLoadState('load', { timeout: 30000 })
+                console.log('✅ Page loaded')
+            } catch {
+                console.log('⚠️ Page load timeout - continuing anyway')
+            }
 
             // Wait for URL to change (if there's a redirect)
             try {
-                await page.waitForURL(/^(?!.*NLogin).*$/i, { timeout: 10000 })
+                await page.waitForURL(/^(?!.*NLogin).*$/i, { timeout: 15000 })
                 console.log('✅ URL changed - login successful!')
             } catch {
                 // URL didn't change, check if still on login page

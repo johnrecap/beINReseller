@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import {
     Home,
-    Zap,
     History,
     CreditCard,
     User,
@@ -39,7 +38,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
         { href: '/dashboard/renew', label: 'تجديد تفاعلي', icon: Sparkles },
         { href: '/dashboard/operations/active', label: 'العمليات الجارية', icon: Loader2 },
-        { href: '/dashboard/operations', label: t.sidebar.operations, icon: Zap },
         { href: '/dashboard/history', label: t.sidebar.history, icon: History },
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
         { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },

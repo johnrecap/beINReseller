@@ -689,36 +689,82 @@ export class BeINAutomation {
                 await page.waitForTimeout(3000)
                 console.log(`✅ Card checked successfully`)
 
-                // Extract STB number from Check page results
-                const stbElement = await page.$('#ContentPlaceHolder1_lblSTB') ||
-                    await page.$('#ContentPlaceHolder1_lblSTBNumber') ||
-                    await page.$('span[id*="STB"]') ||
-                    await page.$('span[id*="stb"]') ||
-                    await page.$('td:has-text("STB")') ||
-                    await page.$('.stb-number')
+                // ===== STEP 1.3: Extract STB number from Check page results =====
+                console.log('📺 Step 1.3: Extracting STB (Receiver) number...')
 
-                if (stbElement) {
-                    const stbText = await stbElement.textContent()
-                    if (stbText) {
-                        // Extract numbers (STB is usually 10+ digits)
-                        const stbMatch = stbText.match(/\d{10,}/)?.[0]
-                        if (stbMatch) {
-                            console.log(`📺 STB Number found: ${stbMatch}`)
-                            // Store in session for later use
-                            session.stbNumber = stbMatch
+                // Primary selector: ContentPlaceHolder1_lblSerial contains the STB info
+                // Format: "Smart Card Serial: 751139480 ... is paired to STB(s): 947242535522003"
+                const stbSelectors = [
+                    '#ContentPlaceHolder1_lblSerial',  // Primary - contains "paired to STB(s): XXXXX"
+                    '#ContentPlaceHolder1_lblSTB',
+                    '#ContentPlaceHolder1_lblSTBNumber',
+                    'span[id*="lblSerial"]',
+                    'span[id*="STB"]',
+                    '.stb-number'
+                ]
+
+                let stbExtracted = false
+                for (const selector of stbSelectors) {
+                    const stbElement = await page.$(selector)
+                    if (stbElement) {
+                        const stbText = await stbElement.textContent()
+                        console.log(`🔍 STB DEBUG - Selector "${selector}" found, text: "${stbText?.slice(0, 100)}"`)
+
+                        if (stbText) {
+                            // Pattern 1: "STB(s): 947242535522003" - from beIN Check page
+                            let stbMatch = stbText.match(/STB\(s\)[:\s]*(\d{10,})/i)?.[1]
+
+                            // Pattern 2: "STB: 947242535522003"
+                            if (!stbMatch) {
+                                stbMatch = stbText.match(/STB[:\s]+(\d{10,})/i)?.[1]
+                            }
+
+                            // Pattern 3: Just find any 15-digit number (STB format)
+                            if (!stbMatch) {
+                                stbMatch = stbText.match(/(\d{15})/)?.[1]
+                            }
+
+                            if (stbMatch) {
+                                console.log(`✅ STB Number EXTRACTED: ${stbMatch}`)
+                                session.stbNumber = stbMatch
+                                stbExtracted = true
+                                break
+                            }
                         }
                     }
                 }
 
-                // Also try to extract from page content
+                // Fallback: Extract from full page content if not found via selectors
                 if (!session.stbNumber) {
+                    console.log('⚠️ STB not found via selectors, trying full page content...')
                     const pageContent = await page.content()
-                    const stbMatch = pageContent.match(/STB[:\s]*(\d{10,})/i)?.[1] ||
-                        pageContent.match(/رقم الريسيفر[:\s]*(\d{10,})/)?.[1]
-                    if (stbMatch) {
-                        console.log(`📺 STB Number found in page: ${stbMatch}`)
-                        session.stbNumber = stbMatch
+
+                    // Pattern 1: "STB(s): XXXXX"
+                    let stbMatch = pageContent.match(/STB\(s\)[:\s]*(\d{10,})/i)?.[1]
+
+                    // Pattern 2: "STB: XXXXX"
+                    if (!stbMatch) {
+                        stbMatch = pageContent.match(/STB[:\s]+(\d{10,})/i)?.[1]
                     }
+
+                    // Pattern 3: Arabic label
+                    if (!stbMatch) {
+                        stbMatch = pageContent.match(/رقم الريسيفر[:\s]*(\d{10,})/)?.[1]
+                    }
+
+                    if (stbMatch) {
+                        console.log(`✅ STB Number EXTRACTED from page content: ${stbMatch}`)
+                        session.stbNumber = stbMatch
+                        stbExtracted = true
+                    }
+                }
+
+                // Final status log
+                if (session.stbNumber) {
+                    console.log(`📺 ✅ STB Number saved to session: ${session.stbNumber}`)
+                } else {
+                    console.log(`📺 ⚠️ STB Number NOT FOUND - continuing without it`)
+                    console.log(`📺    This may cause issues in later steps if STB is required`)
                 }
             }
 

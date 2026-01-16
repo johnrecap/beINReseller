@@ -82,6 +82,22 @@ export class BeINAutomation {
     }
 
     /**
+     * Build full URL from relative path using login URL as base
+     * Safer than regex-based URL construction
+     */
+    private buildFullUrl(relativePath: string): string {
+        if (relativePath.startsWith('http')) return relativePath
+        try {
+            const baseUrl = new URL(this.config.loginUrl).origin
+            return new URL(relativePath, baseUrl).toString()
+        } catch (e) {
+            console.error(`⚠️ Invalid URL construction: ${relativePath}`)
+            // Fallback to old method if URL parsing fails
+            return this.config.loginUrl.replace(/\/[^\/]*$/, '/') + relativePath.replace(/^\//, '')
+        }
+    }
+
+    /**
      * Load configuration from database (URLs, selectors, etc.)
      */
     private async loadConfig(): Promise<void> {
@@ -493,9 +509,7 @@ export class BeINAutomation {
         const { page } = session
 
         try {
-            const renewUrl = this.config.renewUrl.startsWith('http')
-                ? this.config.renewUrl
-                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
+            const renewUrl = this.buildFullUrl(this.config.renewUrl)
             await page.goto(renewUrl, { timeout: 60000 })
             try {
                 await page.waitForLoadState('load', { timeout: 30000 })
@@ -527,7 +541,8 @@ export class BeINAutomation {
                 return { success: false, message: message || 'فشل التجديد' }
             }
 
-            return { success: true, message: 'تم إرسال طلب التجديد' }
+            // No clear success/error indicator - throw error instead of assuming success
+            throw new Error('UNKNOWN_RESULT: لم يتم العثور على مؤشر واضح للنتيجة - تحقق من الصفحة')
 
         } catch (error: any) {
             return { success: false, message: `خطأ في التجديد: ${error.message}` }
@@ -544,9 +559,7 @@ export class BeINAutomation {
         const { page } = session
 
         try {
-            const checkUrl = this.config.checkUrl.startsWith('http')
-                ? this.config.checkUrl
-                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.checkUrl
+            const checkUrl = this.buildFullUrl(this.config.checkUrl)
             await page.goto(checkUrl, { timeout: 60000 })
             try {
                 await page.waitForLoadState('load', { timeout: 30000 })
@@ -571,7 +584,8 @@ export class BeINAutomation {
                 return { success: true, message: balance || 'تم الاستعلام' }
             }
 
-            return { success: true, message: 'تم الاستعلام عن الرصيد' }
+            // No balance element found - throw error instead of assuming success
+            throw new Error('UNKNOWN_RESULT: لم يتم العثور على نتيجة الرصيد')
 
         } catch (error: any) {
             return { success: false, message: `خطأ في الاستعلام: ${error.message}` }
@@ -588,9 +602,7 @@ export class BeINAutomation {
         const { page } = session
 
         try {
-            const signalUrl = this.config.signalUrl.startsWith('http')
-                ? this.config.signalUrl
-                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.signalUrl
+            const signalUrl = this.buildFullUrl(this.config.signalUrl)
             await page.goto(signalUrl, { timeout: 60000 })
             try {
                 await page.waitForLoadState('load', { timeout: 30000 })
@@ -629,9 +641,7 @@ export class BeINAutomation {
 
         try {
             // ===== STEP 1: Go to Check page first to validate card and get STB number =====
-            const checkUrl = this.config.checkUrl.startsWith('http')
-                ? this.config.checkUrl
-                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.checkUrl
+            const checkUrl = this.buildFullUrl(this.config.checkUrl)
             console.log(`📍 Step 1: Navigating to check page: ${checkUrl}`)
             await page.goto(checkUrl, { timeout: 60000 })
             try {
@@ -713,9 +723,7 @@ export class BeINAutomation {
             }
 
             // ===== STEP 2: Now navigate to Sell Packages page =====
-            const renewUrl = this.config.renewUrl.startsWith('http')
-                ? this.config.renewUrl
-                : this.config.loginUrl.replace(/\/[^\/]*$/, '/') + this.config.renewUrl
+            const renewUrl = this.buildFullUrl(this.config.renewUrl)
             console.log(`📍 Step 2: Navigating to renewal page: ${renewUrl}`)
             await page.goto(renewUrl, { timeout: 60000 })
             try {

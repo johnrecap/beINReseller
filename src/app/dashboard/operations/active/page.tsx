@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, RefreshCw, ExternalLink, XCircle, Clock, AlertCircle, CheckCircle, Package, ShieldCheck, AlertTriangle } from 'lucide-react'
 
@@ -48,27 +48,51 @@ function FinalConfirmDialog({
 }: {
     operation: Operation
     onConfirm: () => void
-    onCancel: () => void
+    onCancel: (isAutoCancel?: boolean) => void
     isLoading: boolean
 }) {
     const [timeLeft, setTimeLeft] = useState<number>(0)
+    const [showWarning, setShowWarning] = useState(false)
+    const hasWarned = useRef(false)
+    const hasExpired = useRef(false)
+    const WARNING_THRESHOLD = 10
 
     useEffect(() => {
         if (!operation.finalConfirmExpiry) return
+
+        // Reset refs when effect runs
+        hasWarned.current = false
+        hasExpired.current = false
 
         const updateTimer = () => {
             const expiry = new Date(operation.finalConfirmExpiry!).getTime()
             const now = Date.now()
             const diff = Math.max(0, Math.floor((expiry - now) / 1000))
             setTimeLeft(diff)
+
+            // Show warning when reaching threshold
+            if (diff <= WARNING_THRESHOLD && diff > 0 && !hasWarned.current) {
+                hasWarned.current = true
+                setShowWarning(true)
+            }
+
+            // Auto-cancel when timer expires
+            if (diff <= 0 && !hasExpired.current) {
+                hasExpired.current = true
+                onCancel(true)  // true = isAutoCancel
+            }
         }
 
         updateTimer()
         const interval = setInterval(updateTimer, 1000)
-        return () => clearInterval(interval)
-    }, [operation.finalConfirmExpiry])
+        return () => {
+            clearInterval(interval)
+            setShowWarning(false)
+        }
+    }, [operation.finalConfirmExpiry, onCancel])
 
     const packageInfo = operation.selectedPackage
+    const isWarning = timeLeft <= WARNING_THRESHOLD && timeLeft > 0
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" dir="rtl">
@@ -110,9 +134,21 @@ function FinalConfirmDialog({
 
                     {/* Timer */}
                     {timeLeft > 0 && (
-                        <div className="flex items-center justify-center gap-2 text-orange-600 dark:text-orange-400">
+                        <div className={`flex items-center justify-center gap-2 ${isWarning ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-orange-600 dark:text-orange-400'}`}>
                             <Clock className="w-4 h-4" />
-                            <span className="text-sm">الوقت المتبقي: {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</span>
+                            <span className={`text-sm ${isWarning ? 'font-bold' : ''}`}>
+                                الوقت المتبقي: {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Expiry Warning */}
+                    {showWarning && (
+                        <div className="flex items-center justify-center gap-2 p-3 bg-red-100 dark:bg-red-900/40 rounded-xl border-2 border-red-400 dark:border-red-600 animate-pulse">
+                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                            <span className="text-sm font-bold text-red-700 dark:text-red-300">
+                                ⚠️ سيتم إلغاء العملية تلقائياً!
+                            </span>
                         </div>
                     )}
 
@@ -128,7 +164,7 @@ function FinalConfirmDialog({
                 {/* Actions */}
                 <div className="p-6 pt-0 flex gap-3">
                     <button
-                        onClick={onCancel}
+                        onClick={() => onCancel(false)}
                         disabled={isLoading}
                         className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors disabled:opacity-50"
                     >
@@ -238,7 +274,7 @@ export default function ActiveOperationsPage() {
         }
     }
 
-    const handleCancelConfirm = async () => {
+    const handleCancelConfirm = useCallback(async (isAutoCancel = false) => {
         if (!confirmingOperation) return
 
         setIsConfirmLoading(true)
@@ -249,6 +285,9 @@ export default function ActiveOperationsPage() {
             if (res.ok) {
                 setConfirmingOperation(null)
                 fetchOperations()
+                if (isAutoCancel) {
+                    alert('تم إلغاء العملية تلقائياً لانتهاء المهلة واسترداد المبلغ')
+                }
             } else {
                 alert(data.error || 'فشل في إلغاء العملية')
             }
@@ -257,7 +296,7 @@ export default function ActiveOperationsPage() {
         } finally {
             setIsConfirmLoading(false)
         }
-    }
+    }, [confirmingOperation, fetchOperations])
 
     const getElapsedTime = (createdAt: string) => {
         const created = new Date(createdAt).getTime()
@@ -366,8 +405,8 @@ export default function ActiveOperationsPage() {
                                                     <button
                                                         onClick={() => handleContinue(op)}
                                                         className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-colors ${isAwaitingConfirm
-                                                                ? 'bg-orange-500 text-white hover:bg-orange-600'
-                                                                : 'bg-purple-500 text-white hover:bg-purple-600'
+                                                            ? 'bg-orange-500 text-white hover:bg-orange-600'
+                                                            : 'bg-purple-500 text-white hover:bg-purple-600'
                                                             }`}
                                                     >
                                                         {isAwaitingConfirm ? (

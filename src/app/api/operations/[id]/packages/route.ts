@@ -36,6 +36,8 @@ export async function GET(
                 stbNumber: true,
                 availablePackages: true,
                 responseMessage: true,
+                selectedPackage: true,
+                finalConfirmExpiry: true,
             },
         })
 
@@ -92,6 +94,19 @@ export async function GET(
                 success: true,
                 status: 'COMPLETED',
                 message: operation.responseMessage || 'تم التجديد بنجاح!',
+            })
+        }
+
+        // Handle AWAITING_FINAL_CONFIRM - return package info for confirmation dialog
+        if (operation.status === 'AWAITING_FINAL_CONFIRM') {
+            return NextResponse.json({
+                success: true,
+                status: 'AWAITING_FINAL_CONFIRM',
+                message: 'في انتظار التأكيد النهائي',
+                cardNumber: `****${operation.cardNumber.slice(-4)}`,
+                stbNumber: operation.stbNumber,
+                selectedPackage: operation.selectedPackage,
+                finalConfirmExpiry: operation.finalConfirmExpiry,
             })
         }
 

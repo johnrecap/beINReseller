@@ -31,8 +31,10 @@ export async function GET(request: Request) {
         const PROCESSING_TIMEOUT = 5        // 5 minutes for PROCESSING
         const AWAITING_PACKAGE_TIMEOUT = 15 // 15 minutes for AWAITING_PACKAGE (user must choose)
         const COMPLETING_TIMEOUT = 5        // 5 minutes for COMPLETING
+        // AWAITING_FINAL_CONFIRM uses finalConfirmExpiry field (2 minutes set by worker)
 
         const now = Date.now()
+        const nowDate = new Date()
 
         // Find operations stuck in various statuses
         const stuckOperations = await prisma.operation.findMany({
@@ -52,6 +54,11 @@ export async function GET(request: Request) {
                     {
                         status: 'COMPLETING',
                         updatedAt: { lt: new Date(now - COMPLETING_TIMEOUT * 60 * 1000) },
+                    },
+                    // AWAITING_FINAL_CONFIRM: expired based on finalConfirmExpiry field
+                    {
+                        status: 'AWAITING_FINAL_CONFIRM',
+                        finalConfirmExpiry: { lt: nowDate },
                     },
                 ],
             },
@@ -75,6 +82,8 @@ export async function GET(request: Request) {
                     timeoutMessage = 'انتهت مهلة إتمام الشراء'
                 } else if (operation.status === 'PROCESSING') {
                     timeoutMessage = 'انتهت مهلة معالجة العملية'
+                } else if (operation.status === 'AWAITING_FINAL_CONFIRM') {
+                    timeoutMessage = 'انتهت مهلة التأكيد النهائي (2 دقيقة)'
                 }
 
                 // Only refund if amount > 0 (AWAITING_PACKAGE has amount=0)

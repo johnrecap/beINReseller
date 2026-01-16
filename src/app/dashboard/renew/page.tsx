@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useBalance } from '@/hooks/useBalance'
-import { Loader2, CheckCircle, XCircle, AlertCircle, CreditCard, Package, Lock, Sparkles } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, AlertCircle, CreditCard, Package, Lock, Sparkles, ShieldCheck, Clock, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
 // Types
-type WizardStep = 'card-input' | 'processing' | 'captcha' | 'packages' | 'completing' | 'result'
+type WizardStep = 'card-input' | 'processing' | 'captcha' | 'packages' | 'completing' | 'awaiting-final-confirm' | 'result'
 
 interface AvailablePackage {
     index: number
@@ -34,14 +34,14 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
     ]
 
     const getStepStatus = (stepId: string) => {
-        const stepOrder = ['card-input', 'processing', 'captcha', 'packages', 'completing', 'result']
+        const stepOrder = ['card-input', 'processing', 'captcha', 'packages', 'completing', 'awaiting-final-confirm', 'result']
         const currentIndex = stepOrder.indexOf(currentStep)
 
         if (stepId === 'card-input' && currentIndex > 0) return 'completed'
-        if (stepId === 'packages' && (currentStep === 'completing' || currentStep === 'result')) return 'completed'
+        if (stepId === 'packages' && (currentStep === 'completing' || currentStep === 'awaiting-final-confirm' || currentStep === 'result')) return 'completed'
         if (stepId === currentStep ||
             (stepId === 'packages' && (currentStep === 'processing' || currentStep === 'captcha' || currentStep === 'packages')) ||
-            (stepId === 'result' && (currentStep === 'completing' || currentStep === 'result'))) return 'current'
+            (stepId === 'result' && (currentStep === 'completing' || currentStep === 'awaiting-final-confirm' || currentStep === 'result'))) return 'current'
         return 'pending'
     }
 
@@ -74,6 +74,75 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
     )
 }
 
+// Final Confirm Timer Component
+function FinalConfirmTimer({
+    expiry,
+    onExpire,
+    onWarning,
+    warningThreshold = 10
+}: {
+    expiry: string
+    onExpire?: () => void
+    onWarning?: () => void
+    warningThreshold?: number
+}) {
+    const [timeLeft, setTimeLeft] = useState<number>(0)
+    const hasWarned = useRef(false)
+    const hasExpired = useRef(false)
+
+    useEffect(() => {
+        // Reset refs when expiry changes
+        hasWarned.current = false
+        hasExpired.current = false
+    }, [expiry])
+
+    useEffect(() => {
+        const updateTimer = () => {
+            const expiryTime = new Date(expiry).getTime()
+            const now = Date.now()
+            const diff = Math.max(0, Math.floor((expiryTime - now) / 1000))
+            setTimeLeft(diff)
+
+            // Trigger warning callback when reaching threshold (only once)
+            if (diff <= warningThreshold && diff > 0 && !hasWarned.current && onWarning) {
+                hasWarned.current = true
+                onWarning()
+            }
+
+            // Trigger expire callback when time is up (only once)
+            if (diff <= 0 && !hasExpired.current && onExpire) {
+                hasExpired.current = true
+                onExpire()
+            }
+        }
+
+        updateTimer()
+        const interval = setInterval(updateTimer, 1000)
+        return () => clearInterval(interval)
+    }, [expiry, onExpire, onWarning, warningThreshold])
+
+    if (timeLeft <= 0) {
+        return (
+            <div className="flex items-center justify-center gap-2 text-red-600 dark:text-red-400">
+                <Clock className="h-4 w-4" />
+                <span className="text-sm font-medium">انتهت المهلة!</span>
+            </div>
+        )
+    }
+
+    // Show warning style when nearing expiry
+    const isWarning = timeLeft <= warningThreshold
+
+    return (
+        <div className={`flex items-center justify-center gap-2 ${isWarning ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-orange-600 dark:text-orange-400'}`}>
+            <Clock className="h-4 w-4" />
+            <span className={`text-sm ${isWarning ? 'font-bold' : ''}`}>
+                الوقت المتبقي: {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+            </span>
+        </div>
+    )
+}
+
 export default function RenewWizardPage() {
     const searchParams = useSearchParams()
     const { balance, refetch: refetchBalance } = useBalance()
@@ -91,7 +160,12 @@ export default function RenewWizardPage() {
     const [result, setResult] = useState<OperationResult | null>(null)
     const [loading, setLoading] = useState(false)
     const [stbNumber, setStbNumber] = useState<string | null>(null)
+    const [finalConfirmExpiry, setFinalConfirmExpiry] = useState<string | null>(null)  // For final confirm timer
+    const [selectedPackageInfo, setSelectedPackageInfo] = useState<AvailablePackage | null>(null)  // For final confirm display
+    const [isConfirmLoading, setIsConfirmLoading] = useState(false)
     const [showConfirmation, setShowConfirmation] = useState(false)  // Show price confirmation dialog
+    const [showExpiryWarning, setShowExpiryWarning] = useState(false)  // Show warning before auto-cancel
+    const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
 
     // Check URL for existing operationId (for resuming operations)
     useEffect(() => {
@@ -138,6 +212,12 @@ export default function RenewWizardPage() {
             } else if (data.status === 'FAILED') {
                 setResult({ success: false, message: data.message || 'فشلت العملية' })
                 setStep('result')
+            } else if (data.status === 'AWAITING_FINAL_CONFIRM') {
+                // Show final confirmation dialog
+                setSelectedPackageInfo(data.selectedPackage || null)
+                setStbNumber(data.stbNumber || null)
+                setFinalConfirmExpiry(data.finalConfirmExpiry || null)
+                setStep('awaiting-final-confirm')
             } else if (data.status === 'PENDING' || data.status === 'PROCESSING' || data.status === 'COMPLETING') {
                 // Still processing, continue polling
                 setTimeout(pollStatus, 2000)
@@ -154,6 +234,78 @@ export default function RenewWizardPage() {
             return () => clearTimeout(timeoutId)
         }
     }, [step, pollStatus])
+
+    // Handle final confirmation
+    const handleFinalConfirm = async () => {
+        if (!operationId) return
+
+        setIsConfirmLoading(true)
+        try {
+            const res = await fetch(`/api/operations/${operationId}/confirm-purchase`, { method: 'POST' })
+            const data = await res.json()
+
+            if (res.ok) {
+                setStep('completing')
+                toast.success('جاري إتمام الشراء النهائي...')
+            } else {
+                toast.error(data.error || 'فشل في تأكيد الدفع')
+            }
+        } catch {
+            toast.error('حدث خطأ في الاتصال')
+        } finally {
+            setIsConfirmLoading(false)
+        }
+    }
+
+    // Handle cancel confirmation (manual or auto)
+    const handleCancelConfirm = async (isAutoCancel = false) => {
+        if (!operationId) return
+        if (isAutoCancelling) return  // Prevent double calls
+
+        if (isAutoCancel) {
+            setIsAutoCancelling(true)
+        }
+        setIsConfirmLoading(true)
+
+        try {
+            const res = await fetch(`/api/operations/${operationId}/cancel-confirm`, { method: 'POST' })
+            const data = await res.json()
+
+            if (res.ok) {
+                const message = isAutoCancel
+                    ? 'تم إلغاء العملية تلقائياً لانتهاء المهلة واسترداد المبلغ'
+                    : 'تم إلغاء العملية واسترداد المبلغ'
+                setResult({ success: false, message })
+                setStep('result')
+                refetchBalance()
+                toast.info(message)
+            } else {
+                toast.error(data.error || 'فشل في إلغاء العملية')
+            }
+        } catch {
+            toast.error('حدث خطأ في الاتصال')
+        } finally {
+            setIsConfirmLoading(false)
+            setIsAutoCancelling(false)
+            setShowExpiryWarning(false)
+        }
+    }
+
+    // Handle expiry warning (10 seconds before auto-cancel)
+    const handleExpiryWarning = useCallback(() => {
+        setShowExpiryWarning(true)
+        toast.warning('⚠️ سيتم إلغاء العملية تلقائياً خلال 10 ثواني!', {
+            duration: 10000,
+        })
+    }, [])
+
+    // Handle auto-cancel when timer expires
+    const handleAutoExpire = useCallback(() => {
+        if (!isAutoCancelling && step === 'awaiting-final-confirm') {
+            handleCancelConfirm(true)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAutoCancelling, step])
 
     // Start renewal
     const handleStartRenewal = async () => {
@@ -301,6 +453,10 @@ export default function RenewWizardPage() {
         setShowConfirmation(false)  // Reset confirmation dialog
         setResult(null)
         setStbNumber(null)
+        setFinalConfirmExpiry(null)
+        setSelectedPackageInfo(null)
+        setShowExpiryWarning(false)  // Reset expiry warning
+        setIsAutoCancelling(false)  // Reset auto-cancelling flag
     }
 
     return (
@@ -592,6 +748,100 @@ export default function RenewWizardPage() {
                         <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
                         <h3 className="text-xl font-semibold mb-2">جاري إتمام الشراء...</h3>
                         <p className="text-muted-foreground">لا تغلق الصفحة</p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Step: Awaiting Final Confirm */}
+            {step === 'awaiting-final-confirm' && (
+                <Card className="border-2 border-orange-200 dark:border-orange-900/30">
+                    <CardHeader className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-t-lg">
+                        <div className="flex items-center gap-3">
+                            <ShieldCheck className="h-8 w-8" />
+                            <div>
+                                <CardTitle className="text-white text-xl">تأكيد الدفع النهائي</CardTitle>
+                                <CardDescription className="text-orange-100">هذه الخطوة الأخيرة قبل إتمام الشراء</CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-4">
+                        {/* Package Info */}
+                        <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">الباقة:</span>
+                                <span className="font-bold text-foreground">{selectedPackageInfo?.name || 'غير محدد'}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">السعر:</span>
+                                <span className="font-bold text-green-600 dark:text-green-400">{selectedPackageInfo?.price || 0} USD</span>
+                            </div>
+                            {stbNumber && (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground">رقم الريسيفر:</span>
+                                    <span className="font-mono text-sm" dir="ltr">{stbNumber}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">رقم الكارت:</span>
+                                <span className="font-mono text-sm" dir="ltr">****{cardNumber.slice(-4)}</span>
+                            </div>
+                        </div>
+
+                        {/* Timer */}
+                        {finalConfirmExpiry && (
+                            <FinalConfirmTimer
+                                expiry={finalConfirmExpiry}
+                                onWarning={handleExpiryWarning}
+                                onExpire={handleAutoExpire}
+                            />
+                        )}
+
+                        {/* Expiry Warning Message */}
+                        {showExpiryWarning && (
+                            <div className="flex items-center justify-center gap-2 p-3 bg-red-100 dark:bg-red-900/40 rounded-xl border-2 border-red-400 dark:border-red-600 animate-pulse">
+                                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                <span className="text-sm font-bold text-red-700 dark:text-red-300">
+                                    ⚠️ سيتم إلغاء العملية تلقائياً!
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Warning */}
+                        <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+                            <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-sm text-red-700 dark:text-red-300">
+                                <strong>تحذير:</strong> عند الضغط على &quot;تأكيد الدفع&quot;، سيتم إتمام عملية الشراء ولن يمكن إلغاؤها أو استردادها.
+                            </p>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3 pt-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => handleCancelConfirm(false)}
+                                disabled={isConfirmLoading || isAutoCancelling}
+                                className="flex-1"
+                            >
+                                إلغاء
+                            </Button>
+                            <Button
+                                onClick={handleFinalConfirm}
+                                disabled={isConfirmLoading || isAutoCancelling}
+                                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                            >
+                                {isConfirmLoading ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                                        جاري التأكيد...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle className="h-4 w-4 ml-2" />
+                                        تأكيد الدفع
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             )}

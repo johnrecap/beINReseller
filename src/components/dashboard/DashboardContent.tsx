@@ -42,19 +42,19 @@ export default function DashboardContent({ user }: DashboardContentProps) {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <QuickAction
-                            href="/dashboard/operations"
+                            href="/dashboard/renew"
                             icon={Zap}
                             title={t.dashboard.renewSubscription}
                             desc={t.dashboard.renewDesc}
                         />
                         <QuickAction
-                            href="/dashboard/operations"
+                            href="/dashboard/renew"
                             icon={Search}
                             title={t.dashboard.checkBalance}
                             desc={t.dashboard.checkBalanceDesc}
                         />
                         <QuickAction
-                            href="/dashboard/operations"
+                            href="/dashboard/renew"
                             icon={RefreshCw}
                             title={t.dashboard.refreshSignal}
                             desc={t.dashboard.refreshSignalDesc}

@@ -16,8 +16,8 @@ export default async function BulkOperationsPage() {
         <div className="space-y-6" dir="rtl">
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Link href="/dashboard/operations" className="hover:text-purple-600">
-                    العمليات
+                <Link href="/dashboard/renew" className="hover:text-purple-600">
+                    التجديد التفاعلي
                 </Link>
                 <span>/</span>
                 <span className="text-gray-800">عمليات الجملة</span>

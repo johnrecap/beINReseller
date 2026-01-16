@@ -88,6 +88,13 @@ export async function processOperation(
         await handleLegacyOperation(job, automation, accountPool)
 
     } catch (error: any) {
+        // ===== CRITICAL: Don't retry cancelled operations =====
+        if (error instanceof OperationCancelledError) {
+            console.log(`🚫 Operation ${operationId} was cancelled - not retrying`)
+            // Don't throw, don't refund - operation was intentionally cancelled
+            return
+        }
+
         console.error(`❌ Operation ${operationId} failed:`, error.message)
 
         // For Wizard operations, fetch userId and amount from database since they're not in job data

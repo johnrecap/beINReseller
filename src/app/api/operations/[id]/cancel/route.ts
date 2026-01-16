@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { operationsQueue } from '@/lib/queue'
 
 export async function POST(
     request: Request,
@@ -60,6 +61,28 @@ export async function POST(
                 { error: 'تم استرداد المبلغ مسبقاً لهذه العملية' },
                 { status: 400 }
             )
+        }
+
+        // ===== CRITICAL: Remove jobs from Redis Queue FIRST =====
+        try {
+            const jobStates: ('waiting' | 'active' | 'delayed' | 'paused')[] = ['waiting', 'active', 'delayed', 'paused']
+            const allJobs = await operationsQueue.getJobs(jobStates)
+            let removedCount = 0
+
+            for (const job of allJobs) {
+                if (job.data?.operationId === id) {
+                    await job.remove()
+                    removedCount++
+                    console.log(`🗑️ Removed Redis job ${job.id} for operation ${id}`)
+                }
+            }
+
+            if (removedCount > 0) {
+                console.log(`✅ Removed ${removedCount} Redis jobs for operation ${id}`)
+            }
+        } catch (queueError) {
+            console.error('⚠️ Error removing jobs from queue:', queueError)
+            // Continue with cancellation even if queue removal fails
         }
 
         // Cancel operation and refund in transaction

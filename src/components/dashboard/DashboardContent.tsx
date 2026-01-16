@@ -5,7 +5,7 @@ import StatsCards from '@/components/dashboard/StatsCards'
 import RecentOperations from '@/components/dashboard/RecentOperations'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
-import { Zap, Search, RefreshCw } from 'lucide-react'
+import { Zap, RefreshCw } from 'lucide-react'
 
 interface DashboardContentProps {
     user: { username: string; role: string }
@@ -46,12 +46,6 @@ export default function DashboardContent({ user }: DashboardContentProps) {
                             icon={Zap}
                             title={t.dashboard.renewSubscription}
                             desc={t.dashboard.renewDesc}
-                        />
-                        <QuickAction
-                            href="/dashboard/renew"
-                            icon={Search}
-                            title={t.dashboard.checkBalance}
-                            desc={t.dashboard.checkBalanceDesc}
                         />
                         <QuickAction
                             href="/dashboard/renew"

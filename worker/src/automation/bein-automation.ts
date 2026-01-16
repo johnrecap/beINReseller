@@ -1228,25 +1228,52 @@ export class BeINAutomation {
             console.log(`📦 Selecting package: ${selectedPackage.name} (${selectedPackage.price} USD)`)
             console.log(`   Using selector: ${selectedPackage.checkboxSelector}`)
 
-            // ===== Step 1: Verify and click the correct checkbox =====
-            const checkbox = await page.$(selectedPackage.checkboxSelector)
-            if (!checkbox) {
-                throw new Error(`Checkbox not found: ${selectedPackage.checkboxSelector}`)
+            // ===== Step 1: Find the correct package by NAME (not just stored index) =====
+            let checkbox = await page.$(selectedPackage.checkboxSelector)
+            let rowText = ''
+            const packageNameToFind = selectedPackage.name.split('(')[0].trim().toLowerCase()
+
+            // First try the stored selector
+            if (checkbox) {
+                const row = await checkbox.evaluateHandle((el: any) => el.closest('tr'))
+                rowText = await row.evaluate((el: any) => el?.innerText || el?.textContent || '')
+
+                // Check if this is actually our package
+                if (!rowText.toLowerCase().includes(packageNameToFind)) {
+                    console.log(`⚠️ Stored selector doesn't match expected package. Searching by name...`)
+                    checkbox = null // Force search by name
+                }
             }
 
-            // Double-check: verify this is the correct package by checking nearby text
-            const row = await checkbox.evaluateHandle((el: any) => el.closest('tr'))
-            const rowText = await row.evaluate((el: any) => el?.innerText || el?.textContent || '')
+            // If stored selector failed, search ALL rows by package name
+            if (!checkbox) {
+                console.log(`🔍 Searching for package by name: "${packageNameToFind}"`)
+                const allRows = await page.$$('#ContentPlaceHolder1_gvAvailablePackages tr.GridRow, #ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow')
+
+                for (let i = 0; i < allRows.length; i++) {
+                    const rowHandle = allRows[i]
+                    const text = await rowHandle.evaluate((el: any) => el?.innerText || el?.textContent || '')
+
+                    if (text.toLowerCase().includes(packageNameToFind)) {
+                        console.log(`✅ Found matching package at row ${i}: "${text.slice(0, 50)}..."`)
+                        checkbox = await rowHandle.$('input[type="checkbox"]')
+                        rowText = text
+                        break
+                    }
+                }
+
+                if (!checkbox) {
+                    throw new Error(`Package "${selectedPackage.name}" not found on current page. Page may have been refreshed.`)
+                }
+            }
 
             // Verify the PACKAGE NAME matches (security check #1)
-            const packageNameInRow = selectedPackage.name.split('(')[0].trim().toLowerCase()
-            const rowTextLower = rowText.toLowerCase()
-            if (!rowTextLower.includes(packageNameInRow)) {
-                console.log(`⚠️ Expected package name: "${packageNameInRow}"`)
+            if (!rowText.toLowerCase().includes(packageNameToFind)) {
+                console.log(`⚠️ Expected package name: "${packageNameToFind}"`)
                 console.log(`⚠️ Row text: "${rowText.slice(0, 100)}"`)
                 throw new Error(`Package name mismatch! Expected "${selectedPackage.name}" but row doesn't contain it. Aborting to prevent wrong purchase.`)
             }
-            console.log(`✅ Package name verified: "${packageNameInRow}" found in row`)
+            console.log(`✅ Package name verified: "${packageNameToFind}" found in row`)
 
             // Verify the PRICE matches (security check #2)
             const priceInRow = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i)

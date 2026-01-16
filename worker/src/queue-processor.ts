@@ -159,6 +159,9 @@ async function handleStartRenewal(
     const delay = accountPool.getRandomDelay()
     await new Promise(resolve => setTimeout(resolve, delay))
 
+    // Check cancellation before login
+    await checkIfCancelled(operationId)
+
     // 4. Ensure login
     const loginResult = await automation.ensureLoginWithAccount(selectedAccount)
 
@@ -183,6 +186,9 @@ async function handleStartRenewal(
 
         await automation.completeCaptchaForAccount(selectedAccount.id, solution, selectedAccount.totpSecret || undefined)
     }
+
+    // Check cancellation after login/captcha
+    await checkIfCancelled(operationId)
 
     // 5. Navigate and extract packages
     const packages = await automation.startRenewalSession(selectedAccount.id, cardNumber)

@@ -1401,28 +1401,134 @@ export class BeINAutomation {
 
             console.log(`🛒 Clicking Add button...`)
             await addButton.click()
-            // Don't wait for networkidle - beIN pages don't always complete all requests
-            await page.waitForTimeout(3000)
-            console.log(`✅ Add button clicked, waiting for page update...`)
+            // Wait for package to be added to cart
+            await page.waitForTimeout(2000)
+            console.log(`✅ Add button clicked, package added to Shopping Cart`)
 
-            // ===== Step 4: Check Shopping Cart and confirm =====
-            // Check if there's a confirmation or final submit needed
-            const finalSubmitBtn = await page.$('#ContentPlaceHolder1_btnConfirm') ||
-                await page.$('input[value*="Confirm"]') ||
-                await page.$('input[value*="Complete"]') ||
-                await page.$('input[value*="Submit"]')
+            // ===== Step 4: Click "Sell" button =====
+            console.log(`💰 Step 4: Looking for Sell button...`)
+            const sellButton = await page.$('#ContentPlaceHolder1_btnSell') ||
+                await page.$('input[value="Sell"]') ||
+                await page.$('input[id*="btnSell"]')
 
-            if (finalSubmitBtn) {
-                console.log(`✅ Clicking final confirm button...`)
-                await finalSubmitBtn.click()
-                await page.waitForLoadState('networkidle')
+            if (!sellButton) {
+                // Debug: List all buttons to find the correct one
+                console.log(`⚠️ Sell button not found - listing available buttons:`)
+                const allButtons = await page.$$('input[type="submit"], input[type="button"], button')
+                for (let i = 0; i < Math.min(allButtons.length, 10); i++) {
+                    const id = await allButtons[i].getAttribute('id')
+                    const value = await allButtons[i].getAttribute('value')
+                    const name = await allButtons[i].getAttribute('name')
+                    console.log(`   Button ${i}: id="${id}", value="${value}", name="${name}"`)
+                }
+                throw new Error('Sell button not found')
             }
 
-            // ===== Step 5: Check result =====
+            console.log(`💰 Clicking Sell button...`)
+            await sellButton.click()
+
+            // ===== Step 5: Wait for STB Popup to appear =====
+            console.log(`⏳ Step 5: Waiting 4 seconds for STB popup to appear...`)
+            await page.waitForTimeout(4000)
+
+            // Check if popup appeared
+            const popup = await page.$('#ContentPlaceHolder1_StbSerialPopup') ||
+                await page.$('[id*="StbSerial"]') ||
+                await page.$('.popup') ||
+                await page.$('[style*="display: block"]')
+
+            if (popup) {
+                console.log(`📺 STB Popup appeared!`)
+            } else {
+                console.log(`⚠️ STB Popup not detected, but continuing...`)
+            }
+
+            // ===== Step 6: Enter STB number in BOTH fields =====
+            if (stbNumber) {
+                console.log(`📺 Step 6: Entering STB number in both fields: ${stbNumber}`)
+
+                // First STB field
+                const stbInput1 = await page.$('#ContentPlaceHolder1_tbStbSerial1') ||
+                    await page.$('input[name*="tbStbSerial1"]') ||
+                    await page.$('input[id*="StbSerial1"]')
+
+                if (stbInput1) {
+                    await stbInput1.fill(stbNumber)
+                    console.log(`✅ STB Serial 1 entered: ${stbNumber}`)
+                } else {
+                    console.log(`❌ STB Serial 1 field not found!`)
+                }
+
+                // Second STB field (confirm)
+                const stbInput2 = await page.$('#ContentPlaceHolder1_toStbSerial2') ||
+                    await page.$('#ContentPlaceHolder1_tbStbSerial2') ||
+                    await page.$('input[name*="tbStbSerial2"]') ||
+                    await page.$('input[name*="toStbSerial2"]') ||
+                    await page.$('input[id*="StbSerial2"]')
+
+                if (stbInput2) {
+                    await stbInput2.fill(stbNumber)
+                    console.log(`✅ STB Serial 2 entered: ${stbNumber}`)
+                } else {
+                    console.log(`❌ STB Serial 2 field not found!`)
+                }
+
+                // Debug: If fields not found, list popup inputs
+                if (!stbInput1 || !stbInput2) {
+                    console.log(`🔍 DEBUG - Listing all visible text inputs:`)
+                    const allInputs = await page.$$('input[type="text"]')
+                    for (let i = 0; i < Math.min(allInputs.length, 15); i++) {
+                        const id = await allInputs[i].getAttribute('id')
+                        const name = await allInputs[i].getAttribute('name')
+                        const visible = await allInputs[i].isVisible()
+                        console.log(`   Input ${i}: id="${id}", name="${name}", visible=${visible}`)
+                    }
+                }
+
+                await page.waitForTimeout(500)
+            } else {
+                console.log(`⚠️ No STB number available - cannot complete purchase!`)
+                throw new Error('رقم الريسيفر (STB) غير متوفر')
+            }
+
+            // ===== Step 7: Click "Ok" button in popup =====
+            console.log(`✅ Step 7: Clicking Ok button...`)
+            const okButton = await page.$('#ContentPlaceHolder1_btnStbOk') ||
+                await page.$('input[value="Ok"]') ||
+                await page.$('input[id*="btnStbOk"]') ||
+                await page.$('input[id*="btnOk"]')
+
+            if (!okButton) {
+                // Debug: List buttons in popup
+                console.log(`⚠️ Ok button not found - listing buttons:`)
+                const popupButtons = await page.$$('input[type="submit"], input[value="Ok"], input[value="Cancel"]')
+                for (const btn of popupButtons) {
+                    const id = await btn.getAttribute('id')
+                    const value = await btn.getAttribute('value')
+                    console.log(`   Popup button: id="${id}", value="${value}"`)
+                }
+                throw new Error('Ok button not found in STB popup')
+            }
+
+            await okButton.click()
+            console.log(`✅ Ok button clicked`)
+
+            // Wait for confirmation
+            await page.waitForTimeout(3000)
+            try {
+                await page.waitForLoadState('networkidle', { timeout: 10000 })
+            } catch {
+                console.log(`⚠️ Network idle timeout - continuing...`)
+            }
+
+            // ===== Step 8: Check result =====
+            console.log(`🔍 Step 8: Checking result...`)
+
             // Check for success message
             const successElement = await page.$(this.config.selSuccessMsg) ||
                 await page.$('.alert-success') ||
-                await page.$('[class*="success"]')
+                await page.$('[class*="success"]') ||
+                await page.$('span[id*="Success"]')
             if (successElement) {
                 const message = await successElement.textContent()
                 return { success: true, message: message?.trim() || 'تم التجديد بنجاح' }
@@ -1431,7 +1537,8 @@ export class BeINAutomation {
             // Check for error message
             const errorElement = await page.$(this.config.selErrorMsg) ||
                 await page.$('.alert-danger') ||
-                await page.$('[class*="error"]')
+                await page.$('[class*="error"]') ||
+                await page.$('span[id*="Error"]')
             if (errorElement) {
                 const message = await errorElement.textContent()
                 return { success: false, message: message?.trim() || 'فشل التجديد' }
@@ -1439,12 +1546,14 @@ export class BeINAutomation {
 
             // Check page content for indicators
             const pageContent = await page.content()
-            if (pageContent.toLowerCase().includes('success') || pageContent.includes('تم')) {
+            if (pageContent.toLowerCase().includes('success') ||
+                pageContent.includes('تم') ||
+                pageContent.includes('successfully')) {
                 return { success: true, message: `تم تجديد ${selectedPackage.name} بنجاح` }
             }
 
             // Default: assume success if no error shown
-            return { success: true, message: `تم إضافة ${selectedPackage.name} للسلة` }
+            return { success: true, message: `تم شراء ${selectedPackage.name} بنجاح` }
 
         } catch (error: any) {
             console.error('❌ Error completing purchase:', error.message)

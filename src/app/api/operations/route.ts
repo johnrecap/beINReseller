@@ -35,7 +35,7 @@ export async function GET(request: Request) {
         // Handle 'active' as a special case - filter by multiple active statuses
         if (status === 'active') {
             where.status = {
-                in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING']
+                in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING']
             }
         } else if (status) {
             where.status = status as OperationStatus
@@ -67,6 +67,10 @@ export async function GET(request: Request) {
                     responseMessage: true,
                     createdAt: true,
                     updatedAt: true,
+                    // New fields for final confirmation
+                    selectedPackage: true,
+                    stbNumber: true,
+                    finalConfirmExpiry: true,
                 },
             }),
             prisma.operation.count({ where }),

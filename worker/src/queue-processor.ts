@@ -20,7 +20,7 @@ import { createNotification } from './utils/notification'
 
 interface OperationJobData {
     operationId: string
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO'
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM'
     cardNumber: string
     duration?: string
     promoCode?: string
@@ -81,6 +81,16 @@ export async function processOperation(
 
         if (type === 'APPLY_PROMO') {
             await handleApplyPromo(operationId, promoCode || '', automation, accountPool)
+            return
+        }
+
+        if (type === 'CONFIRM_PURCHASE') {
+            await handleConfirmPurchase(operationId, automation, accountPool)
+            return
+        }
+
+        if (type === 'CANCEL_CONFIRM') {
+            await handleCancelConfirm(operationId, automation, accountPool)
             return
         }
 
@@ -221,8 +231,8 @@ async function handleStartRenewal(
  * Handle COMPLETE_PURCHASE - Wizard Step 2
  * - Select the package
  * - Apply promo code if provided
- * - Complete the purchase
- * - Update status to COMPLETED or FAILED
+ * - Enter STB in popup
+ * - PAUSE and wait for user confirmation
  */
 async function handleCompletePurchase(
     operationId: string,
@@ -263,7 +273,7 @@ async function handleCompletePurchase(
         data: { status: 'COMPLETING' }
     })
 
-    // 2. Complete the purchase
+    // 2. Complete the purchase (with skipFinalClick=true to pause before Ok)
     const selectedPackage = operation.selectedPackage as { index: number; name: string; price: number; checkboxSelector: string } | null
     if (!selectedPackage) {
         throw new Error('No package selected')
@@ -273,10 +283,42 @@ async function handleCompletePurchase(
         operation.beinAccountId,
         selectedPackage,
         operation.promoCode || promoCode,
-        operation.stbNumber || ''
+        operation.stbNumber || '',
+        true  // skipFinalClick = true - pause before clicking Ok
     )
 
-    // 3. Update operation
+    // 3. Check if awaiting user confirmation
+    if (result.awaitingConfirm) {
+        console.log(`⏸️ Operation ${operationId} ready for final confirmation`)
+        console.log(`   Package: ${selectedPackage.name}`)
+        console.log(`   Price: ${selectedPackage.price} USD`)
+
+        // Update status to AWAITING_FINAL_CONFIRM with 2 min timeout
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'AWAITING_FINAL_CONFIRM',
+                finalConfirmExpiry: new Date(Date.now() + 120000), // 2 minutes
+                responseMessage: result.message
+            }
+        })
+
+        // Notify user to confirm
+        if (operation.userId) {
+            await createNotification({
+                userId: operation.userId,
+                title: '⚠️ تأكيد الدفع مطلوب',
+                message: `${selectedPackage.name} - ${selectedPackage.price} USD - اضغط لتأكيد الدفع`,
+                type: 'warning',
+                link: '/dashboard/operations'
+            })
+        }
+
+        console.log(`⏳ Waiting for user confirmation...`)
+        return // Exit - will be resumed by CONFIRM_PURCHASE job
+    }
+
+    // 4. If not awaiting (shouldn't happen with skipFinalClick=true), handle result
     if (result.success) {
         await prisma.operation.update({
             where: { id: operationId },
@@ -312,6 +354,227 @@ async function handleCompletePurchase(
 
         throw new Error(result.message)
     }
+}
+
+/**
+ * Handle CONFIRM_PURCHASE - Final step after user confirmation
+ * - Click "Ok" button in STB popup
+ * - Complete the purchase
+ */
+async function handleConfirmPurchase(
+    operationId: string,
+    automation: BeINAutomation,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`✅ User confirmed - completing purchase for operation ${operationId}`)
+
+    // Check if operation was cancelled
+    await checkIfCancelled(operationId)
+
+    // 1. Get operation
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: {
+            id: true,
+            userId: true,
+            beinAccountId: true,
+            selectedPackage: true,
+            amount: true,
+            status: true,
+            finalConfirmExpiry: true
+        }
+    })
+
+    if (!operation) {
+        throw new Error('Operation not found')
+    }
+
+    // Validate status
+    if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
+        throw new Error(`Invalid status: ${operation.status}. Expected AWAITING_FINAL_CONFIRM`)
+    }
+
+    if (!operation.beinAccountId) {
+        throw new Error('No beIN account assigned')
+    }
+
+    // Check if expired
+    if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+        console.log(`⏰ Confirmation expired for operation ${operationId}`)
+        if (operation.userId && operation.amount) {
+            await refundUser(operationId, operation.userId, operation.amount, 'انتهت مهلة التأكيد')
+        }
+        await markOperationFailed(operationId, { type: 'TIMEOUT', message: 'انتهت مهلة التأكيد', recoverable: false }, 1)
+        throw new Error('انتهت مهلة التأكيد')
+    }
+
+    const selectedPackage = operation.selectedPackage as { index: number; name: string; price: number; checkboxSelector: string } | null
+
+    // Update to COMPLETING
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'COMPLETING' }
+    })
+
+    // 2. Click the final Ok button
+    const result = await automation.clickFinalOkButton(
+        operation.beinAccountId,
+        selectedPackage?.name || ''
+    )
+
+    // 3. Update operation based on result
+    if (result.success) {
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'COMPLETED',
+                responseMessage: result.message,
+                completedAt: new Date(),
+                finalConfirmExpiry: null
+            }
+        })
+
+        // Mark account as used
+        await accountPool.markAccountUsed(operation.beinAccountId)
+
+        // Notify success
+        if (operation.userId) {
+            await createNotification({
+                userId: operation.userId,
+                title: 'تم التجديد بنجاح',
+                message: `${selectedPackage?.name || 'الباقة'} - ${result.message}`,
+                type: 'success',
+                link: '/dashboard/history'
+            })
+        }
+
+        console.log(`✅ Purchase confirmed and completed for ${operationId}: ${result.message}`)
+    } else {
+        // Refund and mark failed
+        if (operation.userId && operation.amount) {
+            await refundUser(operationId, operation.userId, operation.amount, result.message)
+        }
+
+        await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1)
+
+        throw new Error(result.message)
+    }
+}
+
+/**
+ * Handle CANCEL_CONFIRM - Cancel the purchase when user clicks cancel button
+ * - Click "Cancel" button in STB popup
+ * - Refund user
+ * - Mark operation as CANCELLED
+ */
+async function handleCancelConfirm(
+    operationId: string,
+    automation: BeINAutomation,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`🚫 User cancelled - cancelling purchase for operation ${operationId}`)
+
+    // Check if operation was cancelled
+    await checkIfCancelled(operationId)
+
+    // 1. Get operation
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: {
+            id: true,
+            userId: true,
+            beinAccountId: true,
+            selectedPackage: true,
+            amount: true,
+            status: true,
+        }
+    })
+
+    if (!operation) {
+        throw new Error('Operation not found')
+    }
+
+    // Validate status
+    if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
+        throw new Error(`Invalid status: ${operation.status}. Expected AWAITING_FINAL_CONFIRM`)
+    }
+
+    if (!operation.beinAccountId) {
+        throw new Error('No beIN account assigned')
+    }
+
+    // 2. Click Cancel button in popup
+    try {
+        await automation.clickCancelInPopup(operation.beinAccountId)
+        console.log(`✅ Cancel button clicked in popup`)
+    } catch (error: any) {
+        console.log(`⚠️ Could not click cancel button: ${error.message}`)
+        // Continue anyway - main goal is to cancel the operation
+    }
+
+    // 3. Refund user
+    if (operation.userId && operation.amount) {
+        await prisma.$transaction(async (tx) => {
+            // Get current balance
+            const user = await tx.user.findUnique({
+                where: { id: operation.userId },
+                select: { balance: true }
+            })
+
+            if (user) {
+                const newBalance = user.balance + operation.amount!
+
+                // Update user balance
+                await tx.user.update({
+                    where: { id: operation.userId },
+                    data: { balance: newBalance }
+                })
+
+                // Create refund transaction
+                await tx.transaction.create({
+                    data: {
+                        userId: operation.userId,
+                        type: 'REFUND',
+                        amount: operation.amount!,
+                        balanceAfter: newBalance,
+                        operationId: operationId,
+                        notes: 'استرداد - إلغاء المستخدم قبل التأكيد'
+                    }
+                })
+
+                console.log(`💰 Refunded ${operation.amount} to user ${operation.userId}`)
+            }
+        })
+    }
+
+    // 4. Mark operation as CANCELLED
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: {
+            status: 'CANCELLED',
+            responseMessage: 'تم إلغاء العملية بواسطة المستخدم',
+            completedAt: new Date(),
+            finalConfirmExpiry: null
+        }
+    })
+
+    // 5. Notify user
+    if (operation.userId) {
+        await createNotification({
+            userId: operation.userId,
+            title: 'تم إلغاء العملية',
+            message: 'تم إلغاء عملية الشراء واسترداد المبلغ',
+            type: 'info',
+            link: '/dashboard/history'
+        })
+    }
+
+    // 6. Mark account usage
+    if (operation.beinAccountId) {
+        await accountPool.markAccountUsed(operation.beinAccountId)
+    }
+
+    console.log(`✅ Operation ${operationId} cancelled and refunded`)
 }
 
 /**

@@ -1266,13 +1266,15 @@ export class BeINAutomation {
     /**
      * Complete package purchase with optional promo code
      * beIN-specific implementation
+     * @param skipFinalClick - If true, stops after entering STB and waits for user confirmation
      */
     async completePackagePurchase(
         accountId: string,
         selectedPackage: { index: number; name: string; price: number; checkboxSelector: string },
         promoCode?: string | null,
-        stbNumber?: string
-    ): Promise<{ success: boolean; message: string }> {
+        stbNumber?: string,
+        skipFinalClick: boolean = false
+    ): Promise<{ success: boolean; message: string; awaitingConfirm?: boolean }> {
         const session = this.accountSessions.get(accountId)
         if (!session) throw new Error(`No session found for account ${accountId}`)
 
@@ -1491,8 +1493,40 @@ export class BeINAutomation {
                 throw new Error('رقم الريسيفر (STB) غير متوفر')
             }
 
+            // ===== Step 6.5: PAUSE FOR USER CONFIRMATION (if skipFinalClick is true) =====
+            if (skipFinalClick) {
+                console.log(`⏸️ PAUSED: Waiting for user confirmation before clicking Ok...`)
+                console.log(`   Package: ${selectedPackage.name}`)
+                console.log(`   Price: ${selectedPackage.price} USD`)
+                console.log(`   STB: ${stbNumber}`)
+                return {
+                    success: true,
+                    message: `جاهز للتأكيد النهائي - ${selectedPackage.name} بسعر ${selectedPackage.price} USD`,
+                    awaitingConfirm: true
+                }
+            }
+
             // ===== Step 7: Click "Ok" button in popup =====
-            console.log(`✅ Step 7: Clicking Ok button...`)
+            return await this.clickFinalOkButton(accountId, selectedPackage.name)
+
+        } catch (error: any) {
+            console.error('❌ Error completing purchase:', error.message)
+            return { success: false, message: `فشل في إتمام الشراء: ${error.message}` }
+        }
+    }
+
+    /**
+     * Click the final "Ok" button in the STB popup after user confirmation
+     * This should only be called after completePackagePurchase with skipFinalClick=true
+     */
+    async clickFinalOkButton(accountId: string, packageName: string = ''): Promise<{ success: boolean; message: string }> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) throw new Error(`No session found for account ${accountId}`)
+
+        const { page } = session
+
+        try {
+            console.log(`✅ Step 7: User confirmed - Clicking Ok button...`)
             const okButton = await page.$('#ContentPlaceHolder1_btnStbOk') ||
                 await page.$('input[value="Ok"]') ||
                 await page.$('input[id*="btnStbOk"]') ||
@@ -1511,7 +1545,7 @@ export class BeINAutomation {
             }
 
             await okButton.click()
-            console.log(`✅ Ok button clicked`)
+            console.log(`✅ Ok button clicked - purchase submitted!`)
 
             // Wait for confirmation
             await page.waitForTimeout(3000)
@@ -1549,15 +1583,52 @@ export class BeINAutomation {
             if (pageContent.toLowerCase().includes('success') ||
                 pageContent.includes('تم') ||
                 pageContent.includes('successfully')) {
-                return { success: true, message: `تم تجديد ${selectedPackage.name} بنجاح` }
+                return { success: true, message: `تم تجديد ${packageName} بنجاح` }
             }
 
             // Default: assume success if no error shown
-            return { success: true, message: `تم شراء ${selectedPackage.name} بنجاح` }
+            return { success: true, message: `تم شراء ${packageName} بنجاح` }
 
         } catch (error: any) {
-            console.error('❌ Error completing purchase:', error.message)
-            return { success: false, message: `فشل في إتمام الشراء: ${error.message}` }
+            console.error('❌ Error clicking final Ok:', error.message)
+            return { success: false, message: `فشل في التأكيد النهائي: ${error.message}` }
+        }
+    }
+
+    /**
+     * Click the "Cancel" button in the STB popup when user cancels the confirmation
+     * This should be called after completePackagePurchase with skipFinalClick=true when user cancels
+     */
+    async clickCancelInPopup(accountId: string): Promise<{ success: boolean }> {
+        const session = this.accountSessions.get(accountId)
+        if (!session) throw new Error(`No session found for account ${accountId}`)
+
+        const { page } = session
+
+        try {
+            console.log(`🚫 Clicking Cancel button in STB popup...`)
+
+            const cancelButton = await page.$('#ContentPlaceHolder1_btnStbCancel') ||
+                await page.$('input[value="Cancel"]') ||
+                await page.$('input[id*="btnStbCancel"]') ||
+                await page.$('input[id*="btnCancel"]')
+
+            if (!cancelButton) {
+                console.log(`⚠️ Cancel button not found - popup may have already closed`)
+                return { success: false }
+            }
+
+            await cancelButton.click()
+            console.log(`✅ Cancel button clicked`)
+
+            // Wait for popup to close
+            await page.waitForTimeout(1500)
+
+            return { success: true }
+
+        } catch (error: any) {
+            console.error('❌ Error clicking cancel:', error.message)
+            return { success: false }
         }
     }
 

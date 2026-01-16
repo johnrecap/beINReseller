@@ -1347,8 +1347,9 @@ export class BeINAutomation {
 
             console.log(`🛒 Clicking Add button...`)
             await addButton.click()
-            await page.waitForLoadState('networkidle')
-            await page.waitForTimeout(2000)
+            // Don't wait for networkidle - beIN pages don't always complete all requests
+            await page.waitForTimeout(3000)
+            console.log(`✅ Add button clicked, waiting for page update...`)
 
             // ===== Step 4: Check Shopping Cart and confirm =====
             // Check if there's a confirmation or final submit needed

@@ -512,39 +512,51 @@ async function handleCancelConfirm(
         // Continue anyway - main goal is to cancel the operation
     }
 
-    // 3. Refund user
+    // 3. Refund user - WITH DOUBLE REFUND PROTECTION
     if (operation.userId && operation.amount) {
-        await prisma.$transaction(async (tx) => {
-            // Get current balance
-            const user = await tx.user.findUnique({
-                where: { id: operation.userId },
-                select: { balance: true }
-            })
-
-            if (user) {
-                const newBalance = user.balance + operation.amount!
-
-                // Update user balance
-                await tx.user.update({
-                    where: { id: operation.userId },
-                    data: { balance: newBalance }
-                })
-
-                // Create refund transaction
-                await tx.transaction.create({
-                    data: {
-                        userId: operation.userId,
-                        type: 'REFUND',
-                        amount: operation.amount!,
-                        balanceAfter: newBalance,
-                        operationId: operationId,
-                        notes: 'استرداد - إلغاء المستخدم قبل التأكيد'
-                    }
-                })
-
-                console.log(`💰 Refunded ${operation.amount} to user ${operation.userId}`)
+        // ===== CRITICAL: Check for existing refund to prevent double refund =====
+        const existingRefund = await prisma.transaction.findFirst({
+            where: {
+                operationId: operationId,
+                type: 'REFUND'
             }
         })
+
+        if (existingRefund) {
+            console.log(`⚠️ Refund already exists for operation ${operationId}, skipping to prevent double refund`)
+        } else {
+            await prisma.$transaction(async (tx) => {
+                // Get current balance
+                const user = await tx.user.findUnique({
+                    where: { id: operation.userId },
+                    select: { balance: true }
+                })
+
+                if (user) {
+                    const newBalance = user.balance + operation.amount!
+
+                    // Update user balance
+                    await tx.user.update({
+                        where: { id: operation.userId },
+                        data: { balance: newBalance }
+                    })
+
+                    // Create refund transaction
+                    await tx.transaction.create({
+                        data: {
+                            userId: operation.userId,
+                            type: 'REFUND',
+                            amount: operation.amount!,
+                            balanceAfter: newBalance,
+                            operationId: operationId,
+                            notes: 'استرداد - إلغاء المستخدم قبل التأكيد'
+                        }
+                    })
+
+                    console.log(`💰 Refunded ${operation.amount} to user ${operation.userId}`)
+                }
+            })
+        }
     }
 
     // 4. Mark operation as CANCELLED

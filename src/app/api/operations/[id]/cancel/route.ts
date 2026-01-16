@@ -48,20 +48,13 @@ export async function POST(
             )
         }
 
-        // Safety check: Prevent double refund by checking if a refund already exists
+        // Check if a refund already exists from prior failure
         const existingRefund = await prisma.transaction.findFirst({
             where: {
                 operationId: id,
                 type: 'REFUND'
             }
         })
-
-        if (existingRefund) {
-            return NextResponse.json(
-                { error: 'تم استرداد المبلغ مسبقاً لهذه العملية' },
-                { status: 400 }
-            )
-        }
 
         // ===== CRITICAL: Remove jobs from Redis Queue FIRST =====
         try {
@@ -85,7 +78,40 @@ export async function POST(
             // Continue with cancellation even if queue removal fails
         }
 
-        // Cancel operation and refund in transaction
+        // If refund already exists (from prior failure), just mark as cancelled without double refund
+        if (existingRefund) {
+            console.log(`ℹ️ Operation ${id} already has refund from prior failure - marking as cancelled only`)
+
+            await prisma.$transaction(async (tx) => {
+                // Update operation status only
+                await tx.operation.update({
+                    where: { id },
+                    data: {
+                        status: 'CANCELLED',
+                        responseMessage: 'تم الإلغاء بواسطة المستخدم (تم استرداد المبلغ مسبقاً)',
+                    },
+                })
+
+                // Log activity
+                await tx.activityLog.create({
+                    data: {
+                        userId: session.user!.id,
+                        action: 'OPERATION_CANCELLED',
+                        details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}**** (استرداد سابق)`,
+                        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                    },
+                })
+            })
+
+            return NextResponse.json({
+                success: true,
+                message: 'تم إلغاء العملية (المبلغ تم استرداده مسبقاً)',
+                refunded: 0,
+                previouslyRefunded: true,
+            })
+        }
+
+        // Normal case: Cancel operation and refund in transaction
         await prisma.$transaction(async (tx) => {
             // Update operation status
             await tx.operation.update({

@@ -6,8 +6,9 @@ import prisma from '@/lib/prisma'
  * POST /api/admin/users/[id]/correct-balance
  * 
  * تصحيح رصيد المستخدم الزائد
- * - يحسب الفرق ويخصمه
+ * - يحسب الفرق ويخصمه إذا كان زيادة
  * - يسجل معاملة CORRECTION
+ * - يحدث العملية كـ "مصححة"
  */
 export async function POST(
     request: Request,
@@ -17,7 +18,7 @@ export async function POST(
         const { id: userId } = await params
         const body = await request.json()
         const { type, operationId } = body as {
-            type: 'BALANCE_MISMATCH' | 'DOUBLE_REFUND' | 'OVER_REFUND' | 'ALL'
+            type: 'BALANCE_MISMATCH' | 'DOUBLE_REFUND' | 'OVER_REFUND'
             operationId?: string
         }
 
@@ -37,81 +38,19 @@ export async function POST(
             return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
         }
 
-        // 3. Get all transactions to calculate expected balance
-        const transactions = await prisma.transaction.findMany({
-            where: { userId },
-            select: { type: true, amount: true, operationId: true }
-        })
-
-        let totalDeposits = 0
-        let totalDeductions = 0
-        let totalRefunds = 0
-        let totalWithdrawals = 0
-        let totalCorrections = 0
-
-        for (const tx of transactions) {
-            switch (tx.type) {
-                case 'DEPOSIT':
-                    totalDeposits += tx.amount
-                    break
-                case 'OPERATION_DEDUCT':
-                    totalDeductions += Math.abs(tx.amount)
-                    break
-                case 'REFUND':
-                    totalRefunds += tx.amount
-                    break
-                case 'WITHDRAW':
-                    totalWithdrawals += Math.abs(tx.amount)
-                    break
-                case 'CORRECTION':
-                    totalCorrections += tx.amount // negative values
-                    break
-            }
-        }
-
-        const expectedBalance = totalDeposits - totalDeductions + totalRefunds - totalWithdrawals + totalCorrections
-        const actualBalance = user.balance
-        const discrepancy = actualBalance - expectedBalance
-
-        // 4. Handle different correction types
         let correctionAmount = 0
         let correctionNotes = ''
+        let operationToCorrect: string | null = null
 
-        if (type === 'BALANCE_MISMATCH' || type === 'ALL') {
-            // Balance mismatch - correct the discrepancy
-            if (Math.abs(discrepancy) >= 0.01) {
-                correctionAmount = -discrepancy // Negative to reduce balance
-                correctionNotes = `تصحيح رصيد غير متطابق: الفرق $${discrepancy.toFixed(2)}`
-            }
-        } else if (type === 'DOUBLE_REFUND' && operationId) {
-            // Double refund - find extra refunds for this operation
-            const refundsForOp = transactions.filter(
-                t => t.type === 'REFUND' && t.operationId === operationId
-            )
-
-            if (refundsForOp.length > 1) {
-                // Get the operation amount
-                const operation = await prisma.operation.findUnique({
-                    where: { id: operationId },
-                    select: { amount: true }
-                })
-
-                if (operation) {
-                    const totalRefunded = refundsForOp.reduce((sum, r) => sum + r.amount, 0)
-                    const excessRefund = totalRefunded - operation.amount
-
-                    if (excessRefund > 0) {
-                        correctionAmount = -excessRefund
-                        correctionNotes = `تصحيح استرداد مزدوج للعملية ${operationId.slice(-6)}: تم استرداد ${refundsForOp.length} مرات`
-                    }
-                }
-            }
-        } else if (type === 'OVER_REFUND' && operationId) {
-            // Over refund - refund amount > operation amount
+        // 3. Handle DOUBLE_REFUND or OVER_REFUND
+        if ((type === 'DOUBLE_REFUND' || type === 'OVER_REFUND') && operationId) {
+            // Check if already corrected
             const operation = await prisma.operation.findUnique({
                 where: { id: operationId },
                 select: {
+                    id: true,
                     amount: true,
+                    corrected: true,
                     transactions: {
                         where: { type: 'REFUND' },
                         select: { amount: true }
@@ -119,18 +58,91 @@ export async function POST(
                 }
             })
 
-            if (operation) {
-                const totalRefunded = operation.transactions.reduce((sum, r) => sum + r.amount, 0)
-                const excessRefund = totalRefunded - operation.amount
+            if (!operation) {
+                return NextResponse.json({ error: 'العملية غير موجودة' }, { status: 404 })
+            }
 
-                if (excessRefund > 0) {
-                    correctionAmount = -excessRefund
-                    correctionNotes = `تصحيح استرداد زائد للعملية ${operationId.slice(-6)}: استرداد $${totalRefunded} من عملية $${operation.amount}`
+            if (operation.corrected) {
+                return NextResponse.json({
+                    success: true,
+                    message: 'تم تصحيح هذه العملية مسبقاً',
+                    corrected: false,
+                    alreadyCorrected: true
+                })
+            }
+
+            // Calculate excess refund
+            const totalRefunded = operation.transactions.reduce((sum, r) => sum + r.amount, 0)
+            const excessRefund = totalRefunded - operation.amount
+
+            if (excessRefund > 0) {
+                correctionAmount = -excessRefund // خصم الزيادة
+                correctionNotes = type === 'DOUBLE_REFUND'
+                    ? `تصحيح استرداد مزدوج: تم استرداد ${operation.transactions.length} مرات بإجمالي $${totalRefunded} من عملية قيمتها $${operation.amount}`
+                    : `تصحيح استرداد زائد: تم استرداد $${totalRefunded} من عملية قيمتها $${operation.amount}`
+                operationToCorrect = operationId
+            }
+        }
+        // Handle BALANCE_MISMATCH
+        else if (type === 'BALANCE_MISMATCH') {
+            // Get all transactions to calculate expected balance
+            const transactions = await prisma.transaction.findMany({
+                where: { userId },
+                select: { type: true, amount: true }
+            })
+
+            let totalDeposits = 0
+            let totalDeductions = 0
+            let totalRefunds = 0
+            let totalWithdrawals = 0
+            let totalCorrections = 0
+
+            for (const tx of transactions) {
+                switch (tx.type) {
+                    case 'DEPOSIT':
+                        totalDeposits += tx.amount
+                        break
+                    case 'OPERATION_DEDUCT':
+                        totalDeductions += Math.abs(tx.amount)
+                        break
+                    case 'REFUND':
+                        totalRefunds += tx.amount
+                        break
+                    case 'WITHDRAW':
+                        totalWithdrawals += Math.abs(tx.amount)
+                        break
+                    case 'CORRECTION':
+                        totalCorrections += tx.amount
+                        break
                 }
+            }
+
+            const expectedBalance = totalDeposits - totalDeductions + totalRefunds - totalWithdrawals + totalCorrections
+            const actualBalance = user.balance
+            const discrepancy = actualBalance - expectedBalance
+
+            // فقط إذا الفرق موجب (زيادة) نقوم بالخصم
+            if (discrepancy > 0.01) {
+                correctionAmount = -discrepancy // خصم الزيادة
+                correctionNotes = `تصحيح رصيد زائد: الفرق كان $${discrepancy.toFixed(2)}`
+            } else if (discrepancy < -0.01) {
+                // الفرق سالب = المستخدم ناقص رصيد - يحتاج مراجعة يدوية
+                return NextResponse.json({
+                    success: false,
+                    message: `الرصيد ناقص بـ $${Math.abs(discrepancy).toFixed(2)} - يحتاج مراجعة يدوية`,
+                    needsManualReview: true,
+                    discrepancy
+                })
+            } else {
+                return NextResponse.json({
+                    success: true,
+                    message: 'الرصيد متطابق، لا يوجد ما يحتاج تصحيح',
+                    corrected: false
+                })
             }
         }
 
-        // 5. If no correction needed
+        // 4. If no correction needed
         if (Math.abs(correctionAmount) < 0.01) {
             return NextResponse.json({
                 success: true,
@@ -140,7 +152,7 @@ export async function POST(
             })
         }
 
-        // 6. Apply correction - use transaction for atomicity
+        // 5. Apply correction atomically
         const result = await prisma.$transaction(async (tx) => {
             // Update user balance
             const updatedUser = await tx.user.update({
@@ -153,12 +165,21 @@ export async function POST(
                 data: {
                     userId,
                     adminId: session.user.id,
+                    operationId: operationToCorrect,
                     amount: correctionAmount,
                     balanceAfter: updatedUser.balance,
                     type: 'CORRECTION',
                     notes: correctionNotes
                 }
             })
+
+            // Mark operation as corrected if applicable
+            if (operationToCorrect) {
+                await tx.operation.update({
+                    where: { id: operationToCorrect },
+                    data: { corrected: true, correctedAt: new Date() }
+                })
+            }
 
             return { user: updatedUser, transaction: correctionTx }
         })

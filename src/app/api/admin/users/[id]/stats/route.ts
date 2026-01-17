@@ -103,10 +103,11 @@ export async function GET(
         // 5. Detect Over-Refunds (refund amount > operation amount)
         const overRefunds: { operationId: string; refundAmount: number; operationAmount: number }[] = []
 
-        // Get operations that have refunds
+        // Get operations that have refunds (exclude corrected ones)
         const operationsWithRefunds = await prisma.operation.findMany({
             where: {
                 userId,
+                corrected: false,  // استبعاد العمليات المصححة
                 transactions: {
                     some: { type: 'REFUND' }
                 }
@@ -114,6 +115,7 @@ export async function GET(
             select: {
                 id: true,
                 amount: true,
+                corrected: true,
                 transactions: {
                     where: { type: 'REFUND' },
                     select: { amount: true }

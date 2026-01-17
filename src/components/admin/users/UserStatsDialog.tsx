@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Loader2, DollarSign, ArrowUpCircle, ArrowDownCircle, Wallet } from 'lucide-react'
+import { X, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Loader2, DollarSign, ArrowUpCircle, ArrowDownCircle, Wallet, ChevronDown } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar } from 'date-fns/locale'
 
@@ -10,6 +10,27 @@ interface UserStatsDialogProps {
     onClose: () => void
     userId: string | null
     username: string | null
+}
+
+interface Transaction {
+    id: string
+    type: string
+    amount: number
+    balanceAfter: number
+    notes: string | null
+    createdAt: string
+    operationId: string | null
+}
+
+interface Operation {
+    id: string
+    type: string
+    cardNumber: string
+    amount: number
+    status: string
+    responseMessage: string | null
+    createdAt: string
+    completedAt: string | null
 }
 
 interface StatsData {
@@ -44,25 +65,12 @@ interface StatsData {
         severity: 'high' | 'medium' | 'low'
         operationId?: string
     }[]
-    recentTransactions: {
-        id: string
-        type: string
-        amount: number
-        balanceAfter: number
-        notes: string | null
-        createdAt: string
-        operationId: string | null
-    }[]
-    recentOperations: {
-        id: string
-        type: string
-        cardNumber: string
-        amount: number
-        status: string
-        responseMessage: string | null
-        createdAt: string
-        completedAt: string | null
-    }[]
+    recentTransactions: Transaction[]
+    recentOperations: Operation[]
+    pagination: {
+        transactions: { total: number; limit: number; skip: number; hasMore: boolean }
+        operations: { total: number; limit: number; skip: number; hasMore: boolean }
+    }
 }
 
 const transactionTypeLabels: Record<string, { label: string; color: string; icon: typeof TrendingUp }> = {
@@ -86,17 +94,32 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 
 export default function UserStatsDialog({ isOpen, onClose, userId, username }: UserStatsDialogProps) {
     const [loading, setLoading] = useState(false)
+    const [loadingMore, setLoadingMore] = useState(false)
     const [data, setData] = useState<StatsData | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'transactions' | 'operations'>('transactions')
+    const [transactions, setTransactions] = useState<Transaction[]>([])
+    const [operations, setOperations] = useState<Operation[]>([])
+    const [txHasMore, setTxHasMore] = useState(false)
+    const [opHasMore, setOpHasMore] = useState(false)
+    const [txTotal, setTxTotal] = useState(0)
+    const [opTotal, setOpTotal] = useState(0)
 
-    const fetchStats = useCallback(async () => {
+    const fetchStats = useCallback(async (loadMore = false, type?: 'transactions' | 'operations') => {
         if (!userId) return
-        setLoading(true)
-        setError(null)
+
+        if (loadMore) {
+            setLoadingMore(true)
+        } else {
+            setLoading(true)
+            setError(null)
+        }
 
         try {
-            const res = await fetch(`/api/admin/users/${userId}/stats`)
+            const txSkip = loadMore && type === 'transactions' ? transactions.length : 0
+            const opSkip = loadMore && type === 'operations' ? operations.length : 0
+
+            const res = await fetch(`/api/admin/users/${userId}/stats?txLimit=20&txSkip=${txSkip}&opLimit=20&opSkip=${opSkip}`)
             const result = await res.json()
 
             if (!res.ok) {
@@ -104,19 +127,43 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                 return
             }
 
-            setData(result)
+            if (loadMore) {
+                if (type === 'transactions') {
+                    setTransactions(prev => [...prev, ...result.recentTransactions])
+                    setTxHasMore(result.pagination.transactions.hasMore)
+                } else if (type === 'operations') {
+                    setOperations(prev => [...prev, ...result.recentOperations])
+                    setOpHasMore(result.pagination.operations.hasMore)
+                }
+            } else {
+                setData(result)
+                setTransactions(result.recentTransactions)
+                setOperations(result.recentOperations)
+                setTxHasMore(result.pagination.transactions.hasMore)
+                setOpHasMore(result.pagination.operations.hasMore)
+                setTxTotal(result.pagination.transactions.total)
+                setOpTotal(result.pagination.operations.total)
+            }
         } catch {
             setError('فشل الاتصال بالخادم')
         } finally {
             setLoading(false)
+            setLoadingMore(false)
         }
-    }, [userId])
+    }, [userId, transactions.length, operations.length])
 
     useEffect(() => {
         if (isOpen && userId) {
+            // Reset state when opening
+            setTransactions([])
+            setOperations([])
             fetchStats()
         }
-    }, [isOpen, userId, fetchStats])
+    }, [isOpen, userId])
+
+    const handleLoadMore = (type: 'transactions' | 'operations') => {
+        fetchStats(true, type)
+    }
 
     if (!isOpen) return null
 
@@ -162,9 +209,8 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         <span className="text-sm font-medium">الإيداعات</span>
                                     </div>
                                     <p className="text-2xl font-bold text-green-700 dark:text-green-300">
-                                        {data.financials.totalDeposits.toLocaleString()}
+                                        ${data.financials.totalDeposits.toLocaleString()}
                                     </p>
-                                    <p className="text-xs text-green-600 dark:text-green-400">ر.س</p>
                                 </div>
 
                                 <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
@@ -173,9 +219,8 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         <span className="text-sm font-medium">الخصومات</span>
                                     </div>
                                     <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                                        {data.financials.totalDeductions.toLocaleString()}
+                                        ${data.financials.totalDeductions.toLocaleString()}
                                     </p>
-                                    <p className="text-xs text-orange-600 dark:text-orange-400">ر.س</p>
                                 </div>
 
                                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
@@ -184,33 +229,32 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         <span className="text-sm font-medium">الاستردادات</span>
                                     </div>
                                     <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                                        {data.financials.totalRefunds.toLocaleString()}
+                                        ${data.financials.totalRefunds.toLocaleString()}
                                     </p>
-                                    <p className="text-xs text-blue-600 dark:text-blue-400">ر.س</p>
                                 </div>
 
                                 <div className={`rounded-xl p-4 border ${data.financials.isBalanceValid
-                                    ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
-                                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                        ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+                                        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                                     }`}>
                                     <div className={`flex items-center gap-2 mb-2 ${data.financials.isBalanceValid
-                                        ? 'text-purple-600 dark:text-purple-400'
-                                        : 'text-red-600 dark:text-red-400'
+                                            ? 'text-purple-600 dark:text-purple-400'
+                                            : 'text-red-600 dark:text-red-400'
                                         }`}>
                                         <Wallet className="w-5 h-5" />
                                         <span className="text-sm font-medium">الرصيد الحالي</span>
                                     </div>
                                     <p className={`text-2xl font-bold ${data.financials.isBalanceValid
-                                        ? 'text-purple-700 dark:text-purple-300'
-                                        : 'text-red-700 dark:text-red-300'
+                                            ? 'text-purple-700 dark:text-purple-300'
+                                            : 'text-red-700 dark:text-red-300'
                                         }`}>
-                                        {data.financials.actualBalance.toLocaleString()}
+                                        ${data.financials.actualBalance.toLocaleString()}
                                     </p>
                                     <p className={`text-xs ${data.financials.isBalanceValid
-                                        ? 'text-purple-600 dark:text-purple-400'
-                                        : 'text-red-600 dark:text-red-400'
+                                            ? 'text-purple-600 dark:text-purple-400'
+                                            : 'text-red-600 dark:text-red-400'
                                         }`}>
-                                        {data.financials.isBalanceValid ? 'ر.س ✓ متطابق' : `فرق: ${data.financials.discrepancy.toFixed(2)}`}
+                                        {data.financials.isBalanceValid ? '✓ متطابق' : `فرق: $${data.financials.discrepancy.toFixed(2)}`}
                                     </p>
                                 </div>
                             </div>
@@ -273,109 +317,149 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                     <button
                                         onClick={() => setActiveTab('transactions')}
                                         className={`pb-2 px-1 font-medium transition-colors ${activeTab === 'transactions'
-                                            ? 'text-purple-600 border-b-2 border-purple-600'
-                                            : 'text-muted-foreground hover:text-foreground'
+                                                ? 'text-purple-600 border-b-2 border-purple-600'
+                                                : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                     >
-                                        آخر المعاملات
+                                        المعاملات ({txTotal})
                                     </button>
                                     <button
                                         onClick={() => setActiveTab('operations')}
                                         className={`pb-2 px-1 font-medium transition-colors ${activeTab === 'operations'
-                                            ? 'text-purple-600 border-b-2 border-purple-600'
-                                            : 'text-muted-foreground hover:text-foreground'
+                                                ? 'text-purple-600 border-b-2 border-purple-600'
+                                                : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                     >
-                                        آخر العمليات
+                                        العمليات ({opTotal})
                                     </button>
                                 </div>
                             </div>
 
                             {/* Transactions Table */}
                             {activeTab === 'transactions' && (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-secondary text-xs">
-                                            <tr>
-                                                <th className="px-4 py-2 text-right">التاريخ</th>
-                                                <th className="px-4 py-2 text-right">النوع</th>
-                                                <th className="px-4 py-2 text-right">المبلغ</th>
-                                                <th className="px-4 py-2 text-right">الرصيد بعد</th>
-                                                <th className="px-4 py-2 text-right">ملاحظات</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
-                                            {data.recentTransactions.map((tx) => {
-                                                const typeInfo = transactionTypeLabels[tx.type] || { label: tx.type, color: 'text-gray-600 bg-gray-50', icon: DollarSign }
-                                                const Icon = typeInfo.icon
-                                                return (
-                                                    <tr key={tx.id} className="hover:bg-secondary/50">
-                                                        <td className="px-4 py-2 text-sm">
-                                                            {format(new Date(tx.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
-                                                        </td>
-                                                        <td className="px-4 py-2">
-                                                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeInfo.color}`}>
-                                                                <Icon className="w-3 h-3" />
-                                                                {typeInfo.label}
-                                                            </span>
-                                                        </td>
-                                                        <td className={`px-4 py-2 font-bold ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {tx.amount >= 0 ? '+' : ''}{tx.amount.toLocaleString()}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-sm text-muted-foreground">
-                                                            {tx.balanceAfter.toLocaleString()}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-sm text-muted-foreground truncate max-w-[200px]">
-                                                            {tx.notes || '-'}
-                                                        </td>
-                                                    </tr>
-                                                )
-                                            })}
-                                        </tbody>
-                                    </table>
+                                <div className="space-y-4">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-secondary text-xs">
+                                                <tr>
+                                                    <th className="px-4 py-2 text-right">التاريخ</th>
+                                                    <th className="px-4 py-2 text-right">النوع</th>
+                                                    <th className="px-4 py-2 text-right">المبلغ</th>
+                                                    <th className="px-4 py-2 text-right">الرصيد بعد</th>
+                                                    <th className="px-4 py-2 text-right">ملاحظات</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-border">
+                                                {transactions.map((tx) => {
+                                                    const typeInfo = transactionTypeLabels[tx.type] || { label: tx.type, color: 'text-gray-600 bg-gray-50', icon: DollarSign }
+                                                    const Icon = typeInfo.icon
+                                                    return (
+                                                        <tr key={tx.id} className="hover:bg-secondary/50">
+                                                            <td className="px-4 py-2 text-sm">
+                                                                {format(new Date(tx.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
+                                                            </td>
+                                                            <td className="px-4 py-2">
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeInfo.color}`}>
+                                                                    <Icon className="w-3 h-3" />
+                                                                    {typeInfo.label}
+                                                                </span>
+                                                            </td>
+                                                            <td className={`px-4 py-2 font-bold ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                {tx.amount >= 0 ? '+' : ''}${Math.abs(tx.amount).toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm text-muted-foreground">
+                                                                ${tx.balanceAfter.toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm text-muted-foreground truncate max-w-[200px]">
+                                                                {tx.notes || '-'}
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Load More Button */}
+                                    {txHasMore && (
+                                        <div className="text-center">
+                                            <button
+                                                onClick={() => handleLoadMore('transactions')}
+                                                disabled={loadingMore}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                                            >
+                                                {loadingMore ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <ChevronDown className="w-4 h-4" />
+                                                )}
+                                                تحميل المزيد ({transactions.length} من {txTotal})
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
                             {/* Operations Table */}
                             {activeTab === 'operations' && (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-secondary text-xs">
-                                            <tr>
-                                                <th className="px-4 py-2 text-right">التاريخ</th>
-                                                <th className="px-4 py-2 text-right">النوع</th>
-                                                <th className="px-4 py-2 text-right">الكارت</th>
-                                                <th className="px-4 py-2 text-right">المبلغ</th>
-                                                <th className="px-4 py-2 text-right">الحالة</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
-                                            {data.recentOperations.map((op) => {
-                                                const statusInfo = statusLabels[op.status] || { label: op.status, color: 'bg-gray-100 text-gray-700' }
-                                                return (
-                                                    <tr key={op.id} className="hover:bg-secondary/50">
-                                                        <td className="px-4 py-2 text-sm">
-                                                            {format(new Date(op.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-sm">
-                                                            {op.type === 'RENEW' ? 'تجديد' : op.type}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-sm font-mono">
-                                                            ****{op.cardNumber.slice(-4)}
-                                                        </td>
-                                                        <td className="px-4 py-2 font-bold">
-                                                            {op.amount.toLocaleString()}
-                                                        </td>
-                                                        <td className="px-4 py-2">
-                                                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                                                                {statusInfo.label}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                )
-                                            })}
-                                        </tbody>
-                                    </table>
+                                <div className="space-y-4">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-secondary text-xs">
+                                                <tr>
+                                                    <th className="px-4 py-2 text-right">التاريخ</th>
+                                                    <th className="px-4 py-2 text-right">النوع</th>
+                                                    <th className="px-4 py-2 text-right">الكارت</th>
+                                                    <th className="px-4 py-2 text-right">المبلغ</th>
+                                                    <th className="px-4 py-2 text-right">الحالة</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-border">
+                                                {operations.map((op) => {
+                                                    const statusInfo = statusLabels[op.status] || { label: op.status, color: 'bg-gray-100 text-gray-700' }
+                                                    return (
+                                                        <tr key={op.id} className="hover:bg-secondary/50">
+                                                            <td className="px-4 py-2 text-sm">
+                                                                {format(new Date(op.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm">
+                                                                {op.type === 'RENEW' ? 'تجديد' : op.type}
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm font-mono">
+                                                                ****{op.cardNumber.slice(-4)}
+                                                            </td>
+                                                            <td className="px-4 py-2 font-bold">
+                                                                ${op.amount.toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-2">
+                                                                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                                                                    {statusInfo.label}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Load More Button */}
+                                    {opHasMore && (
+                                        <div className="text-center">
+                                            <button
+                                                onClick={() => handleLoadMore('operations')}
+                                                disabled={loadingMore}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                                            >
+                                                {loadingMore ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <ChevronDown className="w-4 h-4" />
+                                                )}
+                                                تحميل المزيد ({operations.length} من {opTotal})
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

@@ -17,6 +17,11 @@ export async function GET(
 ) {
     try {
         const { id: userId } = await params
+        const { searchParams } = new URL(request.url)
+        const txLimit = parseInt(searchParams.get('txLimit') || '20')
+        const txSkip = parseInt(searchParams.get('txSkip') || '0')
+        const opLimit = parseInt(searchParams.get('opLimit') || '20')
+        const opSkip = parseInt(searchParams.get('opSkip') || '0')
 
         // 1. Check admin authentication
         const session = await auth()
@@ -133,7 +138,7 @@ export async function GET(
         if (!isBalanceValid) {
             alerts.push({
                 type: 'BALANCE_MISMATCH',
-                message: `رصيد غير متطابق: الفرق ${discrepancy.toFixed(2)} ر.س`,
+                message: `رصيد غير متطابق: الفرق ${discrepancy.toFixed(2)} $`,
                 severity: 'high'
             })
         }
@@ -197,11 +202,13 @@ export async function GET(
             }
         }
 
-        // 8. Get recent transactions (last 10)
+        // 8. Get total transaction count and recent transactions with pagination
+        const totalTransactions = await prisma.transaction.count({ where: { userId } })
         const recentTransactions = await prisma.transaction.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
-            take: 10,
+            take: txLimit,
+            skip: txSkip,
             select: {
                 id: true,
                 type: true,
@@ -213,11 +220,13 @@ export async function GET(
             }
         })
 
-        // 9. Get recent operations (last 10)
+        // 9. Get total operation count and recent operations with pagination
+        const totalOperationsCount = await prisma.operation.count({ where: { userId } })
         const recentOperations = await prisma.operation.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
-            take: 10,
+            take: opLimit,
+            skip: opSkip,
             select: {
                 id: true,
                 type: true,
@@ -253,6 +262,20 @@ export async function GET(
             alerts,
             recentTransactions,
             recentOperations,
+            pagination: {
+                transactions: {
+                    total: totalTransactions,
+                    limit: txLimit,
+                    skip: txSkip,
+                    hasMore: txSkip + txLimit < totalTransactions
+                },
+                operations: {
+                    total: totalOperationsCount,
+                    limit: opLimit,
+                    skip: opSkip,
+                    hasMore: opSkip + opLimit < totalOperationsCount
+                }
+            }
         })
 
     } catch (error) {

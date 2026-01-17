@@ -86,10 +86,17 @@ export async function GET(
         const discrepancy = actualBalance - expectedBalance
         const isBalanceValid = Math.abs(discrepancy) < 0.01
 
-        // 4. Detect Double Refunds (same operation has multiple refunds)
+        // 4. Get corrected operation IDs to exclude them from alerts
+        const correctedOperations = await prisma.operation.findMany({
+            where: { userId, corrected: true },
+            select: { id: true }
+        })
+        const correctedOpIds = new Set(correctedOperations.map(op => op.id))
+
+        // 5. Detect Double Refunds (same operation has multiple refunds) - exclude corrected
         const refundsByOperation = new Map<string, number>()
         for (const tx of transactions) {
-            if (tx.type === 'REFUND' && tx.operationId) {
+            if (tx.type === 'REFUND' && tx.operationId && !correctedOpIds.has(tx.operationId)) {
                 refundsByOperation.set(
                     tx.operationId,
                     (refundsByOperation.get(tx.operationId) || 0) + 1

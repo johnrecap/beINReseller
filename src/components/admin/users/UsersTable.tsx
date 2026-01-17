@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
 import EditUserDialog from './EditUserDialog'
 import AddBalanceDialog from './AddBalanceDialog'
 import ResetPasswordDialog from './ResetPasswordDialog'
+import UserStatsDialog from './UserStatsDialog'
 import { useTranslation } from '@/hooks/useTranslation'
 
 interface User {
@@ -36,6 +37,7 @@ export default function UsersTable() {
     const [editUser, setEditUser] = useState<User | null>(null)
     const [balanceUser, setBalanceUser] = useState<User | null>(null)
     const [resetUser, setResetUser] = useState<User | null>(null)
+    const [statsUser, setStatsUser] = useState<User | null>(null)
 
     const localeMap = {
         ar: ar,
@@ -170,6 +172,13 @@ export default function UsersTable() {
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
+                                                    onClick={() => setStatsUser(user)}
+                                                    className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"
+                                                    title="إحصائيات المستخدم"
+                                                >
+                                                    <BarChart2 className="w-4 h-4" />
+                                                </button>
+                                                <button
                                                     onClick={() => setBalanceUser(user)}
                                                     className="p-1.5 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
                                                     title={t.admin.users.actions.addBalance}
@@ -220,6 +229,7 @@ export default function UsersTable() {
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 disabled={page <= 1}
                                 className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="الصفحة السابقة"
                             >
                                 <ArrowRight className="w-4 h-4" />
                             </button>
@@ -227,6 +237,7 @@ export default function UsersTable() {
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 disabled={page >= totalPages}
                                 className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="الصفحة التالية"
                             >
                                 <ArrowLeft className="w-4 h-4" />
                             </button>
@@ -259,6 +270,12 @@ export default function UsersTable() {
                 onClose={() => setResetUser(null)}
                 userId={resetUser?.id || null}
                 username={resetUser?.username || null}
+            />
+            <UserStatsDialog
+                isOpen={!!statsUser}
+                onClose={() => setStatsUser(null)}
+                userId={statsUser?.id || null}
+                username={statsUser?.username || null}
             />
         </div>
     )

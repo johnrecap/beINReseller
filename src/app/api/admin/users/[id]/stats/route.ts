@@ -1,0 +1,262 @@
+import { NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import prisma from '@/lib/prisma'
+
+/**
+ * GET /api/admin/users/[id]/stats
+ * 
+ * جلب إحصائيات المستخدم المالية والعمليات
+ * - الملخص المالي (إيداعات/خصومات/استردادات)
+ * - مقارنة الرصيد المتوقع vs الفعلي
+ * - كشف المخالفات (استرداد مزدوج/زائد)
+ * - آخر المعاملات والعمليات
+ */
+export async function GET(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id: userId } = await params
+
+        // 1. Check admin authentication
+        const session = await auth()
+        if (!session?.user?.id || session.user.role !== 'ADMIN') {
+            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        }
+
+        // 2. Get user with current balance
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                balance: true,
+                isActive: true,
+                createdAt: true,
+            }
+        })
+
+        if (!user) {
+            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+        }
+
+        // 3. Get all transactions grouped by type
+        const transactions = await prisma.transaction.findMany({
+            where: { userId },
+            select: {
+                id: true,
+                type: true,
+                amount: true,
+                operationId: true,
+            }
+        })
+
+        // Calculate financial summary
+        let totalDeposits = 0
+        let totalDeductions = 0
+        let totalRefunds = 0
+        let totalWithdrawals = 0
+
+        for (const tx of transactions) {
+            switch (tx.type) {
+                case 'DEPOSIT':
+                    totalDeposits += tx.amount
+                    break
+                case 'OPERATION_DEDUCT':
+                    totalDeductions += Math.abs(tx.amount)
+                    break
+                case 'REFUND':
+                    totalRefunds += tx.amount
+                    break
+                case 'WITHDRAW':
+                    totalWithdrawals += Math.abs(tx.amount)
+                    break
+            }
+        }
+
+        // Calculate expected balance
+        const expectedBalance = totalDeposits - totalDeductions + totalRefunds - totalWithdrawals
+        const actualBalance = user.balance
+        const discrepancy = actualBalance - expectedBalance
+        const isBalanceValid = Math.abs(discrepancy) < 0.01
+
+        // 4. Detect Double Refunds (same operation has multiple refunds)
+        const refundsByOperation = new Map<string, number>()
+        for (const tx of transactions) {
+            if (tx.type === 'REFUND' && tx.operationId) {
+                refundsByOperation.set(
+                    tx.operationId,
+                    (refundsByOperation.get(tx.operationId) || 0) + 1
+                )
+            }
+        }
+        const doubleRefunds = Array.from(refundsByOperation.entries())
+            .filter(([, count]) => count > 1)
+            .map(([operationId, count]) => ({ operationId, count }))
+
+        // 5. Detect Over-Refunds (refund amount > operation amount)
+        const overRefunds: { operationId: string; refundAmount: number; operationAmount: number }[] = []
+
+        // Get operations that have refunds
+        const operationsWithRefunds = await prisma.operation.findMany({
+            where: {
+                userId,
+                transactions: {
+                    some: { type: 'REFUND' }
+                }
+            },
+            select: {
+                id: true,
+                amount: true,
+                transactions: {
+                    where: { type: 'REFUND' },
+                    select: { amount: true }
+                }
+            }
+        })
+
+        for (const op of operationsWithRefunds) {
+            const totalRefundForOp = op.transactions.reduce((sum, t) => sum + t.amount, 0)
+            if (totalRefundForOp > op.amount) {
+                overRefunds.push({
+                    operationId: op.id,
+                    refundAmount: totalRefundForOp,
+                    operationAmount: op.amount
+                })
+            }
+        }
+
+        // 6. Build alerts array
+        const alerts: { type: string; message: string; severity: 'high' | 'medium' | 'low'; operationId?: string }[] = []
+
+        if (!isBalanceValid) {
+            alerts.push({
+                type: 'BALANCE_MISMATCH',
+                message: `رصيد غير متطابق: الفرق ${discrepancy.toFixed(2)} ر.س`,
+                severity: 'high'
+            })
+        }
+
+        for (const dr of doubleRefunds) {
+            alerts.push({
+                type: 'DOUBLE_REFUND',
+                message: `استرداد مزدوج: العملية لها ${dr.count} استردادات`,
+                severity: 'high',
+                operationId: dr.operationId
+            })
+        }
+
+        for (const or of overRefunds) {
+            alerts.push({
+                type: 'OVER_REFUND',
+                message: `استرداد زائد: تم استرداد ${or.refundAmount} من عملية قيمتها ${or.operationAmount}`,
+                severity: 'high',
+                operationId: or.operationId
+            })
+        }
+
+        // 7. Get operation stats
+        const operationStats = await prisma.operation.groupBy({
+            by: ['status'],
+            where: { userId },
+            _count: true
+        })
+
+        const opStats = {
+            total: 0,
+            completed: 0,
+            failed: 0,
+            cancelled: 0,
+            pending: 0,
+            processing: 0
+        }
+
+        for (const stat of operationStats) {
+            opStats.total += stat._count
+            switch (stat.status) {
+                case 'COMPLETED':
+                    opStats.completed = stat._count
+                    break
+                case 'FAILED':
+                    opStats.failed = stat._count
+                    break
+                case 'CANCELLED':
+                    opStats.cancelled = stat._count
+                    break
+                case 'PENDING':
+                    opStats.pending = stat._count
+                    break
+                case 'PROCESSING':
+                case 'AWAITING_CAPTCHA':
+                case 'AWAITING_PACKAGE':
+                case 'AWAITING_FINAL_CONFIRM':
+                case 'COMPLETING':
+                    opStats.processing += stat._count
+                    break
+            }
+        }
+
+        // 8. Get recent transactions (last 10)
+        const recentTransactions = await prisma.transaction.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            select: {
+                id: true,
+                type: true,
+                amount: true,
+                balanceAfter: true,
+                notes: true,
+                createdAt: true,
+                operationId: true,
+            }
+        })
+
+        // 9. Get recent operations (last 10)
+        const recentOperations = await prisma.operation.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            select: {
+                id: true,
+                type: true,
+                cardNumber: true,
+                amount: true,
+                status: true,
+                responseMessage: true,
+                createdAt: true,
+                completedAt: true,
+            }
+        })
+
+        // 10. Return response
+        return NextResponse.json({
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                isActive: user.isActive,
+                createdAt: user.createdAt,
+            },
+            financials: {
+                totalDeposits,
+                totalDeductions,
+                totalRefunds,
+                totalWithdrawals,
+                expectedBalance,
+                actualBalance,
+                discrepancy,
+                isBalanceValid,
+            },
+            operations: opStats,
+            alerts,
+            recentTransactions,
+            recentOperations,
+        })
+
+    } catch (error) {
+        console.error('Get user stats error:', error)
+        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+    }
+}

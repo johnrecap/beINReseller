@@ -37,6 +37,7 @@ enum TransactionType {
   WITHDRAW
   REFUND
   OPERATION_DEDUCT
+  CORRECTION        // تصحيح رصيد زائد
 }
 
 model User {

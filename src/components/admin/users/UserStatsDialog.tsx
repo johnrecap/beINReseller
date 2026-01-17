@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Loader2, DollarSign, ArrowUpCircle, ArrowDownCircle, Wallet, ChevronDown } from 'lucide-react'
+import { X, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Loader2, DollarSign, ArrowUpCircle, ArrowDownCircle, Wallet, ChevronDown, CheckCircle, Wrench } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar } from 'date-fns/locale'
 
@@ -78,6 +78,7 @@ const transactionTypeLabels: Record<string, { label: string; color: string; icon
     WITHDRAW: { label: 'سحب', color: 'text-red-600 bg-red-50 dark:bg-red-900/20', icon: ArrowDownCircle },
     REFUND: { label: 'استرداد', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', icon: RefreshCw },
     OPERATION_DEDUCT: { label: 'خصم عملية', color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', icon: TrendingDown },
+    CORRECTION: { label: 'تصحيح', color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20', icon: Wrench },
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -104,6 +105,8 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
     const [opHasMore, setOpHasMore] = useState(false)
     const [txTotal, setTxTotal] = useState(0)
     const [opTotal, setOpTotal] = useState(0)
+    const [correcting, setCorrecting] = useState<string | null>(null)
+    const [correctionSuccess, setCorrectionSuccess] = useState<string | null>(null)
 
     const fetchStats = useCallback(async (loadMore = false, type?: 'transactions' | 'operations') => {
         if (!userId) return
@@ -163,6 +166,44 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
 
     const handleLoadMore = (type: 'transactions' | 'operations') => {
         fetchStats(true, type)
+    }
+
+    const handleCorrect = async (alertType: string, operationId?: string) => {
+        if (!userId) return
+
+        const key = `${alertType}-${operationId || 'none'}`
+        setCorrecting(key)
+        setCorrectionSuccess(null)
+
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/correct-balance`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: alertType, operationId })
+            })
+
+            const result = await res.json()
+
+            if (!res.ok) {
+                throw new Error(result.error || 'فشل التصحيح')
+            }
+
+            if (result.corrected) {
+                setCorrectionSuccess(key)
+                // Refresh stats after correction
+                setTimeout(() => {
+                    setTransactions([])
+                    setOperations([])
+                    fetchStats()
+                    setCorrectionSuccess(null)
+                }, 1000)
+            }
+        } catch (err) {
+            console.error('Correction error:', err)
+            alert(err instanceof Error ? err.message : 'حدث خطأ')
+        } finally {
+            setCorrecting(null)
+        }
     }
 
     if (!isOpen) return null
@@ -234,25 +275,25 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                 </div>
 
                                 <div className={`rounded-xl p-4 border ${data.financials.isBalanceValid
-                                        ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
-                                        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                    ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+                                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                                     }`}>
                                     <div className={`flex items-center gap-2 mb-2 ${data.financials.isBalanceValid
-                                            ? 'text-purple-600 dark:text-purple-400'
-                                            : 'text-red-600 dark:text-red-400'
+                                        ? 'text-purple-600 dark:text-purple-400'
+                                        : 'text-red-600 dark:text-red-400'
                                         }`}>
                                         <Wallet className="w-5 h-5" />
                                         <span className="text-sm font-medium">الرصيد الحالي</span>
                                     </div>
                                     <p className={`text-2xl font-bold ${data.financials.isBalanceValid
-                                            ? 'text-purple-700 dark:text-purple-300'
-                                            : 'text-red-700 dark:text-red-300'
+                                        ? 'text-purple-700 dark:text-purple-300'
+                                        : 'text-red-700 dark:text-red-300'
                                         }`}>
                                         ${data.financials.actualBalance.toLocaleString()}
                                     </p>
                                     <p className={`text-xs ${data.financials.isBalanceValid
-                                            ? 'text-purple-600 dark:text-purple-400'
-                                            : 'text-red-600 dark:text-red-400'
+                                        ? 'text-purple-600 dark:text-purple-400'
+                                        : 'text-red-600 dark:text-red-400'
                                         }`}>
                                         {data.financials.isBalanceValid ? '✓ متطابق' : `فرق: $${data.financials.discrepancy.toFixed(2)}`}
                                     </p>
@@ -268,9 +309,31 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                     </h3>
                                     <div className="space-y-2">
                                         {data.alerts.map((alert, idx) => (
-                                            <div key={idx} className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
-                                                <span>🔴</span>
-                                                <span>{alert.message}</span>
+                                            <div key={idx} className="flex items-center justify-between gap-2 text-sm">
+                                                <div className="flex items-start gap-2 text-red-600 dark:text-red-400">
+                                                    <span>🔴</span>
+                                                    <span>{alert.message}</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleCorrect(alert.type, alert.operationId)}
+                                                    disabled={correcting === `${alert.type}-${alert.operationId || 'none'}`}
+                                                    className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-xs font-medium transition-colors"
+                                                    title="تصحيح هذا التحذير"
+                                                >
+                                                    {correcting === `${alert.type}-${alert.operationId || 'none'}` ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                    ) : correctionSuccess === `${alert.type}-${alert.operationId || 'none'}` ? (
+                                                        <>
+                                                            <CheckCircle className="w-3 h-3" />
+                                                            تم
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Wrench className="w-3 h-3" />
+                                                            تصحيح
+                                                        </>
+                                                    )}
+                                                </button>
                                             </div>
                                         ))}
                                     </div>
@@ -317,8 +380,8 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                     <button
                                         onClick={() => setActiveTab('transactions')}
                                         className={`pb-2 px-1 font-medium transition-colors ${activeTab === 'transactions'
-                                                ? 'text-purple-600 border-b-2 border-purple-600'
-                                                : 'text-muted-foreground hover:text-foreground'
+                                            ? 'text-purple-600 border-b-2 border-purple-600'
+                                            : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                     >
                                         المعاملات ({txTotal})
@@ -326,8 +389,8 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                     <button
                                         onClick={() => setActiveTab('operations')}
                                         className={`pb-2 px-1 font-medium transition-colors ${activeTab === 'operations'
-                                                ? 'text-purple-600 border-b-2 border-purple-600'
-                                                : 'text-muted-foreground hover:text-foreground'
+                                            ? 'text-purple-600 border-b-2 border-purple-600'
+                                            : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                     >
                                         العمليات ({opTotal})

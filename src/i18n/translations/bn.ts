@@ -41,6 +41,10 @@ export const bn = {
         autoCancel: 'সময় শেষ হওয়ায় অপারেশন স্বয়ংক্রিয়ভাবে বাতিল হয়েছে। অর্থ ফেরত দেওয়া হয়েছে।',
         connectionError: 'সংযোগ ত্রুটি ঘটেছে',
         cancelConfirmation: 'আপনি কি নিশ্চিত যে এই অপারেশনটি বাতিল করতে চান?',
+        activeOperations: 'সক্রিয় অপারেশন',
+        viewAll: 'সব দেখুন',
+        unread: 'অপঠিত',
+        allRead: 'সব পঠিত হিসেবে চিহ্নিত করুন'
     },
     auth: {
         username: 'ব্যবহারকারীর নাম',
@@ -149,6 +153,9 @@ export const bn = {
             PENDING: 'অপেক্ষমান',
             PROCESSING: 'প্রক্রিয়াধীন',
             AWAITING_CAPTCHA: 'ক্যাপচার অপেক্ষায়',
+            AWAITING_PACKAGE: 'প্যাকেজ নির্বাচনের অপেক্ষায়',
+            AWAITING_FINAL_CONFIRM: 'চূড়ান্ত নিশ্চিতকরণের অপেক্ষায়',
+            COMPLETING: 'সম্পন্ন হচ্ছে',
             COMPLETED: 'সম্পন্ন',
             FAILED: 'ব্যর্থ',
             CANCELLED: 'বাতিল',
@@ -504,6 +511,18 @@ export const bn = {
                 copyPassword: 'পাসওয়ার্ড কপি করতে ক্লিক করুন',
                 statusSuccess: 'স্থিতি সফলভাবে আপডেট করা হয়েছে',
                 error: 'একটি ত্রুটি ঘটেছে'
+            },
+            userStats: {
+                title: 'ইউজার পরিসংখ্যান',
+                totalOperations: 'মোট অপারেশন',
+                successRate: 'সাফল্যের হার',
+                totalSpent: 'মোট ব্যয়',
+                lastOperation: 'শেষ অপারেশন',
+                noOperations: 'কোন অপারেশন নেই'
+            },
+            bulk: {
+                title: 'বাল্ক প্রসেসিং',
+                description: 'একাধিক কার্ড একসাথে প্রক্রিয়া করুন'
             }
         }
     },

@@ -41,6 +41,10 @@ export const en = {
         autoCancel: 'Operation automatically cancelled due to timeout. Amount refunded.',
         connectionError: 'Connection error occurred',
         cancelConfirmation: 'Are you sure you want to cancel this operation?',
+        activeOperations: 'Active Operations',
+        viewAll: 'View All',
+        unread: 'Unread',
+        allRead: 'Mark All Read'
     },
     auth: {
         username: 'Username',
@@ -149,6 +153,9 @@ export const en = {
             PENDING: 'Pending',
             PROCESSING: 'Processing',
             AWAITING_CAPTCHA: 'Awaiting Captcha',
+            AWAITING_PACKAGE: 'Awaiting Package Selection',
+            AWAITING_FINAL_CONFIRM: 'Awaiting Final Confirm',
+            COMPLETING: 'Completing',
             COMPLETED: 'Completed',
             FAILED: 'Failed',
             CANCELLED: 'Cancelled',
@@ -504,6 +511,18 @@ export const en = {
                 copyPassword: 'Click to copy password',
                 statusSuccess: 'Status updated successfully',
                 error: 'An error occurred'
+            },
+            userStats: {
+                title: 'User Statistics',
+                totalOperations: 'Total Operations',
+                successRate: 'Success Rate',
+                totalSpent: 'Total Spent',
+                lastOperation: 'Last Operation',
+                noOperations: 'No operations'
+            },
+            bulk: {
+                title: 'Bulk Processing',
+                description: 'Process multiple cards at once'
             }
         }
     },

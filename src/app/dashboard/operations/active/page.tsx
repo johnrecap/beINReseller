@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, RefreshCw, ExternalLink, XCircle, Clock, AlertCircle, CheckCircle, Package, ShieldCheck, AlertTriangle } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 type OperationStatus = 'PENDING' | 'PROCESSING' | 'AWAITING_CAPTCHA' | 'AWAITING_PACKAGE' | 'AWAITING_FINAL_CONFIRM' | 'COMPLETING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
 
@@ -27,17 +28,17 @@ interface Operation {
     finalConfirmExpiry?: string | null
 }
 
-const STATUS_CONFIG: Record<OperationStatus, { label: string; color: string; icon: React.ReactNode }> = {
-    PENDING: { label: 'في الانتظار', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: <Clock className="w-4 h-4" /> },
-    PROCESSING: { label: 'جاري المعالجة', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: <Loader2 className="w-4 h-4 animate-spin" /> },
-    AWAITING_CAPTCHA: { label: 'في انتظار الكابتشا', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <AlertCircle className="w-4 h-4" /> },
-    AWAITING_PACKAGE: { label: 'في انتظار اختيار الباقة', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', icon: <Package className="w-4 h-4" /> },
-    AWAITING_FINAL_CONFIRM: { label: 'في انتظار التأكيد النهائي', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: <ShieldCheck className="w-4 h-4" /> },
-    COMPLETING: { label: 'جاري الإتمام', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', icon: <Loader2 className="w-4 h-4 animate-spin" /> },
-    COMPLETED: { label: 'مكتملة', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: <CheckCircle className="w-4 h-4" /> },
-    FAILED: { label: 'فشلت', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: <XCircle className="w-4 h-4" /> },
-    CANCELLED: { label: 'ملغاة', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: <XCircle className="w-4 h-4" /> },
-}
+const getStatusConfig = (t: ReturnType<typeof useTranslation>['t']) => ({
+    PENDING: { label: t.status?.pending || 'Pending', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: <Clock className="w-4 h-4" /> },
+    PROCESSING: { label: t.status?.processing || 'Processing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: <Loader2 className="w-4 h-4 animate-spin" /> },
+    AWAITING_CAPTCHA: { label: t.status?.awaitingCaptcha || 'Awaiting Captcha', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <AlertCircle className="w-4 h-4" /> },
+    AWAITING_PACKAGE: { label: t.status?.awaitingPackage || 'Awaiting Package', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', icon: <Package className="w-4 h-4" /> },
+    AWAITING_FINAL_CONFIRM: { label: t.status?.awaitingFinalConfirm || 'Awaiting Confirmation', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: <ShieldCheck className="w-4 h-4" /> },
+    COMPLETING: { label: t.status?.completing || 'Completing', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', icon: <Loader2 className="w-4 h-4 animate-spin" /> },
+    COMPLETED: { label: t.status?.completed || 'Completed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: <CheckCircle className="w-4 h-4" /> },
+    FAILED: { label: t.status?.failed || 'Failed', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: <XCircle className="w-4 h-4" /> },
+    CANCELLED: { label: t.status?.cancelled || 'Cancelled', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: <XCircle className="w-4 h-4" /> },
+})
 
 // Final Confirmation Dialog Component
 function FinalConfirmDialog({
@@ -195,6 +196,8 @@ function FinalConfirmDialog({
 
 export default function ActiveOperationsPage() {
     const router = useRouter()
+    const { t } = useTranslation()
+    const STATUS_CONFIG = getStatusConfig(t)
     const [operations, setOperations] = useState<Operation[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -338,8 +341,8 @@ export default function ActiveOperationsPage() {
                         <Loader2 className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">العمليات الجارية</h1>
-                        <p className="text-muted-foreground text-sm">متابعة العمليات النشطة</p>
+                        <h1 className="text-2xl font-bold text-foreground">{t.operations?.activeOperations || 'Active Operations'}</h1>
+                        <p className="text-muted-foreground text-sm">{t.common?.trackActiveOps || 'Track active operations'}</p>
                     </div>
                 </div>
                 <button
@@ -347,7 +350,7 @@ export default function ActiveOperationsPage() {
                     className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg hover:bg-muted transition-colors"
                 >
                     <RefreshCw className="w-4 h-4" />
-                    تحديث
+                    {t.common?.refresh || 'Refresh'}
                 </button>
             </div>
 
@@ -443,12 +446,12 @@ export default function ActiveOperationsPage() {
 
             {/* Legend */}
             <div className="bg-card rounded-xl p-4 border border-border">
-                <h3 className="font-medium text-foreground mb-3">دليل الحالات:</h3>
+                <h3 className="font-medium text-foreground mb-3">{t.common?.status || 'Status Guide'}:</h3>
                 <div className="flex flex-wrap gap-3">
                     {Object.entries(STATUS_CONFIG).slice(0, 6).map(([status, config]) => (
-                        <span key={status} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
-                            {config.icon}
-                            {config.label}
+                        <span key={status} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${(config as { color: string }).color}`}>
+                            {(config as { icon: React.ReactNode }).icon}
+                            {(config as { label: string }).label}
                         </span>
                     ))}
                 </div>

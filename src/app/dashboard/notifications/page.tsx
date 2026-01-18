@@ -19,7 +19,7 @@ interface Notification {
 }
 
 export default function NotificationsPage() {
-    const { language } = useTranslation()
+    const { t, language } = useTranslation()
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
@@ -107,11 +107,11 @@ export default function NotificationsPage() {
                                 <Bell className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-800">الإشعارات</h1>
+                                <h1 className="text-xl font-bold text-gray-800">{t.notifications?.title || 'Notifications'}</h1>
                                 <p className="text-sm text-gray-500">
                                     {unreadCount > 0
-                                        ? `${unreadCount} غير مقروءة`
-                                        : 'كل الإشعارات مقروءة'}
+                                        ? `${unreadCount} ${t.notifications?.unread || 'unread'}`
+                                        : t.notifications?.allRead || 'All notifications read'}
                                 </p>
                             </div>
                         </div>
@@ -122,7 +122,7 @@ export default function NotificationsPage() {
                                 className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-xl hover:bg-purple-200 transition-colors"
                             >
                                 <CheckCheck className="w-4 h-4" />
-                                تحديد الكل كمقروء
+                                {t.notifications?.markAllRead || 'Mark all as read'}
                             </button>
                         )}
                     </div>
@@ -133,12 +133,12 @@ export default function NotificationsPage() {
                     {loading ? (
                         <div className="p-12 text-center">
                             <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-500" />
-                            <p className="mt-2 text-gray-500">جاري التحميل...</p>
+                            <p className="mt-2 text-gray-500">{t.common?.loading || 'Loading...'}</p>
                         </div>
                     ) : notifications.length === 0 ? (
                         <div className="p-12 text-center text-gray-500">
                             <Bell className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                            <p className="text-lg">لا توجد إشعارات</p>
+                            <p className="text-lg">{t.notifications?.noNotifications || 'No notifications'}</p>
                         </div>
                     ) : (
                         <div className="divide-y divide-gray-100">
@@ -194,7 +194,7 @@ export default function NotificationsPage() {
                                 disabled={page === 1}
                                 className="px-4 py-2 text-sm bg-gray-100 rounded-lg disabled:opacity-50 hover:bg-gray-200 transition-colors"
                             >
-                                السابق
+                                {t.pagination?.previous || 'Previous'}
                             </button>
                             <span className="text-sm text-gray-600">
                                 {page} / {totalPages}
@@ -204,7 +204,7 @@ export default function NotificationsPage() {
                                 disabled={page === totalPages}
                                 className="px-4 py-2 text-sm bg-gray-100 rounded-lg disabled:opacity-50 hover:bg-gray-200 transition-colors"
                             >
-                                التالي
+                                {t.pagination?.next || 'Next'}
                             </button>
                         </div>
                     )}

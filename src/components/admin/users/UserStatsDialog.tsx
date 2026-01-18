@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Loader2, DollarSign, ArrowUpCircle, ArrowDownCircle, Wallet, ChevronDown, CheckCircle, Wrench } from 'lucide-react'
 import { format } from 'date-fns'
-import { ar } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface UserStatsDialogProps {
     isOpen: boolean
@@ -73,27 +74,39 @@ interface StatsData {
     }
 }
 
-const transactionTypeLabels: Record<string, { label: string; color: string; icon: typeof TrendingUp }> = {
-    DEPOSIT: { label: 'إيداع', color: 'text-green-600 bg-green-50 dark:bg-green-900/20', icon: ArrowUpCircle },
-    WITHDRAW: { label: 'سحب', color: 'text-red-600 bg-red-50 dark:bg-red-900/20', icon: ArrowDownCircle },
-    REFUND: { label: 'استرداد', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', icon: RefreshCw },
-    OPERATION_DEDUCT: { label: 'خصم عملية', color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', icon: TrendingDown },
-    CORRECTION: { label: 'تصحيح', color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20', icon: Wrench },
-}
+const getTransactionTypeLabels = (t: ReturnType<typeof useTranslation>['t']) => ({
+    DEPOSIT: { label: t.userStats?.deposit || 'إيداع', color: 'text-green-600 bg-green-50 dark:bg-green-900/20', icon: ArrowUpCircle },
+    WITHDRAW: { label: t.userStats?.withdraw || 'سحب', color: 'text-red-600 bg-red-50 dark:bg-red-900/20', icon: ArrowDownCircle },
+    REFUND: { label: t.userStats?.refund || 'استرداد', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', icon: RefreshCw },
+    OPERATION_DEDUCT: { label: t.userStats?.operationDeduct || 'خصم عملية', color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', icon: TrendingDown },
+    CORRECTION: { label: t.userStats?.correction || 'تصحيح', color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20', icon: Wrench },
+})
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-    COMPLETED: { label: 'مكتمل', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-    FAILED: { label: 'فشل', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-    CANCELLED: { label: 'ملغى', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
-    PENDING: { label: 'قيد الانتظار', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-    PROCESSING: { label: 'قيد المعالجة', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    AWAITING_CAPTCHA: { label: 'بانتظار الكابتشا', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
-    AWAITING_PACKAGE: { label: 'بانتظار الباقة', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
-    AWAITING_FINAL_CONFIRM: { label: 'بانتظار التأكيد', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    COMPLETING: { label: 'جاري الإتمام', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
-}
+const getStatusLabels = (t: ReturnType<typeof useTranslation>['t']) => ({
+    COMPLETED: { label: t.status?.completed || 'مكتمل', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+    FAILED: { label: t.status?.failed || 'فشل', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+    CANCELLED: { label: t.status?.cancelled || 'ملغى', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
+    PENDING: { label: t.status?.pending || 'قيد الانتظار', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
+    PROCESSING: { label: t.status?.processing || 'قيد المعالجة', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    AWAITING_CAPTCHA: { label: t.status?.awaitingCaptcha || 'بانتظار الكابتشا', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+    AWAITING_PACKAGE: { label: t.status?.awaitingPackage || 'بانتظار الباقة', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
+    AWAITING_FINAL_CONFIRM: { label: t.status?.awaitingFinalConfirm || 'بانتظار التأكيد', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    COMPLETING: { label: t.status?.completing || 'جاري الإتمام', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
+})
 
 export default function UserStatsDialog({ isOpen, onClose, userId, username }: UserStatsDialogProps) {
+    const { t, locale } = useTranslation()
+    const transactionTypeLabels = getTransactionTypeLabels(t)
+    const statusLabels = getStatusLabels(t)
+
+    const getDateLocale = () => {
+        switch (locale) {
+            case 'ar': return ar
+            case 'bn': return bn
+            default: return enUS
+        }
+    }
+
     const [loading, setLoading] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
     const [data, setData] = useState<StatsData | null>(null)
@@ -414,7 +427,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             </thead>
                                             <tbody className="divide-y divide-border">
                                                 {transactions.map((tx) => {
-                                                    const typeInfo = transactionTypeLabels[tx.type] || { label: tx.type, color: 'text-gray-600 bg-gray-50', icon: DollarSign }
+                                                    const typeInfo = (transactionTypeLabels as Record<string, typeof transactionTypeLabels['DEPOSIT']>)[tx.type] || { label: tx.type, color: 'text-gray-600 bg-gray-50', icon: DollarSign }
                                                     const Icon = typeInfo.icon
                                                     return (
                                                         <tr key={tx.id} className="hover:bg-secondary/50">
@@ -479,7 +492,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             </thead>
                                             <tbody className="divide-y divide-border">
                                                 {operations.map((op) => {
-                                                    const statusInfo = statusLabels[op.status] || { label: op.status, color: 'bg-gray-100 text-gray-700' }
+                                                    const statusInfo = (statusLabels as Record<string, typeof statusLabels['COMPLETED']>)[op.status] || { label: op.status, color: 'bg-gray-100 text-gray-700' }
                                                     return (
                                                         <tr key={op.id} className="hover:bg-secondary/50">
                                                             <td className="px-4 py-2 text-sm">

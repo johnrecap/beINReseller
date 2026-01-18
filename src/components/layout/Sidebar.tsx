@@ -36,8 +36,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const resellerLinks = [
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
-        { href: '/dashboard/renew', label: 'تجديد تفاعلي', icon: Sparkles },
-        { href: '/dashboard/operations/active', label: 'العمليات الجارية', icon: Loader2 },
+        { href: '/dashboard/renew', label: t.bulk?.interactiveRenewal || 'Interactive Renewal', icon: Sparkles },
+        { href: '/dashboard/operations/active', label: t.operations?.activeOperations || 'Active Operations', icon: Loader2 },
         { href: '/dashboard/history', label: t.sidebar.history, icon: History },
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
         { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },

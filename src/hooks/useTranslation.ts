@@ -11,6 +11,7 @@ export function useTranslation() {
     return {
         t,
         language,
+        locale: language,
         dir: language === 'ar' ? 'rtl' : 'ltr'
     }
 }

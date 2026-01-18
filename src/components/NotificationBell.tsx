@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Bell, CheckCheck, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
-import { ar } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Notification {
     id: string
@@ -17,10 +18,19 @@ interface Notification {
 }
 
 export default function NotificationBell() {
+    const { t, locale } = useTranslation()
     const [isOpen, setIsOpen] = useState(false)
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
     const dropdownRef = useRef<HTMLDivElement>(null)
+
+    const getDateLocale = () => {
+        switch (locale) {
+            case 'ar': return ar
+            case 'bn': return bn
+            default: return enUS
+        }
+    }
 
     const fetchNotifications = async () => {
         try {
@@ -103,7 +113,7 @@ export default function NotificationBell() {
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="الإشعارات"
+                aria-label={t.notifications?.title || 'Notifications'}
             >
                 <Bell className="w-6 h-6" />
                 {unreadCount > 0 && (
@@ -118,14 +128,14 @@ export default function NotificationBell() {
                 <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50" dir="rtl">
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-                        <h3 className="font-bold text-gray-800">الإشعارات</h3>
+                        <h3 className="font-bold text-gray-800">{t.notifications?.title || 'Notifications'}</h3>
                         {unreadCount > 0 && (
                             <button
                                 onClick={markAllAsRead}
                                 className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
                                 <CheckCheck className="w-4 h-4" />
-                                تحديد الكل كمقروء
+                                {t.notifications?.markAllRead || 'Mark all as read'}
                             </button>
                         )}
                     </div>
@@ -135,7 +145,7 @@ export default function NotificationBell() {
                         {notifications.length === 0 ? (
                             <div className="p-8 text-center text-gray-500">
                                 <Bell className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                                <p>لا توجد إشعارات</p>
+                                <p>{t.notifications?.noNotifications || 'No notifications'}</p>
                             </div>
                         ) : (
                             notifications.map((notification) => (
@@ -168,7 +178,7 @@ export default function NotificationBell() {
                                         <p className="text-xs text-gray-400 mt-1">
                                             {formatDistanceToNow(new Date(notification.createdAt), {
                                                 addSuffix: true,
-                                                locale: ar,
+                                                locale: getDateLocale(),
                                             })}
                                         </p>
                                     </div>
@@ -189,7 +199,7 @@ export default function NotificationBell() {
                                 href="/dashboard/notifications"
                                 className="text-sm text-blue-600 hover:text-blue-800"
                             >
-                                عرض كل الإشعارات
+                                {t.notifications?.viewAll || 'View all notifications'}
                             </a>
                         </div>
                     )}

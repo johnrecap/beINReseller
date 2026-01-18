@@ -25,7 +25,7 @@ export default async function AdminSettingsPage() {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">إعدادات النظام</h1>
-                    <p className="text-muted-foreground text-sm">تحديد الأسعار والتحكم في وضع الصيانة</p>
+                    <p className="text-muted-foreground text-sm">التحكم في وضع الصيانة ورسائل التنبيه</p>
                 </div>
             </div>
 

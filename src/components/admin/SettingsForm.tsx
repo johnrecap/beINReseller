@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, Loader2, AlertTriangle, Bell, DollarSign, Settings as SettingsIcon } from 'lucide-react'
+import { Save, Loader2, AlertTriangle, Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
 
@@ -60,51 +60,7 @@ export default function SettingsForm() {
     return (
         <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl mx-auto pb-12">
 
-            {/* 1. Subscription Prices */}
-            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
-                <div className="bg-blue-50/50 dark:bg-blue-900/20 p-4 border-b border-blue-100 dark:border-blue-800 flex items-center gap-2">
-                    <DollarSign className="w-5 h-5 text-blue-600" />
-                    <h3 className="font-bold text-foreground">{t.admin.settings.sections.subscriptionPrices} ({t.header.currency})</h3>
-                </div>
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1">{t.admin.settings.fields.renew1Month}</label>
-                        <input name="price_1_month" type="number" step="0.01" defaultValue={settings.price_1_month} className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground dir-ltr" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1">{t.admin.settings.fields.renew3Months}</label>
-                        <input name="price_3_months" type="number" step="0.01" defaultValue={settings.price_3_months} className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground dir-ltr" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1">{t.admin.settings.fields.renew6Months}</label>
-                        <input name="price_6_months" type="number" step="0.01" defaultValue={settings.price_6_months} className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground dir-ltr" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1">{t.admin.settings.fields.renew12Months}</label>
-                        <input name="price_12_months" type="number" step="0.01" defaultValue={settings.price_12_months} className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground dir-ltr" />
-                    </div>
-                </div>
-            </div>
-
-            {/* 2. Service Prices */}
-            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
-                <div className="bg-purple-50/50 dark:bg-purple-900/20 p-4 border-b border-purple-100 dark:border-purple-800 flex items-center gap-2">
-                    <SettingsIcon className="w-5 h-5 text-purple-600" />
-                    <h3 className="font-bold text-foreground">{t.admin.settings.sections.servicePrices}</h3>
-                </div>
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1">{t.admin.settings.fields.checkBalancePrice}</label>
-                        <input name="price_check_balance" type="number" step="0.01" defaultValue={settings.price_check_balance} className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground dir-ltr" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-foreground mb-1">{t.admin.settings.fields.signalRefreshPrice}</label>
-                        <input name="price_signal_refresh" type="number" step="0.01" defaultValue={settings.price_signal_refresh} className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground dir-ltr" />
-                    </div>
-                </div>
-            </div>
-
-            {/* 3. System System */}
+            {/* System Settings */}
             <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                 <div className="bg-amber-50/50 dark:bg-amber-900/20 p-4 border-b border-amber-100 dark:border-amber-800 flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5 text-amber-600" />

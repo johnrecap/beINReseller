@@ -133,13 +133,13 @@ export default function TransactionsTable() {
             {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-border">
                     <p className="text-sm text-muted-foreground">
-                        {page} / {totalPages}
+                        {t.pagination?.page || 'Page'} {page} {t.pagination?.of || 'of'} {totalPages}
                     </p>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page <= 1}
-                            title={t.common.back}
+                            title={t.pagination?.previous || 'Previous'}
                             className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronRight className="w-4 h-4" />
@@ -147,7 +147,7 @@ export default function TransactionsTable() {
                         <button
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                             disabled={page >= totalPages}
-                            title={t.common.confirm}
+                            title={t.pagination?.next || 'Next'}
                             className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft className="w-4 h-4" />

@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface BeinAccount {
     id: string
@@ -68,6 +69,7 @@ interface PoolStatus {
 }
 
 export default function BeinAccountsPage() {
+    const { t } = useTranslation()
     const { data: session, status } = useSession()
     const router = useRouter()
     const [accounts, setAccounts] = useState<BeinAccount[]>([])

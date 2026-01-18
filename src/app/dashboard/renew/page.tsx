@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { useTranslation } from '@/hooks/useTranslation'
 
 // Types
 type WizardStep = 'card-input' | 'processing' | 'captcha' | 'packages' | 'completing' | 'awaiting-final-confirm' | 'result'
@@ -144,6 +145,7 @@ function FinalConfirmTimer({
 }
 
 export default function RenewWizardPage() {
+    const { t } = useTranslation()
     const searchParams = useSearchParams()
     const { balance, refetch: refetchBalance } = useBalance()
 

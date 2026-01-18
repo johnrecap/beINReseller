@@ -186,14 +186,13 @@ export default function OperationsTable({
             {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-border">
                     <p className="text-sm text-muted-foreground">
-                        {language === 'en' ? `Page ${page} of ${totalPages}` : `${t.common.noData.replace('No Data', '')} ${page} / ${totalPages}`}
-                        {page} / {totalPages}
+                        {t.pagination?.page || 'Page'} {page} {t.pagination?.of || 'of'} {totalPages}
                     </p>
                     <div className="flex gap-2">
                         <button
                             onClick={() => onPageChange(page - 1)}
                             disabled={page <= 1}
-                            title={t.common.back}
+                            title={t.pagination?.previous || 'Previous'}
                             className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronRight className="w-4 h-4" />
@@ -201,7 +200,7 @@ export default function OperationsTable({
                         <button
                             onClick={() => onPageChange(page + 1)}
                             disabled={page >= totalPages}
-                            title={t.common.confirm} // Using confirm as forward? no. Need next/prev keys. using back for prev. for next I can use chevron.
+                            title={t.pagination?.next || 'Next'}
                             className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft className="w-4 h-4" />

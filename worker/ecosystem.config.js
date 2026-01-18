@@ -25,6 +25,7 @@ module.exports = {
             cwd: __dirname,
             env: {
                 WORKER_ID: 'worker-1',
+                USE_HTTP_CLIENT: 'true',        // Enable fast HTTP mode
                 WORKER_CONCURRENCY: '5',        // Increased from 3
                 WORKER_RATE_LIMIT: '30',
                 NODE_ENV: 'production',
@@ -52,6 +53,7 @@ module.exports = {
             cwd: __dirname,
             env: {
                 WORKER_ID: 'worker-2',
+                USE_HTTP_CLIENT: 'true',        // Enable fast HTTP mode
                 WORKER_CONCURRENCY: '5',        // Increased from 3
                 WORKER_RATE_LIMIT: '30',
                 NODE_ENV: 'production',
@@ -76,6 +78,7 @@ module.exports = {
             cwd: __dirname,
             env: {
                 WORKER_ID: 'worker-3',
+                USE_HTTP_CLIENT: 'true',        // Enable fast HTTP mode
                 WORKER_CONCURRENCY: '5',        // Increased from 3
                 WORKER_RATE_LIMIT: '30',
                 NODE_ENV: 'production',

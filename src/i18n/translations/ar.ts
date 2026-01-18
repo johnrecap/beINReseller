@@ -220,6 +220,9 @@ export const ar = {
         pending: 'قيد الانتظار',
         processing: 'جاري المعالجة',
         awaitingCaptcha: 'مطلوب رمز تحقق',
+        awaitingPackage: 'في انتظار اختيار الباقة',
+        awaitingFinalConfirm: 'في انتظار التأكيد النهائي',
+        completing: 'جاري الإتمام',
         completed: 'مكتملة',
         failed: 'فشلت',
         cancelled: 'ملغاة',
@@ -228,6 +231,19 @@ export const ar = {
         renew: 'تجديد الاشتراك',
         checkBalance: 'استعلام عن الرصيد',
         refreshSignal: 'تحديث الإشارة',
+        activeOperations: 'العمليات النشطة',
+        confirmFinalPayment: 'تأكيد الدفع النهائي',
+        lastStepBeforePurchase: 'هذه الخطوة الأخيرة قبل إتمام الشراء',
+        package: 'الباقة',
+        price: 'السعر',
+        stbNumber: 'رقم الريسيفر',
+        cardNumber: 'رقم الكارت',
+        warning: 'تحذير',
+        confirmPurchase: 'تأكيد الشراء',
+        cancelPurchase: 'إلغاء الشراء',
+        notSpecified: 'غير محدد',
+        expiresIn: 'ينتهي خلال',
+        seconds: 'ثانية',
     },
     admin: {
         dashboard: {
@@ -563,5 +579,22 @@ export const ar = {
         of: 'من',
         previous: 'السابق',
         next: 'التالي'
+    },
+    userStats: {
+        deposit: 'إيداع',
+        withdraw: 'سحب',
+        refund: 'استرداد',
+        operationDeduct: 'خصم عملية',
+        correction: 'تصحيح'
+    },
+    bulk: {
+        title: 'عمليات جماعية',
+        description: 'تجديد عدة اشتراكات دفعة واحدة',
+        interactiveRenewal: 'تجديد تفاعلي',
+        instructions: 'التعليمات',
+        instruction1: 'أدخل رقم كارت واحد في كل سطر',
+        instruction2: 'الحد الأقصى 10 كروت في الطلب الواحد',
+        instruction3: 'سيتم تطبيق نفس المدة على جميع الكروت',
+        instruction4: 'سيتم تخطي الكروت التي لها عمليات جارية'
     }
 }

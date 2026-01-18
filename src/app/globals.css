@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap');
+/* Font is loaded via next/font in layout.tsx - DO NOT use @import here */
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));

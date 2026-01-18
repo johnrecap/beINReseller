@@ -248,6 +248,7 @@ export const bn = {
     },
     notifications: {
         title: 'বিজ্ঞপ্তি',
+        subtitle: 'সব বিজ্ঞপ্তি দেখুন',
         unread: 'অপঠিত',
         allRead: 'সব বিজ্ঞপ্তি পড়া হয়েছে',
         markAllRead: 'সব পঠিত হিসেবে চিহ্নিত করুন',

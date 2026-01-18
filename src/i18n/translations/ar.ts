@@ -553,7 +553,10 @@ export const ar = {
         title: 'الإشعارات',
         subtitle: 'عرض جميع الإشعارات',
         noNotifications: 'لا توجد إشعارات',
-        markAllRead: 'تحديد الكل كمقروء'
+        markAllRead: 'تحديد الكل كمقروء',
+        unread: 'غير مقروء',
+        allRead: 'جميع الإشعارات مقروءة',
+        viewAll: 'عرض الكل'
     },
     pagination: {
         page: 'صفحة',

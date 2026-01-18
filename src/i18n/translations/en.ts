@@ -248,6 +248,7 @@ export const en = {
     },
     notifications: {
         title: 'Notifications',
+        subtitle: 'View all notifications',
         unread: 'unread',
         allRead: 'All notifications read',
         markAllRead: 'Mark all as read',

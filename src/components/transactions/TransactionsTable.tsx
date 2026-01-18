@@ -21,6 +21,7 @@ const typeColors: Record<string, string> = {
     WITHDRAW: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
     REFUND: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
     OPERATION_DEDUCT: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+    CORRECTION: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
 }
 
 export default function TransactionsTable() {
@@ -104,8 +105,13 @@ export default function TransactionsTable() {
                                     {(page - 1) * 10 + index + 1}
                                 </td>
                                 <td className="px-4 py-3">
-                                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${typeColors[tx.type] || 'bg-gray-100'}`}>
-                                        {(t.transactions as Record<string, string>)[tx.type === 'DEPOSIT' ? 'deposit' : tx.type === 'WITHDRAW' ? 'withdrawal' : tx.type === 'OPERATION_DEDUCT' ? 'operationDeduction' : 'refund'] || tx.type}
+                                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${typeColors[tx.type] || 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                        {tx.type === 'DEPOSIT' ? t.transactions.deposit :
+                                            tx.type === 'WITHDRAW' ? t.transactions.withdrawal :
+                                                tx.type === 'OPERATION_DEDUCT' ? t.transactions.operationDeduction :
+                                                    tx.type === 'REFUND' ? t.transactions.refund :
+                                                        tx.type === 'CORRECTION' ? ((t.userStats as Record<string, string>)?.correction || 'تصحيح') :
+                                                            tx.type}
                                     </span>
                                 </td>
                                 <td className={`px-4 py-3 text-sm font-bold ${tx.amount > 0 ? 'text-green-600' : 'text-red-600'} dir-ltr text-right`}>

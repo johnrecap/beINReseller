@@ -29,10 +29,11 @@ interface OperationResult {
 
 // Step Indicator Component
 function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
+    const { t } = useTranslation()
     const steps = [
-        { id: 'card-input', label: 'رقم الكارت', icon: CreditCard },
-        { id: 'packages', label: 'اختيار الباقة', icon: Package },
-        { id: 'result', label: 'النتيجة', icon: CheckCircle },
+        { id: 'card-input', label: (t.renew as any)?.steps?.cardInput || 'رقم الكارت', icon: CreditCard },
+        { id: 'packages', label: (t.renew as any)?.steps?.selectPackage || 'اختيار الباقة', icon: Package },
+        { id: 'result', label: (t.renew as any)?.steps?.result || 'النتيجة', icon: CheckCircle },
     ]
 
     const getStepStatus = (stepId: string) => {
@@ -88,6 +89,7 @@ function FinalConfirmTimer({
     onWarning?: () => void
     warningThreshold?: number
 }) {
+    const { t } = useTranslation()
     const [timeLeft, setTimeLeft] = useState<number>(0)
     const hasWarned = useRef(false)
     const hasExpired = useRef(false)
@@ -127,7 +129,7 @@ function FinalConfirmTimer({
         return (
             <div className="flex items-center justify-center gap-2 text-red-600 dark:text-red-400">
                 <Clock className="h-4 w-4" />
-                <span className="text-sm font-medium">انتهت المهلة!</span>
+                <span className="text-sm font-medium">{(t.renew as any)?.timer?.expired || 'انتهت المهلة!'}</span>
             </div>
         )
     }
@@ -139,7 +141,7 @@ function FinalConfirmTimer({
         <div className={`flex items-center justify-center gap-2 ${isWarning ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-orange-600 dark:text-orange-400'}`}>
             <Clock className="h-4 w-4" />
             <span className={`text-sm ${isWarning ? 'font-bold' : ''}`}>
-                الوقت المتبقي: {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                {(t.renew as any)?.timer?.remaining || 'الوقت المتبقي:'} {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </span>
         </div>
     )
@@ -209,11 +211,11 @@ export default function RenewWizardPage() {
                 setStbNumber(data.stbNumber)
                 setStep('packages')
             } else if (data.status === 'COMPLETED') {
-                setResult({ success: true, message: data.message || 'تم التجديد بنجاح!' })
+                setResult({ success: true, message: data.message || (t.renew as any)?.result?.success || 'تم التجديد بنجاح!' })
                 setStep('result')
                 refetchBalance()
             } else if (data.status === 'FAILED') {
-                setResult({ success: false, message: data.message || 'فشلت العملية' })
+                setResult({ success: false, message: data.message || (t.renew as any)?.result?.failed || 'فشلت العملية' })
                 setStep('result')
             } else if (data.status === 'AWAITING_FINAL_CONFIRM') {
                 // Show final confirmation dialog
@@ -249,12 +251,12 @@ export default function RenewWizardPage() {
 
             if (res.ok) {
                 setStep('completing')
-                toast.success('جاري إتمام الشراء النهائي...')
+                toast.success((t.renew as any)?.toast?.completingPurchase || 'جاري إتمام الشراء النهائي...')
             } else {
-                toast.error(data.error || 'فشل في تأكيد الدفع')
+                toast.error(data.error || (t.renew as any)?.toast?.confirmFailed || 'فشل في تأكيد الدفع')
             }
         } catch {
-            toast.error('حدث خطأ في الاتصال')
+            toast.error((t.renew as any)?.toast?.connectionError || 'حدث خطأ في الاتصال')
         } finally {
             setIsConfirmLoading(false)
         }
@@ -276,17 +278,17 @@ export default function RenewWizardPage() {
 
             if (res.ok) {
                 const message = isAutoCancel
-                    ? 'تم إلغاء العملية تلقائياً لانتهاء المهلة واسترداد المبلغ'
-                    : 'تم إلغاء العملية واسترداد المبلغ'
+                    ? (t.renew as any)?.toast?.autoCancelled || 'تم إلغاء العملية تلقائياً لانتهاء المهلة واسترداد المبلغ'
+                    : (t.renew as any)?.toast?.cancelled || 'تم إلغاء العملية واسترداد المبلغ'
                 setResult({ success: false, message })
                 setStep('result')
                 refetchBalance()
                 toast.info(message)
             } else {
-                toast.error(data.error || 'فشل في إلغاء العملية')
+                toast.error(data.error || (t.renew as any)?.toast?.cancelFailed || 'فشل في إلغاء العملية')
             }
         } catch {
-            toast.error('حدث خطأ في الاتصال')
+            toast.error((t.renew as any)?.toast?.connectionError || 'حدث خطأ في الاتصال')
         } finally {
             setIsConfirmLoading(false)
             setIsAutoCancelling(false)
@@ -297,10 +299,10 @@ export default function RenewWizardPage() {
     // Handle expiry warning (10 seconds before auto-cancel)
     const handleExpiryWarning = useCallback(() => {
         setShowExpiryWarning(true)
-        toast.warning('⚠️ سيتم إلغاء العملية تلقائياً خلال 10 ثواني!', {
+        toast.warning((t.renew as any)?.toast?.expiryWarning || '⚠️ سيتم إلغاء العملية تلقائياً خلال 10 ثواني!', {
             duration: 10000,
         })
-    }, [])
+    }, [t])
 
     // Handle auto-cancel when timer expires
     const handleAutoExpire = useCallback(() => {
@@ -313,7 +315,7 @@ export default function RenewWizardPage() {
     // Start renewal
     const handleStartRenewal = async () => {
         if (cardNumber.length < 10) {
-            toast.error('رقم الكارت يجب أن يكون 10 أرقام على الأقل')
+            toast.error((t.renew as any)?.cardInput?.error || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل')
             return
         }
 
@@ -333,9 +335,9 @@ export default function RenewWizardPage() {
 
             setOperationId(data.operationId)
             setStep('processing')
-            toast.success('جاري بدء العملية...')
+            toast.success((t.renew as any)?.toast?.starting || 'جاري بدء العملية...')
         } catch {
-            toast.error('حدث خطأ في الاتصال')
+            toast.error((t.renew as any)?.toast?.connectionError || 'حدث خطأ في الاتصال')
         } finally {
             setLoading(false)
         }
@@ -355,16 +357,16 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (!res.ok) {
-                toast.error(data.error || 'الكابتشا غير صحيحة')
+                toast.error(data.error || (t.renew as any)?.toast?.captchaInvalid || 'الكابتشا غير صحيحة')
                 return
             }
 
             setCaptchaSolution('')
             setCaptchaSubmitted(true)  // Mark that we submitted CAPTCHA
             setStep('processing')
-            toast.success('جاري تحميل الباقات...')
+            toast.success((t.renew as any)?.toast?.loadingPackages || 'جاري تحميل الباقات...')
         } catch {
-            toast.error('حدث خطأ')
+            toast.error((t.renew as any)?.toast?.connectionError || 'حدث خطأ')
         } finally {
             setLoading(false)
         }
@@ -378,7 +380,7 @@ export default function RenewWizardPage() {
         if (!selectedPkg) return
 
         if (balance < selectedPkg.price) {
-            toast.error('رصيد غير كافي')
+            toast.error((t.renew as any)?.toast?.insufficientBalance || 'رصيد غير كافي')
             return
         }
 
@@ -395,15 +397,15 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (!res.ok) {
-                toast.error(data.error || 'حدث خطأ')
+                toast.error(data.error || (t.renew as any)?.toast?.connectionError || 'حدث خطأ')
                 return
             }
 
             setStep('completing')
             refetchBalance()
-            toast.success('جاري إتمام الشراء...')
+            toast.success((t.renew as any)?.toast?.completingPurchase || 'جاري إتمام الشراء...')
         } catch {
-            toast.error('حدث خطأ')
+            toast.error((t.renew as any)?.toast?.connectionError || 'حدث خطأ')
         } finally {
             setLoading(false)
         }
@@ -423,7 +425,7 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (!res.ok) {
-                toast.error(data.error || 'فشل تطبيق الكود')
+                toast.error(data.error || (t.renew as any)?.toast?.promoFailed || 'فشل تطبيق الكود')
                 return
             }
 
@@ -431,12 +433,12 @@ export default function RenewWizardPage() {
             if (data.packages && data.packages.length > 0) {
                 setPackages(data.packages)
                 setSelectedPackageIndex(null) // Reset selection
-                toast.success('تم تطبيق الكود! الأسعار محدثة')
+                toast.success((t.renew as any)?.toast?.promoApplied || 'تم تطبيق الكود! الأسعار محدثة')
             } else {
-                toast.warning('تم تطبيق الكود لكن الباقات لم تتغير')
+                toast.warning((t.renew as any)?.toast?.promoApplied || 'تم تطبيق الكود لكن الباقات لم تتغير')
             }
         } catch {
-            toast.error('حدث خطأ في تطبيق الكود')
+            toast.error((t.renew as any)?.toast?.promoFailed || 'حدث خطأ في تطبيق الكود')
         } finally {
             setLoading(false)
         }

@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useBalance } from '@/hooks/useBalance'
+import { useMaintenance } from '@/hooks/useMaintenance'
 import { Loader2, CheckCircle, XCircle, AlertCircle, CreditCard, Package, Lock, Sparkles, ShieldCheck, Clock, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
+import MaintenanceOverlay from '@/components/shared/MaintenanceOverlay'
 
 // Types
 type WizardStep = 'card-input' | 'processing' | 'captcha' | 'packages' | 'completing' | 'awaiting-final-confirm' | 'result'
@@ -151,6 +153,7 @@ export default function RenewWizardPage() {
     const { t } = useTranslation()
     const searchParams = useSearchParams()
     const { balance, refetch: refetchBalance } = useBalance()
+    const { isMaintenanceMode, maintenanceMessage, isLoading: isMaintenanceLoading } = useMaintenance()
 
     // State
     const [step, setStep] = useState<WizardStep>('card-input')
@@ -466,6 +469,11 @@ export default function RenewWizardPage() {
 
     return (
         <div className="container max-w-2xl mx-auto py-8 px-4">
+            {/* Maintenance Mode Overlay - blocks interaction when enabled */}
+            {!isMaintenanceLoading && isMaintenanceMode && (
+                <MaintenanceOverlay message={maintenanceMessage} />
+            )}
+
             <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent">
                     {(t.renew as any)?.title || 'تجديد اشتراك beIN'}

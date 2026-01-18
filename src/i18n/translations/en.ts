@@ -611,5 +611,10 @@ export const en = {
             cancelFailed: 'Failed to cancel operation',
             expiryWarning: 'Auto-cancel in 10 seconds!'
         }
+    },
+    maintenance: {
+        title: 'System Under Maintenance',
+        message: 'System is under maintenance, please try again later',
+        hint: 'You can browse other pages from the sidebar'
     }
 }

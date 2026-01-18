@@ -506,5 +506,90 @@ export const en = {
                 error: 'An error occurred'
             }
         }
+    },
+    renew: {
+        title: 'beIN Subscription Renewal',
+        subtitle: 'Choose the right package for you',
+        steps: {
+            cardInput: 'Card Number',
+            selectPackage: 'Select Package',
+            result: 'Result'
+        },
+        timer: {
+            expired: 'Time expired!',
+            remaining: 'Time remaining:'
+        },
+        cardInput: {
+            title: 'Enter Card Number',
+            description: 'Enter your 10-16 digit beIN card number',
+            label: 'Card Number',
+            error: 'Card number must be at least 10 digits',
+            loading: 'Starting...',
+            button: 'Start Renewal'
+        },
+        processing: {
+            title: 'Processing...',
+            description: 'Connecting to beIN and fetching available packages'
+        },
+        captcha: {
+            title: 'Solve Captcha',
+            description: 'Enter the characters shown in the image',
+            label: 'Solution',
+            loading: 'Verifying...',
+            button: 'Submit'
+        },
+        packages: {
+            title: 'Select Package',
+            receiverNumber: 'Receiver:',
+            noPackages: 'No packages available for this card',
+            promoLabel: 'Promo Code (optional)',
+            applyPromo: 'Apply',
+            currentBalance: 'Your balance:',
+            showDetails: 'Show Details & Confirm',
+            confirmTitle: 'Confirm Purchase',
+            confirmMessage: 'Please review details before continuing',
+            selectedPackage: 'Selected Package:',
+            totalAmount: 'Total Amount:',
+            promoApplied: 'Promo Code:',
+            editChoice: 'Edit Choice',
+            purchasing: 'Purchasing...',
+            confirmPurchase: 'Confirm Purchase'
+        },
+        completing: {
+            title: 'Completing purchase...',
+            warning: 'Do not close this page'
+        },
+        finalConfirm: {
+            title: 'Final Payment Confirmation',
+            description: 'This is the last step before completing purchase',
+            package: 'Package:',
+            price: 'Price:',
+            receiver: 'Receiver:',
+            cardNumber: 'Card:',
+            warning: 'Auto-cancel in 10 seconds!',
+            cancel: 'Cancel',
+            confirm: 'Confirm Payment',
+            confirming: 'Confirming...'
+        },
+        result: {
+            success: 'Renewal successful!',
+            failed: 'Operation failed',
+            newOperation: 'New Operation'
+        },
+        toast: {
+            starting: 'Starting operation...',
+            loadingPackages: 'Loading packages...',
+            completingPurchase: 'Completing final purchase...',
+            confirmFailed: 'Failed to confirm payment',
+            connectionError: 'Connection error',
+            insufficientBalance: 'Insufficient balance',
+            promoApplied: 'Promo applied! Prices updated',
+            promoFailed: 'Failed to apply promo',
+            captchaInvalid: 'Invalid captcha',
+            autoCancelled: 'Operation auto-cancelled due to timeout. Amount refunded.',
+            cancelled: 'Operation cancelled. Amount refunded.',
+            cancelFailed: 'Failed to cancel operation',
+            expiryWarning: 'Auto-cancel in 10 seconds!'
+        }
     }
 }

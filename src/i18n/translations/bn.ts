@@ -507,4 +507,89 @@ export const bn = {
             }
         }
     },
+    renew: {
+        title: 'beIN সাবস্ক্রিপশন রিনিউ',
+        subtitle: 'আপনার জন্য সঠিক প্যাকেজ বেছে নিন',
+        steps: {
+            cardInput: 'কার্ড নম্বর',
+            selectPackage: 'প্যাকেজ নির্বাচন',
+            result: 'ফলাফল'
+        },
+        timer: {
+            expired: 'সময় শেষ!',
+            remaining: 'অবশিষ্ট সময়:'
+        },
+        cardInput: {
+            title: 'কার্ড নম্বর লিখুন',
+            description: '১০-১৬ সংখ্যার beIN কার্ড নম্বর লিখুন',
+            label: 'কার্ড নম্বর',
+            error: 'কার্ড নম্বর কমপক্ষে ১০ সংখ্যার হতে হবে',
+            loading: 'শুরু হচ্ছে...',
+            button: 'রিনিউ শুরু করুন'
+        },
+        processing: {
+            title: 'প্রসেসিং...',
+            description: 'beIN এ সংযোগ করা হচ্ছে এবং প্যাকেজ আনা হচ্ছে'
+        },
+        captcha: {
+            title: 'ক্যাপচা সমাধান করুন',
+            description: 'ছবিতে দেখানো অক্ষরগুলি লিখুন',
+            label: 'সমাধান',
+            loading: 'যাচাই করা হচ্ছে...',
+            button: 'জমা দিন'
+        },
+        packages: {
+            title: 'প্যাকেজ নির্বাচন করুন',
+            receiverNumber: 'রিসিভার:',
+            noPackages: 'এই কার্ডের জন্য কোনো প্যাকেজ নেই',
+            promoLabel: 'প্রোমো কোড (ঐচ্ছিক)',
+            applyPromo: 'প্রয়োগ',
+            currentBalance: 'আপনার ব্যালেন্স:',
+            showDetails: 'বিবরণ দেখুন',
+            confirmTitle: 'ক্রয় নিশ্চিত করুন',
+            confirmMessage: 'অগ্রসর হওয়ার আগে বিবরণ পর্যালোচনা করুন',
+            selectedPackage: 'নির্বাচিত প্যাকেজ:',
+            totalAmount: 'মোট পরিমাণ:',
+            promoApplied: 'প্রোমো কোড:',
+            editChoice: 'পরিবর্তন করুন',
+            purchasing: 'ক্রয় হচ্ছে...',
+            confirmPurchase: 'ক্রয় নিশ্চিত করুন'
+        },
+        completing: {
+            title: 'ক্রয় সম্পন্ন হচ্ছে...',
+            warning: 'এই পেজ বন্ধ করবেন না'
+        },
+        finalConfirm: {
+            title: 'চূড়ান্ত পেমেন্ট নিশ্চিতকরণ',
+            description: 'ক্রয় সম্পন্ন করার আগে এটি শেষ ধাপ',
+            package: 'প্যাকেজ:',
+            price: 'মূল্য:',
+            receiver: 'রিসিভার:',
+            cardNumber: 'কার্ড:',
+            warning: '১০ সেকেন্ডে স্বয়ংক্রিয় বাতিল!',
+            cancel: 'বাতিল',
+            confirm: 'পেমেন্ট নিশ্চিত',
+            confirming: 'নিশ্চিত করা হচ্ছে...'
+        },
+        result: {
+            success: 'রিনিউ সফল!',
+            failed: 'অপারেশন ব্যর্থ',
+            newOperation: 'নতুন অপারেশন'
+        },
+        toast: {
+            starting: 'অপারেশন শুরু হচ্ছে...',
+            loadingPackages: 'প্যাকেজ লোড হচ্ছে...',
+            completingPurchase: 'চূড়ান্ত ক্রয় সম্পন্ন হচ্ছে...',
+            confirmFailed: 'পেমেন্ট নিশ্চিত করতে ব্যর্থ',
+            connectionError: 'সংযোগ ত্রুটি',
+            insufficientBalance: 'অপর্যাপ্ত ব্যালেন্স',
+            promoApplied: 'প্রোমো প্রয়োগ হয়েছে! মূল্য আপডেট হয়েছে',
+            promoFailed: 'প্রোমো প্রয়োগ করতে ব্যর্থ',
+            captchaInvalid: 'ভুল ক্যাপচা',
+            autoCancelled: 'সময় শেষ হওয়ায় অপারেশন স্বয়ংক্রিয় বাতিল। টাকা ফেরত দেওয়া হয়েছে।',
+            cancelled: 'অপারেশন বাতিল। টাকা ফেরত দেওয়া হয়েছে।',
+            cancelFailed: 'অপারেশন বাতিল করতে ব্যর্থ',
+            expiryWarning: '১০ সেকেন্ডে স্বয়ংক্রিয় বাতিল!'
+        }
+    },
 }

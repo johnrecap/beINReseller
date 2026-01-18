@@ -506,4 +506,89 @@
             }
         }
     },
+    renew: {
+        title: 'تجديد اشتراك beIN',
+        subtitle: 'اختر الباقة المناسبة لك',
+        steps: {
+            cardInput: 'رقم الكارت',
+            selectPackage: 'اختيار الباقة',
+            result: 'النتيجة'
+        },
+        timer: {
+            expired: 'انتهت المهلة!',
+            remaining: 'الوقت المتبقي:'
+        },
+        cardInput: {
+            title: 'أدخل رقم الكارت',
+            description: 'أدخل رقم كارت beIN المكون من 10-16 رقم',
+            label: 'رقم الكارت',
+            error: 'رقم الكارت يجب أن يكون 10 أرقام على الأقل',
+            loading: 'جاري البدء...',
+            button: 'بدء التجديد'
+        },
+        processing: {
+            title: 'جاري المعالجة...',
+            description: 'يتم الاتصال بـ beIN واستخراج الباقات المتاحة'
+        },
+        captcha: {
+            title: 'حل الكابتشا',
+            description: 'أدخل الحروف الظاهرة في الصورة',
+            label: 'الحل',
+            loading: 'جاري التحقق...',
+            button: 'إرسال'
+        },
+        packages: {
+            title: 'اختر الباقة',
+            receiverNumber: 'رقم الريسيفر:',
+            noPackages: 'لا توجد باقات متاحة لهذا الكارت',
+            promoLabel: 'كود الخصم (اختياري)',
+            applyPromo: 'تطبيق',
+            currentBalance: 'رصيدك الحالي:',
+            showDetails: 'عرض التفاصيل والموافقة',
+            confirmTitle: 'تأكيد الشراء',
+            confirmMessage: 'يرجى مراجعة التفاصيل قبل المتابعة',
+            selectedPackage: 'الباقة المختارة:',
+            totalAmount: 'المبلغ الإجمالي:',
+            promoApplied: 'كود الخصم:',
+            editChoice: 'تعديل الاختيار',
+            purchasing: 'جاري الشراء...',
+            confirmPurchase: 'موافق - إتمام الشراء'
+        },
+        completing: {
+            title: 'جاري إتمام الشراء...',
+            warning: 'لا تغلق الصفحة'
+        },
+        finalConfirm: {
+            title: 'تأكيد الدفع النهائي',
+            description: 'هذه الخطوة الأخيرة قبل إتمام الشراء',
+            package: 'الباقة:',
+            price: 'السعر:',
+            receiver: 'رقم الريسيفر:',
+            cardNumber: 'رقم الكارت:',
+            warning: 'سيتم إلغاء العملية تلقائياً خلال 10 ثواني!',
+            cancel: 'إلغاء',
+            confirm: 'تأكيد الدفع',
+            confirming: 'جاري التأكيد...'
+        },
+        result: {
+            success: 'تم التجديد بنجاح!',
+            failed: 'فشلت العملية',
+            newOperation: 'عملية جديدة'
+        },
+        toast: {
+            starting: 'جاري بدء العملية...',
+            loadingPackages: 'جاري تحميل الباقات...',
+            completingPurchase: 'جاري إتمام الشراء النهائي...',
+            confirmFailed: 'فشل في تأكيد الدفع',
+            connectionError: 'حدث خطأ في الاتصال',
+            insufficientBalance: 'رصيد غير كافي',
+            promoApplied: 'تم تطبيق الكود! الأسعار محدثة',
+            promoFailed: 'فشل تطبيق الكود',
+            captchaInvalid: 'الكابتشا غير صحيحة',
+            autoCancelled: 'تم إلغاء العملية تلقائياً لانتهاء المهلة واسترداد المبلغ',
+            cancelled: 'تم إلغاء العملية واسترداد المبلغ',
+            cancelFailed: 'فشل في إلغاء العملية',
+            expiryWarning: 'سيتم إلغاء العملية تلقائياً خلال 10 ثواني!'
+        }
+    },
 }

@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -465,9 +466,9 @@ export default function RenewWizardPage() {
         <div className="container max-w-2xl mx-auto py-8 px-4">
             <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent">
-                    تجديد اشتراك beIN
+                    {(t.renew as any)?.title || 'تجديد اشتراك beIN'}
                 </h1>
-                <p className="text-muted-foreground mt-2">اختر الباقة المناسبة لك</p>
+                <p className="text-muted-foreground mt-2">{(t.renew as any)?.subtitle || 'اختر الباقة المناسبة لك'}</p>
             </div>
 
             <StepIndicator currentStep={step} />
@@ -478,13 +479,13 @@ export default function RenewWizardPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <CreditCard className="h-5 w-5 text-purple-500" />
-                            أدخل رقم الكارت
+                            {(t.renew as any)?.cardInput?.title || 'أدخل رقم الكارت'}
                         </CardTitle>
-                        <CardDescription>أدخل رقم كارت beIN المكون من 10-16 رقم</CardDescription>
+                        <CardDescription>{(t.renew as any)?.cardInput?.description || 'أدخل رقم كارت beIN المكون من 10-16 رقم'}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div>
-                            <Label htmlFor="cardNumber">رقم الكارت</Label>
+                            <Label htmlFor="cardNumber">{(t.renew as any)?.cardInput?.label || 'رقم الكارت'}</Label>
                             <Input
                                 id="cardNumber"
                                 type="text"
@@ -495,7 +496,7 @@ export default function RenewWizardPage() {
                                 dir="ltr"
                             />
                             {cardNumber && cardNumber.length < 10 && (
-                                <p className="text-xs text-red-500 mt-1">رقم الكارت يجب أن يكون 10 أرقام على الأقل</p>
+                                <p className="text-xs text-red-500 mt-1">{(t.renew as any)?.cardInput?.error || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل'}</p>
                             )}
                         </div>
                         <Button
@@ -506,12 +507,12 @@ export default function RenewWizardPage() {
                             {loading ? (
                                 <>
                                     <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                    جاري البدء...
+                                    {(t.renew as any)?.cardInput?.loading || 'جاري البدء...'}
                                 </>
                             ) : (
                                 <>
                                     <Sparkles className="h-4 w-4 ml-2" />
-                                    بدء التجديد
+                                    {(t.renew as any)?.cardInput?.button || 'بدء التجديد'}
                                 </>
                             )}
                         </Button>
@@ -524,8 +525,8 @@ export default function RenewWizardPage() {
                 <Card className="border-2 border-blue-100 dark:border-blue-900/30">
                     <CardContent className="py-12 text-center">
                         <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">جاري المعالجة...</h3>
-                        <p className="text-muted-foreground">يتم الاتصال بـ beIN واستخراج الباقات المتاحة</p>
+                        <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.processing?.title || 'جاري المعالجة...'}</h3>
+                        <p className="text-muted-foreground">{(t.renew as any)?.processing?.description || 'يتم الاتصال بـ beIN واستخراج الباقات المتاحة'}</p>
                     </CardContent>
                 </Card>
             )}
@@ -536,9 +537,9 @@ export default function RenewWizardPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Lock className="h-5 w-5 text-amber-500" />
-                            حل الكابتشا
+                            {(t.renew as any)?.captcha?.title || 'حل الكابتشا'}
                         </CardTitle>
-                        <CardDescription>أدخل الحروف الظاهرة في الصورة</CardDescription>
+                        <CardDescription>{(t.renew as any)?.captcha?.description || 'أدخل الحروف الظاهرة في الصورة'}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {captchaImage && (
@@ -551,7 +552,7 @@ export default function RenewWizardPage() {
                             </div>
                         )}
                         <div>
-                            <Label htmlFor="captcha">الحل</Label>
+                            <Label htmlFor="captcha">{(t.renew as any)?.captcha?.label || 'الحل'}</Label>
                             <Input
                                 id="captcha"
                                 type="text"
@@ -570,10 +571,10 @@ export default function RenewWizardPage() {
                             {loading ? (
                                 <>
                                     <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                    جاري التحقق...
+                                    {(t.renew as any)?.captcha?.loading || 'جاري التحقق...'}
                                 </>
                             ) : (
-                                'إرسال'
+                                (t.renew as any)?.captcha?.button || 'إرسال'
                             )}
                         </Button>
                     </CardContent>
@@ -586,17 +587,17 @@ export default function RenewWizardPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Package className="h-5 w-5 text-green-500" />
-                            اختر الباقة
+                            {(t.renew as any)?.packages?.title || 'اختر الباقة'}
                         </CardTitle>
                         <CardDescription>
-                            {stbNumber && <span>رقم الريسيفر: <strong dir="ltr">{stbNumber}</strong></span>}
+                            {stbNumber && <span>{(t.renew as any)?.packages?.receiverNumber || 'رقم الريسيفر:'} <strong dir="ltr">{stbNumber}</strong></span>}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {packages.length === 0 ? (
                             <div className="text-center py-8 text-muted-foreground">
                                 <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                                لا توجد باقات متاحة لهذا الكارت
+                                {(t.renew as any)?.packages?.noPackages || 'لا توجد باقات متاحة لهذا الكارت'}
                             </div>
                         ) : (
                             <div className="space-y-3">
@@ -625,7 +626,7 @@ export default function RenewWizardPage() {
                         {packages.length > 0 && (
                             <>
                                 <div>
-                                    <Label htmlFor="promoCode">كود الخصم (اختياري)</Label>
+                                    <Label htmlFor="promoCode">{(t.renew as any)?.packages?.promoLabel || 'كود الخصم (اختياري)'}</Label>
                                     <div className="flex gap-2 mt-2">
                                         <Input
                                             id="promoCode"
@@ -646,7 +647,7 @@ export default function RenewWizardPage() {
                                             {loading ? (
                                                 <Loader2 className="h-4 w-4 animate-spin" />
                                             ) : (
-                                                'تطبيق'
+                                                (t.renew as any)?.packages?.applyPromo || 'تطبيق'
                                             )}
                                         </Button>
                                     </div>
@@ -654,7 +655,7 @@ export default function RenewWizardPage() {
 
                                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                                     <div className="flex justify-between text-sm">
-                                        <span>رصيدك الحالي:</span>
+                                        <span>{(t.renew as any)?.packages?.currentBalance || 'رصيدك الحالي:'}</span>
                                         <span className={balance >= (packages.find(p => p.index === selectedPackageIndex)?.price || 0) ? 'text-green-600' : 'text-red-600'}>
                                             {balance} USD
                                         </span>
@@ -668,7 +669,7 @@ export default function RenewWizardPage() {
                                         disabled={loading}
                                         className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
                                     >
-                                        عرض التفاصيل والموافقة
+                                        {(t.renew as any)?.packages?.showDetails || 'عرض التفاصيل والموافقة'}
                                     </Button>
                                 )}
 
@@ -677,23 +678,23 @@ export default function RenewWizardPage() {
                                     <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-6 space-y-4">
                                         <div className="text-center">
                                             <h3 className="text-xl font-bold text-amber-800 dark:text-amber-200 mb-2">
-                                                ⚠️ تأكيد الشراء
+                                                ⚠️ {(t.renew as any)?.packages?.confirmTitle || 'تأكيد الشراء'}
                                             </h3>
                                             <p className="text-gray-600 dark:text-gray-400 text-sm">
-                                                يرجى مراجعة التفاصيل قبل المتابعة
+                                                {(t.renew as any)?.packages?.confirmMessage || 'يرجى مراجعة التفاصيل قبل المتابعة'}
                                             </p>
                                         </div>
 
                                         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 space-y-3">
                                             <div className="flex justify-between items-center">
-                                                <span className="text-gray-600 dark:text-gray-400">الباقة المختارة:</span>
+                                                <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.selectedPackage || 'الباقة المختارة:'}</span>
                                                 <span className="font-bold text-lg">
                                                     {packages.find(p => p.index === selectedPackageIndex)?.name}
                                                 </span>
                                             </div>
                                             <hr className="border-gray-200 dark:border-gray-700" />
                                             <div className="flex justify-between items-center">
-                                                <span className="text-gray-600 dark:text-gray-400">المبلغ الإجمالي:</span>
+                                                <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.totalAmount || 'المبلغ الإجمالي:'}</span>
                                                 <span className="font-bold text-2xl text-green-600 dark:text-green-400">
                                                     {packages.find(p => p.index === selectedPackageIndex)?.price} USD
                                                 </span>
@@ -702,7 +703,7 @@ export default function RenewWizardPage() {
                                                 <>
                                                     <hr className="border-gray-200 dark:border-gray-700" />
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-gray-600 dark:text-gray-400">كود الخصم:</span>
+                                                        <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.promoApplied || 'كود الخصم:'}</span>
                                                         <span className="font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
                                                             {promoCode}
                                                         </span>
@@ -718,7 +719,7 @@ export default function RenewWizardPage() {
                                                 disabled={loading}
                                                 className="flex-1"
                                             >
-                                                تعديل الاختيار
+                                                {(t.renew as any)?.packages?.editChoice || 'تعديل الاختيار'}
                                             </Button>
                                             <Button
                                                 onClick={handleSelectPackage}
@@ -728,10 +729,10 @@ export default function RenewWizardPage() {
                                                 {loading ? (
                                                     <>
                                                         <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                                        جاري الشراء...
+                                                        {(t.renew as any)?.packages?.purchasing || 'جاري الشراء...'}
                                                     </>
                                                 ) : (
-                                                    '✓ موافق - إتمام الشراء'
+                                                    '✓ ' + ((t.renew as any)?.packages?.confirmPurchase || 'موافق - إتمام الشراء')
                                                 )}
                                             </Button>
                                         </div>
@@ -748,8 +749,8 @@ export default function RenewWizardPage() {
                 <Card className="border-2 border-purple-100 dark:border-purple-900/30">
                     <CardContent className="py-12 text-center">
                         <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">جاري إتمام الشراء...</h3>
-                        <p className="text-muted-foreground">لا تغلق الصفحة</p>
+                        <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.completing?.title || 'جاري إتمام الشراء...'}</h3>
+                        <p className="text-muted-foreground">{(t.renew as any)?.completing?.warning || 'لا تغلق الصفحة'}</p>
                     </CardContent>
                 </Card>
             )}
@@ -761,8 +762,8 @@ export default function RenewWizardPage() {
                         <div className="flex items-center gap-3">
                             <ShieldCheck className="h-8 w-8" />
                             <div>
-                                <CardTitle className="text-white text-xl">تأكيد الدفع النهائي</CardTitle>
-                                <CardDescription className="text-orange-100">هذه الخطوة الأخيرة قبل إتمام الشراء</CardDescription>
+                                <CardTitle className="text-white text-xl">{(t.renew as any)?.finalConfirm?.title || 'تأكيد الدفع النهائي'}</CardTitle>
+                                <CardDescription className="text-orange-100">{(t.renew as any)?.finalConfirm?.description || 'هذه الخطوة الأخيرة قبل إتمام الشراء'}</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
@@ -770,21 +771,21 @@ export default function RenewWizardPage() {
                         {/* Package Info */}
                         <div className="bg-muted/50 rounded-xl p-4 space-y-3">
                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">الباقة:</span>
+                                <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.package || 'الباقة:'}</span>
                                 <span className="font-bold text-foreground">{selectedPackageInfo?.name || 'غير محدد'}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">السعر:</span>
+                                <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.price || 'السعر:'}</span>
                                 <span className="font-bold text-green-600 dark:text-green-400">{selectedPackageInfo?.price || 0} USD</span>
                             </div>
                             {stbNumber && (
                                 <div className="flex justify-between items-center">
-                                    <span className="text-muted-foreground">رقم الريسيفر:</span>
+                                    <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.receiver || 'رقم الريسيفر:'}</span>
                                     <span className="font-mono text-sm" dir="ltr">{stbNumber}</span>
                                 </div>
                             )}
                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">رقم الكارت:</span>
+                                <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.cardNumber || 'رقم الكارت:'}</span>
                                 <span className="font-mono text-sm" dir="ltr">****{cardNumber.slice(-4)}</span>
                             </div>
                         </div>
@@ -803,7 +804,7 @@ export default function RenewWizardPage() {
                             <div className="flex items-center justify-center gap-2 p-3 bg-red-100 dark:bg-red-900/40 rounded-xl border-2 border-red-400 dark:border-red-600 animate-pulse">
                                 <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                                 <span className="text-sm font-bold text-red-700 dark:text-red-300">
-                                    ⚠️ سيتم إلغاء العملية تلقائياً!
+                                    ⚠️ {(t.renew as any)?.finalConfirm?.warning || 'سيتم إلغاء العملية تلقائياً!'}
                                 </span>
                             </div>
                         )}
@@ -824,7 +825,7 @@ export default function RenewWizardPage() {
                                 disabled={isConfirmLoading || isAutoCancelling}
                                 className="flex-1"
                             >
-                                إلغاء
+                                {(t.renew as any)?.finalConfirm?.cancel || 'إلغاء'}
                             </Button>
                             <Button
                                 onClick={handleFinalConfirm}
@@ -834,12 +835,12 @@ export default function RenewWizardPage() {
                                 {isConfirmLoading ? (
                                     <>
                                         <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                        جاري التأكيد...
+                                        {(t.renew as any)?.finalConfirm?.confirming || 'جاري التأكيد...'}
                                     </>
                                 ) : (
                                     <>
                                         <CheckCircle className="h-4 w-4 ml-2" />
-                                        تأكيد الدفع
+                                        {(t.renew as any)?.finalConfirm?.confirm || 'تأكيد الدفع'}
                                     </>
                                 )}
                             </Button>
@@ -855,18 +856,18 @@ export default function RenewWizardPage() {
                         {result.success ? (
                             <>
                                 <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                                <h3 className="text-2xl font-bold text-green-600 mb-2">تم بنجاح!</h3>
+                                <h3 className="text-2xl font-bold text-green-600 mb-2">{(t.renew as any)?.result?.success || 'تم بنجاح!'}</h3>
                             </>
                         ) : (
                             <>
                                 <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-                                <h3 className="text-2xl font-bold text-red-600 mb-2">فشلت العملية</h3>
+                                <h3 className="text-2xl font-bold text-red-600 mb-2">{(t.renew as any)?.result?.failed || 'فشلت العملية'}</h3>
                             </>
                         )}
                         <p className="text-muted-foreground mb-6">{result.message}</p>
                         <Button onClick={handleReset} variant="outline" className="gap-2">
                             <Sparkles className="h-4 w-4" />
-                            عملية جديدة
+                            {(t.renew as any)?.result?.newOperation || 'عملية جديدة'}
                         </Button>
                     </CardContent>
                 </Card>

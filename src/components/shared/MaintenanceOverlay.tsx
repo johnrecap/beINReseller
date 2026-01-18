@@ -38,13 +38,6 @@ export default function MaintenanceOverlay({ message }: MaintenanceOverlayProps)
                     <p className="text-muted-foreground text-lg leading-relaxed">
                         {message || defaultMessage}
                     </p>
-
-                    {/* Info box */}
-                    <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                        <p className="text-sm text-amber-700 dark:text-amber-300">
-                            {(t.maintenance as { hint?: string })?.hint || 'يمكنك تصفح باقي الصفحات من القائمة الجانبية'}
-                        </p>
-                    </div>
                 </div>
             </div>
         </div>

@@ -2,7 +2,10 @@
  * beIN Panel Worker - Main Entry Point
  * 
  * This worker processes automation jobs from the BullMQ queue.
- * It uses Playwright to interact with the beIN management portal.
+ * 
+ * Automation Modes:
+ * - Playwright (default): Full browser automation, slower but more compatible
+ * - HTTP (USE_HTTP_CLIENT=true): Direct HTTP requests, 5-10x faster
  * 
  * Multi-Account Support:
  * - Uses AccountPoolManager for smart distribution
@@ -14,6 +17,7 @@ import 'dotenv/config'
 import { Worker } from 'bullmq'
 import { BeINAutomation } from './automation/bein-automation'
 import { processOperation } from './queue-processor'
+import { processOperationHttp, closeAllHttpClients } from './http-queue-processor'
 import { initializePoolManager, AccountPoolManager } from './pool'
 import { IdleMonitor } from './utils/idle-monitor'
 import { getRedisConnection, closeRedisConnection } from './lib/redis'
@@ -32,6 +36,9 @@ const WORKER_ID = process.env.WORKER_ID || `worker-${process.pid}`
 const WORKER_CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '3')
 const WORKER_RATE_LIMIT = parseInt(process.env.WORKER_RATE_LIMIT || '30')
 
+// Feature flag for HTTP mode
+const USE_HTTP_CLIENT = process.env.USE_HTTP_CLIENT === 'true'
+
 // Get shared Redis connection
 const connection = getRedisConnection(REDIS_URL)
 
@@ -45,6 +52,13 @@ async function main() {
     console.log(`🆔 Worker ID: ${WORKER_ID}`)
     console.log(`⚡ Concurrency: ${WORKER_CONCURRENCY}, Rate Limit: ${WORKER_RATE_LIMIT}/min`)
 
+    // Log automation mode
+    if (USE_HTTP_CLIENT) {
+        console.log(`🚀 Mode: HTTP Client (Fast Mode) ⚡`)
+    } else {
+        console.log(`🎭 Mode: Playwright (Browser Mode)`)
+    }
+
     // Initialize Account Pool Manager (uses shared Redis connection)
     accountPool = await initializePoolManager(REDIS_URL, WORKER_ID)
     console.log('🔄 Account Pool Manager initialized')
@@ -53,25 +67,36 @@ async function main() {
     const poolStatus = await accountPool.getPoolStatus()
     console.log(`📊 Pool Status: ${poolStatus.availableNow}/${poolStatus.activeAccounts} accounts available`)
 
-    // Initialize automation instance (lazy browser)
-    automation = new BeINAutomation()
-    await automation.initialize()
-    console.log('🌐 Automation initialized (lazy browser)')
+    // Initialize automation ONLY if using Playwright mode
+    if (!USE_HTTP_CLIENT) {
+        automation = new BeINAutomation()
+        await automation.initialize()
+        console.log('🌐 Automation initialized (lazy browser)')
 
-    // Start idle monitor for automatic resource cleanup
-    idleMonitor = new IdleMonitor(
-        automation,
-        60000,  // Check browser idle every 1 min
-        300000  // Cleanup sessions every 5 min
-    )
-    idleMonitor.start()
+        // Start idle monitor for automatic resource cleanup (Playwright only)
+        idleMonitor = new IdleMonitor(
+            automation,
+            60000,  // Check browser idle every 1 min
+            300000  // Cleanup sessions every 5 min
+        )
+        idleMonitor.start()
+    } else {
+        console.log('🌐 Using HTTP Client - no browser needed')
+    }
 
     // Create worker with increased concurrency and rate limit
     const worker = new Worker(
         'operations',
         async (job) => {
             console.log(`📥 [${WORKER_ID}] Processing job ${job.id}: ${job.data.type}`)
-            return processOperation(job, automation!, accountPool!)
+
+            if (USE_HTTP_CLIENT) {
+                // Use HTTP-based processor
+                return processOperationHttp(job, accountPool!)
+            } else {
+                // Use Playwright-based processor
+                return processOperation(job, automation!, accountPool!)
+            }
         },
         {
             connection: connection as any,
@@ -101,15 +126,20 @@ async function main() {
     const shutdown = async () => {
         console.log(`\n🛑 [${WORKER_ID}] Shutting down worker...`)
 
-        // Stop idle monitor first
+        // Stop idle monitor first (Playwright mode)
         if (idleMonitor) {
             idleMonitor.stop()
         }
 
         await worker.close()
-        if (automation) {
+
+        // Cleanup based on mode
+        if (USE_HTTP_CLIENT) {
+            closeAllHttpClients()
+        } else if (automation) {
             await automation.close()
         }
+
         if (accountPool) {
             await accountPool.close()
         }
@@ -127,4 +157,5 @@ main().catch((err) => {
     console.error('💥 Fatal error:', err)
     process.exit(1)
 })
+
 

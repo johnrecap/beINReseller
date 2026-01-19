@@ -19,6 +19,33 @@ export class CaptchaSolver {
     }
 
     /**
+     * Detect image format from base64 magic bytes
+     */
+    private detectImageFormat(base64: string): string {
+        // Get first few bytes to check magic number
+        const bytes = Buffer.from(base64.substring(0, 20), 'base64');
+
+        // Check magic bytes
+        if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+            return 'PNG';
+        }
+        if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+            return 'JPEG';
+        }
+        if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+            return 'GIF';
+        }
+        if (bytes[0] === 0x42 && bytes[1] === 0x4D) {
+            return 'BMP';
+        }
+
+        // Unknown - log first bytes for debugging
+        const hexBytes = Array.from(bytes.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+        console.log(`[2Captcha] Unknown image format, first bytes: ${hexBytes}`);
+        return 'UNKNOWN';
+    }
+
+    /**
      * Solve an image-based CAPTCHA
      * @param imageBase64 - Base64 encoded image
      * @returns The solved CAPTCHA text
@@ -27,6 +54,10 @@ export class CaptchaSolver {
         if (!this.apiKey) {
             throw new Error('2Captcha API key not configured')
         }
+
+        // Detect and log image format
+        const format = this.detectImageFormat(imageBase64);
+        console.log(`[2Captcha] Image format detected: ${format}, size: ${imageBase64.length} chars`);
 
         // Step 1: Submit CAPTCHA
         const submitResponse = await fetch(`${this.API_URL}/in.php`, {

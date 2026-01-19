@@ -482,9 +482,9 @@ export class HttpClientService {
                 formData['Login1$txt2FaCode'] = totpCode;
             }
 
-            // Add CAPTCHA - always include field for ASP.NET WebForms compatibility
-            // Some ASP.NET servers expect the field to be present even if empty
-            formData['Login1$txtCaptcha'] = captchaSolution || '';
+            // Add CAPTCHA - use correct field name from beIN HTML
+            // The actual field name is Login1$ImageVerificationDealer$txtContent
+            formData['Login1$ImageVerificationDealer$txtContent'] = captchaSolution || '';
 
             // Step 2: POST login
             console.log('[HTTP] POST login credentials...');

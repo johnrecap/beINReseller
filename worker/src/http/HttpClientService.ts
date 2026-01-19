@@ -825,10 +825,12 @@ export class HttpClientService {
 
 
             // Step 3: Enter serial number
-            // NOTE: Previously we used slice(0,-1) to remove last digit, but beIN CISCO may need FULL card
-            // Testing with FULL card number first, then try without last digit if that fails
-            const formattedCard = cardNumber; // TRY FULL CARD FIRST
-            console.log(`[HTTP] Using card (FULL, no slice): ${formattedCard.slice(0, 4)}****${formattedCard.slice(-2)}`);
+            // beIN SellPackages page has FIRST digit pre-filled (e.g., "7")
+            // And LAST digit (check digit) is not entered
+            // So we need: slice(1, -1) to remove BOTH first and last digit
+            // Example: 7511394806 → 51139480
+            const formattedCard = cardNumber.slice(1, -1);
+            console.log(`[HTTP] Card format: ${cardNumber} → ${formattedCard} (removed first '${cardNumber[0]}' and last '${cardNumber.slice(-1)}')`);
 
             // Get actual Load button value from current HTML
             const currentHtml = $.html();
@@ -854,6 +856,12 @@ export class HttpClientService {
             if (scriptManager.length) {
                 console.log(`[HTTP] ScriptManager detected - page uses AJAX`);
             }
+
+            // DEBUG: Log the form data we're sending
+            console.log(`[HTTP] Form data for Load POST:`);
+            console.log(`  - ddlType: ${ciscoValue}`);
+            console.log(`  - tbSerial1: ${formattedCard}`);
+            console.log(`  - btnLoad: ${loadBtnValue}`);
 
             console.log('[HTTP] POST load packages (step 1: tbSerial1 only)...');
             let loadRes = await this.axios.post(

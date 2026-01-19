@@ -820,6 +820,10 @@ export class HttpClientService {
                     // Check if tbSerial1 field appeared (it should be visible after CISCO selection)
                     const serial1Visible = $('input[id*="tbSerial1"]').length > 0;
                     console.log(`[HTTP] tbSerial1 visible after CISCO: ${serial1Visible}`);
+
+                    // DEBUG: Check what value tbSerial1 has by default (is '7' pre-filled?)
+                    const serial1DefaultValue = $('input[id*="tbSerial1"]').val() || '';
+                    console.log(`[HTTP] tbSerial1 default value: "${serial1DefaultValue}"`);
                 }
             }
 

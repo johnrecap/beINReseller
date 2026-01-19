@@ -27,7 +27,8 @@ import {
     LoadPackagesResult,
     AvailablePackage,
     PurchaseResult,
-    SessionData
+    SessionData,
+    SignalRefreshResult
 } from './types';
 
 export class HttpClientService {
@@ -1598,5 +1599,208 @@ export class HttpClientService {
 
     getConfig(): BeINHttpConfig {
         return this.config;
+    }
+
+    // =============================================
+    // SIGNAL REFRESH FLOW
+    // =============================================
+
+    /**
+     * Activate signal refresh for a card
+     * Goes to Check page, enters card, extracts status, and clicks Activate
+     * 
+     * @param cardNumber - The smart card number
+     * @returns Signal refresh result with card status and activation result
+     */
+    async activateSignal(cardNumber: string): Promise<SignalRefreshResult> {
+        console.log(`[HTTP] Activating signal for card: ${cardNumber.slice(0, 4)}****`);
+
+        try {
+            const checkUrl = this.buildFullUrl(this.config.checkUrl);
+
+            // Step 1: GET check page
+            console.log(`[HTTP] GET ${checkUrl}`);
+            const checkPageRes = await this.axios.get(checkUrl, {
+                headers: { 'Referer': this.config.loginUrl }
+            });
+
+            // Check for session expiry
+            const sessionError = this.checkForErrors(checkPageRes.data);
+            if (sessionError?.includes('Session') || sessionError?.includes('login')) {
+                return { success: false, error: 'Session expired - please login again' };
+            }
+
+            // Extract ViewState
+            this.currentViewState = this.extractHiddenFields(checkPageRes.data);
+
+            // Get actual button value
+            const checkBtnValue = this.extractButtonValue(checkPageRes.data, 'btnCheck', 'Check');
+
+            // Step 2: POST card number to check
+            const formData: Record<string, string> = {
+                ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$tbSerial': cardNumber,
+                'ctl00$ContentPlaceHolder1$btnCheck': checkBtnValue
+            };
+
+            console.log('[HTTP] POST check card for signal...');
+            const checkRes = await this.axios.post(
+                checkUrl,
+                this.buildFormData(formData),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': checkUrl
+                    }
+                }
+            );
+
+            // Check for errors
+            const error = this.checkForErrors(checkRes.data);
+            if (error) {
+                console.log(`[HTTP] ❌ Check card error: "${error}"`);
+                return { success: false, error };
+            }
+
+            // Parse response
+            const $ = cheerio.load(checkRes.data);
+            this.currentViewState = this.extractHiddenFields(checkRes.data);
+
+            // Extract card status
+            const pageText = $('body').text();
+            const messagesDiv = $('#ContentPlaceHolder1_MessagesArea, .MessagesArea, [id*="Messages"]');
+            const messageText = messagesDiv.text();
+
+            // Check if Premium
+            const isPremium = pageText.toLowerCase().includes('premium') ||
+                messageText.toLowerCase().includes('premium');
+
+            // Extract STB number
+            const stbMatch = pageText.match(/STB\(s\):\s*(\d{10,})/i) ||
+                pageText.match(/(\d{15})/);
+            const stbNumber = stbMatch ? stbMatch[1] : '';
+
+            // Extract expiry date
+            const expiryMatch = pageText.match(/Expired?\s+(?:on\s+)?(\d{2}\/\d{2}\/\d{4})/i);
+            const expiryDate = expiryMatch ? expiryMatch[1] : '';
+
+            // Extract wallet balance
+            const balanceMatch = pageText.match(/Wallet\s*balance\s*:\s*\$?(\d+(?:\.\d{2})?)/i);
+            const walletBalance = balanceMatch ? parseFloat(balanceMatch[1]) : 0;
+
+            // Extract Activate count (e.g., "Activate ( 1 / 20 )")
+            const activateMatch = pageText.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+            const activateCount = activateMatch
+                ? { current: parseInt(activateMatch[1]), max: parseInt(activateMatch[2]) }
+                : { current: 0, max: 20 };
+
+            console.log(`[HTTP] Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}`);
+
+            // Check if we can activate
+            if (activateCount.current >= activateCount.max) {
+                return {
+                    success: true,
+                    cardStatus: {
+                        isPremium,
+                        smartCardSerial: cardNumber,
+                        stbNumber,
+                        expiryDate,
+                        walletBalance,
+                        activateCount
+                    },
+                    activated: false,
+                    message: 'Daily activation limit reached'
+                };
+            }
+
+            // Step 3: Click Activate button
+            const activateBtnName = 'ctl00$ContentPlaceHolder1$btnActivate';
+            const activateBtnValue = this.extractButtonValue(checkRes.data, 'btnActivate', 'Activate');
+
+            if (!activateBtnValue || activateBtnValue === 'Activate') {
+                // Try to find actual button
+                const btnEl = $('input[id*="btnActivate"], button[id*="btnActivate"]');
+                if (btnEl.length === 0) {
+                    console.log('[HTTP] ⚠️ Activate button not found');
+                    return {
+                        success: true,
+                        cardStatus: {
+                            isPremium,
+                            smartCardSerial: cardNumber,
+                            stbNumber,
+                            expiryDate,
+                            walletBalance,
+                            activateCount
+                        },
+                        activated: false,
+                        error: 'Activate button not found on page'
+                    };
+                }
+            }
+
+            const activateFormData: Record<string, string> = {
+                ...this.currentViewState,
+                [activateBtnName]: activateBtnValue
+            };
+
+            console.log('[HTTP] POST activate signal...');
+            const activateRes = await this.axios.post(
+                checkUrl,
+                this.buildFormData(activateFormData),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': checkUrl
+                    }
+                }
+            );
+
+            // Check for success
+            const activateError = this.checkForErrors(activateRes.data);
+            const $result = cheerio.load(activateRes.data);
+            const resultText = $result('body').text();
+
+            // Look for success indicators
+            const isSuccess = resultText.toLowerCase().includes('signal sent') ||
+                resultText.toLowerCase().includes('activation signal sent') ||
+                resultText.toLowerCase().includes('successfully') ||
+                !activateError;
+
+            if (isSuccess) {
+                console.log('[HTTP] ✅ Signal activated successfully!');
+                return {
+                    success: true,
+                    cardStatus: {
+                        isPremium,
+                        smartCardSerial: cardNumber,
+                        stbNumber,
+                        expiryDate,
+                        walletBalance,
+                        activateCount: { current: activateCount.current + 1, max: activateCount.max }
+                    },
+                    activated: true,
+                    message: 'Activation Signal Sent'
+                };
+            } else {
+                console.log(`[HTTP] ⚠️ Activation may have failed: ${activateError}`);
+                return {
+                    success: true,
+                    cardStatus: {
+                        isPremium,
+                        smartCardSerial: cardNumber,
+                        stbNumber,
+                        expiryDate,
+                        walletBalance,
+                        activateCount
+                    },
+                    activated: false,
+                    error: activateError || 'Activation failed'
+                };
+            }
+
+        } catch (error: any) {
+            console.error('[HTTP] Signal activation error:', error.message);
+            return { success: false, error: `Signal activation failed: ${error.message}` };
+        }
     }
 }

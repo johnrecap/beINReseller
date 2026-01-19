@@ -13,8 +13,11 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
 import MaintenanceOverlay from '@/components/shared/MaintenanceOverlay'
+import { SignalRefreshFlow } from '@/components/renewal'
+import { Zap } from 'lucide-react'
 
-// Types
+// Renewal Mode Type
+type RenewalMode = 'signal-refresh' | 'package-renewal'
 type WizardStep = 'card-input' | 'processing' | 'captcha' | 'packages' | 'completing' | 'awaiting-final-confirm' | 'result'
 
 interface AvailablePackage {
@@ -156,6 +159,7 @@ export default function RenewWizardPage() {
     const { isMaintenanceMode, maintenanceMessage, isLoading: isMaintenanceLoading } = useMaintenance()
 
     // State
+    const [renewalMode, setRenewalMode] = useState<RenewalMode>('package-renewal')
     const [step, setStep] = useState<WizardStep>('card-input')
     const [cardNumber, setCardNumber] = useState('')
     const [operationId, setOperationId] = useState<string | null>(null)
@@ -481,406 +485,440 @@ export default function RenewWizardPage() {
                 <p className="text-muted-foreground mt-2">{(t.renew as any)?.subtitle || 'اختر الباقة المناسبة لك'}</p>
             </div>
 
-            <StepIndicator currentStep={step} />
+            {/* Mode Toggle Tabs */}
+            <div className="flex justify-center gap-2 mb-6">
+                <button
+                    onClick={() => setRenewalMode('signal-refresh')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${renewalMode === 'signal-refresh'
+                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                >
+                    <Zap className="h-5 w-5" />
+                    {(t.renew as any)?.modes?.signalRefresh || 'تجديد الإشارة'}
+                </button>
+                <button
+                    onClick={() => setRenewalMode('package-renewal')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${renewalMode === 'package-renewal'
+                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                >
+                    <Package className="h-5 w-5" />
+                    {(t.renew as any)?.modes?.packageRenewal || 'شحن الباقة'}
+                </button>
+            </div>
 
-            {/* Step 1: Card Input */}
-            {step === 'card-input' && (
-                <Card className="border-2 border-purple-100 dark:border-purple-900/30">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <CreditCard className="h-5 w-5 text-purple-500" />
-                            {(t.renew as any)?.cardInput?.title || 'أدخل رقم الكارت'}
-                        </CardTitle>
-                        <CardDescription>{(t.renew as any)?.cardInput?.description || 'أدخل رقم كارت beIN المكون من 10-16 رقم'}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Label htmlFor="cardNumber">{(t.renew as any)?.cardInput?.label || 'رقم الكارت'}</Label>
-                            <Input
-                                id="cardNumber"
-                                type="text"
-                                value={cardNumber}
-                                onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                                placeholder="7517663273"
-                                className="mt-2 text-left font-mono text-lg tracking-wider"
-                                dir="ltr"
-                            />
-                            {cardNumber && cardNumber.length < 10 && (
-                                <p className="text-xs text-red-500 mt-1">{(t.renew as any)?.cardInput?.error || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل'}</p>
-                            )}
-                        </div>
-                        <Button
-                            onClick={handleStartRenewal}
-                            disabled={cardNumber.length < 10 || loading}
-                            className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                    {(t.renew as any)?.cardInput?.loading || 'جاري البدء...'}
-                                </>
-                            ) : (
-                                <>
-                                    <Sparkles className="h-4 w-4 ml-2" />
-                                    {(t.renew as any)?.cardInput?.button || 'بدء التجديد'}
-                                </>
-                            )}
-                        </Button>
-                    </CardContent>
-                </Card>
+            {/* Signal Refresh Mode */}
+            {renewalMode === 'signal-refresh' && (
+                <SignalRefreshFlow />
             )}
 
-            {/* Processing State */}
-            {step === 'processing' && (
-                <Card className="border-2 border-blue-100 dark:border-blue-900/30">
-                    <CardContent className="py-12 text-center">
-                        <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.processing?.title || 'جاري المعالجة...'}</h3>
-                        <p className="text-muted-foreground">{(t.renew as any)?.processing?.description || 'يتم الاتصال بـ beIN واستخراج الباقات المتاحة'}</p>
-                    </CardContent>
-                </Card>
-            )}
+            {/* Package Renewal Mode (existing wizard) */}
+            {renewalMode === 'package-renewal' && (
+                <>
+                    <StepIndicator currentStep={step} />
 
-            {/* Step 2: Captcha */}
-            {step === 'captcha' && (
-                <Card className="border-2 border-amber-100 dark:border-amber-900/30">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Lock className="h-5 w-5 text-amber-500" />
-                            {(t.renew as any)?.captcha?.title || 'حل الكابتشا'}
-                        </CardTitle>
-                        <CardDescription>{(t.renew as any)?.captcha?.description || 'أدخل الحروف الظاهرة في الصورة'}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {captchaImage && (
-                            <div className="flex justify-center">
-                                <img
-                                    src={captchaImage.startsWith('data:') ? captchaImage : `data:image/png;base64,${captchaImage}`}
-                                    alt="Captcha"
-                                    className="border rounded-lg"
-                                />
-                            </div>
-                        )}
-                        <div>
-                            <Label htmlFor="captcha">{(t.renew as any)?.captcha?.label || 'الحل'}</Label>
-                            <Input
-                                id="captcha"
-                                type="text"
-                                value={captchaSolution}
-                                onChange={(e) => setCaptchaSolution(e.target.value)}
-                                placeholder="ABCD"
-                                className="mt-2 text-center font-mono text-xl tracking-widest"
-                                dir="ltr"
-                            />
-                        </div>
-                        <Button
-                            onClick={handleSubmitCaptcha}
-                            disabled={!captchaSolution || loading}
-                            className="w-full"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                    {(t.renew as any)?.captcha?.loading || 'جاري التحقق...'}
-                                </>
-                            ) : (
-                                (t.renew as any)?.captcha?.button || 'إرسال'
-                            )}
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Step 3: Package Selection */}
-            {step === 'packages' && (
-                <Card className="border-2 border-green-100 dark:border-green-900/30">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Package className="h-5 w-5 text-green-500" />
-                            {(t.renew as any)?.packages?.title || 'اختر الباقة'}
-                        </CardTitle>
-                        <CardDescription>
-                            {stbNumber && <span>{(t.renew as any)?.packages?.receiverNumber || 'رقم الريسيفر:'} <strong dir="ltr">{stbNumber}</strong></span>}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {packages.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                                <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                                {(t.renew as any)?.packages?.noPackages || 'لا توجد باقات متاحة لهذا الكارت'}
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {packages.map((pkg) => (
-                                    <div
-                                        key={pkg.index}
-                                        onClick={() => setSelectedPackageIndex(pkg.index)}
-                                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedPackageIndex === pkg.index
-                                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                            : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                                            }`}
-                                    >
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <div className="font-bold">{pkg.name}</div>
-                                            </div>
-                                            <div className="text-lg font-bold text-purple-600">
-                                                {pkg.price} USD
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {packages.length > 0 && (
-                            <>
+                    {/* Step 1: Card Input */}
+                    {step === 'card-input' && (
+                        <Card className="border-2 border-purple-100 dark:border-purple-900/30">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <CreditCard className="h-5 w-5 text-purple-500" />
+                                    {(t.renew as any)?.cardInput?.title || 'أدخل رقم الكارت'}
+                                </CardTitle>
+                                <CardDescription>{(t.renew as any)?.cardInput?.description || 'أدخل رقم كارت beIN المكون من 10-16 رقم'}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
                                 <div>
-                                    <Label htmlFor="promoCode">{(t.renew as any)?.packages?.promoLabel || 'كود الخصم (اختياري)'}</Label>
-                                    <div className="flex gap-2 mt-2">
-                                        <Input
-                                            id="promoCode"
-                                            type="text"
-                                            value={promoCode}
-                                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                                            placeholder="SAVE20"
-                                            dir="ltr"
-                                            className="flex-1"
+                                    <Label htmlFor="cardNumber">{(t.renew as any)?.cardInput?.label || 'رقم الكارت'}</Label>
+                                    <Input
+                                        id="cardNumber"
+                                        type="text"
+                                        value={cardNumber}
+                                        onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                                        placeholder="7517663273"
+                                        className="mt-2 text-left font-mono text-lg tracking-wider"
+                                        dir="ltr"
+                                    />
+                                    {cardNumber && cardNumber.length < 10 && (
+                                        <p className="text-xs text-red-500 mt-1">{(t.renew as any)?.cardInput?.error || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل'}</p>
+                                    )}
+                                </div>
+                                <Button
+                                    onClick={handleStartRenewal}
+                                    disabled={cardNumber.length < 10 || loading}
+                                    className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                                            {(t.renew as any)?.cardInput?.loading || 'جاري البدء...'}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="h-4 w-4 ml-2" />
+                                            {(t.renew as any)?.cardInput?.button || 'بدء التجديد'}
+                                        </>
+                                    )}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Processing State */}
+                    {step === 'processing' && (
+                        <Card className="border-2 border-blue-100 dark:border-blue-900/30">
+                            <CardContent className="py-12 text-center">
+                                <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.processing?.title || 'جاري المعالجة...'}</h3>
+                                <p className="text-muted-foreground">{(t.renew as any)?.processing?.description || 'يتم الاتصال بـ beIN واستخراج الباقات المتاحة'}</p>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Step 2: Captcha */}
+                    {step === 'captcha' && (
+                        <Card className="border-2 border-amber-100 dark:border-amber-900/30">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Lock className="h-5 w-5 text-amber-500" />
+                                    {(t.renew as any)?.captcha?.title || 'حل الكابتشا'}
+                                </CardTitle>
+                                <CardDescription>{(t.renew as any)?.captcha?.description || 'أدخل الحروف الظاهرة في الصورة'}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {captchaImage && (
+                                    <div className="flex justify-center">
+                                        <img
+                                            src={captchaImage.startsWith('data:') ? captchaImage : `data:image/png;base64,${captchaImage}`}
+                                            alt="Captcha"
+                                            className="border rounded-lg"
                                         />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={handleApplyPromo}
-                                            disabled={!promoCode || loading}
-                                            className="shrink-0"
-                                        >
-                                            {loading ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                                (t.renew as any)?.packages?.applyPromo || 'تطبيق'
-                                            )}
-                                        </Button>
                                     </div>
+                                )}
+                                <div>
+                                    <Label htmlFor="captcha">{(t.renew as any)?.captcha?.label || 'الحل'}</Label>
+                                    <Input
+                                        id="captcha"
+                                        type="text"
+                                        value={captchaSolution}
+                                        onChange={(e) => setCaptchaSolution(e.target.value)}
+                                        placeholder="ABCD"
+                                        className="mt-2 text-center font-mono text-xl tracking-widest"
+                                        dir="ltr"
+                                    />
                                 </div>
+                                <Button
+                                    onClick={handleSubmitCaptcha}
+                                    disabled={!captchaSolution || loading}
+                                    className="w-full"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                                            {(t.renew as any)?.captcha?.loading || 'جاري التحقق...'}
+                                        </>
+                                    ) : (
+                                        (t.renew as any)?.captcha?.button || 'إرسال'
+                                    )}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
 
-                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
-                                    <div className="flex justify-between text-sm">
-                                        <span>{(t.renew as any)?.packages?.currentBalance || 'رصيدك الحالي:'}</span>
-                                        <span className={balance >= (packages.find(p => p.index === selectedPackageIndex)?.price || 0) ? 'text-green-600' : 'text-red-600'}>
-                                            {balance} USD
-                                        </span>
+                    {/* Step 3: Package Selection */}
+                    {step === 'packages' && (
+                        <Card className="border-2 border-green-100 dark:border-green-900/30">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Package className="h-5 w-5 text-green-500" />
+                                    {(t.renew as any)?.packages?.title || 'اختر الباقة'}
+                                </CardTitle>
+                                <CardDescription>
+                                    {stbNumber && <span>{(t.renew as any)?.packages?.receiverNumber || 'رقم الريسيفر:'} <strong dir="ltr">{stbNumber}</strong></span>}
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {packages.length === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                                        {(t.renew as any)?.packages?.noPackages || 'لا توجد باقات متاحة لهذا الكارت'}
                                     </div>
-                                </div>
-
-                                {/* Show confirmation only when package is selected */}
-                                {selectedPackageIndex !== null && !showConfirmation && (
-                                    <Button
-                                        onClick={() => setShowConfirmation(true)}
-                                        disabled={loading}
-                                        className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
-                                    >
-                                        {(t.renew as any)?.packages?.showDetails || 'عرض التفاصيل والموافقة'}
-                                    </Button>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {packages.map((pkg) => (
+                                            <div
+                                                key={pkg.index}
+                                                onClick={() => setSelectedPackageIndex(pkg.index)}
+                                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedPackageIndex === pkg.index
+                                                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                                                    }`}
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <div className="font-bold">{pkg.name}</div>
+                                                    </div>
+                                                    <div className="text-lg font-bold text-purple-600">
+                                                        {pkg.price} USD
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
 
-                                {/* Confirmation Dialog */}
-                                {showConfirmation && selectedPackageIndex !== null && (
-                                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-6 space-y-4">
-                                        <div className="text-center">
-                                            <h3 className="text-xl font-bold text-amber-800 dark:text-amber-200 mb-2">
-                                                ⚠️ {(t.renew as any)?.packages?.confirmTitle || 'تأكيد الشراء'}
-                                            </h3>
-                                            <p className="text-gray-600 dark:text-gray-400 text-sm">
-                                                {(t.renew as any)?.packages?.confirmMessage || 'يرجى مراجعة التفاصيل قبل المتابعة'}
-                                            </p>
+                                {packages.length > 0 && (
+                                    <>
+                                        <div>
+                                            <Label htmlFor="promoCode">{(t.renew as any)?.packages?.promoLabel || 'كود الخصم (اختياري)'}</Label>
+                                            <div className="flex gap-2 mt-2">
+                                                <Input
+                                                    id="promoCode"
+                                                    type="text"
+                                                    value={promoCode}
+                                                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                                    placeholder="SAVE20"
+                                                    dir="ltr"
+                                                    className="flex-1"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={handleApplyPromo}
+                                                    disabled={!promoCode || loading}
+                                                    className="shrink-0"
+                                                >
+                                                    {loading ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        (t.renew as any)?.packages?.applyPromo || 'تطبيق'
+                                                    )}
+                                                </Button>
+                                            </div>
                                         </div>
 
-                                        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 space-y-3">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.selectedPackage || 'الباقة المختارة:'}</span>
-                                                <span className="font-bold text-lg">
-                                                    {packages.find(p => p.index === selectedPackageIndex)?.name}
+                                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                                            <div className="flex justify-between text-sm">
+                                                <span>{(t.renew as any)?.packages?.currentBalance || 'رصيدك الحالي:'}</span>
+                                                <span className={balance >= (packages.find(p => p.index === selectedPackageIndex)?.price || 0) ? 'text-green-600' : 'text-red-600'}>
+                                                    {balance} USD
                                                 </span>
                                             </div>
-                                            <hr className="border-gray-200 dark:border-gray-700" />
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.totalAmount || 'المبلغ الإجمالي:'}</span>
-                                                <span className="font-bold text-2xl text-green-600 dark:text-green-400">
-                                                    {packages.find(p => p.index === selectedPackageIndex)?.price} USD
-                                                </span>
-                                            </div>
-                                            {promoCode && (
-                                                <>
-                                                    <hr className="border-gray-200 dark:border-gray-700" />
+                                        </div>
+
+                                        {/* Show confirmation only when package is selected */}
+                                        {selectedPackageIndex !== null && !showConfirmation && (
+                                            <Button
+                                                onClick={() => setShowConfirmation(true)}
+                                                disabled={loading}
+                                                className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+                                            >
+                                                {(t.renew as any)?.packages?.showDetails || 'عرض التفاصيل والموافقة'}
+                                            </Button>
+                                        )}
+
+                                        {/* Confirmation Dialog */}
+                                        {showConfirmation && selectedPackageIndex !== null && (
+                                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-6 space-y-4">
+                                                <div className="text-center">
+                                                    <h3 className="text-xl font-bold text-amber-800 dark:text-amber-200 mb-2">
+                                                        ⚠️ {(t.renew as any)?.packages?.confirmTitle || 'تأكيد الشراء'}
+                                                    </h3>
+                                                    <p className="text-gray-600 dark:text-gray-400 text-sm">
+                                                        {(t.renew as any)?.packages?.confirmMessage || 'يرجى مراجعة التفاصيل قبل المتابعة'}
+                                                    </p>
+                                                </div>
+
+                                                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 space-y-3">
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.promoApplied || 'كود الخصم:'}</span>
-                                                        <span className="font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
-                                                            {promoCode}
+                                                        <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.selectedPackage || 'الباقة المختارة:'}</span>
+                                                        <span className="font-bold text-lg">
+                                                            {packages.find(p => p.index === selectedPackageIndex)?.name}
                                                         </span>
                                                     </div>
-                                                </>
-                                            )}
-                                        </div>
+                                                    <hr className="border-gray-200 dark:border-gray-700" />
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.totalAmount || 'المبلغ الإجمالي:'}</span>
+                                                        <span className="font-bold text-2xl text-green-600 dark:text-green-400">
+                                                            {packages.find(p => p.index === selectedPackageIndex)?.price} USD
+                                                        </span>
+                                                    </div>
+                                                    {promoCode && (
+                                                        <>
+                                                            <hr className="border-gray-200 dark:border-gray-700" />
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-gray-600 dark:text-gray-400">{(t.renew as any)?.packages?.promoApplied || 'كود الخصم:'}</span>
+                                                                <span className="font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
+                                                                    {promoCode}
+                                                                </span>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
 
-                                        <div className="flex gap-3">
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => setShowConfirmation(false)}
-                                                disabled={loading}
-                                                className="flex-1"
-                                            >
-                                                {(t.renew as any)?.packages?.editChoice || 'تعديل الاختيار'}
-                                            </Button>
-                                            <Button
-                                                onClick={handleSelectPackage}
-                                                disabled={loading}
-                                                className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600"
-                                            >
-                                                {loading ? (
-                                                    <>
-                                                        <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                                        {(t.renew as any)?.packages?.purchasing || 'جاري الشراء...'}
-                                                    </>
-                                                ) : (
-                                                    '✓ ' + ((t.renew as any)?.packages?.confirmPurchase || 'موافق - إتمام الشراء')
-                                                )}
-                                            </Button>
+                                                <div className="flex gap-3">
+                                                    <Button
+                                                        variant="outline"
+                                                        onClick={() => setShowConfirmation(false)}
+                                                        disabled={loading}
+                                                        className="flex-1"
+                                                    >
+                                                        {(t.renew as any)?.packages?.editChoice || 'تعديل الاختيار'}
+                                                    </Button>
+                                                    <Button
+                                                        onClick={handleSelectPackage}
+                                                        disabled={loading}
+                                                        className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600"
+                                                    >
+                                                        {loading ? (
+                                                            <>
+                                                                <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                                                                {(t.renew as any)?.packages?.purchasing || 'جاري الشراء...'}
+                                                            </>
+                                                        ) : (
+                                                            '✓ ' + ((t.renew as any)?.packages?.confirmPurchase || 'موافق - إتمام الشراء')
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Completing State */}
+                    {step === 'completing' && (
+                        <Card className="border-2 border-purple-100 dark:border-purple-900/30">
+                            <CardContent className="py-12 text-center">
+                                <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
+                                <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.completing?.title || 'جاري إتمام الشراء...'}</h3>
+                                <p className="text-muted-foreground">{(t.renew as any)?.completing?.warning || 'لا تغلق الصفحة'}</p>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Step: Awaiting Final Confirm */}
+                    {step === 'awaiting-final-confirm' && (
+                        <Card className="border-2 border-orange-200 dark:border-orange-900/30">
+                            <CardHeader className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-t-lg">
+                                <div className="flex items-center gap-3">
+                                    <ShieldCheck className="h-8 w-8" />
+                                    <div>
+                                        <CardTitle className="text-white text-xl">{(t.renew as any)?.finalConfirm?.title || 'تأكيد الدفع النهائي'}</CardTitle>
+                                        <CardDescription className="text-orange-100">{(t.renew as any)?.finalConfirm?.description || 'هذه الخطوة الأخيرة قبل إتمام الشراء'}</CardDescription>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-6 space-y-4">
+                                {/* Package Info */}
+                                <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.package || 'الباقة:'}</span>
+                                        <span className="font-bold text-foreground">{selectedPackageInfo?.name || 'غير محدد'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.price || 'السعر:'}</span>
+                                        <span className="font-bold text-green-600 dark:text-green-400">{selectedPackageInfo?.price || 0} USD</span>
+                                    </div>
+                                    {stbNumber && (
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.receiver || 'رقم الريسيفر:'}</span>
+                                            <span className="font-mono text-sm" dir="ltr">{stbNumber}</span>
                                         </div>
+                                    )}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.cardNumber || 'رقم الكارت:'}</span>
+                                        <span className="font-mono text-sm" dir="ltr">****{cardNumber.slice(-4)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Timer */}
+                                {finalConfirmExpiry && (
+                                    <FinalConfirmTimer
+                                        expiry={finalConfirmExpiry}
+                                        onWarning={handleExpiryWarning}
+                                        onExpire={handleAutoExpire}
+                                    />
+                                )}
+
+                                {/* Expiry Warning Message */}
+                                {showExpiryWarning && (
+                                    <div className="flex items-center justify-center gap-2 p-3 bg-red-100 dark:bg-red-900/40 rounded-xl border-2 border-red-400 dark:border-red-600 animate-pulse">
+                                        <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                        <span className="text-sm font-bold text-red-700 dark:text-red-300">
+                                            ⚠️ {(t.renew as any)?.finalConfirm?.warning || 'سيتم إلغاء العملية تلقائياً!'}
+                                        </span>
                                     </div>
                                 )}
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
 
-            {/* Completing State */}
-            {step === 'completing' && (
-                <Card className="border-2 border-purple-100 dark:border-purple-900/30">
-                    <CardContent className="py-12 text-center">
-                        <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.completing?.title || 'جاري إتمام الشراء...'}</h3>
-                        <p className="text-muted-foreground">{(t.renew as any)?.completing?.warning || 'لا تغلق الصفحة'}</p>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Step: Awaiting Final Confirm */}
-            {step === 'awaiting-final-confirm' && (
-                <Card className="border-2 border-orange-200 dark:border-orange-900/30">
-                    <CardHeader className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-t-lg">
-                        <div className="flex items-center gap-3">
-                            <ShieldCheck className="h-8 w-8" />
-                            <div>
-                                <CardTitle className="text-white text-xl">{(t.renew as any)?.finalConfirm?.title || 'تأكيد الدفع النهائي'}</CardTitle>
-                                <CardDescription className="text-orange-100">{(t.renew as any)?.finalConfirm?.description || 'هذه الخطوة الأخيرة قبل إتمام الشراء'}</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                        {/* Package Info */}
-                        <div className="bg-muted/50 rounded-xl p-4 space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.package || 'الباقة:'}</span>
-                                <span className="font-bold text-foreground">{selectedPackageInfo?.name || 'غير محدد'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.price || 'السعر:'}</span>
-                                <span className="font-bold text-green-600 dark:text-green-400">{selectedPackageInfo?.price || 0} USD</span>
-                            </div>
-                            {stbNumber && (
-                                <div className="flex justify-between items-center">
-                                    <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.receiver || 'رقم الريسيفر:'}</span>
-                                    <span className="font-mono text-sm" dir="ltr">{stbNumber}</span>
+                                {/* Warning */}
+                                <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+                                    <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                                    <p className="text-sm text-red-700 dark:text-red-300">
+                                        <strong>تحذير:</strong> عند الضغط على &quot;تأكيد الدفع&quot;، سيتم إتمام عملية الشراء ولن يمكن إلغاؤها أو استردادها.
+                                    </p>
                                 </div>
-                            )}
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.cardNumber || 'رقم الكارت:'}</span>
-                                <span className="font-mono text-sm" dir="ltr">****{cardNumber.slice(-4)}</span>
-                            </div>
-                        </div>
 
-                        {/* Timer */}
-                        {finalConfirmExpiry && (
-                            <FinalConfirmTimer
-                                expiry={finalConfirmExpiry}
-                                onWarning={handleExpiryWarning}
-                                onExpire={handleAutoExpire}
-                            />
-                        )}
+                                {/* Actions */}
+                                <div className="flex gap-3 pt-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => handleCancelConfirm(false)}
+                                        disabled={isConfirmLoading || isAutoCancelling}
+                                        className="flex-1"
+                                    >
+                                        {(t.renew as any)?.finalConfirm?.cancel || 'إلغاء'}
+                                    </Button>
+                                    <Button
+                                        onClick={handleFinalConfirm}
+                                        disabled={isConfirmLoading || isAutoCancelling}
+                                        className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                                    >
+                                        {isConfirmLoading ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                                                {(t.renew as any)?.finalConfirm?.confirming || 'جاري التأكيد...'}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle className="h-4 w-4 ml-2" />
+                                                {(t.renew as any)?.finalConfirm?.confirm || 'تأكيد الدفع'}
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
-                        {/* Expiry Warning Message */}
-                        {showExpiryWarning && (
-                            <div className="flex items-center justify-center gap-2 p-3 bg-red-100 dark:bg-red-900/40 rounded-xl border-2 border-red-400 dark:border-red-600 animate-pulse">
-                                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                                <span className="text-sm font-bold text-red-700 dark:text-red-300">
-                                    ⚠️ {(t.renew as any)?.finalConfirm?.warning || 'سيتم إلغاء العملية تلقائياً!'}
-                                </span>
-                            </div>
-                        )}
-
-                        {/* Warning */}
-                        <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
-                            <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                            <p className="text-sm text-red-700 dark:text-red-300">
-                                <strong>تحذير:</strong> عند الضغط على &quot;تأكيد الدفع&quot;، سيتم إتمام عملية الشراء ولن يمكن إلغاؤها أو استردادها.
-                            </p>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex gap-3 pt-2">
-                            <Button
-                                variant="outline"
-                                onClick={() => handleCancelConfirm(false)}
-                                disabled={isConfirmLoading || isAutoCancelling}
-                                className="flex-1"
-                            >
-                                {(t.renew as any)?.finalConfirm?.cancel || 'إلغاء'}
-                            </Button>
-                            <Button
-                                onClick={handleFinalConfirm}
-                                disabled={isConfirmLoading || isAutoCancelling}
-                                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
-                            >
-                                {isConfirmLoading ? (
+                    {/* Step 4: Result */}
+                    {step === 'result' && result && (
+                        <Card className={`border-2 ${result.success ? 'border-green-200 dark:border-green-900/30' : 'border-red-200 dark:border-red-900/30'}`}>
+                            <CardContent className="py-12 text-center">
+                                {result.success ? (
                                     <>
-                                        <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                        {(t.renew as any)?.finalConfirm?.confirming || 'جاري التأكيد...'}
+                                        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                                        <h3 className="text-2xl font-bold text-green-600 mb-2">{(t.renew as any)?.result?.success || 'تم بنجاح!'}</h3>
                                     </>
                                 ) : (
                                     <>
-                                        <CheckCircle className="h-4 w-4 ml-2" />
-                                        {(t.renew as any)?.finalConfirm?.confirm || 'تأكيد الدفع'}
+                                        <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+                                        <h3 className="text-2xl font-bold text-red-600 mb-2">{(t.renew as any)?.result?.failed || 'فشلت العملية'}</h3>
                                     </>
                                 )}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Step 4: Result */}
-            {step === 'result' && result && (
-                <Card className={`border-2 ${result.success ? 'border-green-200 dark:border-green-900/30' : 'border-red-200 dark:border-red-900/30'}`}>
-                    <CardContent className="py-12 text-center">
-                        {result.success ? (
-                            <>
-                                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                                <h3 className="text-2xl font-bold text-green-600 mb-2">{(t.renew as any)?.result?.success || 'تم بنجاح!'}</h3>
-                            </>
-                        ) : (
-                            <>
-                                <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-                                <h3 className="text-2xl font-bold text-red-600 mb-2">{(t.renew as any)?.result?.failed || 'فشلت العملية'}</h3>
-                            </>
-                        )}
-                        <p className="text-muted-foreground mb-6">{result.message}</p>
-                        <Button onClick={handleReset} variant="outline" className="gap-2">
-                            <Sparkles className="h-4 w-4" />
-                            {(t.renew as any)?.result?.newOperation || 'عملية جديدة'}
-                        </Button>
-                    </CardContent>
-                </Card>
+                                <p className="text-muted-foreground mb-6">{result.message}</p>
+                                <Button onClick={handleReset} variant="outline" className="gap-2">
+                                    <Sparkles className="h-4 w-4" />
+                                    {(t.renew as any)?.result?.newOperation || 'عملية جديدة'}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+                </>
             )}
         </div>
     )

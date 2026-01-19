@@ -610,7 +610,31 @@ export const bn = {
             cancelled: 'অপারেশন বাতিল। টাকা ফেরত দেওয়া হয়েছে।',
             cancelFailed: 'অপারেশন বাতিল করতে ব্যর্থ',
             expiryWarning: '১০ সেকেন্ডে স্বয়ংক্রিয় বাতিল!'
+        },
+        modes: {
+            signalRefresh: 'সিগন্যাল রিফ্রেশ',
+            packageRenewal: 'প্যাকেজ রিনিউ'
         }
+    },
+    signalRefresh: {
+        title: 'সিগন্যাল রিফ্রেশ',
+        description: 'রিসিভার সিগন্যাল রিফ্রেশ করতে কার্ড নম্বর দিন',
+        cardPlaceholder: 'কার্ড নম্বর দিন (১০-১৬ সংখ্যা)',
+        startButton: 'সিগন্যাল রিফ্রেশ',
+        invalidCard: 'ভুল কার্ড নম্বর',
+        processing: 'কার্ড চেক এবং সিগন্যাল রিফ্রেশ হচ্ছে...',
+        smartCard: 'স্মার্ট কার্ড সিরিয়াল',
+        expiryDate: 'মেয়াদ শেষের তারিখ',
+        validUntil: 'পর্যন্ত বৈধ',
+        walletBalance: 'ওয়ালেট ব্যালেন্স',
+        activationsToday: 'আজকের অ্যাক্টিভেশন',
+        limitReached: 'দৈনিক সীমা পূর্ণ',
+        tryAnother: 'অন্য কার্ড চেষ্টা করুন',
+        successActivated: 'সিগন্যাল সফলভাবে রিফ্রেশ হয়েছে!',
+        successChecked: 'কার্ড সফলভাবে চেক হয়েছে!',
+        refreshAnother: 'অন্য কার্ড রিফ্রেশ',
+        error: 'একটি ত্রুটি ঘটেছে',
+        tryAgain: 'আবার চেষ্টা করুন'
     },
     maintenance: {
         title: 'সিস্টেম রক্ষণাবেক্ষণে',

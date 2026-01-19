@@ -563,7 +563,31 @@ export const ar = {
             insufficientBalance: 'رصيد غير كافي',
             promoApplied: 'تم تطبيق الكود! الأسعار محدثة',
             promoFailed: 'فشل تطبيق الكود'
+        },
+        modes: {
+            signalRefresh: 'تجديد الإشارة',
+            packageRenewal: 'شحن الباقة'
         }
+    },
+    signalRefresh: {
+        title: 'تجديد الإشارة',
+        description: 'أدخل رقم الكارت لتجديد إشارة الريسيفر',
+        cardPlaceholder: 'أدخل رقم الكارت (10-16 رقم)',
+        startButton: 'تجديد الإشارة',
+        invalidCard: 'رقم الكارت غير صحيح',
+        processing: 'جاري فحص الكارت وتجديد الإشارة...',
+        smartCard: 'رقم الكارت',
+        expiryDate: 'تاريخ الانتهاء',
+        validUntil: 'صالح حتى',
+        walletBalance: 'رصيد المحفظة',
+        activationsToday: 'التنشيطات اليوم',
+        limitReached: 'تم الوصول للحد اليومي',
+        tryAnother: 'كارت آخر',
+        successActivated: 'تم تجديد الإشارة بنجاح!',
+        successChecked: 'تم فحص الكارت بنجاح!',
+        refreshAnother: 'تجديد كارت آخر',
+        error: 'حدث خطأ',
+        tryAgain: 'حاول مرة أخرى'
     },
     notifications: {
         title: 'الإشعارات',

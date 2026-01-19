@@ -18,7 +18,7 @@ import { BeinAccount } from '@prisma/client';
 
 interface OperationJobData {
     operationId: string;
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM';
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM';
     cardNumber: string;
     duration?: string;
     promoCode?: string;
@@ -109,6 +109,9 @@ export async function processOperationHttp(
                 break;
             case 'CANCEL_CONFIRM':
                 await handleCancelConfirmHttp(operationId, accountPool);
+                break;
+            case 'SIGNAL_REFRESH':
+                await handleSignalRefreshHttp(operationId, cardNumber, accountPool);
                 break;
             default:
                 throw new Error(`Unsupported operation type for HTTP: ${type}`);
@@ -586,6 +589,103 @@ async function handleCancelConfirmHttp(
     }
 
     console.log(`✅ [HTTP] Operation ${operationId} cancelled and refunded`);
+}
+
+/**
+ * SIGNAL_REFRESH - Login, check card status, activate signal
+ */
+async function handleSignalRefreshHttp(
+    operationId: string,
+    cardNumber: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`🔄 [HTTP] Starting signal refresh for ${operationId}`);
+
+    await checkIfCancelled(operationId);
+
+    // Update status
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'PROCESSING' }
+    });
+
+    // Acquire account
+    const account = await accountPool.getNextAvailableAccount();
+    if (!account) {
+        throw new Error('No beIN accounts available');
+    }
+    console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`);
+
+    // Store account reference
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { beinAccountId: account.id }
+    });
+
+    // Get or create HTTP client for this account
+    const httpClient = await getHttpClient(account);
+
+    try {
+        // Step 1: Login if needed
+        const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
+        if (!loginResult.success) {
+            throw new Error(`Login failed: ${loginResult.error}`);
+        }
+        console.log('🔑 [HTTP] Login successful');
+
+        await checkIfCancelled(operationId);
+
+        // Step 2: Activate signal
+        const signalResult = await httpClient.activateSignal(cardNumber);
+
+        if (!signalResult.success) {
+            throw new Error(signalResult.error || 'Signal activation failed');
+        }
+
+        // Store card status in responseData
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'COMPLETED',
+                completedAt: new Date(),
+                stbNumber: signalResult.cardStatus?.stbNumber,
+                responseMessage: signalResult.activated
+                    ? 'Signal activated successfully'
+                    : signalResult.message || 'Card status retrieved',
+                responseData: {
+                    cardStatus: signalResult.cardStatus,
+                    activated: signalResult.activated
+                }
+            }
+        });
+
+        // Create success notification
+        const op = await prisma.operation.findUnique({
+            where: { id: operationId },
+            select: { userId: true }
+        });
+
+        if (op?.userId) {
+            await createNotification({
+                userId: op.userId,
+                title: 'تم تجديد الإشارة بنجاح',
+                message: signalResult.activated
+                    ? `تم تجديد الإشارة للكارت ${cardNumber.slice(0, 4)}****`
+                    : `تم فحص الكارت ${cardNumber.slice(0, 4)}****`,
+                type: 'info'
+            });
+        }
+
+        // Mark account as used
+        await accountPool.markAccountUsed(account.id);
+
+        console.log(`✅ [HTTP] Signal refresh completed for ${operationId}`);
+
+    } catch (error: any) {
+        // Mark account as used even on failure
+        await accountPool.markAccountUsed(account.id);
+        throw error;
+    }
 }
 
 /**

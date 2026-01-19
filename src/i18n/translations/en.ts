@@ -610,7 +610,31 @@ export const en = {
             cancelled: 'Operation cancelled. Amount refunded.',
             cancelFailed: 'Failed to cancel operation',
             expiryWarning: 'Auto-cancel in 10 seconds!'
+        },
+        modes: {
+            signalRefresh: 'Signal Refresh',
+            packageRenewal: 'Package Renewal'
         }
+    },
+    signalRefresh: {
+        title: 'Signal Refresh',
+        description: 'Enter card number to refresh receiver signal',
+        cardPlaceholder: 'Enter card number (10-16 digits)',
+        startButton: 'Refresh Signal',
+        invalidCard: 'Invalid card number',
+        processing: 'Checking card and refreshing signal...',
+        smartCard: 'Smart Card Serial',
+        expiryDate: 'Expiry Date',
+        validUntil: 'Valid until',
+        walletBalance: 'Wallet Balance',
+        activationsToday: 'Activations Today',
+        limitReached: 'Daily limit reached',
+        tryAnother: 'Try Another Card',
+        successActivated: 'Signal refreshed successfully!',
+        successChecked: 'Card checked successfully!',
+        refreshAnother: 'Refresh Another Card',
+        error: 'An error occurred',
+        tryAgain: 'Try Again'
     },
     maintenance: {
         title: 'System Under Maintenance',

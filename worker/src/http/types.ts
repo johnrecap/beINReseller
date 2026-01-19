@@ -66,3 +66,18 @@ export interface SessionData {
     viewState?: HiddenFields;
     lastLoginTime?: string;
 }
+
+export interface SignalRefreshResult {
+    success: boolean;
+    cardStatus?: {
+        isPremium: boolean;
+        smartCardSerial: string;
+        stbNumber: string;
+        expiryDate: string;
+        walletBalance: number;
+        activateCount: { current: number; max: number }; // e.g., { current: 1, max: 20 }
+    };
+    activated?: boolean;
+    message?: string;
+    error?: string;
+}

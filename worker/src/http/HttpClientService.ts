@@ -402,11 +402,24 @@ export class HttpClientService {
                 console.log(`[HTTP] Fetching CAPTCHA from: ${captchaUrl}`);
 
                 const captchaRes = await this.axios.get(captchaUrl, {
-                    responseType: 'arraybuffer'
+                    responseType: 'arraybuffer',
+                    headers: {
+                        'Referer': this.config.loginUrl,
+                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+                    }
                 });
 
                 const contentType = captchaRes.headers['content-type'] || 'image/png';
                 console.log(`[HTTP] CAPTCHA content-type: ${contentType}, size: ${captchaRes.data.length} bytes`);
+
+                // Check if we got an image or HTML error page
+                if (contentType.includes('text/html')) {
+                    console.error('[HTTP] CAPTCHA request returned HTML instead of image - session issue');
+                    // Log first 100 chars of response for debugging
+                    const htmlSnippet = Buffer.from(captchaRes.data).toString('utf-8').substring(0, 100);
+                    console.error(`[HTTP] Response: ${htmlSnippet}...`);
+                    throw new Error('CAPTCHA fetch failed - server returned HTML');
+                }
 
                 const captchaBase64 = Buffer.from(captchaRes.data).toString('base64');
 

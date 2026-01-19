@@ -41,6 +41,10 @@ export class HttpClientService {
     private currentViewState: HiddenFields | null = null;
     private currentStbNumber: string | null = null;
 
+    // Session tracking for persistent login
+    private lastLoginTime: Date | null = null;
+    private sessionValid: boolean = false;
+
     // Config caching
     private static configCache: { data: BeINHttpConfig; timestamp: number } | null = null;
     private static readonly CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -370,7 +374,41 @@ export class HttpClientService {
         this.jar = new CookieJar();
         this.currentViewState = null;
         this.currentStbNumber = null;
+        this.lastLoginTime = null;
+        this.sessionValid = false;
         console.log('[HTTP] Session reset');
+    }
+
+    /**
+     * Check if current session is still active (within timeout period)
+     * Uses sessionTimeout from config (in minutes)
+     */
+    isSessionActive(): boolean {
+        if (!this.lastLoginTime || !this.sessionValid) {
+            return false;
+        }
+
+        const elapsed = Date.now() - this.lastLoginTime.getTime();
+        const timeoutMs = (this.config?.sessionTimeout || 25) * 60 * 1000; // default 25 min
+        const isActive = elapsed < timeoutMs;
+
+        if (isActive) {
+            console.log(`[HTTP] Session active (${Math.floor(elapsed / 60000)} min / ${this.config?.sessionTimeout || 25} min timeout)`);
+        } else {
+            console.log(`[HTTP] Session expired (${Math.floor(elapsed / 60000)} min ago)`);
+            this.sessionValid = false;
+        }
+
+        return isActive;
+    }
+
+    /**
+     * Mark session as valid after successful login
+     */
+    private markSessionValid(): void {
+        this.lastLoginTime = new Date();
+        this.sessionValid = true;
+        console.log('[HTTP] Session marked as valid');
     }
 
     // =============================================
@@ -380,9 +418,16 @@ export class HttpClientService {
     /**
      * Login to beIN portal
      * Returns CAPTCHA image if required
+     * Skips login if session is still active
      */
     async login(username: string, password: string, totpSecret?: string): Promise<LoginResult> {
         console.log(`[HTTP] Starting login for: ${username}`);
+
+        // Check if session is still active - skip re-login
+        if (this.isSessionActive()) {
+            console.log('[HTTP] ✅ Session still valid, skipping login');
+            return { success: true };
+        }
 
         try {
             // Step 1: GET login page
@@ -558,6 +603,7 @@ export class HttpClientService {
             }
 
             console.log('[HTTP] ✅ Login successful!');
+            this.markSessionValid();
             return { success: true };
 
         } catch (error: any) {

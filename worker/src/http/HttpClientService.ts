@@ -1734,15 +1734,21 @@ export class HttpClientService {
             const balanceMatch = pageText.match(/Wallet\s*balance\s*:\s*\$?(\d+(?:\.\d{2})?)/i);
             const walletBalance = balanceMatch ? parseFloat(balanceMatch[1]) : 0;
 
-            // Extract Activate count (e.g., "Activate ( 1 / 20 )")
-            const activateMatch = pageText.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+            // Step 3: Get Activate button value FIRST (contains the count)
+            const activateBtnName = 'ctl00$ContentPlaceHolder1$btnActivate';
+            const activateBtnValue = this.extractButtonValue(checkRes.data, 'btnActivate', 'Activate');
+            console.log(`[HTTP] Button "btnActivate" value: "${activateBtnValue}"`);
+
+            // Extract Activate count from BUTTON VALUE (e.g., "Activate ( 1 / 20 )")
+            // NOT from pageText since button text may not appear in body.text()
+            const activateMatch = activateBtnValue.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
             const activateCount = activateMatch
                 ? { current: parseInt(activateMatch[1]), max: parseInt(activateMatch[2]) }
                 : { current: 0, max: 20 };
 
             console.log(`[HTTP] Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}`);
 
-            // Check if we can activate
+            // Check if we can activate (limit reached)
             if (activateCount.current >= activateCount.max) {
                 return {
                     success: true,
@@ -1758,10 +1764,6 @@ export class HttpClientService {
                     message: 'Daily activation limit reached'
                 };
             }
-
-            // Step 3: Click Activate button
-            const activateBtnName = 'ctl00$ContentPlaceHolder1$btnActivate';
-            const activateBtnValue = this.extractButtonValue(checkRes.data, 'btnActivate', 'Activate');
 
             if (!activateBtnValue || activateBtnValue === 'Activate') {
                 // Try to find actual button

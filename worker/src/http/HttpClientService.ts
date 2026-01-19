@@ -359,15 +359,22 @@ export class HttpClientService {
             const $ = cheerio.load(loginPageRes.data);
 
             // Use selector from database config (e.g., Login1_ImageVerificationDealer_Image)
-            const captchaSelector = this.config.selCaptchaImg;
-            let captchaImg = $(`#${captchaSelector}, img[id*="${captchaSelector}"]`);
+            // Remove any leading # to avoid duplication
+            const captchaSelectorRaw = this.config.selCaptchaImg;
+            const captchaSelector = captchaSelectorRaw.replace(/^#/, '');
+
+            // Try both ID selector and partial ID match
+            let captchaImg = $(`#${captchaSelector}`);
+            if (!captchaImg.length) {
+                captchaImg = $(`img[id*="${captchaSelector}"]`);
+            }
 
             // Fallback to generic selectors if not found
             if (!captchaImg.length) {
                 captchaImg = $('img[src*="captcha"], img[id*="Captcha"], img[id*="captcha"], img[id*="Verification"]');
             }
 
-            console.log(`[HTTP] CAPTCHA selector: ${captchaSelector}, found: ${captchaImg.length > 0}`);
+            console.log(`[HTTP] CAPTCHA selector: #${captchaSelector}, found: ${captchaImg.length > 0}`);
 
             if (captchaImg.length) {
                 const captchaSrc = captchaImg.attr('src');

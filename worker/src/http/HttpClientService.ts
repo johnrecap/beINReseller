@@ -401,17 +401,17 @@ export class HttpClientService {
 
                 console.log(`[HTTP] Fetching CAPTCHA from: ${captchaUrl}`);
 
-                // Get cookies for this domain to debug
+                // Debug: Log cookies being sent by cookie jar
                 const cookies = await this.jar.getCookies(captchaUrl);
                 const cookieHeader = cookies.map(c => `${c.key}=${c.value}`).join('; ');
-                console.log(`[HTTP] Sending cookies: ${cookieHeader.substring(0, 100)}...`);
+                console.log(`[HTTP] Cookie jar has ${cookies.length} cookies: ${cookieHeader.substring(0, 100)}...`);
 
+                // Let axios-cookiejar-support handle Cookie header automatically
                 const captchaRes = await this.axios.get(captchaUrl, {
                     responseType: 'arraybuffer',
                     headers: {
                         'Referer': this.config.loginUrl,
-                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                        'Cookie': cookieHeader  // Manually set Cookie header
+                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
                     }
                 });
 
@@ -653,15 +653,29 @@ export class HttpClientService {
             let ciscoValue = '';
 
             if (ddlType.length) {
-                // Find CISCO option value
-                ddlType.find('option').each((_, el) => {
+                // Find CISCO/Smartcard option value (with fallback to first option)
+                let firstOptionValue = '';
+                ddlType.find('option').each((index, el) => {
                     const text = $(el).text();
                     const value = $(el).attr('value') || '';
-                    if (text.includes('CISCO') || text.includes('Smartcard')) {
+
+                    // Store first non-empty option as fallback
+                    if (!firstOptionValue && value) {
+                        firstOptionValue = value;
+                    }
+
+                    // Prefer CISCO, Smartcard, or Humax
+                    if (text.includes('CISCO') || text.includes('Smartcard') || text.includes('Humax')) {
                         ciscoValue = value;
-                        console.log(`[HTTP] Found CISCO option: value="${value}" text="${text}"`);
+                        console.log(`[HTTP] Found device option: value="${value}" text="${text}"`);
                     }
                 });
+
+                // Fallback to first option if CISCO not found
+                if (!ciscoValue && firstOptionValue) {
+                    ciscoValue = firstOptionValue;
+                    console.log(`[HTTP] CISCO not found, using fallback: value="${ciscoValue}"`);
+                }
 
                 if (ciscoValue) {
                     // POST to select CISCO

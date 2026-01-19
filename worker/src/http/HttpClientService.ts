@@ -1786,25 +1786,26 @@ export class HttpClientService {
                 }
             }
 
+            // Try standard ASP.NET postback with __EVENTTARGET
+            // This mimics what happens when JavaScript clicks the button
             const activateFormData: Record<string, string> = {
                 ...this.currentViewState,
-                [activateBtnName]: activateBtnValue,
-                // ASP.NET AJAX ScriptManager fields for UpdatePanel async postback
-                'ctl00$ScriptManager1': 'ctl00$ContentPlaceHolder1$UpdatePanel1|' + activateBtnName,
-                '__ASYNCPOST': 'true'
+                // Standard ASP.NET postback - set EVENTTARGET to button name
+                '__EVENTTARGET': activateBtnName,
+                '__EVENTARGUMENT': '',
+                // Also include the button value as backup
+                [activateBtnName]: activateBtnValue
             };
 
-            console.log('[HTTP] POST activate signal (with AJAX headers)...');
+            console.log('[HTTP] POST activate signal (standard postback)...');
+            console.log('[HTTP] __EVENTTARGET:', activateBtnName);
             const activateRes = await this.axios.post(
                 checkUrl,
                 this.buildFormData(activateFormData),
                 {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl,
-                        // ASP.NET AJAX required headers
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-MicrosoftAjax': 'Delta=true'
+                        'Referer': checkUrl
                     }
                 }
             );

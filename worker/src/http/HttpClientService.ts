@@ -812,6 +812,14 @@ export class HttpClientService {
 
                     this.currentViewState = this.extractHiddenFields(selectRes.data);
                     $ = cheerio.load(selectRes.data);
+
+                    // DEBUG: Verify CISCO selection was applied
+                    const selectedValue = $('select[id*="ddlType"]').val();
+                    console.log(`[HTTP] Dropdown after POST: selected value = "${selectedValue}"`);
+
+                    // Check if tbSerial1 field appeared (it should be visible after CISCO selection)
+                    const serial1Visible = $('input[id*="tbSerial1"]').length > 0;
+                    console.log(`[HTTP] tbSerial1 visible after CISCO: ${serial1Visible}`);
                 }
             }
 

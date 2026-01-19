@@ -1786,19 +1786,20 @@ export class HttpClientService {
                 }
             }
 
-            // Try standard ASP.NET postback with __EVENTTARGET
-            // This mimics what happens when JavaScript clicks the button
+            // Standard Layout Submit Button (input type="submit")
+            // This requires the button name and value to be in the body
             const activateFormData: Record<string, string> = {
                 ...this.currentViewState,
-                // Standard ASP.NET postback - set EVENTTARGET to button name
-                '__EVENTTARGET': activateBtnName,
-                '__EVENTARGUMENT': '',
-                // Also include the button value as backup
+                // For submit buttons, we MUST send name=value
                 [activateBtnName]: activateBtnValue
             };
 
-            console.log('[HTTP] POST activate signal (standard postback)...');
-            console.log('[HTTP] __EVENTTARGET:', activateBtnName);
+            // Remove __EVENTTARGET/ARGUMENT if they exist in viewstate or previous logic
+            if (activateFormData['__EVENTTARGET']) delete activateFormData['__EVENTTARGET'];
+            if (activateFormData['__EVENTARGUMENT']) delete activateFormData['__EVENTARGUMENT'];
+
+            console.log('[HTTP] POST activate signal (submit button)...');
+            console.log(`[HTTP] Button param: ${activateBtnName}="${activateBtnValue}"`);
             const activateRes = await this.axios.post(
                 checkUrl,
                 this.buildFormData(activateFormData),

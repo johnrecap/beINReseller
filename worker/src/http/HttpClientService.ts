@@ -609,19 +609,31 @@ export class HttpClientService {
                 return { success: false, error };
             }
 
-            // Extract STB number from response
+            // Extract STB number from response - IMPROVED patterns from Playwright
             const $ = cheerio.load(checkRes.data);
-
-            // Pattern 1: "STB(s): 947242535522003"
             const pageText = $('body').text();
+
+            // Pattern 1: "STB(s): 947242535522003" (from beIN Check page)
             let stbMatch = pageText.match(/STB\(s\)[:\s]*(\d{10,})/i)?.[1];
 
-            // Pattern 2: Label containing STB
+            // Pattern 2: "STB: 947242535522003"
             if (!stbMatch) {
-                stbMatch = $('#ContentPlaceHolder1_lblSerial').text().match(/(\d{15})/)?.[1];
+                stbMatch = pageText.match(/STB[:\s]+(\d{10,})/i)?.[1];
             }
 
-            // Pattern 3: Any 15-digit number
+            // Pattern 3: ContentPlaceHolder1_lblSerial contains "paired to STB(s): XXXXX"
+            if (!stbMatch) {
+                const lblSerial = $('#ContentPlaceHolder1_lblSerial').text();
+                stbMatch = lblSerial.match(/STB\(s\)[:\s]*(\d{10,})/i)?.[1] ||
+                    lblSerial.match(/(\d{15})/)?.[1];
+            }
+
+            // Pattern 4: Arabic label "رقم الريسيفر"
+            if (!stbMatch) {
+                stbMatch = pageText.match(/رقم الريسيفر[:\s]*(\d{10,})/)?.[1];
+            }
+
+            // Pattern 5: Any 15-digit number as fallback
             if (!stbMatch) {
                 stbMatch = pageText.match(/(\d{15})/)?.[1];
             }
@@ -645,6 +657,63 @@ export class HttpClientService {
         } catch (error: any) {
             console.error('[HTTP] Check card error:', error.message);
             return { success: false, error: `Check failed: ${error.message}` };
+        }
+    }
+
+    /**
+     * START RENEWAL WITH CHECK - Combined flow matching Playwright automation
+     * 
+     * This method mirrors the bein-automation.ts startRenewalSession() flow:
+     * 1. Go to Check page first
+     * 2. Validate card and extract STB number
+     * 3. Then proceed to SellPackages page to load packages
+     * 
+     * This is the RECOMMENDED method for starting the renewal wizard.
+     */
+    async startRenewalWithCheck(cardNumber: string): Promise<LoadPackagesResult> {
+        console.log(`[HTTP] ========== START RENEWAL WITH CHECK ==========`);
+        console.log(`[HTTP] Card: ${cardNumber.slice(0, 4)}****`);
+
+        try {
+            // Step 1: Go to Check page first (like Playwright does)
+            console.log(`[HTTP] Step 1: Validating card on Check page...`);
+            const checkResult = await this.checkCard(cardNumber);
+
+            if (!checkResult.success) {
+                console.log(`[HTTP] ❌ Card validation failed: ${checkResult.error}`);
+                return {
+                    success: false,
+                    packages: [],
+                    error: checkResult.error || 'Card validation failed'
+                };
+            }
+
+            console.log(`[HTTP] ✅ Card validated successfully`);
+            if (this.currentStbNumber) {
+                console.log(`[HTTP] ✅ STB extracted: ${this.currentStbNumber}`);
+            } else {
+                console.log(`[HTTP] ⚠️ STB not found - will try to extract later`);
+            }
+
+            // Step 2: Load packages from SellPackages page
+            console.log(`[HTTP] Step 2: Loading packages from SellPackages...`);
+            const packagesResult = await this.loadPackages(cardNumber);
+
+            // Include the STB we extracted from Check page
+            if (this.currentStbNumber && !packagesResult.stbNumber) {
+                packagesResult.stbNumber = this.currentStbNumber;
+            }
+
+            console.log(`[HTTP] ========== RENEWAL SESSION STARTED ==========`);
+            return packagesResult;
+
+        } catch (error: any) {
+            console.error(`[HTTP] Start renewal error: ${error.message}`);
+            return {
+                success: false,
+                packages: [],
+                error: `Start renewal failed: ${error.message}`
+            };
         }
     }
 
@@ -905,6 +974,127 @@ export class HttpClientService {
     }
 
     // =============================================
+    // PROMO CODE FLOW
+    // =============================================
+
+    /**
+     * Apply promo code and re-extract packages with updated prices
+     * Matches Playwright's applyPromoAndRefreshPackages() flow
+     * 
+     * @param promoCode - The promo code to apply
+     * @param cardNumber - Card number (for re-extracting packages)
+     * @returns Updated packages with discounted prices
+     */
+    async applyPromoCode(promoCode: string, cardNumber: string): Promise<LoadPackagesResult> {
+        console.log(`[HTTP] Applying promo code: ${promoCode}`);
+
+        try {
+            const renewUrl = this.buildFullUrl(this.config.renewUrl);
+
+            if (!this.currentViewState) {
+                return { success: false, packages: [], error: 'ViewState not available - load packages first' };
+            }
+
+            // Step 1: POST promo code
+            const promoFormData: Record<string, string> = {
+                ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$txtPromoCode': promoCode,
+                'ctl00$ContentPlaceHolder1$btnPromoCode': 'Submit'
+            };
+
+            console.log('[HTTP] POST promo code submit...');
+            const promoRes = await this.axios.post(
+                renewUrl,
+                this.buildFormData(promoFormData),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': renewUrl
+                    }
+                }
+            );
+
+            // Check for errors
+            const error = this.checkForErrors(promoRes.data);
+            if (error) {
+                console.log(`[HTTP] ⚠️ Promo code error: ${error}`);
+                return { success: false, packages: [], error };
+            }
+
+            // Update ViewState from response
+            this.currentViewState = this.extractHiddenFields(promoRes.data);
+
+            // Step 2: Re-extract packages from the response (should have updated prices)
+            const $ = cheerio.load(promoRes.data);
+            const packages: AvailablePackage[] = [];
+
+            // Try multiple selectors for package table (same as loadPackages)
+            const tableSelectors = [
+                'table[id*="gvAvailablePackages"] tr.GridRow',
+                'table[id*="gvAvailablePackages"] tr.GridAlternatingRow',
+                'table[id*="AvailablePackages"] tr:not(:first-child)',
+                '#ContentPlaceHolder1_gvAvailablePackages tr:not(:first-child)',
+                '.GridRow',
+                '.GridAlternatingRow',
+                'table tr:has(input[type="checkbox"])'
+            ];
+
+            let packageRows = $('__empty_selector__');
+            for (const sel of tableSelectors) {
+                const rows = $(sel);
+                if (rows.length > 0 && rows.length > packageRows.length) {
+                    packageRows = rows;
+                }
+            }
+
+            console.log(`[HTTP] Found ${packageRows.length} package rows after promo`);
+
+            packageRows.each((index, row) => {
+                const $row = $(row);
+                const checkbox = $row.find('input[type="checkbox"]');
+
+                if (checkbox.length) {
+                    const checkboxName = checkbox.attr('name') || '';
+                    const nameSpan = $row.find('span[id*="lblName"]');
+                    const name = nameSpan.text().trim() || `Package ${index + 1}`;
+
+                    // Extract price (look for USD pattern)
+                    const rowText = $row.text();
+                    const priceMatch = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i);
+                    const price = priceMatch ? parseFloat(priceMatch[1]) : 0;
+
+                    if (price > 0) {
+                        packages.push({
+                            index,
+                            name,
+                            price,
+                            checkboxValue: checkboxName
+                        });
+                        console.log(`[HTTP] Package ${index}: "${name}" - ${price} USD (after promo)`);
+                    }
+                }
+            });
+
+            if (packages.length === 0) {
+                console.log('[HTTP] ⚠️ No packages found after promo - refreshing...');
+                // Fallback: reload packages
+                return await this.loadPackages(cardNumber);
+            }
+
+            console.log(`[HTTP] ✅ Promo applied - ${packages.length} packages with updated prices`);
+            return {
+                success: true,
+                packages,
+                stbNumber: this.currentStbNumber || undefined
+            };
+
+        } catch (error: any) {
+            console.error('[HTTP] Apply promo error:', error.message);
+            return { success: false, packages: [], error: `Promo failed: ${error.message}` };
+        }
+    }
+
+    // =============================================
     // PURCHASE FLOW
     // =============================================
 
@@ -935,10 +1125,80 @@ export class HttpClientService {
                 return { success: false, message: 'ViewState not available' };
             }
 
+            // ===== SECURITY: Verify package before purchase =====
+            // This prevents wrong purchase if page was refreshed or package indices changed
+            console.log(`[HTTP] 🔐 Verifying package: "${selectedPackage.name}" at ${selectedPackage.price} USD`);
+
+            // GET the current page to verify package exists
+            const pageRes = await this.axios.get(renewUrl, {
+                headers: { 'Referer': renewUrl }
+            });
+            const $ = cheerio.load(pageRes.data);
+            this.currentViewState = this.extractHiddenFields(pageRes.data);
+
+            // Search for package by name (not just stored index)
+            const packageNameToFind = selectedPackage.name.split('(')[0].trim().toLowerCase();
+            let foundCheckboxValue: string | null = null;
+            let foundPrice: number | null = null;
+
+            // Try all package rows
+            const tableSelectors = [
+                'table[id*="gvAvailablePackages"] tr.GridRow',
+                'table[id*="gvAvailablePackages"] tr.GridAlternatingRow',
+                '#ContentPlaceHolder1_gvAvailablePackages tr:not(:first-child)',
+                'table tr:has(input[type="checkbox"])'
+            ];
+
+            for (const sel of tableSelectors) {
+                $(sel).each((_, row) => {
+                    if (foundCheckboxValue) return; // Already found
+
+                    const $row = $(row);
+                    const rowText = $row.text().toLowerCase();
+
+                    // Check if this row contains our package name
+                    if (rowText.includes(packageNameToFind)) {
+                        const checkbox = $row.find('input[type="checkbox"]');
+                        if (checkbox.length) {
+                            foundCheckboxValue = checkbox.attr('name') || null;
+
+                            // Extract price from row
+                            const priceMatch = $row.text().match(/(\d+(?:\.\d{1,2})?)\s*USD/i);
+                            foundPrice = priceMatch ? parseFloat(priceMatch[1]) : null;
+
+                            console.log(`[HTTP] ✅ Found package "${packageNameToFind}" with checkbox: ${foundCheckboxValue}`);
+                        }
+                    }
+                });
+                if (foundCheckboxValue) break;
+            }
+
+            // Verify package was found
+            if (!foundCheckboxValue) {
+                console.log(`[HTTP] ❌ Package "${selectedPackage.name}" not found on current page!`);
+                return {
+                    success: false,
+                    message: `Package "${selectedPackage.name}" not found. Page may have been refreshed.`
+                };
+            }
+
+            // Verify price matches (security check)
+            if (foundPrice !== null && foundPrice !== selectedPackage.price) {
+                console.log(`[HTTP] ⚠️ Price mismatch! Expected ${selectedPackage.price} USD, found ${foundPrice} USD`);
+                return {
+                    success: false,
+                    message: `Price changed! Expected ${selectedPackage.price} USD but found ${foundPrice} USD. Aborting.`
+                };
+            }
+            console.log(`[HTTP] ✅ Price verified: ${selectedPackage.price} USD`);
+
+            // Use the verified checkbox value (may be different from stored one)
+            const verifiedCheckboxValue = foundCheckboxValue;
+
             // Step 1: Select checkbox + Add to cart
             const addFormData: Record<string, string> = {
                 ...this.currentViewState,
-                [selectedPackage.checkboxValue]: 'on', // Check the checkbox
+                [verifiedCheckboxValue]: 'on', // Use VERIFIED checkbox
                 'ctl00$ContentPlaceHolder1$btnAddToCart': 'Add >'
             };
 
@@ -981,11 +1241,13 @@ export class HttpClientService {
 
             this.currentViewState = this.extractHiddenFields(res.data);
 
-            // Step 3: Enter STB number
+            // Step 3: Enter STB number - send to BOTH field name variants for compatibility
+            // beIN uses both 'tbStbSerial2' and 'toStbSerial2' on different page versions
             const stbFormData: Record<string, string> = {
                 ...this.currentViewState,
                 'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
-                'ctl00$ContentPlaceHolder1$toStbSerial2': stb // Note: "to" not "tb" for second field
+                'ctl00$ContentPlaceHolder1$tbStbSerial2': stb, // Main variant
+                'ctl00$ContentPlaceHolder1$toStbSerial2': stb  // Alternative variant (beIN sometimes uses "to" prefix)
             };
 
             console.log(`[HTTP] POST STB: ${stb}`);

@@ -991,13 +991,26 @@ export class HttpClientService {
             if (serial2Field.length > 0) {
                 console.log('[HTTP] ✅ tbSerial2 field found - sending step 2...');
 
+                // Detect the new "Load" button for Step 2 (usually btnLoad2 based on screenshots)
+                const step2Html = loadRes.data as string;
+                let step2BtnName = 'ctl00$ContentPlaceHolder1$btnLoad';
+                let step2BtnValue = this.extractButtonValue(step2Html, 'btnLoad', 'Load');
+
+                if (step2Html.includes('btnLoad2')) {
+                    step2BtnName = 'ctl00$ContentPlaceHolder1$btnLoad2';
+                    step2BtnValue = this.extractButtonValue(step2Html, 'btnLoad2', 'Load');
+                    console.log(`[HTTP] Detected Step 2 Load button name: btnLoad2`);
+                } else {
+                    console.log(`[HTTP] Using default/previous Load button for Step 2: ${step2BtnName}`);
+                }
+
                 // Step 3b: Second POST - with both tbSerial1 and tbSerial2
                 const secondFormData: Record<string, string> = {
                     ...this.currentViewState!,
                     'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
                     'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
                     'ctl00$ContentPlaceHolder1$tbSerial2': formattedCard,
-                    'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
+                    [step2BtnName]: step2BtnValue
                 };
 
                 console.log('[HTTP] POST load packages (step 2: tbSerial2 confirmation)...');

@@ -867,7 +867,17 @@ export class HttpClientService {
 
             // Get actual Load button value from current HTML
             const currentHtml = $.html();
-            const loadBtnValue = this.extractButtonValue(currentHtml, 'btnLoad', 'Load');
+            // Button name can be btnLoad or btnLoad1 (seen in logs)
+            let loadBtnName = 'ctl00$ContentPlaceHolder1$btnLoad';
+            let loadBtnValue = this.extractButtonValue(currentHtml, 'btnLoad', 'Load');
+
+            if (currentHtml.includes('btnLoad1')) {
+                loadBtnName = 'ctl00$ContentPlaceHolder1$btnLoad1';
+                loadBtnValue = this.extractButtonValue(currentHtml, 'btnLoad1', 'Load');
+                console.log(`[HTTP] Detected Load button name: btnLoad1`);
+            } else {
+                console.log(`[HTTP] Detected Load button name: btnLoad`);
+            }
 
             // Step 3a: First POST - tbSerial1 + Click Load button
             // For ASP.NET WebForms, button click can be done via:
@@ -881,7 +891,7 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
                 // tbSerial2 is NOT included here - it appears AFTER first Load click
-                'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
+                [loadBtnName]: loadBtnValue
             };
 
             // Check if page uses ScriptManager (AJAX UpdatePanel)

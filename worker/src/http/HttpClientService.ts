@@ -827,14 +827,14 @@ export class HttpClientService {
             // For ASP.NET WebForms, button click can be done via:
             // 1. Including button name=value (what we're doing)
             // 2. OR using __EVENTTARGET (for LinkButtons)
-            // Let's try BOTH approaches
+            // NOTE: Do NOT include tbSerial2 here - it doesn't exist yet and causes Server Error
             const firstFormData: Record<string, string> = {
                 ...this.currentViewState!,
                 '__EVENTTARGET': '',
                 '__EVENTARGUMENT': '',
                 'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
-                'ctl00$ContentPlaceHolder1$tbSerial2': '', // Include empty field in case it's required
+                // tbSerial2 is NOT included here - it appears AFTER first Load click
                 'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
             };
 

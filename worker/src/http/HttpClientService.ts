@@ -234,8 +234,30 @@ export class HttpClientService {
             const el = $(sel);
             if (el.length && el.text().trim()) {
                 const errorText = el.text().trim();
-                // Filter out non-error content
-                if (errorText.length > 3 && !errorText.includes('Password')) {
+
+                // Filter out non-error content (navigation menu, page elements, etc.)
+                const nonErrorPatterns = [
+                    'Password',
+                    'Topup',
+                    'OTT',
+                    'Points',
+                    'Rewards',
+                    'Documents',
+                    'Customer',
+                    'Menu',
+                    'Home',
+                    'Dashboard',
+                    'Packages',
+                    'Settings'
+                ];
+
+                const isNavigation = nonErrorPatterns.some(pattern =>
+                    errorText.includes(pattern)
+                );
+
+                // Only return as error if it's short enough to be an error message
+                // and doesn't contain navigation patterns
+                if (errorText.length > 3 && errorText.length < 200 && !isNavigation) {
                     console.log(`[HTTP] Error detected: ${errorText}`);
                     return errorText;
                 }

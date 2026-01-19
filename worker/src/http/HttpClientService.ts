@@ -60,14 +60,14 @@ export class HttpClientService {
         this.jar = new CookieJar();
         this.totp = new TOTPGenerator();
 
-        // Create axios instance with cookie support and Keep-Alive
+        // Create axios instance with cookie support
+        // Note: Cannot use custom httpsAgent with axios-cookiejar-support
         this.axios = wrapper(axios.create({
             jar: this.jar,
             withCredentials: true,
             headers: HttpClientService.BROWSER_HEADERS,
             timeout: 30000,
             maxRedirects: 5,
-            httpsAgent: new https.Agent({ keepAlive: true }), // Reuse TCP connections
             validateStatus: (status) => status < 500 // Accept redirects
         }));
 

@@ -597,10 +597,10 @@ export class HttpClientService {
             // Get actual button value from HTML (ASP.NET may use 'Check', 'Check Now', etc.)
             const checkBtnValue = this.extractButtonValue(checkPageRes.data, 'btnCheck', 'Check');
 
-            // Step 2: POST card number - FIXED: use tbSerial1 not txtSerialNumber
+            // Step 2: POST card number - FIXED: use tbSerial (not tbSerial1 or txtSerialNumber)
             const formData: Record<string, string> = {
                 ...this.currentViewState,
-                'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,  // Fixed: "tbSerial1" not "txtSerialNumber"
+                'ctl00$ContentPlaceHolder1$tbSerial': cardNumber,  // Log showed: "tbSerial" (no 1)
                 'ctl00$ContentPlaceHolder1$btnCheck': checkBtnValue
             };
 
@@ -878,10 +878,17 @@ export class HttpClientService {
             }
 
             // DEBUG: Log the form data we're sending
-            console.log(`[HTTP] Form data for Load POST:`);
-            console.log(`  - ddlType: ${ciscoValue}`);
-            console.log(`  - tbSerial1: ${formattedCard}`);
-            console.log(`  - btnLoad: ${loadBtnValue}`);
+            console.log(`[HTTP] Form data for Load POST [${Object.keys(firstFormData).length} fields]:`);
+            for (const key of Object.keys(firstFormData)) {
+                const value = firstFormData[key];
+                // Show full value for small fields, truncated for large ViewState
+                const showValue = value.length > 50 ? value.substring(0, 20) + '...' + value.substring(value.length - 20) : value;
+                console.log(`  - ${key}: "${showValue}"`);
+            }
+
+            // Check cookies
+            const cookieString = await this.jar.getCookieString(renewUrl); // Fixed: this.jar
+            console.log(`[HTTP] Cookies for Load POST: ${cookieString}`);
 
             console.log('[HTTP] POST load packages (step 1: tbSerial1 only)...');
             let loadRes = await this.axios.post(
@@ -900,6 +907,11 @@ export class HttpClientService {
             // DEBUG: Log first 500 chars of response to see what we got
             const responseHtml = loadRes.data as string;
             console.log(`[HTTP] Response length: ${responseHtml.length} chars`);
+            // Capture any error labels immediately
+            const $temp = cheerio.load(responseHtml);
+            const errors = $temp('[id*="lblError"], .error, span[style*="red"]').text().trim();
+            if (errors) console.log(`[HTTP] Immediate Error Check: "${errors}"`);
+
             console.log(`[HTTP] Response preview: ${responseHtml.slice(0, 300).replace(/\s+/g, ' ')}...`);
 
             // Parse response and check for tbSerial2

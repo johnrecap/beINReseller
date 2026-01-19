@@ -867,6 +867,36 @@ export class HttpClientService {
             this.currentViewState = this.extractHiddenFields(loadRes.data);
             $ = cheerio.load(loadRes.data);
 
+            // DEBUG: Check page title to see where we landed
+            const pageTitle = $('title').text().trim();
+            console.log(`[HTTP] Page title after POST: "${pageTitle}"`);
+
+            // Check if we got redirected to login page
+            if (pageTitle.toLowerCase().includes('login') ||
+                $('input[id*="Login"]').length > 0 ||
+                responseHtml.includes('Login1_UserName')) {
+                console.log(`[HTTP] ❌ SESSION EXPIRED - Redirected to login page!`);
+                return { success: false, packages: [], error: 'Session expired - please login again' };
+            }
+
+            // Check for error messages in the response
+            const errorLabels = $('span[style*="red"], .error, .alert-danger, [id*="lbl"][style*="red"]');
+            if (errorLabels.length > 0) {
+                const errorText = errorLabels.first().text().trim();
+                if (errorText) {
+                    console.log(`[HTTP] ❌ Error message found: "${errorText}"`);
+                    return { success: false, packages: [], error: errorText };
+                }
+            }
+
+            // Check page body for common error keywords
+            const bodyText = $('body').text().toLowerCase();
+            if (bodyText.includes('invalid') || bodyText.includes('error') || bodyText.includes('not found')) {
+                const matchedKeyword = bodyText.includes('invalid') ? 'invalid' :
+                    bodyText.includes('error') ? 'error' : 'not found';
+                console.log(`[HTTP] ⚠️ Page contains "${matchedKeyword}" keyword`);
+            }
+
             // DEBUG: Log all input fields in response
             const allInputs = $('input[type="text"]');
             console.log(`[HTTP] DEBUG: Found ${allInputs.length} text inputs after step 1`);

@@ -1824,26 +1824,37 @@ export class HttpClientService {
             // For UpdatePanel responses, look for error patterns in the raw delta
             const activateError = this.checkForErrors(rawResponse);
 
-            // Extract NEW activate count from response to verify it actually changed
-            // UpdatePanel delta may contain the new button value
-            const newActivateMatch = rawResponse.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
-            const newActivateCount = newActivateMatch
-                ? { current: parseInt(newActivateMatch[1]), max: parseInt(newActivateMatch[2]) }
-                : null;
+            // Detect response type: Full HTML or Delta
+            const isFullHtml = rawResponse.includes('<!DOCTYPE') || rawResponse.includes('<html');
+            const isDeltaFormat = rawResponse.startsWith('1|#|') || rawResponse.includes('|hiddenField|__VIEWSTATE|');
+
+            console.log(`[HTTP] Response type: ${isFullHtml ? 'Full HTML' : isDeltaFormat ? 'Delta' : 'Unknown'}`);
+
+            let newActivateCount: { current: number; max: number } | null = null;
+
+            if (isFullHtml) {
+                // Parse full HTML response with cheerio
+                const $response = cheerio.load(rawResponse);
+                const newBtnValue = this.extractButtonValue(rawResponse, 'btnActivate', '');
+                console.log(`[HTTP] New button value from HTML: "${newBtnValue}"`);
+
+                const newMatch = newBtnValue.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+                newActivateCount = newMatch
+                    ? { current: parseInt(newMatch[1]), max: parseInt(newMatch[2]) }
+                    : null;
+            } else {
+                // Try regex on delta response
+                const newActivateMatch = rawResponse.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+                newActivateCount = newActivateMatch
+                    ? { current: parseInt(newActivateMatch[1]), max: parseInt(newActivateMatch[2]) }
+                    : null;
+            }
 
             console.log(`[HTTP] Activate count: before=${activateCount.current}/${activateCount.max}, after=${newActivateCount?.current}/${newActivateCount?.max}`);
 
-            // DELTA RESPONSE SUCCESS DETECTION:
-            // ASP.NET UpdatePanel delta format: length|type|id|value|...
-            // Success indicators:
-            // 1. Response starts with delta format (1|#|...)
-            // 2. Contains new ViewState (server processed the request)
-            // 3. No error messages
-            // 4. OR explicit success messages
-
+            // SUCCESS DETECTION:
             const responseText = rawResponse.toLowerCase();
-            const isDeltaFormat = rawResponse.startsWith('1|#|') || rawResponse.includes('|hiddenField|__VIEWSTATE|');
-            const hasNewViewState = rawResponse.includes('|__VIEWSTATE|') && rawResponse.length > 10000;
+            const hasNewViewState = rawResponse.includes('__VIEWSTATE') && rawResponse.length > 10000;
 
             // Check for success messages (English and Arabic)
             const hasSuccessMessage = responseText.includes('signal sent') ||
@@ -1855,12 +1866,14 @@ export class HttpClientService {
 
             const countIncreased = newActivateCount && newActivateCount.current > activateCount.current;
 
-            // For delta responses: success if format is correct, has new viewstate, and no errors
+            // For full HTML: success if we got a full page response with ViewState and no errors
+            const fullHtmlSuccess = isFullHtml && hasNewViewState && !activateError;
+            // For delta: success if format is correct, has new viewstate, and no errors
             const deltaSuccess = isDeltaFormat && hasNewViewState && !activateError;
 
-            console.log(`[HTTP] Delta detection: format=${isDeltaFormat}, hasViewState=${hasNewViewState}, noError=${!activateError}, countChanged=${countIncreased}`);
+            console.log(`[HTTP] Success detection: fullHtml=${fullHtmlSuccess}, delta=${deltaSuccess}, message=${hasSuccessMessage}, countChanged=${countIncreased}`);
 
-            const isSuccess = hasSuccessMessage || countIncreased || deltaSuccess;
+            const isSuccess = hasSuccessMessage || countIncreased || fullHtmlSuccess || deltaSuccess;
 
             if (isSuccess) {
                 console.log('[HTTP] ✅ Signal activated successfully!');

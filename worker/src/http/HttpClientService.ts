@@ -769,6 +769,17 @@ export class HttpClientService {
             this.currentViewState = this.extractHiddenFields(loadRes.data);
             $ = cheerio.load(loadRes.data);
 
+            // DEBUG: Log table structure
+            const allTables = $('table');
+            console.log(`[HTTP] DEBUG: Found ${allTables.length} tables`);
+            allTables.each((i, table) => {
+                const id = $(table).attr('id') || 'no-id';
+                const rows = $(table).find('tr').length;
+                if (id.includes('Package') || id.includes('gv') || rows > 2) {
+                    console.log(`[HTTP] DEBUG: Table "${id}" has ${rows} rows`);
+                }
+            });
+
             const packages: AvailablePackage[] = [];
 
             // Try multiple selectors for package table

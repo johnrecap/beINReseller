@@ -626,12 +626,63 @@ async function handleSignalRefreshHttp(
     const httpClient = await getHttpClient(account);
 
     try {
-        // Step 1: Login if needed
+        // Step 1: Login (with CAPTCHA handling)
         const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
-        if (!loginResult.success) {
-            throw new Error(`Login failed: ${loginResult.error}`);
+
+        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+            console.log(`🧩 [HTTP] CAPTCHA required for signal refresh ${operationId}`);
+
+            let solution: string | null = null;
+
+            // Try auto-solve with 2Captcha first
+            const captchaApiKey = await getCaptchaApiKey();
+            if (captchaApiKey) {
+                try {
+                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                    const captchaSolver = new CaptchaSolver(captchaApiKey);
+                    solution = await captchaSolver.solve(loginResult.captchaImage);
+                    console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
+                } catch (autoSolveError: any) {
+                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                }
+            } else {
+                console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
+            }
+
+            // Fallback to manual if auto-solve failed or not configured
+            if (!solution) {
+                await prisma.operation.update({
+                    where: { id: operationId },
+                    data: {
+                        status: 'AWAITING_CAPTCHA',
+                        captchaImage: loginResult.captchaImage,
+                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                    }
+                });
+
+                solution = await waitForCaptchaSolution(operationId);
+                if (!solution) {
+                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                }
+            }
+
+            // Submit with CAPTCHA
+            const loginWithCaptcha = await httpClient.submitLogin(
+                account.username,
+                account.password,
+                account.totpSecret || undefined,
+                solution
+            );
+
+            if (!loginWithCaptcha.success) {
+                throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+            }
+            console.log('🔑 [HTTP] Login with CAPTCHA successful');
+        } else if (!loginResult.success) {
+            throw new Error(loginResult.error || 'Login failed');
+        } else {
+            console.log('🔑 [HTTP] Login successful');
         }
-        console.log('🔑 [HTTP] Login successful');
 
         await checkIfCancelled(operationId);
 

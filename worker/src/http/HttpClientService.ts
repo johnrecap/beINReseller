@@ -879,15 +879,14 @@ export class HttpClientService {
                 return { success: false, packages: [], error: 'Session expired - please login again' };
             }
 
-            // Check for error messages in the response
-            const errorLabels = $('span[style*="red"], .error, .alert-danger, [id*="lbl"][style*="red"]');
-            if (errorLabels.length > 0) {
-                const errorText = errorLabels.first().text().trim();
-                if (errorText) {
-                    console.log(`[HTTP] ❌ Error message found: "${errorText}"`);
-                    return { success: false, packages: [], error: errorText };
+            // Check for error messages in the response - beIN uses lblError for errors
+            const errorLabels = $('span[style*="red"], .error, .alert-danger, [id*="lblError"], [id*="lbl"][style*="red"], span[id*="lbl"]');
+            errorLabels.each((i, el) => {
+                const text = $(el).text().trim();
+                if (text && text.length > 5 && text.length < 200) {
+                    console.log(`[HTTP] Label ${i}: "${text.slice(0, 100)}"`);
                 }
-            }
+            });
 
             // Check page body for common error keywords
             const bodyText = $('body').text().toLowerCase();
@@ -895,6 +894,12 @@ export class HttpClientService {
                 const matchedKeyword = bodyText.includes('invalid') ? 'invalid' :
                     bodyText.includes('error') ? 'error' : 'not found';
                 console.log(`[HTTP] ⚠️ Page contains "${matchedKeyword}" keyword`);
+
+                // Try to find the actual message near the keyword
+                const invalidMatch = $('body').text().match(/invalid[^.]{0,50}/i);
+                if (invalidMatch) {
+                    console.log(`[HTTP] Context: "${invalidMatch[0]}"`);
+                }
             }
 
             // DEBUG: Log all input fields in response

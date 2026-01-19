@@ -433,14 +433,9 @@ export class HttpClientService {
 
                 const captchaBase64 = Buffer.from(captchaRes.data).toString('base64');
 
-                // IMPORTANT: After fetching CAPTCHA image, the server may have regenerated the CAPTCHA
-                // We need to refresh ViewState to stay in sync with session's expected CAPTCHA
-                console.log('[HTTP] Refreshing ViewState after CAPTCHA image fetch...');
-                const refreshRes = await this.axios.get(this.config.loginUrl, {
-                    headers: { 'Referer': this.config.loginUrl }
-                });
-                this.currentViewState = this.extractHiddenFields(refreshRes.data);
-                console.log('[HTTP] ViewState refreshed');
+                // Note: Do NOT refresh ViewState here - it would generate a NEW CAPTCHA
+                // The original ViewState from the login page is the correct one
+                // that matches the CAPTCHA we just fetched
 
                 return {
                     success: false,

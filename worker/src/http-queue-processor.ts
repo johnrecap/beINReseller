@@ -13,6 +13,7 @@ import { HttpClientService, AvailablePackage } from './http';
 import { AccountPoolManager } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification } from './utils/notification';
+import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount } from '@prisma/client';
 
 interface OperationJobData {
@@ -63,6 +64,21 @@ async function checkIfCancelled(operationId: string): Promise<void> {
     if (op?.status === 'CANCELLED') {
         console.log(`🚫 [HTTP] Operation ${operationId} was cancelled`);
         throw new OperationCancelledError(operationId);
+    }
+}
+
+/**
+ * Get 2Captcha API key from database settings
+ */
+async function getCaptchaApiKey(): Promise<string | null> {
+    try {
+        const setting = await prisma.setting.findUnique({
+            where: { key: 'captcha_2captcha_key' }
+        });
+        return setting?.value || null;
+    } catch (error) {
+        console.error('[HTTP] Failed to get CAPTCHA API key:', error);
+        return null;
     }
 }
 
@@ -180,19 +196,38 @@ async function handleStartRenewalHttp(
     if (loginResult.requiresCaptcha && loginResult.captchaImage) {
         console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
 
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                status: 'AWAITING_CAPTCHA',
-                captchaImage: loginResult.captchaImage,
-                captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
-            }
-        });
+        let solution: string | null = null;
 
-        // Wait for CAPTCHA solution (polling)
-        const solution = await waitForCaptchaSolution(operationId);
+        // Try auto-solve with 2Captcha first
+        const captchaApiKey = await getCaptchaApiKey();
+        if (captchaApiKey) {
+            try {
+                console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                const captchaSolver = new CaptchaSolver(captchaApiKey);
+                solution = await captchaSolver.solve(loginResult.captchaImage);
+                console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
+            } catch (autoSolveError: any) {
+                console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+            }
+        } else {
+            console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
+        }
+
+        // Fallback to manual if auto-solve failed or not configured
         if (!solution) {
-            throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+            await prisma.operation.update({
+                where: { id: operationId },
+                data: {
+                    status: 'AWAITING_CAPTCHA',
+                    captchaImage: loginResult.captchaImage,
+                    captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                }
+            });
+
+            solution = await waitForCaptchaSolution(operationId);
+            if (!solution) {
+                throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+            }
         }
 
         // Submit with CAPTCHA

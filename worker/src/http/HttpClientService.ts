@@ -619,8 +619,24 @@ export class HttpClientService {
             // Check for errors
             const error = this.checkForErrors(checkRes.data);
             if (error) {
+                console.log(`[HTTP] ❌ Check card error: "${error}"`);
                 return { success: false, error };
             }
+
+            // DEBUG: Check for "Invalid Serial Number" in check page response
+            const responseHtml = checkRes.data as string;
+            if (responseHtml.includes('Invalid Serial') || responseHtml.includes('not found')) {
+                console.log(`[HTTP] ⚠️ Check page returned invalid/not found error`);
+                console.log(`[HTTP] Response preview: ${responseHtml.slice(0, 300).replace(/\s+/g, ' ')}...`);
+            }
+
+            // DEBUG: Log all inputs to see if layout is unexpected
+            const $check = cheerio.load(responseHtml);
+            const inputs = $check('input[type="text"]');
+            console.log(`[HTTP] Check page inputs: ${inputs.length}`);
+            inputs.each((i, el) => {
+                console.log(`[HTTP] Input ${i}: name="${$check(el).attr('name')}" value="${$check(el).val()}"`);
+            });
 
             // Extract STB number from response - IMPROVED patterns from Playwright
             const $ = cheerio.load(checkRes.data);

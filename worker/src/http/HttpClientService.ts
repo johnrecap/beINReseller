@@ -120,6 +120,7 @@ export class HttpClientService {
         this.config = {
             captchaApiKey: get('captcha_2captcha_key'),
             captchaEnabled: get('captcha_enabled', 'true') === 'true',
+            selCaptchaImg: get('bein_sel_captcha_img', 'Login1_ImageVerificationDealer_Image'),
 
             loginUrl: get('bein_login_url', 'https://sbs.beinsports.net/Dealers/NLogin.aspx'),
             renewUrl: get('bein_renew_url', '/Dealers/Pages/frmSellPackages.aspx'),
@@ -354,9 +355,19 @@ export class HttpClientService {
             // Extract hidden fields
             this.currentViewState = this.extractHiddenFields(loginPageRes.data);
 
-            // Check for CAPTCHA
+            // Check for CAPTCHA using database selector
             const $ = cheerio.load(loginPageRes.data);
-            const captchaImg = $('img[src*="captcha"], img[id*="Captcha"], img[id*="captcha"]');
+
+            // Use selector from database config (e.g., Login1_ImageVerificationDealer_Image)
+            const captchaSelector = this.config.selCaptchaImg;
+            let captchaImg = $(`#${captchaSelector}, img[id*="${captchaSelector}"]`);
+
+            // Fallback to generic selectors if not found
+            if (!captchaImg.length) {
+                captchaImg = $('img[src*="captcha"], img[id*="Captcha"], img[id*="captcha"], img[id*="Verification"]');
+            }
+
+            console.log(`[HTTP] CAPTCHA selector: ${captchaSelector}, found: ${captchaImg.length > 0}`);
 
             if (captchaImg.length) {
                 const captchaSrc = captchaImg.attr('src');

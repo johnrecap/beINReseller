@@ -770,7 +770,28 @@ export class HttpClientService {
             $ = cheerio.load(loadRes.data);
 
             const packages: AvailablePackage[] = [];
-            const packageRows = $('table[id*="gvAvailablePackages"] tr.GridRow, table[id*="gvAvailablePackages"] tr.GridAlternatingRow');
+
+            // Try multiple selectors for package table
+            const tableSelectors = [
+                'table[id*="gvAvailablePackages"] tr.GridRow',
+                'table[id*="gvAvailablePackages"] tr.GridAlternatingRow',
+                'table[id*="AvailablePackages"] tr:not(:first-child)',
+                '#ContentPlaceHolder1_gvAvailablePackages tr:not(:first-child)',
+                '.GridRow',
+                '.GridAlternatingRow',
+                'table tr:has(input[type="checkbox"])'
+            ];
+
+            let packageRows = $('__empty_selector__'); // Initialize with empty selection
+            for (const sel of tableSelectors) {
+                const rows = $(sel);
+                if (rows.length > 0) {
+                    console.log(`[HTTP] Selector "${sel}" found ${rows.length} rows`);
+                    if (rows.length > packageRows.length) {
+                        packageRows = rows;
+                    }
+                }
+            }
 
             console.log(`[HTTP] Found ${packageRows.length} package rows`);
 

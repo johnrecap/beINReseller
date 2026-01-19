@@ -805,6 +805,19 @@ export class HttpClientService {
                     console.log(`[HTTP] CISCO not found, using fallback: value="${ciscoValue}"`);
                 }
 
+                // DEBUG: Log all inputs in the SellPackages form to ensure we aren't missing anything
+                console.log(`[HTTP] SellPackages Form Inputs:`);
+                const formInputs = $('input, select, textarea');
+                formInputs.each((i, el) => {
+                    const name = $(el).attr('name');
+                    const id = $(el).attr('id');
+                    const val = $(el).val();
+                    const type = $(el).attr('type');
+                    if (name && name !== '__VIEWSTATE' && name !== '__EVENTVALIDATION') {
+                        console.log(`  - [${type}] name="${name}" id="${id}" value="${val}"`);
+                    }
+                });
+
                 if (ciscoValue) {
                     // POST to select CISCO
                     const selectFormData: Record<string, string> = {

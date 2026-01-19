@@ -597,10 +597,10 @@ export class HttpClientService {
             // Get actual button value from HTML (ASP.NET may use 'Check', 'Check Now', etc.)
             const checkBtnValue = this.extractButtonValue(checkPageRes.data, 'btnCheck', 'Check');
 
-            // Step 2: POST card number
+            // Step 2: POST card number - FIXED: use tbSerial1 not txtSerialNumber
             const formData: Record<string, string> = {
                 ...this.currentViewState,
-                'ctl00$ContentPlaceHolder1$txtSerialNumber': cardNumber,
+                'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,  // Fixed: "tbSerial1" not "txtSerialNumber"
                 'ctl00$ContentPlaceHolder1$btnCheck': checkBtnValue
             };
 

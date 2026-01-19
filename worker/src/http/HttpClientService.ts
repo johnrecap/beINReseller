@@ -740,15 +740,15 @@ export class HttpClientService {
             const currentHtml = $.html();
             const loadBtnValue = this.extractButtonValue(currentHtml, 'btnLoad', 'Load');
 
-            // Step 3a: First POST - tbSerial1 only
+            // Step 3a: First POST - tbSerial1 only (triggers tbSerial2 to appear)
             const firstFormData: Record<string, string> = {
                 ...this.currentViewState!,
-                'ctl00$ContentPlaceHolder1$ddlType': ciscoValue, // Include device type
+                'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
                 'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
             };
 
-            console.log('[HTTP] POST load packages (step 1: tbSerial1)...');
+            console.log('[HTTP] POST load packages (step 1: tbSerial1 only)...');
             let loadRes = await this.axios.post(
                 renewUrl,
                 this.buildFormData(firstFormData),
@@ -760,13 +760,24 @@ export class HttpClientService {
                 }
             );
 
-            // Check if response contains tbSerial2 (confirmation field)
+            // Parse response and check for tbSerial2
             this.currentViewState = this.extractHiddenFields(loadRes.data);
             $ = cheerio.load(loadRes.data);
 
+            // DEBUG: Log all input fields in response
+            const allInputs = $('input[type="text"]');
+            console.log(`[HTTP] DEBUG: Found ${allInputs.length} text inputs after step 1`);
+            allInputs.each((i, el) => {
+                const id = $(el).attr('id') || '';
+                const name = $(el).attr('name') || '';
+                if (id.includes('Serial') || name.includes('Serial')) {
+                    console.log(`[HTTP] DEBUG: Input ${i}: id="${id}" name="${name}"`);
+                }
+            });
+
             const serial2Field = $('input[id*="tbSerial2"], input[name*="tbSerial2"]');
             if (serial2Field.length > 0) {
-                console.log('[HTTP] tbSerial2 field found - sending confirmation...');
+                console.log('[HTTP] ✅ tbSerial2 field found - sending step 2...');
 
                 // Step 3b: Second POST - with both tbSerial1 and tbSerial2
                 const secondFormData: Record<string, string> = {
@@ -788,6 +799,8 @@ export class HttpClientService {
                         }
                     }
                 );
+            } else {
+                console.log('[HTTP] ⚠️ tbSerial2 field NOT found in response - checking for packages directly');
             }
 
             // Check for errors

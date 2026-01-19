@@ -339,6 +339,17 @@ export class HttpClientService {
                 maxRedirects: 5
             }));
 
+            // AUDIT FIX: Configure retry on recreated axios instance
+            axiosRetry(this.axios, {
+                retries: 3,
+                retryDelay: axiosRetry.exponentialDelay,
+                retryCondition: (error) =>
+                    axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+                    error.response?.status === 500 ||
+                    error.response?.status === 502 ||
+                    error.response?.status === 503
+            });
+
             if (data.viewState) {
                 this.currentViewState = data.viewState;
             }
@@ -504,9 +515,11 @@ export class HttpClientService {
                 formData['Login1$txt2FaCode'] = totpCode;
             }
 
-            // Add CAPTCHA - use correct field name from beIN HTML
-            // The actual field name is Login1$ImageVerificationDealer$txtContent
-            formData['Login1$ImageVerificationDealer$txtContent'] = captchaSolution || '';
+            // AUDIT FIX: Only add CAPTCHA field if solution was provided
+            // Sending empty string may trigger validation errors on beIN
+            if (captchaSolution) {
+                formData['Login1$ImageVerificationDealer$txtContent'] = captchaSolution;
+            }
 
             // Step 2: POST login
             console.log('[HTTP] POST login credentials...');
@@ -638,7 +651,8 @@ export class HttpClientService {
                 stbMatch = pageText.match(/(\d{15})/)?.[1];
             }
 
-            if (stbMatch) {
+            // AUDIT FIX: Validate STB format before storing
+            if (stbMatch && stbMatch.length >= 10 && /^\d+$/.test(stbMatch)) {
                 this.currentStbNumber = stbMatch;
                 console.log(`[HTTP] ✅ STB extracted: ${stbMatch}`);
             } else {
@@ -809,13 +823,26 @@ export class HttpClientService {
             const currentHtml = $.html();
             const loadBtnValue = this.extractButtonValue(currentHtml, 'btnLoad', 'Load');
 
-            // Step 3a: First POST - tbSerial1 only (triggers tbSerial2 to appear)
+            // Step 3a: First POST - tbSerial1 + Click Load button
+            // For ASP.NET WebForms, button click can be done via:
+            // 1. Including button name=value (what we're doing)
+            // 2. OR using __EVENTTARGET (for LinkButtons)
+            // Let's try BOTH approaches
             const firstFormData: Record<string, string> = {
                 ...this.currentViewState!,
+                '__EVENTTARGET': '',
+                '__EVENTARGUMENT': '',
                 'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
+                'ctl00$ContentPlaceHolder1$tbSerial2': '', // Include empty field in case it's required
                 'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
             };
+
+            // Check if page uses ScriptManager (AJAX UpdatePanel)
+            const scriptManager = $('[id*="ScriptManager"], [id*="ToolkitScriptManager"]');
+            if (scriptManager.length) {
+                console.log(`[HTTP] ScriptManager detected - page uses AJAX`);
+            }
 
             console.log('[HTTP] POST load packages (step 1: tbSerial1 only)...');
             let loadRes = await this.axios.post(
@@ -825,9 +852,16 @@ export class HttpClientService {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Referer': renewUrl
+                        // NOTE: Do NOT use X-Requested-With or X-MicrosoftAjax headers
+                        // as they change the response format to UpdatePanel delta
                     }
                 }
             );
+
+            // DEBUG: Log first 500 chars of response to see what we got
+            const responseHtml = loadRes.data as string;
+            console.log(`[HTTP] Response length: ${responseHtml.length} chars`);
+            console.log(`[HTTP] Response preview: ${responseHtml.slice(0, 300).replace(/\s+/g, ' ')}...`);
 
             // Parse response and check for tbSerial2
             this.currentViewState = this.extractHiddenFields(loadRes.data);
@@ -1182,8 +1216,9 @@ export class HttpClientService {
                 };
             }
 
-            // Verify price matches (security check)
-            if (foundPrice !== null && foundPrice !== selectedPackage.price) {
+            // AUDIT FIX: Use epsilon comparison for floating point prices
+            const priceEpsilon = 0.01; // 1 cent tolerance
+            if (foundPrice !== null && Math.abs(foundPrice - selectedPackage.price) > priceEpsilon) {
                 console.log(`[HTTP] ⚠️ Price mismatch! Expected ${selectedPackage.price} USD, found ${foundPrice} USD`);
                 return {
                     success: false,

@@ -732,7 +732,7 @@ export class HttpClientService {
                 }
             }
 
-            // Step 3: Enter serial number (remove last digit)
+            // Step 3: Enter serial number (remove last digit) - TWO STEP PROCESS
             const formattedCard = cardNumber.slice(0, -1);
             console.log(`[HTTP] Using formatted card (9 digits): ${formattedCard.slice(0, 4)}****`);
 
@@ -740,17 +740,18 @@ export class HttpClientService {
             const currentHtml = $.html();
             const loadBtnValue = this.extractButtonValue(currentHtml, 'btnLoad', 'Load');
 
-            const serialFormData: Record<string, string> = {
+            // Step 3a: First POST - tbSerial1 only
+            const firstFormData: Record<string, string> = {
                 ...this.currentViewState!,
+                'ctl00$ContentPlaceHolder1$ddlType': ciscoValue, // Include device type
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
-                'ctl00$ContentPlaceHolder1$tbSerial2': formattedCard,
                 'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
             };
 
-            console.log('[HTTP] POST load packages...');
-            const loadRes = await this.axios.post(
+            console.log('[HTTP] POST load packages (step 1: tbSerial1)...');
+            let loadRes = await this.axios.post(
                 renewUrl,
-                this.buildFormData(serialFormData),
+                this.buildFormData(firstFormData),
                 {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -758,6 +759,36 @@ export class HttpClientService {
                     }
                 }
             );
+
+            // Check if response contains tbSerial2 (confirmation field)
+            this.currentViewState = this.extractHiddenFields(loadRes.data);
+            $ = cheerio.load(loadRes.data);
+
+            const serial2Field = $('input[id*="tbSerial2"], input[name*="tbSerial2"]');
+            if (serial2Field.length > 0) {
+                console.log('[HTTP] tbSerial2 field found - sending confirmation...');
+
+                // Step 3b: Second POST - with both tbSerial1 and tbSerial2
+                const secondFormData: Record<string, string> = {
+                    ...this.currentViewState!,
+                    'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
+                    'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
+                    'ctl00$ContentPlaceHolder1$tbSerial2': formattedCard,
+                    'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
+                };
+
+                console.log('[HTTP] POST load packages (step 2: tbSerial2 confirmation)...');
+                loadRes = await this.axios.post(
+                    renewUrl,
+                    this.buildFormData(secondFormData),
+                    {
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Referer': renewUrl
+                        }
+                    }
+                );
+            }
 
             // Check for errors
             const loadError = this.checkForErrors(loadRes.data);

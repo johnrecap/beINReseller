@@ -829,12 +829,12 @@ export class HttpClientService {
 
 
             // Step 3: Enter serial number
-            // beIN SellPackages page has FIRST digit pre-filled (e.g., "7")
-            // And LAST digit (check digit) is not entered
-            // So we need: slice(1, -1) to remove BOTH first and last digit
-            // Example: 7511394806 → 51139480
-            const formattedCard = cardNumber.slice(1, -1);
-            console.log(`[HTTP] Card format: ${cardNumber} → ${formattedCard} (removed first '${cardNumber[0]}' and last '${cardNumber.slice(-1)}')`);
+            // beIN SellPackages page has "7" pre-filled in tbSerial1, BUT:
+            // When we POST, we REPLACE the field value entirely!
+            // So we need to send the FULL card WITHOUT last digit (check digit)
+            // Example: 7511394806 → 751139480 (slice 0,-1)
+            const formattedCard = cardNumber.slice(0, -1);
+            console.log(`[HTTP] Card format: ${cardNumber} → ${formattedCard} (removed last digit only)`);
 
             // Get actual Load button value from current HTML
             const currentHtml = $.html();

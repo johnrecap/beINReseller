@@ -16,6 +16,7 @@ import axiosRetry from 'axios-retry';
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
 import * as cheerio from 'cheerio';
+import https from 'https';
 import { prisma } from '../lib/prisma';
 import { TOTPGenerator } from '../utils/totp-generator';
 import {
@@ -59,13 +60,14 @@ export class HttpClientService {
         this.jar = new CookieJar();
         this.totp = new TOTPGenerator();
 
-        // Create axios instance with cookie support
+        // Create axios instance with cookie support and Keep-Alive
         this.axios = wrapper(axios.create({
             jar: this.jar,
             withCredentials: true,
             headers: HttpClientService.BROWSER_HEADERS,
             timeout: 30000,
             maxRedirects: 5,
+            httpsAgent: new https.Agent({ keepAlive: true }), // Reuse TCP connections
             validateStatus: (status) => status < 500 // Accept redirects
         }));
 
@@ -474,10 +476,9 @@ export class HttpClientService {
                 formData['Login1$txt2FaCode'] = totpCode;
             }
 
-            // Add CAPTCHA if provided
-            if (captchaSolution) {
-                formData['Login1$txtCaptcha'] = captchaSolution;
-            }
+            // Add CAPTCHA - always include field for ASP.NET WebForms compatibility
+            // Some ASP.NET servers expect the field to be present even if empty
+            formData['Login1$txtCaptcha'] = captchaSolution || '';
 
             // Step 2: POST login
             console.log('[HTTP] POST login credentials...');

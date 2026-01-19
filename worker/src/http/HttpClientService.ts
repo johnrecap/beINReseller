@@ -172,12 +172,14 @@ export class HttpClientService {
 
     /**
      * Build full URL from relative path
+     * Resolves relative paths from the login page URL (e.g., /Dealers/NLogin.aspx)
      */
     private buildFullUrl(relativePath: string): string {
         if (relativePath.startsWith('http')) return relativePath;
         try {
-            const baseUrl = new URL(this.config.loginUrl).origin;
-            return new URL(relativePath, baseUrl).toString();
+            // Use full login URL as base (not just origin) to correctly resolve relative paths
+            // e.g., "Controls/..." from /Dealers/NLogin.aspx -> /Dealers/Controls/...
+            return new URL(relativePath, this.config.loginUrl).toString();
         } catch {
             console.error(`[HTTP] Invalid URL construction: ${relativePath}`);
             return this.config.loginUrl.replace(/\/[^\/]*$/, '/') + relativePath.replace(/^\//, '');

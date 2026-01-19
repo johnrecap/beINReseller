@@ -1806,11 +1806,27 @@ export class HttpClientService {
             const $result = cheerio.load(activateRes.data);
             const resultText = $result('body').text();
 
-            // Look for success indicators
-            const isSuccess = resultText.toLowerCase().includes('signal sent') ||
+            // DEBUG: Log response for troubleshooting
+            console.log('[HTTP] Activate response snippet:', resultText.substring(0, 300).replace(/\s+/g, ' '));
+
+            // Extract NEW activate count from response to verify it actually changed
+            const newActivateMatch = resultText.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+            const newActivateCount = newActivateMatch
+                ? { current: parseInt(newActivateMatch[1]), max: parseInt(newActivateMatch[2]) }
+                : null;
+
+            console.log(`[HTTP] Activate count: before=${activateCount.current}/${activateCount.max}, after=${newActivateCount?.current}/${newActivateCount?.max}`);
+
+            // STRICT success detection - require EITHER:
+            // 1. Explicit success message, OR
+            // 2. The activate count actually increased
+            const hasSuccessMessage = resultText.toLowerCase().includes('signal sent') ||
                 resultText.toLowerCase().includes('activation signal sent') ||
-                resultText.toLowerCase().includes('successfully') ||
-                !activateError;
+                resultText.toLowerCase().includes('successfully');
+
+            const countIncreased = newActivateCount && newActivateCount.current > activateCount.current;
+
+            const isSuccess = hasSuccessMessage || countIncreased;
 
             if (isSuccess) {
                 console.log('[HTTP] ✅ Signal activated successfully!');
@@ -1822,13 +1838,13 @@ export class HttpClientService {
                         stbNumber,
                         expiryDate,
                         walletBalance,
-                        activateCount: { current: activateCount.current + 1, max: activateCount.max }
+                        activateCount: newActivateCount || { current: activateCount.current + 1, max: activateCount.max }
                     },
                     activated: true,
                     message: 'Activation Signal Sent'
                 };
             } else {
-                console.log(`[HTTP] ⚠️ Activation may have failed: ${activateError}`);
+                console.log(`[HTTP] ❌ Activation failed: count did not increase, no success message`);
                 return {
                     success: true,
                     cardStatus: {
@@ -1837,10 +1853,10 @@ export class HttpClientService {
                         stbNumber,
                         expiryDate,
                         walletBalance,
-                        activateCount
+                        activateCount: newActivateCount || activateCount
                     },
                     activated: false,
-                    error: activateError || 'Activation failed'
+                    error: activateError || 'Activation did not complete - please try again'
                 };
             }
 

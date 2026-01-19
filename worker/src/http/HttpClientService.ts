@@ -1832,17 +1832,34 @@ export class HttpClientService {
 
             console.log(`[HTTP] Activate count: before=${activateCount.current}/${activateCount.max}, after=${newActivateCount?.current}/${newActivateCount?.max}`);
 
-            // STRICT success detection - require EITHER:
-            // 1. Explicit success message in response, OR
-            // 2. The activate count actually increased
+            // DELTA RESPONSE SUCCESS DETECTION:
+            // ASP.NET UpdatePanel delta format: length|type|id|value|...
+            // Success indicators:
+            // 1. Response starts with delta format (1|#|...)
+            // 2. Contains new ViewState (server processed the request)
+            // 3. No error messages
+            // 4. OR explicit success messages
+
             const responseText = rawResponse.toLowerCase();
+            const isDeltaFormat = rawResponse.startsWith('1|#|') || rawResponse.includes('|hiddenField|__VIEWSTATE|');
+            const hasNewViewState = rawResponse.includes('|__VIEWSTATE|') && rawResponse.length > 10000;
+
+            // Check for success messages (English and Arabic)
             const hasSuccessMessage = responseText.includes('signal sent') ||
                 responseText.includes('activation signal sent') ||
-                responseText.includes('successfully');
+                responseText.includes('successfully') ||
+                responseText.includes('تم الارسال') ||  // Arabic: "Sent"
+                responseText.includes('تم التفعيل') ||  // Arabic: "Activated"
+                responseText.includes('تمت العملية');   // Arabic: "Operation completed"
 
             const countIncreased = newActivateCount && newActivateCount.current > activateCount.current;
 
-            const isSuccess = hasSuccessMessage || countIncreased;
+            // For delta responses: success if format is correct, has new viewstate, and no errors
+            const deltaSuccess = isDeltaFormat && hasNewViewState && !activateError;
+
+            console.log(`[HTTP] Delta detection: format=${isDeltaFormat}, hasViewState=${hasNewViewState}, noError=${!activateError}, countChanged=${countIncreased}`);
+
+            const isSuccess = hasSuccessMessage || countIncreased || deltaSuccess;
 
             if (isSuccess) {
                 console.log('[HTTP] ✅ Signal activated successfully!');

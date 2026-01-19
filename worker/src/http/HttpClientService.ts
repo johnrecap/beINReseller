@@ -1051,25 +1051,29 @@ export class HttpClientService {
 
             const packages: AvailablePackage[] = [];
 
-            // Try multiple selectors for package table
+            // Try specific selectors for package table first
+            // Note: Avoid generic selectors like 'table tr' as they might catch container tables
             const tableSelectors = [
-                'table[id*="gvAvailablePackages"] tr.GridRow',
-                'table[id*="gvAvailablePackages"] tr.GridAlternatingRow',
-                'table[id*="AvailablePackages"] tr:not(:first-child)',
-                '#ContentPlaceHolder1_gvAvailablePackages tr:not(:first-child)',
+                '#ContentPlaceHolder1_gvAvailablePackages tr.GridRow',
+                '#ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow',
+                '#ContentPlaceHolder1_gvAvailablePackages tr:not(.GridHeader)', // Best selector: ID + excludes header
+                'table[id*="gvAvailablePackages"] tr:not(:first-child)',
                 '.GridRow',
-                '.GridAlternatingRow',
-                'table tr:has(input[type="checkbox"])'
+                '.GridAlternatingRow'
             ];
+
+            // Use a Set to avoid duplicates if multiple selectors find the same rows
+            // But since we pick the 'best' selector set (longest), we just need to pick the right one.
+            // The issue was 'table tr:has(checkbox)' matching the OUTER row (which contains the inner table).
+            // We removed that generic selector.
 
             let packageRows = $('__empty_selector__'); // Initialize with empty selection
             for (const sel of tableSelectors) {
                 const rows = $(sel);
-                if (rows.length > 0) {
-                    console.log(`[HTTP] Selector "${sel}" found ${rows.length} rows`);
-                    if (rows.length > packageRows.length) {
-                        packageRows = rows;
-                    }
+                // We want the set that has the most rows (likely the individual items)
+                // But we must ensure we don't pick a set that includes the parent container
+                if (rows.length > packageRows.length) {
+                    packageRows = rows;
                 }
             }
 
@@ -1077,9 +1081,24 @@ export class HttpClientService {
 
             packageRows.each((index, row) => {
                 const $row = $(row);
+
+                // CRITICAL FIX: Skip rows that contain a table (nested/container rows)
+                // This prevents the "Outer Row" from being parsed as a package
+                if ($row.find('table').length > 0) {
+                    console.log(`[HTTP] Skipping row ${index} - contains nested table (container row)`);
+                    return;
+                }
+
                 const checkbox = $row.find('input[type="checkbox"]');
 
-                if (checkbox.length) {
+                // CRITICAL FIX 2: Skip rows with multiple checkboxes
+                // The container row will find match ALL checkboxes inside it
+                if (checkbox.length > 1) {
+                    console.log(`[HTTP] Skipping row ${index} - contains ${checkbox.length} checkboxes (container row)`);
+                    return;
+                }
+
+                if (checkbox.length === 1) {
                     const checkboxId = checkbox.attr('id') || '';
                     const checkboxName = checkbox.attr('name') || '';
 
@@ -1184,32 +1203,52 @@ export class HttpClientService {
             const $ = cheerio.load(promoRes.data);
             const packages: AvailablePackage[] = [];
 
-            // Try multiple selectors for package table (same as loadPackages)
+            // Try specific selectors for package table first
+            // Note: Avoid generic selectors like 'table tr' as they might catch container tables
             const tableSelectors = [
-                'table[id*="gvAvailablePackages"] tr.GridRow',
-                'table[id*="gvAvailablePackages"] tr.GridAlternatingRow',
-                'table[id*="AvailablePackages"] tr:not(:first-child)',
-                '#ContentPlaceHolder1_gvAvailablePackages tr:not(:first-child)',
+                '#ContentPlaceHolder1_gvAvailablePackages tr.GridRow',
+                '#ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow',
+                '#ContentPlaceHolder1_gvAvailablePackages tr:not(.GridHeader)', // Best selector: ID + excludes header
+                'table[id*="gvAvailablePackages"] tr:not(:first-child)',
                 '.GridRow',
-                '.GridAlternatingRow',
-                'table tr:has(input[type="checkbox"])'
+                '.GridAlternatingRow'
             ];
 
-            let packageRows = $('__empty_selector__');
+            // Use a Set to avoid duplicates if multiple selectors find the same rows
+            // But since we pick the 'best' selector set (longest), we just need to pick the right one.
+            // The issue was 'table tr:has(checkbox)' matching the OUTER row (which contains the inner table).
+            // We removed that generic selector.
+
+            let packageRows = $('__empty_selector__'); // Initialize with empty selection
             for (const sel of tableSelectors) {
                 const rows = $(sel);
-                if (rows.length > 0 && rows.length > packageRows.length) {
+                // We want the set that has the most rows (likely the individual items)
+                // But we must ensure we don't pick a set that includes the parent container
+                if (rows.length > packageRows.length) {
                     packageRows = rows;
                 }
             }
 
-            console.log(`[HTTP] Found ${packageRows.length} package rows after promo`);
+            console.log(`[HTTP] Found ${packageRows.length} package rows`);
 
             packageRows.each((index, row) => {
                 const $row = $(row);
+
+                // CRITICAL FIX: Skip rows that contain a table (nested/container rows)
+                if ($row.find('table').length > 0) {
+                    console.log(`[HTTP] Skipping row ${index} - contains nested table (container row)`);
+                    return;
+                }
+
                 const checkbox = $row.find('input[type="checkbox"]');
 
-                if (checkbox.length) {
+                // CRITICAL FIX 2: Skip rows with multiple checkboxes (container row)
+                if (checkbox.length > 1) {
+                    console.log(`[HTTP] Skipping row ${index} - contains ${checkbox.length} checkboxes (container row)`);
+                    return;
+                }
+
+                if (checkbox.length === 1) {
                     const checkboxName = checkbox.attr('name') || '';
                     const nameSpan = $row.find('span[id*="lblName"]');
                     const name = nameSpan.text().trim() || `Package ${index + 1}`;

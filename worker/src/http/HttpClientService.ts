@@ -1270,13 +1270,22 @@ export class HttpClientService {
                 }
             });
 
+            // Check if promo code resulted in empty packages (User Requirement)
             if (packages.length === 0) {
-                console.log('[HTTP] ⚠️ No packages found after promo - refreshing...');
-                // Fallback: reload packages
-                return await this.loadPackages(cardNumber);
+                console.log('[HTTP] ⚠️ No packages found after promo code - treating as invalid');
+
+                // Check if there was a specific error message on page
+                const promoError = $('[id*="lblError"], .error, span[style*="red"]').text().trim();
+                if (promoError) console.log(`[HTTP] Promo Error Text: "${promoError}"`);
+
+                return {
+                    success: false,
+                    packages: [],
+                    error: 'No promo code found please try again'
+                };
             }
 
-            console.log(`[HTTP] ✅ Promo applied - ${packages.length} packages with updated prices`);
+            console.log(`[HTTP] ✅ Loaded ${packages.length} packages with promo code`);
             return {
                 success: true,
                 packages,

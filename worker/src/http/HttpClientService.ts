@@ -378,16 +378,35 @@ export class HttpClientService {
 
             if (captchaImg.length) {
                 const captchaSrc = captchaImg.attr('src');
-                console.log('[HTTP] CAPTCHA detected, fetching image...');
+                console.log(`[HTTP] CAPTCHA detected, src: ${captchaSrc?.substring(0, 100)}...`);
 
-                // Fetch CAPTCHA image
+                // Check if it's already a data URI (base64 embedded)
+                if (captchaSrc?.startsWith('data:image')) {
+                    // Extract base64 from data URI
+                    const base64Match = captchaSrc.match(/^data:image\/[^;]+;base64,(.+)$/);
+                    if (base64Match) {
+                        console.log('[HTTP] CAPTCHA is embedded data URI');
+                        return {
+                            success: false,
+                            requiresCaptcha: true,
+                            captchaImage: base64Match[1] // Raw base64 without prefix
+                        };
+                    }
+                }
+
+                // Fetch CAPTCHA image from URL
                 const captchaUrl = captchaSrc?.startsWith('http')
                     ? captchaSrc
                     : this.buildFullUrl(captchaSrc || '');
 
+                console.log(`[HTTP] Fetching CAPTCHA from: ${captchaUrl}`);
+
                 const captchaRes = await this.axios.get(captchaUrl, {
                     responseType: 'arraybuffer'
                 });
+
+                const contentType = captchaRes.headers['content-type'] || 'image/png';
+                console.log(`[HTTP] CAPTCHA content-type: ${contentType}, size: ${captchaRes.data.length} bytes`);
 
                 const captchaBase64 = Buffer.from(captchaRes.data).toString('base64');
 

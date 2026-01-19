@@ -1788,31 +1788,44 @@ export class HttpClientService {
 
             const activateFormData: Record<string, string> = {
                 ...this.currentViewState,
-                [activateBtnName]: activateBtnValue
+                [activateBtnName]: activateBtnValue,
+                // ASP.NET AJAX ScriptManager fields for UpdatePanel async postback
+                'ctl00$ScriptManager1': 'ctl00$ContentPlaceHolder1$UpdatePanel1|' + activateBtnName,
+                '__ASYNCPOST': 'true'
             };
 
-            console.log('[HTTP] POST activate signal...');
+            console.log('[HTTP] POST activate signal (with AJAX headers)...');
             const activateRes = await this.axios.post(
                 checkUrl,
                 this.buildFormData(activateFormData),
                 {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl
+                        'Referer': checkUrl,
+                        // ASP.NET AJAX required headers
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-MicrosoftAjax': 'Delta=true'
                     }
                 }
             );
 
-            // Check for success
-            const activateError = this.checkForErrors(activateRes.data);
-            const $result = cheerio.load(activateRes.data);
-            const resultText = $result('body').text();
+            // ASP.NET UpdatePanel returns a delta response, not full HTML
+            // Format: length|type|id|content|length|type|id|content|...
+            // Look for success indicators in the raw response
+            const rawResponse = activateRes.data;
 
-            // DEBUG: Log response for troubleshooting
-            console.log('[HTTP] Activate response snippet:', resultText.substring(0, 300).replace(/\s+/g, ' '));
+            // DEBUG: Log more of the response to understand its format
+            console.log('[HTTP] Activate response length:', rawResponse.length);
+            console.log('[HTTP] Activate response (first 500 chars):', rawResponse.substring(0, 500).replace(/\s+/g, ' '));
+
+            // Check for success
+
+            // For UpdatePanel responses, look for error patterns in the raw delta
+            const activateError = this.checkForErrors(rawResponse);
 
             // Extract NEW activate count from response to verify it actually changed
-            const newActivateMatch = resultText.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+            // UpdatePanel delta may contain the new button value
+            const newActivateMatch = rawResponse.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
             const newActivateCount = newActivateMatch
                 ? { current: parseInt(newActivateMatch[1]), max: parseInt(newActivateMatch[2]) }
                 : null;
@@ -1820,11 +1833,12 @@ export class HttpClientService {
             console.log(`[HTTP] Activate count: before=${activateCount.current}/${activateCount.max}, after=${newActivateCount?.current}/${newActivateCount?.max}`);
 
             // STRICT success detection - require EITHER:
-            // 1. Explicit success message, OR
+            // 1. Explicit success message in response, OR
             // 2. The activate count actually increased
-            const hasSuccessMessage = resultText.toLowerCase().includes('signal sent') ||
-                resultText.toLowerCase().includes('activation signal sent') ||
-                resultText.toLowerCase().includes('successfully');
+            const responseText = rawResponse.toLowerCase();
+            const hasSuccessMessage = responseText.includes('signal sent') ||
+                responseText.includes('activation signal sent') ||
+                responseText.includes('successfully');
 
             const countIncreased = newActivateCount && newActivateCount.current > activateCount.current;
 

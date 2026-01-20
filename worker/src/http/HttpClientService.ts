@@ -1372,9 +1372,10 @@ export class HttpClientService {
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
 
-            if (!this.currentViewState) {
-                return { success: false, message: 'ViewState not available' };
-            }
+            // NOTE: We no longer check for cached ViewState here because:
+            // 1. The GET request below will fetch fresh ViewState from the page
+            // 2. ViewState from START_RENEWAL may be stale by now
+            // 3. The real verification happens when we GET the page
 
             // ===== SECURITY: Verify package before purchase =====
             // This prevents wrong purchase if page was refreshed or package indices changed
@@ -1788,8 +1789,10 @@ export class HttpClientService {
 
             // Standard Layout Submit Button (input type="submit")
             // This requires the button name and value to be in the body
+            // ALSO: Must include the 'tbSerial' input field, otherwise server might see it as empty/reset
             const activateFormData: Record<string, string> = {
                 ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$tbSerial': cardNumber,
                 // For submit buttons, we MUST send name=value
                 [activateBtnName]: activateBtnValue
             };
@@ -1800,6 +1803,7 @@ export class HttpClientService {
 
             console.log('[HTTP] POST activate signal (submit button)...');
             console.log(`[HTTP] Button param: ${activateBtnName}="${activateBtnValue}"`);
+            console.log(`[HTTP] Card param: ctl00$ContentPlaceHolder1$tbSerial="${cardNumber}"`);
             const activateRes = await this.axios.post(
                 checkUrl,
                 this.buildFormData(activateFormData),

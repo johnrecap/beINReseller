@@ -486,7 +486,8 @@ async function handleConfirmPurchaseHttp(
             selectedPackage: true,
             amount: true,
             status: true,
-            finalConfirmExpiry: true
+            finalConfirmExpiry: true,
+            responseData: true  // CRITICAL: Need this for session restoration
         }
     });
 
@@ -517,6 +518,26 @@ async function handleConfirmPurchaseHttp(
     if (!account) throw new Error('Account not found');
 
     const client = await getHttpClient(account);
+
+    // CRITICAL: Restore session from database (cross-worker support)
+    // Without this, the ViewState and cookies are missing and purchase fails silently!
+    if (operation.responseData) {
+        try {
+            const savedData = JSON.parse(operation.responseData as string);
+            if (savedData.sessionData) {
+                console.log(`[HTTP] 🔄 Restoring session for CONFIRM_PURCHASE (saved at ${savedData.savedAt})`);
+                await client.importSession(savedData.sessionData);
+                console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
+            }
+        } catch (parseError) {
+            console.error('[HTTP] ⚠️ Failed to parse saved session for confirm:', parseError);
+            throw new Error('Session restoration failed - cannot confirm purchase');
+        }
+    } else {
+        console.error('[HTTP] ❌ No saved session found - cannot confirm purchase');
+        throw new Error('No session data available - cannot confirm purchase');
+    }
+
     const result = await client.confirmPurchase();
 
     const selectedPackage = operation.selectedPackage as { name: string } | null;

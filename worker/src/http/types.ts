@@ -52,6 +52,7 @@ export interface LoadPackagesResult {
     success: boolean;
     packages: AvailablePackage[];
     stbNumber?: string;
+    dealerBalance?: number;  // Dealer's current credit balance for verification
     error?: string;
 }
 

@@ -293,12 +293,13 @@ async function handleStartRenewalHttp(
             // Store session data for COMPLETE_PURCHASE to restore
             responseData: JSON.stringify({
                 sessionData: sessionData,
+                dealerBalance: packagesResult.dealerBalance,  // For balance validation
                 savedAt: new Date().toISOString()
             })
         }
     });
 
-    console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages (session saved)`);
+    console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
 }
 
 /**
@@ -346,6 +347,7 @@ async function handleCompletePurchaseHttp(
 
     // CRITICAL: Restore session from database (cross-worker support)
     // The session (ViewState + cookies) was saved after loadPackages
+    let dealerBalance: number | undefined;
     if (operation.responseData) {
         try {
             const savedData = JSON.parse(operation.responseData as string);
@@ -353,6 +355,11 @@ async function handleCompletePurchaseHttp(
                 console.log(`[HTTP] 🔄 Restoring session from database (saved at ${savedData.savedAt})`);
                 await client.importSession(savedData.sessionData);
                 console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
+            }
+            // Extract dealer balance for validation
+            dealerBalance = savedData.dealerBalance;
+            if (dealerBalance !== undefined) {
+                console.log(`[HTTP] 💰 Dealer Balance from saved data: ${dealerBalance} USD`);
             }
         } catch (parseError) {
             console.error('[HTTP] ⚠️ Failed to parse saved session, continuing anyway:', parseError);
@@ -371,6 +378,23 @@ async function handleCompletePurchaseHttp(
     if (!selectedPackage) {
         throw new Error('No package selected');
     }
+
+    // ========== DEALER BALANCE CHECK ==========
+    // Check if beIN dealer account has enough balance for selected package
+    if (dealerBalance !== undefined && dealerBalance < selectedPackage.price) {
+        console.log(`[HTTP] ❌ INSUFFICIENT DEALER BALANCE: ${dealerBalance} USD < ${selectedPackage.price} USD`);
+
+        // Mark account for cooldown (1 hour) - low balance
+        await accountPool.markAccountFailed(
+            operation.beinAccountId,
+            `INSUFFICIENT_BALANCE: ${dealerBalance} < ${selectedPackage.price}`
+        );
+        console.log(`[HTTP] 🔒 Account ${operation.beinAccountId} marked for cooldown (low balance)`);
+
+        // Throw error to trigger refund and notify user
+        throw new Error('رصيد حساب beIN غير كافي. برجاء المحاولة مرة أخرى مع حساب آخر.');
+    }
+    // ==========================================
 
     // Convert to AvailablePackage format
     // IMPORTANT: Use checkboxSelector as checkboxValue - this was stored from loadPackages()

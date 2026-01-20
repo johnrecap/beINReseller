@@ -1182,11 +1182,22 @@ export class HttpClientService {
                 };
             }
 
+            // Extract dealer balance from page
+            // "Adding Packages - Your Current Credit Balance is 435 USD"
+            const pageText = $('body').text();
+            const balanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
+            const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1]) : undefined;
+
+            if (dealerBalance !== undefined) {
+                console.log(`[HTTP] 💰 Dealer Balance: ${dealerBalance} USD`);
+            }
+
             console.log(`[HTTP] ✅ Loaded ${packages.length} packages`);
             return {
                 success: true,
                 packages,
-                stbNumber: this.currentStbNumber || undefined
+                stbNumber: this.currentStbNumber || undefined,
+                dealerBalance  // NEW: For balance verification
             };
 
         } catch (error: any) {

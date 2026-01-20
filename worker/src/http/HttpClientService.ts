@@ -1510,7 +1510,11 @@ export class HttpClientService {
     }
 
     /**
-     * Confirm purchase (click OK button)
+     * Confirm purchase - Full flow:
+     * 1. Click OK button (after STB entry)
+     * 2. Select "Direct Payment" radio button
+     * 3. Click "Pay" button
+     * 4. Check for "Contract Created Successfully"
      */
     async confirmPurchase(): Promise<PurchaseResult> {
         console.log('[HTTP] Confirming purchase...');
@@ -1522,13 +1526,14 @@ export class HttpClientService {
                 return { success: false, message: 'ViewState not available' };
             }
 
+            // Step 1: Click OK button (after STB entry)
             const okFormData: Record<string, string> = {
                 ...this.currentViewState,
                 'ctl00$ContentPlaceHolder1$btnStbOk': 'Ok'
             };
 
             console.log('[HTTP] POST confirm (Ok)...');
-            const res = await this.axios.post(
+            let res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(okFormData),
                 {
@@ -1539,29 +1544,85 @@ export class HttpClientService {
                 }
             );
 
-            // Check for errors
-            const error = this.checkForErrors(res.data);
-            if (error) {
-                return { success: false, message: error };
+            // Check for errors after OK
+            const okError = this.checkForErrors(res.data);
+            if (okError) {
+                console.log(`[HTTP] ❌ OK button error: ${okError}`);
+                return { success: false, message: okError };
             }
 
-            // Check for success indicators
+            // Extract ViewState for next step
+            this.currentViewState = this.extractHiddenFields(res.data);
+            console.log('[HTTP] ✅ OK clicked, payment options page');
+
+            // Check if payment options page appeared
             const $ = cheerio.load(res.data);
-            const successMsg = $('.alert-success, [class*="success"]').text().trim();
+            const paymentSection = $('[id*="PaymentPopUp"], [class*="Payment"], div:contains("Please Select Type of Payment")');
 
-            if (successMsg) {
-                console.log(`[HTTP] ✅ Purchase confirmed: ${successMsg}`);
-                return { success: true, message: successMsg };
+            if (paymentSection.length === 0) {
+                // Maybe already success?
+                const pageText = $('body').text();
+                if (pageText.includes('Contract Created Successfully') || pageText.includes('Success')) {
+                    console.log('[HTTP] ✅ Purchase completed directly (no payment selection)');
+                    return { success: true, message: 'Contract Created Successfully' };
+                }
+                console.log('[HTTP] ⚠️ Payment section not found, attempting Pay anyway');
             }
 
-            // Check page content
-            const pageText = $('body').text().toLowerCase();
-            if (pageText.includes('success') || pageText.includes('تم')) {
+            // Step 2: Select "Direct Payment" radio button and Click Pay
+            // From screenshot: RbdDirectPay is the radio button name
+            const payFormData: Record<string, string> = {
+                ...this.currentViewState,
+                // Radio button - select Direct Payment (From Account)
+                'ctl00$ContentPlaceHolder1$RbdDirectPay': 'RbdDirectPay',
+                // Pay button
+                'ctl00$ContentPlaceHolder1$SRtnPay': 'Pay'
+            };
+
+            console.log('[HTTP] POST Pay (Direct Payment)...');
+            res = await this.axios.post(
+                renewUrl,
+                this.buildFormData(payFormData),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': renewUrl
+                    }
+                }
+            );
+
+            // Check for errors
+            const payError = this.checkForErrors(res.data);
+            if (payError) {
+                console.log(`[HTTP] ❌ Pay error: ${payError}`);
+                return { success: false, message: payError };
+            }
+
+            // Check for success - "Contract Created Successfully"
+            const $result = cheerio.load(res.data);
+            const pageText = $result('body').text();
+
+            if (pageText.includes('Contract Created Successfully')) {
+                console.log('[HTTP] ✅ Contract Created Successfully!');
+                return { success: true, message: 'Contract Created Successfully' };
+            }
+
+            // Check for alert/popup success message
+            if (res.data.includes('Contract Created Successfully')) {
+                console.log('[HTTP] ✅ Contract Created Successfully (in response)!');
+                return { success: true, message: 'Contract Created Successfully' };
+            }
+
+            // Check other success indicators
+            if (pageText.toLowerCase().includes('success') || pageText.includes('تم')) {
                 console.log('[HTTP] ✅ Purchase confirmed');
                 return { success: true, message: 'Purchase completed successfully' };
             }
 
-            console.log('[HTTP] ✅ Purchase completed (no explicit message)');
+            console.log('[HTTP] ✅ Purchase completed (checking page...)');
+            // Log first 500 chars for debugging
+            console.log(`[HTTP] Response preview: ${pageText.substring(0, 500)}`);
+
             return { success: true, message: 'Purchase completed' };
 
         } catch (error: any) {

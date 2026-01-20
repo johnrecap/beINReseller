@@ -1355,12 +1355,14 @@ export class HttpClientService {
      * @param promoCode - Optional promo code
      * @param stbNumber - STB number (from checkCard)
      * @param skipFinalClick - If true, stops before final OK (for user confirmation)
+     * @param cardNumber - Card number (required for HTTP mode to reload packages)
      */
     async completePurchase(
         selectedPackage: AvailablePackage,
         promoCode?: string,
         stbNumber?: string,
-        skipFinalClick: boolean = false
+        skipFinalClick: boolean = false,
+        cardNumber?: string
     ): Promise<PurchaseResult> {
         console.log(`[HTTP] Completing purchase: ${selectedPackage.name} - ${selectedPackage.price} USD`);
 
@@ -1372,18 +1374,36 @@ export class HttpClientService {
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
 
-            // NOTE: We no longer check for cached ViewState here because:
-            // 1. The GET request below will fetch fresh ViewState from the page
-            // 2. ViewState from START_RENEWAL may be stale by now
-            // 3. The real verification happens when we GET the page
+            // ===== CRITICAL FIX: Reload packages before purchase =====
+            // HTTP client doesn't maintain page state like Playwright browser
+            // We need to re-enter the card number to load packages on the page
+            if (cardNumber) {
+                console.log(`[HTTP] 📦 Re-loading packages for verification...`);
+                const reloadResult = await this.loadPackages(cardNumber);
+                if (!reloadResult.success) {
+                    return {
+                        success: false,
+                        message: `Failed to reload packages: ${reloadResult.error}`
+                    };
+                }
+                console.log(`[HTTP] ✅ Packages reloaded: ${reloadResult.packages.length} available`);
+            } else {
+                console.log(`[HTTP] ⚠️ No cardNumber provided, attempting direct GET...`);
+                // Fallback: Try to GET the page (might work if session has packages cached)
+                const pageRes = await this.axios.get(renewUrl, {
+                    headers: { 'Referer': renewUrl }
+                });
+                this.currentViewState = this.extractHiddenFields(pageRes.data);
+            }
 
             // ===== SECURITY: Verify package before purchase =====
             // This prevents wrong purchase if page was refreshed or package indices changed
             console.log(`[HTTP] 🔐 Verifying package: "${selectedPackage.name}" at ${selectedPackage.price} USD`);
 
-            // GET the current page to verify package exists
-            const pageRes = await this.axios.get(renewUrl, {
-                headers: { 'Referer': renewUrl }
+            // Now GET the page to verify packages (ViewState should already be set by loadPackages)
+            const renewUrl2 = this.buildFullUrl(this.config.renewUrl);
+            const pageRes = await this.axios.get(renewUrl2, {
+                headers: { 'Referer': renewUrl2 }
             });
             const $ = cheerio.load(pageRes.data);
             this.currentViewState = this.extractHiddenFields(pageRes.data);

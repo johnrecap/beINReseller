@@ -311,7 +311,8 @@ async function handleCompletePurchaseHttp(
             selectedPackage: true,
             promoCode: true,
             stbNumber: true,
-            amount: true
+            amount: true,
+            cardNumber: true  // ← CRITICAL: Need cardNumber to reload packages
         }
     });
 
@@ -351,11 +352,13 @@ async function handleCompletePurchaseHttp(
         checkboxValue: selectedPackage.checkboxSelector
     };
 
+    // CRITICAL: Pass cardNumber to completePurchase so it can reload packages
     const result = await client.completePurchase(
         pkg,
         operation.promoCode || promoCode,
         operation.stbNumber || undefined,
-        true // skipFinalClick - pause for confirmation
+        true, // skipFinalClick - pause for confirmation
+        operation.cardNumber  // ← NEW: Required for HTTP mode
     );
 
     if (result.awaitingConfirm) {

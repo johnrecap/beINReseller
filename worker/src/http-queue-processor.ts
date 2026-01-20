@@ -274,7 +274,13 @@ async function handleStartRenewalHttp(
         checkboxSelector: pkg.checkboxValue // Keep for compatibility
     }));
 
-    // Update operation with packages
+    // CRITICAL: Export session data for cross-worker access
+    // Different PM2 workers have separate memory, so we need to persist
+    // ViewState and cookies in the database
+    const sessionData = await client.exportSession();
+    console.log(`[HTTP] Session exported: ViewState=${sessionData.viewState?.__VIEWSTATE?.length || 0} chars, Cookies=${sessionData.cookies.length} chars`);
+
+    // Update operation with packages AND session data
     await prisma.operation.update({
         where: { id: operationId },
         data: {
@@ -283,11 +289,16 @@ async function handleStartRenewalHttp(
             availablePackages: packages,
             captchaImage: null,
             captchaSolution: null,
-            captchaExpiry: null
+            captchaExpiry: null,
+            // Store session data for COMPLETE_PURCHASE to restore
+            responseData: JSON.stringify({
+                sessionData: sessionData,
+                savedAt: new Date().toISOString()
+            })
         }
     });
 
-    console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages`);
+    console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages (session saved)`);
 }
 
 /**
@@ -311,7 +322,8 @@ async function handleCompletePurchaseHttp(
             selectedPackage: true,
             promoCode: true,
             stbNumber: true,
-            amount: true
+            amount: true,
+            responseData: true  // Contains saved session from START_RENEWAL
         }
     });
 
@@ -331,6 +343,23 @@ async function handleCompletePurchaseHttp(
     if (!account) throw new Error('Account not found');
 
     const client = await getHttpClient(account);
+
+    // CRITICAL: Restore session from database (cross-worker support)
+    // The session (ViewState + cookies) was saved after loadPackages
+    if (operation.responseData) {
+        try {
+            const savedData = JSON.parse(operation.responseData as string);
+            if (savedData.sessionData) {
+                console.log(`[HTTP] 🔄 Restoring session from database (saved at ${savedData.savedAt})`);
+                await client.importSession(savedData.sessionData);
+                console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
+            }
+        } catch (parseError) {
+            console.error('[HTTP] ⚠️ Failed to parse saved session, continuing anyway:', parseError);
+        }
+    } else {
+        console.log('[HTTP] ⚠️ No saved session found - may fail if different worker');
+    }
 
     const selectedPackage = operation.selectedPackage as {
         index: number;
@@ -352,8 +381,8 @@ async function handleCompletePurchaseHttp(
         checkboxValue: selectedPackage.checkboxSelector  // This is the stored checkbox name
     };
 
-    // Complete purchase using stored ViewState and checkbox values
-    // NO page refresh - continues from where START_RENEWAL left off
+    // Complete purchase using restored ViewState and checkbox values
+    console.log(`[HTTP] 📦 Completing purchase: ${pkg.name} @ ${pkg.price} USD`);
     const result = await client.completePurchase(
         pkg,
         operation.promoCode || promoCode,

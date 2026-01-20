@@ -205,6 +205,10 @@ model BeinAccount {
   lastError           String? @map("last_error")
   lastErrorAt         DateTime? @map("last_error_at")
   
+  // ===== Dealer Balance (from beIN page) =====
+  dealerBalance       Float?    @map("dealer_balance")      // USD balance from last transaction
+  balanceUpdatedAt    DateTime? @map("balance_updated_at")  // When balance was last updated
+  
   // ===== Timestamps =====
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")

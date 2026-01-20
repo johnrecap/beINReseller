@@ -266,6 +266,18 @@ async function handleStartRenewalHttp(
         throw new Error(packagesResult.error || 'Failed to load packages');
     }
 
+    // Update account's dealer balance (for admin display)
+    if (packagesResult.dealerBalance !== undefined) {
+        await prisma.beinAccount.update({
+            where: { id: selectedAccount.id },
+            data: {
+                dealerBalance: packagesResult.dealerBalance,
+                balanceUpdatedAt: new Date()
+            }
+        });
+        console.log(`[HTTP] 💰 Updated account balance: ${packagesResult.dealerBalance} USD`);
+    }
+
     // Convert to format expected by frontend
     const packages = packagesResult.packages.map((pkg, i) => ({
         index: pkg.index,

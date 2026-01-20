@@ -39,6 +39,8 @@ export async function GET() {
                 lastErrorAt: true,
                 createdAt: true,
                 updatedAt: true,
+                dealerBalance: true,
+                balanceUpdatedAt: true,
                 // Count operations for this account
                 _count: {
                     select: { operations: true }

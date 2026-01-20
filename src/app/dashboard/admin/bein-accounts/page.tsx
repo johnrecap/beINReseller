@@ -58,6 +58,8 @@ interface BeinAccount {
     lastErrorAt: string | null
     createdAt: string
     operationsCount: number
+    dealerBalance: number | null       // beIN dealer balance
+    balanceUpdatedAt: string | null    // When balance was updated
 }
 
 interface PoolStatus {
@@ -360,6 +362,7 @@ export default function BeinAccountsPage() {
                                 <TableHead>الحساب</TableHead>
                                 <TableHead className="text-center">الحالة</TableHead>
                                 <TableHead className="text-center">الأولوية</TableHead>
+                                <TableHead className="text-center">رصيد beIN</TableHead>
                                 <TableHead className="text-center">نسبة النجاح</TableHead>
                                 <TableHead className="text-center">العمليات</TableHead>
                                 <TableHead className="text-center">آخر خطأ</TableHead>
@@ -386,6 +389,15 @@ export default function BeinAccountsPage() {
                                         </TableCell>
                                         <TableCell className="text-center">{getStatusBadge(account)}</TableCell>
                                         <TableCell className="text-center">{account.priority}</TableCell>
+                                        <TableCell className="text-center">
+                                            {account.dealerBalance !== null ? (
+                                                <span className="font-bold text-blue-600">
+                                                    {account.dealerBalance} USD
+                                                </span>
+                                            ) : (
+                                                <span className="text-muted-foreground">-</span>
+                                            )}
+                                        </TableCell>
                                         <TableCell className="text-center">
                                             <span className={account.successRate >= 80 ? 'text-green-600' : account.successRate >= 50 ? 'text-yellow-600' : 'text-red-600'}>
                                                 {account.successRate.toFixed(1)}%

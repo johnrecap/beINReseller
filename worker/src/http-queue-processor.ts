@@ -311,8 +311,7 @@ async function handleCompletePurchaseHttp(
             selectedPackage: true,
             promoCode: true,
             stbNumber: true,
-            amount: true,
-            cardNumber: true  // ← CRITICAL: Need cardNumber to reload packages
+            amount: true
         }
     });
 
@@ -345,20 +344,21 @@ async function handleCompletePurchaseHttp(
     }
 
     // Convert to AvailablePackage format
+    // IMPORTANT: Use checkboxSelector as checkboxValue - this was stored from loadPackages()
     const pkg: AvailablePackage = {
         index: selectedPackage.index,
         name: selectedPackage.name,
         price: selectedPackage.price,
-        checkboxValue: selectedPackage.checkboxSelector
+        checkboxValue: selectedPackage.checkboxSelector  // This is the stored checkbox name
     };
 
-    // CRITICAL: Pass cardNumber to completePurchase so it can reload packages
+    // Complete purchase using stored ViewState and checkbox values
+    // NO page refresh - continues from where START_RENEWAL left off
     const result = await client.completePurchase(
         pkg,
         operation.promoCode || promoCode,
         operation.stbNumber || undefined,
-        true, // skipFinalClick - pause for confirmation
-        operation.cardNumber  // ← NEW: Required for HTTP mode
+        true // skipFinalClick - pause for confirmation
     );
 
     if (result.awaitingConfirm) {

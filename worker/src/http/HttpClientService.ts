@@ -1351,18 +1351,20 @@ export class HttpClientService {
 
     /**
      * Complete package purchase
-     * @param selectedPackage - Package to purchase
+     * 
+     * IMPORTANT: This method continues from where loadPackages() left off.
+     * It uses the stored ViewState and checkbox values - NO page refresh/GET!
+     * 
+     * @param selectedPackage - Package to purchase (with checkboxValue from loadPackages)
      * @param promoCode - Optional promo code
      * @param stbNumber - STB number (from checkCard)
      * @param skipFinalClick - If true, stops before final OK (for user confirmation)
-     * @param cardNumber - Card number (required for HTTP mode to reload packages)
      */
     async completePurchase(
         selectedPackage: AvailablePackage,
         promoCode?: string,
         stbNumber?: string,
-        skipFinalClick: boolean = false,
-        cardNumber?: string
+        skipFinalClick: boolean = false
     ): Promise<PurchaseResult> {
         console.log(`[HTTP] Completing purchase: ${selectedPackage.name} - ${selectedPackage.price} USD`);
 
@@ -1371,107 +1373,34 @@ export class HttpClientService {
             return { success: false, message: 'STB number not available' };
         }
 
+        // CRITICAL: Check we have ViewState from previous step (loadPackages)
+        if (!this.currentViewState) {
+            console.log('[HTTP] ❌ No ViewState available - session may have been lost');
+            return {
+                success: false,
+                message: 'Session expired - ViewState not available. Please start a new operation.'
+            };
+        }
+
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
 
-            // ===== CRITICAL FIX: Reload packages before purchase =====
-            // HTTP client doesn't maintain page state like Playwright browser
-            // We need to re-enter the card number to load packages on the page
-            if (cardNumber) {
-                console.log(`[HTTP] 📦 Re-loading packages for verification...`);
-                const reloadResult = await this.loadPackages(cardNumber);
-                if (!reloadResult.success) {
-                    return {
-                        success: false,
-                        message: `Failed to reload packages: ${reloadResult.error}`
-                    };
-                }
-                console.log(`[HTTP] ✅ Packages reloaded: ${reloadResult.packages.length} available`);
-            } else {
-                console.log(`[HTTP] ⚠️ No cardNumber provided, attempting direct GET...`);
-                // Fallback: Try to GET the page (might work if session has packages cached)
-                const pageRes = await this.axios.get(renewUrl, {
-                    headers: { 'Referer': renewUrl }
-                });
-                this.currentViewState = this.extractHiddenFields(pageRes.data);
-            }
-
-            // ===== SECURITY: Verify package before purchase =====
-            // This prevents wrong purchase if page was refreshed or package indices changed
-            console.log(`[HTTP] 🔐 Verifying package: "${selectedPackage.name}" at ${selectedPackage.price} USD`);
-
-            // Now GET the page to verify packages (ViewState should already be set by loadPackages)
-            const renewUrl2 = this.buildFullUrl(this.config.renewUrl);
-            const pageRes = await this.axios.get(renewUrl2, {
-                headers: { 'Referer': renewUrl2 }
-            });
-            const $ = cheerio.load(pageRes.data);
-            this.currentViewState = this.extractHiddenFields(pageRes.data);
-
-            // Search for package by name (not just stored index)
-            const packageNameToFind = selectedPackage.name.split('(')[0].trim().toLowerCase();
-            let foundCheckboxValue: string | null = null;
-            let foundPrice: number | null = null;
-
-            // Try all package rows
-            const tableSelectors = [
-                'table[id*="gvAvailablePackages"] tr.GridRow',
-                'table[id*="gvAvailablePackages"] tr.GridAlternatingRow',
-                '#ContentPlaceHolder1_gvAvailablePackages tr:not(:first-child)',
-                'table tr:has(input[type="checkbox"])'
-            ];
-
-            for (const sel of tableSelectors) {
-                $(sel).each((_, row) => {
-                    if (foundCheckboxValue) return; // Already found
-
-                    const $row = $(row);
-                    const rowText = $row.text().toLowerCase();
-
-                    // Check if this row contains our package name
-                    if (rowText.includes(packageNameToFind)) {
-                        const checkbox = $row.find('input[type="checkbox"]');
-                        if (checkbox.length) {
-                            foundCheckboxValue = checkbox.attr('name') || null;
-
-                            // Extract price from row
-                            const priceMatch = $row.text().match(/(\d+(?:\.\d{1,2})?)\s*USD/i);
-                            foundPrice = priceMatch ? parseFloat(priceMatch[1]) : null;
-
-                            console.log(`[HTTP] ✅ Found package "${packageNameToFind}" with checkbox: ${foundCheckboxValue}`);
-                        }
-                    }
-                });
-                if (foundCheckboxValue) break;
-            }
-
-            // Verify package was found
-            if (!foundCheckboxValue) {
-                console.log(`[HTTP] ❌ Package "${selectedPackage.name}" not found on current page!`);
+            // Use the checkbox value stored from loadPackages (NO GET request!)
+            const checkboxValue = selectedPackage.checkboxValue;
+            if (!checkboxValue) {
                 return {
                     success: false,
-                    message: `Package "${selectedPackage.name}" not found. Page may have been refreshed.`
+                    message: 'No checkbox value for package - invalid package data'
                 };
             }
 
-            // AUDIT FIX: Use epsilon comparison for floating point prices
-            const priceEpsilon = 0.01; // 1 cent tolerance
-            if (foundPrice !== null && Math.abs(foundPrice - selectedPackage.price) > priceEpsilon) {
-                console.log(`[HTTP] ⚠️ Price mismatch! Expected ${selectedPackage.price} USD, found ${foundPrice} USD`);
-                return {
-                    success: false,
-                    message: `Price changed! Expected ${selectedPackage.price} USD but found ${foundPrice} USD. Aborting.`
-                };
-            }
-            console.log(`[HTTP] ✅ Price verified: ${selectedPackage.price} USD`);
+            console.log(`[HTTP] 📦 Using stored checkbox: ${checkboxValue}`);
+            console.log(`[HTTP] 📦 Using stored ViewState: ${this.currentViewState.__VIEWSTATE?.length || 0} chars`);
 
-            // Use the verified checkbox value (may be different from stored one)
-            const verifiedCheckboxValue = foundCheckboxValue;
-
-            // Step 1: Select checkbox + Add to cart
+            // Step 1: Select checkbox + Add to cart (POST directly, no GET!)
             const addFormData: Record<string, string> = {
                 ...this.currentViewState,
-                [verifiedCheckboxValue]: 'on', // Use VERIFIED checkbox
+                [checkboxValue]: 'on',
                 'ctl00$ContentPlaceHolder1$btnAddToCart': 'Add >'
             };
 
@@ -1492,7 +1421,15 @@ export class HttpClientService {
                 }
             );
 
+            // Check for errors in response
+            const addError = this.checkForErrors(res.data);
+            if (addError) {
+                console.log(`[HTTP] ❌ Add to cart error: ${addError}`);
+                return { success: false, message: `Add to cart failed: ${addError}` };
+            }
+
             this.currentViewState = this.extractHiddenFields(res.data);
+            console.log('[HTTP] ✅ Added to cart');
 
             // Step 2: Click Sell button
             const sellFormData: Record<string, string> = {
@@ -1512,15 +1449,23 @@ export class HttpClientService {
                 }
             );
 
-            this.currentViewState = this.extractHiddenFields(res.data);
+            // Check for errors
+            const sellError = this.checkForErrors(res.data);
+            if (sellError) {
+                console.log(`[HTTP] ❌ Sell error: ${sellError}`);
+                return { success: false, message: `Sell failed: ${sellError}` };
+            }
 
-            // Step 3: Enter STB number - send to BOTH field name variants for compatibility
-            // beIN uses both 'tbStbSerial2' and 'toStbSerial2' on different page versions
+            this.currentViewState = this.extractHiddenFields(res.data);
+            console.log('[HTTP] ✅ Sell clicked');
+
+            // Step 3: Enter STB number in both fields
+            // beIN uses 'tbStbSerial1' and 'tbStbSerial2' (sometimes 'toStbSerial2')
             const stbFormData: Record<string, string> = {
                 ...this.currentViewState,
                 'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
-                'ctl00$ContentPlaceHolder1$tbStbSerial2': stb, // Main variant
-                'ctl00$ContentPlaceHolder1$toStbSerial2': stb  // Alternative variant (beIN sometimes uses "to" prefix)
+                'ctl00$ContentPlaceHolder1$tbStbSerial2': stb,
+                'ctl00$ContentPlaceHolder1$toStbSerial2': stb  // Alternative field name
             };
 
             console.log(`[HTTP] POST STB: ${stb}`);
@@ -1535,7 +1480,15 @@ export class HttpClientService {
                 }
             );
 
+            // Check for errors
+            const stbError = this.checkForErrors(res.data);
+            if (stbError) {
+                console.log(`[HTTP] ❌ STB error: ${stbError}`);
+                return { success: false, message: `STB entry failed: ${stbError}` };
+            }
+
             this.currentViewState = this.extractHiddenFields(res.data);
+            console.log('[HTTP] ✅ STB entered');
 
             // If skipFinalClick, return here for user confirmation
             if (skipFinalClick) {

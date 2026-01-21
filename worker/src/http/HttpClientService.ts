@@ -1641,13 +1641,48 @@ export class HttpClientService {
             }
 
             // ===============================================
+            // DEBUG: Log all form elements on payment page
+            // ===============================================
+            console.log('[HTTP] DEBUG: Inspecting payment page form elements...');
+
+            // Find all radio buttons
+            const radioButtons = $('input[type="radio"]');
+            console.log(`[HTTP] DEBUG: Found ${radioButtons.length} radio buttons`);
+            radioButtons.each((i, el) => {
+                const name = $(el).attr('name') || 'no-name';
+                const id = $(el).attr('id') || 'no-id';
+                const value = $(el).attr('value') || 'no-value';
+                const checked = $(el).prop('checked') ? ' [CHECKED]' : '';
+                console.log(`[HTTP] DEBUG: Radio ${i}: name="${name}" id="${id}" value="${value}"${checked}`);
+            });
+
+            // Find all buttons/inputs of type submit
+            const buttons = $('input[type="submit"], button, input[type="button"]');
+            console.log(`[HTTP] DEBUG: Found ${buttons.length} buttons`);
+            buttons.each((i, el) => {
+                const name = $(el).attr('name') || 'no-name';
+                const id = $(el).attr('id') || 'no-id';
+                const value = $(el).attr('value') || $(el).text().trim() || 'no-value';
+                console.log(`[HTTP] DEBUG: Button ${i}: name="${name}" id="${id}" value="${value}"`);
+            });
+
+            // ===============================================
             // STEP 2: Select Direct Payment and Click Pay
             // ===============================================
+            // Use the correct field names based on inspection
             const payFormData: Record<string, string> = {
                 ...this.currentViewState,
                 'ctl00$ContentPlaceHolder1$RbdDirectPay': 'RbdDirectPay',
                 'ctl00$ContentPlaceHolder1$SRtnPay': 'Pay'
             };
+
+            // Log what we're sending
+            console.log('[HTTP] DEBUG: Pay form data being sent:');
+            for (const [key, value] of Object.entries(payFormData)) {
+                if (!key.includes('VIEWSTATE') && !key.includes('EVENTVALIDATION')) {
+                    console.log(`[HTTP]   - ${key}: "${value}"`);
+                }
+            }
 
             console.log('[HTTP] POST Pay (Direct Payment)...');
             res = await this.axios.post(

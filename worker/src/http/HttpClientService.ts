@@ -1672,16 +1672,19 @@ export class HttpClientService {
             });
 
             // ===============================================
-            // STEP 2: Click Pay (Direct Payment is auto-selected on beIN)
+            // STEP 2: Click Pay (Direct Payment)
             // ===============================================
-            // Note: Radio button RbdDirectPay is selected by default on beIN portal
-            // No need to explicitly select it, just click Pay
+            // IMPORTANT: Must include BOTH the radio button selection AND the Pay button
+            // ASP.NET WebForms requires all form fields to be submitted
             const payFormData: Record<string, string> = {
                 ...this.currentViewState,
-                // Keep STB fields
+                // STB fields
                 'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
                 'ctl00$ContentPlaceHolder1$tbStbSerial2': stb,
-                // Click Pay button - CORRECT name is BtnPay (not SRtnPay)
+                // Radio button for Direct Payment (From Account)
+                // Name: ctl00$ContentPlaceHolder1$Epay, Value: RbdDirectPay
+                'ctl00$ContentPlaceHolder1$Epay': 'RbdDirectPay',
+                // Pay button
                 'ctl00$ContentPlaceHolder1$BtnPay': 'Pay'
             };
 

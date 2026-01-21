@@ -1650,6 +1650,16 @@ export class HttpClientService {
             // ===============================================
             console.log('[HTTP] DEBUG: Inspecting payment page form elements...');
 
+            // Find all text inputs (including STB fields)
+            const textInputs = $('input[type="text"]');
+            console.log(`[HTTP] DEBUG: Found ${textInputs.length} text inputs`);
+            textInputs.each((i, el) => {
+                const name = $(el).attr('name') || 'no-name';
+                const id = $(el).attr('id') || 'no-id';
+                const value = $(el).val() || '';
+                console.log(`[HTTP] DEBUG: TextInput ${i}: name="${name}" id="${id}" value="${value}"`);
+            });
+
             // Find all radio buttons
             const radioButtons = $('input[type="radio"]');
             console.log(`[HTTP] DEBUG: Found ${radioButtons.length} radio buttons`);

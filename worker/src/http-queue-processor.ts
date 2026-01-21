@@ -503,6 +503,7 @@ async function handleConfirmPurchaseHttp(
             selectedPackage: true,
             amount: true,
             status: true,
+            stbNumber: true,  // CRITICAL: Need for confirmPurchase
             finalConfirmExpiry: true,
             responseData: true  // CRITICAL: Need this for session restoration
         }
@@ -536,6 +537,14 @@ async function handleConfirmPurchaseHttp(
 
     const client = await getHttpClient(account);
 
+    // CRITICAL: Set STB number on client for confirmPurchase
+    if (operation.stbNumber) {
+        client.setSTBNumber(operation.stbNumber);
+        console.log(`[HTTP] 📺 STB number set on client: ${operation.stbNumber}`);
+    } else {
+        console.warn('[HTTP] ⚠️ No STB number found in operation!');
+    }
+
     // CRITICAL: Restore session from database (cross-worker support)
     // Without this, the ViewState and cookies are missing and purchase fails silently!
     if (operation.responseData) {
@@ -545,8 +554,12 @@ async function handleConfirmPurchaseHttp(
             // CHECK SESSION AGE - beIN sessions expire after ~30-60 minutes
             // If session is too old, fail fast instead of attempting with expired session
             if (savedData.savedAt) {
-                const sessionAge = Date.now() - new Date(savedData.savedAt).getTime();
+                const savedTime = new Date(savedData.savedAt).getTime();
+                const now = Date.now();
+                const sessionAge = now - savedTime;
                 const SESSION_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
+
+                console.log(`[HTTP] DEBUG: savedAt=${savedData.savedAt}, now=${new Date().toISOString()}, age=${Math.floor(sessionAge / 60000)}min`);
 
                 if (sessionAge > SESSION_MAX_AGE_MS) {
                     const ageMinutes = Math.floor(sessionAge / 60000);

@@ -1884,6 +1884,10 @@ export class HttpClientService {
         return this.currentStbNumber;
     }
 
+    setSTBNumber(stb: string): void {
+        this.currentStbNumber = stb;
+    }
+
     getConfig(): BeINHttpConfig {
         return this.config;
     }

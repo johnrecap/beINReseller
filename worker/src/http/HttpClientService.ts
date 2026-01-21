@@ -1624,32 +1624,51 @@ export class HttpClientService {
                 return { success: false, message: payError };
             }
 
-            // Check for success - "Contract Created Successfully"
+            // Check for success - MUST find explicit success message
             const $result = cheerio.load(res.data);
             const pageText = $result('body').text();
 
-            if (pageText.includes('Contract Created Successfully')) {
-                console.log('[HTTP] ✅ Contract Created Successfully!');
-                return { success: true, message: 'Contract Created Successfully' };
+            // Log response for debugging
+            console.log(`[HTTP] Purchase response preview: ${pageText.substring(0, 500)}`);
+
+            // Check for explicit success messages
+            const successPatterns = [
+                'Contract Created Successfully',
+                'تم إنشاء العقد بنجاح',
+                'Package Added Successfully',
+                'تم إضافة الباقة بنجاح',
+                'Successfully',
+                'تمت العملية بنجاح'
+            ];
+
+            for (const pattern of successPatterns) {
+                if (pageText.includes(pattern) || res.data.includes(pattern)) {
+                    console.log(`[HTTP] ✅ Success confirmed: "${pattern}"`);
+                    return { success: true, message: pattern };
+                }
             }
 
-            // Check for alert/popup success message
-            if (res.data.includes('Contract Created Successfully')) {
-                console.log('[HTTP] ✅ Contract Created Successfully (in response)!');
-                return { success: true, message: 'Contract Created Successfully' };
+            // Check for error indicators that mean failure
+            const errorPatterns = [
+                'insufficient balance',
+                'رصيد غير كافي',
+                'error',
+                'failed',
+                'invalid',
+                'not available'
+            ];
+
+            for (const pattern of errorPatterns) {
+                if (pageText.toLowerCase().includes(pattern)) {
+                    console.log(`[HTTP] ❌ Purchase failed: Page contains "${pattern}"`);
+                    return { success: false, message: `Purchase failed - ${pattern} detected in response` };
+                }
             }
 
-            // Check other success indicators
-            if (pageText.toLowerCase().includes('success') || pageText.includes('تم')) {
-                console.log('[HTTP] ✅ Purchase confirmed');
-                return { success: true, message: 'Purchase completed successfully' };
-            }
-
-            console.log('[HTTP] ✅ Purchase completed (checking page...)');
-            // Log first 500 chars for debugging
-            console.log(`[HTTP] Response preview: ${pageText.substring(0, 500)}`);
-
-            return { success: true, message: 'Purchase completed' };
+            // NO SUCCESS MESSAGE FOUND - FAIL BY DEFAULT
+            console.log('[HTTP] ❌ No success confirmation found in response!');
+            console.log('[HTTP] Full page text:', pageText.substring(0, 1000));
+            return { success: false, message: 'No success confirmation received from beIN portal' };
 
         } catch (error: any) {
             console.error('[HTTP] Confirm error:', error.message);

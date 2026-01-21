@@ -1588,11 +1588,10 @@ export class HttpClientService {
             }
 
             // ===============================================
-            // STEP 0: Get BALANCE BEFORE from frmSellPackages
+            // NOTE: DO NOT make any GET requests before OK button!
+            // ASP.NET WebForms is stateful - any navigation resets form state
+            // We'll verify success by checking balance AFTER payment only
             // ===============================================
-            console.log('[HTTP] 💰 Getting balance BEFORE purchase...');
-            const balanceBefore = await this.getBalanceFromSellPackagesPage();
-            console.log(`[HTTP] 💰 Balance BEFORE: ${balanceBefore !== null ? balanceBefore + ' USD' : 'unknown'}`);
 
             // Get STB number from queue processor context (will be passed in)
             // For now, we try to use the stored one
@@ -1736,69 +1735,47 @@ export class HttpClientService {
             }
 
             // ===============================================
-            // STEP 3: Get BALANCE AFTER from frmSellPackages
+            // STEP 3: Check for SUCCESS MESSAGES first
             // ===============================================
-            console.log('[HTTP] 💰 Getting balance AFTER purchase...');
+            const successPatterns = [
+                'Contract Created Successfully',
+                'تم إنشاء العقد بنجاح',
+                'Package Added Successfully',
+                'تم إضافة الباقة بنجاح'
+            ];
 
-            // Small delay to ensure beIN has processed the payment
+            for (const pattern of successPatterns) {
+                if (resultPageText.includes(pattern) || res.data.includes(pattern)) {
+                    console.log(`[HTTP] ✅ SUCCESS! Found message: "${pattern}"`);
+
+                    // Get balance after to report
+                    const balanceAfter = await this.getBalanceFromSellPackagesPage();
+                    console.log(`[HTTP] 💰 Balance after success: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
+
+                    return {
+                        success: true,
+                        message: pattern,
+                        newBalance: balanceAfter || undefined
+                    };
+                }
+            }
+
+            // ===============================================
+            // STEP 4: Get BALANCE AFTER to verify
+            // ===============================================
+            console.log('[HTTP] 💰 No success message found, checking balance...');
+
+            // Small delay to ensure beIN has processed
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             const balanceAfter = await this.getBalanceFromSellPackagesPage();
             console.log(`[HTTP] 💰 Balance AFTER: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
 
-            // ===============================================
-            // STEP 4: VERIFY SUCCESS BY BALANCE CHANGE
-            // ===============================================
-            if (balanceBefore !== null && balanceAfter !== null) {
-                const balanceChange = balanceBefore - balanceAfter;
-                console.log(`[HTTP] 💰 Balance change: ${balanceBefore} - ${balanceAfter} = ${balanceChange} USD`);
-
-                if (balanceChange > 0) {
-                    // Balance decreased = SUCCESS!
-                    console.log(`[HTTP] ✅ PURCHASE CONFIRMED! Balance decreased by ${balanceChange} USD`);
-                    return {
-                        success: true,
-                        message: `تم الشراء بنجاح - تم خصم ${balanceChange} USD`,
-                        newBalance: balanceAfter
-                    };
-                } else if (balanceChange === 0) {
-                    // Balance unchanged = FAILED
-                    console.log('[HTTP] ❌ Balance unchanged - purchase did NOT go through');
-                    return {
-                        success: false,
-                        message: 'فشل الشراء - لم يتم خصم أي رصيد من حساب beIN',
-                        newBalance: balanceAfter
-                    };
-                } else {
-                    // Balance increased? Shouldn't happen
-                    console.log('[HTTP] ⚠️ Unexpected balance increase');
-                    return {
-                        success: false,
-                        message: 'حالة غير متوقعة - برجاء التحقق يدوياً',
-                        newBalance: balanceAfter
-                    };
-                }
-            }
-
-            // Couldn't get balance - check for success message in response
-            const successPatterns = [
-                'Contract Created Successfully',
-                'تم إنشاء العقد بنجاح',
-                'Package Added Successfully'
-            ];
-
-            for (const pattern of successPatterns) {
-                if (resultPageText.includes(pattern) || res.data.includes(pattern)) {
-                    console.log(`[HTTP] ✅ Success message found: "${pattern}"`);
-                    return { success: true, message: pattern, newBalance: balanceAfter || undefined };
-                }
-            }
-
-            // Couldn't verify - return uncertain status
-            console.log('[HTTP] ⚠️ Could not verify balance - uncertain status');
+            // If we can't find success message and can't verify balance, fail
+            console.log('[HTTP] ⚠️ No success confirmation found');
             return {
                 success: false,
-                message: 'تعذر التحقق من حالة الشراء - برجاء التحقق يدوياً',
+                message: 'لم يتم العثور على تأكيد النجاح من beIN',
                 newBalance: balanceAfter || undefined
             };
 

@@ -1829,27 +1829,62 @@ export class HttpClientService {
         const contracts: Array<{ type: string; status: string; package: string; startDate: string; expiryDate: string; invoiceNo: string; }> = [];
 
         try {
-            // Find the contracts table - try multiple selectors
-            const table = $('[id*="Contracts_GridView"], [id*="ctrlContracts_GridView"], table.Grid').first();
+            // Find the contracts table - try multiple selectors based on beIN HTML structure
+            // The table ID is like: ContentPlaceHolder1_TabContainer1_TabPanel1_ctrlContracts_GridView1
+            const tableSelectors = [
+                '[id*="ctrlContracts_GridView"]',
+                '[id*="Contracts_GridView"]',
+                'table[id*="GridView1"]',
+                'table.Grid',
+                '#ContentPlaceHolder1_TabContainer1_TabPanel1_ctrlContracts_GridView1'
+            ];
 
-            if (!table.length) {
+            let table = null;
+            for (const selector of tableSelectors) {
+                const found = $(selector).first();
+                if (found.length) {
+                    table = found;
+                    console.log(`[HTTP] Found contracts table with selector: ${selector}`);
+                    break;
+                }
+            }
+
+            if (!table || !table.length) {
+                // Try finding any table inside TabContainer/TabPanel
+                table = $('[id*="TabPanel"]').find('table').first();
+                if (table.length) {
+                    console.log('[HTTP] Found contracts table in TabPanel');
+                }
+            }
+
+            if (!table || !table.length) {
                 console.log('[HTTP] No contracts table found');
                 return contracts;
             }
 
-            // Get all rows except header
-            const rows = table.find('tr').slice(1); // Skip header row
+            // Get all rows - check both tr in tbody and direct tr
+            const rows = table.find('tbody tr').length > 0
+                ? table.find('tbody tr')
+                : table.find('tr').slice(1); // Skip header row
+
+            console.log(`[HTTP] Found ${rows.length} rows in contracts table`);
 
             rows.each((_, row) => {
                 const cells = $(row).find('td');
-                if (cells.length >= 6) {
+
+                // beIN table structure: first cell might be icon, then Type, Status, Package, StartDate, ExpiryDate, InvoiceNo
+                // Check if first cell contains an image (icon)
+                const hasIconCell = $(cells[0]).find('img').length > 0;
+                const offset = hasIconCell ? 1 : 0;
+
+                if (cells.length >= (6 + offset)) {
                     const contract = {
-                        type: $(cells[0]).text().trim(),
-                        status: $(cells[1]).text().trim(),
-                        package: $(cells[2]).text().trim(),
-                        startDate: $(cells[3]).text().trim(),
-                        expiryDate: $(cells[4]).text().trim(),
-                        invoiceNo: $(cells[5]).text().trim()
+                        type: $(cells[offset]).text().trim(),
+                        status: $(cells[offset + 1]).text().trim(),
+                        package: $(cells[offset + 2]).text().trim(),
+                        startDate: $(cells[offset + 3]).text().trim(),
+                        expiryDate: $(cells[offset + 4]).text().trim(),
+                        invoiceNo: $(cells[offset + 5]).text().trim()
                     };
 
                     // Only add if has valid data

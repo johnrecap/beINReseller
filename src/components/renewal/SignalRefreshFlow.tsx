@@ -44,6 +44,7 @@ export function SignalRefreshFlow() {
     const [contracts, setContracts] = useState<Contract[]>([])
     const [error, setError] = useState<string | null>(null)
     const [activating, setActivating] = useState(false)
+    const [pollTrigger, setPollTrigger] = useState(0) // Used to restart polling
 
     // Poll for operation status
     useEffect(() => {
@@ -99,7 +100,7 @@ export function SignalRefreshFlow() {
         }, 2000)
 
         return () => clearInterval(pollInterval)
-    }, [operationId])
+    }, [operationId, pollTrigger]) // Include pollTrigger to restart polling
 
     // Step 1: Check card status
     const handleCheckCard = async () => {
@@ -156,6 +157,9 @@ export function SignalRefreshFlow() {
             if (data.operationId) {
                 setOperationId(data.operationId)
             }
+
+            // Trigger polling restart
+            setPollTrigger(prev => prev + 1)
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'حدث خطأ في التفعيل')
             setStep('status') // Go back to status so user can retry

@@ -78,15 +78,15 @@ export function ContractsTable({ contracts }: ContractsTableProps) {
 
             {/* Desktop Table */}
             <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
                     <thead className="bg-gray-800/60">
                         <tr className="text-gray-400 text-xs">
-                            <th className="px-4 py-3 text-start w-28">النوع</th>
-                            <th className="px-4 py-3 text-start w-24">الحالة</th>
-                            <th className="px-4 py-3 text-start min-w-[280px]">الباقة</th>
-                            <th className="px-4 py-3 text-center w-28">تاريخ البداية</th>
-                            <th className="px-4 py-3 text-center w-28">تاريخ الانتهاء</th>
-                            <th className="px-4 py-3 text-center w-24">رقم الفاتورة</th>
+                            <th className="px-3 py-3 text-start w-[100px]">النوع</th>
+                            <th className="px-3 py-3 text-start w-[80px]">الحالة</th>
+                            <th className="px-3 py-3 text-start">الباقة</th>
+                            <th className="px-3 py-3 text-center w-[90px]">البداية</th>
+                            <th className="px-3 py-3 text-center w-[90px]">الانتهاء</th>
+                            <th className="px-3 py-3 text-center w-[80px]">الفاتورة</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700/50">
@@ -95,31 +95,31 @@ export function ContractsTable({ contracts }: ContractsTableProps) {
                                 key={index}
                                 className="hover:bg-gray-700/30 transition-colors"
                             >
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center gap-2 text-gray-300">
+                                <td className="px-3 py-3">
+                                    <div className="flex items-center gap-1.5 text-gray-300">
                                         {getTypeIcon(contract.type)}
-                                        <span className="text-xs whitespace-nowrap">{contract.type}</span>
+                                        <span className="text-xs">{contract.type}</span>
                                     </div>
                                 </td>
-                                <td className="px-4 py-3">
+                                <td className="px-3 py-3">
                                     {getStatusBadge(contract.status)}
                                 </td>
-                                <td className="px-4 py-3">
-                                    <span className="text-gray-200 text-sm font-medium" title={contract.package}>
+                                <td className="px-3 py-3">
+                                    <span className="text-gray-100 text-base font-semibold block">
                                         {contract.package}
                                     </span>
                                 </td>
-                                <td className="px-4 py-3 text-center">
-                                    <span className="text-gray-400 text-xs font-mono whitespace-nowrap">
+                                <td className="px-3 py-3 text-center">
+                                    <span className="text-gray-400 text-xs font-mono">
                                         {contract.startDate}
                                     </span>
                                 </td>
-                                <td className="px-4 py-3 text-center">
-                                    <span className="text-gray-400 text-xs font-mono whitespace-nowrap">
+                                <td className="px-3 py-3 text-center">
+                                    <span className="text-gray-400 text-xs font-mono">
                                         {contract.expiryDate}
                                     </span>
                                 </td>
-                                <td className="px-4 py-3 text-center">
+                                <td className="px-3 py-3 text-center">
                                     <span className="text-gray-500 text-xs font-mono">
                                         {contract.invoiceNo}
                                     </span>

@@ -28,6 +28,8 @@ export async function GET(
                 amount: true,
                 status: true,
                 responseMessage: true,
+                responseData: true,  // Required for signal refresh card status
+                stbNumber: true,
                 createdAt: true,
                 updatedAt: true,
                 userId: true,

@@ -1587,7 +1587,16 @@ export class HttpClientService {
                 return { success: false, message: 'ViewState not available' };
             }
 
-            // Step 1: Click OK button (after STB entry)
+            // ===============================================
+            // STEP 0: Get BALANCE BEFORE from frmSellPackages
+            // ===============================================
+            console.log('[HTTP] 💰 Getting balance BEFORE purchase...');
+            const balanceBefore = await this.getBalanceFromSellPackagesPage();
+            console.log(`[HTTP] 💰 Balance BEFORE: ${balanceBefore !== null ? balanceBefore + ' USD' : 'unknown'}`);
+
+            // ===============================================
+            // STEP 1: Click OK button (after STB entry)
+            // ===============================================
             const okFormData: Record<string, string> = {
                 ...this.currentViewState,
                 'ctl00$ContentPlaceHolder1$btnStbOk': 'Ok'
@@ -1618,25 +1627,25 @@ export class HttpClientService {
 
             // Check if payment options page appeared
             const $ = cheerio.load(res.data);
-            const paymentSection = $('[id*="PaymentPopUp"], [class*="Payment"], div:contains("Please Select Type of Payment")');
+            const pageText = $('body').text();
 
-            if (paymentSection.length === 0) {
-                // Maybe already success?
-                const pageText = $('body').text();
-                if (pageText.includes('Contract Created Successfully') || pageText.includes('Success')) {
-                    console.log('[HTTP] ✅ Purchase completed directly (no payment selection)');
-                    return { success: true, message: 'Contract Created Successfully' };
-                }
-                console.log('[HTTP] ⚠️ Payment section not found, attempting Pay anyway');
+            // Check if already success (no payment needed)
+            if (pageText.includes('Contract Created Successfully') || pageText.includes('Success')) {
+                console.log('[HTTP] ✅ Purchase completed directly (no payment selection)');
+                const balanceAfterDirect = await this.getBalanceFromSellPackagesPage();
+                return {
+                    success: true,
+                    message: 'Contract Created Successfully',
+                    newBalance: balanceAfterDirect || undefined
+                };
             }
 
-            // Step 2: Select "Direct Payment" radio button and Click Pay
-            // From screenshot: RbdDirectPay is the radio button name
+            // ===============================================
+            // STEP 2: Select Direct Payment and Click Pay
+            // ===============================================
             const payFormData: Record<string, string> = {
                 ...this.currentViewState,
-                // Radio button - select Direct Payment (From Account)
                 'ctl00$ContentPlaceHolder1$RbdDirectPay': 'RbdDirectPay',
-                // Pay button
                 'ctl00$ContentPlaceHolder1$SRtnPay': 'Pay'
             };
 
@@ -1652,94 +1661,134 @@ export class HttpClientService {
                 }
             );
 
-            // Check for errors
+            // Check for immediate errors
             const payError = this.checkForErrors(res.data);
             if (payError) {
                 console.log(`[HTTP] ❌ Pay error: ${payError}`);
                 return { success: false, message: payError };
             }
 
-            // Check for success - Parse response
-            const $result = cheerio.load(res.data);
-            const pageText = $result('body').text();
-
             // Log response for debugging
-            console.log(`[HTTP] Purchase response preview: ${pageText.substring(0, 500)}`);
+            const $result = cheerio.load(res.data);
+            const resultPageText = $result('body').text();
+            console.log(`[HTTP] Pay response preview: ${resultPageText.substring(0, 300)}...`);
 
-            // Check for explicit SUCCESS messages in response
-            const successPatterns = [
-                'Contract Created Successfully',
-                'تم إنشاء العقد بنجاح',
-                'Package Added Successfully',
-                'تم إضافة الباقة بنجاح'
-            ];
-
-            let foundSuccessMessage = false;
-            for (const pattern of successPatterns) {
-                if (pageText.includes(pattern) || res.data.includes(pattern)) {
-                    console.log(`[HTTP] ✅ Success message found: "${pattern}"`);
-                    foundSuccessMessage = true;
-                    break;
-                }
-            }
-
-            // Check for ERROR indicators
+            // Check for error patterns in response
             const errorPatterns = [
                 'insufficient balance',
                 'رصيد غير كافي',
                 'Insufficient Credit',
                 'not available',
-                'غير متاح'
+                'Sign In',
+                'Login'
             ];
 
             for (const pattern of errorPatterns) {
-                if (pageText.toLowerCase().includes(pattern.toLowerCase())) {
+                if (resultPageText.toLowerCase().includes(pattern.toLowerCase())) {
                     console.log(`[HTTP] ❌ Purchase failed: Page contains "${pattern}"`);
                     return { success: false, message: `Purchase failed - ${pattern}` };
                 }
             }
 
-            // BALANCE VERIFICATION: Get current balance after payment
-            console.log('[HTTP] 💰 Verifying balance change...');
-            const balanceAfter = await this.getCurrentBalance();
+            // ===============================================
+            // STEP 3: Get BALANCE AFTER from frmSellPackages
+            // ===============================================
+            console.log('[HTTP] 💰 Getting balance AFTER purchase...');
 
-            // Extract balance from the payment response page as well
-            const responseBalanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
-            const responseBalance = responseBalanceMatch ? parseFloat(responseBalanceMatch[1]) : null;
+            // Small delay to ensure beIN has processed the payment
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-            if (responseBalance !== null) {
-                console.log(`[HTTP] 💰 Balance in response: ${responseBalance} USD`);
+            const balanceAfter = await this.getBalanceFromSellPackagesPage();
+            console.log(`[HTTP] 💰 Balance AFTER: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
+
+            // ===============================================
+            // STEP 4: VERIFY SUCCESS BY BALANCE CHANGE
+            // ===============================================
+            if (balanceBefore !== null && balanceAfter !== null) {
+                const balanceChange = balanceBefore - balanceAfter;
+                console.log(`[HTTP] 💰 Balance change: ${balanceBefore} - ${balanceAfter} = ${balanceChange} USD`);
+
+                if (balanceChange > 0) {
+                    // Balance decreased = SUCCESS!
+                    console.log(`[HTTP] ✅ PURCHASE CONFIRMED! Balance decreased by ${balanceChange} USD`);
+                    return {
+                        success: true,
+                        message: `تم الشراء بنجاح - تم خصم ${balanceChange} USD`,
+                        newBalance: balanceAfter
+                    };
+                } else if (balanceChange === 0) {
+                    // Balance unchanged = FAILED
+                    console.log('[HTTP] ❌ Balance unchanged - purchase did NOT go through');
+                    return {
+                        success: false,
+                        message: 'فشل الشراء - لم يتم خصم أي رصيد من حساب beIN',
+                        newBalance: balanceAfter
+                    };
+                } else {
+                    // Balance increased? Shouldn't happen
+                    console.log('[HTTP] ⚠️ Unexpected balance increase');
+                    return {
+                        success: false,
+                        message: 'حالة غير متوقعة - برجاء التحقق يدوياً',
+                        newBalance: balanceAfter
+                    };
+                }
             }
 
-            // If we found a success message, trust it
-            if (foundSuccessMessage) {
-                console.log(`[HTTP] ✅ Purchase SUCCESS confirmed by message`);
-                return {
-                    success: true,
-                    message: 'Contract Created Successfully',
-                    newBalance: responseBalance || balanceAfter || undefined
-                };
+            // Couldn't get balance - check for success message in response
+            const successPatterns = [
+                'Contract Created Successfully',
+                'تم إنشاء العقد بنجاح',
+                'Package Added Successfully'
+            ];
+
+            for (const pattern of successPatterns) {
+                if (resultPageText.includes(pattern) || res.data.includes(pattern)) {
+                    console.log(`[HTTP] ✅ Success message found: "${pattern}"`);
+                    return { success: true, message: pattern, newBalance: balanceAfter || undefined };
+                }
             }
 
-            // If no success message but also no error, check if balance decreased
-            if (balanceAfter !== null && expectedCost !== undefined) {
-                // We can compare if we know the expected cost
-                console.log(`[HTTP] 💰 Balance after: ${balanceAfter} USD (expected to decrease by ${expectedCost})`);
-            }
-
-            // If we got a valid payment page response but no clear success/error, be cautious
-            console.log('[HTTP] ⚠️ No clear success confirmation - marking as uncertain');
-            console.log('[HTTP] Full page text:', pageText.substring(0, 1500));
-
+            // Couldn't verify - return uncertain status
+            console.log('[HTTP] ⚠️ Could not verify balance - uncertain status');
             return {
                 success: false,
-                message: 'Purchase status uncertain - no success confirmation from beIN portal. Please verify manually.',
-                newBalance: responseBalance || balanceAfter || undefined
+                message: 'تعذر التحقق من حالة الشراء - برجاء التحقق يدوياً',
+                newBalance: balanceAfter || undefined
             };
 
         } catch (error: any) {
             console.error('[HTTP] Confirm error:', error.message);
             return { success: false, message: `Confirm failed: ${error.message}` };
+        }
+    }
+
+    /**
+     * Get dealer balance from frmSellPackages.aspx page
+     * This is the reliable source for balance
+     */
+    async getBalanceFromSellPackagesPage(): Promise<number | null> {
+        try {
+            const renewUrl = this.buildFullUrl(this.config.renewUrl);
+
+            const res = await this.axios.get(renewUrl, {
+                headers: { 'Referer': this.config.loginUrl }
+            });
+
+            const $ = cheerio.load(res.data);
+            const pageText = $('body').text();
+
+            // Match pattern: "Your Current Credit Balance is 435 USD"
+            const balanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
+
+            if (balanceMatch) {
+                return parseFloat(balanceMatch[1]);
+            }
+
+            return null;
+        } catch (error: any) {
+            console.error('[HTTP] Error getting balance from sell packages page:', error.message);
+            return null;
         }
     }
 

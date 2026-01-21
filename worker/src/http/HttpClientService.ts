@@ -1673,17 +1673,21 @@ export class HttpClientService {
             });
 
             // ===============================================
-            // STEP 2: Select Direct Payment and Click Pay
+            // STEP 2: Click Pay (Direct Payment is auto-selected on beIN)
             // ===============================================
-            // Use the correct field names based on inspection
+            // Note: Radio button RbdDirectPay is selected by default on beIN portal
+            // No need to explicitly select it, just click Pay
             const payFormData: Record<string, string> = {
                 ...this.currentViewState,
-                'ctl00$ContentPlaceHolder1$RbdDirectPay': 'RbdDirectPay',
+                // Keep STB fields
+                'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
+                'ctl00$ContentPlaceHolder1$tbStbSerial2': stb,
+                // Just click Pay button
                 'ctl00$ContentPlaceHolder1$SRtnPay': 'Pay'
             };
 
             // Log what we're sending
-            console.log('[HTTP] DEBUG: Pay form data being sent:');
+            console.log('[HTTP] DEBUG: Pay form data:');
             for (const [key, value] of Object.entries(payFormData)) {
                 if (!key.includes('VIEWSTATE') && !key.includes('EVENTVALIDATION')) {
                     console.log(`[HTTP]   - ${key}: "${value}"`);

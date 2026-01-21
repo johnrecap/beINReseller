@@ -1594,15 +1594,21 @@ export class HttpClientService {
             const balanceBefore = await this.getBalanceFromSellPackagesPage();
             console.log(`[HTTP] 💰 Balance BEFORE: ${balanceBefore !== null ? balanceBefore + ' USD' : 'unknown'}`);
 
-            // ===============================================
-            // STEP 1: Click OK button (after STB entry)
-            // ===============================================
+            // Get STB number from queue processor context (will be passed in)
+            // For now, we try to use the stored one
+            const stb = this.currentStbNumber || '';
+
+            // IMPORTANT: ASP.NET WebForms requires ALL form fields on each POST
+            // Including STB fields with OK button is required
             const okFormData: Record<string, string> = {
                 ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
+                'ctl00$ContentPlaceHolder1$tbStbSerial2': stb,
+                'ctl00$ContentPlaceHolder1$toStbSerial2': stb,  // Alternative field
                 'ctl00$ContentPlaceHolder1$btnStbOk': 'Ok'
             };
 
-            console.log('[HTTP] POST confirm (Ok)...');
+            console.log(`[HTTP] POST confirm (Ok) with STB: ${stb}...`);
             let res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(okFormData),

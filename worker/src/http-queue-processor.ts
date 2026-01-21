@@ -944,6 +944,7 @@ async function handleSignalCheckHttp(
                 responseMessage: 'Card checked - ready for activation',
                 responseData: JSON.stringify({
                     cardStatus: checkResult.cardStatus,
+                    contracts: checkResult.contracts || [], // Include contracts table
                     sessionData: sessionData,
                     awaitingActivate: true,
                     checkedAt: new Date().toISOString()

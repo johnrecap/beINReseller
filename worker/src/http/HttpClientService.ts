@@ -1869,26 +1869,46 @@ export class HttpClientService {
 
             console.log(`[HTTP] Found ${rows.length} rows in contracts table`);
 
-            rows.each((_, row) => {
+            rows.each((index, row) => {
                 const cells = $(row).find('td');
 
-                // beIN table structure: first cell might be icon, then Type, Status, Package, StartDate, ExpiryDate, InvoiceNo
-                // Check if first cell contains an image (icon)
-                const hasIconCell = $(cells[0]).find('img').length > 0;
-                const offset = hasIconCell ? 1 : 0;
+                // Skip if this looks like a header row or paging row
+                if (cells.length < 5) {
+                    return;
+                }
 
-                if (cells.length >= (6 + offset)) {
+                // beIN table structure: first cell is icon (image), then Type, Status, Package, StartDate, ExpiryDate, InvoiceNo
+                // But header row might have th instead of td
+
+                // Find the first cell that contains text (not just an image)
+                let startIndex = 0;
+                for (let i = 0; i < Math.min(cells.length, 3); i++) {
+                    const cellText = $(cells[i]).text().trim();
+                    const hasImage = $(cells[i]).find('img').length > 0;
+
+                    if (hasImage && !cellText) {
+                        startIndex = i + 1;
+                    } else if (cellText) {
+                        startIndex = i;
+                        break;
+                    }
+                }
+
+                // Extract data - be flexible with cell positions
+                const remainingCells = cells.length - startIndex;
+                if (remainingCells >= 5) {
                     const contract = {
-                        type: $(cells[offset]).text().trim(),
-                        status: $(cells[offset + 1]).text().trim(),
-                        package: $(cells[offset + 2]).text().trim(),
-                        startDate: $(cells[offset + 3]).text().trim(),
-                        expiryDate: $(cells[offset + 4]).text().trim(),
-                        invoiceNo: $(cells[offset + 5]).text().trim()
+                        type: $(cells[startIndex]).text().trim(),
+                        status: $(cells[startIndex + 1]).text().trim(),
+                        package: $(cells[startIndex + 2]).text().trim(),
+                        startDate: $(cells[startIndex + 3]).text().trim(),
+                        expiryDate: $(cells[startIndex + 4]).text().trim(),
+                        invoiceNo: remainingCells >= 6 ? $(cells[startIndex + 5]).text().trim() : ''
                     };
 
-                    // Only add if has valid data
-                    if (contract.type && contract.package) {
+                    // Only add if has valid data (type must be a known type)
+                    const validTypes = ['package', 'purchase', 'payinstallment', 'addonevent'];
+                    if (contract.type && validTypes.some(t => contract.type.toLowerCase().includes(t))) {
                         contracts.push(contract);
                     }
                 }

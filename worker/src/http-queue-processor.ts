@@ -541,12 +541,30 @@ async function handleConfirmPurchaseHttp(
     if (operation.responseData) {
         try {
             const savedData = JSON.parse(operation.responseData as string);
+
+            // CHECK SESSION AGE - beIN sessions expire after ~30-60 minutes
+            // If session is too old, fail fast instead of attempting with expired session
+            if (savedData.savedAt) {
+                const sessionAge = Date.now() - new Date(savedData.savedAt).getTime();
+                const SESSION_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
+
+                if (sessionAge > SESSION_MAX_AGE_MS) {
+                    const ageMinutes = Math.floor(sessionAge / 60000);
+                    console.error(`[HTTP] ❌ SESSION TOO OLD: ${ageMinutes} minutes (max: 30 minutes)`);
+                    throw new Error(`انتهت صلاحية الجلسة (${ageMinutes} دقيقة). برجاء إعادة العملية.`);
+                }
+                console.log(`[HTTP] Session age: ${Math.floor(sessionAge / 60000)} minutes (within 30 min limit)`);
+            }
+
             if (savedData.sessionData) {
                 console.log(`[HTTP] 🔄 Restoring session for CONFIRM_PURCHASE (saved at ${savedData.savedAt})`);
                 await client.importSession(savedData.sessionData);
                 console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
             }
-        } catch (parseError) {
+        } catch (parseError: any) {
+            if (parseError.message?.includes('انتهت صلاحية')) {
+                throw parseError; // Re-throw session expiry error
+            }
             console.error('[HTTP] ⚠️ Failed to parse saved session for confirm:', parseError);
             throw new Error('Session restoration failed - cannot confirm purchase');
         }

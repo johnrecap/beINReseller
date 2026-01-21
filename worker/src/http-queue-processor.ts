@@ -18,7 +18,7 @@ import { BeinAccount } from '@prisma/client';
 
 interface OperationJobData {
     operationId: string;
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM';
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE';
     cardNumber: string;
     duration?: string;
     promoCode?: string;
@@ -112,6 +112,12 @@ export async function processOperationHttp(
                 break;
             case 'SIGNAL_REFRESH':
                 await handleSignalRefreshHttp(operationId, cardNumber, accountPool);
+                break;
+            case 'SIGNAL_CHECK':
+                await handleSignalCheckHttp(operationId, cardNumber, accountPool);
+                break;
+            case 'SIGNAL_ACTIVATE':
+                await handleSignalActivateHttp(operationId, cardNumber, accountPool);
                 break;
             default:
                 throw new Error(`Unsupported operation type for HTTP: ${type}`);
@@ -823,6 +829,246 @@ async function handleSignalRefreshHttp(
 
     } catch (error: any) {
         // Mark account as used even on failure
+        await accountPool.markAccountUsed(account.id);
+        throw error;
+    }
+}
+
+/**
+ * SIGNAL_CHECK - Step 1: Login, check card status (NO activation)
+ * Returns card info for display, saves session for activation step
+ */
+async function handleSignalCheckHttp(
+    operationId: string,
+    cardNumber: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`🔍 [HTTP] Starting signal check for ${operationId}`);
+
+    await checkIfCancelled(operationId);
+
+    // Update status
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'PROCESSING' }
+    });
+
+    // Acquire account
+    const account = await accountPool.getNextAvailableAccount();
+    if (!account) {
+        throw new Error('No beIN accounts available');
+    }
+    console.log(`✅ Selected account: ${account.label || account.username}`);
+
+    // Store account reference
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { beinAccountId: account.id }
+    });
+
+    const httpClient = await getHttpClient(account);
+
+    try {
+        // Step 1: Login (with CAPTCHA handling)
+        const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
+
+        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+            console.log(`🧩 [HTTP] CAPTCHA required for signal check ${operationId}`);
+
+            let solution: string | null = null;
+
+            // Try auto-solve with 2Captcha first
+            const captchaApiKey = await getCaptchaApiKey();
+            if (captchaApiKey) {
+                try {
+                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                    const captchaSolver = new CaptchaSolver(captchaApiKey);
+                    solution = await captchaSolver.solve(loginResult.captchaImage);
+                    console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
+                } catch (autoSolveError: any) {
+                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                }
+            }
+
+            // Fallback to manual if needed
+            if (!solution) {
+                await prisma.operation.update({
+                    where: { id: operationId },
+                    data: {
+                        status: 'AWAITING_CAPTCHA',
+                        captchaImage: loginResult.captchaImage,
+                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                    }
+                });
+
+                solution = await waitForCaptchaSolution(operationId);
+                if (!solution) {
+                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                }
+            }
+
+            // Submit with CAPTCHA
+            const loginWithCaptcha = await httpClient.submitLogin(
+                account.username,
+                account.password,
+                account.totpSecret || undefined,
+                solution
+            );
+
+            if (!loginWithCaptcha.success) {
+                throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+            }
+        } else if (!loginResult.success) {
+            throw new Error(loginResult.error || 'Login failed');
+        }
+
+        await checkIfCancelled(operationId);
+
+        // Step 2: Check card status ONLY (no activation)
+        const checkResult = await httpClient.checkCardForSignal(cardNumber);
+
+        if (!checkResult.success) {
+            throw new Error(checkResult.error || 'Card check failed');
+        }
+
+        // Export session for activation step
+        const sessionData = await httpClient.exportSession();
+
+        // Store card status and session - await user to click activate
+        // Use 'COMPLETED' status with awaitingActivate flag to indicate waiting for user to click activate
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'COMPLETED',
+                stbNumber: checkResult.cardStatus?.stbNumber,
+                responseMessage: 'Card checked - ready for activation',
+                responseData: JSON.stringify({
+                    cardStatus: checkResult.cardStatus,
+                    sessionData: sessionData,
+                    awaitingActivate: true,
+                    checkedAt: new Date().toISOString()
+                })
+            }
+        });
+
+        await accountPool.markAccountUsed(account.id);
+        console.log(`✅ [HTTP] Signal check completed for ${operationId}`);
+
+    } catch (error: any) {
+        await accountPool.markAccountUsed(account.id);
+        throw error;
+    }
+}
+
+/**
+ * SIGNAL_ACTIVATE - Step 2: Activate signal (assumes SIGNAL_CHECK was done)
+ * Uses saved session to click the Activate button
+ */
+async function handleSignalActivateHttp(
+    operationId: string,
+    cardNumber: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`⚡ [HTTP] Starting signal activation for ${operationId}`);
+
+    await checkIfCancelled(operationId);
+
+    // Get operation with saved session
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: {
+            id: true,
+            userId: true,
+            beinAccountId: true,
+            cardNumber: true,
+            responseData: true,
+            status: true
+        }
+    });
+
+    if (!operation) {
+        throw new Error('Operation not found');
+    }
+
+    // Check that this operation is ready for activation (completed check step)
+    const savedData = typeof operation.responseData === 'string'
+        ? JSON.parse(operation.responseData)
+        : operation.responseData as any;
+
+    if (!savedData?.awaitingActivate) {
+        throw new Error(`Operation is not awaiting activation`);
+    }
+
+    if (!operation.beinAccountId) {
+        throw new Error('No account assigned to operation');
+    }
+
+    // Update status
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'PROCESSING' }
+    });
+
+    // Get account
+    const account = await prisma.beinAccount.findUnique({
+        where: { id: operation.beinAccountId }
+    });
+    if (!account) throw new Error('Account not found');
+
+    const httpClient = await getHttpClient(account);
+
+    try {
+        // Session was parsed above as savedData - restore if available
+        if (savedData?.sessionData) {
+            console.log(`[HTTP] 🔄 Restoring session for activation`);
+            await httpClient.importSession(savedData.sessionData);
+        }
+
+        // Use card number from operation or parameter
+        const targetCardNumber = cardNumber || operation.cardNumber;
+
+        // Activate signal
+        const activateResult = await httpClient.activateSignalOnly(targetCardNumber);
+
+        if (!activateResult.success) {
+            throw new Error(activateResult.error || 'Activation failed');
+        }
+
+        // Update operation with result
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'COMPLETED',
+                completedAt: new Date(),
+                responseMessage: activateResult.activated
+                    ? 'تم تفعيل الإشارة بنجاح'
+                    : activateResult.message || 'لم يتم التفعيل',
+                responseData: JSON.stringify({
+                    ...savedData,
+                    cardStatus: activateResult.cardStatus,
+                    activated: activateResult.activated,
+                    awaitingActivate: false,  // Clear the flag
+                    activatedAt: new Date().toISOString()
+                })
+            }
+        });
+
+        // Create notification
+        if (operation.userId) {
+            await createNotification({
+                userId: operation.userId,
+                title: activateResult.activated ? 'تم تفعيل الإشارة' : 'لم يتم التفعيل',
+                message: activateResult.activated
+                    ? `تم تفعيل الإشارة للكارت ${targetCardNumber.slice(0, 4)}****`
+                    : activateResult.error || 'حدث خطأ في التفعيل',
+                type: activateResult.activated ? 'success' : 'warning'
+            });
+        }
+
+        await accountPool.markAccountUsed(account.id);
+        console.log(`✅ [HTTP] Signal activation completed for ${operationId}: activated=${activateResult.activated}`);
+
+    } catch (error: any) {
         await accountPool.markAccountUsed(account.id);
         throw error;
     }

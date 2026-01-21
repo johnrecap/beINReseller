@@ -46,3 +46,6 @@ next-env.d.ts
 worker/node_modules
 worker/dist
 worker/.env
+
+# Agent
+.agent

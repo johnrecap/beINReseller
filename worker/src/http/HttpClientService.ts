@@ -28,7 +28,8 @@ import {
     AvailablePackage,
     PurchaseResult,
     SessionData,
-    SignalRefreshResult
+    SignalRefreshResult,
+    CheckCardForSignalResult
 } from './types';
 
 export class HttpClientService {
@@ -1694,11 +1695,334 @@ export class HttpClientService {
     }
 
     // =============================================
-    // SIGNAL REFRESH FLOW
+    // SIGNAL REFRESH FLOW (Two-Step)
+    // Step 1: checkCardForSignal - Check card and show status
+    // Step 2: activateSignalOnly - Click activate button
     // =============================================
 
     /**
-     * Activate signal refresh for a card
+     * Step 1: Check card status for signal refresh (WITHOUT activating)
+     * Goes to Check page, enters card, extracts status
+     * Stores ViewState for subsequent activation
+     * 
+     * @param cardNumber - The smart card number
+     * @returns Card status without triggering activation
+     */
+    async checkCardForSignal(cardNumber: string): Promise<CheckCardForSignalResult> {
+        console.log(`[HTTP] Checking card for signal: ${cardNumber.slice(0, 4)}****`);
+
+        try {
+            const checkUrl = this.buildFullUrl(this.config.checkUrl);
+
+            // Step 1: GET check page
+            console.log(`[HTTP] GET ${checkUrl}`);
+            const checkPageRes = await this.axios.get(checkUrl, {
+                headers: { 'Referer': this.config.loginUrl }
+            });
+
+            // Check for session expiry
+            const sessionError = this.checkForErrors(checkPageRes.data);
+            if (sessionError?.includes('Session') || sessionError?.includes('login')) {
+                return { success: false, error: 'Session expired - please login again' };
+            }
+
+            // Extract ViewState
+            this.currentViewState = this.extractHiddenFields(checkPageRes.data);
+
+            // Get actual button value
+            const checkBtnValue = this.extractButtonValue(checkPageRes.data, 'btnCheck', 'Check');
+
+            // Step 2: POST card number to check
+            const formData: Record<string, string> = {
+                ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$tbSerial': cardNumber,
+                'ctl00$ContentPlaceHolder1$btnCheck': checkBtnValue
+            };
+
+            console.log('[HTTP] POST check card...');
+            const checkRes = await this.axios.post(
+                checkUrl,
+                this.buildFormData(formData),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': checkUrl
+                    }
+                }
+            );
+
+            // Check for errors
+            const error = this.checkForErrors(checkRes.data);
+            if (error) {
+                console.log(`[HTTP] ❌ Check card error: "${error}"`);
+                return { success: false, error };
+            }
+
+            // Parse response
+            const $ = cheerio.load(checkRes.data);
+
+            // CRITICAL: Store ViewState for activation step
+            this.currentViewState = this.extractHiddenFields(checkRes.data);
+
+            // Extract card status
+            const pageText = $('body').text();
+            const messagesDiv = $('#ContentPlaceHolder1_MessagesArea, .MessagesArea, [id*="Messages"]');
+            const messageText = messagesDiv.text();
+
+            // Check if Premium
+            const isPremium = pageText.toLowerCase().includes('premium') ||
+                messageText.toLowerCase().includes('premium');
+
+            // Extract STB number
+            const stbMatch = pageText.match(/STB\(s\):\s*(\d{10,})/i) ||
+                pageText.match(/(\d{15})/);
+            const stbNumber = stbMatch ? stbMatch[1] : '';
+
+            // Extract expiry date
+            const expiryMatch = pageText.match(/Expired?\s+(?:on\s+)?(\d{2}\/\d{2}\/\d{4})/i);
+            const expiryDate = expiryMatch ? expiryMatch[1] : '';
+
+            // Extract wallet balance
+            const balanceMatch = pageText.match(/Wallet\s*balance\s*:\s*\$?(\d+(?:\.\d{2})?)/i);
+            const walletBalance = balanceMatch ? parseFloat(balanceMatch[1]) : 0;
+
+            // Get Activate button value (contains the count)
+            const activateBtnValue = this.extractButtonValue(checkRes.data, 'btnActivate', 'Activate');
+            console.log(`[HTTP] Button "btnActivate" value: "${activateBtnValue}"`);
+
+            // Extract Activate count from BUTTON VALUE (e.g., "Activate ( 1 / 20 )")
+            const activateMatch = activateBtnValue.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+            const activateCount = activateMatch
+                ? { current: parseInt(activateMatch[1]), max: parseInt(activateMatch[2]) }
+                : { current: 0, max: 20 };
+
+            const canActivate = activateCount.current < activateCount.max;
+
+            console.log(`[HTTP] ✅ Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}, CanActivate=${canActivate}`);
+
+            return {
+                success: true,
+                cardStatus: {
+                    isPremium,
+                    smartCardSerial: cardNumber,
+                    stbNumber,
+                    expiryDate,
+                    walletBalance,
+                    activateCount,
+                    canActivate
+                }
+            };
+
+        } catch (error: any) {
+            console.error('[HTTP] Check card for signal error:', error.message);
+            return { success: false, error: `Check failed: ${error.message}` };
+        }
+    }
+
+    /**
+     * Step 2: Activate signal ONLY (assumes checkCardForSignal was called first)
+     * Uses stored ViewState to click the Activate button
+     * 
+     * @param cardNumber - The smart card number (must match previous check)
+     * @returns Activation result
+     */
+    async activateSignalOnly(cardNumber: string): Promise<SignalRefreshResult> {
+        console.log(`[HTTP] Activating signal for card: ${cardNumber.slice(0, 4)}****`);
+
+        try {
+            const checkUrl = this.buildFullUrl(this.config.checkUrl);
+
+            // Verify we have ViewState from previous check
+            if (!this.currentViewState || !this.currentViewState.__VIEWSTATE) {
+                console.log('[HTTP] ⚠️ No ViewState - need to check card first');
+                return { success: false, error: 'Please check card status first' };
+            }
+
+            // Get Activate button value
+            // We need to re-fetch the page to get fresh ViewState and button value
+            console.log('[HTTP] GET page to get fresh Activate button...');
+            const pageRes = await this.axios.get(checkUrl, {
+                headers: { 'Referer': checkUrl }
+            });
+
+            // Re-check the card to get fresh ViewState
+            this.currentViewState = this.extractHiddenFields(pageRes.data);
+            const checkBtnValue = this.extractButtonValue(pageRes.data, 'btnCheck', 'Check');
+
+            // POST to check card again (to get to the state where Activate button is visible)
+            const checkFormData: Record<string, string> = {
+                ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$tbSerial': cardNumber,
+                'ctl00$ContentPlaceHolder1$btnCheck': checkBtnValue
+            };
+
+            const checkRes = await this.axios.post(
+                checkUrl,
+                this.buildFormData(checkFormData),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': checkUrl
+                    }
+                }
+            );
+
+            // Update ViewState
+            this.currentViewState = this.extractHiddenFields(checkRes.data);
+
+            // Get Activate button info
+            const activateBtnName = 'ctl00$ContentPlaceHolder1$btnActivate';
+            const activateBtnValue = this.extractButtonValue(checkRes.data, 'btnActivate', 'Activate');
+            console.log(`[HTTP] Button "btnActivate" value: "${activateBtnValue}"`);
+
+            // Extract current count for comparison
+            const activateMatch = activateBtnValue.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+            const activateCount = activateMatch
+                ? { current: parseInt(activateMatch[1]), max: parseInt(activateMatch[2]) }
+                : { current: 0, max: 20 };
+
+            // Check limit
+            if (activateCount.current >= activateCount.max) {
+                return {
+                    success: true,
+                    activated: false,
+                    message: 'Daily activation limit reached',
+                    cardStatus: {
+                        isPremium: false,
+                        smartCardSerial: cardNumber,
+                        stbNumber: '',
+                        expiryDate: '',
+                        walletBalance: 0,
+                        activateCount
+                    }
+                };
+            }
+
+            // POST to activate
+            const activateFormData: Record<string, string> = {
+                ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$tbSerial': cardNumber,
+                [activateBtnName]: activateBtnValue
+            };
+
+            console.log('[HTTP] POST activate signal...');
+            const activateRes = await this.axios.post(
+                checkUrl,
+                this.buildFormData(activateFormData),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': checkUrl
+                    }
+                }
+            );
+
+            const rawResponse = activateRes.data;
+            console.log('[HTTP] Activate response length:', rawResponse.length);
+
+            // Check for errors
+            const activateError = this.checkForErrors(rawResponse);
+
+            // Check success indicators
+            const responseText = rawResponse.toLowerCase();
+            const hasSuccessMessage = responseText.includes('signal sent') ||
+                responseText.includes('activation signal sent') ||
+                responseText.includes('successfully') ||
+                responseText.includes('تم الارسال') ||
+                responseText.includes('تم التفعيل') ||
+                responseText.includes('تمت العملية');
+
+            // Extract new count
+            const newBtnMatch = rawResponse.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+            let newActivateCount = newBtnMatch
+                ? { current: parseInt(newBtnMatch[1]), max: parseInt(newBtnMatch[2]) }
+                : null;
+
+            let countIncreased = newActivateCount && newActivateCount.current > activateCount.current;
+
+            // Verification if no clear success
+            if (!countIncreased && !hasSuccessMessage) {
+                console.log('[HTTP] ⚠️ No clear success indicator, verifying...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                const verifyRes = await this.axios.get(checkUrl, {
+                    headers: { 'Referer': checkUrl }
+                });
+
+                // Re-check card
+                this.currentViewState = this.extractHiddenFields(verifyRes.data);
+                const verifyCheckFormData: Record<string, string> = {
+                    ...this.currentViewState,
+                    'ctl00$ContentPlaceHolder1$tbSerial': cardNumber,
+                    'ctl00$ContentPlaceHolder1$btnCheck': this.extractButtonValue(verifyRes.data, 'btnCheck', 'Check')
+                };
+
+                const verifyCheckRes = await this.axios.post(
+                    checkUrl,
+                    this.buildFormData(verifyCheckFormData),
+                    {
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Referer': checkUrl
+                        }
+                    }
+                );
+
+                const verifyBtnValue = this.extractButtonValue(verifyCheckRes.data, 'btnActivate', '');
+                const verifyMatch = verifyBtnValue.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+
+                if (verifyMatch) {
+                    const verifiedCount = parseInt(verifyMatch[1]);
+                    if (verifiedCount > activateCount.current) {
+                        console.log(`[HTTP] ✅ Verified: count increased ${activateCount.current} → ${verifiedCount}`);
+                        countIncreased = true;
+                        newActivateCount = { current: verifiedCount, max: parseInt(verifyMatch[2]) };
+                    }
+                }
+            }
+
+            const isSuccess = countIncreased || hasSuccessMessage;
+
+            if (isSuccess) {
+                console.log('[HTTP] ✅ Signal activated successfully!');
+                return {
+                    success: true,
+                    activated: true,
+                    message: 'تم تفعيل الإشارة بنجاح',
+                    cardStatus: {
+                        isPremium: false,
+                        smartCardSerial: cardNumber,
+                        stbNumber: '',
+                        expiryDate: '',
+                        walletBalance: 0,
+                        activateCount: newActivateCount || { current: activateCount.current + 1, max: activateCount.max }
+                    }
+                };
+            } else {
+                console.log('[HTTP] ❌ Activation failed');
+                return {
+                    success: true,
+                    activated: false,
+                    error: activateError || 'لم يتم التفعيل - حاول مرة أخرى',
+                    cardStatus: {
+                        isPremium: false,
+                        smartCardSerial: cardNumber,
+                        stbNumber: '',
+                        expiryDate: '',
+                        walletBalance: 0,
+                        activateCount: newActivateCount || activateCount
+                    }
+                };
+            }
+
+        } catch (error: any) {
+            console.error('[HTTP] Signal activation error:', error.message);
+            return { success: false, error: `Activation failed: ${error.message}` };
+        }
+    }
+
+    /**
+     * Activate signal refresh for a card (LEGACY - combined check + activate)
      * Goes to Check page, enters card, extracts status, and clicks Activate
      * 
      * @param cardNumber - The smart card number
@@ -1904,7 +2228,6 @@ export class HttpClientService {
 
             // SUCCESS DETECTION:
             const responseText = rawResponse.toLowerCase();
-            const hasNewViewState = rawResponse.includes('__VIEWSTATE') && rawResponse.length > 10000;
 
             // Check for success messages (English and Arabic)
             const hasSuccessMessage = responseText.includes('signal sent') ||
@@ -1914,16 +2237,51 @@ export class HttpClientService {
                 responseText.includes('تم التفعيل') ||  // Arabic: "Activated"
                 responseText.includes('تمت العملية');   // Arabic: "Operation completed"
 
-            const countIncreased = newActivateCount && newActivateCount.current > activateCount.current;
+            let countIncreased = newActivateCount && newActivateCount.current > activateCount.current;
 
-            // For full HTML: success if we got a full page response with ViewState and no errors
-            const fullHtmlSuccess = isFullHtml && hasNewViewState && !activateError;
-            // For delta: success if format is correct, has new viewstate, and no errors
-            const deltaSuccess = isDeltaFormat && hasNewViewState && !activateError;
+            console.log(`[HTTP] Initial success detection: message=${hasSuccessMessage}, countChanged=${countIncreased}`);
 
-            console.log(`[HTTP] Success detection: fullHtml=${fullHtmlSuccess}, delta=${deltaSuccess}, message=${hasSuccessMessage}, countChanged=${countIncreased}`);
+            // STRICT SUCCESS: If count didn't increase and no success message, verify with a fresh GET
+            if (!countIncreased && !hasSuccessMessage) {
+                console.log('[HTTP] ⚠️ No clear success indicator from response, sending verification request...');
 
-            const isSuccess = hasSuccessMessage || countIncreased || fullHtmlSuccess || deltaSuccess;
+                try {
+                    // Wait a moment for server to process
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Re-GET the check page to verify the actual count
+                    const verifyRes = await this.axios.get(checkUrl, {
+                        headers: { 'Referer': checkUrl }
+                    });
+
+                    const verifyBtnValue = this.extractButtonValue(verifyRes.data, 'btnActivate', '');
+                    console.log(`[HTTP] Verification button value: "${verifyBtnValue}"`);
+
+                    const verifyMatch = verifyBtnValue.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
+
+                    if (verifyMatch) {
+                        const verifiedCount = parseInt(verifyMatch[1]);
+                        const verifiedMax = parseInt(verifyMatch[2]);
+
+                        console.log(`[HTTP] Verified count: ${verifiedCount}/${verifiedMax} (was ${activateCount.current}/${activateCount.max})`);
+
+                        if (verifiedCount > activateCount.current) {
+                            console.log(`[HTTP] ✅ Verification confirmed: count increased ${activateCount.current} → ${verifiedCount}`);
+                            countIncreased = true;
+                            newActivateCount = { current: verifiedCount, max: verifiedMax };
+                        } else {
+                            console.log(`[HTTP] ❌ Verification failed: count did not increase`);
+                        }
+                    }
+                } catch (verifyError: any) {
+                    console.log(`[HTTP] ⚠️ Verification request failed: ${verifyError.message}`);
+                }
+            }
+
+            // STRICT SUCCESS: Only count as success if count ACTUALLY increased OR explicit success message
+            const isSuccess = countIncreased || hasSuccessMessage;
+
+            console.log(`[HTTP] Final success determination: isSuccess=${isSuccess}, countIncreased=${countIncreased}, hasSuccessMessage=${hasSuccessMessage}`);
 
             if (isSuccess) {
                 console.log('[HTTP] ✅ Signal activated successfully!');

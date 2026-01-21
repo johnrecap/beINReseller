@@ -82,3 +82,21 @@ export interface SignalRefreshResult {
     message?: string;
     error?: string;
 }
+
+/**
+ * Result for checking card status WITHOUT activating
+ * Used in two-step signal refresh flow
+ */
+export interface CheckCardForSignalResult {
+    success: boolean;
+    cardStatus?: {
+        isPremium: boolean;
+        smartCardSerial: string;
+        stbNumber: string;
+        expiryDate: string;
+        walletBalance: number;
+        activateCount: { current: number; max: number };
+        canActivate: boolean; // true if not at limit
+    };
+    error?: string;
+}

@@ -4,7 +4,17 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { CardStatusDisplay } from './CardStatusDisplay'
+import { ContractsTable } from './ContractsTable'
 import { Loader2, Zap, CreditCard, CheckCircle, XCircle, RefreshCw, Search } from 'lucide-react'
+
+interface Contract {
+    type: string
+    status: string
+    package: string
+    startDate: string
+    expiryDate: string
+    invoiceNo: string
+}
 
 interface CardStatus {
     isPremium: boolean
@@ -31,6 +41,7 @@ export function SignalRefreshFlow() {
     const [cardNumber, setCardNumber] = useState('')
     const [operationId, setOperationId] = useState<string | null>(null)
     const [cardStatus, setCardStatus] = useState<CardStatus | null>(null)
+    const [contracts, setContracts] = useState<Contract[]>([])
     const [error, setError] = useState<string | null>(null)
     const [activating, setActivating] = useState(false)
 
@@ -53,6 +64,11 @@ export function SignalRefreshFlow() {
 
                     if (responseData?.cardStatus) {
                         setCardStatus(responseData.cardStatus)
+
+                        // Set contracts if available
+                        if (responseData.contracts) {
+                            setContracts(responseData.contracts)
+                        }
 
                         // Check if this was:
                         // 1. A check operation (awaitingActivate = true) -> show status with activate button
@@ -214,6 +230,11 @@ export function SignalRefreshFlow() {
             {step === 'status' && cardStatus && (
                 <div className="space-y-4">
                     <CardStatusDisplay {...cardStatus} />
+
+                    {/* Contracts Table */}
+                    {contracts.length > 0 && (
+                        <ContractsTable contracts={contracts} />
+                    )}
 
                     {error && (
                         <p className="text-red-500 text-sm text-center">{error}</p>

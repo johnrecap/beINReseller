@@ -1798,7 +1798,9 @@ export class HttpClientService {
 
             const canActivate = activateCount.current < activateCount.max;
 
-            console.log(`[HTTP] ✅ Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}, CanActivate=${canActivate}`);
+            // Extract Contracts Table
+            const contracts = this.extractContractsTable($);
+            console.log(`[HTTP] ✅ Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}, CanActivate=${canActivate}, Contracts=${contracts.length}`);
 
             return {
                 success: true,
@@ -1810,13 +1812,59 @@ export class HttpClientService {
                     walletBalance,
                     activateCount,
                     canActivate
-                }
+                },
+                contracts
             };
 
         } catch (error: any) {
             console.error('[HTTP] Check card for signal error:', error.message);
             return { success: false, error: `Check failed: ${error.message}` };
         }
+    }
+
+    /**
+     * Extract contracts/subscription history table from check page
+     */
+    private extractContractsTable($: cheerio.CheerioAPI): Array<{ type: string; status: string; package: string; startDate: string; expiryDate: string; invoiceNo: string; }> {
+        const contracts: Array<{ type: string; status: string; package: string; startDate: string; expiryDate: string; invoiceNo: string; }> = [];
+
+        try {
+            // Find the contracts table - try multiple selectors
+            const table = $('[id*="Contracts_GridView"], [id*="ctrlContracts_GridView"], table.Grid').first();
+
+            if (!table.length) {
+                console.log('[HTTP] No contracts table found');
+                return contracts;
+            }
+
+            // Get all rows except header
+            const rows = table.find('tr').slice(1); // Skip header row
+
+            rows.each((_, row) => {
+                const cells = $(row).find('td');
+                if (cells.length >= 6) {
+                    const contract = {
+                        type: $(cells[0]).text().trim(),
+                        status: $(cells[1]).text().trim(),
+                        package: $(cells[2]).text().trim(),
+                        startDate: $(cells[3]).text().trim(),
+                        expiryDate: $(cells[4]).text().trim(),
+                        invoiceNo: $(cells[5]).text().trim()
+                    };
+
+                    // Only add if has valid data
+                    if (contract.type && contract.package) {
+                        contracts.push(contract);
+                    }
+                }
+            });
+
+            console.log(`[HTTP] Extracted ${contracts.length} contracts from table`);
+        } catch (error: any) {
+            console.error('[HTTP] Error extracting contracts:', error.message);
+        }
+
+        return contracts;
     }
 
     /**

@@ -87,6 +87,15 @@ export interface SignalRefreshResult {
  * Result for checking card status WITHOUT activating
  * Used in two-step signal refresh flow
  */
+export interface Contract {
+    type: string;        // Purchase, PayInstallment, AddonEvent, Package
+    status: string;      // Active, Canceled, Expired
+    package: string;     // Package name
+    startDate: string;   // Start date
+    expiryDate: string;  // Expiry date
+    invoiceNo: string;   // Invoice number
+}
+
 export interface CheckCardForSignalResult {
     success: boolean;
     cardStatus?: {
@@ -98,5 +107,6 @@ export interface CheckCardForSignalResult {
         activateCount: { current: number; max: number };
         canActivate: boolean; // true if not at limit
     };
+    contracts?: Contract[]; // Subscription history
     error?: string;
 }

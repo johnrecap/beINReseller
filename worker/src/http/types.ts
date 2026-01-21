@@ -60,6 +60,7 @@ export interface PurchaseResult {
     success: boolean;
     message: string;
     awaitingConfirm?: boolean;
+    newBalance?: number;  // Balance after purchase for verification
 }
 
 export interface SessionData {

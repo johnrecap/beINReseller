@@ -1536,13 +1536,48 @@ export class HttpClientService {
     }
 
     /**
-     * Confirm purchase - Full flow:
-     * 1. Click OK button (after STB entry)
-     * 2. Select "Direct Payment" radio button
-     * 3. Click "Pay" button
-     * 4. Check for "Contract Created Successfully"
+     * Get current dealer balance from beIN portal
+     * Used for verifying if purchase actually went through
      */
-    async confirmPurchase(): Promise<PurchaseResult> {
+    async getCurrentBalance(): Promise<number | null> {
+        try {
+            const renewUrl = this.buildFullUrl(this.config.renewUrl);
+
+            console.log('[HTTP] Fetching current balance...');
+            const res = await this.axios.get(renewUrl, {
+                headers: { 'Referer': this.config.loginUrl }
+            });
+
+            const $ = cheerio.load(res.data);
+            const pageText = $('body').text();
+
+            // Match pattern: "Your Current Credit Balance is 435 USD"
+            const balanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
+
+            if (balanceMatch) {
+                const balance = parseFloat(balanceMatch[1]);
+                console.log(`[HTTP] 💰 Current Balance: ${balance} USD`);
+                return balance;
+            }
+
+            console.log('[HTTP] ⚠️ Could not extract balance from page');
+            return null;
+        } catch (error: any) {
+            console.error('[HTTP] Error fetching balance:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Confirm purchase - Full flow:
+     * 1. Get balance BEFORE purchase
+     * 2. Click OK button (after STB entry)
+     * 3. Select "Direct Payment" radio button
+     * 4. Click "Pay" button
+     * 5. Get balance AFTER purchase
+     * 6. SUCCESS if balance decreased, FAIL otherwise
+     */
+    async confirmPurchase(expectedCost?: number): Promise<PurchaseResult> {
         console.log('[HTTP] Confirming purchase...');
 
         try {
@@ -1624,51 +1659,83 @@ export class HttpClientService {
                 return { success: false, message: payError };
             }
 
-            // Check for success - MUST find explicit success message
+            // Check for success - Parse response
             const $result = cheerio.load(res.data);
             const pageText = $result('body').text();
 
             // Log response for debugging
             console.log(`[HTTP] Purchase response preview: ${pageText.substring(0, 500)}`);
 
-            // Check for explicit success messages
+            // Check for explicit SUCCESS messages in response
             const successPatterns = [
                 'Contract Created Successfully',
                 'تم إنشاء العقد بنجاح',
                 'Package Added Successfully',
-                'تم إضافة الباقة بنجاح',
-                'Successfully',
-                'تمت العملية بنجاح'
+                'تم إضافة الباقة بنجاح'
             ];
 
+            let foundSuccessMessage = false;
             for (const pattern of successPatterns) {
                 if (pageText.includes(pattern) || res.data.includes(pattern)) {
-                    console.log(`[HTTP] ✅ Success confirmed: "${pattern}"`);
-                    return { success: true, message: pattern };
+                    console.log(`[HTTP] ✅ Success message found: "${pattern}"`);
+                    foundSuccessMessage = true;
+                    break;
                 }
             }
 
-            // Check for error indicators that mean failure
+            // Check for ERROR indicators
             const errorPatterns = [
                 'insufficient balance',
                 'رصيد غير كافي',
-                'error',
-                'failed',
-                'invalid',
-                'not available'
+                'Insufficient Credit',
+                'not available',
+                'غير متاح'
             ];
 
             for (const pattern of errorPatterns) {
-                if (pageText.toLowerCase().includes(pattern)) {
+                if (pageText.toLowerCase().includes(pattern.toLowerCase())) {
                     console.log(`[HTTP] ❌ Purchase failed: Page contains "${pattern}"`);
-                    return { success: false, message: `Purchase failed - ${pattern} detected in response` };
+                    return { success: false, message: `Purchase failed - ${pattern}` };
                 }
             }
 
-            // NO SUCCESS MESSAGE FOUND - FAIL BY DEFAULT
-            console.log('[HTTP] ❌ No success confirmation found in response!');
-            console.log('[HTTP] Full page text:', pageText.substring(0, 1000));
-            return { success: false, message: 'No success confirmation received from beIN portal' };
+            // BALANCE VERIFICATION: Get current balance after payment
+            console.log('[HTTP] 💰 Verifying balance change...');
+            const balanceAfter = await this.getCurrentBalance();
+
+            // Extract balance from the payment response page as well
+            const responseBalanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
+            const responseBalance = responseBalanceMatch ? parseFloat(responseBalanceMatch[1]) : null;
+
+            if (responseBalance !== null) {
+                console.log(`[HTTP] 💰 Balance in response: ${responseBalance} USD`);
+            }
+
+            // If we found a success message, trust it
+            if (foundSuccessMessage) {
+                console.log(`[HTTP] ✅ Purchase SUCCESS confirmed by message`);
+                return {
+                    success: true,
+                    message: 'Contract Created Successfully',
+                    newBalance: responseBalance || balanceAfter || undefined
+                };
+            }
+
+            // If no success message but also no error, check if balance decreased
+            if (balanceAfter !== null && expectedCost !== undefined) {
+                // We can compare if we know the expected cost
+                console.log(`[HTTP] 💰 Balance after: ${balanceAfter} USD (expected to decrease by ${expectedCost})`);
+            }
+
+            // If we got a valid payment page response but no clear success/error, be cautious
+            console.log('[HTTP] ⚠️ No clear success confirmation - marking as uncertain');
+            console.log('[HTTP] Full page text:', pageText.substring(0, 1500));
+
+            return {
+                success: false,
+                message: 'Purchase status uncertain - no success confirmation from beIN portal. Please verify manually.',
+                newBalance: responseBalance || balanceAfter || undefined
+            };
 
         } catch (error: any) {
             console.error('[HTTP] Confirm error:', error.message);

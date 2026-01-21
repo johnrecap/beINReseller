@@ -1684,15 +1684,18 @@ export class HttpClientService {
             // ===============================================
             // STEP 2: Click Pay (Direct Payment)
             // ===============================================
-            // IMPORTANT: Must include BOTH the radio button selection AND the Pay button
-            // ASP.NET WebForms requires all form fields to be submitted
+            // IMPORTANT: Use the ACTUAL field names from the page (tbSerial1, not tbStbSerial1!)
+            // The payment page has tbSerial1 (card number) NOT tbStbSerial1/2 (STB)
+
+            // Extract the actual tbSerial1 value from the page
+            const tbSerial1Value = $('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').val() as string || '';
+            console.log(`[HTTP] DEBUG: tbSerial1 value from page: "${tbSerial1Value}"`);
+
             const payFormData: Record<string, string> = {
                 ...this.currentViewState,
-                // STB fields
-                'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
-                'ctl00$ContentPlaceHolder1$tbStbSerial2': stb,
+                // Card serial field (from the page, NOT STB!)
+                'ctl00$ContentPlaceHolder1$tbSerial1': tbSerial1Value,
                 // Radio button for Direct Payment (From Account)
-                // Name: ctl00$ContentPlaceHolder1$Epay, Value: RbdDirectPay
                 'ctl00$ContentPlaceHolder1$Epay': 'RbdDirectPay',
                 // Pay button
                 'ctl00$ContentPlaceHolder1$BtnPay': 'Pay'

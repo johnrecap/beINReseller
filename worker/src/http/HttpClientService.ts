@@ -412,6 +412,17 @@ export class HttpClientService {
         console.log('[HTTP] Session marked as valid');
     }
 
+    /**
+     * Invalidate session when server-side expiration is detected
+     * This forces a fresh login on the next request
+     */
+    public invalidateSession(): void {
+        this.sessionValid = false;
+        this.lastLoginTime = null;
+        this.currentViewState = null;
+        console.log('[HTTP] ⚠️ Session invalidated - will require fresh login');
+    }
+
     // =============================================
     // LOGIN FLOW
     // =============================================
@@ -636,6 +647,7 @@ export class HttpClientService {
             // Check for session expiry
             const sessionError = this.checkForErrors(checkPageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {
+                this.invalidateSession();
                 return { success: false, error: 'Session expired - please login again' };
             }
 
@@ -817,6 +829,7 @@ export class HttpClientService {
             // Check for session expiry
             const sessionError = this.checkForErrors(pageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {
+                this.invalidateSession();
                 return { success: false, packages: [], error: 'Session expired' };
             }
 
@@ -998,6 +1011,7 @@ export class HttpClientService {
                 $('input[id*="Login"]').length > 0 ||
                 responseHtml.includes('Login1_UserName')) {
                 console.log(`[HTTP] ❌ SESSION EXPIRED - Redirected to login page!`);
+                this.invalidateSession();
                 return { success: false, packages: [], error: 'Session expired - please login again' };
             }
 
@@ -1723,6 +1737,7 @@ export class HttpClientService {
             // Check for session expiry
             const sessionError = this.checkForErrors(checkPageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {
+                this.invalidateSession();
                 return { success: false, error: 'Session expired - please login again' };
             }
 
@@ -2146,6 +2161,7 @@ export class HttpClientService {
             // Check for session expiry
             const sessionError = this.checkForErrors(checkPageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {
+                this.invalidateSession();
                 return { success: false, error: 'Session expired - please login again' };
             }
 

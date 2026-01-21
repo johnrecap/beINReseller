@@ -435,12 +435,23 @@ async function handleCompletePurchaseHttp(
     if (result.awaitingConfirm) {
         console.log(`⏸️ [HTTP] Awaiting confirmation for ${operationId}`);
 
+        // CRITICAL: Export and save updated session for CONFIRM_PURCHASE
+        // ViewState changes after each POST, so we MUST save the new session
+        const updatedSessionData = await client.exportSession();
+        console.log(`[HTTP] 💾 Session exported after completePurchase: ViewState=${updatedSessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
+
         await prisma.operation.update({
             where: { id: operationId },
             data: {
                 status: 'AWAITING_FINAL_CONFIRM',
                 finalConfirmExpiry: new Date(Date.now() + 120000),
-                responseMessage: result.message
+                responseMessage: result.message,
+                // CRITICAL: Save updated session with new ViewState
+                responseData: JSON.stringify({
+                    sessionData: updatedSessionData,
+                    dealerBalance: dealerBalance,  // Preserve for verification
+                    savedAt: new Date().toISOString()
+                })
             }
         });
 

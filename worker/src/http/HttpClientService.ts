@@ -1715,10 +1715,35 @@ export class HttpClientService {
                 return { success: false, message: payError };
             }
 
-            // Log response for debugging
+            // Detailed response logging for debugging
             const $result = cheerio.load(res.data);
             const resultPageText = $result('body').text();
-            console.log(`[HTTP] Pay response preview: ${resultPageText.substring(0, 300)}...`);
+
+            // Log page title
+            const pageTitle = $result('title').text();
+            console.log(`[HTTP] Pay response - Page title: "${pageTitle}"`);
+
+            // Log all labels and alerts
+            const labels = $result('span[id*="lbl"], span[class*="alert"], div[class*="alert"], span[class*="success"], span[class*="error"]');
+            console.log(`[HTTP] Pay response - Found ${labels.length} labels/alerts:`);
+            labels.each((i, el) => {
+                const text = $result(el).text().trim();
+                if (text) {
+                    console.log(`[HTTP]   Label ${i}: "${text.substring(0, 100)}"`);
+                }
+            });
+
+            // Log any visible messages
+            const messages = $result('[id*="Message"], [id*="msg"], [id*="Msg"], [class*="message"]');
+            messages.each((i, el) => {
+                const text = $result(el).text().trim();
+                if (text) {
+                    console.log(`[HTTP]   Message: "${text.substring(0, 100)}"`);
+                }
+            });
+
+            // Full page text preview (more characters)
+            console.log(`[HTTP] Pay response preview (500 chars): ${resultPageText.substring(0, 500)}`);
 
             // Check for error patterns in response
             const errorPatterns = [

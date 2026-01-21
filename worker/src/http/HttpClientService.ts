@@ -1681,8 +1681,8 @@ export class HttpClientService {
                 // Keep STB fields
                 'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
                 'ctl00$ContentPlaceHolder1$tbStbSerial2': stb,
-                // Just click Pay button
-                'ctl00$ContentPlaceHolder1$SRtnPay': 'Pay'
+                // Click Pay button - CORRECT name is BtnPay (not SRtnPay)
+                'ctl00$ContentPlaceHolder1$BtnPay': 'Pay'
             };
 
             // Log what we're sending

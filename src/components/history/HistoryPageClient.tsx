@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { History } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import HistoryFilters, { FilterValues } from '@/components/history/HistoryFilters'
 import OperationsTable from '@/components/history/OperationsTable'
-import { useTranslation } from '@/hooks/useTranslation'
 
 interface Operation {
     id: string
@@ -18,7 +17,6 @@ interface Operation {
 }
 
 export default function HistoryPageClient() {
-    const { t } = useTranslation()
     const { data: session } = useSession()
     const [operations, setOperations] = useState<Operation[]>([])
     const [loading, setLoading] = useState(true)
@@ -76,13 +74,15 @@ export default function HistoryPageClient() {
     return (
         <div className="space-y-6">
             {/* Page Header */}
-            <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                    <History className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t.history.title}</h1>
-                    <p className="text-muted-foreground text-sm">{(t.history as { subtitle?: string }).subtitle || 'View all past operations'}</p>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4 w-full sm:w-auto">
+                    <div className="w-12 h-12 rounded-full bg-[#3B82F6] flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+                        <Clock className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold text-foreground">سجل العمليات</h1>
+                        <p className="text-muted-foreground text-sm font-medium">View all past operations</p>
+                    </div>
                 </div>
             </div>
 

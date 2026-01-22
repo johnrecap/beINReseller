@@ -32,25 +32,24 @@ export default function DashboardContent({ user }: DashboardContentProps) {
             {/* Stats Cards Row */}
             <StatsCards />
 
-            {/* Main Content Grid - RTL: Quick Actions 40% RIGHT / Activity 60% LEFT */}
+            {/* Main Content Grid 
+                Layout Strategy:
+                - Desktop (lg): 5 columns.
+                - Quick Actions (2 cols).
+                - Activity (3 cols).
+                - DOM Order: Quick Actions FIRST, Activity SECOND.
+                - RTL: Grid starts from Right. Item 1 (Quick Actions) will be on Right. Item 2 (Activity) on Left.
+                - LTR: Item 1 (Quick Actions) on Left. Item 2 (Activity) on Right. (Unless we want force RTL layout everywhere?)
+                Assuming the requirement "Right Column: Quick Actions" is specific to the Arabic/RTL context of the panel.
+            */}
             <div className="grid gap-[var(--space-lg)] lg:grid-cols-5">
 
-                {/* Recent Operations - Left column in RTL (3/5 = 60%) */}
+                {/* Quick Actions (40%) - Placed FIRST in DOM for RTL Right Positioning */}
                 <motion.div
-                    className="lg:col-span-3 order-2 lg:order-1"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    className="lg:col-span-2"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: 0.2 }}
-                >
-                    <RecentOperations />
-                </motion.div>
-
-                {/* Quick Actions - Right column in RTL (2/5 = 40%) */}
-                <motion.div
-                    className="lg:col-span-2 order-1 lg:order-2"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.4, delay: 0.3 }}
                 >
                     <Card variant="primary">
                         <CardHeader>
@@ -77,6 +76,16 @@ export default function DashboardContent({ user }: DashboardContentProps) {
                             />
                         </CardContent>
                     </Card>
+                </motion.div>
+
+                {/* Recent Operations (60%) - Placed SECOND in DOM */}
+                <motion.div
+                    className="lg:col-span-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
+                >
+                    <RecentOperations />
                 </motion.div>
             </div>
         </motion.div>

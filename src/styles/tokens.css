@@ -66,6 +66,18 @@
     --space-12: 48px;
     --space-16: 64px;
 
+    /* Semantic Aliases */
+    --space-xs: var(--space-2);
+    /* 8px */
+    --space-sm: var(--space-3);
+    /* 12px */
+    --space-md: var(--space-4);
+    /* 16px */
+    --space-lg: var(--space-6);
+    /* 24px */
+    --space-xl: var(--space-8);
+    /* 32px */
+
     /* =============================================
    * TYPOGRAPHY
    * ============================================= */

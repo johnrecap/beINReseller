@@ -17,7 +17,8 @@ import {
     Bot,
     BarChart3,
     Sparkles,
-    Loader2
+    Loader2,
+    Globe
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -47,6 +48,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
         { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts || 'حسابات beIN', icon: Users },
+        { href: '/dashboard/admin/proxies', label: 'إدارة البروكسي', icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
         { href: '/dashboard/admin/bein-config', label: t.sidebar.beinConfig, icon: Bot },
         { href: '/dashboard/admin/settings', label: t.sidebar.settings, icon: Settings },

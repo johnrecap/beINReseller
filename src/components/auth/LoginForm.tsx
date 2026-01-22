@@ -95,7 +95,7 @@ export default function LoginForm() {
             <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-14 bg-gradient-to-r from-[#00A651] to-[#006837] hover:from-[#008f45] hover:to-[#00582f] text-white font-bold text-lg rounded-xl shadow-[0_8px_20px_rgba(0,166,81,0.25)] hover:shadow-[0_12px_28px_rgba(0,166,81,0.35)] transition-all transform hover:scale-[1.02] active:scale-[0.98] shine-button border-none"
+                className="simple-button w-full h-14 text-white font-bold text-lg"
             >
                 {isLoading ? (
                     <>
@@ -108,11 +108,11 @@ export default function LoginForm() {
             </Button>
 
             <div className="flex items-center justify-center pt-2">
-                <Link href="#" className="text-xs text-slate-400 hover:text-violet-400 transition-colors">
-                    {/* Forgot password text not in original, keeping it minimal/existing or just generic link if needed, 
-                        original didn't have one but it's good for UX. Omitting for strict adherence to original features. */}
+                <Link href="#" className="text-xs text-slate-500 hover:text-[#00A651] transition-colors">
+                    {/* Forgot password link placeholder */}
                 </Link>
             </div>
         </form>
     )
 }
+

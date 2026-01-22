@@ -179,162 +179,107 @@
 }
 
 /* 
- * 🏆 beIN Sports Cyberpunk Theme 🏆
+ * 🎯 Desh Panel - Clean Login Theme 🎯
+ * Performance-optimized, no heavy effects
  */
 
 :root {
-  /* beIN Brand Colors */
-  --bein-bg-deep: #0F1218;
-  --bein-green: #00A651;
-  --bein-red: #ED1C24;
-  --bein-navy: #1a1e29;
+  /* Desh Brand Colors */
+  --desh-bg: #0f1218;
+  --desh-card: #1a1d26;
+  --desh-green: #00A651;
+  --desh-green-dark: #008f45;
 }
 
-/* Background Animation */
-.login-background {
-  background:
-    radial-gradient(at 0% 0%, rgba(0, 166, 81, 0.15) 0, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(15, 18, 24, 1) 0, transparent 50%),
-    radial-gradient(at 0% 100%, rgba(0, 50, 25, 0.1) 0, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(15, 18, 24, 1) 0, transparent 50%);
-  background-size: 150% 150%;
-  animation: meshGradient 20s ease-in-out infinite alternate;
-  background-color: var(--bein-bg-deep);
+/* Video Background Container */
+.login-video-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+  overflow: hidden;
 }
 
-.noise-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
-  opacity: 0.4;
-  mix-blend-mode: overlay;
+.login-video-bg video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-@keyframes meshGradient {
-  0% {
-    background-position: 0% 0%;
+/* Dark Overlay on Video */
+.login-video-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background: rgba(15, 18, 24, 0.85);
+}
+
+/* Simple Card - No glassmorphism */
+.login-card {
+  background: var(--desh-card);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
 
-  100% {
-    background-position: 100% 100%;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-/* Logo Pulse */
-@keyframes pulse-slow {
+/* Logo Breathing Animation */
+@keyframes breathe {
 
   0%,
   100% {
     opacity: 1;
-    transform: scale(1);
   }
 
   50% {
     opacity: 0.9;
-    transform: scale(0.98);
   }
 }
 
-.animate-pulse-slow {
-  animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.logo-breathe {
+  animation: breathe 3s ease-in-out infinite;
 }
 
-/* Rotating Border */
-@property --angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
+/* Simple Input - No glows */
+.simple-input {
+  background: #141720;
+  border: 1px solid #2a2f3a;
+  border-radius: 12px;
+  transition: border-color 0.2s ease;
 }
 
-.rotating-border {
-  position: relative;
+.simple-input:focus-within {
+  border-color: var(--desh-green);
 }
 
-.rotating-border::before,
-.rotating-border::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  z-index: -1;
-  background: conic-gradient(from var(--angle), var(--bein-green), var(--bein-red), var(--bein-green));
-  border-radius: inherit;
-  animation: rotate 4s linear infinite;
+/* Simple Button - No shine, no scale */
+.simple-button {
+  background: var(--desh-green);
+  border: none;
+  border-radius: 12px;
+  transition: background-color 0.2s ease;
 }
 
-.rotating-border::after {
-  filter: blur(10px);
+.simple-button:hover {
+  background: var(--desh-green-dark);
 }
 
-@keyframes rotate {
-  from {
-    --angle: 0deg;
-  }
-
-  to {
-    --angle: 360deg;
-  }
-}
-
-/* Button Shine */
-.shine-button {
-  position: relative;
-  overflow: hidden;
-}
-
-.shine-button::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(to right,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.4) 50%,
-      rgba(255, 255, 255, 0) 100%);
-  transform: skewX(-25deg);
-  animation: shine 6s infinite;
-}
-
-@keyframes shine {
-  0% {
-    left: -100%;
-  }
-
-  15% {
-    left: 200%;
-  }
-
-  100% {
-    left: 200%;
-  }
-}
-
-/* Glassmorphism Utilities */
-.glass-card {
-  background: rgba(15, 18, 24, 0.7);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 166, 81, 0.05);
-  /* Very subtle green shadow */
-}
-
-.glass-input {
-  background: #0a0e12;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-input:focus-within {
-  background: #0d1218;
-  border-color: var(--bein-green);
-  box-shadow: 0 0 15px rgba(0, 166, 81, 0.25);
-}
-
-/* Reflection Effect for Video */
-.video-reflection {
-  -webkit-box-reflect: below 2px linear-gradient(to bottom, rgba(0, 0, 0, 0.0), rgba(0, 0, 0, 0.2));
+.simple-button:active {
+  background: #007a3d;
 }

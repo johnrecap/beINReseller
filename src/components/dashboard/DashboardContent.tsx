@@ -32,15 +32,25 @@ export default function DashboardContent({ user }: DashboardContentProps) {
             {/* Stats Cards Row */}
             <StatsCards />
 
-            {/* Main Content Grid - 40% Quick Actions / 60% Activity */}
+            {/* Main Content Grid - RTL: Quick Actions 40% RIGHT / Activity 60% LEFT */}
             <div className="grid gap-[var(--space-lg)] lg:grid-cols-5">
 
-                {/* Quick Actions - Left column (2/5 = 40%) */}
+                {/* Recent Operations - Left column in RTL (3/5 = 60%) */}
                 <motion.div
-                    className="lg:col-span-2"
+                    className="lg:col-span-3 order-2 lg:order-1"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.4, delay: 0.2 }}
+                >
+                    <RecentOperations />
+                </motion.div>
+
+                {/* Quick Actions - Right column in RTL (2/5 = 40%) */}
+                <motion.div
+                    className="lg:col-span-2 order-1 lg:order-2"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
                 >
                     <Card variant="primary">
                         <CardHeader>
@@ -67,16 +77,6 @@ export default function DashboardContent({ user }: DashboardContentProps) {
                             />
                         </CardContent>
                     </Card>
-                </motion.div>
-
-                {/* Recent Operations - Right column (3/5 = 60%) */}
-                <motion.div
-                    className="lg:col-span-3"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.4, delay: 0.3 }}
-                >
-                    <RecentOperations />
                 </motion.div>
             </div>
         </motion.div>

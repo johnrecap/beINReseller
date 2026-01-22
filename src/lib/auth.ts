@@ -96,4 +96,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         updateAge: 0, // Always update on access if we want aggressive sliding, but standard is fine
     },
     secret: process.env.NEXTAUTH_SECRET,
+    trustHost: true,
 })

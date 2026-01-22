@@ -48,14 +48,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const start = Date.now()
 
         try {
-            const agent = new HttpsProxyAgent(proxyUrl, {
+            const proxyAgent = new HttpsProxyAgent(proxyUrl, {
                 rejectUnauthorized: false // Skip SSL verification for proxy
             })
 
-            // ipify to check IP
+            // ipify to check IP  
             const res = await axios.get('https://api.ipify.org?format=json', {
-                httpsAgent: agent,
-                timeout: 10000 // 10s timeout
+                httpsAgent: proxyAgent,
+                timeout: 10000, // 10s timeout
+                proxy: false // Disable axios built-in proxy to use our agent
             })
 
             const duration = Date.now() - start

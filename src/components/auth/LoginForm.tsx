@@ -95,7 +95,7 @@ export default function LoginForm() {
             <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-14 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-violet-600/25 transition-all transform hover:scale-[1.02] active:scale-[0.98] shine-button border-none"
+                className="w-full h-14 bg-gradient-to-r from-[#00A651] to-[#006837] hover:from-[#008f45] hover:to-[#00582f] text-white font-bold text-lg rounded-xl shadow-[0_8px_20px_rgba(0,166,81,0.25)] hover:shadow-[0_12px_28px_rgba(0,166,81,0.35)] transition-all transform hover:scale-[1.02] active:scale-[0.98] shine-button border-none"
             >
                 {isLoading ? (
                     <>

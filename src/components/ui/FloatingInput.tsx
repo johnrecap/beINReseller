@@ -18,9 +18,9 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
         return (
             <div className="relative group">
                 <div className={cn(
-                    "relative flex items-center glass-input rounded-xl overflow-hidden",
+                    "relative flex items-center glass-input rounded-xl overflow-hidden transition-all duration-300",
                     "border-white/10 group-hover:border-white/20",
-                    isFocused ? "border-violet-500/50 shadow-[0_0_20px_rgba(124,58,237,0.2)]" : "",
+                    isFocused ? "border-[#00A651] shadow-[0_0_20px_rgba(0,166,81,0.25)] bg-[#0F1218]" : "bg-[#0a0e12]",
                     error ? "border-red-500/50" : "",
                     className
                 )}>
@@ -28,7 +28,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
                     {icon && (
                         <div className={cn(
                             "pl-4 pr-2 transition-colors duration-300",
-                            isFocused ? "text-violet-400" : "text-slate-400"
+                            isFocused ? "text-white" : "text-slate-500 group-hover:text-slate-400"
                         )}>
                             {icon}
                         </div>
@@ -42,9 +42,9 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
                             value={value}
                             onChange={onChange}
                             className={cn(
-                                "w-full h-14 bg-transparent border-none outline-none text-slate-200 placeholder-transparent z-10",
+                                "w-full h-14 bg-transparent border-none outline-none text-slate-100 placeholder-transparent z-10",
                                 "pt-5 pb-1 px-2 text-base font-medium",
-                                "focus:ring-0"
+                                "focus:ring-0 selection:bg-[#00A651]/30"
                             )}
                             onFocus={() => setIsFocused(true)}
                             onBlur={() => setIsFocused(false)}
@@ -58,8 +58,8 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
                             className={cn(
                                 "absolute right-2 transition-all duration-300 pointer-events-none",
                                 isFocused || hasValue
-                                    ? "top-2 text-[11px] text-violet-400 font-bold tracking-wide"
-                                    : "top-1/2 -translate-y-1/2 text-slate-400 font-medium md:text-sm"
+                                    ? "top-2 text-[10px] text-[#00A651] font-extrabold tracking-wider uppercase"
+                                    : "top-1/2 -translate-y-1/2 text-slate-500 font-medium md:text-sm group-hover:text-slate-400"
                             )}
                         >
                             {label}
@@ -68,7 +68,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
 
                     {/* Liquid Underline Effect */}
                     <motion.div
-                        className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-violet-600 to-indigo-600"
+                        className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-[#00A651] to-[#006837]"
                         initial={{ width: "0%" }}
                         animate={{ width: isFocused ? "100%" : "0%" }}
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -80,7 +80,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
                     <motion.p
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-xs text-red-400 mt-1 mr-2"
+                        className="text-xs text-red-500 mt-1 mr-2 font-medium bg-red-500/10 px-2 py-1 rounded-md inline-block border border-red-500/20"
                     >
                         {error}
                     </motion.p>

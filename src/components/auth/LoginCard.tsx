@@ -55,6 +55,14 @@ export function LoginCard({ children, className }: LoginCardProps) {
             onMouseMove={handleMouseMove}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={handleMouseLeave}
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+                type: "spring",
+                stiffness: 100,
+                damping: 20,
+                delay: 0.2
+            }}
             style={{
                 perspective: 1000,
             }}
@@ -68,6 +76,7 @@ export function LoginCard({ children, className }: LoginCardProps) {
                 }}
                 className={cn(
                     "relative glass-card rounded-2xl p-8 md:p-10 transition-all duration-200",
+                    "border border-white/10 shadow-[0_8px_32px_rgba(0,166,81,0.15)]",
                     className
                 )}
             >
@@ -80,7 +89,7 @@ export function LoginCard({ children, className }: LoginCardProps) {
                             (values: number[]) => {
                                 const latestX = values[0];
                                 const latestY = values[1];
-                                return `radial-gradient(600px circle at ${(latestX + 0.5) * 100}% ${(latestY + 0.5) * 100}%, rgba(139, 92, 246, 0.15), transparent 40%)`
+                                return `radial-gradient(600px circle at ${(latestX + 0.5) * 100}% ${(latestY + 0.5) * 100}%, rgba(0, 166, 81, 0.1), transparent 40%)`
                             }
                         ),
                         opacity: isHovered ? 1 : 0

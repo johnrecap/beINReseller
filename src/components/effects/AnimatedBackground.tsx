@@ -20,12 +20,15 @@ export function AnimatedBackground({ variant = 'default', className = '' }: Anim
     if (variant === 'login') {
         return (
             <div className={`absolute inset-0 overflow-hidden ${className}`}>
-                {/* Gradient Base */}
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900" />
+                {/* Gradient Base - beIN Navy/Black */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[#0F1218] via-[#020617] to-[#1a1e29]" />
 
-                {/* Animated Blobs */}
+                {/* Noise Texture Overlay */}
+                <div className="noise-overlay" />
+
+                {/* Animated Blobs - beIN Colors */}
                 <motion.div
-                    className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/30 rounded-full blur-3xl"
+                    className="absolute -top-40 -right-40 w-80 h-80 bg-[#00A651]/20 rounded-full blur-3xl"
                     animate={{
                         x: [0, 50, 0],
                         y: [0, 30, 0],
@@ -38,7 +41,7 @@ export function AnimatedBackground({ variant = 'default', className = '' }: Anim
                     }}
                 />
                 <motion.div
-                    className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/30 rounded-full blur-3xl"
+                    className="absolute -bottom-40 -left-40 w-96 h-96 bg-[#ED1C24]/10 rounded-full blur-3xl"
                     animate={{
                         x: [0, -30, 0],
                         y: [0, -50, 0],
@@ -51,7 +54,7 @@ export function AnimatedBackground({ variant = 'default', className = '' }: Anim
                     }}
                 />
                 <motion.div
-                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl"
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#00A651]/10 rounded-full blur-3xl"
                     animate={{
                         scale: [1, 1.2, 1],
                         opacity: [0.2, 0.4, 0.2],
@@ -67,14 +70,14 @@ export function AnimatedBackground({ variant = 'default', className = '' }: Anim
                 {PARTICLES.map((particle) => (
                     <motion.div
                         key={particle.id}
-                        className="absolute w-1 h-1 bg-white/30 rounded-full"
+                        className="absolute w-1 h-1 bg-white/20 rounded-full"
                         style={{
                             left: `${particle.left}%`,
                             top: `${particle.top}%`,
                         }}
                         animate={{
                             y: [0, -30, 0],
-                            opacity: [0.2, 0.8, 0.2],
+                            opacity: [0.1, 0.5, 0.1],
                         }}
                         transition={{
                             duration: particle.duration,
@@ -84,9 +87,6 @@ export function AnimatedBackground({ variant = 'default', className = '' }: Anim
                         }}
                     />
                 ))}
-
-                {/* Grid Pattern */}
-                <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%23ffffff%22 fill-opacity=%220.03%22%3E%3Cpath d=%22M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-50" />
             </div>
         )
     }

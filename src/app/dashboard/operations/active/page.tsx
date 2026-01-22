@@ -29,18 +29,112 @@ interface Operation {
 }
 
 const getStatusConfig = (t: ReturnType<typeof useTranslation>['t']) => ({
-    PENDING: { label: t.status?.pending || 'Pending', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: <Clock className="w-4 h-4" /> },
-    PROCESSING: { label: t.status?.processing || 'Processing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: <Loader2 className="w-4 h-4 animate-spin" /> },
-    AWAITING_CAPTCHA: { label: t.status?.awaitingCaptcha || 'Awaiting Captcha', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <AlertCircle className="w-4 h-4" /> },
-    AWAITING_PACKAGE: { label: t.status?.awaitingPackage || 'Awaiting Package', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', icon: <Package className="w-4 h-4" /> },
-    AWAITING_FINAL_CONFIRM: { label: t.status?.awaitingFinalConfirm || 'Awaiting Confirmation', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: <ShieldCheck className="w-4 h-4" /> },
-    COMPLETING: { label: t.status?.completing || 'Completing', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400', icon: <Loader2 className="w-4 h-4 animate-spin" /> },
-    COMPLETED: { label: t.status?.completed || 'Completed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: <CheckCircle className="w-4 h-4" /> },
-    FAILED: { label: t.status?.failed || 'Failed', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: <XCircle className="w-4 h-4" /> },
-    CANCELLED: { label: t.status?.cancelled || 'Cancelled', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: <XCircle className="w-4 h-4" /> },
+    PENDING: {
+        label: t.status?.pending || 'قيد الانتظار',
+        color: 'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30',
+        icon: <Clock className="w-4 h-4" />
+    },
+    PROCESSING: {
+        label: t.status?.processing || 'جاري المعالجة',
+        color: 'bg-[#06B6D4]/10 text-[#06B6D4] border border-[#06B6D4]/30',
+        icon: <Loader2 className="w-4 h-4 animate-spin" />
+    },
+    AWAITING_CAPTCHA: {
+        label: t.status?.awaitingCaptcha || 'مطلوب كابتشا',
+        color: 'bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/30',
+        icon: <AlertCircle className="w-4 h-4" />
+    },
+    AWAITING_PACKAGE: {
+        label: t.status?.awaitingPackage || 'في انتظار الباقة',
+        color: 'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30',
+        icon: <Package className="w-4 h-4" />
+    },
+    AWAITING_FINAL_CONFIRM: {
+        label: t.status?.awaitingFinalConfirm || 'في انتظار التأكيد',
+        color: 'bg-[#F97316]/10 text-[#F97316] border border-[#F97316]/30',
+        icon: <ShieldCheck className="w-4 h-4" />
+    },
+    COMPLETING: {
+        label: t.status?.completing || 'جاري الإتمام',
+        color: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
+        icon: <Loader2 className="w-4 h-4 animate-spin" />
+    },
+    COMPLETED: {
+        label: t.status?.completed || 'مكتمل',
+        color: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
+        icon: <CheckCircle className="w-4 h-4" />
+    },
+    FAILED: {
+        label: t.status?.failed || 'فشل',
+        color: 'bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/30',
+        icon: <XCircle className="w-4 h-4" />
+    },
+    CANCELLED: {
+        label: t.status?.cancelled || 'ملغاة',
+        color: 'bg-gray-500/10 text-gray-500 border border-gray-500/30',
+        icon: <XCircle className="w-4 h-4" />
+    },
 })
 
-// Final Confirmation Dialog Component
+// Filter Tabs Component
+interface FilterTab {
+    id: OperationStatus
+    label: string
+    icon: React.ReactNode
+    color: string
+}
+
+const FILTER_TABS: FilterTab[] = [
+    { id: 'PENDING', label: 'قيد الانتظار', icon: <Clock className="w-4 h-4" />, color: '#3B82F6' },
+    { id: 'AWAITING_CAPTCHA', label: 'مطلوب كابتشا', icon: <AlertCircle className="w-4 h-4" />, color: '#F59E0B' },
+    { id: 'AWAITING_PACKAGE', label: 'في انتظار الباقة', icon: <Package className="w-4 h-4" />, color: '#3B82F6' },
+    { id: 'AWAITING_FINAL_CONFIRM', label: 'انتظار التأكيد', icon: <AlertTriangle className="w-4 h-4" />, color: '#F97316' },
+    { id: 'COMPLETING', label: 'جاري الإتمام', icon: <Loader2 className="w-4 h-4" />, color: '#00A651' },
+    { id: 'PROCESSING', label: 'جاري المعالجة', icon: <RefreshCw className="w-4 h-4" />, color: '#06B6D4' },
+]
+
+function FilterTabs({
+    activeFilters,
+    onFilterChange
+}: {
+    activeFilters: OperationStatus[]
+    onFilterChange: (status: OperationStatus) => void
+}) {
+    return (
+        <div className="flex flex-wrap gap-2 mb-6 animate-in slide-in-from-top-4 duration-500">
+            <span className="text-sm text-muted-foreground self-center ml-2 hidden sm:inline">تصفية حسب:</span>
+            {FILTER_TABS.map((tab) => {
+                const isActive = activeFilters.includes(tab.id)
+                return (
+                    <button
+                        key={tab.id}
+                        onClick={() => onFilterChange(tab.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${isActive
+                            ? 'text-white border-transparent shadow-md transform scale-105'
+                            : 'bg-card text-muted-foreground border-border hover:border-gray-400 dark:hover:border-gray-600'
+                            }`}
+                        style={isActive ? { backgroundColor: tab.color } : undefined}
+                    >
+                        {tab.icon}
+                        {tab.label}
+                    </button>
+                )
+            })}
+        </div>
+    )
+}
+
+function OperationSkeleton() {
+    return (
+        <div className="space-y-4 animate-pulse">
+            {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-card rounded-xl p-4 border border-border h-20"></div>
+            ))}
+        </div>
+    )
+}
+
+// Final Confirmation Dialog Component (Unchanged logic, updated styles)
 function FinalConfirmDialog({
     operation,
     onConfirm,
@@ -96,12 +190,14 @@ function FinalConfirmDialog({
     const isWarning = timeLeft <= WARNING_THRESHOLD && timeLeft > 0
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" dir="rtl">
-            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" dir="rtl">
+            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 text-white">
                     <div className="flex items-center gap-3">
-                        <ShieldCheck className="w-8 h-8" />
+                        <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md">
+                            <ShieldCheck className="w-8 h-8" />
+                        </div>
                         <div>
                             <h2 className="text-xl font-bold">تأكيد الدفع النهائي</h2>
                             <p className="text-orange-100 text-sm">هذه الخطوة الأخيرة قبل إتمام الشراء</p>
@@ -112,14 +208,14 @@ function FinalConfirmDialog({
                 {/* Content */}
                 <div className="p-6 space-y-4">
                     {/* Package Info */}
-                    <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                    <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border">
                         <div className="flex justify-between items-center">
                             <span className="text-muted-foreground">الباقة:</span>
                             <span className="font-bold text-foreground">{packageInfo?.name || 'غير محدد'}</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-muted-foreground">السعر:</span>
-                            <span className="font-bold text-green-600 dark:text-green-400">{packageInfo?.price || operation.amount} USD</span>
+                            <span className="font-bold text-[#00A651]">{packageInfo?.price || operation.amount} USD</span>
                         </div>
                         {operation.stbNumber && (
                             <div className="flex justify-between items-center">
@@ -127,67 +223,59 @@ function FinalConfirmDialog({
                                 <span className="font-mono text-sm">{operation.stbNumber}</span>
                             </div>
                         )}
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center border-t border-border pt-2 mt-2">
                             <span className="text-muted-foreground">رقم الكارت:</span>
-                            <span className="font-mono text-sm">****{operation.cardNumber.slice(-4)}</span>
+                            <span className="font-mono text-sm bg-muted px-2 py-0.5 rounded">****{operation.cardNumber.slice(-4)}</span>
                         </div>
                     </div>
 
                     {/* Timer */}
                     {timeLeft > 0 && (
-                        <div className={`flex items-center justify-center gap-2 ${isWarning ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-orange-600 dark:text-orange-400'}`}>
-                            <Clock className="w-4 h-4" />
-                            <span className={`text-sm ${isWarning ? 'font-bold' : ''}`}>
-                                الوقت المتبقي: {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                        <div className={`flex items-center justify-center gap-2 py-2 ${isWarning ? 'text-[#ED1C24] animate-pulse font-bold' : 'text-[#F59E0B]'}`}>
+                            <Clock className="w-5 h-5" />
+                            <span className="text-lg font-mono">
+                                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
                             </span>
                         </div>
                     )}
 
                     {/* Expiry Warning */}
                     {showWarning && (
-                        <div className="flex items-center justify-center gap-2 p-3 bg-red-100 dark:bg-red-900/40 rounded-xl border-2 border-red-400 dark:border-red-600 animate-pulse">
-                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                            <span className="text-sm font-bold text-red-700 dark:text-red-300">
+                        <div className="flex items-center justify-center gap-2 p-3 bg-[#ED1C24]/10 rounded-xl border border-[#ED1C24]/30 animate-pulse">
+                            <AlertTriangle className="w-5 h-5 text-[#ED1C24]" />
+                            <span className="text-sm font-bold text-[#ED1C24]">
                                 ⚠️ سيتم إلغاء العملية تلقائياً!
                             </span>
                         </div>
                     )}
 
-                    {/* Warning */}
-                    <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
-                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                        <p className="text-sm text-red-700 dark:text-red-300">
-                            <strong>تحذير:</strong> عند الضغط على &quot;تأكيد الدفع&quot;، سيتم إتمام عملية الشراء ولن يمكن إلغاؤها أو استردادها.
-                        </p>
+                    {/* Actions */}
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            onClick={() => onCancel(false)}
+                            disabled={isLoading}
+                            className="flex-1 px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors disabled:opacity-50"
+                        >
+                            إلغاء
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            disabled={isLoading}
+                            className="flex-1 px-4 py-3 bg-[#00A651] hover:bg-[#008f45] text-white rounded-xl font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    جاري التأكيد...
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    تأكيد الدفع
+                                </>
+                            )}
+                        </button>
                     </div>
-                </div>
-
-                {/* Actions */}
-                <div className="p-6 pt-0 flex gap-3">
-                    <button
-                        onClick={() => onCancel(false)}
-                        disabled={isLoading}
-                        className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors disabled:opacity-50"
-                    >
-                        إلغاء
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        disabled={isLoading}
-                        className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                        {isLoading ? (
-                            <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                جاري التأكيد...
-                            </>
-                        ) : (
-                            <>
-                                <CheckCircle className="w-4 h-4" />
-                                تأكيد الدفع
-                            </>
-                        )}
-                    </button>
                 </div>
             </div>
         </div>
@@ -203,6 +291,7 @@ export default function ActiveOperationsPage() {
     const [error, setError] = useState<string | null>(null)
     const [confirmingOperation, setConfirmingOperation] = useState<Operation | null>(null)
     const [isConfirmLoading, setIsConfirmLoading] = useState(false)
+    const [activeFilters, setActiveFilters] = useState<OperationStatus[]>([])
 
     const fetchOperations = useCallback(async () => {
         try {
@@ -314,13 +403,18 @@ export default function ActiveOperationsPage() {
         return `${diffHour} ساعة`
     }
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64" dir="rtl">
-                <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-            </div>
+    // Filter Logic
+    const handleFilterChange = (status: OperationStatus) => {
+        setActiveFilters(prev =>
+            prev.includes(status)
+                ? prev.filter(s => s !== status)
+                : [...prev, status]
         )
     }
+
+    const filteredOperations = activeFilters.length === 0
+        ? operations
+        : operations.filter(op => activeFilters.includes(op.status))
 
     return (
         <div className="space-y-6" dir="rtl">
@@ -335,126 +429,208 @@ export default function ActiveOperationsPage() {
             )}
 
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
-                        <Loader2 className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-6 rounded-2xl shadow-sm border border-border animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="flex items-center gap-4 w-full sm:w-auto">
+                    <div className="w-12 h-12 rounded-full bg-[#F59E0B] flex items-center justify-center shadow-lg shadow-orange-500/20 shrink-0">
+                        <RefreshCw className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">{t.operations?.activeOperations || 'Active Operations'}</h1>
-                        <p className="text-muted-foreground text-sm">{t.common?.trackActiveOps || 'Track active operations'}</p>
+                        <h1 className="text-2xl font-bold text-foreground">العمليات النشطة</h1>
+                        <p className="text-muted-foreground text-sm">متابعة العمليات الجارية وحالتها</p>
                     </div>
                 </div>
                 <button
                     onClick={fetchOperations}
-                    className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg hover:bg-muted transition-colors"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 border border-[#374151] rounded-xl hover:bg-muted transition-colors text-sm font-medium"
                 >
-                    <RefreshCw className="w-4 h-4" />
-                    {t.common?.refresh || 'Refresh'}
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    تحديث
                 </button>
             </div>
 
             {error && (
-                <div className="p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg">
+                <div className="p-4 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-xl animate-in fade-in">
                     {error}
                 </div>
             )}
 
-            {operations.length === 0 ? (
-                <div className="bg-card rounded-2xl shadow-lg p-12 text-center">
-                    <CheckCircle className="w-16 h-16 mx-auto text-green-500 mb-4" />
-                    <h2 className="text-xl font-bold text-foreground mb-2">لا توجد عمليات جارية</h2>
-                    <p className="text-muted-foreground">جميع العمليات مكتملة</p>
-                </div>
-            ) : (
-                <div className="bg-card rounded-2xl shadow-lg overflow-hidden">
-                    <table className="w-full">
-                        <thead className="bg-muted/50">
-                            <tr>
-                                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">الكارت</th>
-                                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">الحالة</th>
-                                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">الوقت المنقضي</th>
-                                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">رسالة</th>
-                                <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">إجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                            {operations.map((op) => {
-                                const statusConfig = STATUS_CONFIG[op.status]
-                                const canContinue = ['AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM'].includes(op.status)
-                                const canCancel = ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE'].includes(op.status)
-                                const isAwaitingConfirm = op.status === 'AWAITING_FINAL_CONFIRM'
+            {/* Main Content */}
+            <div className="min-h-[400px]">
+                {loading && operations.length === 0 ? (
+                    <OperationSkeleton />
+                ) : operations.length === 0 ? (
+                    /* Empty State */
+                    <div className="max-w-[600px] mx-auto mt-12 mb-12">
+                        <div className="bg-card rounded-3xl shadow-xl p-12 text-center border border-border animate-in zoom-in-95 duration-500">
+                            <div className="w-24 h-24 mx-auto mb-6 rounded-full border-[3px] border-[#00A651] flex items-center justify-center animate-in zoom-in duration-500 delay-100 bg-[#00A651]/5">
+                                <CheckCircle className="w-10 h-10 text-[#00A651]" />
+                            </div>
 
-                                return (
-                                    <tr key={op.id} className={`hover:bg-muted/30 transition-colors ${isAwaitingConfirm ? 'bg-orange-50 dark:bg-orange-900/10' : ''}`}>
-                                        <td className="px-4 py-4">
-                                            <span className="font-mono text-sm">****{op.cardNumber.slice(-4)}</span>
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
-                                                {statusConfig.icon}
-                                                {statusConfig.label}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-sm text-muted-foreground">
-                                            {getElapsedTime(op.createdAt)}
-                                        </td>
-                                        <td className="px-4 py-4 text-sm text-muted-foreground max-w-xs truncate">
-                                            {op.responseMessage || '-'}
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <div className="flex items-center gap-2">
-                                                {canContinue && (
-                                                    <button
-                                                        onClick={() => handleContinue(op)}
-                                                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-colors ${isAwaitingConfirm
-                                                            ? 'bg-orange-500 text-white hover:bg-orange-600'
-                                                            : 'bg-purple-500 text-white hover:bg-purple-600'
-                                                            }`}
+                            <h2 className="text-2xl font-bold text-foreground mb-2 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200">
+                                لا توجد عمليات جارية
+                            </h2>
+                            <p className="text-muted-foreground mb-8 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-300">
+                                جميع العمليات مكتملة بنجاح، يمكنك البدء بعملية جديدة الآن
+                            </p>
+
+                            <button
+                                onClick={() => router.push('/dashboard/renew')}
+                                className="px-8 py-3.5 bg-[#00A651] hover:bg-[#008f45] text-white rounded-xl font-bold transition-all shadow-lg shadow-green-500/30 hover:shadow-green-500/40 hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-400"
+                            >
+                                ابدأ عملية جديدة
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <FilterTabs activeFilters={activeFilters} onFilterChange={handleFilterChange} />
+
+                        {filteredOperations.length === 0 ? (
+                            <div className="text-center py-12 bg-card rounded-2xl border border-border border-dashed">
+                                <p className="text-muted-foreground">لا توجد عمليات بهذه الحالة</p>
+                            </div>
+                        ) : (
+                            <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden animate-in fade-in duration-500">
+                                {/* Desktop/Tablet Table */}
+                                <div className="hidden md:block overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-muted/30 border-b border-border">
+                                            <tr>
+                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">الكارت</th>
+                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">الحالة</th>
+                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">الوقت ومبلغ</th>
+                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">إجراءات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border">
+                                            {filteredOperations.map((op, index) => {
+                                                const statusConfig = STATUS_CONFIG[op.status]
+                                                const canContinue = ['AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM'].includes(op.status)
+                                                // Removed cancellation for pending/processing as per business logic, or keep if required
+                                                const canCancel = ['PENDING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE'].includes(op.status)
+                                                const isAwaitingConfirm = op.status === 'AWAITING_FINAL_CONFIRM'
+
+                                                return (
+                                                    <tr
+                                                        key={op.id}
+                                                        className={`hover:bg-muted/30 transition-colors ${isAwaitingConfirm ? 'bg-[#F97316]/5' : ''} animate-in fade-in`}
+                                                        style={{ animationDelay: `${index * 50}ms` }}
                                                     >
-                                                        {isAwaitingConfirm ? (
-                                                            <>
-                                                                <ShieldCheck className="w-3 h-3" />
-                                                                تأكيد الدفع
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <ExternalLink className="w-3 h-3" />
-                                                                متابعة
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                )}
-                                                {canCancel && (
-                                                    <button
-                                                        onClick={() => handleCancel(op.id)}
-                                                        className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-xs hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-                                                    >
-                                                        <XCircle className="w-3 h-3" />
-                                                        إلغاء
-                                                    </button>
-                                                )}
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-mono font-medium text-foreground text-lg">**** {op.cardNumber.slice(-4)}</span>
+                                                                <span className="text-xs text-muted-foreground">ID: {op.id.slice(0, 8)}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${statusConfig.color} shadow-sm`}>
+                                                                {statusConfig.icon}
+                                                                {statusConfig.label}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="text-sm font-medium">{getElapsedTime(op.createdAt)}</span>
+                                                                {op.amount > 0 && (
+                                                                    <span className="text-xs text-[#00A651] font-bold">{op.amount} USD</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-2">
+                                                                {canContinue && (
+                                                                    <button
+                                                                        onClick={() => handleContinue(op)}
+                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shadow-sm ${isAwaitingConfirm
+                                                                            ? 'bg-[#F97316] hover:bg-[#F97316]/90 text-white animate-pulse'
+                                                                            : 'bg-[#00A651] hover:bg-[#00A651]/90 text-white'
+                                                                            }`}
+                                                                    >
+                                                                        {isAwaitingConfirm ? (
+                                                                            <>
+                                                                                <ShieldCheck className="w-3.5 h-3.5" />
+                                                                                تأكيد الدفع
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <ExternalLink className="w-3.5 h-3.5" />
+                                                                                متابعة
+                                                                            </>
+                                                                        )}
+                                                                    </button>
+                                                                )}
+                                                                {canCancel && (
+                                                                    <button
+                                                                        onClick={() => handleCancel(op.id)}
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-lg text-xs font-medium hover:bg-[#ED1C24]/20 transition-colors"
+                                                                    >
+                                                                        <XCircle className="w-3.5 h-3.5" />
+                                                                        إلغاء
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Mobile List View */}
+                                <div className="md:hidden divide-y divide-border">
+                                    {filteredOperations.map((op, index) => {
+                                        const statusConfig = STATUS_CONFIG[op.status]
+                                        const canContinue = ['AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM'].includes(op.status)
+                                        const canCancel = ['PENDING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE'].includes(op.status)
+                                        const isAwaitingConfirm = op.status === 'AWAITING_FINAL_CONFIRM'
+
+                                        return (
+                                            <div
+                                                key={op.id}
+                                                className={`p-4 animate-in fade-in ${isAwaitingConfirm ? 'bg-[#F97316]/5' : ''}`}
+                                                style={{ animationDelay: `${index * 50}ms` }}
+                                            >
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div>
+                                                        <span className="font-mono font-bold text-lg text-foreground">**** {op.cardNumber.slice(-4)}</span>
+                                                        <div className="text-xs text-muted-foreground mt-0.5">{getElapsedTime(op.createdAt)}</div>
+                                                    </div>
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium ${statusConfig.color}`}>
+                                                        {statusConfig.icon}
+                                                        {statusConfig.label}
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex gap-2 mt-4">
+                                                    {canContinue && (
+                                                        <button
+                                                            onClick={() => handleContinue(op)}
+                                                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isAwaitingConfirm
+                                                                ? 'bg-[#F97316] text-white'
+                                                                : 'bg-[#00A651] text-white'
+                                                                }`}
+                                                        >
+                                                            {isAwaitingConfirm ? 'تأكيد الدفع' : 'متابعة'}
+                                                        </button>
+                                                    )}
+                                                    {canCancel && (
+                                                        <button
+                                                            onClick={() => handleCancel(op.id)}
+                                                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-lg text-sm font-medium"
+                                                        >
+                                                            إلغاء
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </td>
-                                    </tr>
-                                )
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {/* Legend */}
-            <div className="bg-card rounded-xl p-4 border border-border">
-                <h3 className="font-medium text-foreground mb-3">{t.common?.status || 'Status Guide'}:</h3>
-                <div className="flex flex-wrap gap-3">
-                    {Object.entries(STATUS_CONFIG).slice(0, 6).map(([status, config]) => (
-                        <span key={status} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${(config as { color: string }).color}`}>
-                            {(config as { icon: React.ReactNode }).icon}
-                            {(config as { label: string }).label}
-                        </span>
-                    ))}
-                </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
             </div>
         </div>
     )

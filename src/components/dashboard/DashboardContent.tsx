@@ -1,11 +1,13 @@
 'use client'
 
 import { useTranslation } from '@/hooks/useTranslation'
+import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import StatsCards from '@/components/dashboard/StatsCards'
 import RecentOperations from '@/components/dashboard/RecentOperations'
+import QuickActionTile from '@/components/dashboard/QuickActionTile'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import Link from 'next/link'
 import { Zap, RefreshCw } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 interface DashboardContentProps {
     user: { username: string; role: string }
@@ -15,71 +17,68 @@ export default function DashboardContent({ user }: DashboardContentProps) {
     const { t } = useTranslation()
 
     return (
-        <div className="space-y-8">
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-8"
+        >
             {/* Header Section */}
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight">{t.dashboard.welcome}, {user.username}</h2>
-                <p className="text-muted-foreground">
-                    {user.role === 'ADMIN' ? t.dashboard.adminWelcome : t.dashboard.resellerWelcome}
-                </p>
-            </div>
+            <DashboardHeader
+                username={user.username}
+                role={user.role as 'ADMIN' | 'RESELLER'}
+            />
 
-            {/* Stats */}
+            {/* Stats Cards Row */}
             <StatsCards />
 
-            {/* Main Content Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            {/* Main Content Grid - 40% Quick Actions / 60% Activity */}
+            <div className="grid gap-[var(--space-lg)] lg:grid-cols-5">
 
-                {/* Recent Operations (Takes up 4 columns) */}
-                <div className="col-span-4">
+                {/* Quick Actions - Left column (2/5 = 40%) */}
+                <motion.div
+                    className="lg:col-span-2"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4, delay: 0.2 }}
+                >
+                    <Card variant="primary">
+                        <CardHeader>
+                            <CardTitle className="text-[18px] font-semibold text-[var(--color-text-primary)]">
+                                {t.dashboard.quickActions}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <QuickActionTile
+                                href="/dashboard/renew"
+                                icon={Zap}
+                                iconColor="#00A651"
+                                iconBgColor="rgba(0, 166, 81, 0.15)"
+                                title={t.dashboard.renewSubscription}
+                                description={t.dashboard.renewDesc}
+                            />
+                            <QuickActionTile
+                                href="/dashboard/renew"
+                                icon={RefreshCw}
+                                iconColor="#3B82F6"
+                                iconBgColor="rgba(59, 130, 246, 0.15)"
+                                title={t.dashboard.refreshSignal}
+                                description={t.dashboard.refreshSignalDesc}
+                            />
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                {/* Recent Operations - Right column (3/5 = 60%) */}
+                <motion.div
+                    className="lg:col-span-3"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
+                >
                     <RecentOperations />
-                </div>
-
-                {/* Quick Actions (Takes up 3 columns) */}
-                <Card className="col-span-3">
-                    <CardHeader>
-                        <CardTitle>{t.dashboard.quickActions}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <QuickAction
-                            href="/dashboard/renew"
-                            icon={Zap}
-                            title={t.dashboard.renewSubscription}
-                            desc={t.dashboard.renewDesc}
-                        />
-                        <QuickAction
-                            href="/dashboard/renew"
-                            icon={RefreshCw}
-                            title={t.dashboard.refreshSignal}
-                            desc={t.dashboard.refreshSignalDesc}
-                        />
-                    </CardContent>
-                </Card>
+                </motion.div>
             </div>
-        </div>
-    )
-}
-
-interface QuickActionProps {
-    href: string
-    icon: React.ComponentType<{ className?: string }>
-    title: string
-    desc: string
-}
-
-function QuickAction({ href, icon: Icon, title, desc }: QuickActionProps) {
-    return (
-        <Link
-            href={href}
-            className="flex items-start gap-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors group"
-        >
-            <div className="p-2 rounded-md bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                <Icon className="h-5 w-5" />
-            </div>
-            <div>
-                <h3 className="font-medium text-sm">{title}</h3>
-                <p className="text-xs text-muted-foreground line-clamp-1">{desc}</p>
-            </div>
-        </Link>
+        </motion.div>
     )
 }

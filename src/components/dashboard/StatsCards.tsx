@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import { useTranslation } from '@/hooks/useTranslation'
+import { motion } from 'framer-motion'
 
 interface Stats {
     balance: number
@@ -46,9 +47,12 @@ export default function StatsCards() {
 
     if (loading) {
         return (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-[var(--space-lg)] md:grid-cols-2 lg:grid-cols-4">
                 {[...Array(4)].map((_, i) => (
-                    <div key={i} className="h-32 rounded-xl bg-muted/50 animate-pulse" />
+                    <div
+                        key={i}
+                        className="h-32 rounded-[var(--border-radius-lg)] bg-[var(--color-bg-elevated)] animate-pulse"
+                    />
                 ))}
             </div>
         )
@@ -59,40 +63,71 @@ export default function StatsCards() {
             title: t.dashboard.myBalance,
             value: stats?.balance?.toFixed(2) || '0.00',
             icon: Wallet,
-            desc: t.header.currency
+            desc: t.header.currency,
+            isHero: true,  // Hero card flag
+            trend: undefined
         },
         {
             title: t.dashboard.todayOperations,
             value: stats?.todayOperations || 0,
             icon: Activity,
-            desc: 'Operations'
+            desc: 'Operations',
+            isHero: false,
+            trend: undefined
         },
         {
             title: t.dashboard.lastOperation,
-            value: stats?.lastOperation ? formatDistanceToNow(new Date(stats.lastOperation.createdAt), { locale: getDateLocale() }) : '-',
+            value: stats?.lastOperation
+                ? formatDistanceToNow(new Date(stats.lastOperation.createdAt), { locale: getDateLocale() })
+                : '-',
             icon: Clock,
-            desc: 'Ago'
+            desc: 'Ago',
+            isHero: false,
+            trend: undefined
         },
         {
             title: t.dashboard.successRate,
             value: `${stats?.successRate ?? 0}%`,
             icon: TrendingUp,
-            desc: 'Success'
+            desc: 'Success',
+            isHero: false,
+            trend: 'up' as const
         }
     ]
 
     return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-[var(--space-lg)] md:grid-cols-2 lg:grid-cols-4">
             {cards.map((card, i) => (
-                <StatCard
+                <motion.div
                     key={i}
-                    title={card.title}
-                    value={card.value}
-                    icon={card.icon}
-                    description={card.desc}
-                    className="animate-in fade-in slide-in-from-bottom-4 duration-500"
-                    trend={card.title === t?.dashboard?.successRate ? 'up' : undefined}
-                />
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                        duration: 0.5,
+                        delay: i * 0.05,
+                        ease: 'easeOut'
+                    }}
+                >
+                    <StatCard
+                        title={card.title}
+                        value={card.value}
+                        icon={card.icon}
+                        description={card.desc}
+                        trend={card.trend}
+                        className={
+                            card.isHero
+                                ? `
+                                    relative overflow-hidden
+                                    border-l-2 border-l-[var(--color-primary-green)]
+                                    before:absolute before:inset-0 
+                                    before:bg-gradient-to-br before:from-[rgba(0,166,81,0.1)] before:to-transparent
+                                    before:pointer-events-none
+                                `
+                                : ''
+                        }
+                        valueClassName={card.isHero ? 'text-[36px] text-[var(--color-primary-green)]' : ''}
+                    />
+                </motion.div>
             ))}
         </div>
     )

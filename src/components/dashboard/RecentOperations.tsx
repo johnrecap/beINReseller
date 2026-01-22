@@ -80,9 +80,11 @@ export default function RecentOperations() {
     }
 
     return (
-        <Card className="bg-[var(--color-bg-card)] border-0 shadow-[var(--shadow-card)]">
+        <Card variant="primary">
             <CardHeader>
-                <CardTitle className="text-lg text-[var(--color-text-primary)]">{t.dashboard.recentOperations}</CardTitle>
+                <CardTitle className="text-[18px] font-semibold text-[var(--color-text-primary)]">
+                    آخر العمليات
+                </CardTitle>
             </CardHeader>
             <CardContent>
                 {operations.length === 0 ? (

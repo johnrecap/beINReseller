@@ -11,6 +11,7 @@ interface StatCardProps {
     description?: string
     trend?: 'up' | 'down' | 'neutral'
     className?: string
+    valueClassName?: string
 }
 
 export function StatCard({
@@ -19,7 +20,8 @@ export function StatCard({
     icon: Icon,
     description,
     trend,
-    className
+    className,
+    valueClassName
 }: StatCardProps) {
     return (
         <Card variant="primary" hover className={cn("relative overflow-hidden", className)}>
@@ -30,7 +32,10 @@ export function StatCard({
                             {title}
                         </p>
                         <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-[var(--font-size-3xl)] font-bold text-[var(--color-text-primary)]">
+                            <span className={cn(
+                                "text-[var(--font-size-3xl)] font-bold text-[var(--color-text-primary)]",
+                                valueClassName
+                            )}>
                                 {value}
                             </span>
                         </div>

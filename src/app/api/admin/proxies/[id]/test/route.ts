@@ -46,7 +46,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const start = Date.now()
 
         try {
-            const agent = new HttpsProxyAgent(proxyUrl)
+            const agent = new HttpsProxyAgent(proxyUrl, {
+                rejectUnauthorized: false // Skip SSL verification for proxy
+            })
 
             // ipify to check IP
             const res = await axios.get('https://api.ipify.org?format=json', {

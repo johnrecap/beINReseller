@@ -34,7 +34,7 @@ function LoginPageContent() {
                     <div className="mb-8 text-center">
                         <div className="logo-breathe mb-4">
                             <Image
-                                src="/images/logo.svg"
+                                src="/images/logo.png"
                                 alt="Desh Panel"
                                 width={120}
                                 height={40}

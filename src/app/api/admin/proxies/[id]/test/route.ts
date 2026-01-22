@@ -38,7 +38,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         // Construct session-based username
         // Format: username-session-sessionId
-        const sessionUsername = `${username}-session-${proxy.sessionId}`
+        // Note: Session ID must not contain hyphens (causes 407), replace with underscores
+        const sanitizedSessionId = proxy.sessionId.replace(/-/g, '_')
+        const sessionUsername = `${username}-session-${sanitizedSessionId}`
         const proxyUrl = `http://${sessionUsername}:${password}@${host}:${port}`
 
         console.log(`Testing proxy: ${proxy.sessionId} -> ${host}:${port}`)

@@ -35,7 +35,9 @@ export class ProxyManager {
     buildProxyUrl(sessionId: string): string {
         const { host, port, username, password } = this.config;
         // Format: username-session-sessionId:password@host:port
-        const sessionUsername = `${username}-session-${sessionId}`;
+        // Note: Session ID must not contain hyphens (causes 407), replace with underscores
+        const sanitizedSessionId = sessionId.replace(/-/g, '_');
+        const sessionUsername = `${username}-session-${sanitizedSessionId}`;
         return `http://${sessionUsername}:${password}@${host}:${port}`;
     }
 
@@ -53,7 +55,8 @@ export class ProxyManager {
      */
     getMaskedProxyUrl(sessionId: string): string {
         const { host, port, username } = this.config;
-        const sessionUsername = `${username}-session-${sessionId}`;
+        const sanitizedSessionId = sessionId.replace(/-/g, '_');
+        const sessionUsername = `${username}-session-${sanitizedSessionId}`;
         return `http://${sessionUsername}:****@${host}:${port}`;
     }
 }

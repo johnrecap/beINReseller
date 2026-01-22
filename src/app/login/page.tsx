@@ -9,19 +9,8 @@ function LoginPageContent() {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
 
-            {/* Background Video with Image Fallback */}
+            {/* Background Video */}
             <div className="login-video-bg">
-                {/* Fallback Image - Always visible behind video (for mobile) */}
-                <Image
-                    src="/videos/poster.jpg"
-                    alt=""
-                    fill
-                    className="object-cover"
-                    priority
-                    unoptimized
-                />
-
-                {/* Video - Plays on desktop, shows poster on mobile */}
                 <video
                     autoPlay
                     loop

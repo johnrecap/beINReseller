@@ -7,6 +7,14 @@
 
 import { authenticator } from 'otplib'
 
+// Configure authenticator with time window tolerance
+// This allows for a 1-step drift (30 seconds before/after)
+authenticator.options = {
+    step: 30,       // Standard 30-second step
+    window: 1,      // Allow 1 step before/after for time sync issues
+    digits: 6       // Standard 6-digit codes
+};
+
 export class TOTPGenerator {
     /**
      * Generate a 6-digit TOTP code
@@ -14,8 +22,19 @@ export class TOTPGenerator {
      * @returns 6-digit code string
      */
     generate(secret: string): string {
-        // otplib handles the time-based rotation automatically
-        return authenticator.generate(secret)
+        // Clean the secret: remove spaces, dashes, and uppercase
+        const cleanSecret = secret.replace(/[\s-]/g, '').toUpperCase();
+
+        // Log time info for debugging
+        const now = Math.floor(Date.now() / 1000);
+        const timeStep = Math.floor(now / 30);
+        console.log(`[TOTP] Time: ${now}, Step: ${timeStep}, Remaining: ${30 - (now % 30)}s`);
+
+        // Generate the code
+        const code = authenticator.generate(cleanSecret);
+        console.log(`[TOTP] Generated code: ${code} for secret: ${cleanSecret.slice(0, 4)}****`);
+
+        return code;
     }
 
     /**
@@ -25,7 +44,8 @@ export class TOTPGenerator {
      * @returns true if valid
      */
     verify(token: string, secret: string): boolean {
-        return authenticator.verify({ token, secret })
+        const cleanSecret = secret.replace(/[\s-]/g, '').toUpperCase();
+        return authenticator.verify({ token, secret: cleanSecret })
     }
 
     /**
@@ -36,3 +56,4 @@ export class TOTPGenerator {
         return 30 - (Math.floor(Date.now() / 1000) % 30)
     }
 }
+

@@ -44,7 +44,6 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
     const getStepStatus = (stepId: string) => {
         const stepOrder = ['card-input', 'processing', 'captcha', 'packages', 'completing', 'awaiting-final-confirm', 'result']
         const currentIndex = stepOrder.indexOf(currentStep)
-        const stepIndex = stepOrder.indexOf(stepId === 'result' ? 'awaiting-final-confirm' : stepId)
 
         // Special handling for the steps mapping
         if (stepId === 'card-input') {
@@ -68,7 +67,7 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
                 {/* Connecting Lines Layer */}
                 <div className="absolute top-[18px] left-0 w-full h-[2px] bg-[var(--color-border-default)] -z-10">
                     <div
-                        className="h-full bg-gradient-to-r from-[#9333ea] to-[#ec4899] transition-all duration-500 ease-in-out"
+                        className="h-full bg-[#00A651] transition-all duration-500 ease-in-out"
                         style={{
                             width: currentStep === 'card-input' ? '0%' :
                                 (currentStep === 'processing' || currentStep === 'captcha') ? '25%' :
@@ -89,10 +88,10 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
                         <div key={step.id} className="flex flex-col items-center gap-2">
                             <div
                                 className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 z-10 ${isCompleted
-                                        ? 'bg-[#22c55e] border-[#22c55e] text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]'
-                                        : isActive
-                                            ? 'bg-white dark:bg-[#0f172a] border-[#9333ea] text-[#9333ea] shadow-[0_0_15px_rgba(147,51,234,0.4)] scale-110'
-                                            : 'bg-[var(--color-bg-card)] border-[var(--color-border-default)] text-[var(--color-text-muted)]'
+                                    ? 'bg-[#22c55e] border-[#22c55e] text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]'
+                                    : isActive
+                                        ? 'bg-white dark:bg-[#0f172a] border-[#00A651] text-[#00A651] shadow-[0_0_15px_rgba(0,166,81,0.4)] scale-110'
+                                        : 'bg-[var(--color-bg-card)] border-[var(--color-border-default)] text-[var(--color-text-muted)]'
                                     }`}
                             >
                                 <Icon className={`w-4 h-4 ${isCompleted ? 'animate-in zoom-in' : ''}`} />
@@ -506,7 +505,7 @@ export default function RenewWizardPage() {
             )}
 
             <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-[#9333ea] to-[#ec4899] bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-[#00A651] to-[#008f45] bg-clip-text text-transparent">
                     {(t.renew as any)?.title || 'تجديد اشتراك beIN'}
                 </h1>
                 <p className="text-muted-foreground mt-2">{(t.renew as any)?.subtitle || 'اختر الباقة المناسبة لك'}</p>
@@ -517,7 +516,7 @@ export default function RenewWizardPage() {
                 <button
                     onClick={() => setRenewalMode('signal-refresh')}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${renewalMode === 'signal-refresh'
-                        ? 'bg-gradient-to-r from-[#9333ea] to-[#ec4899] text-white shadow-lg shadow-purple-500/20'
+                        ? 'bg-[#00A651] text-white shadow-lg shadow-[rgba(0,166,81,0.3)]'
                         : 'bg-[var(--color-bg-input)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)]'
                         }`}
                 >
@@ -527,7 +526,7 @@ export default function RenewWizardPage() {
                 <button
                     onClick={() => setRenewalMode('package-renewal')}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${renewalMode === 'package-renewal'
-                        ? 'bg-gradient-to-r from-[#9333ea] to-[#ec4899] text-white shadow-lg shadow-purple-500/20'
+                        ? 'bg-[#00A651] text-white shadow-lg shadow-[rgba(0,166,81,0.3)]'
                         : 'bg-[var(--color-bg-input)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)]'
                         }`}
                 >
@@ -551,7 +550,7 @@ export default function RenewWizardPage() {
                         <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <CreditCard className="h-5 w-5 text-purple-500" />
+                                    <CreditCard className="h-5 w-5 text-[#00A651]" />
                                     {(t.renew as any)?.cardInput?.title || 'أدخل رقم الكارت'}
                                 </CardTitle>
                                 <CardDescription>{(t.renew as any)?.cardInput?.description || 'أدخل رقم كارت beIN المكون من 10-16 رقم'}</CardDescription>
@@ -575,7 +574,7 @@ export default function RenewWizardPage() {
                                 <Button
                                     onClick={handleStartRenewal}
                                     disabled={cardNumber.length < 10 || loading}
-                                    className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600"
+                                    className="w-full bg-[#00A651] hover:bg-[#008f45]"
                                 >
                                     {loading ? (
                                         <>
@@ -597,7 +596,7 @@ export default function RenewWizardPage() {
                     {step === 'processing' && (
                         <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
                             <CardContent className="py-12 text-center">
-                                <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
+                                <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
                                 <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.processing?.title || 'جاري المعالجة...'}</h3>
                                 <p className="text-muted-foreground">{(t.renew as any)?.processing?.description || 'يتم الاتصال بـ beIN واستخراج الباقات المتاحة'}</p>
                             </CardContent>
@@ -679,15 +678,15 @@ export default function RenewWizardPage() {
                                                 key={pkg.index}
                                                 onClick={() => setSelectedPackageIndex(pkg.index)}
                                                 className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedPackageIndex === pkg.index
-                                                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                                    : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
+                                                    ? 'border-[#00A651] bg-[#00A651]/10'
+                                                    : 'border-gray-200 dark:border-gray-700 hover:border-[#00A651]/50'
                                                     }`}
                                             >
                                                 <div className="flex justify-between items-center">
                                                     <div>
                                                         <div className="font-bold">{pkg.name}</div>
                                                     </div>
-                                                    <div className="text-lg font-bold text-purple-600">
+                                                    <div className="text-lg font-bold text-[#00A651]">
                                                         {pkg.price} USD
                                                     </div>
                                                 </div>
@@ -740,7 +739,7 @@ export default function RenewWizardPage() {
                                             <Button
                                                 onClick={() => setShowConfirmation(true)}
                                                 disabled={loading}
-                                                className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
+                                                className="w-full bg-[#00A651] hover:bg-[#008f45]"
                                             >
                                                 {(t.renew as any)?.packages?.showDetails || 'عرض التفاصيل والموافقة'}
                                             </Button>
@@ -821,7 +820,7 @@ export default function RenewWizardPage() {
                     {step === 'completing' && (
                         <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
                             <CardContent className="py-12 text-center">
-                                <Loader2 className="h-12 w-12 animate-spin text-purple-500 mx-auto mb-4" />
+                                <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
                                 <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.completing?.title || 'جاري إتمام الشراء...'}</h3>
                                 <p className="text-muted-foreground">{(t.renew as any)?.completing?.warning || 'لا تغلق الصفحة'}</p>
                             </CardContent>

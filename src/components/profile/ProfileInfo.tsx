@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Mail, Shield, Calendar, Edit2, Check, X } from 'lucide-react'
+import { User, Mail, Shield, Calendar, Edit2, Check, X, MapPin } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -74,15 +74,15 @@ export default function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
     return (
         <div className="bg-card rounded-2xl shadow-sm p-6">
             <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
-                <User className="w-5 h-5 text-purple-600" />
+                <User className="w-5 h-5 text-[#3B82F6]" />
                 {t.profile.personalInfo}
             </h2>
 
             <div className="space-y-6">
                 {/* Username */}
                 <div className="flex items-start gap-4 p-4 bg-secondary rounded-xl">
-                    <div className="mt-1 bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg">
-                        <User className="w-4 h-4 text-purple-600" />
+                    <div className="mt-1 bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                        <User className="w-4 h-4 text-[#3B82F6]" />
                     </div>
                     <div className="flex-1">
                         <p className="text-xs text-muted-foreground mb-1">{t.profile.username}</p>
@@ -102,7 +102,7 @@ export default function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
                                 <button
                                     onClick={() => setIsEditing(true)}
                                     title={t.common.edit}
-                                    className="p-1 hover:bg-white rounded transition-colors text-gray-400 hover:text-purple-600"
+                                    className="p-1 hover:bg-white rounded transition-colors text-gray-400 hover:text-[#3B82F6]"
                                 >
                                     <Edit2 className="w-4 h-4" />
                                 </button>
@@ -116,7 +116,7 @@ export default function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     title={t.profile.email}
-                                    className="w-full px-3 py-2 border border-border rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr bg-background text-foreground"
+                                    className="w-full px-3 py-2 border border-border rounded-lg focus:border-[#00A651] focus:outline-none text-sm dir-ltr bg-background text-foreground"
                                 />
                                 {error && <p className="text-xs text-red-500">{error}</p>}
                                 <div className="flex gap-2 justify-end">
@@ -132,7 +132,7 @@ export default function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
                                         onClick={handleSave}
                                         disabled={loading}
                                         title={t.common.save}
-                                        className="p-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                                        className="p-1.5 bg-[#00A651] text-white rounded-lg hover:bg-[#008f45] transition-colors"
                                     >
                                         <Check className="w-4 h-4" />
                                     </button>
@@ -154,6 +154,17 @@ export default function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400">
                             {user.role === 'ADMIN' ? t.sidebar.adminRole : t.sidebar.resellerRole}
                         </span>
+                    </div>
+                </div>
+
+                {/* Country/Region */}
+                <div className="flex items-start gap-4 p-4 bg-secondary rounded-xl">
+                    <div className="mt-1 bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg">
+                        <MapPin className="w-4 h-4 text-[#F59E0B]" />
+                    </div>
+                    <div className="flex-1">
+                        <p className="text-xs text-muted-foreground mb-1">العائلة</p>
+                        <p className="font-semibold text-foreground">مصر</p>
                     </div>
                 </div>
 

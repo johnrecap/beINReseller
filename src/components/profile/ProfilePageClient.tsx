@@ -44,7 +44,7 @@ export default function ProfilePageClient() {
         <div className="space-y-6">
             {/* Page Header */}
             <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <div className="w-12 h-12 rounded-full bg-[#3B82F6] flex items-center justify-center shadow-lg">
                     <UserCheck className="w-6 h-6 text-white" />
                 </div>
                 <div>
@@ -53,7 +53,7 @@ export default function ProfilePageClient() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {/* Left Column: Personal Info */}
                 <ProfileInfo user={user} onUpdate={fetchProfile} />
 

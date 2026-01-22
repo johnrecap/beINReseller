@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Lock, Loader2, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
+import PasswordStrengthMeter from './PasswordStrengthMeter'
 
 export default function ChangePasswordForm() {
     const { t } = useTranslation()
@@ -15,11 +16,12 @@ export default function ChangePasswordForm() {
 
     const [showCurrent, setShowCurrent] = useState(false)
     const [showNew, setShowNew] = useState(false)
+    const [showConfirm, setShowConfirm] = useState(false)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (newPassword !== confirmPassword) {
-            setError(t.profile.passwordMismatch)
+            setError(t.profile.passwordMismatch || 'كلمة المرور غير متطابقة')
             return
         }
 
@@ -54,7 +56,7 @@ export default function ChangePasswordForm() {
     return (
         <div className="bg-card rounded-2xl shadow-sm p-6 h-full">
             <h2 className="text-lg font-bold text-foreground mb-6 flex items-center gap-2">
-                <Lock className="w-5 h-5 text-purple-600" />
+                <Lock className="w-5 h-5 text-[#3B82F6]" />
                 {t.profile.changePassword}
             </h2>
 
@@ -68,7 +70,7 @@ export default function ChangePasswordForm() {
                             value={currentPassword}
                             onChange={(e) => setCurrentPassword(e.target.value)}
                             title={t.profile.currentPassword}
-                            className="w-full px-4 py-2 border border-border rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr pr-10 bg-background text-foreground"
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none text-sm dir-ltr pr-10 bg-background text-foreground ${error && error.includes('Current') ? 'border-red-500' : 'border-border focus:border-[#00A651]'}`}
                             required
                         />
                         <button
@@ -91,7 +93,7 @@ export default function ChangePasswordForm() {
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             title={t.profile.newPassword}
-                            className="w-full px-4 py-2 border border-border rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr pr-10 bg-background text-foreground"
+                            className="w-full px-4 py-2 border border-border rounded-lg focus:border-[#00A651] focus:outline-none text-sm dir-ltr pr-10 bg-background text-foreground"
                             minLength={6}
                             required
                         />
@@ -104,19 +106,33 @@ export default function ChangePasswordForm() {
                             {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                     </div>
+                    {newPassword && <PasswordStrengthMeter password={newPassword} />}
                 </div>
 
                 {/* Confirm Password */}
                 <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">{t.profile.confirmPassword}</label>
-                    <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        title={t.profile.confirmPassword}
-                        className="w-full px-4 py-2 border border-border rounded-lg focus:border-purple-500 focus:outline-none text-sm dir-ltr bg-background text-foreground"
-                        required
-                    />
+                    <div className="relative">
+                        <input
+                            type={showConfirm ? 'text' : 'password'}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            title={t.profile.confirmPassword}
+                            className={`w-full px-4 py-2 border rounded-lg focus:outline-none text-sm dir-ltr pr-10 bg-background text-foreground ${newPassword !== confirmPassword && confirmPassword ? 'border-[#ED1C24]' : 'border-border focus:border-[#00A651]'}`}
+                            required
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirm(!showConfirm)}
+                            aria-label={showConfirm ? t.auth.hidePassword : t.auth.showPassword}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                            {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                    </div>
+                    {newPassword !== confirmPassword && confirmPassword && (
+                        <p className="text-xs text-[#ED1C24] mt-1">{t.profile.passwordMismatch || 'كلمة المرور غير متطابقة'}</p>
+                    )}
                 </div>
 
                 {/* Messages */}
@@ -134,8 +150,8 @@ export default function ChangePasswordForm() {
                 {/* Submit */}
                 <button
                     type="submit"
-                    disabled={loading}
-                    className="w-full py-2.5 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors font-medium flex items-center justify-center gap-2"
+                    disabled={loading || (newPassword !== confirmPassword && confirmPassword.length > 0)}
+                    className="w-full py-2.5 bg-[#00A651] text-white rounded-lg hover:bg-[#008f45] transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : t.profile.saveChanges}
                 </button>

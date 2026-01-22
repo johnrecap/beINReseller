@@ -9,14 +9,25 @@ function LoginPageContent() {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
 
-            {/* Background Video */}
+            {/* Background Video with Image Fallback */}
             <div className="login-video-bg">
+                {/* Fallback Image - Always visible behind video (for mobile) */}
+                <Image
+                    src="/videos/poster.jpg"
+                    alt=""
+                    fill
+                    className="object-cover"
+                    priority
+                    unoptimized
+                />
+
+                {/* Video - Plays on desktop, shows poster on mobile */}
                 <video
                     autoPlay
                     loop
                     muted
                     playsInline
-                    poster="/videos/poster.jpg"
+                    className="absolute inset-0 w-full h-full object-cover"
                 >
                     <source src="/videos/promo.webm" type="video/webm" />
                     <source src="/videos/promo.mp4" type="video/mp4" />
@@ -36,8 +47,8 @@ function LoginPageContent() {
                             <Image
                                 src="/images/logo.png"
                                 alt="Desh Panel"
-                                width={200}
-                                height={60}
+                                width={280}
+                                height={80}
                                 className="mx-auto"
                                 priority
                             />

@@ -1,15 +1,14 @@
 /**
- * PM2 Ecosystem Configuration
+ * PM2 Ecosystem Configuration - VPS 20 Optimized
  * 
- * Configures multiple workers for the beIN automation system.
- * Each worker runs independently with its own ID.
+ * Server: 6 vCPU, 12 GB RAM
+ * Workers: 8 × 8 Concurrency = 64 concurrent operations
  * 
  * Optimizations Applied:
- * - Lazy browser loading (browser launches on-demand)
+ * - HTTP Client mode (fast, no browser overhead)
  * - Shared Redis connection
- * - Idle timeout for auto-cleanup
  * - Increased concurrency per worker
- * - Reduced memory limits
+ * - Optimized memory limits
  * 
  * Usage:
  *   pm2 start ecosystem.config.js
@@ -17,85 +16,86 @@
  *   pm2 logs
  */
 
+const COMMON_ENV = {
+    USE_HTTP_CLIENT: 'true',
+    NODE_ENV: 'production',
+    WORKER_CONCURRENCY: '8',
+    WORKER_RATE_LIMIT: '50',
+    BROWSER_IDLE_TIMEOUT: '300000',
+    SESSION_CLEANUP_INTERVAL: '600000',
+};
+
+const COMMON_CONFIG = {
+    script: 'dist/index.js',
+    cwd: __dirname,
+    instances: 1,
+    exec_mode: 'fork',
+    max_memory_restart: '350M',
+    merge_logs: true,
+    time: true,
+    watch: false,
+    autorestart: true,
+    max_restarts: 10,
+    restart_delay: 5000,
+};
+
 module.exports = {
     apps: [
         {
             name: 'bein-worker-1',
-            script: 'dist/index.js',
-            cwd: __dirname,
-            env: {
-                WORKER_ID: 'worker-1',
-                USE_HTTP_CLIENT: 'true',        // Enable fast HTTP mode
-                WORKER_CONCURRENCY: '5',        // Increased from 3
-                WORKER_RATE_LIMIT: '30',
-                NODE_ENV: 'production',
-                // Browser idle timeout (5 minutes)
-                BROWSER_IDLE_TIMEOUT: '300000',
-                // Session cleanup interval (10 minutes)
-                SESSION_CLEANUP_INTERVAL: '600000',
-            },
-            instances: 1,
-            exec_mode: 'fork',
-            max_memory_restart: '400M',         // Reduced from 500M
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-1' },
             error_file: './logs/worker-1-error.log',
             out_file: './logs/worker-1-out.log',
-            merge_logs: true,
-            time: true,
-            // Auto restart settings
-            watch: false,
-            autorestart: true,
-            max_restarts: 10,
-            restart_delay: 5000,
         },
         {
             name: 'bein-worker-2',
-            script: 'dist/index.js',
-            cwd: __dirname,
-            env: {
-                WORKER_ID: 'worker-2',
-                USE_HTTP_CLIENT: 'true',        // Enable fast HTTP mode
-                WORKER_CONCURRENCY: '5',        // Increased from 3
-                WORKER_RATE_LIMIT: '30',
-                NODE_ENV: 'production',
-                BROWSER_IDLE_TIMEOUT: '300000',
-                SESSION_CLEANUP_INTERVAL: '600000',
-            },
-            instances: 1,
-            exec_mode: 'fork',
-            max_memory_restart: '400M',         // Reduced from 500M
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-2' },
             error_file: './logs/worker-2-error.log',
             out_file: './logs/worker-2-out.log',
-            merge_logs: true,
-            time: true,
-            watch: false,
-            autorestart: true,
-            max_restarts: 10,
-            restart_delay: 5000,
         },
         {
             name: 'bein-worker-3',
-            script: 'dist/index.js',
-            cwd: __dirname,
-            env: {
-                WORKER_ID: 'worker-3',
-                USE_HTTP_CLIENT: 'true',        // Enable fast HTTP mode
-                WORKER_CONCURRENCY: '5',        // Increased from 3
-                WORKER_RATE_LIMIT: '30',
-                NODE_ENV: 'production',
-                BROWSER_IDLE_TIMEOUT: '300000',
-                SESSION_CLEANUP_INTERVAL: '600000',
-            },
-            instances: 1,
-            exec_mode: 'fork',
-            max_memory_restart: '400M',         // Reduced from 500M
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-3' },
             error_file: './logs/worker-3-error.log',
             out_file: './logs/worker-3-out.log',
-            merge_logs: true,
-            time: true,
-            watch: false,
-            autorestart: true,
-            max_restarts: 10,
-            restart_delay: 5000,
+        },
+        {
+            name: 'bein-worker-4',
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-4' },
+            error_file: './logs/worker-4-error.log',
+            out_file: './logs/worker-4-out.log',
+        },
+        {
+            name: 'bein-worker-5',
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-5' },
+            error_file: './logs/worker-5-error.log',
+            out_file: './logs/worker-5-out.log',
+        },
+        {
+            name: 'bein-worker-6',
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-6' },
+            error_file: './logs/worker-6-error.log',
+            out_file: './logs/worker-6-out.log',
+        },
+        {
+            name: 'bein-worker-7',
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-7' },
+            error_file: './logs/worker-7-error.log',
+            out_file: './logs/worker-7-out.log',
+        },
+        {
+            name: 'bein-worker-8',
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-8' },
+            error_file: './logs/worker-8-error.log',
+            out_file: './logs/worker-8-out.log',
         },
     ],
 }

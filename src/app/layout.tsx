@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <body className={`${cairo.variable} font-arabic antialiased bg-gray-50`}>
+      <body className={`${cairo.variable} font-arabic antialiased bg-[#020617] text-slate-200`}>
         <Providers>
           {children}
           <Toaster position="top-center" richColors />

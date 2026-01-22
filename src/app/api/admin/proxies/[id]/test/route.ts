@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { ProxyAgent, fetch as undiciFetch } from 'undici'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -38,32 +41,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // Build session username (replace hyphens with underscores to avoid 407)
         const sanitizedSessionId = proxy.sessionId.replace(/-/g, '_')
         const sessionUsername = `${username}-session-${sanitizedSessionId}`
-        const proxyUrl = `http://${sessionUsername}:${password}@${host}:${port}`
 
         console.log(`Testing proxy: ${proxy.sessionId} -> ${host}:${port}`)
 
         const start = Date.now()
 
         try {
-            // Create ProxyAgent with TLS options to skip SSL verification
-            const proxyAgent = new ProxyAgent({
-                uri: proxyUrl,
-                connect: {
-                    rejectUnauthorized: false // Skip SSL certificate verification
-                }
-            })
+            // Use curl command - we know this works!
+            const curlCommand = `curl -k -s -x "http://${sessionUsername}:${password}@${host}:${port}" https://api.ipify.org?format=json --max-time 15`
 
-            // Use undici fetch with proxy
-            const response = await undiciFetch('https://api.ipify.org?format=json', {
-                dispatcher: proxyAgent,
-                signal: AbortSignal.timeout(15000)
-            })
+            const { stdout, stderr } = await execAsync(curlCommand)
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`)
+            if (stderr && !stdout) {
+                throw new Error(stderr)
             }
 
-            const data = await response.json() as { ip: string }
+            const data = JSON.parse(stdout.trim()) as { ip: string }
             const duration = Date.now() - start
             const ip = data.ip
 
@@ -77,9 +70,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                     failureCount: 0
                 }
             })
-
-            // Close the proxy agent
-            await proxyAgent.close()
 
             return NextResponse.json({
                 success: true,

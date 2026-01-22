@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { requireAuth } from '@/lib/auth-utils'
 import TransactionsTable from '@/components/transactions/TransactionsTable'
-import { CreditCard } from 'lucide-react'
+import { Wallet } from 'lucide-react'
 
 export const metadata = {
     title: 'المعاملات المالية | beIN Panel',
@@ -14,13 +14,15 @@ export default async function TransactionsPage() {
     return (
         <div className="space-y-6" dir="rtl">
             {/* Page Header */}
-            <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                    <CreditCard className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">المعاملات المالية</h1>
-                    <p className="text-muted-foreground text-sm">سجل جميع حركات الرصيد (شحن، سحب، عمليات)</p>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4 w-full sm:w-auto">
+                    <div className="w-12 h-12 rounded-full bg-[#3B82F6] flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+                        <Wallet className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold text-foreground">المعاملات المالية</h1>
+                        <p className="text-muted-foreground text-sm font-medium">سجل دفع حركات الرصيد (شراء، سحب، عمليات)</p>
+                    </div>
                 </div>
             </div>
 

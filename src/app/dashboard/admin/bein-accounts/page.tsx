@@ -39,7 +39,6 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { useTranslation } from '@/hooks/useTranslation'
 
 interface BeinAccount {
     id: string
@@ -58,8 +57,20 @@ interface BeinAccount {
     lastErrorAt: string | null
     createdAt: string
     operationsCount: number
-    dealerBalance: number | null       // beIN dealer balance
-    balanceUpdatedAt: string | null    // When balance was updated
+    dealerBalance: number | null
+    balanceUpdatedAt: string | null
+    proxyId: string | null
+    proxy?: {
+        sessionId: string
+        label: string | null
+    }
+}
+
+interface Proxy {
+    id: string
+    sessionId: string
+    label: string | null
+    isActive: boolean
 }
 
 interface PoolStatus {
@@ -71,22 +82,22 @@ interface PoolStatus {
 }
 
 export default function BeinAccountsPage() {
-    const { t } = useTranslation()
     const { data: session, status } = useSession()
     const router = useRouter()
     const [accounts, setAccounts] = useState<BeinAccount[]>([])
     const [poolStatus, setPoolStatus] = useState<PoolStatus | null>(null)
+    const [proxies, setProxies] = useState<Proxy[]>([])
     const [loading, setLoading] = useState(true)
     const [addDialogOpen, setAddDialogOpen] = useState(false)
     const [editAccount, setEditAccount] = useState<BeinAccount | null>(null)
 
-    // Form state
     const [formData, setFormData] = useState({
         username: '',
         password: '',
         totpSecret: '',
         label: '',
-        priority: 0
+        priority: 0,
+        proxyId: ''
     })
 
     const fetchAccounts = useCallback(async () => {
@@ -104,15 +115,28 @@ export default function BeinAccountsPage() {
         }
     }, [])
 
+    const fetchProxies = useCallback(async () => {
+        try {
+            const res = await fetch('/api/admin/proxies')
+            const data = await res.json()
+            if (data.success) {
+                setProxies(data.proxies)
+            }
+        } catch (e) {
+            console.error(e)
+        }
+    }, [])
+
     useEffect(() => {
         if (status === 'authenticated') {
             if (session?.user?.role !== 'ADMIN') {
                 router.push('/dashboard')
             } else {
                 fetchAccounts()
+                fetchProxies()
             }
         }
-    }, [status, session, router, fetchAccounts])
+    }, [status, session, router, fetchAccounts, fetchProxies])
 
     const handleAddAccount = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -126,7 +150,7 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 toast.success('تم إضافة الحساب بنجاح')
                 setAddDialogOpen(false)
-                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0 })
+                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, proxyId: '' })
                 fetchAccounts()
             } else {
                 toast.error(data.error)
@@ -149,7 +173,7 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 toast.success('تم تحديث الحساب بنجاح')
                 setEditAccount(null)
-                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0 })
+                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, proxyId: '' })
                 fetchAccounts()
             } else {
                 toast.error(data.error)
@@ -299,6 +323,24 @@ export default function BeinAccountsPage() {
                                         onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
                                     />
                                 </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="proxyId">البروكسي (Proxy)</Label>
+                                    <select
+                                        id="proxyId"
+                                        title="اختر البروكسي"
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                        value={formData.proxyId}
+                                        onChange={(e) => setFormData({ ...formData, proxyId: e.target.value })}
+                                    >
+                                        <option value="">-- بدون بروكسي --</option>
+                                        {proxies.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.label ? `${p.label} (${p.sessionId})` : p.sessionId}
+                                                {!p.isActive ? ' (معطل)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <DialogFooter>
                                     <DialogClose asChild>
                                         <Button type="button" variant="outline">إلغاء</Button>
@@ -360,6 +402,7 @@ export default function BeinAccountsPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>الحساب</TableHead>
+                                <TableHead className="text-center">البروكسي</TableHead>
                                 <TableHead className="text-center">الحالة</TableHead>
                                 <TableHead className="text-center">الأولوية</TableHead>
                                 <TableHead className="text-center">رصيد beIN</TableHead>
@@ -372,7 +415,7 @@ export default function BeinAccountsPage() {
                         <TableBody>
                             {accounts.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                                         لا توجد حسابات. أضف حسابك الأول!
                                     </TableCell>
                                 </TableRow>
@@ -386,6 +429,15 @@ export default function BeinAccountsPage() {
                                                     <div className="text-sm text-muted-foreground">{account.username}</div>
                                                 )}
                                             </div>
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {account.proxy ? (
+                                                <Badge variant="outline" className="font-mono text-xs">
+                                                    {account.proxy.label || account.proxy.sessionId}
+                                                </Badge>
+                                            ) : (
+                                                <span className="text-muted-foreground text-xs">-</span>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-center">{getStatusBadge(account)}</TableCell>
                                         <TableCell className="text-center">{account.priority}</TableCell>
@@ -444,7 +496,8 @@ export default function BeinAccountsPage() {
                                                             password: '',
                                                             totpSecret: '',
                                                             label: account.label || '',
-                                                            priority: account.priority
+                                                            priority: account.priority,
+                                                            proxyId: account.proxyId || ''
                                                         })
                                                     }}
                                                     title="تعديل"
@@ -471,7 +524,7 @@ export default function BeinAccountsPage() {
             </Card>
 
             {/* Edit Dialog */}
-            <Dialog open={!!editAccount} onOpenChange={(open: boolean) => !open && setEditAccount(null)}>
+            <Dialog open={!!editAccount} onOpenChange={(open) => !open && setEditAccount(null)}>
                 <DialogContent dir="rtl">
                     <DialogHeader>
                         <DialogTitle>تعديل الحساب</DialogTitle>
@@ -516,6 +569,24 @@ export default function BeinAccountsPage() {
                                 value={formData.priority}
                                 onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-proxyId">البروكسي (Proxy)</Label>
+                            <select
+                                id="edit-proxyId"
+                                title="اختر البروكسي"
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                value={formData.proxyId}
+                                onChange={(e) => setFormData({ ...formData, proxyId: e.target.value })}
+                            >
+                                <option value="">-- بدون بروكسي --</option>
+                                {proxies.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.label ? `${p.label} (${p.sessionId})` : p.sessionId}
+                                        {!p.isActive ? ' (معطل)' : ''}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <DialogFooter>
                             <DialogClose asChild>

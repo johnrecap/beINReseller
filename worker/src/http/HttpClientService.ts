@@ -19,6 +19,7 @@ import * as cheerio from 'cheerio';
 import https from 'https';
 import { prisma } from '../lib/prisma';
 import { TOTPGenerator } from '../utils/totp-generator';
+import { getProxyManager } from '../utils/proxy-manager';
 import {
     HiddenFields,
     BeINHttpConfig,
@@ -46,6 +47,9 @@ export class HttpClientService {
     private lastLoginTime: Date | null = null;
     private sessionValid: boolean = false;
 
+    // Proxy session ID for sticky IP
+    private proxySessionId: string | null = null;
+
     // Config caching
     private static configCache: { data: BeINHttpConfig; timestamp: number } | null = null;
     private static readonly CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -62,20 +66,32 @@ export class HttpClientService {
         'Upgrade-Insecure-Requests': '1'
     };
 
-    constructor() {
+    constructor(proxySessionId?: string) {
         this.jar = new CookieJar();
         this.totp = new TOTPGenerator();
+        this.proxySessionId = proxySessionId || null;
 
-        // Create axios instance with cookie support
-        // Note: Cannot use custom httpsAgent with axios-cookiejar-support
-        this.axios = wrapper(axios.create({
+        // Build axios config
+        const axiosConfig: Record<string, unknown> = {
             jar: this.jar,
             withCredentials: true,
             headers: HttpClientService.BROWSER_HEADERS,
             timeout: 30000,
             maxRedirects: 5,
-            validateStatus: (status) => status < 500 // Accept redirects
-        }));
+            validateStatus: (status: number) => status < 500
+        };
+
+        // Add proxy if enabled and session provided
+        const proxyManager = getProxyManager();
+        if (proxySessionId && proxyManager.isEnabled()) {
+            const httpsAgent = proxyManager.getProxyAgent(proxySessionId);
+            axiosConfig.httpsAgent = httpsAgent;
+            axiosConfig.proxy = false; // Disable axios built-in proxy
+            console.log(`[HTTP] Using proxy session: ${proxyManager.getMaskedProxyUrl(proxySessionId)}`);
+        }
+
+        // Create axios instance with cookie support
+        this.axios = wrapper(axios.create(axiosConfig));
 
         // Configure automatic retry
         axiosRetry(this.axios, {

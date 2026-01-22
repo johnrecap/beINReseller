@@ -73,14 +73,18 @@ export default function OperationsTable({
 
     const sortedOperations = [...operations].sort((a, b) => {
         const { key, direction } = sortConfig
-        let aValue: any = a[key as keyof Operation]
-        let bValue: any = b[key as keyof Operation]
+        let aValue: string | number | undefined
+        let bValue: string | number | undefined
 
         if (key === 'date') {
             aValue = new Date(a.createdAt).getTime()
             bValue = new Date(b.createdAt).getTime()
+        } else {
+            aValue = a[key as keyof Operation] as string | number | undefined
+            bValue = b[key as keyof Operation] as string | number | undefined
         }
 
+        if (aValue === undefined || bValue === undefined) return 0
         if (aValue < bValue) return direction === 'asc' ? -1 : 1
         if (aValue > bValue) return direction === 'asc' ? 1 : -1
         return 0
@@ -328,6 +332,7 @@ export default function OperationsTable({
                         <button
                             onClick={() => onPageChange(page - 1)}
                             disabled={page <= 1}
+                            aria-label="الصفحة السابقة"
                             className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             <ChevronRight className="w-4 h-4" />
@@ -339,6 +344,7 @@ export default function OperationsTable({
                         <button
                             onClick={() => onPageChange(page + 1)}
                             disabled={page >= totalPages}
+                            aria-label="الصفحة التالية"
                             className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             <ChevronLeft className="w-4 h-4" />

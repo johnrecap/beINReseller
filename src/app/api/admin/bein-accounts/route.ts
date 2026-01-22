@@ -26,6 +26,9 @@ export async function GET() {
             include: {
                 _count: {
                     select: { operations: true }
+                },
+                proxy: {
+                    select: { sessionId: true, label: true }
                 }
             }
         })
@@ -54,7 +57,9 @@ export async function GET() {
                 dealerBalance: (account as unknown as Record<string, unknown>).dealerBalance ?? null,
                 balanceUpdatedAt: (account as unknown as Record<string, unknown>).balanceUpdatedAt ?? null,
                 successRate: Math.round(successRate * 100) / 100,
-                operationsCount: account._count.operations
+                operationsCount: account._count.operations,
+                proxyId: account.proxyId,
+                proxy: account.proxy
             }
         })
 

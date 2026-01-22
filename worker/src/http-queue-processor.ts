@@ -39,14 +39,20 @@ const httpClients = new Map<string, HttpClientService>();
 
 /**
  * Get or create HTTP client for an account
+ * Includes proxy session if the account has one assigned
  */
-async function getHttpClient(account: BeinAccount): Promise<HttpClientService> {
-    let client = httpClients.get(account.id);
+async function getHttpClient(account: BeinAccount & { proxy?: { sessionId: string } | null }): Promise<HttpClientService> {
+    // Include proxy session in cache key to separate clients per proxy
+    const cacheKey = account.proxyId ? `${account.id}:${account.proxyId}` : account.id;
+    let client = httpClients.get(cacheKey);
 
     if (!client) {
-        client = new HttpClientService();
+        // Get proxy session from account's relation
+        const proxySession = account.proxy?.sessionId;
+        client = new HttpClientService(proxySession);
         await client.initialize();
-        httpClients.set(account.id, client);
+        httpClients.set(cacheKey, client);
+        console.log(`[HTTP] Created client for ${account.username}${proxySession ? ` with proxy ${proxySession}` : ' without proxy'}`);
     }
 
     return client;

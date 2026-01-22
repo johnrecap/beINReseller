@@ -103,7 +103,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         const { id } = await params
         const body = await request.json()
-        const { password, totpSecret, label, priority, isActive } = body
+        const { password, totpSecret, label, priority, isActive, proxyId } = body
 
         // Check if account exists
         const existing = await prisma.beinAccount.findUnique({
@@ -135,6 +135,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             if (isActive === true) {
                 updateData.consecutiveFailures = 0
             }
+        }
+        if (proxyId !== undefined) {
+            updateData.proxyId = proxyId || null
         }
 
         const account = await prisma.beinAccount.update({

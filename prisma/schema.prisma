@@ -214,6 +214,10 @@ model BeinAccount {
   operations    Operation[]
   sessions      BeinAccountSession[]
 
+  // ===== Proxy Assignment =====
+  proxyId       String?  @map("proxy_id")
+  proxy         Proxy?   @relation(fields: [proxyId], references: [id])
+
   @@index([isActive])
   @@index([cooldownUntil])
   @@index([priority])
@@ -242,4 +246,30 @@ model BeinAccountSession {
   @@index([accountId])
   @@index([isValid, expiresAt])
   @@map("bein_account_sessions")
+}
+
+model Proxy {
+  id            String   @id @default(cuid())
+  
+  // ===== Identification =====
+  sessionId     String   @unique @map("session_id")
+  label         String?
+  
+  // ===== Status =====
+  isActive      Boolean  @default(true) @map("is_active")
+  lastTestedAt  DateTime? @map("last_tested_at")
+  lastIp        String?   @map("last_ip")
+  
+  // ===== Health =====
+  responseTimeMs Int?     @map("response_time_ms")
+  failureCount   Int      @default(0) @map("failure_count")
+  
+  // ===== Timestamps =====
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  // ===== Relations =====
+  accounts      BeinAccount[]
+  
+  @@map("proxies")
 }

@@ -65,6 +65,9 @@ export class AccountPoolManager {
                     { cooldownUntil: { lte: new Date() } },
                 ],
             },
+            include: {
+                proxy: true,  // Include proxy relation for session ID
+            },
             orderBy: [
                 { priority: 'desc' },
                 { lastUsedAt: 'asc' }, // Least recently used first

@@ -49,6 +49,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                 <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-2 px-1">{t.history.type}</label>
                     <select
+                        title={t.history.type}
                         value={filters.type}
                         onChange={(e) => handleChange('type', e.target.value)}
                         className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] focus:outline-none text-sm transition-all"
@@ -64,6 +65,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                 <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-2 px-1">{t.history.status}</label>
                     <select
+                        title={t.history.status}
                         value={filters.status}
                         onChange={(e) => handleChange('status', e.target.value)}
                         className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] focus:outline-none text-sm transition-all"
@@ -82,6 +84,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                         type="date"
                         value={filters.from}
                         onChange={(e) => handleChange('from', e.target.value)}
+                        aria-label={t.history.fromDate}
                         className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] focus:outline-none text-sm transition-all"
                     />
                 </div>
@@ -93,6 +96,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                         type="date"
                         value={filters.to}
                         onChange={(e) => handleChange('to', e.target.value)}
+                        aria-label={t.history.toDate}
                         className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] focus:outline-none text-sm transition-all"
                     />
                 </div>

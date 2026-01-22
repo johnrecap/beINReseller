@@ -66,7 +66,7 @@ export function ContractsTable({ contracts }: ContractsTableProps) {
     }
 
     return (
-        <div className="mt-8 bg-gray-900/40 rounded-xl border border-gray-800 overflow-hidden shadow-sm backdrop-blur-sm">
+        <div className="mt-8 bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border-default)] overflow-hidden shadow-sm">
             {/* Header */}
             <div className="px-5 py-4 bg-gray-900/60 border-b border-gray-800 flex items-center justify-between">
                 <h3 className="text-base font-bold text-gray-100 flex items-center gap-2.5">

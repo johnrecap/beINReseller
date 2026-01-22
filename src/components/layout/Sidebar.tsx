@@ -70,7 +70,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "fixed top-0 bottom-0 z-50 w-72 transition-transform duration-300 ease-in-out bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl lg:shadow-none",
+                    "fixed top-0 bottom-0 z-[var(--z-modal)] w-[var(--sidebar-width)] transition-transform duration-300 ease-in-out bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl lg:shadow-none",
                     dir === 'rtl' ? "right-0 border-l border-r-0" : "left-0",
                     isOpen ? "translate-x-0" : (dir === 'rtl' ? "translate-x-full" : "-translate-x-full"),
                     "lg:translate-x-0"

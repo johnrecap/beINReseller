@@ -15,20 +15,20 @@ export default function DashboardShell({ children }: DashboardShellProps) {
     const { t, dir } = useTranslation()
 
     return (
-        <div className="min-h-screen bg-background" dir={dir}>
+        <div className="min-h-screen bg-[var(--color-bg-main)]" dir={dir}>
             {/* Sidebar */}
             <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
             {/* Main Content Area */}
             <div className={cn(
                 "min-h-screen transition-all duration-300",
-                dir === 'rtl' ? "lg:mr-72" : "lg:ml-72"
+                dir === 'rtl' ? "lg:mr-[var(--sidebar-width)]" : "lg:ml-[var(--sidebar-width)]"
             )}>
                 {/* Header */}
                 <Header title={t.common.controlPanel} onMenuClick={() => setSidebarOpen(true)} />
 
                 {/* Page Content */}
-                <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
+                <main className="p-[var(--page-padding-mobile)] lg:p-[var(--page-padding)] max-w-[var(--content-max-width)] mx-auto">
                     {children}
                 </main>
             </div>

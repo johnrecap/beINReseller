@@ -1,6 +1,6 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { StatCard } from '@/components/ui/StatCard'
 import { Wallet, Activity, Clock, TrendingUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
@@ -83,25 +83,17 @@ export default function StatsCards() {
 
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {cards.map((card, i) => {
-                const Icon = card.icon
-                return (
-                    <Card key={i}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">
-                                {card.title}
-                            </CardTitle>
-                            <Icon className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{card.value}</div>
-                            <p className="text-xs text-muted-foreground">
-                                {card.desc}
-                            </p>
-                        </CardContent>
-                    </Card>
-                )
-            })}
+            {cards.map((card, i) => (
+                <StatCard
+                    key={i}
+                    title={card.title}
+                    value={card.value}
+                    icon={card.icon}
+                    description={card.desc}
+                    className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+                    trend={card.title === t?.dashboard?.successRate ? 'up' : undefined}
+                />
+            ))}
         </div>
     )
 }

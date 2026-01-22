@@ -23,25 +23,7 @@ export async function GET() {
                 { priority: 'desc' },
                 { createdAt: 'asc' }
             ],
-            select: {
-                id: true,
-                username: true,
-                label: true,
-                isActive: true,
-                priority: true,
-                lastUsedAt: true,
-                usageCount: true,
-                cooldownUntil: true,
-                consecutiveFailures: true,
-                totalFailures: true,
-                totalSuccess: true,
-                lastError: true,
-                lastErrorAt: true,
-                createdAt: true,
-                updatedAt: true,
-                dealerBalance: true,
-                balanceUpdatedAt: true,
-                // Count operations for this account
+            include: {
                 _count: {
                     select: { operations: true }
                 }
@@ -54,10 +36,25 @@ export async function GET() {
             const successRate = total > 0 ? (account.totalSuccess / total) * 100 : 100
 
             return {
-                ...account,
+                id: account.id,
+                username: account.username,
+                label: account.label,
+                isActive: account.isActive,
+                priority: account.priority,
+                lastUsedAt: account.lastUsedAt,
+                usageCount: account.usageCount,
+                cooldownUntil: account.cooldownUntil,
+                consecutiveFailures: account.consecutiveFailures,
+                totalFailures: account.totalFailures,
+                totalSuccess: account.totalSuccess,
+                lastError: account.lastError,
+                lastErrorAt: account.lastErrorAt,
+                createdAt: account.createdAt,
+                updatedAt: account.updatedAt,
+                dealerBalance: (account as unknown as Record<string, unknown>).dealerBalance ?? null,
+                balanceUpdatedAt: (account as unknown as Record<string, unknown>).balanceUpdatedAt ?? null,
                 successRate: Math.round(successRate * 100) / 100,
-                operationsCount: account._count.operations,
-                _count: undefined
+                operationsCount: account._count.operations
             }
         })
 

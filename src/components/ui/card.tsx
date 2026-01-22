@@ -4,17 +4,26 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: 'primary' | 'glass' | 'flat'
   hover?: boolean
 }
 
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
-  ({ className, hover = false, ...props }, ref) => {
+  ({ className, variant = 'primary', hover = false, ...props }, ref) => {
+
+    const variants = {
+      primary: 'bg-[var(--color-bg-card)] border border-[var(--color-border-default)] shadow-[var(--shadow-card)]',
+      glass: 'bg-[var(--color-bg-card)]/50 border border-white/5 shadow-sm', // No backdrop-blur per rules
+      flat: 'bg-[var(--color-bg-elevated)] border-0 shadow-none'
+    }
+
     return (
       <div
         ref={ref}
         className={cn(
-          "rounded-xl border bg-card text-card-foreground shadow-sm",
-          hover && "transition-shadow hover:shadow-md",
+          "rounded-[var(--radius-lg)] text-[var(--color-text-primary)]",
+          variants[variant],
+          hover && "transition-transform duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]",
           className
         )}
         {...props}
@@ -27,7 +36,7 @@ Card.displayName = "Card"
 function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex flex-col space-y-1.5 p-6", className)}
+      className={cn("flex flex-col space-y-1.5 p-[var(--space-6)]", className)}
       {...props}
     />
   )
@@ -36,7 +45,7 @@ function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement
 function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("font-semibold leading-none tracking-tight", className)}
+      className={cn("text-[var(--font-size-2xl)] font-bold leading-none tracking-tight", className)}
       {...props}
     />
   )
@@ -45,7 +54,7 @@ function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>
 function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-[var(--font-size-sm)] text-[var(--color-text-secondary)]", className)}
       {...props}
     />
   )
@@ -53,14 +62,14 @@ function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 
 function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("p-6 pt-0", className)} {...props} />
+    <div className={cn("p-[var(--space-6)] pt-0", className)} {...props} />
   )
 }
 
 function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex items-center p-6 pt-0", className)}
+      className={cn("flex items-center p-[var(--space-6)] pt-0", className)}
       {...props}
     />
   )

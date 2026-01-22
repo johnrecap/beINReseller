@@ -12,7 +12,7 @@ interface HeaderProps {
 
 export default function Header({ title, onMenuClick }: HeaderProps) {
     return (
-        <header className="h-16 bg-card/80 backdrop-blur-lg border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 transition-colors duration-300">
+        <header className="h-[var(--header-height)] bg-[var(--color-bg-card)] border-b border-[var(--color-border-default)] flex items-center justify-between px-4 lg:px-6 sticky top-0 z-[var(--z-header)] transition-colors duration-300">
             {/* Right Side - Menu + Title */}
             <div className="flex items-center gap-3">
                 <MobileMenuButton onClick={onMenuClick} />

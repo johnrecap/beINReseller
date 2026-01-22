@@ -1,5 +1,6 @@
 /* Font is loaded via next/font in layout.tsx - DO NOT use @import here */
 @import "tailwindcss";
+@import "../styles/tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -184,11 +185,11 @@
  */
 
 :root {
-  /* Desh Brand Colors */
-  --desh-bg: #0f1218;
-  --desh-card: #1a1d26;
-  --desh-green: #00A651;
-  --desh-green-dark: #008f45;
+  /* Desh Brand Colors - Reference from tokens.css */
+  --desh-bg: var(--color-bg-main);
+  --desh-card: var(--color-bg-card);
+  --desh-green: var(--color-primary-green);
+  --desh-green-dark: var(--color-primary-green-dark);
 }
 
 /* Video Background Container */

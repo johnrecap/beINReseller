@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import axios from 'axios'
-import { HttpsProxyAgent } from 'https-proxy-agent'
+import { ProxyAgent, fetch as undiciFetch } from 'undici'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -26,7 +25,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: 'البروكسي غير موجود' }, { status: 404 })
         }
 
-        // Construct proxy URL
+        // Get proxy config from env
         const host = process.env.PROXY_HOST || 'brd.superproxy.io'
         const port = process.env.PROXY_PORT || '33335'
         const username = process.env.PROXY_USERNAME
@@ -36,9 +35,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: 'إعدادات البروكسي غير مكتملة في السيرفر' }, { status: 500 })
         }
 
-        // Construct session-based username
-        // Format: username-session-sessionId
-        // Note: Session ID must not contain hyphens (causes 407), replace with underscores
+        // Build session username (replace hyphens with underscores to avoid 407)
         const sanitizedSessionId = proxy.sessionId.replace(/-/g, '_')
         const sessionUsername = `${username}-session-${sanitizedSessionId}`
         const proxyUrl = `http://${sessionUsername}:${password}@${host}:${port}`
@@ -48,38 +45,45 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const start = Date.now()
 
         try {
-            const proxyAgent = new HttpsProxyAgent(proxyUrl, {
-                rejectUnauthorized: false // Skip SSL verification for proxy
+            // Create ProxyAgent with TLS options to skip SSL verification
+            const proxyAgent = new ProxyAgent({
+                uri: proxyUrl,
+                connect: {
+                    rejectUnauthorized: false // Skip SSL certificate verification
+                }
             })
 
-            // ipify to check IP  
-            const res = await axios.get('https://api.ipify.org?format=json', {
-                httpsAgent: proxyAgent,
-                timeout: 10000, // 10s timeout
-                proxy: false // Disable axios built-in proxy to use our agent
+            // Use undici fetch with proxy
+            const response = await undiciFetch('https://api.ipify.org?format=json', {
+                dispatcher: proxyAgent,
+                signal: AbortSignal.timeout(15000)
             })
 
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`)
+            }
+
+            const data = await response.json() as { ip: string }
             const duration = Date.now() - start
-            const ip = res.data.ip
+            const ip = data.ip
 
-            // Update proxy stats
+            // Update proxy stats on success
             await prisma.proxy.update({
                 where: { id },
                 data: {
                     lastTestedAt: new Date(),
                     lastIp: ip,
                     responseTimeMs: duration,
-                    failureCount: 0 // Reset failures on success
+                    failureCount: 0
                 }
             })
 
+            // Close the proxy agent
+            await proxyAgent.close()
+
             return NextResponse.json({
                 success: true,
-                result: {
-                    ip,
-                    duration,
-                    sessionId: proxy.sessionId
-                }
+                result: { ip, duration, sessionId: proxy.sessionId }
             })
 
         } catch (connError: unknown) {

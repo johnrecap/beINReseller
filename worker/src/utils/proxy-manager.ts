@@ -43,6 +43,7 @@ export class ProxyManager {
 
     /**
      * Get HttpsProxyAgent for axios/node requests
+     * NOTE: SSL verification is disabled globally via NODE_TLS_REJECT_UNAUTHORIZED=0
      * @param sessionId - Unique session identifier for sticky IP
      */
     getProxyAgent(sessionId: string): HttpsProxyAgent<string> {

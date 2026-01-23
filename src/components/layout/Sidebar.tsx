@@ -32,7 +32,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname()
-    const { data: session } = useSession()
+    const { data: session, status } = useSession()
     const { t, dir } = useTranslation()
     const isAdmin = session?.user?.role === 'ADMIN'
 
@@ -46,19 +46,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
         { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },
     ].filter(() => !isManager) // Hide reseller links from managers if desired, or keep them. 
-    // Requirement says: "User elements: renew, history" - usually managers can do valid user ops too? 
-    // "Admin elements... Manager elements... User elements..." implied separation.
-    // Let's keep typical user links for everyone (User/Manager/Admin often can do basic stuff) 
-    // OR strictly separate. 
-    // "Hide unauthorized elements": 
-    // Admin sees Admin stuff. Manager sees Manager stuff. User sees User stuff.
-    // Does Manager need to see "Renew"? Probably yes, to act on behalf? 
-    // Or Manager only manages users?
-    // Based on "Manager Dashboard" having "Create User", Manager is likely a hierarchical parent.
-    // Prompt says: "Manager elements: Dashboard, Create Users". "User elements: Renew, operations log".
-    // I will assume Manager has access to their specific dashboard AND basic profile stuff, but maybe not "Renew" for themselves if they are just managers?
-    // Actually, usually Managers are also Resellers with extra powers.
-    // Let's add Manager Links list.
+
+    // ... (rest of links arrays)
 
     const managerLinks = [
         { href: '/dashboard/manager', label: 'لوحة المدير', icon: BarChart3 },
@@ -79,6 +68,56 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const handleLogout = async () => {
         await signOut({ callbackUrl: '/login' })
+    }
+
+    // Sidebar Skeleton
+    if (status === 'loading') {
+        return (
+            <>
+                {/* Overlay for mobile */}
+                {isOpen && (
+                    <div
+                        className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                        onClick={onClose}
+                    />
+                )}
+
+                <aside
+                    className={cn(
+                        "fixed top-0 bottom-0 z-[var(--z-modal)] w-[var(--sidebar-width)] transition-transform duration-300 ease-in-out bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl lg:shadow-none",
+                        dir === 'rtl' ? "right-0 border-l border-r-0" : "left-0",
+                        isOpen ? "translate-x-0" : (dir === 'rtl' ? "translate-x-full" : "-translate-x-full"),
+                        "lg:translate-x-0"
+                    )}
+                    dir={dir}
+                >
+                    <div className="flex h-full flex-col animate-pulse">
+                        {/* Header */}
+                        <div className="flex h-16 items-center px-6 border-b border-sidebar-border">
+                            <span className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                                📺 beIN Panel
+                            </span>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6">
+                            {[...Array(5)].map((_, i) => (
+                                <div key={i} className="h-10 bg-sidebar-accent/50 rounded-md w-full mb-2"></div>
+                            ))}
+                        </div>
+
+                        <div className="border-t border-sidebar-border p-4 bg-sidebar-accent/30">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="h-9 w-9 rounded-full bg-sidebar-accent/50"></div>
+                                <div className="flex flex-col gap-2 flex-1">
+                                    <div className="h-3 bg-sidebar-accent/50 rounded w-2/3"></div>
+                                    <div className="h-2 bg-sidebar-accent/50 rounded w-1/3"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </>
+        )
     }
 
     return (

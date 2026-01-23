@@ -32,7 +32,7 @@ export async function GET(request: Request) {
         // If admin, can see all or filter by manager_id param
         const whereManager = userRole === 'ADMIN' ? {} : { managerId }
 
-        const where: any = {
+        const where: Record<string, unknown> = {
             ...whereManager
         }
 
@@ -125,7 +125,22 @@ export async function POST(request: Request) {
 
         const hashedPassword = await hash(password, 12)
 
-        // Transaction: Create User + Link to Manager
+        // Check if manager has enough balance to transfer
+        if (balance > 0) {
+            const managerData = await prisma.user.findUnique({
+                where: { id: manager.id },
+                select: { balance: true }
+            })
+
+            if (!managerData || managerData.balance < balance) {
+                return NextResponse.json(
+                    { error: `رصيدك غير كافي. رصيدك الحالي: $${managerData?.balance.toFixed(2) || 0}` },
+                    { status: 400 }
+                )
+            }
+        }
+
+        // Transaction: Create User + Link to Manager + Deduct Balance
         const newUser = await prisma.$transaction(async (tx) => {
             // 1. Create User
             const user = await tx.user.create({
@@ -147,12 +162,47 @@ export async function POST(request: Request) {
                 }
             })
 
-            // 3. Log Activity
+            // 3. Deduct balance from manager if giving initial balance
+            if (balance > 0) {
+                await tx.user.update({
+                    where: { id: manager.id },
+                    data: { balance: { decrement: balance } }
+                })
+
+                // 4. Log the balance transfer as transaction
+                await tx.transaction.create({
+                    data: {
+                        userId: user.id,
+                        type: 'DEPOSIT',
+                        amount: balance,
+                        notes: `رصيد أولي من المدير ${manager.username}`,
+                        balanceAfter: balance
+                    }
+                })
+
+                // Log manager side transaction (withdrawal)
+                const managerData = await tx.user.findUnique({
+                    where: { id: manager.id },
+                    select: { balance: true }
+                })
+
+                await tx.transaction.create({
+                    data: {
+                        userId: manager.id,
+                        type: 'WITHDRAW',
+                        amount: balance,
+                        notes: `تحويل رصيد للمستخدم الجديد ${username}`,
+                        balanceAfter: managerData?.balance || 0
+                    }
+                })
+            }
+
+            // 5. Log Activity
             await tx.activityLog.create({
                 data: {
                     userId: manager.id,
                     action: 'MANAGER_CREATE_USER',
-                    details: { createdUserId: user.id, username: user.username },
+                    details: { createdUserId: user.id, username: user.username, initialBalance: balance },
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
                 }
             })

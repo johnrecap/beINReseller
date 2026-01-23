@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireRoleAPI } from '@/lib/auth-utils'
 
-export async function GET(request: Request) {
+export async function GET() {
     try {
         const authResult = await requireRoleAPI('MANAGER')
         if ('error' in authResult) {
@@ -79,6 +79,7 @@ export async function GET(request: Request) {
                 usersCount,
                 actionsCount,
                 totalBalance,
+                managerBalance: user.balance, // Manager's own balance
                 actionsByType
             },
             recentUsers: managedUsers.map(record => ({

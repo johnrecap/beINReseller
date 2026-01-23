@@ -251,16 +251,19 @@ model BeinAccountSession {
 model Proxy {
   id            String   @id @default(cuid())
   
-  // ===== Identification =====
-  sessionId     String   @unique @map("session_id")
-  label         String?
+  // ===== Connection Info (REQUIRED for manual proxy) =====
+  host          String   @map("host")              // e.g. "149.87.157.84"
+  port          Int      @map("port")              // e.g. 8080
+  username      String?  @map("username")          // Optional auth
+  password      String?  @map("password")          // Optional auth
   
-  // ===== Status =====
+  // ===== Metadata =====
+  label         String                             // e.g. "Main Proxy"
   isActive      Boolean  @default(true) @map("is_active")
+  
+  // ===== Health & Monitoring =====
   lastTestedAt  DateTime? @map("last_tested_at")
   lastIp        String?   @map("last_ip")
-  
-  // ===== Health =====
   responseTimeMs Int?     @map("response_time_ms")
   failureCount   Int      @default(0) @map("failure_count")
   

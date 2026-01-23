@@ -7,7 +7,7 @@ import { hasRole, RoleLevel } from '@/lib/auth-utils'
 
 // Context type for App Router handlers
 export interface RouteContext {
-    params: Record<string, string | string[]>
+    params: Promise<Record<string, string | string[]>>
 }
 
 // Type for the wrapped handler (authenticated)

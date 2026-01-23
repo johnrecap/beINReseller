@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Loader2, AlertTriangle } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
+
+const EMAIL_DOMAIN = "@deshpanel.com"
 
 interface CreateUserDialogProps {
     isOpen: boolean
@@ -14,16 +16,50 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
     const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [emailWarning, setEmailWarning] = useState("")
+    const [username, setUsername] = useState("")
+    const [email, setEmail] = useState("")
+    const emailInputRef = useRef<HTMLInputElement>(null)
+
+    // Auto-generate email from username
+    useEffect(() => {
+        if (username && username.length >= 3) {
+            const suggestedEmail = `${username}${EMAIL_DOMAIN}`
+            if (!email || !email.endsWith(EMAIL_DOMAIN)) {
+                setEmail(suggestedEmail)
+            }
+        }
+    }, [username, email])
+
+    // Show warning for non-standard email format
+    useEffect(() => {
+        if (email && email.length > 0) {
+            if (!email.endsWith(EMAIL_DOMAIN)) {
+                setEmailWarning(`الصيغة الصحيحة: اسم_المستخدم${EMAIL_DOMAIN}`)
+            } else {
+                setEmailWarning("")
+            }
+        } else {
+            setEmailWarning("")
+        }
+    }, [email])
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
+
+        // Validate email format
+        if (!email.endsWith(EMAIL_DOMAIN)) {
+            setError(`البريد الإلكتروني يجب أن ينتهي بـ ${EMAIL_DOMAIN}`)
+            return
+        }
+
         setLoading(true)
         setError(null)
 
         const formData = new FormData(e.currentTarget)
         const data = {
             username: formData.get('username') as string,
-            email: formData.get('email') as string,
+            email: email,
             password: formData.get('password') as string,
             role: formData.get('role') as string,
             balance: parseFloat(formData.get('balance') as string) || 0,
@@ -44,6 +80,9 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
 
             onSuccess()
             onClose()
+            // Reset form
+            setUsername("")
+            setEmail("")
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
@@ -73,6 +112,8 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             required
                             minLength={3}
                             placeholder="اسم المستخدم"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         />
                     </div>
@@ -84,9 +125,18 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             name="email"
                             type="email"
                             required
-                            placeholder="البريد الإلكتروني"
+                            ref={emailInputRef}
+                            placeholder={`example${EMAIL_DOMAIN}`}
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm text-right dir-ltr"
                         />
+                        {emailWarning && (
+                            <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs mt-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                <span>{emailWarning}</span>
+                            </div>
+                        )}
                     </div>
 
                     <div>
@@ -133,7 +183,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                     </div>
 
                     {error && (
-                        <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg">
+                        <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg">
                             {error}
                         </div>
                     )}
@@ -142,7 +192,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                            className="flex-1 px-4 py-2 text-sm font-medium text-muted-foreground bg-secondary rounded-lg hover:bg-secondary/80"
                         >
                             {t.admin.users.actions.cancel}
                         </button>

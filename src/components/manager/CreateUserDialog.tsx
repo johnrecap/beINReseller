@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -25,12 +25,19 @@ import {
     FormItem,
     FormLabel,
     FormMessage,
-} from "@/components/ui/form" // Assuming you have Shadcn Form component setup
+} from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+
+const EMAIL_DOMAIN = "@deshpanel.com"
 
 const formSchema = z.object({
     username: z.string().min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل"),
-    email: z.string().email("البريد الإلكتروني غير صالح"),
+    email: z.string()
+        .email("البريد الإلكتروني غير صالح")
+        .refine(
+            (email) => email.endsWith(EMAIL_DOMAIN),
+            `البريد الإلكتروني يجب أن ينتهي بـ ${EMAIL_DOMAIN}`
+        ),
     password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
     balance: z.number().min(0, "الرصيد يجب أن يكون 0 أو أكثر"),
 })
@@ -39,6 +46,7 @@ type FormData = z.infer<typeof formSchema>
 
 export function CreateUserDialog() {
     const [open, setOpen] = useState(false)
+    const [emailWarning, setEmailWarning] = useState("")
     const router = useRouter()
 
     const form = useForm<FormData>({
@@ -52,6 +60,31 @@ export function CreateUserDialog() {
     })
 
     const { isSubmitting } = form.formState
+    const watchUsername = form.watch("username")
+    const watchEmail = form.watch("email")
+
+    // Auto-generate email from username
+    useEffect(() => {
+        if (watchUsername && watchUsername.length >= 3) {
+            const suggestedEmail = `${watchUsername}${EMAIL_DOMAIN}`
+            if (!watchEmail || !watchEmail.endsWith(EMAIL_DOMAIN)) {
+                form.setValue("email", suggestedEmail)
+            }
+        }
+    }, [watchUsername, form, watchEmail])
+
+    // Show warning for non-standard email format
+    useEffect(() => {
+        if (watchEmail && watchEmail.length > 0) {
+            if (!watchEmail.endsWith(EMAIL_DOMAIN)) {
+                setEmailWarning(`الصيغة الصحيحة: اسم_المستخدم${EMAIL_DOMAIN}`)
+            } else {
+                setEmailWarning("")
+            }
+        } else {
+            setEmailWarning("")
+        }
+    }, [watchEmail])
 
     async function onSubmit(values: FormData) {
         try {
@@ -70,7 +103,7 @@ export function CreateUserDialog() {
             toast.success("تم إنشاء المستخدم بنجاح")
             setOpen(false)
             form.reset()
-            router.refresh() // Refresh page data
+            router.refresh()
 
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "حدث خطأ ما")
@@ -114,8 +147,18 @@ export function CreateUserDialog() {
                                 <FormItem>
                                     <FormLabel>البريد الإلكتروني</FormLabel>
                                     <FormControl>
-                                        <Input type="email" placeholder="example@gmail.com" {...field} />
+                                        <Input
+                                            type="email"
+                                            placeholder={`example${EMAIL_DOMAIN}`}
+                                            {...field}
+                                        />
                                     </FormControl>
+                                    {emailWarning && (
+                                        <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs">
+                                            <AlertTriangle className="w-3 h-3" />
+                                            <span>{emailWarning}</span>
+                                        </div>
+                                    )}
                                     <FormMessage />
                                 </FormItem>
                             )}

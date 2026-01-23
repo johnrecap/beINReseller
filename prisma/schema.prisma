@@ -294,9 +294,12 @@ model BeinAccountSession {
 model Proxy {
   id            String   @id @default(cuid())
   
-  // ===== Identification =====
-  sessionId     String   @unique @map("session_id")
-  label         String?
+  // ===== Manual Proxy Connection =====
+  host          String                      // IP address or hostname
+  port          Int                         // Port number
+  username      String?                     // Auth username (optional)
+  password      String?                     // Auth password (optional)
+  label         String                      // Display name (required)
   
   // ===== Status =====
   isActive      Boolean  @default(true) @map("is_active")
@@ -314,5 +317,7 @@ model Proxy {
   // ===== Relations =====
   accounts      BeinAccount[]
   
+  // ===== Unique constraint on host:port =====
+  @@unique([host, port])
   @@map("proxies")
 }

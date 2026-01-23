@@ -55,8 +55,8 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="flex justify-between items-center p-4 border-b border-gray-100">
+            <div className="bg-card rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200 border border-border">
+                <div className="flex justify-between items-center p-4 border-b border-border">
                     <h3 className="font-bold text-foreground">{t.admin.users.dialogs.createTitle}</h3>
                     <button onClick={onClose} title="إغلاق" className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
                         <X className="w-5 h-5" />

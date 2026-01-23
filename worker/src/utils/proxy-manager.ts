@@ -1,6 +1,11 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { ProxyConfig } from '../types/proxy';
 
-export interface ProxyConfig {
+// Re-export for convenience
+export { ProxyConfig };
+
+// Legacy interface for SuperProxy (kept for backward compatibility)
+export interface LegacyProxyConfig {
     host: string;
     port: number;
     username: string;
@@ -8,10 +13,11 @@ export interface ProxyConfig {
 }
 
 export class ProxyManager {
-    private config: ProxyConfig;
+    private legacyConfig: LegacyProxyConfig;
 
     constructor() {
-        this.config = {
+        // Legacy config from environment (SuperProxy)
+        this.legacyConfig = {
             host: process.env.PROXY_HOST || 'brd.superproxy.io',
             port: parseInt(process.env.PROXY_PORT || '33335'),
             username: process.env.PROXY_USERNAME || '',
@@ -20,22 +26,63 @@ export class ProxyManager {
     }
 
     /**
-     * Check if proxy is enabled and configured
+     * Check if legacy proxy is enabled (from .env)
+     * @deprecated Use manual proxy config from database instead
      */
     isEnabled(): boolean {
         return process.env.PROXY_ENABLED === 'true' &&
-            !!this.config.username &&
-            !!this.config.password;
+            !!this.legacyConfig.username &&
+            !!this.legacyConfig.password;
+    }
+
+    // =============================================
+    // NEW METHODS - Manual Proxy Config
+    // =============================================
+
+    /**
+     * Build proxy URL from manual config (host/port/auth)
+     * @param config - ProxyConfig from database
+     */
+    buildProxyUrlFromConfig(config: ProxyConfig): string {
+        const { host, port, username, password } = config;
+        if (username && password) {
+            return `http://${username}:${password}@${host}:${port}`;
+        }
+        return `http://${host}:${port}`;
     }
 
     /**
+     * Get HttpsProxyAgent from manual config
+     * @param config - ProxyConfig from database
+     */
+    getProxyAgentFromConfig(config: ProxyConfig): HttpsProxyAgent<string> {
+        const proxyUrl = this.buildProxyUrlFromConfig(config);
+        return new HttpsProxyAgent(proxyUrl);
+    }
+
+    /**
+     * Get masked proxy URL for logging (manual config)
+     * @param config - ProxyConfig from database
+     */
+    getMaskedProxyUrlFromConfig(config: ProxyConfig): string {
+        const { host, port, username } = config;
+        if (username) {
+            return `http://${username}:****@${host}:${port}`;
+        }
+        return `http://${host}:${port}`;
+    }
+
+    // =============================================
+    // LEGACY METHODS - SuperProxy with sessionId
+    // @deprecated Will be removed after migration
+    // =============================================
+
+    /**
      * Build proxy URL with session for sticky IP
-     * @param sessionId - Unique session identifier for sticky IP
+     * @deprecated Use buildProxyUrlFromConfig instead
      */
     buildProxyUrl(sessionId: string): string {
-        const { host, port, username, password } = this.config;
-        // Format: username-session-sessionId:password@host:port
-        // Note: Session ID must not contain hyphens (causes 407), replace with underscores
+        const { host, port, username, password } = this.legacyConfig;
         const sanitizedSessionId = sessionId.replace(/-/g, '_');
         const sessionUsername = `${username}-session-${sanitizedSessionId}`;
         return `http://${sessionUsername}:${password}@${host}:${port}`;
@@ -43,8 +90,7 @@ export class ProxyManager {
 
     /**
      * Get HttpsProxyAgent for axios/node requests
-     * NOTE: SSL verification is disabled globally via NODE_TLS_REJECT_UNAUTHORIZED=0
-     * @param sessionId - Unique session identifier for sticky IP
+     * @deprecated Use getProxyAgentFromConfig instead
      */
     getProxyAgent(sessionId: string): HttpsProxyAgent<string> {
         const proxyUrl = this.buildProxyUrl(sessionId);
@@ -53,9 +99,10 @@ export class ProxyManager {
 
     /**
      * Get proxy URL for logging (masked password)
+     * @deprecated Use getMaskedProxyUrlFromConfig instead
      */
     getMaskedProxyUrl(sessionId: string): string {
-        const { host, port, username } = this.config;
+        const { host, port, username } = this.legacyConfig;
         const sanitizedSessionId = sessionId.replace(/-/g, '_');
         const sessionUsername = `${username}-session-${sanitizedSessionId}`;
         return `http://${sessionUsername}:****@${host}:${port}`;
@@ -71,3 +118,4 @@ export function getProxyManager(): ProxyManager {
     }
     return proxyManager;
 }
+

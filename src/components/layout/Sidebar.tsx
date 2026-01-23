@@ -62,7 +62,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const managerLinks = [
         { href: '/dashboard/manager', label: 'لوحة المدير', icon: BarChart3 },
-        // { href: '/dashboard/manager/users', label: 'المستخدمين', icon: Users }, // Linked from dashboard/manager page usually, or sidebar
+        { href: '/dashboard/manager/deleted-users', label: 'الحسابات المحذوفة', icon: Trash2 },
     ]
 
     const adminLinks = [

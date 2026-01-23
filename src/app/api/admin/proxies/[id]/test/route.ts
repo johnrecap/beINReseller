@@ -28,27 +28,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: 'البروكسي غير موجود' }, { status: 404 })
         }
 
-        // Get proxy config from env
-        const host = process.env.PROXY_HOST || 'brd.superproxy.io'
-        const port = process.env.PROXY_PORT || '33335'
-        const username = process.env.PROXY_USERNAME
-        const password = process.env.PROXY_PASSWORD
-
-        if (!username || !password) {
-            return NextResponse.json({ error: 'إعدادات البروكسي غير مكتملة في السيرفر' }, { status: 500 })
+        // Get proxy config from database (new schema)
+        const { host, port, username, password } = proxy as {
+            host: string
+            port: number
+            username: string | null
+            password: string | null
         }
 
-        // Build session username (replace hyphens with underscores to avoid 407)
-        const sanitizedSessionId = proxy.sessionId.replace(/-/g, '_')
-        const sessionUsername = `${username}-session-${sanitizedSessionId}`
-
-        console.log(`Testing proxy: ${proxy.sessionId} -> ${host}:${port}`)
+        console.log(`Testing proxy: ${host}:${port}`)
 
         const start = Date.now()
 
         try {
-            // Use curl command - we know this works!
-            const curlCommand = `curl -k -s -x "http://${sessionUsername}:${password}@${host}:${port}" https://api.ipify.org?format=json --max-time 15`
+            // Build curl command based on auth
+            let curlCommand: string
+
+            if (username && password) {
+                // Authenticated proxy
+                curlCommand = `curl -k -s -x "http://${username}:${password}@${host}:${port}" https://api.ipify.org?format=json --max-time 15`
+            } else {
+                // Unauthenticated proxy
+                curlCommand = `curl -k -s -x "http://${host}:${port}" https://api.ipify.org?format=json --max-time 15`
+            }
 
             const { stdout, stderr } = await execAsync(curlCommand)
 
@@ -73,7 +75,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
             return NextResponse.json({
                 success: true,
-                result: { ip, duration, sessionId: proxy.sessionId }
+                result: {
+                    ip,
+                    duration,
+                    host,
+                    port,
+                    hasAuth: !!(username && password)
+                }
             })
 
         } catch (connError: unknown) {
@@ -101,3 +109,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
+

@@ -2,10 +2,10 @@ import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import prisma from "@/lib/prisma"
-import { SECURITY_CONFIG } from "@/lib/config"
-import { refreshSessionOnActivity } from "@/lib/session-refresh"
+import { authConfig } from "@/lib/auth.config"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+    ...authConfig,
     providers: [
         Credentials({
             name: "credentials",
@@ -32,7 +32,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 })
 
                 if (!user || !user.passwordHash) {
-                    // Unified error for user enumeration protection
                     throw new Error("اسم المستخدم أو كلمة المرور غير صحيحة")
                 }
 
@@ -44,7 +43,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 // Verify password
                 const isValidPassword = await bcrypt.compare(password, user.passwordHash)
                 if (!isValidPassword) {
-                    // Unified error for user enumeration protection
                     throw new Error("اسم المستخدم أو كلمة المرور غير صحيحة")
                 }
 
@@ -65,41 +63,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
         }),
     ],
-    callbacks: {
-        async jwt({ token, user, trigger, session }) {
-            if (user) {
-                token.id = user.id as string
-                token.username = (user as { username: string }).username
-                token.role = (user as { role: string }).role
-                token.balance = (user as { balance: number }).balance
-            }
-
-            // Refresh logic
-            if (trigger === 'update') {
-                return { ...token, ...session }
-            }
-
-            return refreshSessionOnActivity(token)
-        },
-        async session({ session, token }) {
-            if (token) {
-                session.user.id = token.id as string
-                session.user.username = token.username as string
-                session.user.role = token.role as string
-                session.user.balance = token.balance as number
-            }
-            return session
-        },
-    },
-    pages: {
-        signIn: "/login",
-        error: "/login",
-    },
-    session: {
-        strategy: "jwt",
-        maxAge: SECURITY_CONFIG.sessionMaxAge,
-        updateAge: 0, // Always update on access if we want aggressive sliding, but standard is fine
-    },
-    secret: process.env.NEXTAUTH_SECRET,
-    trustHost: true,
 })

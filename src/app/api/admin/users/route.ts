@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { Role } from '@prisma/client'
 import { z } from 'zod'
 import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
@@ -9,6 +10,8 @@ const createUserSchema = z.object({
     username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
     email: z.string().email('البريد الإلكتروني غير صالح'),
     password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+    role: z.enum(['ADMIN', 'RESELLER', 'MANAGER', 'USER']).optional().default('RESELLER'),
+    balance: z.number().optional().default(0),
 })
 
 export async function GET(request: Request) {
@@ -102,7 +105,7 @@ export async function POST(request: Request) {
             )
         }
 
-        const { username, email, password } = result.data
+        const { username, email, password, role, balance } = result.data
 
         // Check existing
         const existing = await prisma.user.findFirst({
@@ -123,8 +126,8 @@ export async function POST(request: Request) {
                 username,
                 email,
                 passwordHash: hashedPassword,
-                role: 'RESELLER',
-                balance: 0,
+                role: role as Role,
+                balance,
                 isActive: true
             }
         })

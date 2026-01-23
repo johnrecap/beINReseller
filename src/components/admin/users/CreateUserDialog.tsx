@@ -21,7 +21,13 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
         setError(null)
 
         const formData = new FormData(e.currentTarget)
-        const data = Object.fromEntries(formData.entries())
+        const data = {
+            username: formData.get('username') as string,
+            email: formData.get('email') as string,
+            password: formData.get('password') as string,
+            role: formData.get('role') as string,
+            balance: parseFloat(formData.get('balance') as string) || 0,
+        }
 
         try {
             const res = await fetch('/api/admin/users', {
@@ -93,6 +99,36 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             minLength={6}
                             placeholder="كلمة المرور"
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm dir-ltr"
+                        />
+                    </div>
+
+                    <div>
+                        <label htmlFor="role" className="block text-sm font-medium text-foreground mb-1">نوع الحساب</label>
+                        <select
+                            id="role"
+                            name="role"
+                            required
+                            defaultValue="RESELLER"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
+                        >
+                            <option value="RESELLER">موزع (Reseller)</option>
+                            <option value="MANAGER">مدير (Manager)</option>
+                            <option value="USER">مستخدم (User)</option>
+                            <option value="ADMIN">أدمن (Admin)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label htmlFor="balance" className="block text-sm font-medium text-foreground mb-1">الرصيد الأولي</label>
+                        <input
+                            id="balance"
+                            name="balance"
+                            type="number"
+                            step="0.01"
+                            defaultValue="0"
+                            min="0"
+                            placeholder="0.00"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         />
                     </div>
 

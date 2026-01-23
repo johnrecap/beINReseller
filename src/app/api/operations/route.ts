@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { withAuth } from '@/lib/api-middleware'
 import prisma from '@/lib/prisma'
 import { Prisma, OperationType, OperationStatus } from '@prisma/client'
 
-export async function GET(request: Request) {
+export const GET = withAuth(async (request: Request, session) => {
     try {
-        // Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
-            return NextResponse.json(
-                { error: 'غير مصرح' },
-                { status: 401 }
-            )
-        }
+        // Check authentication REMOVED (handled by wrapper)
+        // const session = await auth() -> session is now passed as arg
 
         // Parse query params
         const { searchParams } = new URL(request.url)
@@ -97,4 +91,4 @@ export async function GET(request: Request) {
             { status: 500 }
         )
     }
-}
+})

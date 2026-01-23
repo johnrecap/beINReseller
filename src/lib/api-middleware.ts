@@ -1,21 +1,21 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { Session } from 'next-auth'
 import { auth } from '@/lib/auth'
 import { checkRateLimit, RateLimitConfig, rateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limiter'
 import { errorResponse, ERROR_MESSAGES } from '@/lib/api-response'
 import { hasRole, RoleLevel } from '@/lib/auth-utils'
 
-// Type for the wrapped handler (authenticated)
-export type AuthorizedApiHandler = (
-    req: Request,
-    session: Session,
-    params?: any
-) => Promise<NextResponse>
+// Context type for App Router handlers
+export interface RouteContext {
+    params: Record<string, string | string[]>
+}
 
-// Type for generic handler (unauthenticated or pre-auth)
-export type ApiHandler = (
-    req: Request,
-    params?: any
+// Type for the wrapped handler (authenticated)
+// Accepts: Request, Session, and optional Context
+export type AuthorizedApiHandler = (
+    req: NextRequest,
+    session: Session,
+    context?: RouteContext
 ) => Promise<NextResponse>
 
 interface WithAuthOptions {
@@ -27,13 +27,13 @@ interface WithAuthOptions {
  * Catches ONLY auth errors. Propagates all other errors.
  * 
  * Usage:
- * export const GET = withAuth(async (req, session) => { ... })
+ * export const GET = withAuth(async (req, session, context) => { ... })
  */
 export function withAuth(
     handler: AuthorizedApiHandler,
     options: WithAuthOptions = {}
 ) {
-    return async (req: Request, params?: any) => {
+    return async (req: NextRequest, context?: RouteContext) => {
         // 1. Check Authentication
         const session = await auth()
         if (!session?.user?.id) {
@@ -48,7 +48,7 @@ export function withAuth(
         }
 
         // 3. Call Handler with session
-        return handler(req, session, params)
+        return handler(req, session, context)
     }
 }
 
@@ -61,16 +61,16 @@ export function withAuth(
  * or
  * export const POST = withAuth(withRateLimit(async (req, session) => { ... }))
  */
-export function withRateLimit(
-    handler: Function,
+export function withRateLimit<Args extends unknown[]>(
+    handler: (req: NextRequest, ...args: Args) => Promise<NextResponse>,
     config: RateLimitConfig = RATE_LIMITS.api
 ) {
-    return async (req: Request, ...args: any[]) => {
+    return async (req: NextRequest, ...args: Args) => {
         // 1. Identify User/IP
         let identifier = 'anonymous'
 
         // Check if session is passed in args (if wrapped inside withAuth)
-        const sessionArg = args.find(arg => arg && typeof arg === 'object' && 'user' in arg) as Session | undefined
+        const sessionArg = args.find(arg => arg && typeof arg === 'object' && arg !== null && 'user' in arg) as Session | undefined
 
         if (sessionArg?.user?.id) {
             identifier = `user:${sessionArg.user.id}`
@@ -96,7 +96,6 @@ export function withRateLimit(
         const response = await handler(req, ...args)
 
         // 4. Add Rate Limit Headers to Success Response
-        // Note: response might not be NextResponse in some edge cases but usually is in App Router
         if (response instanceof NextResponse) {
             const headers = rateLimitHeaders(result)
             Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v))

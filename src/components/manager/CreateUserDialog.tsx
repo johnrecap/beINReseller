@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
-import md5 from "md5"
 import * as z from "zod"
 import { Loader2, Plus } from "lucide-react"
 import { toast } from "sonner"
@@ -33,14 +32,16 @@ const formSchema = z.object({
     username: z.string().min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل"),
     email: z.string().email("البريد الإلكتروني غير صالح"),
     password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
-    balance: z.coerce.number().min(0, "الرصيد يجب أن يكون 0 أو أكثر"),
+    balance: z.number().min(0, "الرصيد يجب أن يكون 0 أو أكثر"),
 })
+
+type FormData = z.infer<typeof formSchema>
 
 export function CreateUserDialog() {
     const [open, setOpen] = useState(false)
     const router = useRouter()
 
-    const form = useForm<z.infer<typeof formSchema>>({
+    const form = useForm<FormData>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             username: "",
@@ -52,7 +53,7 @@ export function CreateUserDialog() {
 
     const { isSubmitting } = form.formState
 
-    async function onSubmit(values: z.infer<typeof formSchema>) {
+    async function onSubmit(values: FormData) {
         try {
             const response = await fetch("/api/manager/users", {
                 method: "POST",

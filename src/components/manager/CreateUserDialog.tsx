@@ -63,15 +63,13 @@ export function CreateUserDialog() {
     const watchUsername = form.watch("username")
     const watchEmail = form.watch("email")
 
-    // Auto-generate email from username
-    useEffect(() => {
-        if (watchUsername && watchUsername.length >= 3) {
-            const suggestedEmail = `${watchUsername}${EMAIL_DOMAIN}`
-            if (!watchEmail || !watchEmail.endsWith(EMAIL_DOMAIN)) {
-                form.setValue("email", suggestedEmail)
-            }
+    // Generate email from username when user finishes typing
+    const handleUsernameBlur = () => {
+        const currentEmail = form.getValues("email")
+        if (watchUsername && watchUsername.length >= 3 && !currentEmail) {
+            form.setValue("email", `${watchUsername}${EMAIL_DOMAIN}`)
         }
-    }, [watchUsername, form, watchEmail])
+    }
 
     // Show warning for non-standard email format
     useEffect(() => {
@@ -134,7 +132,14 @@ export function CreateUserDialog() {
                                 <FormItem>
                                     <FormLabel>اسم المستخدم</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="user123" {...field} />
+                                        <Input
+                                            placeholder="user123"
+                                            {...field}
+                                            onBlur={() => {
+                                                field.onBlur()
+                                                handleUsernameBlur()
+                                            }}
+                                        />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

@@ -21,15 +21,12 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
     const [email, setEmail] = useState("")
     const emailInputRef = useRef<HTMLInputElement>(null)
 
-    // Auto-generate email from username
-    useEffect(() => {
-        if (username && username.length >= 3) {
-            const suggestedEmail = `${username}${EMAIL_DOMAIN}`
-            if (!email || !email.endsWith(EMAIL_DOMAIN)) {
-                setEmail(suggestedEmail)
-            }
+    // Generate email from username when user finishes typing
+    const handleUsernameBlur = () => {
+        if (username && username.length >= 3 && !email) {
+            setEmail(`${username}${EMAIL_DOMAIN}`)
         }
-    }, [username, email])
+    }
 
     // Show warning for non-standard email format
     useEffect(() => {
@@ -114,6 +111,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             placeholder="اسم المستخدم"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
+                            onBlur={handleUsernameBlur}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         />
                     </div>

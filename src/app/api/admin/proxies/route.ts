@@ -21,7 +21,20 @@ export async function GET() {
         })
 
         const proxiesWithCount = proxies.map(p => ({
-            ...p,
+            id: p.id,
+            host: p.host,
+            port: p.port,
+            username: p.username,
+            // Don't expose password in response - just indicate if it exists
+            hasPassword: !!p.password,
+            label: p.label,
+            isActive: p.isActive,
+            lastTestedAt: p.lastTestedAt,
+            lastIp: p.lastIp,
+            responseTimeMs: p.responseTimeMs,
+            failureCount: p.failureCount,
+            createdAt: p.createdAt,
+            updatedAt: p.updatedAt,
             accountsCount: p._count.accounts
         }))
 
@@ -46,39 +59,74 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { sessionId, label } = body
+        const { host, port, username, password, label, isActive = true } = body
 
-        if (!sessionId) {
+        // Validation
+        const errors: string[] = []
+
+        if (!host || typeof host !== 'string' || host.trim().length === 0) {
+            errors.push('عنوان IP مطلوب')
+        }
+
+        if (!port || typeof port !== 'number') {
+            errors.push('رقم المنفذ مطلوب')
+        } else if (port < 1 || port > 65535) {
+            errors.push('رقم المنفذ يجب أن يكون بين 1 و 65535')
+        }
+
+        if (!label || typeof label !== 'string' || label.trim().length < 3) {
+            errors.push('التسمية مطلوبة (3 أحرف على الأقل)')
+        }
+
+        // Username and password: both or none
+        if ((username && !password) || (!username && password)) {
+            errors.push('يجب إدخال اسم المستخدم وكلمة المرور معاً أو تركهما فارغين')
+        }
+
+        if (errors.length > 0) {
             return NextResponse.json(
-                { error: 'Session ID مطلوب' },
+                { error: errors.join(', ') },
                 { status: 400 }
             )
         }
 
-        // Check if exists
-        const existing = await prisma.proxy.findUnique({
-            where: { sessionId }
+        // Check if same host:port exists
+        const existing = await prisma.proxy.findFirst({
+            where: {
+                host: host.trim(),
+                port: port
+            }
         })
 
         if (existing) {
             return NextResponse.json(
-                { error: 'Session ID موجود بالفعل' },
+                { error: 'هذا البروكسي موجود بالفعل (نفس الـ IP والمنفذ)' },
                 { status: 400 }
             )
         }
 
         const proxy = await prisma.proxy.create({
             data: {
-                sessionId,
-                label,
-                isActive: true
+                host: host.trim(),
+                port: port,
+                username: username?.trim() || null,
+                password: password || null,
+                label: label.trim(),
+                isActive: isActive
             }
         })
 
         return NextResponse.json({
             success: true,
             proxy: {
-                ...proxy,
+                id: proxy.id,
+                host: proxy.host,
+                port: proxy.port,
+                username: proxy.username,
+                hasPassword: !!proxy.password,
+                label: proxy.label,
+                isActive: proxy.isActive,
+                createdAt: proxy.createdAt,
                 accountsCount: 0
             }
         })
@@ -88,3 +136,4 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
+

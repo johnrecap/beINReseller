@@ -14,7 +14,8 @@ import { AccountPoolManager } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
-import { BeinAccount } from '@prisma/client';
+import { BeinAccount, Proxy } from '@prisma/client';
+import { ProxyConfig } from './types/proxy';
 
 interface OperationJobData {
     operationId: string;
@@ -39,20 +40,28 @@ const httpClients = new Map<string, HttpClientService>();
 
 /**
  * Get or create HTTP client for an account
- * Includes proxy session if the account has one assigned
+ * Includes proxy config if the account has one assigned
  */
-async function getHttpClient(account: BeinAccount & { proxy?: { sessionId: string } | null }): Promise<HttpClientService> {
-    // Include proxy session in cache key to separate clients per proxy
+async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
+    // Include proxy in cache key to separate clients per proxy
     const cacheKey = account.proxyId ? `${account.id}:${account.proxyId}` : account.id;
     let client = httpClients.get(cacheKey);
 
     if (!client) {
-        // Get proxy session from account's relation
-        const proxySession = account.proxy?.sessionId;
-        client = new HttpClientService(proxySession);
+        // Build proxy config from account's relation
+        let proxyConfig: ProxyConfig | undefined;
+        if (account.proxy) {
+            proxyConfig = {
+                host: account.proxy.host,
+                port: account.proxy.port,
+                username: account.proxy.username,
+                password: account.proxy.password
+            };
+        }
+        client = new HttpClientService(proxyConfig);
         await client.initialize();
         httpClients.set(cacheKey, client);
-        console.log(`[HTTP] Created client for ${account.username}${proxySession ? ` with proxy ${proxySession}` : ' without proxy'}`);
+        console.log(`[HTTP] Created client for ${account.username}${proxyConfig ? ` with proxy ${proxyConfig.host}:${proxyConfig.port}` : ' without proxy'}`);
     }
 
     return client;

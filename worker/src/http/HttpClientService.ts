@@ -19,7 +19,7 @@ import * as cheerio from 'cheerio';
 import https from 'https';
 import { prisma } from '../lib/prisma';
 import { TOTPGenerator } from '../utils/totp-generator';
-import { getProxyManager } from '../utils/proxy-manager';
+import { getProxyManager, ProxyConfig } from '../utils/proxy-manager';
 import {
     HiddenFields,
     BeINHttpConfig,
@@ -47,8 +47,8 @@ export class HttpClientService {
     private lastLoginTime: Date | null = null;
     private sessionValid: boolean = false;
 
-    // Proxy session ID for sticky IP
-    private proxySessionId: string | null = null;
+    // Proxy config for manual proxy
+    private proxyConfig: ProxyConfig | null = null;
 
     // Config caching
     private static configCache: { data: BeINHttpConfig; timestamp: number } | null = null;
@@ -66,10 +66,10 @@ export class HttpClientService {
         'Upgrade-Insecure-Requests': '1'
     };
 
-    constructor(proxySessionId?: string) {
+    constructor(proxyConfig?: ProxyConfig) {
         this.jar = new CookieJar();
         this.totp = new TOTPGenerator();
-        this.proxySessionId = proxySessionId || null;
+        this.proxyConfig = proxyConfig || null;
 
         // Build axios config
         const axiosConfig: Record<string, unknown> = {
@@ -81,13 +81,13 @@ export class HttpClientService {
             validateStatus: (status: number) => status < 500
         };
 
-        // Add proxy if enabled and session provided
-        const proxyManager = getProxyManager();
-        if (proxySessionId && proxyManager.isEnabled()) {
-            const httpsAgent = proxyManager.getProxyAgent(proxySessionId);
+        // Add proxy if config provided
+        if (proxyConfig) {
+            const proxyManager = getProxyManager();
+            const httpsAgent = proxyManager.getProxyAgentFromConfig(proxyConfig);
             axiosConfig.httpsAgent = httpsAgent;
             axiosConfig.proxy = false; // Disable axios built-in proxy
-            console.log(`[HTTP] Using proxy session: ${proxyManager.getMaskedProxyUrl(proxySessionId)}`);
+            console.log(`[HTTP] Using proxy: ${proxyManager.getMaskedProxyUrlFromConfig(proxyConfig)}`);
         }
 
         // Create axios instance WITHOUT wrapper
@@ -385,14 +385,26 @@ export class HttpClientService {
             const cookieData = JSON.parse(data.cookies);
             this.jar = await CookieJar.deserialize(cookieData);
 
-            // Recreate axios with the loaded jar
-            this.axios = axios.create({
+            // Build axios config with proxy if available
+            const axiosConfig: Record<string, unknown> = {
                 // jar: this.jar, // REMOVED: Handled manually
                 withCredentials: true,
                 headers: HttpClientService.BROWSER_HEADERS,
                 timeout: 30000,
                 maxRedirects: 5
-            });
+            };
+
+            // Re-attach proxy agent if we have config
+            if (this.proxyConfig) {
+                const proxyManager = getProxyManager();
+                const httpsAgent = proxyManager.getProxyAgentFromConfig(this.proxyConfig);
+                axiosConfig.httpsAgent = httpsAgent;
+                axiosConfig.proxy = false;
+                console.log(`[HTTP] Re-attached proxy: ${proxyManager.getMaskedProxyUrlFromConfig(this.proxyConfig)}`);
+            }
+
+            // Recreate axios with the loaded jar
+            this.axios = axios.create(axiosConfig);
 
             // FIX: Manually handle Cookies again for recreated instance
             this.axios.interceptors.request.use(async (config) => {

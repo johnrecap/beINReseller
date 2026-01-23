@@ -39,12 +39,14 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
 
 interface Proxy {
     id: string
-    sessionId: string
-    label: string | null
+    host: string
+    port: number
+    username: string | null
+    hasPassword: boolean
+    label: string
     isActive: boolean
     lastTestedAt: string | null
     lastIp: string | null
@@ -52,6 +54,15 @@ interface Proxy {
     failureCount: number
     accountsCount: number
     createdAt: string
+}
+
+const initialFormData = {
+    host: '',
+    port: '',
+    username: '',
+    password: '',
+    label: '',
+    isActive: true
 }
 
 export default function ProxiesPage() {
@@ -62,12 +73,10 @@ export default function ProxiesPage() {
     const [addDialogOpen, setAddDialogOpen] = useState(false)
     const [editProxy, setEditProxy] = useState<Proxy | null>(null)
     const [testingProxyId, setTestingProxyId] = useState<string | null>(null)
+    const [submitting, setSubmitting] = useState(false)
 
     // Form state
-    const [formData, setFormData] = useState({
-        sessionId: '',
-        label: ''
-    })
+    const [formData, setFormData] = useState(initialFormData)
 
     const fetchProxies = useCallback(async () => {
         try {
@@ -95,49 +104,66 @@ export default function ProxiesPage() {
 
     const handleAddProxy = async (e: React.FormEvent) => {
         e.preventDefault()
+        setSubmitting(true)
         try {
             const res = await fetch('/api/admin/proxies', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify({
+                    host: formData.host.trim(),
+                    port: parseInt(formData.port, 10),
+                    username: formData.username.trim() || null,
+                    password: formData.password || null,
+                    label: formData.label.trim(),
+                    isActive: formData.isActive
+                })
             })
             const data = await res.json()
             if (data.success) {
                 toast.success('تم إضافة البروكسي بنجاح')
                 setAddDialogOpen(false)
-                setFormData({ sessionId: '', label: '' })
+                setFormData(initialFormData)
                 fetchProxies()
             } else {
                 toast.error(data.error)
             }
         } catch {
             toast.error('فشل في إضافة البروكسي')
+        } finally {
+            setSubmitting(false)
         }
     }
 
     const handleUpdateProxy = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!editProxy) return
+        setSubmitting(true)
         try {
             const res = await fetch(`/api/admin/proxies/${editProxy.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    label: formData.label,
-                    isActive: editProxy.isActive // Keep current status
+                    host: formData.host.trim(),
+                    port: parseInt(formData.port, 10),
+                    username: formData.username.trim() || null,
+                    password: formData.password || null,
+                    label: formData.label.trim(),
+                    isActive: formData.isActive
                 })
             })
             const data = await res.json()
             if (data.success) {
                 toast.success('تم تحديث البروكسي بنجاح')
                 setEditProxy(null)
-                setFormData({ sessionId: '', label: '' })
+                setFormData(initialFormData)
                 fetchProxies()
             } else {
                 toast.error(data.error)
             }
         } catch {
             toast.error('فشل في تحديث البروكسي')
+        } finally {
+            setSubmitting(false)
         }
     }
 
@@ -248,37 +274,81 @@ export default function ProxiesPage() {
                                 إضافة Proxy
                             </Button>
                         </DialogTrigger>
-                        <DialogContent dir="rtl">
+                        <DialogContent dir="rtl" className="max-w-md">
                             <DialogHeader>
                                 <DialogTitle>إضافة Proxy جديد</DialogTitle>
                             </DialogHeader>
                             <form onSubmit={handleAddProxy} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="sessionId">Session ID (للربط بـ IP ثابت)</Label>
-                                    <Input
-                                        id="sessionId"
-                                        value={formData.sessionId}
-                                        onChange={(e) => setFormData({ ...formData, sessionId: e.target.value })}
-                                        placeholder="مثال: egypt-01"
-                                        required
-                                        className="dir-ltr"
-                                    />
-                                    <p className="text-xs text-muted-foreground">يستخدم لتوليد IP ثابت في Bright Data</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="label">التسمية (اختياري)</Label>
+                                    <Label htmlFor="label">التسمية *</Label>
                                     <Input
                                         id="label"
                                         value={formData.label}
                                         onChange={(e) => setFormData({ ...formData, label: e.target.value })}
                                         placeholder="مثال: سيرفر مصر الرئيسي"
+                                        required
                                     />
                                 </div>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="col-span-2 space-y-2">
+                                        <Label htmlFor="host">عنوان IP *</Label>
+                                        <Input
+                                            id="host"
+                                            value={formData.host}
+                                            onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+                                            placeholder="149.87.157.84"
+                                            required
+                                            className="dir-ltr font-mono"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="port">المنفذ *</Label>
+                                        <Input
+                                            id="port"
+                                            type="number"
+                                            min="1"
+                                            max="65535"
+                                            value={formData.port}
+                                            onChange={(e) => setFormData({ ...formData, port: e.target.value })}
+                                            placeholder="8080"
+                                            required
+                                            className="dir-ltr font-mono"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="username">اسم المستخدم</Label>
+                                        <Input
+                                            id="username"
+                                            value={formData.username}
+                                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                            placeholder="اختياري"
+                                            className="dir-ltr"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="password">كلمة المرور</Label>
+                                        <Input
+                                            id="password"
+                                            type="password"
+                                            value={formData.password}
+                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                            placeholder="اختياري"
+                                            className="dir-ltr"
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    اترك اسم المستخدم وكلمة المرور فارغين إذا كان البروكسي بدون مصادقة
+                                </p>
                                 <DialogFooter>
                                     <DialogClose asChild>
                                         <Button type="button" variant="outline">إلغاء</Button>
                                     </DialogClose>
-                                    <Button type="submit">إضافة</Button>
+                                    <Button type="submit" disabled={submitting}>
+                                        {submitting ? 'جاري الإضافة...' : 'إضافة'}
+                                    </Button>
                                 </DialogFooter>
                             </form>
                         </DialogContent>
@@ -346,11 +416,11 @@ export default function ProxiesPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Session ID / التسمية</TableHead>
+                                <TableHead>التسمية</TableHead>
+                                <TableHead className="text-center">Host:Port</TableHead>
+                                <TableHead className="text-center">Auth</TableHead>
                                 <TableHead className="text-center">الحالة</TableHead>
                                 <TableHead className="text-center">IP الحالي</TableHead>
-                                <TableHead className="text-center">الاستجابة</TableHead>
-                                <TableHead className="text-center">آخر اختبار</TableHead>
                                 <TableHead className="text-center">الحسابات</TableHead>
                                 <TableHead className="text-center">الإجراءات</TableHead>
                             </TableRow>
@@ -366,24 +436,21 @@ export default function ProxiesPage() {
                                 proxies.map((proxy) => (
                                     <TableRow key={proxy.id}>
                                         <TableCell>
-                                            <div>
-                                                <div className="font-medium">{proxy.label || proxy.sessionId}</div>
-                                                <div className="text-xs text-muted-foreground font-mono">{proxy.sessionId}</div>
-                                            </div>
+                                            <div className="font-medium">{proxy.label}</div>
+                                        </TableCell>
+                                        <TableCell className="text-center font-mono text-sm">
+                                            {proxy.host}:{proxy.port}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {proxy.hasPassword ? (
+                                                <Badge variant="default" className="bg-green-600">نعم</Badge>
+                                            ) : (
+                                                <Badge variant="secondary">لا</Badge>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-center">{getStatusBadge(proxy)}</TableCell>
                                         <TableCell className="text-center font-mono text-sm">
                                             {proxy.lastIp || '-'}
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                            {proxy.responseTimeMs ? (
-                                                <span className={`font-mono ${proxy.responseTimeMs < 500 ? 'text-green-600' : 'text-orange-600'}`}>
-                                                    {proxy.responseTimeMs}ms
-                                                </span>
-                                            ) : '-'}
-                                        </TableCell>
-                                        <TableCell className="text-center text-sm text-muted-foreground">
-                                            {proxy.lastTestedAt ? format(new Date(proxy.lastTestedAt), 'PP p') : '-'}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Badge variant="secondary">{proxy.accountsCount}</Badge>
@@ -413,8 +480,12 @@ export default function ProxiesPage() {
                                                     onClick={() => {
                                                         setEditProxy(proxy)
                                                         setFormData({
-                                                            sessionId: proxy.sessionId,
-                                                            label: proxy.label || ''
+                                                            host: proxy.host,
+                                                            port: String(proxy.port),
+                                                            username: proxy.username || '',
+                                                            password: '',
+                                                            label: proxy.label,
+                                                            isActive: proxy.isActive
                                                         })
                                                     }}
                                                     title="تعديل"
@@ -443,28 +514,78 @@ export default function ProxiesPage() {
 
             {/* Edit Dialog */}
             <Dialog open={!!editProxy} onOpenChange={(open) => !open && setEditProxy(null)}>
-                <DialogContent dir="rtl">
+                <DialogContent dir="rtl" className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>تعديل البروكسي</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleUpdateProxy} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-sessionId">Session ID</Label>
-                            <Input id="edit-sessionId" value={formData.sessionId} disabled className="bg-muted" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-label">التسمية</Label>
+                            <Label htmlFor="edit-label">التسمية *</Label>
                             <Input
                                 id="edit-label"
                                 value={formData.label}
                                 onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                                required
                             />
                         </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="col-span-2 space-y-2">
+                                <Label htmlFor="edit-host">عنوان IP *</Label>
+                                <Input
+                                    id="edit-host"
+                                    value={formData.host}
+                                    onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+                                    required
+                                    className="dir-ltr font-mono"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-port">المنفذ *</Label>
+                                <Input
+                                    id="edit-port"
+                                    type="number"
+                                    min="1"
+                                    max="65535"
+                                    value={formData.port}
+                                    onChange={(e) => setFormData({ ...formData, port: e.target.value })}
+                                    required
+                                    className="dir-ltr font-mono"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-username">اسم المستخدم</Label>
+                                <Input
+                                    id="edit-username"
+                                    value={formData.username}
+                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                    placeholder="اختياري"
+                                    className="dir-ltr"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-password">كلمة المرور</Label>
+                                <Input
+                                    id="edit-password"
+                                    type="password"
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    placeholder={editProxy?.hasPassword ? '(لا تغيير)' : 'اختياري'}
+                                    className="dir-ltr"
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            اترك كلمة المرور فارغة للإبقاء على الحالية
+                        </p>
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">إلغاء</Button>
                             </DialogClose>
-                            <Button type="submit">حفظ</Button>
+                            <Button type="submit" disabled={submitting}>
+                                {submitting ? 'جاري الحفظ...' : 'حفظ'}
+                            </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>

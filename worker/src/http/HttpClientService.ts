@@ -13,7 +13,7 @@
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import axiosRetry from 'axios-retry';
-import { wrapper } from 'axios-cookiejar-support';
+// import { wrapper } from 'axios-cookiejar-support'; // REMOVED: Conflict with https-proxy-agent
 import { CookieJar } from 'tough-cookie';
 import * as cheerio from 'cheerio';
 import https from 'https';
@@ -73,7 +73,7 @@ export class HttpClientService {
 
         // Build axios config
         const axiosConfig: Record<string, unknown> = {
-            jar: this.jar,
+            // jar: this.jar, // REMOVED: Handled manually
             withCredentials: true,
             headers: HttpClientService.BROWSER_HEADERS,
             timeout: 30000,
@@ -90,8 +90,41 @@ export class HttpClientService {
             console.log(`[HTTP] Using proxy session: ${proxyManager.getMaskedProxyUrl(proxySessionId)}`);
         }
 
-        // Create axios instance with cookie support
-        this.axios = wrapper(axios.create(axiosConfig));
+        // Create axios instance WITHOUT wrapper
+        this.axios = axios.create(axiosConfig);
+
+        // FIX: Manually handle Cookies to support https-proxy-agent
+        // request interceptor: Add Cookie header
+        this.axios.interceptors.request.use(async (config) => {
+            if (config.url) {
+                const cookies = await this.jar.getCookies(config.url);
+                if (cookies.length > 0) {
+                    const cookieHeader = cookies.map(c => `${c.key}=${c.value}`).join('; ');
+                    config.headers['Cookie'] = cookieHeader;
+                }
+            }
+            return config;
+        });
+
+        // response interceptor: Save Set-Cookie header
+        this.axios.interceptors.response.use(async (response) => {
+            const setCookie = response.headers['set-cookie'];
+            if (setCookie && response.config.url) {
+                // setCookie can be string or array of strings
+                const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
+                const url = response.config.url;
+
+                // Store each cookie sequentially
+                for (const cookie of cookies) {
+                    try {
+                        await this.jar.setCookie(cookie, url);
+                    } catch (e) {
+                        console.warn(`[HTTP] Failed to set cookie: ${cookie}`, e);
+                    }
+                }
+            }
+            return response;
+        });
 
         // Configure automatic retry
         axiosRetry(this.axios, {
@@ -353,13 +386,41 @@ export class HttpClientService {
             this.jar = await CookieJar.deserialize(cookieData);
 
             // Recreate axios with the loaded jar
-            this.axios = wrapper(axios.create({
-                jar: this.jar,
+            this.axios = axios.create({
+                // jar: this.jar, // REMOVED: Handled manually
                 withCredentials: true,
                 headers: HttpClientService.BROWSER_HEADERS,
                 timeout: 30000,
                 maxRedirects: 5
-            }));
+            });
+
+            // FIX: Manually handle Cookies again for recreated instance
+            this.axios.interceptors.request.use(async (config) => {
+                if (config.url) {
+                    const cookies = await this.jar.getCookies(config.url);
+                    if (cookies.length > 0) {
+                        const cookieHeader = cookies.map(c => `${c.key}=${c.value}`).join('; ');
+                        config.headers['Cookie'] = cookieHeader;
+                    }
+                }
+                return config;
+            });
+
+            this.axios.interceptors.response.use(async (response) => {
+                const setCookie = response.headers['set-cookie'];
+                if (setCookie && response.config.url) {
+                    const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
+                    const url = response.config.url;
+                    for (const cookie of cookies) {
+                        try {
+                            await this.jar.setCookie(cookie, url);
+                        } catch (e) {
+                            console.warn(`[HTTP] Failed to set cookie: ${cookie}`, e);
+                        }
+                    }
+                }
+                return response;
+            });
 
             // AUDIT FIX: Configure retry on recreated axios instance
             axiosRetry(this.axios, {

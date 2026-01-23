@@ -53,33 +53,35 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center p-4 border-b border-gray-100">
-                    <h3 className="font-bold text-gray-800">{t.admin.users.dialogs.editTitle}: {user.username}</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg text-gray-500">
+                    <h3 className="font-bold text-foreground">{t.admin.users.dialogs.editTitle}: {user.username}</h3>
+                    <button onClick={onClose} title="إغلاق" className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.admin.users.dialogs.email}</label>
+                        <label htmlFor="edit-email" className="block text-sm font-medium text-foreground mb-1">{t.admin.users.dialogs.email}</label>
                         <input
+                            id="edit-email"
                             name="email"
                             type="email"
                             defaultValue={user.email}
                             required
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 text-sm text-right dir-ltr"
+                            placeholder="البريد الإلكتروني"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm text-right dir-ltr"
                         />
                     </div>
 
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg">
                         <input
                             name="isActive"
                             type="checkbox"
                             id="isActive"
                             defaultChecked={user.isActive}
-                            className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
+                            className="w-5 h-5 text-[#00A651] rounded focus:ring-[#00A651] cursor-pointer"
                         />
-                        <label htmlFor="isActive" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                        <label htmlFor="isActive" className="text-sm font-medium text-foreground cursor-pointer select-none">
                             {t.admin.users.table.active}
                         </label>
                     </div>

@@ -146,7 +146,7 @@ export default function BeINConfigForm() {
 
     if (loading) {
         return (
-            <div className="p-8 text-center text-gray-500">
+            <div className="p-8 text-center text-muted-foreground">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
                 {t.common.loading}...
             </div>
@@ -156,9 +156,9 @@ export default function BeINConfigForm() {
     return (
         <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto pb-24">
             {CONFIG_SECTIONS.map((section, idx) => (
-                <div key={idx} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                    <div className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-700 dark:to-gray-800 p-4 border-b border-gray-100 dark:border-gray-700">
-                        <h3 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <div key={idx} className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+                    <div className="bg-gradient-to-r from-secondary to-card p-4 border-b border-border">
+                        <h3 className="font-bold text-foreground flex items-center gap-2">
                             <span className="text-xl">{section.icon}</span>
                             {section.title}
                         </h3>
@@ -167,21 +167,21 @@ export default function BeINConfigForm() {
                         {section.fields.map((field) => (
                             <div key={field.key} className={field.type === 'checkbox' ? 'md:col-span-2' : ''}>
                                 {field.type === 'checkbox' ? (
-                                    <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                    <label className="flex items-center gap-3 p-3 bg-secondary rounded-lg cursor-pointer hover:bg-secondary/80 transition-colors">
                                         <input
                                             type="checkbox"
                                             checked={config[field.key] === 'true'}
                                             onChange={(e) => handleChange(field.key, e.target.checked)}
-                                            className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                                            className="w-5 h-5 rounded text-[#00A651] focus:ring-[#00A651]"
                                         />
-                                        <span className="font-medium text-gray-700 dark:text-gray-200">{field.label}</span>
+                                        <span className="font-medium text-foreground">{field.label}</span>
                                     </label>
                                 ) : (
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">
+                                        <label className="block text-sm font-medium text-foreground mb-1.5">
                                             {field.label}
                                             {field.hint && (
-                                                <span className="inline-block mr-1 text-gray-400" title={field.hint}>
+                                                <span className="inline-block mr-1 text-muted-foreground" title={field.hint}>
                                                     <HelpCircle className="w-4 h-4 inline" />
                                                 </span>
                                             )}
@@ -192,7 +192,7 @@ export default function BeINConfigForm() {
                                                 value={config[field.key] || ''}
                                                 onChange={(e) => handleChange(field.key, e.target.value)}
                                                 placeholder={field.placeholder}
-                                                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all dir-ltr text-left bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                                className="w-full px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] transition-all dir-ltr text-left bg-background text-foreground"
                                             />
                                             {field.type === 'password' && (
                                                 <button
@@ -217,7 +217,7 @@ export default function BeINConfigForm() {
                 <button
                     type="submit"
                     disabled={saving}
-                    className="flex items-center gap-2 bg-purple-600 text-white px-8 py-3 rounded-full shadow-2xl hover:bg-purple-700 transition-all hover:scale-105 active:scale-95 disabled:opacity-70 disabled:hover:scale-100"
+                    className="flex items-center gap-2 bg-[#00A651] text-white px-8 py-3 rounded-full shadow-2xl hover:bg-[#008f45] transition-all hover:scale-105 active:scale-95 disabled:opacity-70 disabled:hover:scale-100"
                 >
                     {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                     <span>{saving ? t.admin.config.actions.saving : t.admin.config.actions.save}</span>

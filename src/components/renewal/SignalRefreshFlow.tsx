@@ -183,11 +183,11 @@ export function SignalRefreshFlow() {
             {step === 'input' && (
                 <div className="space-y-4">
                     <div className="text-center">
-                        <Zap className="w-12 h-12 mx-auto text-purple-500 mb-2" />
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                        <Zap className="w-12 h-12 mx-auto text-[#00A651] mb-2" />
+                        <h2 className="text-xl font-bold text-foreground">
                             {sr.title || 'تجديد الإشارة'}
                         </h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                             {sr.description || 'أدخل رقم الكارت لتجديد إشارة الريسيفر'}
                         </p>
                     </div>
@@ -199,7 +199,7 @@ export function SignalRefreshFlow() {
                             value={cardNumber}
                             onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ''))}
                             placeholder={sr.cardPlaceholder || 'أدخل رقم الكارت (10-16 رقم)'}
-                            className="w-full ps-10 pe-4 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            className="w-full ps-10 pe-4 py-3 bg-secondary border border-border rounded-lg focus:ring-2 focus:ring-[#00A651] focus:border-transparent text-foreground"
                             maxLength={16}
                             dir="ltr"
                         />
@@ -223,8 +223,8 @@ export function SignalRefreshFlow() {
             {/* Checking Step */}
             {step === 'checking' && (
                 <div className="text-center space-y-4 py-8">
-                    <Loader2 className="w-12 h-12 mx-auto text-purple-500 animate-spin" />
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <Loader2 className="w-12 h-12 mx-auto text-[#00A651] animate-spin" />
+                    <p className="text-muted-foreground">
                         {sr.checking || 'جاري فحص الكارت...'}
                     </p>
                 </div>
@@ -259,7 +259,7 @@ export function SignalRefreshFlow() {
 
                         <button
                             onClick={handleReset}
-                            className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
+                            className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-lg hover:bg-secondary/80 transition-all"
                         >
                             {sr.tryAnother || 'كارت آخر'}
                         </button>
@@ -271,7 +271,7 @@ export function SignalRefreshFlow() {
             {step === 'activating' && (
                 <div className="text-center space-y-4 py-8">
                     <Loader2 className="w-12 h-12 mx-auto text-green-500 animate-spin" />
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <p className="text-muted-foreground">
                         {sr.activating || 'جاري تفعيل الإشارة...'}
                     </p>
                 </div>
@@ -293,7 +293,7 @@ export function SignalRefreshFlow() {
 
                     <button
                         onClick={handleReset}
-                        className="mt-4 px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all flex items-center justify-center gap-2 mx-auto"
+                        className="mt-4 px-6 py-2 bg-secondary text-foreground font-medium rounded-lg hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 mx-auto"
                     >
                         <RefreshCw className="w-4 h-4" />
                         {sr.refreshAnother || 'تجديد كارت آخر'}
@@ -308,12 +308,12 @@ export function SignalRefreshFlow() {
                     <h3 className="text-xl font-bold text-red-600 dark:text-red-400">
                         {sr.error || 'حدث خطأ'}
                     </h3>
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <p className="text-muted-foreground">
                         {error}
                     </p>
                     <button
                         onClick={handleReset}
-                        className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
+                        className="px-6 py-2 bg-secondary text-foreground font-medium rounded-lg hover:bg-secondary/80 transition-all"
                     >
                         {sr.tryAgain || 'حاول مرة أخرى'}
                     </button>

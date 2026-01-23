@@ -227,9 +227,14 @@ export default function ProxiesPage() {
         <div className="space-y-6 p-6">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold">إدارة Proxies</h1>
-                    <p className="text-muted-foreground">إدارة عناوين IP والاتصال بـ beIN</p>
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center shadow-lg">
+                        <Globe className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold text-foreground">إدارة Proxies</h1>
+                        <p className="text-muted-foreground text-sm">إدارة عناوين IP والاتصال بـ beIN</p>
+                    </div>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={fetchProxies}>

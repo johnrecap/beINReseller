@@ -11,7 +11,9 @@ datasource db {
 
 enum Role {
   ADMIN
-  RESELLER
+  RESELLER // Legacy role, kept for backward compatibility
+  MANAGER
+  USER
 }
 
 enum OperationType {
@@ -59,8 +61,47 @@ model User {
   adminActions  Transaction[] @relation("AdminTransactions")
   activityLogs  ActivityLog[]
   notifications Notification[]
+  
+  // RBAC Relations
+  managedUsers    ManagerUser[] @relation("ManagerToUsers")
+  managerLink     ManagerUser[] @relation("UserToManager")
+  managerActions  UserAction[]  @relation("ManagerActions")
+  userActions     UserAction[]  @relation("UserActions")
 
   @@map("users")
+}
+
+model ManagerUser {
+  id         String   @id @default(cuid())
+  managerId  String   @map("manager_id")
+  userId     String   @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  manager    User     @relation("ManagerToUsers", fields: [managerId], references: [id])
+  user       User     @relation("UserToManager", fields: [userId], references: [id])
+
+  @@unique([managerId, userId])
+  @@index([managerId])
+  @@index([userId])
+  @@map("manager_users")
+}
+
+model UserAction {
+  id          String   @id @default(cuid())
+  managerId   String?  @map("manager_id")
+  userId      String   @map("user_id")
+  actionType  String   @map("action_type")
+  details     Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  manager     User?    @relation("ManagerActions", fields: [managerId], references: [id])
+  user        User     @relation("UserActions", fields: [userId], references: [id])
+
+  @@index([managerId])
+  @@index([userId])
+  @@index([actionType])
+  @@index([createdAt])
+  @@map("user_actions")
 }
 
 model Operation {

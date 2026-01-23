@@ -39,13 +39,13 @@ export default function AdminDashboardClient() {
     if (loading) {
         return (
             <div className="space-y-6 animate-pulse">
-                <div className="h-12 w-48 bg-gray-200 rounded-lg"></div>
+                <div className="h-12 w-48 bg-muted rounded-lg"></div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-32 bg-gray-200 rounded-xl"></div>
+                        <div key={i} className="h-32 bg-muted rounded-xl"></div>
                     ))}
                 </div>
-                <div className="h-64 bg-gray-200 rounded-xl"></div>
+                <div className="h-64 bg-muted rounded-xl"></div>
             </div>
         )
     }
@@ -70,12 +70,12 @@ export default function AdminDashboardClient() {
         <div className="space-y-8">
             {/* Header */}
             <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-lg">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#00A651] to-[#008f45] flex items-center justify-center shadow-lg">
                     <LayoutDashboard className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">{t.admin.dashboard.title}</h1>
-                    <p className="text-gray-500 text-sm">{t.admin.dashboard.subtitle}</p>
+                    <h1 className="text-2xl font-bold text-foreground">{t.admin.dashboard.title}</h1>
+                    <p className="text-muted-foreground text-sm">{t.admin.dashboard.subtitle}</p>
                 </div>
             </div>
 

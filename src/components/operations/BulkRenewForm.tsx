@@ -92,7 +92,7 @@ export default function BulkRenewForm() {
     }
 
     return (
-        <div className="bg-white rounded-2xl shadow-lg p-6">
+        <div className="bg-card rounded-2xl shadow-lg p-6">
             {/* Low Balance Warning */}
             {balance < MIN_BALANCE_WARNING && (
                 <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
@@ -104,7 +104,7 @@ export default function BulkRenewForm() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Card Numbers Textarea */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-foreground mb-2">
                             {t.forms.enterCards}
                         </label>
                         <textarea
@@ -112,10 +112,10 @@ export default function BulkRenewForm() {
                             onChange={(e) => setCardNumbers(e.target.value)}
                             placeholder={t.forms.enterCardsPlaceholder}
                             rows={6}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:outline-none transition-colors text-left dir-ltr font-mono"
+                            className="w-full px-4 py-3 border-2 border-border rounded-xl focus:border-amber-500 focus:outline-none transition-colors text-left dir-ltr font-mono bg-background text-foreground"
                             disabled={loading}
                         />
-                        <div className="flex justify-between mt-2 text-xs text-gray-500">
+                        <div className="flex justify-between mt-2 text-xs text-muted-foreground">
                             <span>{cards.length} {t.forms.cardCount}</span>
                             <span>{t.forms.max10}</span>
                         </div>
@@ -126,7 +126,7 @@ export default function BulkRenewForm() {
 
                     {/* Duration Select */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-foreground mb-2">
                             {t.forms.renewDuration}
                         </label>
                         <div className="grid grid-cols-2 gap-3">
@@ -138,7 +138,7 @@ export default function BulkRenewForm() {
                                     disabled={loading}
                                     className={`p-4 rounded-xl border-2 transition-all text-right ${duration === option.value
                                         ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                        : 'border-gray-200 hover:border-amber-300'
+                                        : 'border-border hover:border-amber-300'
                                         }`}
                                 >
                                     <div className="font-bold">
@@ -156,17 +156,17 @@ export default function BulkRenewForm() {
                     <div className="bg-gradient-to-r from-amber-50 to-amber-100 rounded-xl p-4">
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-gray-600">{t.forms.totalCards}:</span>
+                                <span className="text-muted-foreground">{t.forms.totalCards}:</span>
                                 <span className="font-bold">{cards.length}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-600">{t.forms.price}:</span>
+                                <span className="text-muted-foreground">{t.forms.price}:</span>
                                 <span className="font-bold">{pricePerCard} {t.header.currency}</span>
                             </div>
                         </div>
                         <div className="border-t border-amber-200 mt-3 pt-3">
                             <div className="flex justify-between items-center">
-                                <span className="text-gray-600">{t.forms.totalPrice}:</span>
+                                <span className="text-muted-foreground">{t.forms.totalPrice}:</span>
                                 <span className="text-2xl font-bold text-amber-700">{totalPrice} {t.header.currency}</span>
                             </div>
                             <div className="flex justify-between items-center mt-1 text-sm">
@@ -203,7 +203,7 @@ export default function BulkRenewForm() {
                         disabled={!canSubmit}
                         className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${canSubmit
                             ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/25'
-                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            : 'bg-muted text-muted-foreground cursor-not-allowed'
                             }`}
                     >
                         {loading ? (
@@ -221,14 +221,14 @@ export default function BulkRenewForm() {
             ) : (
                 /* Results Display */
                 <div className="space-y-4">
-                    <h3 className="text-lg font-bold text-gray-800">{t.forms.resultsTitle}</h3>
+                    <h3 className="text-lg font-bold text-foreground">{t.forms.resultsTitle}</h3>
 
                     {/* Results List */}
                     <div className="space-y-2">
                         {results.map((result, index) => (
                             <div
                                 key={index}
-                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                className="flex items-center justify-between p-3 bg-secondary rounded-lg"
                             >
                                 <div className="flex items-center gap-3">
                                     {result.status === 'pending' && (
@@ -242,7 +242,7 @@ export default function BulkRenewForm() {
                                     )}
                                     <span className="font-mono">****{result.cardNumber.slice(-4)}</span>
                                 </div>
-                                <span className="text-sm text-gray-500">
+                                <span className="text-sm text-muted-foreground">
                                     {result.status === 'pending' && t.resultDisplay.status.PENDING}
                                     {result.status === 'success' && t.resultDisplay.status.COMPLETED}
                                     {result.status === 'error' && result.error}
@@ -267,7 +267,7 @@ export default function BulkRenewForm() {
                     {/* Reset Button */}
                     <button
                         onClick={handleReset}
-                        className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all"
+                        className="w-full py-3 bg-secondary text-foreground rounded-xl font-medium hover:bg-secondary/80 transition-all"
                     >
                         {t.forms.newOperation}
                     </button>

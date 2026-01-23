@@ -112,7 +112,7 @@ export default function NotificationBell() {
             {/* Bell Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="relative p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
                 aria-label={t.notifications?.title || 'Notifications'}
             >
                 <Bell className="w-6 h-6" />
@@ -125,10 +125,10 @@ export default function NotificationBell() {
 
             {/* Dropdown */}
             {isOpen && (
-                <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50" dir="rtl">
+                <div className="absolute left-0 top-full mt-2 w-80 bg-card rounded-xl shadow-2xl border border-border overflow-hidden z-50" dir="rtl">
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-                        <h3 className="font-bold text-gray-800">{t.notifications?.title || 'Notifications'}</h3>
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary">
+                        <h3 className="font-bold text-foreground">{t.notifications?.title || 'Notifications'}</h3>
                         {unreadCount > 0 && (
                             <button
                                 onClick={markAllAsRead}
@@ -143,7 +143,7 @@ export default function NotificationBell() {
                     {/* Notifications List */}
                     <div className="max-h-96 overflow-y-auto">
                         {notifications.length === 0 ? (
-                            <div className="p-8 text-center text-gray-500">
+                            <div className="p-8 text-center text-muted-foreground">
                                 <Bell className="w-12 h-12 mx-auto mb-2 opacity-30" />
                                 <p>{t.notifications?.noNotifications || 'No notifications'}</p>
                             </div>
@@ -152,7 +152,7 @@ export default function NotificationBell() {
                                 <div
                                     key={notification.id}
                                     className={cn(
-                                        'flex gap-3 p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer',
+                                        'flex gap-3 p-4 border-b border-border hover:bg-secondary transition-colors cursor-pointer',
                                         !notification.read && 'bg-blue-50/50'
                                     )}
                                     onClick={() => {
@@ -168,11 +168,11 @@ export default function NotificationBell() {
                                     <div className="flex-1 min-w-0">
                                         <p className={cn(
                                             'text-sm',
-                                            notification.read ? 'text-gray-600' : 'text-gray-900 font-medium'
+                                            notification.read ? 'text-muted-foreground' : 'text-foreground font-medium'
                                         )}>
                                             {notification.title}
                                         </p>
-                                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                                             {notification.message}
                                         </p>
                                         <p className="text-xs text-gray-400 mt-1">
@@ -194,7 +194,7 @@ export default function NotificationBell() {
 
                     {/* Footer */}
                     {notifications.length > 0 && (
-                        <div className="p-3 border-t border-gray-100 bg-gray-50 text-center">
+                        <div className="p-3 border-t border-border bg-secondary text-center">
                             <a
                                 href="/dashboard/notifications"
                                 className="text-sm text-blue-600 hover:text-blue-800"

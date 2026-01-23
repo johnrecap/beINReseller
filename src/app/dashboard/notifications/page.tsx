@@ -107,8 +107,8 @@ export default function NotificationsPage() {
                                 <Bell className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-800">{t.notifications?.title || 'Notifications'}</h1>
-                                <p className="text-sm text-gray-500">
+                                <h1 className="text-xl font-bold text-foreground">{t.notifications?.title || 'Notifications'}</h1>
+                                <p className="text-sm text-muted-foreground">
                                     {unreadCount > 0
                                         ? `${unreadCount} ${t.notifications?.unread || 'unread'}`
                                         : t.notifications?.allRead || 'All notifications read'}
@@ -132,11 +132,11 @@ export default function NotificationsPage() {
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
                     {loading ? (
                         <div className="p-12 text-center">
-                            <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-500" />
-                            <p className="mt-2 text-gray-500">{t.common?.loading || 'Loading...'}</p>
+                            <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#00A651]" />
+                            <p className="mt-2 text-muted-foreground">{t.common?.loading || 'Loading...'}</p>
                         </div>
                     ) : notifications.length === 0 ? (
-                        <div className="p-12 text-center text-gray-500">
+                        <div className="p-12 text-center text-muted-foreground">
                             <Bell className="w-16 h-16 mx-auto mb-4 opacity-30" />
                             <p className="text-lg">{t.notifications?.noNotifications || 'No notifications'}</p>
                         </div>
@@ -166,7 +166,7 @@ export default function NotificationsPage() {
                                         )}>
                                             {notification.title}
                                         </p>
-                                        <p className="text-sm text-gray-500 mt-1">
+                                        <p className="text-sm text-muted-foreground mt-1">
                                             {notification.message}
                                         </p>
                                         <p className="text-xs text-gray-400 mt-2">

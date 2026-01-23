@@ -35,6 +35,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const { t, dir } = useTranslation()
     const isAdmin = session?.user?.role === 'ADMIN'
 
+    const isManager = session?.user?.role === 'MANAGER'
+
     const resellerLinks = [
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
         { href: '/dashboard/renew', label: t.bulk?.interactiveRenewal || 'Interactive Renewal', icon: Sparkles },
@@ -42,6 +44,24 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/history', label: t.sidebar.history, icon: History },
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
         { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },
+    ].filter(() => !isManager) // Hide reseller links from managers if desired, or keep them. 
+    // Requirement says: "User elements: renew, history" - usually managers can do valid user ops too? 
+    // "Admin elements... Manager elements... User elements..." implied separation.
+    // Let's keep typical user links for everyone (User/Manager/Admin often can do basic stuff) 
+    // OR strictly separate. 
+    // "Hide unauthorized elements": 
+    // Admin sees Admin stuff. Manager sees Manager stuff. User sees User stuff.
+    // Does Manager need to see "Renew"? Probably yes, to act on behalf? 
+    // Or Manager only manages users?
+    // Based on "Manager Dashboard" having "Create User", Manager is likely a hierarchical parent.
+    // Prompt says: "Manager elements: Dashboard, Create Users". "User elements: Renew, operations log".
+    // I will assume Manager has access to their specific dashboard AND basic profile stuff, but maybe not "Renew" for themselves if they are just managers?
+    // Actually, usually Managers are also Resellers with extra powers.
+    // Let's add Manager Links list.
+
+    const managerLinks = [
+        { href: '/dashboard/manager', label: 'لوحة المدير', icon: BarChart3 },
+        // { href: '/dashboard/manager/users', label: 'المستخدمين', icon: Users }, // Linked from dashboard/manager page usually, or sidebar
     ]
 
     const adminLinks = [
@@ -123,6 +143,38 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 })}
                             </div>
                         </div>
+
+
+                        {/* Manager Menu */}
+                        {isManager && (
+                            <div>
+                                <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+                                    لوحة المدير
+                                </h4>
+                                <div className="space-y-1">
+                                    {managerLinks.map((link) => {
+                                        const Icon = link.icon
+                                        const isActive = pathname === link.href || pathname.startsWith(link.href + '/')
+                                        return (
+                                            <Link
+                                                key={link.href}
+                                                href={link.href}
+                                                onClick={onClose}
+                                                className={cn(
+                                                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                                                    isActive
+                                                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                                                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
+                                                )}
+                                            >
+                                                <Icon className="h-4 w-4" />
+                                                {link.label}
+                                            </Link>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Admin Menu */}
                         {isAdmin && (

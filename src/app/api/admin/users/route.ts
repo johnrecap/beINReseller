@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { requireRoleAPI } from '@/lib/auth-utils'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
@@ -13,14 +13,16 @@ const createUserSchema = z.object({
 
 export async function GET(request: Request) {
     try {
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPI('ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+
+        const { user } = authResult
 
         // Rate Limit
         const { allowed, result: limitResult } = await withRateLimit(
-            `admin:${session.user.id}`,
+            `admin:${user.id}`,
             RATE_LIMITS.admin
         )
         if (!allowed) {
@@ -83,10 +85,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPI('ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+
+        const { user } = authResult
 
         const body = await request.json()
         const result = createUserSchema.safeParse(body)
@@ -128,7 +132,7 @@ export async function POST(request: Request) {
         // Log activity
         await prisma.activityLog.create({
             data: {
-                userId: session.user.id,
+                userId: user.id,
                 action: 'ADMIN_CREATE_USER',
                 details: `Created user: ${username}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown'

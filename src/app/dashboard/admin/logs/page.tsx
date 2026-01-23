@@ -24,8 +24,8 @@ export default async function AdminLogsPage() {
                     <ShieldAlert className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">سجلات النشاط</h1>
-                    <p className="text-gray-500 text-sm">تتبع جميع العمليات والإجراءات في النظام</p>
+                    <h1 className="text-2xl font-bold text-foreground">سجلات النشاط</h1>
+                    <p className="text-muted-foreground text-sm">تتبع جميع العمليات والإجراءات في النظام</p>
                 </div>
             </div>
 

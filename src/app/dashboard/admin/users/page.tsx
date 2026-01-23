@@ -24,8 +24,8 @@ export default async function AdminUsersPage() {
                     <Users className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">إدارة الموزعين</h1>
-                    <p className="text-gray-500 text-sm">عرض وإدارة جميع حسابات الموزعين في النظام</p>
+                    <h1 className="text-2xl font-bold text-foreground">إدارة الموزعين</h1>
+                    <p className="text-muted-foreground text-sm">عرض وإدارة جميع حسابات الموزعين في النظام</p>
                 </div>
             </div>
 

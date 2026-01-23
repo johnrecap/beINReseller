@@ -111,7 +111,7 @@ export default function SettingsForm() {
             <button
                 type="submit"
                 disabled={saving}
-                className="fixed bottom-6 left-6 z-40 flex items-center gap-2 bg-gray-900 text-white px-8 py-3 rounded-full shadow-2xl hover:bg-black transition-all hover:scale-105 active:scale-95 disabled:opacity-70 disabled:hover:scale-100"
+                className="fixed bottom-6 left-6 z-40 flex items-center gap-2 bg-[#00A651] text-white px-8 py-3 rounded-full shadow-2xl hover:bg-[#008f45] transition-all hover:scale-105 active:scale-95 disabled:opacity-70 disabled:hover:scale-100"
             >
                 {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                 <span>{t.admin.settings.actions.save}</span>

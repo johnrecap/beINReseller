@@ -117,8 +117,8 @@ export default function AnalyticsPage() {
                         <BarChart3 className="w-6 h-6" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">التحليلات</h1>
-                        <p className="text-gray-500">إحصائيات مفصلة عن العمليات</p>
+                        <h1 className="text-2xl font-bold text-foreground">التحليلات</h1>
+                        <p className="text-muted-foreground">إحصائيات مفصلة عن العمليات</p>
                     </div>
                 </div>
 

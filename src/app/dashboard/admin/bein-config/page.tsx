@@ -24,8 +24,8 @@ export default async function BeINConfigPage() {
                     <Bot className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">إعدادات روبوت beIN</h1>
-                    <p className="text-gray-500 text-sm">ضبط بيانات الدخول والمحددات للأتمتة</p>
+                    <h1 className="text-2xl font-bold text-foreground">إعدادات روبوت beIN</h1>
+                    <p className="text-muted-foreground text-sm">ضبط بيانات الدخول والمحددات للأتمتة</p>
                 </div>
             </div>
 

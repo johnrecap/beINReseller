@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { startOfDay, subDays, format } from 'date-fns'
+import { requireRoleAPI } from '@/lib/auth-utils'
 
 export async function GET() {
     try {
-        const session = await auth()
-
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json(
-                { error: 'UNAUTHORIZED' },
-                { status: 401 }
-            )
+        const authResult = await requireRoleAPI('ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const today = startOfDay(new Date())

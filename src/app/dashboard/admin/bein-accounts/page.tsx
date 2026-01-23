@@ -254,9 +254,14 @@ export default function BeinAccountsPage() {
         <div className="space-y-6 p-6">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold">إدارة حسابات beIN</h1>
-                    <p className="text-muted-foreground">إدارة حسابات البوت للتوزيع الذكي</p>
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+                        <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold text-foreground">إدارة حسابات beIN</h1>
+                        <p className="text-muted-foreground text-sm">إدارة حسابات البوت للتوزيع الذكي</p>
+                    </div>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={fetchAccounts}>

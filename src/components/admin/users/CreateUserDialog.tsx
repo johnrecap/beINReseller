@@ -51,42 +51,48 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center p-4 border-b border-gray-100">
-                    <h3 className="font-bold text-gray-800">{t.admin.users.dialogs.createTitle}</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg text-gray-500">
+                    <h3 className="font-bold text-foreground">{t.admin.users.dialogs.createTitle}</h3>
+                    <button onClick={onClose} title="إغلاق" className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.admin.users.dialogs.username}</label>
+                        <label htmlFor="username" className="block text-sm font-medium text-foreground mb-1">{t.admin.users.dialogs.username}</label>
                         <input
+                            id="username"
                             name="username"
                             type="text"
                             required
                             minLength={3}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 text-sm"
+                            placeholder="اسم المستخدم"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.admin.users.dialogs.email}</label>
+                        <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">{t.admin.users.dialogs.email}</label>
                         <input
+                            id="email"
                             name="email"
                             type="email"
                             required
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 text-sm text-right dir-ltr"
+                            placeholder="البريد الإلكتروني"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm text-right dir-ltr"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.admin.users.dialogs.password}</label>
+                        <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">{t.admin.users.dialogs.password}</label>
                         <input
+                            id="password"
                             name="password"
                             type="password"
                             required
                             minLength={6}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 text-sm dir-ltr"
+                            placeholder="كلمة المرور"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm dir-ltr"
                         />
                     </div>
 

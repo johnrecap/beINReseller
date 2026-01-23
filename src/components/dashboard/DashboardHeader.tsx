@@ -8,11 +8,20 @@ import { motion } from 'framer-motion'
 
 interface DashboardHeaderProps {
     username: string
-    role: 'ADMIN' | 'RESELLER'
+    role: 'ADMIN' | 'RESELLER' | 'MANAGER' | 'USER' | string
 }
 
 export default function DashboardHeader({ username, role }: DashboardHeaderProps) {
     const { t } = useTranslation()
+
+    const getRoleName = (r: string) => {
+        switch (r) {
+            case 'ADMIN': return t.dashboard.adminWelcome;
+            case 'MANAGER': return 'مدير النظام'; // Or translation key
+            case 'USER': return 'مستخدم';
+            default: return t.dashboard.resellerWelcome;
+        }
+    }
 
     return (
         <motion.div
@@ -32,7 +41,7 @@ export default function DashboardHeader({ username, role }: DashboardHeaderProps
                     </span>
                 </h2>
                 <p className="text-[14px] text-[var(--color-text-muted)] mt-1">
-                    {role === 'ADMIN' ? t.dashboard.adminWelcome : t.dashboard.resellerWelcome}
+                    {getRoleName(role)}
                 </p>
             </div>
 

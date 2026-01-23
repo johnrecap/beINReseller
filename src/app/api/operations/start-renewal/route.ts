@@ -82,14 +82,26 @@ export async function POST(request: Request) {
         })
 
         // 6. Log activity
-        await prisma.activityLog.create({
-            data: {
-                userId: session.user.id,
-                action: 'RENEWAL_STARTED',
-                details: `بدء تجديد للكارت ****${cardNumber.slice(-4)}`,
-                ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-            },
-        })
+        await prisma.$transaction([
+            prisma.activityLog.create({
+                data: {
+                    userId: session.user.id,
+                    action: 'RENEWAL_STARTED',
+                    details: `بدء تجديد للكارت ****${cardNumber.slice(-4)}`,
+                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                },
+            }),
+            prisma.userAction.create({
+                data: {
+                    userId: session.user.id,
+                    actionType: 'RENEWAL_STARTED',
+                    details: { cardNumber: cardNumber.slice(-4), operationId: operation.id },
+                    // If user has a manager, you might want to link it here, 
+                    // but we need to fetch manager info first. 
+                    // For now, we rely on the DB relation user.managerLink to join data later.
+                }
+            })
+        ])
 
         // 7. Add job to queue (start-renewal type)
         try {

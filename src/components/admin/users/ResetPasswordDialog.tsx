@@ -67,7 +67,7 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                         <KeyRound className="w-5 h-5" />
                         {t.admin.users.dialogs.resetTitle}
                     </h3>
-                    <button onClick={handleClose} className="p-1 hover:bg-white/50 rounded-lg text-amber-700">
+                    <button onClick={handleClose} title="إغلاق" className="p-1 hover:bg-white/50 rounded-lg text-amber-700">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -75,7 +75,7 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                 <div className="p-6 text-center space-y-6">
                     {!newPassword ? (
                         <>
-                            <p className="text-gray-600">
+                            <p className="text-muted-foreground">
                                 {t.admin.users.dialogs.resetConfirm.split('{name}')[0]}
                                 <span className="font-bold">{username}</span>
                                 {t.admin.users.dialogs.resetConfirm.split('{name}')[1]}
@@ -83,7 +83,7 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                             <div className="flex gap-3 justify-center">
                                 <button
                                     onClick={handleClose}
-                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                    className="px-4 py-2 text-sm font-medium text-foreground bg-secondary rounded-lg hover:bg-secondary/80"
                                 >
                                     {t.admin.users.actions.cancel}
                                 </button>
@@ -102,26 +102,26 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                                 <Check className="w-6 h-6 text-green-600" />
                             </div>
-                            <h4 className="font-bold text-gray-800">{t.admin.users.messages.resetSuccess}</h4>
+                            <h4 className="font-bold text-foreground">{t.admin.users.messages.resetSuccess}</h4>
 
-                            <div className="bg-gray-100 p-4 rounded-xl flex items-center justify-between border border-gray-200">
-                                <code className="font-mono text-lg text-gray-800 font-bold tracking-wider">{newPassword}</code>
+                            <div className="bg-secondary p-4 rounded-xl flex items-center justify-between border border-border">
+                                <code className="font-mono text-lg text-foreground font-bold tracking-wider">{newPassword}</code>
                                 <button
                                     onClick={copyToClipboard}
-                                    className="p-2 hover:bg-white rounded-lg text-gray-500 transition-colors"
+                                    className="p-2 hover:bg-card rounded-lg text-muted-foreground transition-colors"
                                     title={t.common.copy}
                                 >
                                     {copied ? <Check className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5" />}
                                 </button>
                             </div>
 
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                                 {t.admin.users.messages.copyPassword}
                             </p>
 
                             <button
                                 onClick={handleClose}
-                                className="w-full px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-black"
+                                className="w-full px-4 py-2 text-sm font-medium text-white bg-[#00A651] rounded-lg hover:bg-[#008f45]"
                             >
                                 {t.common.close}
                             </button>

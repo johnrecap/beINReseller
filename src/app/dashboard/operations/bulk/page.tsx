@@ -15,12 +15,12 @@ export default async function BulkOperationsPage() {
     return (
         <div className="space-y-6" dir="rtl">
             {/* Breadcrumb */}
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Link href="/dashboard/renew" className="hover:text-purple-600">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Link href="/dashboard/renew" className="hover:text-[#00A651]">
                     التجديد التفاعلي
                 </Link>
                 <span>/</span>
-                <span className="text-gray-800">عمليات الجملة</span>
+                <span className="text-foreground">عمليات الجملة</span>
             </div>
 
             {/* Page Header */}
@@ -29,16 +29,16 @@ export default async function BulkOperationsPage() {
                     <Layers className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">عمليات الجملة</h1>
-                    <p className="text-gray-500 text-sm">تجديد اشتراكات متعددة دفعة واحدة (حتى 10 كروت)</p>
+                    <h1 className="text-2xl font-bold text-foreground">عمليات الجملة</h1>
+                    <p className="text-muted-foreground text-sm">تجديد اشتراكات متعددة دفعة واحدة (حتى 10 كروت)</p>
                 </div>
             </div>
 
             {/* Form */}
             <Suspense fallback={
-                <div className="bg-white rounded-2xl shadow-lg p-8 animate-pulse">
-                    <div className="h-32 bg-gray-200 rounded-lg mb-6"></div>
-                    <div className="h-12 bg-gray-200 rounded-lg"></div>
+                <div className="bg-card rounded-2xl shadow-lg p-8 animate-pulse">
+                    <div className="h-32 bg-muted rounded-lg mb-6"></div>
+                    <div className="h-12 bg-muted rounded-lg"></div>
                 </div>
             }>
                 <BulkRenewForm />

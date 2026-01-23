@@ -61,15 +61,18 @@ interface BeinAccount {
     balanceUpdatedAt: string | null
     proxyId: string | null
     proxy?: {
-        sessionId: string
-        label: string | null
+        host: string
+        port: number
+        label: string
     }
 }
 
 interface Proxy {
     id: string
-    sessionId: string
-    label: string | null
+    host: string
+    port: number
+    hasPassword: boolean
+    label: string
     isActive: boolean
 }
 
@@ -338,10 +341,9 @@ export default function BeinAccountsPage() {
                                         onChange={(e) => setFormData({ ...formData, proxyId: e.target.value })}
                                     >
                                         <option value="">-- بدون بروكسي --</option>
-                                        {proxies.map(p => (
+                                        {proxies.filter(p => p.isActive).map(p => (
                                             <option key={p.id} value={p.id}>
-                                                {p.label ? `${p.label} (${p.sessionId})` : p.sessionId}
-                                                {!p.isActive ? ' (معطل)' : ''}
+                                                {p.label} ({p.host}:{p.port})
                                             </option>
                                         ))}
                                     </select>
@@ -438,7 +440,7 @@ export default function BeinAccountsPage() {
                                         <TableCell className="text-center">
                                             {account.proxy ? (
                                                 <Badge variant="outline" className="font-mono text-xs">
-                                                    {account.proxy.label || account.proxy.sessionId}
+                                                    {account.proxy.label}
                                                 </Badge>
                                             ) : (
                                                 <span className="text-muted-foreground text-xs">-</span>
@@ -585,10 +587,9 @@ export default function BeinAccountsPage() {
                                 onChange={(e) => setFormData({ ...formData, proxyId: e.target.value })}
                             >
                                 <option value="">-- بدون بروكسي --</option>
-                                {proxies.map(p => (
+                                {proxies.filter(p => p.isActive).map(p => (
                                     <option key={p.id} value={p.id}>
-                                        {p.label ? `${p.label} (${p.sessionId})` : p.sessionId}
-                                        {!p.isActive ? ' (معطل)' : ''}
+                                        {p.label} ({p.host}:{p.port})
                                     </option>
                                 ))}
                             </select>

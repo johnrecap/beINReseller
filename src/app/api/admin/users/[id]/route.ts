@@ -91,13 +91,51 @@ export async function DELETE(
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
         }
 
-        // Soft delete by deactivating
+        // Prevent deleting self
+        if (session.user.id === id) {
+            return NextResponse.json({ error: 'لا يمكنك حذف حسابك الشخصي' }, { status: 400 })
+        }
+
+        // Check if user exists and not already deleted
+        const userToDelete = await prisma.user.findUnique({ where: { id } })
+        if (!userToDelete) {
+            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+        }
+
+        if (userToDelete.deletedAt) {
+            return NextResponse.json({ error: 'المستخدم محذوف بالفعل' }, { status: 400 })
+        }
+
+        // Prevent deleting last admin
+        if (userToDelete.role === 'ADMIN') {
+            const adminCount = await prisma.user.count({ where: { role: 'ADMIN', deletedAt: null } })
+            if (adminCount <= 1) {
+                return NextResponse.json({ error: 'لا يمكن حذف آخر أدمن في النظام' }, { status: 400 })
+            }
+        }
+
+        // Soft delete - preserve data and mark as deleted
         await prisma.user.update({
             where: { id },
-            data: { isActive: false }
+            data: {
+                deletedAt: new Date(),
+                deletedBalance: userToDelete.balance,
+                deletedByUserId: session.user.id,
+                isActive: false,
+            }
         })
 
-        return NextResponse.json({ success: true, message: 'تم تعطيل المستخدم بنجاح' })
+        // Log activity
+        await prisma.activityLog.create({
+            data: {
+                userId: session.user.id,
+                action: 'ADMIN_DELETE_USER',
+                details: `Deleted user: ${userToDelete.username} (balance: ${userToDelete.balance})`,
+                ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+            }
+        })
+
+        return NextResponse.json({ success: true, message: 'تم حذف المستخدم بنجاح' })
 
     } catch (error) {
         console.error('Delete user error:', error)

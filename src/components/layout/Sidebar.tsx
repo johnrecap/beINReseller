@@ -18,7 +18,8 @@ import {
     BarChart3,
     Sparkles,
     Loader2,
-    Globe
+    Globe,
+    Trash2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -67,6 +68,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const adminLinks = [
         { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
         { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
+        { href: '/dashboard/admin/deleted-users', label: 'الحسابات المحذوفة', icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts || 'حسابات beIN', icon: Users },
         { href: '/dashboard/admin/proxies', label: 'إدارة البروكسي', icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },

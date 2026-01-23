@@ -55,6 +55,8 @@ model User {
   updatedAt       DateTime      @updatedAt @map("updated_at")
   lastLoginAt     DateTime?     @map("last_login_at")
   deletedAt       DateTime?     @map("deleted_at")
+  deletedBalance  Float?        @map("deleted_balance")
+  deletedByUserId String?       @map("deleted_by_user_id")
 
   operations    Operation[]
   transactions  Transaction[] @relation("UserTransactions")

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2 } from 'lucide-react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
@@ -85,6 +85,26 @@ export default function UsersTable() {
             if (res.ok) fetchUsers()
         } catch (error) {
             console.error('Failed to update status', error)
+        }
+    }
+
+    const handleDeleteUser = async (user: User) => {
+        if (!confirm(`هل أنت متأكد من حذف "${user.username}" نهائياً؟ سيتم حذف جميع البيانات المرتبطة بهذا الحساب.`)) return
+
+        try {
+            const res = await fetch(`/api/admin/users/${user.id}`, {
+                method: 'DELETE',
+            })
+            const data = await res.json()
+            if (res.ok) {
+                fetchUsers()
+                alert('تم حذف المستخدم بنجاح')
+            } else {
+                alert(data.error || 'فشل حذف المستخدم')
+            }
+        } catch (error) {
+            console.error('Failed to delete user', error)
+            alert('حدث خطأ أثناء حذف المستخدم')
         }
     }
 
@@ -208,6 +228,13 @@ export default function UsersTable() {
                                                     title={user.isActive ? t.admin.users.actions.disable : t.admin.users.actions.enable}
                                                 >
                                                     {user.isActive ? <Ban className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteUser(user)}
+                                                    className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-700 rounded-lg transition-colors"
+                                                    title="حذف نهائي"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         </td>

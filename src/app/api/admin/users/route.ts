@@ -41,11 +41,12 @@ export async function GET(request: Request) {
         const search = searchParams.get('search') || ''
 
         const where = search ? {
+            deletedAt: null,
             OR: [
                 { username: { contains: search, mode: 'insensitive' as const } },
                 { email: { contains: search, mode: 'insensitive' as const } }
             ]
-        } : {}
+        } : { deletedAt: null }
 
         const [users, total] = await Promise.all([
             prisma.user.findMany({

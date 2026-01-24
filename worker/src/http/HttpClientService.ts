@@ -331,11 +331,9 @@ export class HttpClientService {
             return 'Session Expired';
         }
 
-        // Check for explicit CAPTCHA challenge text (very specific)
-        // "enter the following code" is unique to the CAPTCHA input prompt
-        if (bodyText.includes('enter the following code in the next box')) {
-            return 'Session Expired - CAPTCHA Required';
-        }
+        // NOTE: Removed "enter the following code" check - it caused false positives
+        // during login flow when login fails and returns login page with new CAPTCHA.
+        // Login page detection is handled separately in submitLogin().
 
         return null;
     }

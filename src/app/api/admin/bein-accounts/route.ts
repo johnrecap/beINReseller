@@ -28,7 +28,7 @@ export async function GET() {
                     select: { operations: true }
                 },
                 proxy: {
-                    select: { sessionId: true, label: true }
+                    select: { id: true, host: true, port: true, label: true }
                 }
             }
         })

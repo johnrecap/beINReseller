@@ -2110,7 +2110,7 @@ export class HttpClientService {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Referer': checkUrl,
-                        'Origin': this.config.baseUrl.replace(/\/$/, '')
+                        'Origin': new URL(checkUrl).origin
                     }
                 }
             );

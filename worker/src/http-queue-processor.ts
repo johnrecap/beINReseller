@@ -372,7 +372,8 @@ async function handleCompletePurchaseHttp(
 
     // Get account
     const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId }
+        where: { id: operation.beinAccountId },
+        include: { proxy: true }  // CRITICAL: Include proxy for HTTP client
     });
     if (!account) throw new Error('Account not found');
 
@@ -546,7 +547,8 @@ async function handleConfirmPurchaseHttp(
     });
 
     const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId }
+        where: { id: operation.beinAccountId },
+        include: { proxy: true }  // CRITICAL: Include proxy for HTTP client
     });
     if (!account) throw new Error('Account not found');
 
@@ -670,7 +672,8 @@ async function handleCancelConfirmHttp(
     if (operation.beinAccountId) {
         try {
             const account = await prisma.beinAccount.findUnique({
-                where: { id: operation.beinAccountId }
+                where: { id: operation.beinAccountId },
+                include: { proxy: true }  // Include proxy for HTTP client
             });
             if (account) {
                 const client = await getHttpClient(account);
@@ -1069,7 +1072,8 @@ async function handleSignalActivateHttp(
 
     // Get account
     const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId }
+        where: { id: operation.beinAccountId },
+        include: { proxy: true }  // CRITICAL: Include proxy for HTTP client
     });
     if (!account) throw new Error('Account not found');
 

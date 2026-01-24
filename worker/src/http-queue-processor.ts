@@ -97,7 +97,38 @@ async function getCaptchaApiKey(): Promise<string | null> {
     }
 }
 
+// AUDIT FIX 3.1: CAPTCHA timeout with safe fallback
+// TODO: Move to database settings (worker_captcha_timeout_seconds)
 const CAPTCHA_TIMEOUT_MS = parseInt(process.env.CAPTCHA_TIMEOUT || '120') * 1000;
+
+// AUDIT FIX 4.2: Per-flow session timeouts
+const SESSION_TIMEOUTS = {
+    confirmPurchase: 30 * 60 * 1000,   // 30 min (short - just confirmation)
+    completePurchase: 60 * 60 * 1000,  // 60 min (longer - user selecting package)
+    signalActivate: 30 * 60 * 1000     // 30 min (short - just activation)
+};
+
+/**
+ * AUDIT FIX 4.2: Validate session age with per-flow timeout
+ * @param savedAt - ISO string of when session was saved
+ * @param flowType - Type of flow to determine timeout
+ * @throws Error if session is too old
+ */
+function validateSessionAge(savedAt: string, flowType: keyof typeof SESSION_TIMEOUTS): void {
+    const savedTime = new Date(savedAt).getTime();
+    const now = Date.now();
+    const sessionAge = now - savedTime;
+    const maxAgeMs = SESSION_TIMEOUTS[flowType];
+    const ageMinutes = Math.floor(sessionAge / 60000);
+    const maxMinutes = Math.floor(maxAgeMs / 60000);
+
+    if (sessionAge > maxAgeMs) {
+        console.error(`[HTTP] SESSION TOO OLD: ${ageMinutes} minutes (max: ${maxMinutes} minutes for ${flowType})`);
+        throw new Error(`انتهت صلاحية الجلسة (${ageMinutes} دقيقة). برجاء إعادة العملية.`);
+    }
+
+    console.log(`[HTTP] Session age: ${ageMinutes} minutes (within ${maxMinutes} min limit for ${flowType})`);
+}
 
 /**
  * Main processor for HTTP-based operations
@@ -385,6 +416,12 @@ async function handleCompletePurchaseHttp(
     if (operation.responseData) {
         try {
             const savedData = JSON.parse(operation.responseData as string);
+
+            // AUDIT FIX 4.2: Validate session age for completePurchase flow
+            if (savedData.savedAt) {
+                validateSessionAge(savedData.savedAt, 'completePurchase');
+            }
+
             if (savedData.sessionData) {
                 console.log(`[HTTP] 🔄 Restoring session from database (saved at ${savedData.savedAt})`);
                 await client.importSession(savedData.sessionData);
@@ -568,22 +605,9 @@ async function handleConfirmPurchaseHttp(
         try {
             const savedData = JSON.parse(operation.responseData as string);
 
-            // CHECK SESSION AGE - beIN sessions expire after ~30-60 minutes
-            // If session is too old, fail fast instead of attempting with expired session
+            // AUDIT FIX 4.2: Use helper function for session age validation
             if (savedData.savedAt) {
-                const savedTime = new Date(savedData.savedAt).getTime();
-                const now = Date.now();
-                const sessionAge = now - savedTime;
-                const SESSION_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
-
-                console.log(`[HTTP] DEBUG: savedAt=${savedData.savedAt}, now=${new Date().toISOString()}, age=${Math.floor(sessionAge / 60000)}min`);
-
-                if (sessionAge > SESSION_MAX_AGE_MS) {
-                    const ageMinutes = Math.floor(sessionAge / 60000);
-                    console.error(`[HTTP] ❌ SESSION TOO OLD: ${ageMinutes} minutes (max: 30 minutes)`);
-                    throw new Error(`انتهت صلاحية الجلسة (${ageMinutes} دقيقة). برجاء إعادة العملية.`);
-                }
-                console.log(`[HTTP] Session age: ${Math.floor(sessionAge / 60000)} minutes (within 30 min limit)`);
+                validateSessionAge(savedData.savedAt, 'confirmPurchase');
             }
 
             if (savedData.sessionData) {
@@ -1082,6 +1106,11 @@ async function handleSignalActivateHttp(
     try {
         // Session was parsed above as savedData - restore if available
         if (savedData?.sessionData) {
+            // AUDIT FIX 4.2: Validate session age for signalActivate flow
+            if (savedData.checkedAt) {
+                validateSessionAge(savedData.checkedAt, 'signalActivate');
+            }
+
             console.log(`[HTTP] 🔄 Restoring session for activation`);
             await httpClient.importSession(savedData.sessionData);
         }

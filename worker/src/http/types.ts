@@ -15,6 +15,7 @@ export interface BeINHttpConfig {
     captchaApiKey: string;
     captchaEnabled: boolean;
     selCaptchaImg: string; // CAPTCHA image selector from database
+    selCaptchaSolution: string; // AUDIT FIX 1.2: CAPTCHA solution input field name
 
     // URLs
     loginUrl: string;

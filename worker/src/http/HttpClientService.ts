@@ -101,49 +101,9 @@ export class HttpClientService {
         // Create axios instance WITHOUT wrapper
         this.axios = axios.create(axiosConfig);
 
-        // FIX: Manually handle Cookies to support https-proxy-agent
-        // request interceptor: Add Cookie header
-        this.axios.interceptors.request.use(async (config) => {
-            if (config.url) {
-                const cookies = await this.jar.getCookies(config.url);
-                if (cookies.length > 0) {
-                    const cookieHeader = cookies.map(c => `${c.key}=${c.value}`).join('; ');
-                    config.headers['Cookie'] = cookieHeader;
-                }
-            }
-            return config;
-        });
-
-        // response interceptor: Save Set-Cookie header
-        this.axios.interceptors.response.use(async (response) => {
-            const setCookie = response.headers['set-cookie'];
-            if (setCookie && response.config.url) {
-                // setCookie can be string or array of strings
-                const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
-                const url = response.config.url;
-
-                // Store each cookie sequentially
-                for (const cookie of cookies) {
-                    try {
-                        await this.jar.setCookie(cookie, url);
-                    } catch (e) {
-                        console.warn(`[HTTP] Failed to set cookie: ${cookie}`, e);
-                    }
-                }
-            }
-            return response;
-        });
-
-        // Configure automatic retry
-        axiosRetry(this.axios, {
-            retries: 3,
-            retryDelay: axiosRetry.exponentialDelay,
-            retryCondition: (error) =>
-                axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-                error.response?.status === 500 ||
-                error.response?.status === 502 ||
-                error.response?.status === 503
-        });
+        // AUDIT FIX 2.2 + 5.1: Use helper methods instead of inline code
+        this.setupCookieInterceptors();
+        this.setupAxiosRetry();
     }
 
     /**
@@ -186,6 +146,8 @@ export class HttpClientService {
             captchaApiKey: get('captcha_2captcha_key'),
             captchaEnabled: get('captcha_enabled', 'true') === 'true',
             selCaptchaImg: get('bein_sel_captcha_img', 'Login1_ImageVerificationDealer_Image'),
+            // AUDIT FIX 1.2: Configurable CAPTCHA solution field with fallback
+            selCaptchaSolution: get('bein_sel_captcha_solution', 'Login1$ImageVerificationDealer$txtContent'),
 
             loginUrl: get('bein_login_url', 'https://sbs.beinsports.net/Dealers/NLogin.aspx'),
             renewUrl: get('bein_renew_url', '/Dealers/Pages/frmSellPackages.aspx'),
@@ -234,6 +196,58 @@ export class HttpClientService {
     // =============================================
 
     /**
+     * Setup cookie interceptors for axios instance
+     * Handles manual cookie management since axios-cookiejar-support was removed
+     * AUDIT FIX 2.2: Extracted to avoid duplication in constructor and importSession
+     */
+    private setupCookieInterceptors(): void {
+        // Request interceptor: Add Cookie header from jar
+        this.axios.interceptors.request.use(async (config) => {
+            if (config.url) {
+                const cookies = await this.jar.getCookies(config.url);
+                if (cookies.length > 0) {
+                    const cookieHeader = cookies.map(c => `${c.key}=${c.value}`).join('; ');
+                    config.headers['Cookie'] = cookieHeader;
+                }
+            }
+            return config;
+        });
+
+        // Response interceptor: Save Set-Cookie header to jar
+        this.axios.interceptors.response.use(async (response) => {
+            const setCookie = response.headers['set-cookie'];
+            if (setCookie && response.config.url) {
+                const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
+                const url = response.config.url;
+                for (const cookie of cookies) {
+                    try {
+                        await this.jar.setCookie(cookie, url);
+                    } catch (e) {
+                        console.warn(`[HTTP] Failed to set cookie: ${cookie}`, e);
+                    }
+                }
+            }
+            return response;
+        });
+    }
+
+    /**
+     * Setup axios retry configuration
+     * AUDIT FIX 5.1: Extracted to avoid duplication in constructor and importSession
+     */
+    private setupAxiosRetry(): void {
+        axiosRetry(this.axios, {
+            retries: 3,
+            retryDelay: axiosRetry.exponentialDelay,
+            retryCondition: (error) =>
+                axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+                error.response?.status === 500 ||
+                error.response?.status === 502 ||
+                error.response?.status === 503
+        });
+    }
+
+    /**
      * Build full URL from relative path
      * Resolves relative paths from the login page URL (e.g., /Dealers/NLogin.aspx)
      */
@@ -248,6 +262,19 @@ export class HttpClientService {
             console.error(`[HTTP] Invalid URL construction: ${relativePath}`);
             return baseUrl.replace(/\/[^\/]*$/, '/') + relativePath.replace(/^\//, '');
         }
+    }
+
+    /**
+     * Build POST request headers with Origin
+     * AUDIT FIX 1.1: Adds Origin header to prevent WAF detection
+     * @param refererUrl - The URL to use as Referer and Origin base
+     */
+    private buildPostHeaders(refererUrl: string): Record<string, string> {
+        return {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Referer': refererUrl,
+            'Origin': new URL(refererUrl).origin
+        };
     }
 
     /**
@@ -272,8 +299,93 @@ export class HttpClientService {
         if (eventTarget) fields.__EVENTTARGET = eventTarget;
         if (eventArgument) fields.__EVENTARGUMENT = eventArgument;
 
+        // AUDIT FIX 2.3: Validate extracted fields
+        if (!viewState || viewState.length < 100) {
+            console.warn(`[HTTP] WARNING: ViewState appears invalid or missing (length: ${viewState.length})`);
+        }
+        if (!eventValidation) {
+            console.warn('[HTTP] WARNING: EventValidation is missing - POST requests may fail');
+        }
+
         console.log(`[HTTP] ViewState extracted: ${viewState.length} chars`);
         return fields;
+    }
+
+    /**
+     * Extract packages from HTML table
+     * AUDIT FIX 5.2: Extracted to avoid duplication in loadPackages and applyPromoCode
+     * @param $ - Cheerio instance loaded with HTML
+     * @param logPrefix - Prefix for log messages (e.g., '' or 'after promo')
+     */
+    private extractPackagesFromHtml($: cheerio.CheerioAPI, logPrefix: string = ''): AvailablePackage[] {
+        const packages: AvailablePackage[] = [];
+
+        // Try specific selectors for package table first
+        const tableSelectors = [
+            '#ContentPlaceHolder1_gvAvailablePackages tr.GridRow',
+            '#ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow',
+            '#ContentPlaceHolder1_gvAvailablePackages tr:not(.GridHeader)',
+            'table[id*="gvAvailablePackages"] tr:not(:first-child)',
+            '.GridRow',
+            '.GridAlternatingRow'
+        ];
+
+        let packageRows = $('__empty_selector__'); // Initialize with empty selection
+        for (const sel of tableSelectors) {
+            const rows = $(sel);
+            if (rows.length > packageRows.length) {
+                packageRows = rows;
+            }
+        }
+
+        console.log(`[HTTP] Found ${packageRows.length} package rows${logPrefix ? ` ${logPrefix}` : ''}`);
+
+        packageRows.each((index, row) => {
+            const $row = $(row);
+
+            // CRITICAL FIX: Skip rows that contain a table (nested/container rows)
+            if ($row.find('table').length > 0) {
+                console.log(`[HTTP] Skipping row ${index} - contains nested table (container row)`);
+                return;
+            }
+
+            const checkbox = $row.find('input[type="checkbox"]');
+
+            // CRITICAL FIX 2: Skip rows with multiple checkboxes (container row)
+            if (checkbox.length > 1) {
+                console.log(`[HTTP] Skipping row ${index} - contains ${checkbox.length} checkboxes (container row)`);
+                return;
+            }
+
+            if (checkbox.length === 1) {
+                const checkboxId = checkbox.attr('id') || '';
+                const checkboxName = checkbox.attr('name') || '';
+
+                // Log both id and name for debugging
+                console.log(`[HTTP] Checkbox ${index}: id="${checkboxId}" name="${checkboxName}"`);
+
+                // Extract package name
+                const nameSpan = $row.find('span[id*="lblName"]');
+                const name = nameSpan.text().trim() || `Package ${index + 1}`;
+
+                // Extract price (look for USD pattern)
+                const rowText = $row.text();
+                const priceMatch = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i);
+                const price = priceMatch ? parseFloat(priceMatch[1]) : 0;
+
+                if (price > 0) {
+                    packages.push({
+                        index,
+                        name,
+                        price,
+                        checkboxValue: checkboxName // Use name for POST (ASP.NET convention)
+                    });
+                    console.log(`[HTTP] Package ${index}: "${name}" - ${price} USD${logPrefix ? ` ${logPrefix}` : ''}`);
+                }
+            }
+        });
+
+        return packages;
     }
 
     /**
@@ -334,6 +446,43 @@ export class HttpClientService {
         // NOTE: Removed "enter the following code" check - it caused false positives
         // during login flow when login fails and returns login page with new CAPTCHA.
         // Login page detection is handled separately in submitLogin().
+
+        return null;
+    }
+
+    /**
+     * AUDIT FIX 2.1: Form-based session expiry detection
+     * Detects session expiry by checking for login form presence, NOT text patterns.
+     * This avoids false positives from Arabic menu text like "تسجيل الدخول".
+     * 
+     * @param html - The HTML response to check
+     * @returns Error message if session expired, null otherwise
+     */
+    private checkForSessionExpiry(html: string): string | null {
+        const $ = cheerio.load(html);
+
+        // Check for login form presence on non-login pages
+        // These are specific IDs from beIN login form that shouldn't appear elsewhere
+        const hasLoginForm = $('input[id="Login1_UserName"]').length > 0 ||
+                             $('input[name="Login1$UserName"]').length > 0;
+
+        // Check for CAPTCHA image specific to login page
+        const hasCaptchaImg = $('img[id*="ImageVerificationDealer"]').length > 0;
+
+        // Check for Login button presence
+        const hasLoginButton = $('input[id*="Login1_LoginButton"]').length > 0 ||
+                               $('input[name="Login1$LoginButton"]').length > 0;
+
+        // Check for expected content that should exist on valid authenticated pages
+        // ContentPlaceHolder1 is the main content area in beIN pages
+        const hasExpectedContent = $('[id*="ContentPlaceHolder1"]').length > 0 &&
+                                   !$('[id="Login1_UserName"]').length;
+
+        // If we have login form elements but no expected content = session expired
+        if ((hasLoginForm || hasLoginButton || hasCaptchaImg) && !hasExpectedContent) {
+            console.log('[HTTP] ⚠️ Session expiry detected - login form present without main content');
+            return 'Session Expired - Redirected to Login Page';
+        }
 
         return null;
     }
@@ -413,44 +562,9 @@ export class HttpClientService {
             // Recreate axios with the loaded jar
             this.axios = axios.create(axiosConfig);
 
-            // FIX: Manually handle Cookies again for recreated instance
-            this.axios.interceptors.request.use(async (config) => {
-                if (config.url) {
-                    const cookies = await this.jar.getCookies(config.url);
-                    if (cookies.length > 0) {
-                        const cookieHeader = cookies.map(c => `${c.key}=${c.value}`).join('; ');
-                        config.headers['Cookie'] = cookieHeader;
-                    }
-                }
-                return config;
-            });
-
-            this.axios.interceptors.response.use(async (response) => {
-                const setCookie = response.headers['set-cookie'];
-                if (setCookie && response.config.url) {
-                    const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
-                    const url = response.config.url;
-                    for (const cookie of cookies) {
-                        try {
-                            await this.jar.setCookie(cookie, url);
-                        } catch (e) {
-                            console.warn(`[HTTP] Failed to set cookie: ${cookie}`, e);
-                        }
-                    }
-                }
-                return response;
-            });
-
-            // AUDIT FIX: Configure retry on recreated axios instance
-            axiosRetry(this.axios, {
-                retries: 3,
-                retryDelay: axiosRetry.exponentialDelay,
-                retryCondition: (error) =>
-                    axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-                    error.response?.status === 500 ||
-                    error.response?.status === 502 ||
-                    error.response?.status === 503
-            });
+            // AUDIT FIX 2.2 + 5.1: Use helper methods instead of inline code
+            this.setupCookieInterceptors();
+            this.setupAxiosRetry();
 
             if (data.viewState) {
                 this.currentViewState = data.viewState;
@@ -681,7 +795,8 @@ export class HttpClientService {
             // AUDIT FIX: Only add CAPTCHA field if solution was provided
             // Sending empty string may trigger validation errors on beIN
             if (captchaSolution) {
-                formData['Login1$ImageVerificationDealer$txtContent'] = captchaSolution;
+                // AUDIT FIX 1.2: Use configurable field name with fallback
+                formData[this.config.selCaptchaSolution || 'Login1$ImageVerificationDealer$txtContent'] = captchaSolution;
             }
 
             // Step 2: POST login
@@ -690,10 +805,7 @@ export class HttpClientService {
                 this.config.loginUrl,
                 this.buildFormData(formData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': this.config.loginUrl
-                    }
+                    headers: this.buildPostHeaders(this.config.loginUrl)
                 }
             );
 
@@ -773,7 +885,14 @@ export class HttpClientService {
                 headers: { 'Referer': this.config.loginUrl }
             });
 
-            // Check for session expiry
+            // Check for session expiry using form-based detection (AUDIT FIX 2.1)
+            const sessionExpiry = this.checkForSessionExpiry(checkPageRes.data);
+            if (sessionExpiry) {
+                this.invalidateSession();
+                return { success: false, error: sessionExpiry };
+            }
+
+            // Also check for error text patterns
             const sessionError = this.checkForErrors(checkPageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {
                 this.invalidateSession();
@@ -798,10 +917,7 @@ export class HttpClientService {
                 checkUrl,
                 this.buildFormData(formData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl
-                    }
+                    headers: this.buildPostHeaders(checkUrl)
                 }
             );
 
@@ -955,7 +1071,14 @@ export class HttpClientService {
                 headers: { 'Referer': this.buildFullUrl(this.config.checkUrl) }
             });
 
-            // Check for session expiry
+            // Check for session expiry using form-based detection (AUDIT FIX 2.1)
+            const sessionExpiry = this.checkForSessionExpiry(pageRes.data);
+            if (sessionExpiry) {
+                this.invalidateSession();
+                return { success: false, packages: [], error: sessionExpiry };
+            }
+
+            // Also check for error messages
             const sessionError = this.checkForErrors(pageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {
                 this.invalidateSession();
@@ -1022,10 +1145,7 @@ export class HttpClientService {
                         renewUrl,
                         this.buildFormData(selectFormData),
                         {
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                                'Referer': renewUrl
-                            }
+                    headers: this.buildPostHeaders(renewUrl)
                         }
                     );
 
@@ -1108,12 +1228,9 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(firstFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': renewUrl
-                        // NOTE: Do NOT use X-Requested-With or X-MicrosoftAjax headers
-                        // as they change the response format to UpdatePanel delta
-                    }
+                    // NOTE: Do NOT use X-Requested-With or X-MicrosoftAjax headers
+                    // as they change the response format to UpdatePanel delta
+                    headers: this.buildPostHeaders(renewUrl)
                 }
             );
 
@@ -1208,12 +1325,9 @@ export class HttpClientService {
                 loadRes = await this.axios.post(
                     renewUrl,
                     this.buildFormData(secondFormData),
-                    {
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'Referer': renewUrl
-                        }
-                    }
+                {
+                    headers: this.buildPostHeaders(renewUrl)
+                }
                 );
             } else {
                 console.log('[HTTP] ⚠️ tbSerial2 field NOT found in response - checking for packages directly');
@@ -1240,82 +1354,8 @@ export class HttpClientService {
                 }
             });
 
-            const packages: AvailablePackage[] = [];
-
-            // Try specific selectors for package table first
-            // Note: Avoid generic selectors like 'table tr' as they might catch container tables
-            const tableSelectors = [
-                '#ContentPlaceHolder1_gvAvailablePackages tr.GridRow',
-                '#ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow',
-                '#ContentPlaceHolder1_gvAvailablePackages tr:not(.GridHeader)', // Best selector: ID + excludes header
-                'table[id*="gvAvailablePackages"] tr:not(:first-child)',
-                '.GridRow',
-                '.GridAlternatingRow'
-            ];
-
-            // Use a Set to avoid duplicates if multiple selectors find the same rows
-            // But since we pick the 'best' selector set (longest), we just need to pick the right one.
-            // The issue was 'table tr:has(checkbox)' matching the OUTER row (which contains the inner table).
-            // We removed that generic selector.
-
-            let packageRows = $('__empty_selector__'); // Initialize with empty selection
-            for (const sel of tableSelectors) {
-                const rows = $(sel);
-                // We want the set that has the most rows (likely the individual items)
-                // But we must ensure we don't pick a set that includes the parent container
-                if (rows.length > packageRows.length) {
-                    packageRows = rows;
-                }
-            }
-
-            console.log(`[HTTP] Found ${packageRows.length} package rows`);
-
-            packageRows.each((index, row) => {
-                const $row = $(row);
-
-                // CRITICAL FIX: Skip rows that contain a table (nested/container rows)
-                // This prevents the "Outer Row" from being parsed as a package
-                if ($row.find('table').length > 0) {
-                    console.log(`[HTTP] Skipping row ${index} - contains nested table (container row)`);
-                    return;
-                }
-
-                const checkbox = $row.find('input[type="checkbox"]');
-
-                // CRITICAL FIX 2: Skip rows with multiple checkboxes
-                // The container row will find match ALL checkboxes inside it
-                if (checkbox.length > 1) {
-                    console.log(`[HTTP] Skipping row ${index} - contains ${checkbox.length} checkboxes (container row)`);
-                    return;
-                }
-
-                if (checkbox.length === 1) {
-                    const checkboxId = checkbox.attr('id') || '';
-                    const checkboxName = checkbox.attr('name') || '';
-
-                    // IMPORTANT: Log both id and name for debugging
-                    console.log(`[HTTP] Checkbox ${index}: id="${checkboxId}" name="${checkboxName}"`);
-
-                    // Extract package name
-                    const nameSpan = $row.find('span[id*="lblName"]');
-                    const name = nameSpan.text().trim() || `Package ${index + 1}`;
-
-                    // Extract price (look for USD pattern)
-                    const rowText = $row.text();
-                    const priceMatch = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i);
-                    const price = priceMatch ? parseFloat(priceMatch[1]) : 0;
-
-                    if (price > 0) {
-                        packages.push({
-                            index,
-                            name,
-                            price,
-                            checkboxValue: checkboxName // Use name for POST (ASP.NET convention)
-                        });
-                        console.log(`[HTTP] Package ${index}: "${name}" - ${price} USD [name=${checkboxName}]`);
-                    }
-                }
-            });
+            // AUDIT FIX 5.2: Use helper method for package extraction
+            const packages = this.extractPackagesFromHtml($);
 
             if (packages.length === 0) {
                 console.log('[HTTP] ⚠️ No packages found');
@@ -1384,10 +1424,7 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(promoFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': renewUrl
-                    }
+                    headers: this.buildPostHeaders(renewUrl)
                 }
             );
 
@@ -1402,75 +1439,9 @@ export class HttpClientService {
             this.currentViewState = this.extractHiddenFields(promoRes.data);
 
             // Step 2: Re-extract packages from the response (should have updated prices)
+            // AUDIT FIX 5.2: Use helper method for package extraction
             const $ = cheerio.load(promoRes.data);
-            const packages: AvailablePackage[] = [];
-
-            // Try specific selectors for package table first
-            // Note: Avoid generic selectors like 'table tr' as they might catch container tables
-            const tableSelectors = [
-                '#ContentPlaceHolder1_gvAvailablePackages tr.GridRow',
-                '#ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow',
-                '#ContentPlaceHolder1_gvAvailablePackages tr:not(.GridHeader)', // Best selector: ID + excludes header
-                'table[id*="gvAvailablePackages"] tr:not(:first-child)',
-                '.GridRow',
-                '.GridAlternatingRow'
-            ];
-
-            // Use a Set to avoid duplicates if multiple selectors find the same rows
-            // But since we pick the 'best' selector set (longest), we just need to pick the right one.
-            // The issue was 'table tr:has(checkbox)' matching the OUTER row (which contains the inner table).
-            // We removed that generic selector.
-
-            let packageRows = $('__empty_selector__'); // Initialize with empty selection
-            for (const sel of tableSelectors) {
-                const rows = $(sel);
-                // We want the set that has the most rows (likely the individual items)
-                // But we must ensure we don't pick a set that includes the parent container
-                if (rows.length > packageRows.length) {
-                    packageRows = rows;
-                }
-            }
-
-            console.log(`[HTTP] Found ${packageRows.length} package rows`);
-
-            packageRows.each((index, row) => {
-                const $row = $(row);
-
-                // CRITICAL FIX: Skip rows that contain a table (nested/container rows)
-                if ($row.find('table').length > 0) {
-                    console.log(`[HTTP] Skipping row ${index} - contains nested table (container row)`);
-                    return;
-                }
-
-                const checkbox = $row.find('input[type="checkbox"]');
-
-                // CRITICAL FIX 2: Skip rows with multiple checkboxes (container row)
-                if (checkbox.length > 1) {
-                    console.log(`[HTTP] Skipping row ${index} - contains ${checkbox.length} checkboxes (container row)`);
-                    return;
-                }
-
-                if (checkbox.length === 1) {
-                    const checkboxName = checkbox.attr('name') || '';
-                    const nameSpan = $row.find('span[id*="lblName"]');
-                    const name = nameSpan.text().trim() || `Package ${index + 1}`;
-
-                    // Extract price (look for USD pattern)
-                    const rowText = $row.text();
-                    const priceMatch = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i);
-                    const price = priceMatch ? parseFloat(priceMatch[1]) : 0;
-
-                    if (price > 0) {
-                        packages.push({
-                            index,
-                            name,
-                            price,
-                            checkboxValue: checkboxName
-                        });
-                        console.log(`[HTTP] Package ${index}: "${name}" - ${price} USD (after promo)`);
-                    }
-                }
-            });
+            const packages = this.extractPackagesFromHtml($, '(after promo)');
 
             // Check if promo code resulted in empty packages (User Requirement)
             if (packages.length === 0) {
@@ -1569,10 +1540,7 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(addFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': renewUrl
-                    }
+                    headers: this.buildPostHeaders(renewUrl)
                 }
             );
 
@@ -1597,10 +1565,7 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(sellFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': renewUrl
-                    }
+                    headers: this.buildPostHeaders(renewUrl)
                 }
             );
 
@@ -1628,10 +1593,7 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(stbFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': renewUrl
-                    }
+                    headers: this.buildPostHeaders(renewUrl)
                 }
             );
 
@@ -1726,6 +1688,12 @@ export class HttpClientService {
             // For now, we try to use the stored one
             const stb = this.currentStbNumber || '';
 
+            // AUDIT FIX 4.1: Defensive logging for empty STB
+            if (!stb) {
+                console.warn('[HTTP] WARNING: STB number is empty - this may cause purchase to fail');
+                console.warn('[HTTP] Hint: Ensure setSTBNumber() was called or stbNumber was passed');
+            }
+
             // IMPORTANT: ASP.NET WebForms requires ALL form fields on each POST
             // Including STB fields with OK button is required
             const okFormData: Record<string, string> = {
@@ -1741,10 +1709,7 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(okFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': renewUrl
-                    }
+                    headers: this.buildPostHeaders(renewUrl)
                 }
             );
 
@@ -1843,10 +1808,7 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(payFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': renewUrl
-                    }
+                    headers: this.buildPostHeaders(renewUrl)
                 }
             );
 
@@ -2007,10 +1969,7 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(cancelFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': renewUrl
-                    }
+                    headers: this.buildPostHeaders(renewUrl)
                 }
             );
 
@@ -2082,7 +2041,14 @@ export class HttpClientService {
             }
             // === END DEBUG ===
 
-            // Check for session expiry
+            // Check for session expiry using form-based detection (AUDIT FIX 2.1)
+            const sessionExpiry = this.checkForSessionExpiry(checkPageRes.data);
+            if (sessionExpiry) {
+                this.invalidateSession();
+                return { success: false, error: sessionExpiry };
+            }
+
+            // Also check for error text patterns
             const sessionError = this.checkForErrors(checkPageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {
                 this.invalidateSession();
@@ -2114,11 +2080,7 @@ export class HttpClientService {
                 checkUrl,
                 this.buildFormData(formData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl,
-                        'Origin': new URL(checkUrl).origin
-                    }
+                    headers: this.buildPostHeaders(checkUrl)
                 }
             );
 
@@ -2377,10 +2339,7 @@ export class HttpClientService {
                 checkUrl,
                 this.buildFormData(checkFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl
-                    }
+                    headers: this.buildPostHeaders(checkUrl)
                 }
             );
 
@@ -2427,10 +2386,7 @@ export class HttpClientService {
                 checkUrl,
                 this.buildFormData(activateFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl
-                    }
+                    headers: this.buildPostHeaders(checkUrl)
                 }
             );
 
@@ -2478,10 +2434,7 @@ export class HttpClientService {
                     checkUrl,
                     this.buildFormData(verifyCheckFormData),
                     {
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'Referer': checkUrl
-                        }
+                        headers: this.buildPostHeaders(checkUrl)
                     }
                 );
 
@@ -2557,7 +2510,14 @@ export class HttpClientService {
                 headers: { 'Referer': this.config.loginUrl }
             });
 
-            // Check for session expiry
+            // Check for session expiry using form-based detection (AUDIT FIX 2.1)
+            const sessionExpiry = this.checkForSessionExpiry(checkPageRes.data);
+            if (sessionExpiry) {
+                this.invalidateSession();
+                return { success: false, error: sessionExpiry };
+            }
+
+            // Also check for error text patterns
             const sessionError = this.checkForErrors(checkPageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {
                 this.invalidateSession();
@@ -2582,10 +2542,7 @@ export class HttpClientService {
                 checkUrl,
                 this.buildFormData(formData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl
-                    }
+                    headers: this.buildPostHeaders(checkUrl)
                 }
             );
 
@@ -2695,10 +2652,7 @@ export class HttpClientService {
                 checkUrl,
                 this.buildFormData(activateFormData),
                 {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl
-                    }
+                    headers: this.buildPostHeaders(checkUrl)
                 }
             );
 

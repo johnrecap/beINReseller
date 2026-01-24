@@ -46,8 +46,19 @@ export class ProxyManager {
      * @param config - ProxyConfig from database
      */
     buildProxyUrlFromConfig(config: ProxyConfig): string {
-        const { host, port, username, password, proxyType = 'socks5' } = config;
-        const protocol = proxyType === 'socks5' ? 'socks5' : 'http';
+        const { host, port, username, password, proxyType } = config;
+
+        // AUDIT FIX 3.2: Validate proxy type
+        const validTypes: ProxyType[] = ['http', 'socks5'];
+        const safeType: ProxyType = validTypes.includes(proxyType as ProxyType)
+            ? (proxyType as ProxyType)
+            : 'socks5';
+
+        if (proxyType && !validTypes.includes(proxyType as ProxyType)) {
+            console.warn(`[Proxy] Invalid proxyType "${proxyType}", defaulting to socks5`);
+        }
+
+        const protocol = safeType === 'socks5' ? 'socks5' : 'http';
 
         if (username && password) {
             return `${protocol}://${username}:${password}@${host}:${port}`;

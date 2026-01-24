@@ -531,6 +531,15 @@ export class HttpClientService {
         }
 
         try {
+            // === DEBUG: Check IP before login to verify proxy ===
+            try {
+                const ipCheckRes = await this.axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
+                console.log(`[HTTP] 🌐 Current IP (via proxy): ${ipCheckRes.data?.ip || 'unknown'}`);
+            } catch (ipErr: any) {
+                console.log(`[HTTP] ⚠️ IP check failed: ${ipErr.message}`);
+            }
+            // === END DEBUG ===
+
             // Step 1: GET login page
             console.log(`[HTTP] GET ${this.config.loginUrl}`);
             const loginPageRes = await this.axios.get(this.config.loginUrl);
@@ -692,6 +701,15 @@ export class HttpClientService {
             // Check if still on login page (login failed)
             const $ = cheerio.load(loginRes.data);
             if ($('#Login1_UserName').length || $('#Login1_LoginButton').length) {
+                // === DEBUG: Log page details ===
+                const pageTitle = $('title').text().trim();
+                const allRedSpans = $('span[style*="Red"], span[style*="red"]').map((i, el) => $(el).text().trim()).get();
+                const bodySnippet = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 500);
+                console.log(`[HTTP] 📄 DEBUG - Page title: ${pageTitle}`);
+                console.log(`[HTTP] 📄 DEBUG - Red spans found: ${JSON.stringify(allRedSpans)}`);
+                console.log(`[HTTP] 📄 DEBUG - Body snippet: ${bodySnippet}...`);
+                // === END DEBUG ===
+
                 // Still on login page - check for specific error
                 const errorSpan = $('span[style*="Red"]').first().text().trim();
                 return { success: false, error: errorSpan || 'Login failed - invalid credentials' };

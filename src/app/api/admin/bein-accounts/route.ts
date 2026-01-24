@@ -59,7 +59,8 @@ export async function GET() {
                 successRate: Math.round(successRate * 100) / 100,
                 operationsCount: account._count.operations,
                 proxyId: account.proxyId,
-                proxy: account.proxy
+                proxy: account.proxy,
+                hasTotpSecret: !!account.totpSecret // Indicate if TOTP is configured
             }
         })
 

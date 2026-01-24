@@ -60,6 +60,7 @@ interface BeinAccount {
     dealerBalance: number | null
     balanceUpdatedAt: string | null
     proxyId: string | null
+    hasTotpSecret?: boolean
     proxy?: {
         host: string
         port: number
@@ -167,10 +168,17 @@ export default function BeinAccountsPage() {
         e.preventDefault()
         if (!editAccount) return
         try {
+            // Only include totpSecret if user entered a new value (not empty)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const updateData: Record<string, any> = { ...formData }
+            if (!updateData.totpSecret || updateData.totpSecret.trim() === '') {
+                delete updateData.totpSecret // Don't send empty totpSecret to preserve existing value
+            }
+
             const res = await fetch(`/api/admin/bein-accounts/${editAccount.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(updateData)
             })
             const data = await res.json()
             if (data.success) {

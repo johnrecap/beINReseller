@@ -451,39 +451,103 @@ export class HttpClientService {
     }
 
     /**
-     * AUDIT FIX 2.1: Form-based session expiry detection
-     * Detects session expiry by checking for login form presence, NOT text patterns.
-     * This avoids false positives from Arabic menu text like "تسجيل الدخول".
+     * AUDIT FIX 2.1: Title-first session expiry detection
+     * 
+     * Strategy: Check page TITLE first before checking for login form elements.
+     * This prevents false positives on valid pages like "Finance Module".
+     * 
+     * Detection Logic:
+     * 1. If page title contains valid logged-in patterns → NOT expired, return null
+     * 2. If page title contains login patterns → Check for login form → expired
+     * 3. If page title is unclear → Use conservative element detection
      * 
      * @param html - The HTML response to check
      * @returns Error message if session expired, null otherwise
      */
     private checkForSessionExpiry(html: string): string | null {
         const $ = cheerio.load(html);
-
-        // Check for login form presence on non-login pages
-        // These are specific IDs from beIN login form that shouldn't appear elsewhere
-        const hasLoginForm = $('input[id="Login1_UserName"]').length > 0 ||
-                             $('input[name="Login1$UserName"]').length > 0;
-
-        // Check for CAPTCHA image specific to login page
-        const hasCaptchaImg = $('img[id*="ImageVerificationDealer"]').length > 0;
-
-        // Check for Login button presence
-        const hasLoginButton = $('input[id*="Login1_LoginButton"]').length > 0 ||
-                               $('input[name="Login1$LoginButton"]').length > 0;
-
-        // Check for expected content that should exist on valid authenticated pages
-        // ContentPlaceHolder1 is the main content area in beIN pages
-        const hasExpectedContent = $('[id*="ContentPlaceHolder1"]').length > 0 &&
-                                   !$('[id="Login1_UserName"]').length;
-
-        // If we have login form elements but no expected content = session expired
-        if ((hasLoginForm || hasLoginButton || hasCaptchaImg) && !hasExpectedContent) {
-            console.log('[HTTP] ⚠️ Session expiry detected - login form present without main content');
+        
+        // ============================================
+        // STEP 1: Extract and analyze page title
+        // ============================================
+        const pageTitle = $('title').text().trim();
+        const pageTitleLower = pageTitle.toLowerCase();
+        
+        console.log(`[HTTP] 🔍 Session check - Page title: "${pageTitle}"`);
+        
+        // Valid logged-in page title patterns (beIN SBS pages)
+        const validPagePatterns = [
+            'finance',      // Finance Module
+            'module',       // Any module page
+            'dashboard',    // Dashboard
+            'check',        // frmCheck.aspx
+            'sell',         // frmSellPackages.aspx
+            'packages',     // Package pages
+            'subscription', // Subscription pages
+            'sbs'           // SBS system pages
+        ];
+        
+        // Login page title patterns
+        const loginPagePatterns = [
+            'login',        // Login page
+            'sign in',      // Sign In page
+            'nlogin',       // NLogin.aspx
+            'signin'        // SignIn variations
+        ];
+        
+        // ============================================
+        // STEP 2: Check if this is a valid logged-in page
+        // ============================================
+        const isValidPageTitle = validPagePatterns.some(pattern => pageTitleLower.includes(pattern));
+        const isLoginPageTitle = loginPagePatterns.some(pattern => pageTitleLower.includes(pattern));
+        
+        console.log(`[HTTP] 🔍 Title analysis - Valid page: ${isValidPageTitle}, Login page: ${isLoginPageTitle}`);
+        
+        // If title indicates a valid logged-in page (and NOT a login page)
+        if (isValidPageTitle && !isLoginPageTitle) {
+            console.log(`[HTTP] ✅ Valid page detected by title - no session expiry`);
+            return null;
+        }
+        
+        // ============================================
+        // STEP 3: If title indicates login page, confirm with form elements
+        // ============================================
+        if (isLoginPageTitle) {
+            // Check for actual login form elements (exact ID match, not partial)
+            const hasLoginUsername = $('input[id="Login1_UserName"]').length > 0;
+            const hasLoginButton = $('input[id="Login1_LoginButton"]').length > 0;
+            const hasLoginForm = hasLoginUsername || hasLoginButton;
+            
+            console.log(`[HTTP] 🔍 Login page check - Username field: ${hasLoginUsername}, Login button: ${hasLoginButton}`);
+            
+            if (hasLoginForm) {
+                console.log(`[HTTP] ⚠️ SESSION EXPIRED - Login page title + login form detected`);
+                return 'Session Expired - Redirected to Login Page';
+            }
+        }
+        
+        // ============================================
+        // STEP 4: Fallback - Check for login form without clear title
+        // ============================================
+        // Only trigger if we find the EXACT login form (not partial matches)
+        const hasExactLoginForm = $('input[id="Login1_UserName"]').length > 0 &&
+                                  $('input[id="Login1_LoginButton"]').length > 0;
+        
+        // Check for CAPTCHA that's specific to login page (Image Verification with text input)
+        const hasLoginCaptcha = $('img[id="Login1_ImageVerificationDealer_Image"]').length > 0 &&
+                                $('input[id="Login1_ImageVerificationDealer_txtContent"]').length > 0;
+        
+        console.log(`[HTTP] 🔍 Fallback check - Exact login form: ${hasExactLoginForm}, Login CAPTCHA: ${hasLoginCaptcha}`);
+        
+        if (hasExactLoginForm || hasLoginCaptcha) {
+            console.log(`[HTTP] ⚠️ SESSION EXPIRED - Login form elements detected (fallback)`);
             return 'Session Expired - Redirected to Login Page';
         }
-
+        
+        // ============================================
+        // STEP 5: No session expiry detected
+        // ============================================
+        console.log(`[HTTP] ✅ No session expiry detected`);
         return null;
     }
 

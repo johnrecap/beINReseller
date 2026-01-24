@@ -2138,19 +2138,26 @@ export class HttpClientService {
             }
             // === END DEBUG ===
 
-            // CRITICAL: Strictly validate form existence
+            // NOTE: After successful POST, the form field may be hidden or replaced with results
+            // We only fail if the page indicates a session issue (login page/CAPTCHA)
+            // The hasCheckForm check is informational, not a hard requirement
             if (!hasCheckForm) {
-                console.log('[HTTP] ❌ ERROR: Check form not found in POST response!');
+                console.log('[HTTP] ⚠️ Form field not visible after POST (this may be normal for results page)');
 
-                // Check for embedded login form in body (soft session expiry)
+                // Only fail if we detect explicit session expiry indicators
                 const bodyText = $postPage('body').text().toLowerCase();
-                if (bodyText.includes('enter the following code') || bodyText.includes('sign in')) {
-                    console.log('[HTTP] ⚠️ DETECTED: Embedded login/CAPTCHA challenge - Session Invalid');
+                const hasLoginTitle = postPageTitle.toLowerCase().includes('sign in') ||
+                    postPageTitle.toLowerCase().includes('login');
+                const hasCaptchaChallenge = bodyText.includes('enter the following code in the next box');
+
+                if (hasLoginTitle || hasCaptchaChallenge) {
+                    console.log('[HTTP] ⚠️ DETECTED: Session expired - Login/CAPTCHA page returned');
                     this.invalidateSession();
-                    return { success: false, error: 'Session expired (CAPTCHA challenge) - please login again' };
+                    return { success: false, error: 'Session expired - please login again' };
                 }
 
-                return { success: false, error: 'Failed to access check form - server returned unexpected page' };
+                // If title is correct but form not found, continue processing (might be results page)
+                console.log('[HTTP] ℹ️ Continuing to parse results despite missing form field...');
             }
 
             // Check for errors

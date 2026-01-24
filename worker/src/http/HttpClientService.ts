@@ -2108,6 +2108,11 @@ export class HttpClientService {
             const messagesDiv = $('#ContentPlaceHolder1_MessagesArea, .MessagesArea, [id*="Messages"]');
             const messageText = messagesDiv.text();
 
+            // === DEBUG: Log page content for troubleshooting ===
+            console.log(`[HTTP] 📄 DEBUG - pageText (first 800 chars): ${pageText.replace(/\s+/g, ' ').trim().substring(0, 800)}...`);
+            console.log(`[HTTP] 📄 DEBUG - messagesDiv: ${messageText.replace(/\s+/g, ' ').trim()}`);
+            // === END DEBUG ===
+
             // Check if Premium
             const isPremium = pageText.toLowerCase().includes('premium') ||
                 messageText.toLowerCase().includes('premium');

@@ -267,10 +267,15 @@ export class HttpClientService {
     /**
      * Build POST request headers with Origin
      * AUDIT FIX 1.1: Adds Origin header to prevent WAF detection
+     * FIX: Include ALL BROWSER_HEADERS to bypass Akamai anti-bot detection
+     * Without these headers, POST requests get blocked and return login page
      * @param refererUrl - The URL to use as Referer and Origin base
      */
     private buildPostHeaders(refererUrl: string): Record<string, string> {
         return {
+            // Include ALL BROWSER_HEADERS for anti-bot bypass (Sec-Fetch-*, User-Agent, etc.)
+            ...HttpClientService.BROWSER_HEADERS,
+            // Override/add POST-specific headers
             'Content-Type': 'application/x-www-form-urlencoded',
             'Referer': refererUrl,
             'Origin': new URL(refererUrl).origin
@@ -280,6 +285,11 @@ export class HttpClientService {
     /**
      * Extract ASP.NET hidden fields from HTML
      * These are REQUIRED for every POST request
+     * 
+     * ViewState Length Guide:
+     * - Login page: ~500-700 chars (small)
+     * - Check results page: 1500-3000+ chars (large with card data)
+     * - SellPackages page: 2000-5000+ chars (large with packages grid)
      */
     private extractHiddenFields(html: string): HiddenFields {
         const $ = cheerio.load(html);
@@ -307,7 +317,13 @@ export class HttpClientService {
             console.warn('[HTTP] WARNING: EventValidation is missing - POST requests may fail');
         }
 
-        console.log(`[HTTP] ViewState extracted: ${viewState.length} chars`);
+        // ViewState length analysis for debugging
+        // Login page typically has 500-700 chars, results page has 1500+ chars
+        const viewStateCategory = viewState.length < 800 ? '⚠️ SMALL (likely login page)' :
+                                  viewState.length < 1500 ? '📄 MEDIUM' :
+                                  '✅ LARGE (likely results page)';
+        console.log(`[HTTP] ViewState extracted: ${viewState.length} chars ${viewStateCategory}`);
+        
         return fields;
     }
 
@@ -1020,6 +1036,15 @@ export class HttpClientService {
                 }
             );
 
+            // CRITICAL FIX: Check for session expiry on POST response
+            // Akamai may block the POST and return login page even if GET worked
+            const postSessionExpiry = this.checkForSessionExpiry(checkRes.data);
+            if (postSessionExpiry) {
+                console.log(`[HTTP] ❌ POST response is login page - session expired during POST`);
+                this.invalidateSession();
+                return { success: false, error: postSessionExpiry };
+            }
+
             // Check for errors
             const error = this.checkForErrors(checkRes.data);
             if (error) {
@@ -1341,7 +1366,7 @@ export class HttpClientService {
             const errors = $temp('[id*="lblError"], .error, span[style*="red"]').text().trim();
             if (errors) console.log(`[HTTP] Immediate Error Check: "${errors}"`);
 
-            console.log(`[HTTP] Response preview: ${responseHtml.slice(0, 300).replace(/\s+/g, ' ')}...`);
+            console.log(`[HTTP] Response preview: ${responseHtml.slice(0, 300).replace(/\\s+/g, ' ')}...`);
 
             // Parse response and check for tbSerial2
             this.currentViewState = this.extractHiddenFields(loadRes.data);
@@ -1351,13 +1376,12 @@ export class HttpClientService {
             const pageTitle = $('title').text().trim();
             console.log(`[HTTP] Page title after POST: "${pageTitle}"`);
 
-            // Check if we got redirected to login page
-            if (pageTitle.toLowerCase().includes('login') ||
-                $('input[id*="Login"]').length > 0 ||
-                responseHtml.includes('Login1_UserName')) {
-                console.log(`[HTTP] ❌ SESSION EXPIRED - Redirected to login page!`);
+            // CRITICAL FIX: Use proper session expiry detection (includes Layer 2 & 3)
+            const loadPostSessionExpiry = this.checkForSessionExpiry(loadRes.data);
+            if (loadPostSessionExpiry) {
+                console.log(`[HTTP] ❌ SESSION EXPIRED during loadPackages POST - ${loadPostSessionExpiry}`);
                 this.invalidateSession();
-                return { success: false, packages: [], error: 'Session expired - please login again' };
+                return { success: false, packages: [], error: loadPostSessionExpiry };
             }
 
             // Check for error messages in the response - beIN uses lblError for errors

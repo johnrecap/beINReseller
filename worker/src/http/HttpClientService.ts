@@ -700,9 +700,24 @@ export class HttpClientService {
 
             // Check if still on login page (login failed)
             const $ = cheerio.load(loginRes.data);
+            const pageTitle = $('title').text().trim();
+
+            // === FIX: Check page title first for success indicators ===
+            // beIN may include login form elements as hidden fields even after successful login
+            const successTitlePatterns = ['Finance', 'Module', 'Dashboard', 'Dealers', 'Packages', 'Check', 'frmCheck'];
+            const isSuccessPage = successTitlePatterns.some(pattern =>
+                pageTitle.toLowerCase().includes(pattern.toLowerCase())
+            );
+
+            if (isSuccessPage) {
+                console.log(`[HTTP] ✅ Login successful! (Page: ${pageTitle})`);
+                this.markSessionValid();
+                return { success: true };
+            }
+            // === END FIX ===
+
             if ($('#Login1_UserName').length || $('#Login1_LoginButton').length) {
                 // === DEBUG: Log page details ===
-                const pageTitle = $('title').text().trim();
                 const allRedSpans = $('span[style*="Red"], span[style*="red"]').map((i, el) => $(el).text().trim()).get();
                 const bodySnippet = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 500);
                 console.log(`[HTTP] 📄 DEBUG - Page title: ${pageTitle}`);

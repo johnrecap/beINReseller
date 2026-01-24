@@ -63,7 +63,16 @@ export class HttpClientService {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1'
+        'Upgrade-Insecure-Requests': '1',
+
+        // Modern browser security headers to look like a real browser
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-User': '?1',
+        'Sec-Fetch-Dest': 'document',
+        'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"'
     };
 
     constructor(proxyConfig?: ProxyConfig) {
@@ -2067,7 +2076,13 @@ export class HttpClientService {
             // Step 1: GET check page
             console.log(`[HTTP] GET ${checkUrl}`);
             const checkPageRes = await this.axios.get(checkUrl, {
-                headers: { 'Referer': this.config.loginUrl }
+                headers: {
+                    'Referer': this.config.loginUrl,
+                    'Sec-Fetch-Site': 'same-origin',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-User': '?1',
+                    'Sec-Fetch-Dest': 'document'
+                }
             });
 
             // === DEBUG: Check what page we got ===
@@ -2126,7 +2141,11 @@ export class HttpClientService {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Referer': checkUrl,
-                        'Origin': new URL(checkUrl).origin
+                        'Origin': new URL(checkUrl).origin,
+                        'Sec-Fetch-Site': 'same-origin',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-User': '?1',
+                        'Sec-Fetch-Dest': 'document'
                     }
                 }
             );

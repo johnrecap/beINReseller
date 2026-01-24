@@ -330,13 +330,11 @@ export class HttpClientService {
         if (bodyText.includes('session expired') || bodyText.includes('invalid session')) {
             return 'Session Expired';
         }
-        if (bodyText.includes('please login') || bodyText.includes('تسجيل الدخول')) {
-            return 'Session Expired - Please login again';
-        }
 
-        // CRITICAL: Check for embedded login form (soft expiry)
-        if (bodyText.includes('enter the following code') || (bodyText.includes('sign in') && bodyText.includes('billing system'))) {
-            return 'Session Expired - Embedded Login Detected';
+        // Check for explicit CAPTCHA challenge text (very specific)
+        // "enter the following code" is unique to the CAPTCHA input prompt
+        if (bodyText.includes('enter the following code in the next box')) {
+            return 'Session Expired - CAPTCHA Required';
         }
 
         return null;

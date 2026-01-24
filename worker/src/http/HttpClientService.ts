@@ -327,6 +327,10 @@ export class HttpClientService {
         if (bodyText.includes('please login') || bodyText.includes('تسجيل الدخول')) {
             return 'Session Expired - Please login again';
         }
+        // FIX: Detect hidden login page (beIN returns Finance Module title but login content)
+        if (bodyText.includes('dealers module - sign in') || bodyText.includes('enter the following code in the next box')) {
+            return 'Session Expired - Login page detected';
+        }
 
         return null;
     }
@@ -2123,9 +2127,24 @@ export class HttpClientService {
             const hasCheckForm = $postPage('#ContentPlaceHolder1_tbSerial').length > 0;
             console.log(`[HTTP] 📄 DEBUG - Check form exists: ${hasCheckForm}`);
 
-            // Check if POST returned login page - this means session was lost
-            if (postPageTitle.toLowerCase().includes('sign in') || postPageTitle.toLowerCase().includes('login')) {
+            // Check if POST returned login page - check BOTH title AND content
+            // FIX: beIN sometimes returns "Finance Module" title but login page content!
+            const pageContent = $postPage('body').text();
+            const hasLoginForm = $postPage('#Login1_UserName').length > 0 || $postPage('[id*="Login"]').length > 0;
+            const hasCaptchaPrompt = pageContent.includes('Enter the following code') || pageContent.includes('ImageVerificationDealer');
+            const hasSignInText = pageContent.includes('Dealers Module - Sign In') || pageContent.toLowerCase().includes('sign in');
+
+            const isLoginPage =
+                postPageTitle.toLowerCase().includes('sign in') ||
+                postPageTitle.toLowerCase().includes('login') ||
+                hasLoginForm ||
+                hasCaptchaPrompt ||
+                hasSignInText;
+
+            if (isLoginPage) {
                 console.log('[HTTP] ⚠️ ERROR: POST check returned LOGIN page - session lost during POST!');
+                console.log(`[HTTP] 📄 Title: "${postPageTitle}"`);
+                console.log(`[HTTP] 📄 Indicators: LoginForm=${hasLoginForm}, CAPTCHA=${hasCaptchaPrompt}, SignInText=${hasSignInText}`);
                 this.invalidateSession();
                 return { success: false, error: 'Session expired during card check - please try again' };
             }

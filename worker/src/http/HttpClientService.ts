@@ -239,13 +239,14 @@ export class HttpClientService {
      */
     private buildFullUrl(relativePath: string): string {
         if (relativePath.startsWith('http')) return relativePath;
+        const baseUrl = this.config?.loginUrl || 'https://sbs.beinsports.net/Dealers/NLogin.aspx';
+
         try {
             // Use full login URL as base (not just origin) to correctly resolve relative paths
-            // e.g., "Controls/..." from /Dealers/NLogin.aspx -> /Dealers/Controls/...
-            return new URL(relativePath, this.config.loginUrl).toString();
+            return new URL(relativePath, baseUrl).toString();
         } catch {
             console.error(`[HTTP] Invalid URL construction: ${relativePath}`);
-            return this.config.loginUrl.replace(/\/[^\/]*$/, '/') + relativePath.replace(/^\//, '');
+            return baseUrl.replace(/\/[^\/]*$/, '/') + relativePath.replace(/^\//, '');
         }
     }
 
@@ -282,13 +283,10 @@ export class HttpClientService {
     private checkForErrors(html: string): string | null {
         const $ = cheerio.load(html);
 
-        // Check common error selectors
         const errorSelectors = [
             'span[style*="color:Red"]',
             'span[style*="color: Red"]',
-            'span[style*="color:red"]',
             '.alert-danger',
-            '.error-message',
             '[id*="lblError"]',
             '[id*="Error"]'
         ];
@@ -334,6 +332,11 @@ export class HttpClientService {
         }
         if (bodyText.includes('please login') || bodyText.includes('تسجيل الدخول')) {
             return 'Session Expired - Please login again';
+        }
+
+        // CRITICAL: Check for embedded login form (soft expiry)
+        if (bodyText.includes('enter the following code') || (bodyText.includes('sign in') && bodyText.includes('billing system'))) {
+            return 'Session Expired - Embedded Login Detected';
         }
 
         return null;
@@ -2138,6 +2141,21 @@ export class HttpClientService {
                 return { success: false, error: 'Session expired during card check - please try again' };
             }
             // === END DEBUG ===
+
+            // CRITICAL: Strictly validate form existence
+            if (!hasCheckForm) {
+                console.log('[HTTP] ❌ ERROR: Check form not found in POST response!');
+
+                // Check for embedded login form in body (soft session expiry)
+                const bodyText = $postPage('body').text().toLowerCase();
+                if (bodyText.includes('enter the following code') || bodyText.includes('sign in')) {
+                    console.log('[HTTP] ⚠️ DETECTED: Embedded login/CAPTCHA challenge - Session Invalid');
+                    this.invalidateSession();
+                    return { success: false, error: 'Session expired (CAPTCHA challenge) - please login again' };
+                }
+
+                return { success: false, error: 'Failed to access check form - server returned unexpected page' };
+            }
 
             // Check for errors
             const error = this.checkForErrors(checkRes.data);

@@ -2052,6 +2052,14 @@ export class HttpClientService {
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
 
+            // === DEBUG: Log cookies before check page request ===
+            const checkCookies = await this.jar.getCookies(checkUrl);
+            console.log(`[HTTP] 🍪 DEBUG - Cookies for check page: ${checkCookies.length} cookies`);
+            if (checkCookies.length > 0) {
+                console.log(`[HTTP] 🍪 DEBUG - Cookie names: ${checkCookies.map(c => c.key).join(', ')}`);
+            }
+            // === END DEBUG ===
+
             // Step 1: GET check page
             console.log(`[HTTP] GET ${checkUrl}`);
             const checkPageRes = await this.axios.get(checkUrl, {

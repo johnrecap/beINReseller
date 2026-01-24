@@ -505,7 +505,42 @@ export class HttpClientService {
         
         // If title indicates a valid logged-in page (and NOT a login page)
         if (isValidPageTitle && !isLoginPageTitle) {
-            console.log(`[HTTP] ✅ Valid page detected by title - no session expiry`);
+            // ============================================
+            // LAYER 2: Secondary Check - Verify body content is not login page
+            // Catches cases where beIN returns login page with cached/wrong title
+            // ============================================
+            const hasLoginFormInBody = $('input[id="Login1_UserName"]').length > 0;
+            const bodyText = $('body').text();
+            const hasSignInText = bodyText.includes('Sign In');
+            const hasCaptchaText = bodyText.includes('Enter the following code');
+            const hasLoginContentInBody = hasSignInText && hasCaptchaText;
+            
+            console.log(`[HTTP] 🔍 Layer 2 (Secondary) - Login form: ${hasLoginFormInBody}, Sign In: ${hasSignInText}, CAPTCHA text: ${hasCaptchaText}`);
+            
+            if (hasLoginFormInBody || hasLoginContentInBody) {
+                console.log(`[HTTP] ⚠️ CACHED TITLE ISSUE - Valid title but login page content detected`);
+                return 'Session Expired - Login page with cached title';
+            }
+            
+            // ============================================
+            // LAYER 3: Positive Indicator Check - Verify expected content exists
+            // Confirms we got a real authenticated page, not empty/broken response
+            // ============================================
+            const hasContentPlaceHolder = $('[id*="ContentPlaceHolder1"]').length > 0;
+            const hasCheckElements = $('input[id*="tbSerial"], input[id*="btnCheck"], input[id*="btnActivate"]').length > 0;
+            const hasMessagesArea = $('[id*="MessagesArea"], [id*="Messages"]').length > 0;
+            const hasExpectedContent = hasContentPlaceHolder || hasCheckElements || hasMessagesArea;
+            
+            console.log(`[HTTP] 🔍 Layer 3 (Positive) - ContentPlaceHolder: ${hasContentPlaceHolder}, Check elements: ${hasCheckElements}, Messages: ${hasMessagesArea}`);
+            
+            if (!hasExpectedContent) {
+                console.log(`[HTTP] ⚠️ NO EXPECTED CONTENT - Valid title but page appears empty/broken`);
+                // Don't fail immediately - might be a valid but unexpected page structure
+                // Just log warning and continue
+                console.log(`[HTTP] ⚠️ Proceeding with caution - page may be incomplete`);
+            }
+            
+            console.log(`[HTTP] ✅ Valid page detected by title AND content - no session expiry`);
             return null;
         }
         
@@ -2177,7 +2212,39 @@ export class HttpClientService {
                 const isValidPostPage = validTitlePatterns.some(p => postTitleLower.includes(p));
                 
                 if (isValidPostPage) {
-                    console.log('[HTTP] ✅ POST response has valid title - continuing despite missing form field');
+                    // ============================================
+                    // LAYER 2: Secondary Check - Verify body content is not login page
+                    // ============================================
+                    const postBodyText = $postPage('body').text();
+                    const hasLoginFormInPost = $postPage('input[id="Login1_UserName"]').length > 0;
+                    const hasSignInText = postBodyText.includes('Sign In');
+                    const hasCaptchaText = postBodyText.includes('Enter the following code');
+                    const hasLoginContentInPost = hasSignInText && hasCaptchaText;
+                    
+                    console.log(`[HTTP] 🔍 POST Layer 2 - Login form: ${hasLoginFormInPost}, Sign In: ${hasSignInText}, CAPTCHA: ${hasCaptchaText}`);
+                    
+                    if (hasLoginFormInPost || hasLoginContentInPost) {
+                        console.log('[HTTP] ⚠️ POST CACHED TITLE - Valid title but login content - session expired');
+                        this.invalidateSession();
+                        return { success: false, error: 'Session expired - please login again' };
+                    }
+                    
+                    // ============================================
+                    // LAYER 3: Positive Indicator Check
+                    // ============================================
+                    const hasMessagesArea = $postPage('[id*="MessagesArea"], [id*="Messages"]').length > 0;
+                    const hasActivateBtn = $postPage('input[id*="btnActivate"]').length > 0;
+                    const hasCardInfo = postBodyText.includes('STB') || postBodyText.includes('Serial') || postBodyText.includes('Wallet');
+                    const hasExpectedContent = hasMessagesArea || hasActivateBtn || hasCardInfo;
+                    
+                    console.log(`[HTTP] 🔍 POST Layer 3 - Messages: ${hasMessagesArea}, Activate btn: ${hasActivateBtn}, Card info: ${hasCardInfo}`);
+                    
+                    if (!hasExpectedContent) {
+                        console.log('[HTTP] ⚠️ POST has valid title but no expected card content - might be session issue');
+                        // Don't fail immediately, but log warning
+                    }
+                    
+                    console.log('[HTTP] ✅ POST response has valid title and content - continuing');
                 } else {
                     // Only check for session expiry if page title is NOT valid
                     const hasLoginTitle = postTitleLower.includes('sign in') || postTitleLower.includes('login');

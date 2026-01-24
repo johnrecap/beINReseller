@@ -982,39 +982,7 @@ async function handleSignalCheckHttp(
         await checkIfCancelled(operationId);
 
         // Step 2: Check card status ONLY (no activation)
-        // FIX: Add retry logic for session expiry
-        let checkResult = await httpClient.checkCardForSignal(cardNumber);
-
-        // RELOGIN RETRY LOGIC
-        if (!checkResult.success && (
-            checkResult.error?.includes('Session expired') ||
-            checkResult.error?.includes('login') ||
-            checkResult.error?.includes('Login page detected')
-        )) {
-            console.log(`🔄 [HTTP] Session expired during check, retrying login...`);
-
-            // Force re-login
-            httpClient.invalidateSession();
-            // Add delay before retry (increased to 5s for safety)
-            await new Promise(resolve => setTimeout(resolve, 5000));
-
-            const retryLogin = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
-
-            // If login successful, retry check
-            if (retryLogin.success) {
-                // If CAPTCHA required, we try to solve it if auto-solver is configured
-                // But login() handles captcha internal logic (using 2captcha if available)
-                if (retryLogin.requiresCaptcha && !retryLogin.success) {
-                    // If we got captcha challenge and couldn't auto-solve inside login(), we fail
-                    console.log(`⚠️ [HTTP] Retry login required manual CAPTCHA, aborting retry`);
-                } else {
-                    console.log(`✅ [HTTP] Re-login successful, retrying check...`);
-                    checkResult = await httpClient.checkCardForSignal(cardNumber);
-                }
-            } else {
-                console.log(`❌ [HTTP] Re-login failed: ${retryLogin.error}`);
-            }
-        }
+        const checkResult = await httpClient.checkCardForSignal(cardNumber);
 
         if (!checkResult.success) {
             throw new Error(checkResult.error || 'Card check failed');

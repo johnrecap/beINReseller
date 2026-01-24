@@ -63,16 +63,7 @@ export class HttpClientService {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-
-        // Modern browser security headers to look like a real browser
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-User': '?1',
-        'Sec-Fetch-Dest': 'document',
-        'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"'
+        'Upgrade-Insecure-Requests': '1'
     };
 
     constructor(proxyConfig?: ProxyConfig) {
@@ -336,9 +327,6 @@ export class HttpClientService {
         if (bodyText.includes('please login') || bodyText.includes('تسجيل الدخول')) {
             return 'Session Expired - Please login again';
         }
-        // NOTE: Removed "dealers module - sign in" detection here as it causes false positives.
-        // Login page detection is now handled more precisely in checkCardForSignal() 
-        // by checking for actual login form elements (#Login1_UserName)
 
         return null;
     }
@@ -2075,33 +2063,15 @@ export class HttpClientService {
             // Step 1: GET check page
             console.log(`[HTTP] GET ${checkUrl}`);
             const checkPageRes = await this.axios.get(checkUrl, {
-                headers: {
-                    'Referer': this.config.loginUrl,
-                    'Sec-Fetch-Site': 'same-origin',
-                    'Sec-Fetch-Mode': 'navigate',
-                    'Sec-Fetch-User': '?1',
-                    'Sec-Fetch-Dest': 'document'
-                }
+                headers: { 'Referer': this.config.loginUrl }
             });
 
             // === DEBUG: Check what page we got ===
             const $getPage = cheerio.load(checkPageRes.data);
             const getPageTitle = $getPage('title').text().trim();
-            const getPageContent = $getPage('body').text();
             console.log(`[HTTP] 📄 DEBUG - GET check page title: "${getPageTitle}"`);
-
-            // FIX: Check for login page indicators in GET response
-            const isGetLoginPage =
-                getPageTitle.toLowerCase().includes('sign in') ||
-                getPageTitle.toLowerCase().includes('login') ||
-                getPageContent.includes('Dealers Module - Sign In') ||
-                getPageContent.includes('Enter the following code') ||
-                ($getPage('#Login1_UserName').length > 0);
-
-            if (isGetLoginPage) {
-                console.log('[HTTP] ⚠️ ERROR: GET check page returned LOGIN page - session lost!');
-                this.invalidateSession();
-                return { success: false, error: 'Session expired - login page detected on GET' };
+            if (getPageTitle.toLowerCase().includes('sign in') || getPageTitle.toLowerCase().includes('login')) {
+                console.log('[HTTP] ⚠️ WARNING: GET check page returned LOGIN page - session may be lost!');
             }
             // === END DEBUG ===
 
@@ -2140,11 +2110,7 @@ export class HttpClientService {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Referer': checkUrl,
-                        'Origin': new URL(checkUrl).origin,
-                        'Sec-Fetch-Site': 'same-origin',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-User': '?1',
-                        'Sec-Fetch-Dest': 'document'
+                        'Origin': new URL(checkUrl).origin
                     }
                 }
             );
@@ -2157,24 +2123,9 @@ export class HttpClientService {
             const hasCheckForm = $postPage('#ContentPlaceHolder1_tbSerial').length > 0;
             console.log(`[HTTP] 📄 DEBUG - Check form exists: ${hasCheckForm}`);
 
-            // Check if POST returned login page - check BOTH title AND content
-            // FIX: beIN sometimes returns "Finance Module" title but login page content!
-            const pageContent = $postPage('body').text();
-            const hasLoginForm = $postPage('#Login1_UserName').length > 0 || $postPage('[id*="Login"]').length > 0;
-            const hasCaptchaPrompt = pageContent.includes('Enter the following code') || pageContent.includes('ImageVerificationDealer');
-            const hasSignInText = pageContent.includes('Dealers Module - Sign In') || pageContent.toLowerCase().includes('sign in');
-
-            const isLoginPage =
-                postPageTitle.toLowerCase().includes('sign in') ||
-                postPageTitle.toLowerCase().includes('login') ||
-                hasLoginForm ||
-                hasCaptchaPrompt ||
-                hasSignInText;
-
-            if (isLoginPage) {
+            // Check if POST returned login page - this means session was lost
+            if (postPageTitle.toLowerCase().includes('sign in') || postPageTitle.toLowerCase().includes('login')) {
                 console.log('[HTTP] ⚠️ ERROR: POST check returned LOGIN page - session lost during POST!');
-                console.log(`[HTTP] 📄 Title: "${postPageTitle}"`);
-                console.log(`[HTTP] 📄 Indicators: LoginForm=${hasLoginForm}, CAPTCHA=${hasCaptchaPrompt}, SignInText=${hasSignInText}`);
                 this.invalidateSession();
                 return { success: false, error: 'Session expired during card check - please try again' };
             }

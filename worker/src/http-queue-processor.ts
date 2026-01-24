@@ -995,8 +995,8 @@ async function handleSignalCheckHttp(
 
             // Force re-login
             httpClient.invalidateSession();
-            // Add delay before retry
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Add delay before retry (increased to 5s for safety)
+            await new Promise(resolve => setTimeout(resolve, 5000));
 
             const retryLogin = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
 

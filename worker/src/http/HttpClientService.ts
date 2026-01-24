@@ -2095,6 +2095,13 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$btnCheck': checkBtnValue
             };
 
+            // === DEBUG: Log cookies before POST ===
+            const postCookies = await this.jar.getCookies(checkUrl);
+            console.log(`[HTTP] 🍪 DEBUG - Cookies for POST check: ${postCookies.length} cookies`);
+            console.log(`[HTTP] 📝 DEBUG - ViewState length: ${this.currentViewState.__VIEWSTATE?.length || 0} chars`);
+            console.log(`[HTTP] 📝 DEBUG - btnCheck value: "${checkBtnValue}"`);
+            // === END DEBUG ===
+
             console.log('[HTTP] POST check card...');
             const checkRes = await this.axios.post(
                 checkUrl,
@@ -2102,10 +2109,27 @@ export class HttpClientService {
                 {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Referer': checkUrl
+                        'Referer': checkUrl,
+                        'Origin': this.config.baseUrl.replace(/\/$/, '')
                     }
                 }
             );
+
+            // === DEBUG: Check POST response page ===
+            console.log(`[HTTP] 📄 DEBUG - POST response status: ${checkRes.status}`);
+            const $postPage = cheerio.load(checkRes.data);
+            const postPageTitle = $postPage('title').text().trim();
+            console.log(`[HTTP] 📄 DEBUG - POST check response title: "${postPageTitle}"`);
+            const hasCheckForm = $postPage('#ContentPlaceHolder1_tbSerial').length > 0;
+            console.log(`[HTTP] 📄 DEBUG - Check form exists: ${hasCheckForm}`);
+
+            // Check if POST returned login page - this means session was lost
+            if (postPageTitle.toLowerCase().includes('sign in') || postPageTitle.toLowerCase().includes('login')) {
+                console.log('[HTTP] ⚠️ ERROR: POST check returned LOGIN page - session lost during POST!');
+                this.invalidateSession();
+                return { success: false, error: 'Session expired during card check - please try again' };
+            }
+            // === END DEBUG ===
 
             // Check for errors
             const error = this.checkForErrors(checkRes.data);

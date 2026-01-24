@@ -2170,20 +2170,30 @@ export class HttpClientService {
             if (!hasCheckForm) {
                 console.log('[HTTP] ⚠️ Form field not visible after POST (this may be normal for results page)');
 
-                // Only fail if we detect explicit session expiry indicators
-                const bodyText = $postPage('body').text().toLowerCase();
-                const hasLoginTitle = postPageTitle.toLowerCase().includes('sign in') ||
-                    postPageTitle.toLowerCase().includes('login');
-                const hasCaptchaChallenge = bodyText.includes('enter the following code in the next box');
-
-                if (hasLoginTitle || hasCaptchaChallenge) {
-                    console.log('[HTTP] ⚠️ DETECTED: Session expired - Login/CAPTCHA page returned');
-                    this.invalidateSession();
-                    return { success: false, error: 'Session expired - please login again' };
+                // AUDIT FIX 2.1: Use title-first detection instead of unreliable body text check
+                // The page title "Finance Module" indicates a valid page even if form is hidden
+                const postTitleLower = postPageTitle.toLowerCase();
+                const validTitlePatterns = ['finance', 'module', 'check', 'sbs', 'subscription'];
+                const isValidPostPage = validTitlePatterns.some(p => postTitleLower.includes(p));
+                
+                if (isValidPostPage) {
+                    console.log('[HTTP] ✅ POST response has valid title - continuing despite missing form field');
+                } else {
+                    // Only check for session expiry if page title is NOT valid
+                    const hasLoginTitle = postTitleLower.includes('sign in') || postTitleLower.includes('login');
+                    const hasLoginForm = $postPage('input[id="Login1_UserName"]').length > 0;
+                    
+                    console.log(`[HTTP] 🔍 POST session check - Login title: ${hasLoginTitle}, Login form: ${hasLoginForm}`);
+                    
+                    if (hasLoginTitle || hasLoginForm) {
+                        console.log('[HTTP] ⚠️ DETECTED: Session expired - Login page returned after POST');
+                        this.invalidateSession();
+                        return { success: false, error: 'Session expired - please login again' };
+                    }
+                    
+                    // If title is not valid but also not login page, continue with caution
+                    console.log('[HTTP] ℹ️ Unknown page state - continuing to parse results...');
                 }
-
-                // If title is correct but form not found, continue processing (might be results page)
-                console.log('[HTTP] ℹ️ Continuing to parse results despite missing form field...');
             }
 
             // Check for errors

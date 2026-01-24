@@ -336,10 +336,9 @@ export class HttpClientService {
         if (bodyText.includes('please login') || bodyText.includes('تسجيل الدخول')) {
             return 'Session Expired - Please login again';
         }
-        // FIX: Detect hidden login page (beIN returns Finance Module title but login content)
-        if (bodyText.includes('dealers module - sign in') || bodyText.includes('enter the following code in the next box')) {
-            return 'Session Expired - Login page detected';
-        }
+        // NOTE: Removed "dealers module - sign in" detection here as it causes false positives.
+        // Login page detection is now handled more precisely in checkCardForSignal() 
+        // by checking for actual login form elements (#Login1_UserName)
 
         return null;
     }

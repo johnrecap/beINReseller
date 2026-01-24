@@ -743,6 +743,24 @@ export class HttpClientService {
     }
 
     /**
+     * Mark session as valid when restored from Redis cache
+     * Used when session is imported from cache (no fresh login needed)
+     */
+    public markSessionValidFromCache(): void {
+        this.sessionValid = true;
+        this.lastLoginTime = new Date();
+        console.log('[HTTP] Session marked valid from Redis cache');
+    }
+
+    /**
+     * Get session timeout from config (in minutes)
+     * Used for setting Redis TTL
+     */
+    public getSessionTimeout(): number {
+        return this.config?.sessionTimeout || 25;
+    }
+
+    /**
      * Invalidate session when server-side expiration is detected
      * This forces a fresh login on the next request
      */

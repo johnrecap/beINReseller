@@ -16,6 +16,15 @@ import { createNotification } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from './types/proxy';
+import { 
+    getSessionFromCache, 
+    saveSessionToCache, 
+    deleteSessionFromCache,
+    extendSessionTTL,
+    acquireLoginLock,
+    releaseLoginLock,
+    waitForLoginComplete
+} from './lib/session-cache';
 
 interface OperationJobData {
     operationId: string;
@@ -38,9 +47,13 @@ class OperationCancelledError extends Error {
 // Map to store HTTP clients per account (session persistence)
 const httpClients = new Map<string, HttpClientService>();
 
+// Worker ID for login locking (unique per process)
+const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
+
 /**
  * Get or create HTTP client for an account
  * Includes proxy config if the account has one assigned
+ * Now also attempts to restore session from Redis cache
  */
 async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
     // Include proxy in cache key to separate clients per proxy
@@ -62,6 +75,19 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
         await client.initialize();
         httpClients.set(cacheKey, client);
         console.log(`[HTTP] Created client for ${account.username}${proxyConfig ? ` with proxy ${proxyConfig.host}:${proxyConfig.port}` : ' without proxy'}`);
+    }
+
+    // Try to restore session from Redis cache (shared between workers)
+    try {
+        const cachedSession = await getSessionFromCache(account.id);
+        if (cachedSession) {
+            await client.importSession(cachedSession);
+            client.markSessionValidFromCache();
+            console.log(`[HTTP] 🔄 Restored session from Redis cache for ${account.username}`);
+        }
+    } catch (error) {
+        console.log(`[HTTP] ⚠️ Failed to restore cached session for ${account.username}, will login fresh`);
+        await deleteSessionFromCache(account.id);
     }
 
     return client;
@@ -241,63 +267,115 @@ async function handleStartRenewalHttp(
 
     await checkIfCancelled(operationId);
 
-    // Step 1: Login
-    const loginResult = await client.login(
-        selectedAccount.username,
-        selectedAccount.password,
-        selectedAccount.totpSecret || undefined
-    );
+    // Step 1: Login (with Redis session caching and login locking)
+    let needsFreshLogin = true;
+    
+    // Check if we already have a valid session from Redis cache
+    if (client.isSessionActive()) {
+        console.log(`[HTTP] ✅ Using cached session for ${selectedAccount.username}`);
+        needsFreshLogin = false;
+    }
 
-    if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-        console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
-
-        let solution: string | null = null;
-
-        // Try auto-solve with 2Captcha first
-        const captchaApiKey = await getCaptchaApiKey();
-        if (captchaApiKey) {
-            try {
-                console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
-                const captchaSolver = new CaptchaSolver(captchaApiKey);
-                solution = await captchaSolver.solve(loginResult.captchaImage);
-                console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
-            } catch (autoSolveError: any) {
-                console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
-            }
-        } else {
-            console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
-        }
-
-        // Fallback to manual if auto-solve failed or not configured
-        if (!solution) {
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    status: 'AWAITING_CAPTCHA',
-                    captchaImage: loginResult.captchaImage,
-                    captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+    if (needsFreshLogin) {
+        // Try to acquire login lock to prevent race conditions
+        const lockAcquired = await acquireLoginLock(selectedAccount.id, WORKER_ID);
+        
+        if (!lockAcquired) {
+            // Another worker is logging in, wait for it to complete
+            console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
+            const loginCompleted = await waitForLoginComplete(selectedAccount.id);
+            
+            if (loginCompleted) {
+                // Try to get the session from cache now
+                const cachedSession = await getSessionFromCache(selectedAccount.id);
+                if (cachedSession) {
+                    await client.importSession(cachedSession);
+                    client.markSessionValidFromCache();
+                    console.log(`[HTTP] ✅ Got session from cache after waiting`);
+                    needsFreshLogin = false;
                 }
-            });
-
-            solution = await waitForCaptchaSolution(operationId);
-            if (!solution) {
-                throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
             }
         }
+    }
 
-        // Submit with CAPTCHA
-        const loginWithCaptcha = await client.submitLogin(
+    if (needsFreshLogin) {
+        // Perform actual login
+        const loginResult = await client.login(
             selectedAccount.username,
             selectedAccount.password,
-            selectedAccount.totpSecret || undefined,
-            solution
+            selectedAccount.totpSecret || undefined
         );
 
-        if (!loginWithCaptcha.success) {
-            throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+            console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
+
+            let solution: string | null = null;
+
+            // Try auto-solve with 2Captcha first
+            const captchaApiKey = await getCaptchaApiKey();
+            if (captchaApiKey) {
+                try {
+                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                    const captchaSolver = new CaptchaSolver(captchaApiKey);
+                    solution = await captchaSolver.solve(loginResult.captchaImage);
+                    console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
+                } catch (autoSolveError: any) {
+                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                }
+            } else {
+                console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
+            }
+
+            // Fallback to manual if auto-solve failed or not configured
+            if (!solution) {
+                await prisma.operation.update({
+                    where: { id: operationId },
+                    data: {
+                        status: 'AWAITING_CAPTCHA',
+                        captchaImage: loginResult.captchaImage,
+                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                    }
+                });
+
+                solution = await waitForCaptchaSolution(operationId);
+                if (!solution) {
+                    // Release lock before throwing
+                    await releaseLoginLock(selectedAccount.id, WORKER_ID);
+                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                }
+            }
+
+            // Submit with CAPTCHA
+            const loginWithCaptcha = await client.submitLogin(
+                selectedAccount.username,
+                selectedAccount.password,
+                selectedAccount.totpSecret || undefined,
+                solution
+            );
+
+            if (!loginWithCaptcha.success) {
+                // Release lock before throwing
+                await releaseLoginLock(selectedAccount.id, WORKER_ID);
+                throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+            }
+        } else if (!loginResult.success) {
+            // Release lock before throwing
+            await releaseLoginLock(selectedAccount.id, WORKER_ID);
+            throw new Error(loginResult.error || 'Login failed');
         }
-    } else if (!loginResult.success) {
-        throw new Error(loginResult.error || 'Login failed');
+
+        // Login successful - save session to Redis cache
+        try {
+            const sessionData = await client.exportSession();
+            const sessionTimeout = client.getSessionTimeout();
+            await saveSessionToCache(selectedAccount.id, sessionData, sessionTimeout);
+            console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
+        } catch (saveError) {
+            console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
+        }
+
+        // Release login lock
+        await releaseLoginLock(selectedAccount.id, WORKER_ID);
     }
 
     await checkIfCancelled(operationId);
@@ -953,57 +1031,105 @@ async function handleSignalCheckHttp(
     const httpClient = await getHttpClient(account);
 
     try {
-        // Step 1: Login (with CAPTCHA handling)
-        const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
+        // Step 1: Login (with Redis session caching and login locking)
+        let needsFreshLogin = true;
+        
+        // Check if we already have a valid session from Redis cache
+        if (httpClient.isSessionActive()) {
+            console.log(`[HTTP] ✅ Using cached session for ${account.username}`);
+            needsFreshLogin = false;
+        }
 
-        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            console.log(`🧩 [HTTP] CAPTCHA required for signal check ${operationId}`);
-
-            let solution: string | null = null;
-
-            // Try auto-solve with 2Captcha first
-            const captchaApiKey = await getCaptchaApiKey();
-            if (captchaApiKey) {
-                try {
-                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
-                    const captchaSolver = new CaptchaSolver(captchaApiKey);
-                    solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
-                } catch (autoSolveError: any) {
-                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
-                }
-            }
-
-            // Fallback to manual if needed
-            if (!solution) {
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        status: 'AWAITING_CAPTCHA',
-                        captchaImage: loginResult.captchaImage,
-                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+        if (needsFreshLogin) {
+            // Try to acquire login lock to prevent race conditions
+            const lockAcquired = await acquireLoginLock(account.id, WORKER_ID);
+            
+            if (!lockAcquired) {
+                // Another worker is logging in, wait for it to complete
+                console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
+                const loginCompleted = await waitForLoginComplete(account.id);
+                
+                if (loginCompleted) {
+                    // Try to get the session from cache now
+                    const cachedSession = await getSessionFromCache(account.id);
+                    if (cachedSession) {
+                        await httpClient.importSession(cachedSession);
+                        httpClient.markSessionValidFromCache();
+                        console.log(`[HTTP] ✅ Got session from cache after waiting`);
+                        needsFreshLogin = false;
                     }
-                });
-
-                solution = await waitForCaptchaSolution(operationId);
-                if (!solution) {
-                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
                 }
             }
+        }
 
-            // Submit with CAPTCHA
-            const loginWithCaptcha = await httpClient.submitLogin(
-                account.username,
-                account.password,
-                account.totpSecret || undefined,
-                solution
-            );
+        if (needsFreshLogin) {
+            const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
 
-            if (!loginWithCaptcha.success) {
-                throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                console.log(`🧩 [HTTP] CAPTCHA required for signal check ${operationId}`);
+
+                let solution: string | null = null;
+
+                // Try auto-solve with 2Captcha first
+                const captchaApiKey = await getCaptchaApiKey();
+                if (captchaApiKey) {
+                    try {
+                        console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                        const captchaSolver = new CaptchaSolver(captchaApiKey);
+                        solution = await captchaSolver.solve(loginResult.captchaImage);
+                        console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
+                    } catch (autoSolveError: any) {
+                        console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                    }
+                }
+
+                // Fallback to manual if needed
+                if (!solution) {
+                    await prisma.operation.update({
+                        where: { id: operationId },
+                        data: {
+                            status: 'AWAITING_CAPTCHA',
+                            captchaImage: loginResult.captchaImage,
+                            captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                        }
+                    });
+
+                    solution = await waitForCaptchaSolution(operationId);
+                    if (!solution) {
+                        await releaseLoginLock(account.id, WORKER_ID);
+                        throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                    }
+                }
+
+                // Submit with CAPTCHA
+                const loginWithCaptcha = await httpClient.submitLogin(
+                    account.username,
+                    account.password,
+                    account.totpSecret || undefined,
+                    solution
+                );
+
+                if (!loginWithCaptcha.success) {
+                    await releaseLoginLock(account.id, WORKER_ID);
+                    throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+                }
+            } else if (!loginResult.success) {
+                await releaseLoginLock(account.id, WORKER_ID);
+                throw new Error(loginResult.error || 'Login failed');
             }
-        } else if (!loginResult.success) {
-            throw new Error(loginResult.error || 'Login failed');
+
+            // Login successful - save session to Redis cache
+            try {
+                const loginSessionData = await httpClient.exportSession();
+                const sessionTimeout = httpClient.getSessionTimeout();
+                await saveSessionToCache(account.id, loginSessionData, sessionTimeout);
+                console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
+            } catch (saveError) {
+                console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
+            }
+
+            // Release login lock
+            await releaseLoginLock(account.id, WORKER_ID);
         }
 
         await checkIfCancelled(operationId);
@@ -1036,11 +1162,20 @@ async function handleSignalCheckHttp(
             }
         });
 
+        // Extend session TTL on successful operation
+        await extendSessionTTL(account.id, httpClient.getSessionTimeout());
+
         await accountPool.markAccountUsed(account.id);
         console.log(`✅ [HTTP] Signal check completed for ${operationId}`);
 
     } catch (error: any) {
         await accountPool.markAccountUsed(account.id);
+        
+        // Delete session from cache on session-related errors
+        if (error.message?.includes('Session expired') || error.message?.includes('login')) {
+            await deleteSessionFromCache(account.id);
+        }
+        
         throw error;
     }
 }

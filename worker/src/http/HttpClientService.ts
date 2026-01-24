@@ -13,7 +13,7 @@
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import axiosRetry from 'axios-retry';
-// import { wrapper } from 'axios-cookiejar-support'; // REMOVED: Conflict with https-proxy-agent
+import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
 import * as cheerio from 'cheerio';
 import https from 'https';
@@ -77,7 +77,7 @@ export class HttpClientService {
 
         // Build axios config
         const axiosConfig: Record<string, unknown> = {
-            // jar: this.jar, // REMOVED: Handled manually
+            jar: this.jar,  // Required for wrapper() - ignored when using manual interceptors
             withCredentials: true,
             headers: HttpClientService.BROWSER_HEADERS,
             timeout: 30000,
@@ -85,20 +85,27 @@ export class HttpClientService {
             validateStatus: (status: number) => status < 500
         };
 
-        // Add proxy if config provided
+        // CONDITIONAL COOKIE HANDLING:
+        // - With proxy: Use manual interceptors (wrapper conflicts with httpsAgent)
+        // - Without proxy: Use wrapper() (proven to work in beinpanel.saeeddev.com)
         if (proxyConfig) {
+            // PROXY MODE: Manual cookie handling required
             const proxyManager = getProxyManager();
             const httpsAgent = proxyManager.getProxyAgentFromConfig(proxyConfig);
             axiosConfig.httpsAgent = httpsAgent;
             axiosConfig.proxy = false; // Disable axios built-in proxy
-            console.log(`[HTTP] Using proxy: ${proxyManager.getMaskedProxyUrlFromConfig(proxyConfig)}`);
+
+            // Create axios WITHOUT wrapper - use manual cookie interceptors
+            this.axios = axios.create(axiosConfig);
+            this.setupCookieInterceptors();
+            console.log(`[HTTP] Using proxy: ${proxyManager.getMaskedProxyUrlFromConfig(proxyConfig)} (manual cookies)`);
+        } else {
+            // NO PROXY MODE: Use wrapper() for automatic cookie handling
+            // This is proven to work in the working project (beinpanel.saeeddev.com)
+            this.axios = wrapper(axios.create(axiosConfig));
+            console.log('[HTTP] No proxy - using wrapper() for automatic cookie handling');
         }
 
-        // Create axios instance WITHOUT wrapper
-        this.axios = axios.create(axiosConfig);
-
-        // AUDIT FIX 2.2 + 5.1: Use helper methods instead of inline code
-        this.setupCookieInterceptors();
         this.setupAxiosRetry();
     }
 
@@ -313,10 +320,10 @@ export class HttpClientService {
         // ViewState length analysis for debugging
         // Login page typically has 500-700 chars, results page has 1500+ chars
         const viewStateCategory = viewState.length < 800 ? '⚠️ SMALL (likely login page)' :
-                                  viewState.length < 1500 ? '📄 MEDIUM' :
-                                  '✅ LARGE (likely results page)';
+            viewState.length < 1500 ? '📄 MEDIUM' :
+                '✅ LARGE (likely results page)';
         console.log(`[HTTP] ViewState extracted: ${viewState.length} chars ${viewStateCategory}`);
-        
+
         return fields;
     }
 
@@ -475,15 +482,15 @@ export class HttpClientService {
      */
     private checkForSessionExpiry(html: string): string | null {
         const $ = cheerio.load(html);
-        
+
         // ============================================
         // STEP 1: Extract and analyze page title
         // ============================================
         const pageTitle = $('title').text().trim();
         const pageTitleLower = pageTitle.toLowerCase();
-        
+
         console.log(`[HTTP] 🔍 Session check - Page title: "${pageTitle}"`);
-        
+
         // Valid logged-in page title patterns (beIN SBS pages)
         const validPagePatterns = [
             'finance',      // Finance Module
@@ -495,7 +502,7 @@ export class HttpClientService {
             'subscription', // Subscription pages
             'sbs'           // SBS system pages
         ];
-        
+
         // Login page title patterns
         const loginPagePatterns = [
             'login',        // Login page
@@ -503,15 +510,15 @@ export class HttpClientService {
             'nlogin',       // NLogin.aspx
             'signin'        // SignIn variations
         ];
-        
+
         // ============================================
         // STEP 2: Check if this is a valid logged-in page
         // ============================================
         const isValidPageTitle = validPagePatterns.some(pattern => pageTitleLower.includes(pattern));
         const isLoginPageTitle = loginPagePatterns.some(pattern => pageTitleLower.includes(pattern));
-        
+
         console.log(`[HTTP] 🔍 Title analysis - Valid page: ${isValidPageTitle}, Login page: ${isLoginPageTitle}`);
-        
+
         // If title indicates a valid logged-in page (and NOT a login page)
         if (isValidPageTitle && !isLoginPageTitle) {
             // ============================================
@@ -523,14 +530,14 @@ export class HttpClientService {
             const hasSignInText = bodyText.includes('Sign In');
             const hasCaptchaText = bodyText.includes('Enter the following code');
             const hasLoginContentInBody = hasSignInText && hasCaptchaText;
-            
+
             console.log(`[HTTP] 🔍 Layer 2 (Secondary) - Login form: ${hasLoginFormInBody}, Sign In: ${hasSignInText}, CAPTCHA text: ${hasCaptchaText}`);
-            
+
             if (hasLoginFormInBody || hasLoginContentInBody) {
                 console.log(`[HTTP] ⚠️ CACHED TITLE ISSUE - Valid title but login page content detected`);
                 return 'Session Expired - Login page with cached title';
             }
-            
+
             // ============================================
             // LAYER 3: Positive Indicator Check - Verify expected content exists
             // Confirms we got a real authenticated page, not empty/broken response
@@ -539,20 +546,20 @@ export class HttpClientService {
             const hasCheckElements = $('input[id*="tbSerial"], input[id*="btnCheck"], input[id*="btnActivate"]').length > 0;
             const hasMessagesArea = $('[id*="MessagesArea"], [id*="Messages"]').length > 0;
             const hasExpectedContent = hasContentPlaceHolder || hasCheckElements || hasMessagesArea;
-            
+
             console.log(`[HTTP] 🔍 Layer 3 (Positive) - ContentPlaceHolder: ${hasContentPlaceHolder}, Check elements: ${hasCheckElements}, Messages: ${hasMessagesArea}`);
-            
+
             if (!hasExpectedContent) {
                 console.log(`[HTTP] ⚠️ NO EXPECTED CONTENT - Valid title but page appears empty/broken`);
                 // Don't fail immediately - might be a valid but unexpected page structure
                 // Just log warning and continue
                 console.log(`[HTTP] ⚠️ Proceeding with caution - page may be incomplete`);
             }
-            
+
             console.log(`[HTTP] ✅ Valid page detected by title AND content - no session expiry`);
             return null;
         }
-        
+
         // ============================================
         // STEP 3: If title indicates login page, confirm with form elements
         // ============================================
@@ -561,33 +568,33 @@ export class HttpClientService {
             const hasLoginUsername = $('input[id="Login1_UserName"]').length > 0;
             const hasLoginButton = $('input[id="Login1_LoginButton"]').length > 0;
             const hasLoginForm = hasLoginUsername || hasLoginButton;
-            
+
             console.log(`[HTTP] 🔍 Login page check - Username field: ${hasLoginUsername}, Login button: ${hasLoginButton}`);
-            
+
             if (hasLoginForm) {
                 console.log(`[HTTP] ⚠️ SESSION EXPIRED - Login page title + login form detected`);
                 return 'Session Expired - Redirected to Login Page';
             }
         }
-        
+
         // ============================================
         // STEP 4: Fallback - Check for login form without clear title
         // ============================================
         // Only trigger if we find the EXACT login form (not partial matches)
         const hasExactLoginForm = $('input[id="Login1_UserName"]').length > 0 &&
-                                  $('input[id="Login1_LoginButton"]').length > 0;
-        
+            $('input[id="Login1_LoginButton"]').length > 0;
+
         // Check for CAPTCHA that's specific to login page (Image Verification with text input)
         const hasLoginCaptcha = $('img[id="Login1_ImageVerificationDealer_Image"]').length > 0 &&
-                                $('input[id="Login1_ImageVerificationDealer_txtContent"]').length > 0;
-        
+            $('input[id="Login1_ImageVerificationDealer_txtContent"]').length > 0;
+
         console.log(`[HTTP] 🔍 Fallback check - Exact login form: ${hasExactLoginForm}, Login CAPTCHA: ${hasLoginCaptcha}`);
-        
+
         if (hasExactLoginForm || hasLoginCaptcha) {
             console.log(`[HTTP] ⚠️ SESSION EXPIRED - Login form elements detected (fallback)`);
             return 'Session Expired - Redirected to Login Page';
         }
-        
+
         // ============================================
         // STEP 5: No session expiry detected
         // ============================================
@@ -651,27 +658,32 @@ export class HttpClientService {
 
             // Build axios config with proxy if available
             const axiosConfig: Record<string, unknown> = {
-                // jar: this.jar, // REMOVED: Handled manually
+                jar: this.jar,  // Required for wrapper() - ignored when using manual interceptors
                 withCredentials: true,
                 headers: HttpClientService.BROWSER_HEADERS,
                 timeout: 30000,
                 maxRedirects: 5
             };
 
-            // Re-attach proxy agent if we have config
+            // CONDITIONAL COOKIE HANDLING (same logic as constructor):
+            // - With proxy: Use manual interceptors (wrapper conflicts with httpsAgent)
+            // - Without proxy: Use wrapper() (proven to work)
             if (this.proxyConfig) {
+                // PROXY MODE: Manual cookie handling
                 const proxyManager = getProxyManager();
                 const httpsAgent = proxyManager.getProxyAgentFromConfig(this.proxyConfig);
                 axiosConfig.httpsAgent = httpsAgent;
                 axiosConfig.proxy = false;
-                console.log(`[HTTP] Re-attached proxy: ${proxyManager.getMaskedProxyUrlFromConfig(this.proxyConfig)}`);
+
+                this.axios = axios.create(axiosConfig);
+                this.setupCookieInterceptors();
+                console.log(`[HTTP] Session imported with proxy: ${proxyManager.getMaskedProxyUrlFromConfig(this.proxyConfig)} (manual cookies)`);
+            } else {
+                // NO PROXY MODE: Use wrapper()
+                this.axios = wrapper(axios.create(axiosConfig));
+                console.log('[HTTP] Session imported - using wrapper() for automatic cookie handling');
             }
 
-            // Recreate axios with the loaded jar
-            this.axios = axios.create(axiosConfig);
-
-            // AUDIT FIX 2.2 + 5.1: Use helper methods instead of inline code
-            this.setupCookieInterceptors();
             this.setupAxiosRetry();
 
             if (data.viewState) {
@@ -1262,7 +1274,7 @@ export class HttpClientService {
                         renewUrl,
                         this.buildFormData(selectFormData),
                         {
-                    headers: this.buildPostHeaders(renewUrl)
+                            headers: this.buildPostHeaders(renewUrl)
                         }
                     );
 
@@ -1441,9 +1453,9 @@ export class HttpClientService {
                 loadRes = await this.axios.post(
                     renewUrl,
                     this.buildFormData(secondFormData),
-                {
-                    headers: this.buildPostHeaders(renewUrl)
-                }
+                    {
+                        headers: this.buildPostHeaders(renewUrl)
+                    }
                 );
             } else {
                 console.log('[HTTP] ⚠️ tbSerial2 field NOT found in response - checking for packages directly');
@@ -2227,7 +2239,7 @@ export class HttpClientService {
                 const postTitleLower = postPageTitle.toLowerCase();
                 const validTitlePatterns = ['finance', 'module', 'check', 'sbs', 'subscription'];
                 const isValidPostPage = validTitlePatterns.some(p => postTitleLower.includes(p));
-                
+
                 if (isValidPostPage) {
                     // ============================================
                     // LAYER 2: Secondary Check - Verify body content is not login page
@@ -2237,15 +2249,15 @@ export class HttpClientService {
                     const hasSignInText = postBodyText.includes('Sign In');
                     const hasCaptchaText = postBodyText.includes('Enter the following code');
                     const hasLoginContentInPost = hasSignInText && hasCaptchaText;
-                    
+
                     console.log(`[HTTP] 🔍 POST Layer 2 - Login form: ${hasLoginFormInPost}, Sign In: ${hasSignInText}, CAPTCHA: ${hasCaptchaText}`);
-                    
+
                     if (hasLoginFormInPost || hasLoginContentInPost) {
                         console.log('[HTTP] ⚠️ POST CACHED TITLE - Valid title but login content - session expired');
                         this.invalidateSession();
                         return { success: false, error: 'Session expired - please login again' };
                     }
-                    
+
                     // ============================================
                     // LAYER 3: Positive Indicator Check
                     // ============================================
@@ -2253,28 +2265,28 @@ export class HttpClientService {
                     const hasActivateBtn = $postPage('input[id*="btnActivate"]').length > 0;
                     const hasCardInfo = postBodyText.includes('STB') || postBodyText.includes('Serial') || postBodyText.includes('Wallet');
                     const hasExpectedContent = hasMessagesArea || hasActivateBtn || hasCardInfo;
-                    
+
                     console.log(`[HTTP] 🔍 POST Layer 3 - Messages: ${hasMessagesArea}, Activate btn: ${hasActivateBtn}, Card info: ${hasCardInfo}`);
-                    
+
                     if (!hasExpectedContent) {
                         console.log('[HTTP] ⚠️ POST has valid title but no expected card content - might be session issue');
                         // Don't fail immediately, but log warning
                     }
-                    
+
                     console.log('[HTTP] ✅ POST response has valid title and content - continuing');
                 } else {
                     // Only check for session expiry if page title is NOT valid
                     const hasLoginTitle = postTitleLower.includes('sign in') || postTitleLower.includes('login');
                     const hasLoginForm = $postPage('input[id="Login1_UserName"]').length > 0;
-                    
+
                     console.log(`[HTTP] 🔍 POST session check - Login title: ${hasLoginTitle}, Login form: ${hasLoginForm}`);
-                    
+
                     if (hasLoginTitle || hasLoginForm) {
                         console.log('[HTTP] ⚠️ DETECTED: Session expired - Login page returned after POST');
                         this.invalidateSession();
                         return { success: false, error: 'Session expired - please login again' };
                     }
-                    
+
                     // If title is not valid but also not login page, continue with caution
                     console.log('[HTTP] ℹ️ Unknown page state - continuing to parse results...');
                 }

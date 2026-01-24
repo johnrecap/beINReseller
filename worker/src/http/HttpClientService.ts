@@ -2073,9 +2073,21 @@ export class HttpClientService {
             // === DEBUG: Check what page we got ===
             const $getPage = cheerio.load(checkPageRes.data);
             const getPageTitle = $getPage('title').text().trim();
+            const getPageContent = $getPage('body').text();
             console.log(`[HTTP] 📄 DEBUG - GET check page title: "${getPageTitle}"`);
-            if (getPageTitle.toLowerCase().includes('sign in') || getPageTitle.toLowerCase().includes('login')) {
-                console.log('[HTTP] ⚠️ WARNING: GET check page returned LOGIN page - session may be lost!');
+
+            // FIX: Check for login page indicators in GET response
+            const isGetLoginPage =
+                getPageTitle.toLowerCase().includes('sign in') ||
+                getPageTitle.toLowerCase().includes('login') ||
+                getPageContent.includes('Dealers Module - Sign In') ||
+                getPageContent.includes('Enter the following code') ||
+                ($getPage('#Login1_UserName').length > 0);
+
+            if (isGetLoginPage) {
+                console.log('[HTTP] ⚠️ ERROR: GET check page returned LOGIN page - session lost!');
+                this.invalidateSession();
+                return { success: false, error: 'Session expired - login page detected on GET' };
             }
             // === END DEBUG ===
 

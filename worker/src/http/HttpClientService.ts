@@ -54,7 +54,11 @@ export class HttpClientService {
     private static configCache: { data: BeINHttpConfig; timestamp: number } | null = null;
     private static readonly CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-    // Browser-like headers (including Sec-Fetch-* for anti-bot bypass)
+    // Browser-like headers (matching old working project)
+    // NOTE: Sec-Fetch-* headers were REMOVED because:
+    // 1. Old project works perfectly without them
+    // 2. Akamai may detect inconsistent header combinations
+    // 3. Simpler header set = less chance of detection
     private static readonly BROWSER_HEADERS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -63,15 +67,7 @@ export class HttpClientService {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        // Sec-Fetch-* headers - CRITICAL for beIN anti-bot detection bypass
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-Fetch-User': '?1',
-        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"'
+        'Upgrade-Insecure-Requests': '1'
     };
 
     constructor(proxyConfig?: ProxyConfig) {
@@ -265,17 +261,14 @@ export class HttpClientService {
     }
 
     /**
-     * Build POST request headers with Origin
-     * AUDIT FIX 1.1: Adds Origin header to prevent WAF detection
-     * FIX: Include ALL BROWSER_HEADERS to bypass Akamai anti-bot detection
-     * Without these headers, POST requests get blocked and return login page
+     * Build POST request headers
+     * NOTE: We only add Content-Type, Referer, Origin
+     * The BROWSER_HEADERS are already set as axios defaults
+     * This matches the old working project pattern
      * @param refererUrl - The URL to use as Referer and Origin base
      */
     private buildPostHeaders(refererUrl: string): Record<string, string> {
         return {
-            // Include ALL BROWSER_HEADERS for anti-bot bypass (Sec-Fetch-*, User-Agent, etc.)
-            ...HttpClientService.BROWSER_HEADERS,
-            // Override/add POST-specific headers
             'Content-Type': 'application/x-www-form-urlencoded',
             'Referer': refererUrl,
             'Origin': new URL(refererUrl).origin

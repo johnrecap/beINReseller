@@ -23,7 +23,7 @@ export async function GET(request: Request) {
             operationsByDay,
             operationsByType,
             operationsByStatus,
-            topResellers,
+            topUsers,
             hourlyStats,
             totalStats,
         ] = await Promise.all([
@@ -54,9 +54,9 @@ export async function GET(request: Request) {
                 where: { createdAt: { gte: startDate } },
             }),
 
-            // Top 10 resellers
+            // Top 10 users by operations
             prisma.user.findMany({
-                where: { role: 'RESELLER' },
+                where: { role: 'USER' },
                 select: {
                     id: true,
                     username: true,
@@ -118,8 +118,8 @@ export async function GET(request: Request) {
         const totalCount = totalStats._count || 1
         const successRate = ((completedCount / totalCount) * 100).toFixed(1)
 
-        // Process top resellers
-        const topResellersData = topResellers.map(user => ({
+        // Process top users
+        const topUsersData = topUsers.map(user => ({
             id: user.id,
             username: user.username,
             operationsCount: user._count.operations,
@@ -150,7 +150,7 @@ export async function GET(request: Request) {
                 byStatus: statusData,
                 hourly: hourlyData,
             },
-            topResellers: topResellersData,
+            topUsers: topUsersData,
         })
 
     } catch (error) {

@@ -103,7 +103,8 @@ export const en = {
         currentBalance: 'Current Balance',
         dailyStats: 'Daily Statistics',
         adminWelcome: 'Welcome to Admin Panel',
-        resellerWelcome: 'Enjoy our premium services',
+        managerWelcome: 'Welcome, Manager',
+        userWelcome: 'Enjoy our premium services',
     },
     forms: {
         cardNumber: 'Card Number',

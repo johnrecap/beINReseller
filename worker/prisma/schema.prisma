@@ -11,7 +11,8 @@ datasource db {
 
 enum Role {
   ADMIN
-  RESELLER
+  MANAGER
+  USER
 }
 
 enum OperationType {
@@ -45,7 +46,7 @@ model User {
   username        String        @unique
   email           String        @unique
   passwordHash    String        @map("password_hash")
-  role            Role          @default(RESELLER)
+  role            Role          @default(USER)
   balance         Float         @default(0)
   isActive        Boolean       @default(true) @map("is_active")
   lowBalanceAlert Float         @default(50) @map("low_balance_alert")

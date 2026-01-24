@@ -1,5 +1,11 @@
 import { auth } from './auth'
 import { redirect } from 'next/navigation'
+import { 
+    Permission, 
+    roleHasPermission, 
+    roleHasAnyPermission,
+    PERMISSIONS 
+} from './permissions'
 
 /**
  * Get the current authenticated user from session
@@ -18,6 +24,10 @@ const ROLE_HIERARCHY: Record<RoleLevel, number> = {
     MANAGER: 2,
     USER: 1
 }
+
+// Re-export permissions for convenience
+export { PERMISSIONS, roleHasPermission, roleHasAnyPermission }
+export type { Permission }
 
 /**
  * Check if user has required role or higher
@@ -116,4 +126,97 @@ export async function isAdmin() {
 export async function isManager() {
     const session = await auth()
     return hasRole(session?.user?.role, 'MANAGER')
+}
+
+// ============================================
+// PERMISSION-BASED AUTH FUNCTIONS
+// ============================================
+
+/**
+ * Require specific permission - redirect if not authorized
+ * Use this for page-level protection
+ */
+export async function requirePermission(permission: Permission, redirectTo = '/dashboard') {
+    const session = await auth()
+    if (!session?.user) {
+        redirect('/login')
+    }
+
+    if (!roleHasPermission(session.user.role, permission)) {
+        redirect(redirectTo)
+    }
+
+    return session.user
+}
+
+/**
+ * Require any of the specified permissions - redirect if not authorized
+ */
+export async function requireAnyPermission(permissions: Permission[], redirectTo = '/dashboard') {
+    const session = await auth()
+    if (!session?.user) {
+        redirect('/login')
+    }
+
+    if (!roleHasAnyPermission(session.user.role, permissions)) {
+        redirect(redirectTo)
+    }
+
+    return session.user
+}
+
+/**
+ * Require specific permission for API routes (returns error object instead of redirect)
+ */
+export async function requirePermissionAPI(permission: Permission) {
+    const session = await auth()
+
+    if (!session?.user?.id) {
+        return { error: 'غير مصرح', status: 401 }
+    }
+
+    if (!roleHasPermission(session.user.role, permission)) {
+        return { error: 'صلاحيات غير كافية', status: 403 }
+    }
+
+    return { user: session.user }
+}
+
+/**
+ * Require any of the specified permissions for API routes
+ */
+export async function requireAnyPermissionAPI(permissions: Permission[]) {
+    const session = await auth()
+
+    if (!session?.user?.id) {
+        return { error: 'غير مصرح', status: 401 }
+    }
+
+    if (!roleHasAnyPermission(session.user.role, permissions)) {
+        return { error: 'صلاحيات غير كافية', status: 403 }
+    }
+
+    return { user: session.user }
+}
+
+/**
+ * Check if current user has permission (async version for server components)
+ */
+export async function checkPermission(permission: Permission): Promise<boolean> {
+    const session = await auth()
+    return roleHasPermission(session?.user?.role, permission)
+}
+
+/**
+ * Check if current user can access subscription features
+ */
+export async function canRenew(): Promise<boolean> {
+    return checkPermission(PERMISSIONS.SUBSCRIPTION_RENEW)
+}
+
+/**
+ * Check if current user can access signal features
+ */
+export async function canActivateSignal(): Promise<boolean> {
+    return checkPermission(PERMISSIONS.SIGNAL_ACTIVATE)
 }

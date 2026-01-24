@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { Role } from '@prisma/client'
+import { Role } from '@/lib/permissions'
 import { z } from 'zod'
 import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
@@ -10,7 +10,7 @@ const createUserSchema = z.object({
     username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
     email: z.string().email('البريد الإلكتروني غير صالح'),
     password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
-    role: z.enum(['ADMIN', 'RESELLER', 'MANAGER', 'USER']).optional().default('RESELLER'),
+    role: z.enum(['ADMIN', 'MANAGER', 'USER']).optional().default('USER'),
     balance: z.number().optional().default(0),
 })
 

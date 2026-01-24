@@ -8,7 +8,7 @@ import { motion } from 'framer-motion'
 
 interface DashboardHeaderProps {
     username: string
-    role: 'ADMIN' | 'RESELLER' | 'MANAGER' | 'USER' | string
+    role: 'ADMIN' | 'MANAGER' | 'USER'
 }
 
 export default function DashboardHeader({ username, role }: DashboardHeaderProps) {
@@ -17,9 +17,9 @@ export default function DashboardHeader({ username, role }: DashboardHeaderProps
     const getRoleName = (r: string) => {
         switch (r) {
             case 'ADMIN': return t.dashboard.adminWelcome;
-            case 'MANAGER': return 'مدير النظام'; // Or translation key
-            case 'USER': return 'مستخدم';
-            default: return t.dashboard.resellerWelcome;
+            case 'MANAGER': return t.dashboard.managerWelcome;
+            case 'USER': return t.dashboard.userWelcome;
+            default: return t.dashboard.userWelcome;
         }
     }
 

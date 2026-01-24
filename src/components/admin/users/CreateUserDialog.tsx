@@ -156,12 +156,11 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             id="role"
                             name="role"
                             required
-                            defaultValue="RESELLER"
+                            defaultValue="USER"
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         >
-                            <option value="RESELLER">موزع (Reseller)</option>
-                            <option value="MANAGER">مدير (Manager)</option>
                             <option value="USER">مستخدم (User)</option>
+                            <option value="MANAGER">مدير (Manager)</option>
                             <option value="ADMIN">أدمن (Admin)</option>
                         </select>
                     </div>

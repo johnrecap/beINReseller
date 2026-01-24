@@ -7,6 +7,8 @@ import { getOperationPriceFromDB } from '@/lib/pricing'
 import { addOperationJob } from '@/lib/queue'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { createNotification } from '@/lib/notification'
+import { roleHasPermission } from '@/lib/auth-utils'
+import { PERMISSIONS } from '@/lib/permissions'
 
 // Validation schema
 const createOperationSchema = z.object({
@@ -26,7 +28,15 @@ export async function POST(request: Request) {
             )
         }
 
-        // 2. Check rate limit
+        // 2. Check permission - only users with SUBSCRIPTION_RENEW can access
+        if (!roleHasPermission(session.user.role, PERMISSIONS.SUBSCRIPTION_RENEW)) {
+            return NextResponse.json(
+                { error: 'صلاحيات غير كافية' },
+                { status: 403 }
+            )
+        }
+
+        // 3. Check rate limit
         const { allowed, result: rateLimitResult } = await withRateLimit(
             `operations:${session.user.id}`,
             RATE_LIMITS.operations

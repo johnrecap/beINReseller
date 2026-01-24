@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
 import { Button } from '@/components/ui/button'
+import { canAccessSubscription, canAccessSignal } from '@/lib/permissions'
 
 interface SidebarProps {
     isOpen: boolean
@@ -34,20 +35,34 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname()
     const { data: session, status } = useSession()
     const { t, dir } = useTranslation()
-    const isAdmin = session?.user?.role === 'ADMIN'
+    const userRole = session?.user?.role
+    const isAdmin = userRole === 'ADMIN'
+    const isManager = userRole === 'MANAGER'
+    
+    // Permission-based visibility
+    const canRenew = canAccessSubscription(userRole)
+    const canSignal = canAccessSignal(userRole)
 
-    const isManager = session?.user?.role === 'MANAGER'
-
-    const resellerLinks = [
+    // Base links for all authenticated users
+    const baseLinks = [
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
+    ]
+    
+    // Renewal/Operation links - only for users with permission (not MANAGER)
+    const renewalLinks = canRenew ? [
         { href: '/dashboard/renew', label: t.bulk?.interactiveRenewal || 'Interactive Renewal', icon: Sparkles },
         { href: '/dashboard/operations/active', label: t.operations?.activeOperations || 'Active Operations', icon: Loader2 },
         { href: '/dashboard/history', label: t.sidebar.history, icon: History },
+    ] : []
+    
+    // Common links for all users
+    const commonLinks = [
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
         { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },
-    ].filter(() => !isManager) // Hide reseller links from managers if desired, or keep them. 
-
-    // ... (rest of links arrays)
+    ]
+    
+    // Combined reseller links
+    const resellerLinks = [...baseLinks, ...renewalLinks, ...commonLinks]
 
     const managerLinks = [
         { href: '/dashboard/manager', label: 'لوحة المدير', icon: BarChart3 },

@@ -26,7 +26,7 @@ export const createUserSchema = z.object({
     username: z.string().min(3, 'اسم المستخدم قصير جداً'),
     email: z.string().email('البريد الإلكتروني غير صالح'),
     password: z.string().min(6, 'كلمة المرور قصيرة جداً'),
-    role: z.enum(['ADMIN', 'RESELLER']).default('RESELLER'),
+    role: z.enum(['ADMIN', 'MANAGER', 'USER']).default('USER'),
 })
 
 export const operationSchema = z.object({

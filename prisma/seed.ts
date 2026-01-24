@@ -31,22 +31,22 @@ async function main() {
     })
     console.log('✅ تم إنشاء Admin:', admin.username)
 
-    // 2. Create Test Reseller
-    const resellerPassword = await bcrypt.hash('test123', 10)
-    const reseller = await prisma.user.upsert({
-        where: { username: 'reseller1' },
+    // 2. Create Test User
+    const userPassword = await bcrypt.hash('test123', 10)
+    const testUser = await prisma.user.upsert({
+        where: { username: 'user1' },
         update: {},
         create: {
-            username: 'reseller1',
-            email: 'reseller1@bein-panel.com',
-            passwordHash: resellerPassword,
-            role: 'RESELLER',
+            username: 'user1',
+            email: 'user1@bein-panel.com',
+            passwordHash: userPassword,
+            role: 'USER',
             balance: 500,
             isActive: true,
             lowBalanceAlert: 50,
         },
     })
-    console.log('✅ تم إنشاء Reseller:', reseller.username)
+    console.log('✅ تم إنشاء User:', testUser.username)
 
     // 3. Create Default Settings
     const defaultSettings = [
@@ -101,13 +101,13 @@ async function main() {
     }
     console.log('✅ تم إنشاء', defaultSettings.length, 'إعداد')
 
-    // 4. Create initial transaction for reseller
+    // 4. Create initial transaction for test user
     await prisma.transaction.upsert({
-        where: { id: 'initial-deposit-reseller1' },
+        where: { id: 'initial-deposit-user1' },
         update: {},
         create: {
-            id: 'initial-deposit-reseller1',
-            userId: reseller.id,
+            id: 'initial-deposit-user1',
+            userId: testUser.id,
             adminId: admin.id,
             amount: 500,
             balanceAfter: 500,
@@ -120,7 +120,7 @@ async function main() {
     console.log('\n🎉 اكتملت عملية Seeding بنجاح!')
     console.log('\n📋 بيانات الدخول:')
     console.log('   Admin: admin / admin123')
-    console.log('   Reseller: reseller1 / test123 (رصيد: 500 ريال)')
+    console.log('   User: user1 / test123 (balance: 500 USD)')
 }
 
 main()

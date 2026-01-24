@@ -1,5 +1,7 @@
 // User types
-export type Role = 'ADMIN' | 'RESELLER'
+// Note: Role is now primarily defined in src/lib/permissions.ts
+// This is kept for backward compatibility
+export type Role = 'ADMIN' | 'MANAGER' | 'USER'
 
 export interface User {
     id: string

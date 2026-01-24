@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { getOperationPriceFromDB } from '@/lib/pricing'
 import { addOperationJob } from '@/lib/queue'
 import { createNotification } from '@/lib/notification'
+import { roleHasPermission } from '@/lib/auth-utils'
+import { PERMISSIONS } from '@/lib/permissions'
 
 const MAX_CARDS_PER_REQUEST = 10
 
@@ -25,6 +27,14 @@ export async function POST(request: Request) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
+            )
+        }
+
+        // Check permission - only users with SUBSCRIPTION_BULK can access
+        if (!roleHasPermission(session.user.role, PERMISSIONS.SUBSCRIPTION_BULK)) {
+            return NextResponse.json(
+                { error: 'صلاحيات غير كافية' },
+                { status: 403 }
             )
         }
 

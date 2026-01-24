@@ -5,7 +5,7 @@ interface User {
     id: string
     username: string
     email: string
-    role: 'ADMIN' | 'RESELLER'
+    role: 'ADMIN' | 'MANAGER' | 'USER'
     balance: number
     lowBalanceAlert: number
 }

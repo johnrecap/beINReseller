@@ -102,7 +102,8 @@ export const ar = {
         currentBalance: 'الرصيد الحالي',
         dailyStats: 'إحصائيات يومية',
         adminWelcome: 'مرحباً بك في لوحة تحكم الإدارة',
-        resellerWelcome: 'استمتع بخدماتنا المميزة',
+        managerWelcome: 'مرحباً بك، مدير النظام',
+        userWelcome: 'استمتع بخدماتنا المميزة',
     },
     forms: {
         cardNumber: 'رقم الكارت',

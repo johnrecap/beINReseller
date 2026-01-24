@@ -8,6 +8,8 @@ import QuickActionTile from '@/components/dashboard/QuickActionTile'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Zap, RefreshCw } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { canAccessSubscription } from '@/lib/permissions'
+import { Role } from '@/lib/permissions'
 
 interface DashboardContentProps {
     user: { username: string; role: string }
@@ -15,6 +17,9 @@ interface DashboardContentProps {
 
 export default function DashboardContent({ user }: DashboardContentProps) {
     const { t } = useTranslation()
+    
+    // Check if user can access subscription/signal features
+    const showQuickActions = canAccessSubscription(user.role as Role)
 
     return (
         <motion.div
@@ -26,7 +31,7 @@ export default function DashboardContent({ user }: DashboardContentProps) {
             {/* Header Section */}
             <DashboardHeader
                 username={user.username}
-                role={user.role as 'ADMIN' | 'RESELLER'}
+                role={user.role as 'ADMIN' | 'MANAGER' | 'USER'}
             />
 
             {/* Stats Cards Row */}
@@ -44,7 +49,8 @@ export default function DashboardContent({ user }: DashboardContentProps) {
             */}
             <div className="grid gap-[var(--space-lg)] lg:grid-cols-5">
 
-                {/* Quick Actions (40%) - Placed FIRST in DOM for RTL Right Positioning */}
+                {/* Quick Actions (40%) - Only show for users with subscription permission */}
+                {showQuickActions && (
                 <motion.div
                     className="lg:col-span-2"
                     initial={{ opacity: 0, y: 10 }}
@@ -77,10 +83,11 @@ export default function DashboardContent({ user }: DashboardContentProps) {
                         </CardContent>
                     </Card>
                 </motion.div>
+                )}
 
-                {/* Recent Operations (60%) - Placed SECOND in DOM */}
+                {/* Recent Operations - Takes full width if Quick Actions hidden */}
                 <motion.div
-                    className="lg:col-span-3"
+                    className={showQuickActions ? "lg:col-span-3" : "lg:col-span-5"}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: 0.3 }}

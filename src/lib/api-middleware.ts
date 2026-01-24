@@ -3,7 +3,8 @@ import { Session } from 'next-auth'
 import { auth } from '@/lib/auth'
 import { checkRateLimit, RateLimitConfig, rateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limiter'
 import { errorResponse, ERROR_MESSAGES } from '@/lib/api-response'
-import { hasRole, RoleLevel } from '@/lib/auth-utils'
+import { hasRole, RoleLevel, roleHasPermission, roleHasAnyPermission } from '@/lib/auth-utils'
+import { Permission } from '@/lib/permissions'
 
 // Context type for App Router handlers
 export interface RouteContext {
@@ -102,5 +103,54 @@ export function withRateLimit<Args extends unknown[]>(
         }
 
         return response
+    }
+}
+
+// ============================================
+// PERMISSION-BASED MIDDLEWARE
+// ============================================
+
+interface WithPermissionOptions {
+    permission?: Permission
+    permissions?: Permission[]  // For checking ANY of multiple permissions
+}
+
+/**
+ * Middleware wrapper to enforce authentication and permission check.
+ * 
+ * Usage:
+ * export const POST = withPermission(async (req, session) => { ... }, { permission: PERMISSIONS.SUBSCRIPTION_RENEW })
+ * or for multiple permissions (ANY):
+ * export const POST = withPermission(async (req, session) => { ... }, { permissions: [PERMISSIONS.SUBSCRIPTION_RENEW, PERMISSIONS.SIGNAL_ACTIVATE] })
+ */
+export function withPermission(
+    handler: AuthorizedApiHandler,
+    options: WithPermissionOptions
+) {
+    return async (req: NextRequest, context?: RouteContext) => {
+        // 1. Check Authentication
+        const session = await auth()
+        if (!session?.user?.id) {
+            return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401, 'UNAUTHORIZED')
+        }
+
+        // 2. Check Permission(s)
+        let hasAccess = false
+
+        if (options.permission) {
+            hasAccess = roleHasPermission(session.user.role, options.permission)
+        } else if (options.permissions && options.permissions.length > 0) {
+            hasAccess = roleHasAnyPermission(session.user.role, options.permissions)
+        } else {
+            // No permission specified - just require auth
+            hasAccess = true
+        }
+
+        if (!hasAccess) {
+            return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403, 'FORBIDDEN')
+        }
+
+        // 3. Call Handler with session
+        return handler(req, session, context)
     }
 }

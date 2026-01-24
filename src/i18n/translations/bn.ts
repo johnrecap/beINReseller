@@ -103,7 +103,8 @@ export const bn = {
         currentBalance: 'বর্তমান ব্যালেন্স',
         dailyStats: 'দৈনিক পরিসংখ্যান',
         adminWelcome: 'অ্যাডমিন প্যানেলে স্বাগতম',
-        resellerWelcome: 'আমাদের প্রিমিয়াম পরিষেবা উপভোগ করুন',
+        managerWelcome: 'স্বাগতম, ম্যানেজার',
+        userWelcome: 'আমাদের প্রিমিয়াম পরিষেবা উপভোগ করুন',
     },
     forms: {
         cardNumber: 'কার্ড নম্বর',

@@ -1,8 +1,9 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import { ProxyConfig } from '../types/proxy';
+import { SocksProxyAgent } from 'socks-proxy-agent';
+import { ProxyConfig, ProxyType } from '../types/proxy';
 
 // Re-export for convenience
-export { ProxyConfig };
+export { ProxyConfig, ProxyType };
 
 // Legacy interface for SuperProxy (kept for backward compatibility)
 export interface LegacyProxyConfig {
@@ -41,22 +42,31 @@ export class ProxyManager {
 
     /**
      * Build proxy URL from manual config (host/port/auth)
+     * Supports both HTTP and SOCKS5 proxies
      * @param config - ProxyConfig from database
      */
     buildProxyUrlFromConfig(config: ProxyConfig): string {
-        const { host, port, username, password } = config;
+        const { host, port, username, password, proxyType = 'socks5' } = config;
+        const protocol = proxyType === 'socks5' ? 'socks5' : 'http';
+
         if (username && password) {
-            return `http://${username}:${password}@${host}:${port}`;
+            return `${protocol}://${username}:${password}@${host}:${port}`;
         }
-        return `http://${host}:${port}`;
+        return `${protocol}://${host}:${port}`;
     }
 
     /**
-     * Get HttpsProxyAgent from manual config
+     * Get proxy agent from manual config
+     * Returns SocksProxyAgent for SOCKS5 or HttpsProxyAgent for HTTP
      * @param config - ProxyConfig from database
      */
-    getProxyAgentFromConfig(config: ProxyConfig): HttpsProxyAgent<string> {
+    getProxyAgentFromConfig(config: ProxyConfig): SocksProxyAgent | HttpsProxyAgent<string> {
         const proxyUrl = this.buildProxyUrlFromConfig(config);
+        const proxyType = config.proxyType || 'socks5'; // Default to SOCKS5
+
+        if (proxyType === 'socks5') {
+            return new SocksProxyAgent(proxyUrl);
+        }
         return new HttpsProxyAgent(proxyUrl);
     }
 
@@ -65,11 +75,12 @@ export class ProxyManager {
      * @param config - ProxyConfig from database
      */
     getMaskedProxyUrlFromConfig(config: ProxyConfig): string {
-        const { host, port, username } = config;
+        const { host, port, username, proxyType = 'socks5' } = config;
+        const protocol = proxyType === 'socks5' ? 'socks5' : 'http';
         if (username) {
-            return `http://${username}:****@${host}:${port}`;
+            return `${protocol}://${username}:****@${host}:${port}`;
         }
-        return `http://${host}:${port}`;
+        return `${protocol}://${host}:${port}`;
     }
 
     // =============================================

@@ -2066,6 +2066,15 @@ export class HttpClientService {
                 headers: { 'Referer': this.config.loginUrl }
             });
 
+            // === DEBUG: Check what page we got ===
+            const $getPage = cheerio.load(checkPageRes.data);
+            const getPageTitle = $getPage('title').text().trim();
+            console.log(`[HTTP] 📄 DEBUG - GET check page title: "${getPageTitle}"`);
+            if (getPageTitle.toLowerCase().includes('sign in') || getPageTitle.toLowerCase().includes('login')) {
+                console.log('[HTTP] ⚠️ WARNING: GET check page returned LOGIN page - session may be lost!');
+            }
+            // === END DEBUG ===
+
             // Check for session expiry
             const sessionError = this.checkForErrors(checkPageRes.data);
             if (sessionError?.includes('Session') || sessionError?.includes('login')) {

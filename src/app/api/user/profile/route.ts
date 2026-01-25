@@ -64,6 +64,14 @@ export async function PATCH(request: Request) {
             )
         }
 
+        // Only ADMIN can change their own email
+        if (session.user.role !== 'ADMIN') {
+            return NextResponse.json(
+                { error: 'غير مصرح لك بتعديل الإيميل' },
+                { status: 403 }
+            )
+        }
+
         const body = await request.json()
         const result = profileSchema.safeParse(body)
 

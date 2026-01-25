@@ -20,6 +20,14 @@ export async function POST(request: Request) {
             )
         }
 
+        // Only ADMIN can change their own password
+        if (session.user.role !== 'ADMIN') {
+            return NextResponse.json(
+                { error: 'غير مصرح لك بتغيير كلمة المرور' },
+                { status: 403 }
+            )
+        }
+
         // Rate limit password change attempts (3 per hour)
         const { allowed, result: rateLimitResult } = await withRateLimit(
             `password-change:${session.user.id}`,

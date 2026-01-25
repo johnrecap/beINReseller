@@ -6,9 +6,19 @@ import ProfileInfo from '@/components/profile/ProfileInfo'
 import ChangePasswordForm from '@/components/profile/ChangePasswordForm'
 import { useTranslation } from '@/hooks/useTranslation'
 
+interface UserProfile {
+    id: string
+    username: string
+    email: string
+    role: string
+    balance: number
+    createdAt: string
+    transactionsCount: number
+}
+
 export default function ProfilePageClient() {
     const { t } = useTranslation()
-    const [user, setUser] = useState(null)
+    const [user, setUser] = useState<UserProfile | null>(null)
     const [loading, setLoading] = useState(true)
 
     const fetchProfile = useCallback(async () => {
@@ -40,6 +50,8 @@ export default function ProfilePageClient() {
 
     if (!user) return null
 
+    const isAdmin = user.role === 'ADMIN'
+
     return (
         <div className="space-y-6">
             {/* Page Header */}
@@ -53,12 +65,12 @@ export default function ProfilePageClient() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className={`grid gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ${isAdmin ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                 {/* Left Column: Personal Info */}
                 <ProfileInfo user={user} onUpdate={fetchProfile} />
 
-                {/* Right Column: Change Password */}
-                <ChangePasswordForm />
+                {/* Right Column: Change Password - Only for ADMIN */}
+                {isAdmin && <ChangePasswordForm />}
             </div>
         </div>
     )

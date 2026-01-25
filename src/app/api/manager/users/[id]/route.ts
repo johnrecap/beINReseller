@@ -1,6 +1,90 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireRoleAPI } from '@/lib/auth-utils'
+import { z } from 'zod'
+
+const toggleActiveSchema = z.object({
+    isActive: z.boolean()
+})
+
+export async function PATCH(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id } = await params
+        const authResult = await requireRoleAPI('MANAGER')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+        }
+
+        const { user: manager } = authResult
+
+        // Check if user exists
+        const targetUser = await prisma.user.findUnique({ where: { id } })
+        if (!targetUser) {
+            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+        }
+
+        if (targetUser.deletedAt) {
+            return NextResponse.json({ error: 'لا يمكن تعديل مستخدم محذوف' }, { status: 400 })
+        }
+
+        // Check if this user belongs to this manager
+        const managerUserLink = await prisma.managerUser.findFirst({
+            where: {
+                managerId: manager.id,
+                userId: id
+            }
+        })
+
+        if (!managerUserLink) {
+            return NextResponse.json({ error: 'ليس لديك صلاحية تعديل هذا المستخدم' }, { status: 403 })
+        }
+
+        const body = await request.json()
+        const result = toggleActiveSchema.safeParse(body)
+
+        if (!result.success) {
+            return NextResponse.json(
+                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { status: 400 }
+            )
+        }
+
+        const { isActive } = result.data
+
+        // Update user active status
+        const updatedUser = await prisma.user.update({
+            where: { id },
+            data: { isActive }
+        })
+
+        // Log activity
+        await prisma.activityLog.create({
+            data: {
+                userId: manager.id,
+                action: isActive ? 'MANAGER_ACTIVATE_USER' : 'MANAGER_DEACTIVATE_USER',
+                details: {
+                    targetUsername: targetUser.username,
+                    targetUserId: id,
+                    newStatus: isActive
+                },
+                ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+            }
+        })
+
+        return NextResponse.json({
+            success: true,
+            message: isActive ? 'تم تفعيل المستخدم بنجاح' : 'تم تعطيل المستخدم بنجاح',
+            isActive: updatedUser.isActive
+        })
+
+    } catch (error) {
+        console.error('Manager toggle user active error:', error)
+        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+    }
+}
 
 export async function DELETE(
     request: Request,

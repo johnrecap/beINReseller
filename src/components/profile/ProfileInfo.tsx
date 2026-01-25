@@ -98,7 +98,7 @@ export default function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
                     <div className="flex-1">
                         <div className="flex justify-between items-start">
                             <p className="text-xs text-muted-foreground mb-1">{t.profile.email}</p>
-                            {!isEditing && (
+                            {!isEditing && user.role === 'ADMIN' && (
                                 <button
                                     onClick={() => setIsEditing(true)}
                                     title={t.common.edit}

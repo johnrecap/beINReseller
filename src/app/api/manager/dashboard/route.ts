@@ -56,15 +56,20 @@ export async function GET() {
             take: 20
         })
 
-        // 3. Get Stats
-        const [usersCount, actionsCount, totalBalance] = await Promise.all([
+        // 3. Get Stats (including fresh manager balance from DB)
+        const [usersCount, actionsCount, totalBalance, managerData] = await Promise.all([
             prisma.managerUser.count({ where: whereManager }),
             prisma.userAction.count({ where: whereManager }),
             // Calculate total balance of managed users
             prisma.managerUser.findMany({
                 where: whereManager,
                 select: { user: { select: { balance: true } } }
-            }).then(users => users.reduce((acc, curr) => acc + curr.user.balance, 0))
+            }).then(users => users.reduce((acc, curr) => acc + curr.user.balance, 0)),
+            // Fetch manager's current balance from DB (not from session token)
+            prisma.user.findUnique({
+                where: { id: managerId },
+                select: { balance: true }
+            })
         ])
 
         // Group actions by type for charts
@@ -79,7 +84,7 @@ export async function GET() {
                 usersCount,
                 actionsCount,
                 totalBalance,
-                managerBalance: user.balance, // Manager's own balance
+                managerBalance: managerData?.balance ?? 0, // Fresh balance from DB
                 actionsByType
             },
             recentUsers: managedUsers.map(record => ({

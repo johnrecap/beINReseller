@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireRoleAPI } from '@/lib/auth-utils'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 export async function GET() {
     try {
@@ -13,7 +14,19 @@ export async function GET() {
         const managerId = user.id
         const userRole = user.role
 
-        // IDOR Protection: 
+        // Rate Limit
+        const { allowed, result: limitResult } = await withRateLimit(
+            `manager:${user.id}`,
+            RATE_LIMITS.manager
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { status: 429, headers: rateLimitHeaders(limitResult) }
+            )
+        }
+
+        // IDOR Protection:
         // Admin sees all, Manager sees only their linked users
         const whereManager = userRole === 'ADMIN' ? {} : { managerId }
 

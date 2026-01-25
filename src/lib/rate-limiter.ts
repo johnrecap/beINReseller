@@ -56,6 +56,9 @@ export const RATE_LIMITS = {
     /** Admin actions: 50 per minute */
     admin: { limit: 50, windowSeconds: 60 },
 
+    /** Manager actions: 60 per minute */
+    manager: { limit: 60, windowSeconds: 60 },
+
     /** Password change: 3 per hour */
     passwordChange: { limit: 3, windowSeconds: 60 * 60 },
 } as const

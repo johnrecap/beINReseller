@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireRoleAPI } from '@/lib/auth-utils'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { Prisma } from '@prisma/client'
 
 export async function GET(request: Request) {
     try {
@@ -13,16 +15,28 @@ export async function GET(request: Request) {
         const managerId = user.id
         const userRole = user.role
 
-        // Parse query params
+        // Rate Limit
+        const { allowed, result: limitResult } = await withRateLimit(
+            `manager:${user.id}`,
+            RATE_LIMITS.manager
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { status: 429, headers: rateLimitHeaders(limitResult) }
+            )
+        }
+
+        // Parse query params with bounds
         const { searchParams } = new URL(request.url)
-        const page = parseInt(searchParams.get('page') || '1')
-        const limit = parseInt(searchParams.get('limit') || '20')
+        const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
+        const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20') || 20))
         const type = searchParams.get('type') // Filter by action type
         const search = searchParams.get('search') // Search by username
 
         const whereManager = userRole === 'ADMIN' ? {} : { managerId }
 
-        const where: any = {
+        const where: Prisma.UserActionWhereInput = {
             ...whereManager
         }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Mail, Shield, Calendar, Edit2, Check, X, MapPin } from 'lucide-react'
+import { User, Mail, Shield, Calendar, Edit2, Check, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -154,17 +154,6 @@ export default function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400">
                             {user.role === 'ADMIN' ? t.sidebar.adminRole : t.sidebar.resellerRole}
                         </span>
-                    </div>
-                </div>
-
-                {/* Country/Region */}
-                <div className="flex items-start gap-4 p-4 bg-secondary rounded-xl">
-                    <div className="mt-1 bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg">
-                        <MapPin className="w-4 h-4 text-[#F59E0B]" />
-                    </div>
-                    <div className="flex-1">
-                        <p className="text-xs text-muted-foreground mb-1">العائلة</p>
-                        <p className="font-semibold text-foreground">مصر</p>
                     </div>
                 </div>
 

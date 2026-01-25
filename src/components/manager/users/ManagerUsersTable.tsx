@@ -317,7 +317,10 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={deleteLoading}>إلغاء</AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={handleDeleteUser}
+                            onClick={(e) => {
+                                e.preventDefault() // Prevent auto-close
+                                handleDeleteUser()
+                            }}
                             disabled={deleteLoading}
                             className="bg-red-600 hover:bg-red-700 text-white"
                         >

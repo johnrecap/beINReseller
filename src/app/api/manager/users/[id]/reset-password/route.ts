@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireRoleAPI } from '@/lib/auth-utils'
 import { hash } from 'bcryptjs'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 export async function POST(
     request: Request,
@@ -15,6 +16,18 @@ export async function POST(
         }
 
         const { user: manager } = authResult
+
+        // Rate Limit
+        const { allowed, result: limitResult } = await withRateLimit(
+            `manager:${manager.id}`,
+            RATE_LIMITS.manager
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { status: 429, headers: rateLimitHeaders(limitResult) }
+            )
+        }
 
         // Check if user exists
         const targetUser = await prisma.user.findUnique({ where: { id } })

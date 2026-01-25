@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { requireRoleAPI } from '@/lib/auth-utils'
 import { z } from 'zod'
 import { hash } from 'bcryptjs'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
@@ -22,10 +23,22 @@ export async function GET(request: Request) {
         const managerId = user.id
         const userRole = user.role
 
-        // Parse query params
+        // Rate Limit
+        const { allowed, result: limitResult } = await withRateLimit(
+            `manager:${user.id}`,
+            RATE_LIMITS.manager
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { status: 429, headers: rateLimitHeaders(limitResult) }
+            )
+        }
+
+        // Parse query params with bounds
         const { searchParams } = new URL(request.url)
-        const page = parseInt(searchParams.get('page') || '1')
-        const limit = parseInt(searchParams.get('limit') || '10')
+        const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
+        const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10') || 10))
         const search = searchParams.get('search') || ''
 
         // Should return users managed by this manager
@@ -59,6 +72,7 @@ export async function GET(request: Request) {
                             createdAt: true,
                             lastLoginAt: true,
                             role: true,
+                            deletedAt: true,
                             _count: {
                                 select: { operations: true }
                             }
@@ -72,8 +86,11 @@ export async function GET(request: Request) {
             prisma.managerUser.count({ where }),
         ])
 
+        // Filter out deleted users
+        const activeUsers = users.filter(record => !record.user.deletedAt)
+
         return NextResponse.json({
-            users: users.map(record => ({
+            users: activeUsers.map(record => ({
                 ...record.user,
                 linkedAt: record.createdAt,
                 operationsCount: record.user._count.operations
@@ -98,6 +115,18 @@ export async function POST(request: Request) {
         }
 
         const { user: manager } = authResult
+
+        // Rate Limit
+        const { allowed, result: limitResult } = await withRateLimit(
+            `manager:${manager.id}`,
+            RATE_LIMITS.manager
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { status: 429, headers: rateLimitHeaders(limitResult) }
+            )
+        }
 
         const body = await request.json()
         const result = createUserSchema.safeParse(body)
@@ -125,92 +154,97 @@ export async function POST(request: Request) {
 
         const hashedPassword = await hash(password, 12)
 
-        // Check if manager has enough balance to transfer
-        if (balance > 0) {
-            const managerData = await prisma.user.findUnique({
-                where: { id: manager.id },
-                select: { balance: true }
+        // Transaction: Create User + Link to Manager + Deduct Balance (with balance check INSIDE)
+        try {
+            const newUser = await prisma.$transaction(async (tx) => {
+                // 1. Check manager balance INSIDE transaction (prevents race condition)
+                if (balance > 0) {
+                    const managerData = await tx.user.findUnique({
+                        where: { id: manager.id },
+                        select: { balance: true }
+                    })
+
+                    if (!managerData || managerData.balance < balance) {
+                        throw new Error(`INSUFFICIENT_BALANCE:${managerData?.balance.toFixed(2) || 0}`)
+                    }
+                }
+
+                // 2. Create User
+                const user = await tx.user.create({
+                    data: {
+                        username,
+                        email,
+                        passwordHash: hashedPassword,
+                        role: 'USER', // Always USER when created by Manager
+                        balance,
+                        isActive: true
+                    }
+                })
+
+                // 3. Link to Manager
+                await tx.managerUser.create({
+                    data: {
+                        managerId: manager.id,
+                        userId: user.id
+                    }
+                })
+
+                // 4. Deduct balance from manager if giving initial balance
+                if (balance > 0) {
+                    const updatedManager = await tx.user.update({
+                        where: { id: manager.id },
+                        data: { balance: { decrement: balance } }
+                    })
+
+                    // 5. Log the balance transfer as transaction
+                    await tx.transaction.create({
+                        data: {
+                            userId: user.id,
+                            type: 'DEPOSIT',
+                            amount: balance,
+                            notes: `رصيد أولي من المدير ${manager.username}`,
+                            balanceAfter: balance
+                        }
+                    })
+
+                    // Log manager side transaction (withdrawal)
+                    await tx.transaction.create({
+                        data: {
+                            userId: manager.id,
+                            type: 'WITHDRAW',
+                            amount: balance,
+                            notes: `تحويل رصيد للمستخدم الجديد ${username}`,
+                            balanceAfter: updatedManager.balance
+                        }
+                    })
+                }
+
+                // 6. Log Activity
+                await tx.activityLog.create({
+                    data: {
+                        userId: manager.id,
+                        action: 'MANAGER_CREATE_USER',
+                        details: { createdUserId: user.id, username: user.username, initialBalance: balance },
+                        ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+                    }
+                })
+
+                return user
             })
 
-            if (!managerData || managerData.balance < balance) {
+            return NextResponse.json({ success: true, user: newUser })
+
+        } catch (error) {
+            // Handle custom balance error
+            if (error instanceof Error && error.message.startsWith('INSUFFICIENT_BALANCE:')) {
+                const balance = error.message.split(':')[1]
                 return NextResponse.json(
-                    { error: `رصيدك غير كافي. رصيدك الحالي: $${managerData?.balance.toFixed(2) || 0}` },
+                    { error: `رصيدك غير كافي. رصيدك الحالي: $${balance}` },
                     { status: 400 }
                 )
             }
+            throw error
         }
-
-        // Transaction: Create User + Link to Manager + Deduct Balance
-        const newUser = await prisma.$transaction(async (tx) => {
-            // 1. Create User
-            const user = await tx.user.create({
-                data: {
-                    username,
-                    email,
-                    passwordHash: hashedPassword,
-                    role: 'USER', // Always USER when created by Manager
-                    balance,
-                    isActive: true
-                }
-            })
-
-            // 2. Link to Manager
-            await tx.managerUser.create({
-                data: {
-                    managerId: manager.id,
-                    userId: user.id
-                }
-            })
-
-            // 3. Deduct balance from manager if giving initial balance
-            if (balance > 0) {
-                await tx.user.update({
-                    where: { id: manager.id },
-                    data: { balance: { decrement: balance } }
-                })
-
-                // 4. Log the balance transfer as transaction
-                await tx.transaction.create({
-                    data: {
-                        userId: user.id,
-                        type: 'DEPOSIT',
-                        amount: balance,
-                        notes: `رصيد أولي من المدير ${manager.username}`,
-                        balanceAfter: balance
-                    }
-                })
-
-                // Log manager side transaction (withdrawal)
-                const managerData = await tx.user.findUnique({
-                    where: { id: manager.id },
-                    select: { balance: true }
-                })
-
-                await tx.transaction.create({
-                    data: {
-                        userId: manager.id,
-                        type: 'WITHDRAW',
-                        amount: balance,
-                        notes: `تحويل رصيد للمستخدم الجديد ${username}`,
-                        balanceAfter: managerData?.balance || 0
-                    }
-                })
-            }
-
-            // 5. Log Activity
-            await tx.activityLog.create({
-                data: {
-                    userId: manager.id,
-                    action: 'MANAGER_CREATE_USER',
-                    details: { createdUserId: user.id, username: user.username, initialBalance: balance },
-                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
-                }
-            })
-
-            return user
-        })
-
-        return NextResponse.json({ success: true, user: newUser })
 
     } catch (error) {
         console.error('Create manager user error:', error)

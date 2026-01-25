@@ -850,7 +850,8 @@ export const bn = {
             enable: 'সক্রিয় করুন',
             disable: 'নিষ্ক্রিয় করুন',
             reset: 'রিসেট',
-            delete: 'মুছুন'
+            delete: 'মুছুন',
+            refreshBalance: 'ব্যালেন্স রিফ্রেশ করুন'
         },
         dialogs: {
             addTitle: 'নতুন beIN অ্যাকাউন্ট যোগ করুন',
@@ -880,7 +881,10 @@ export const bn = {
             deleteSuccess: 'অ্যাকাউন্ট সফলভাবে মুছে ফেলা হয়েছে',
             deleteFailed: 'অ্যাকাউন্ট মুছতে ব্যর্থ',
             enableSuccess: 'অ্যাকাউন্ট সফলভাবে সক্রিয় করা হয়েছে',
-            disableSuccess: 'অ্যাকাউন্ট সফলভাবে নিষ্ক্রিয় করা হয়েছে'
+            disableSuccess: 'অ্যাকাউন্ট সফলভাবে নিষ্ক্রিয় করা হয়েছে',
+            accountNotActive: 'অ্যাকাউন্ট সক্রিয় নয়',
+            balanceUpdated: 'ব্যালেন্স সফলভাবে আপডেট হয়েছে',
+            balanceFailed: 'ব্যালেন্স আনতে ব্যর্থ'
         }
     },
     adminProxies: {

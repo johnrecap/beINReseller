@@ -49,7 +49,8 @@ export const ar = {
         minutes: 'دقيقة',
         hours: 'ساعة',
         yes: 'نعم',
-        no: 'لا'
+        no: 'لا',
+        unknown: 'غير معروف'
     },
     auth: {
         username: 'اسم المستخدم',

@@ -49,7 +49,8 @@ export const bn = {
         minutes: 'মিনিট',
         hours: 'ঘন্টা',
         yes: 'হ্যাঁ',
-        no: 'না'
+        no: 'না',
+        unknown: 'অজানা'
     },
     auth: {
         username: 'ব্যবহারকারীর নাম',

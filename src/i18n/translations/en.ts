@@ -49,7 +49,8 @@ export const en = {
         minutes: 'minutes',
         hours: 'hours',
         yes: 'Yes',
-        no: 'No'
+        no: 'No',
+        unknown: 'Unknown'
     },
     auth: {
         username: 'Username',

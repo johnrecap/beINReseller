@@ -508,8 +508,23 @@ export const en = {
             }
         },
         users: {
+            tabs: {
+                distributors: 'Distributors',
+                users: 'Users'
+            },
+            roles: {
+                admin: 'Admin',
+                manager: 'Manager',
+                user: 'User'
+            },
+            filters: {
+                filterByDistributor: 'Filter by Distributor',
+                allDistributors: 'All Distributors',
+                clearFilter: 'Clear Filter'
+            },
             actions: {
-                addUser: 'Add New Reseller',
+                addUser: 'Add New User',
+                addDistributor: 'Add New Distributor',
                 searchPlaceholder: 'Search by username or email...',
                 disableConfirm: 'Are you sure you want to disable this user?',
                 enableConfirm: 'Are you sure you want to enable this user?',
@@ -538,7 +553,10 @@ export const en = {
                 inactive: 'Inactive',
                 operation: 'Operation',
                 transaction: 'Transaction',
-                noUsers: 'No users found'
+                noUsers: 'No users found',
+                noDistributors: 'No distributors found',
+                manager: 'Distributor',
+                managedUsersCount: 'Users Count'
             },
             dialogs: {
                 createTitle: 'Add New Reseller',

@@ -10,16 +10,25 @@ interface CreateUserDialogProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
+    defaultRole?: 'USER' | 'MANAGER' | 'ADMIN'
 }
 
-export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateUserDialogProps) {
+export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRole = 'USER' }: CreateUserDialogProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [emailWarning, setEmailWarning] = useState("")
     const [username, setUsername] = useState("")
     const [email, setEmail] = useState("")
+    const [role, setRole] = useState(defaultRole)
     const emailInputRef = useRef<HTMLInputElement>(null)
+
+    // Reset role when dialog opens with a new defaultRole
+    useEffect(() => {
+        if (isOpen) {
+            setRole(defaultRole)
+        }
+    }, [isOpen, defaultRole])
 
     // Generate email from username when user finishes typing
     const handleUsernameBlur = () => {
@@ -58,7 +67,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
             username: formData.get('username') as string,
             email: email,
             password: formData.get('password') as string,
-            role: formData.get('role') as string,
+            role: role,
             balance: parseFloat(formData.get('balance') as string) || 0,
         }
 
@@ -80,6 +89,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
             // Reset form
             setUsername("")
             setEmail("")
+            setRole(defaultRole)
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
@@ -156,7 +166,8 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             id="role"
                             name="role"
                             required
-                            defaultValue="USER"
+                            value={role}
+                            onChange={(e) => setRole(e.target.value as 'USER' | 'MANAGER' | 'ADMIN')}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         >
                             <option value="USER">{t.admin?.users?.dialogs?.roleUser || 'User'}</option>

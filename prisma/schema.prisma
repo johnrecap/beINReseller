@@ -56,6 +56,11 @@ model User {
   deletedAt       DateTime?     @map("deleted_at")
   deletedBalance  Float?        @map("deleted_balance")
   deletedByUserId String?       @map("deleted_by_user_id")
+  
+  // Creator tracking - who created this user
+  createdById     String?       @map("created_by_id")
+  createdBy       User?         @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers    User[]        @relation("UserCreator")
 
   operations    Operation[]
   transactions  Transaction[] @relation("UserTransactions")

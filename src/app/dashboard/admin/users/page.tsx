@@ -5,8 +5,8 @@ import UsersTable from '@/components/admin/users/UsersTable'
 import { Users } from 'lucide-react'
 
 export const metadata = {
-    title: 'إدارة الموزعين | beIN Panel',
-    description: 'إدارة حسابات الموزعين والصلاحيات',
+    title: 'إدارة المستخدمين | beIN Panel',
+    description: 'إدارة حسابات الموزعين والمستخدمين',
 }
 
 export default async function AdminUsersPage() {
@@ -24,8 +24,8 @@ export default async function AdminUsersPage() {
                     <Users className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">إدارة الموزعين</h1>
-                    <p className="text-muted-foreground text-sm">عرض وإدارة جميع حسابات الموزعين في النظام</p>
+                    <h1 className="text-2xl font-bold text-foreground">إدارة المستخدمين</h1>
+                    <p className="text-muted-foreground text-sm">عرض وإدارة حسابات الموزعين والمستخدمين</p>
                 </div>
             </div>
 

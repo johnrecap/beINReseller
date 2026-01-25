@@ -39,15 +39,163 @@ export async function GET(request: Request) {
         const page = parseInt(searchParams.get('page') || '1')
         const limit = parseInt(searchParams.get('limit') || '10')
         const search = searchParams.get('search') || ''
+        const roleFilter = searchParams.get('roleFilter') as 'distributors' | 'users' | null
+        const managerId = searchParams.get('managerId') || ''
 
-        const where = search ? {
-            deletedAt: null,
-            OR: [
+        // Build where clause based on roleFilter
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const where: any = { deletedAt: null }
+
+        // Add role filter
+        if (roleFilter === 'distributors') {
+            // ADMIN and MANAGER are considered distributors
+            where.role = { in: ['ADMIN', 'MANAGER'] }
+        } else if (roleFilter === 'users') {
+            // Only USER role
+            where.role = 'USER'
+            
+            // If managerId is provided, filter by creator or manager relationship
+            if (managerId) {
+                where.OR = [
+                    { createdById: managerId },
+                    { managerLink: { some: { managerId: managerId } } }
+                ]
+            }
+        }
+
+        // Add search filter
+        if (search) {
+            const searchCondition = [
                 { username: { contains: search, mode: 'insensitive' as const } },
                 { email: { contains: search, mode: 'insensitive' as const } }
             ]
-        } : { deletedAt: null }
+            if (where.OR) {
+                // Combine with existing OR (managerId filter)
+                where.AND = [
+                    { OR: where.OR },
+                    { OR: searchCondition }
+                ]
+                delete where.OR
+            } else {
+                where.OR = searchCondition
+            }
+        }
 
+        // Different select based on roleFilter
+        if (roleFilter === 'distributors') {
+            const [users, total] = await Promise.all([
+                prisma.user.findMany({
+                    where,
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        role: true,
+                        balance: true,
+                        isActive: true,
+                        createdAt: true,
+                        lastLoginAt: true,
+                        // Count of managed users (via ManagerUser junction)
+                        _count: { 
+                            select: { 
+                                managedUsers: true,
+                                createdUsers: true
+                            } 
+                        },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    skip: (page - 1) * limit,
+                    take: limit,
+                }),
+                prisma.user.count({ where }),
+            ])
+
+            return NextResponse.json({
+                users: users.map(u => ({
+                    ...u,
+                    // Combined count of users managed via ManagerUser and directly created users
+                    managedUsersCount: u._count.managedUsers + u._count.createdUsers
+                })),
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            })
+        } else if (roleFilter === 'users') {
+            const [users, total] = await Promise.all([
+                prisma.user.findMany({
+                    where,
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        role: true,
+                        balance: true,
+                        isActive: true,
+                        createdAt: true,
+                        lastLoginAt: true,
+                        _count: { select: { transactions: true, operations: true } },
+                        // Include creator info
+                        createdBy: {
+                            select: {
+                                id: true,
+                                username: true,
+                                email: true,
+                                role: true
+                            }
+                        },
+                        // Include manager link (legacy relationship)
+                        managerLink: {
+                            select: {
+                                manager: {
+                                    select: {
+                                        id: true,
+                                        username: true,
+                                        email: true,
+                                        role: true
+                                    }
+                                }
+                            },
+                            take: 1
+                        }
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    skip: (page - 1) * limit,
+                    take: limit,
+                }),
+                prisma.user.count({ where }),
+            ])
+
+            return NextResponse.json({
+                users: users.map(u => {
+                    // Prefer createdBy, fallback to managerLink for legacy data
+                    const creator = u.createdBy || u.managerLink[0]?.manager || null
+                    return {
+                        id: u.id,
+                        username: u.username,
+                        email: u.email,
+                        role: u.role,
+                        balance: u.balance,
+                        isActive: u.isActive,
+                        createdAt: u.createdAt,
+                        lastLoginAt: u.lastLoginAt,
+                        transactionCount: u._count.transactions,
+                        operationCount: u._count.operations,
+                        // Creator/Manager info
+                        creatorId: creator?.id || null,
+                        creatorUsername: creator?.username || null,
+                        creatorEmail: creator?.email || null,
+                        creatorRole: creator?.role || null
+                    }
+                }),
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            })
+        }
+
+        // Default: return all users (no roleFilter)
         const [users, total] = await Promise.all([
             prisma.user.findMany({
                 where,
@@ -122,6 +270,7 @@ export async function POST(request: Request) {
 
         const hashedPassword = await hash(password, 12)
 
+        // Create user with createdById tracking
         const newUser = await prisma.user.create({
             data: {
                 username,
@@ -129,16 +278,27 @@ export async function POST(request: Request) {
                 passwordHash: hashedPassword,
                 role: role as Role,
                 balance,
-                isActive: true
+                isActive: true,
+                createdById: user.id // Track who created this user
             }
         })
+
+        // If creating a USER, also create ManagerUser link for backwards compatibility
+        if (role === 'USER') {
+            await prisma.managerUser.create({
+                data: {
+                    managerId: user.id,
+                    userId: newUser.id
+                }
+            })
+        }
 
         // Log activity
         await prisma.activityLog.create({
             data: {
                 userId: user.id,
                 action: 'ADMIN_CREATE_USER',
-                details: `Created user: ${username}`,
+                details: `Created ${role} user: ${username}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
             }
         })

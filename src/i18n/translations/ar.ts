@@ -424,8 +424,23 @@ export const ar = {
             }
         },
         users: {
+            tabs: {
+                distributors: 'الموزعين',
+                users: 'المستخدمين'
+            },
+            roles: {
+                admin: 'أدمن',
+                manager: 'موزع',
+                user: 'مستخدم'
+            },
+            filters: {
+                filterByDistributor: 'تصفية حسب الموزع',
+                allDistributors: 'جميع الموزعين',
+                clearFilter: 'إزالة الفلتر'
+            },
             actions: {
-                addUser: 'إضافة موزع جديد',
+                addUser: 'إضافة مستخدم جديد',
+                addDistributor: 'إضافة موزع جديد',
                 searchPlaceholder: 'بحث باسم المستخدم أو البريد...',
                 disableConfirm: 'هل أنت متأكد من تعطيل هذا المستخدم؟',
                 enableConfirm: 'هل أنت متأكد من تفعيل هذا المستخدم؟',
@@ -454,7 +469,10 @@ export const ar = {
                 inactive: 'معطل',
                 operation: 'عملية',
                 transaction: 'معاملة',
-                noUsers: 'لا يوجد مستخدمين'
+                noUsers: 'لا يوجد مستخدمين',
+                noDistributors: 'لا يوجد موزعين',
+                manager: 'الموزع',
+                managedUsersCount: 'عدد المستخدمين'
             },
             dialogs: {
                 createTitle: 'إضافة موزع جديد',

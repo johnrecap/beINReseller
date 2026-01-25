@@ -508,8 +508,23 @@ export const bn = {
             }
         },
         users: {
+            tabs: {
+                distributors: 'পরিবেশক',
+                users: 'ইউজার'
+            },
+            roles: {
+                admin: 'অ্যাডমিন',
+                manager: 'পরিবেশক',
+                user: 'ইউজার'
+            },
+            filters: {
+                filterByDistributor: 'পরিবেশক দ্বারা ফিল্টার করুন',
+                allDistributors: 'সমস্ত পরিবেশক',
+                clearFilter: 'ফিল্টার মুছুন'
+            },
             actions: {
-                addUser: 'নতুন রিসেলার যোগ করুন',
+                addUser: 'নতুন ইউজার যোগ করুন',
+                addDistributor: 'নতুন পরিবেশক যোগ করুন',
                 searchPlaceholder: 'ইউজারনেম বা ইমেইল দ্বারা অনুসন্ধান...',
                 disableConfirm: 'আপনি কি নিশ্চিত যে আপনি এই ইউজারকে নিষ্ক্রিয় করতে চান?',
                 enableConfirm: 'আপনি কি নিশ্চিত যে আপনি এই ইউজারকে সক্রিয় করতে চান?',
@@ -538,7 +553,10 @@ export const bn = {
                 inactive: 'নিষ্ক্রিয়',
                 operation: 'অপারেশন',
                 transaction: 'লেনদেন',
-                noUsers: 'কোন ইউজার পাওয়া যায়নি'
+                noUsers: 'কোন ইউজার পাওয়া যায়নি',
+                noDistributors: 'কোন পরিবেশক পাওয়া যায়নি',
+                manager: 'পরিবেশক',
+                managedUsersCount: 'ইউজার সংখ্যা'
             },
             dialogs: {
                 createTitle: 'নতুন রিসেলার যোগ করুন',

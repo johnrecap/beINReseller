@@ -76,7 +76,7 @@ export default function ManagerResetPasswordDialog({ isOpen, onClose, userId, us
                     {!newPassword ? (
                         <>
                             <p className="text-muted-foreground">
-                                {t.manager?.resetPassword?.confirmMessage || 'Do you want to reset password for'} <span className="font-bold text-foreground">{username}</span>?
+                                {t.manager?.dialogs?.resetPassword?.confirmMessage || 'Do you want to reset password for'} <span className="font-bold text-foreground">{username}</span>?
                             </p>
                             <div className="flex gap-3 justify-center">
                                 <button
@@ -91,7 +91,7 @@ export default function ManagerResetPasswordDialog({ isOpen, onClose, userId, us
                                     className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 flex items-center gap-2"
                                 >
                                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {t.manager?.resetPassword?.resetButton || 'Reset'}
+                                    {t.manager?.dialogs?.resetPassword?.resetButton || 'Reset'}
                                 </button>
                             </div>
                         </>
@@ -114,7 +114,7 @@ export default function ManagerResetPasswordDialog({ isOpen, onClose, userId, us
                             </div>
 
                             <p className="text-xs text-muted-foreground">
-                                {t.manager?.resetPassword?.saveHint || 'Save the new password and send it to the user'}
+                                {t.manager?.dialogs?.resetPassword?.saveHint || 'Save the new password and send it to the user'}
                             </p>
 
                             <button

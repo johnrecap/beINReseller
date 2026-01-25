@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { OperationType, OperationStatus } from '@prisma/client'
 
 /**
  * GET /api/admin/analytics - Get comprehensive analytics data
@@ -92,14 +93,14 @@ export async function GET(request: Request) {
         ])
 
         // Process operations by day for chart
-        const dailyData = operationsByDay.map(row => ({
+        const dailyData = operationsByDay.map((row: { date: Date; count: bigint; revenue: number }) => ({
             date: row.date.toISOString().split('T')[0],
             operations: Number(row.count),
             revenue: Number(row.revenue) || 0,
         }))
 
         // Process operations by type
-        const typeData = operationsByType.map(row => ({
+        const typeData = operationsByType.map((row: { type: OperationType; _count: number; _sum: { amount: number | null } }) => ({
             type: row.type,
             label: getTypeLabel(row.type),
             count: row._count,
@@ -107,7 +108,7 @@ export async function GET(request: Request) {
         }))
 
         // Process status distribution
-        const statusData = operationsByStatus.map(row => ({
+        const statusData = operationsByStatus.map((row: { status: OperationStatus; _count: number }) => ({
             status: row.status,
             label: getStatusLabel(row.status),
             count: row._count,

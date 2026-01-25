@@ -89,7 +89,8 @@ export default function UsersTable() {
     }
 
     const handleDeleteUser = async (user: User) => {
-        if (!confirm(`هل أنت متأكد من حذف "${user.username}" نهائياً؟ سيتم حذف جميع البيانات المرتبطة بهذا الحساب.`)) return
+        const confirmMessage = `${t.admin?.users?.messages?.deleteConfirmFull || 'Are you sure you want to permanently delete'} "${user.username}"? ${t.admin?.users?.messages?.deleteDataWarning || 'All associated data will be deleted.'}`
+        if (!confirm(confirmMessage)) return
 
         try {
             const res = await fetch(`/api/admin/users/${user.id}`, {
@@ -98,13 +99,13 @@ export default function UsersTable() {
             const data = await res.json()
             if (res.ok) {
                 fetchUsers()
-                alert('تم حذف المستخدم بنجاح')
+                alert(t.admin?.users?.messages?.deleteSuccess || 'User deleted successfully')
             } else {
-                alert(data.error || 'فشل حذف المستخدم')
+                alert(data.error || t.admin?.users?.messages?.deleteFailed || 'Failed to delete user')
             }
         } catch (error) {
             console.error('Failed to delete user', error)
-            alert('حدث خطأ أثناء حذف المستخدم')
+            alert(t.admin?.users?.messages?.deleteError || 'An error occurred while deleting user')
         }
     }
 
@@ -194,7 +195,7 @@ export default function UsersTable() {
                                                 <button
                                                     onClick={() => setStatsUser(user)}
                                                     className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"
-                                                    title="إحصائيات المستخدم"
+                                                    title={t.admin?.users?.actions?.viewStats || 'User Statistics'}
                                                 >
                                                     <BarChart2 className="w-4 h-4" />
                                                 </button>
@@ -232,7 +233,7 @@ export default function UsersTable() {
                                                 <button
                                                     onClick={() => handleDeleteUser(user)}
                                                     className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-700 rounded-lg transition-colors"
-                                                    title="حذف نهائي"
+                                                    title={t.admin?.users?.actions?.permanentDelete || 'Permanent Delete'}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -256,7 +257,7 @@ export default function UsersTable() {
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 disabled={page <= 1}
                                 className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="الصفحة السابقة"
+                                title={t.pagination?.previousPage || 'Previous Page'}
                             >
                                 <ArrowRight className="w-4 h-4" />
                             </button>
@@ -264,7 +265,7 @@ export default function UsersTable() {
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 disabled={page >= totalPages}
                                 className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="الصفحة التالية"
+                                title={t.pagination?.nextPage || 'Next Page'}
                             >
                                 <ArrowLeft className="w-4 h-4" />
                             </button>

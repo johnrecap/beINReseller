@@ -44,7 +44,12 @@ export const ar = {
         cancelConfirmation: 'هل أنت متأكد من إلغاء هذه العملية؟',
         viewAll: 'عرض الكل',
         unread: 'غير مقروء',
-        allRead: 'تحديد الكل كمقروء'
+        allRead: 'تحديد الكل كمقروء',
+        seconds: 'ثانية',
+        minutes: 'دقيقة',
+        hours: 'ساعة',
+        yes: 'نعم',
+        no: 'لا'
     },
     auth: {
         username: 'اسم المستخدم',
@@ -433,7 +438,9 @@ export const ar = {
                 save: 'حفظ التغييرات',
                 confirmBalance: 'تأكيد الشحن',
                 creating: 'جاري الإضافة...',
-                updating: 'جاري التحديث...'
+                updating: 'جاري التحديث...',
+                viewStats: 'إحصائيات المستخدم',
+                permanentDelete: 'حذف نهائي'
             },
             table: {
                 user: 'المستخدم',
@@ -461,7 +468,18 @@ export const ar = {
                 username: 'اسم المستخدم',
                 email: 'البريد الإلكتروني',
                 password: 'كلمة المرور',
-                newPassword: 'كلمة المرور الجديدة'
+                newPassword: 'كلمة المرور الجديدة',
+                role: 'نوع الحساب',
+                roleUser: 'مستخدم',
+                roleManager: 'مدير',
+                roleAdmin: 'أدمن',
+                depositBalance: 'إيداع رصيد',
+                withdrawBalance: 'سحب رصيد',
+                userLabel: 'المستخدم',
+                depositReason: 'سبب الإيداع (اختياري)',
+                withdrawReason: 'سبب السحب (اختياري)',
+                confirmDeposit: 'تأكيد الإيداع',
+                confirmWithdraw: 'تأكيد السحب'
             },
             messages: {
                 createSuccess: 'تم إنشاء المستخدم بنجاح',
@@ -470,7 +488,12 @@ export const ar = {
                 resetSuccess: 'تم إعادة تعيين كلمة المرور بنجاح',
                 copyPassword: 'اضغط لنسخ كلمة المرور',
                 statusSuccess: 'تم تحديث الحالة بنجاح',
-                error: 'حدث خطأ غير متوقع'
+                error: 'حدث خطأ غير متوقع',
+                deleteConfirmFull: 'هل أنت متأكد من حذف',
+                deleteDataWarning: 'نهائياً؟ سيتم حذف جميع البيانات المرتبطة بهذا الحساب.',
+                deleteSuccess: 'تم حذف المستخدم بنجاح',
+                deleteFailed: 'فشل حذف المستخدم',
+                deleteError: 'حدث خطأ أثناء حذف المستخدم'
             },
             userStats: {
                 title: 'إحصائيات المستخدم',
@@ -614,6 +637,7 @@ export const ar = {
     },
     userStats: {
         title: 'إحصائيات المستخدم',
+        titleWithUser: 'إحصائيات المستخدم: {username}',
         deposits: 'الإيداعات',
         deposit: 'إيداع',
         deductions: 'الخصومات',
@@ -623,13 +647,50 @@ export const ar = {
         operationDeduct: 'خصم عملية',
         currentBalance: 'الرصيد الحالي',
         correction: 'تصحيح',
-        close: 'إغلاق'
+        close: 'إغلاق',
+        balanced: 'متطابق',
+        discrepancy: 'فرق',
+        alerts: {
+            title: 'تحذيرات',
+            correct: 'تصحيح',
+            done: 'تم'
+        },
+        operationStats: {
+            title: 'إحصائيات العمليات',
+            total: 'الإجمالي',
+            completed: 'مكتمل',
+            failed: 'فاشل',
+            cancelled: 'ملغى',
+            pending: 'قيد الانتظار',
+            processing: 'قيد المعالجة'
+        },
+        tabs: {
+            transactions: 'المعاملات',
+            operations: 'العمليات'
+        },
+        table: {
+            date: 'التاريخ',
+            type: 'النوع',
+            amount: 'المبلغ',
+            balanceAfter: 'الرصيد بعد',
+            notes: 'ملاحظات',
+            card: 'الكارت',
+            status: 'الحالة',
+            renew: 'تجديد'
+        },
+        loadMore: 'تحميل المزيد',
+        loadMoreCount: 'تحميل المزيد ({loaded} من {total})',
+        connectionFailed: 'فشل الاتصال بالخادم',
+        correctionFailed: 'فشل التصحيح'
     },
     errorBoundary: {
         title: 'حدث خطأ غير متوقع',
         message: 'نعتذر عن هذا الخطأ. يرجى إعادة تحميل الصفحة أو المحاولة لاحقاً.',
         reloadPage: 'إعادة تحميل الصفحة',
-        errorDetails: 'تفاصيل الخطأ'
+        errorDetails: 'تفاصيل الخطأ',
+        accessDenied: 'غير مصرح بالوصول',
+        accessDeniedMessage: 'عذراً، ليس لديك الصلاحيات الكافية لعرض هذه الصفحة. يرجى التواصل مع المسؤول إذا كنت تعتقد أن هذا خطأ.',
+        backToHome: 'العودة للرئيسية'
     },
     bulk: {
         title: 'عمليات جماعية',
@@ -677,6 +738,203 @@ export const ar = {
             noData: 'لا توجد بيانات'
         }
     },
+    activeOperations: {
+        title: 'العمليات النشطة',
+        subtitle: 'متابعة العمليات الجارية وحالتها',
+        refresh: 'تحديث',
+        noOperations: 'لا توجد عمليات نشطة',
+        noOperationsWithStatus: 'لا توجد عمليات بهذه الحالة',
+        allComplete: 'جميع العمليات مكتملة بنجاح. يمكنك بدء عملية جديدة الآن.',
+        startNew: 'بدء عملية جديدة',
+        table: {
+            cardNumber: 'الكارت',
+            type: 'النوع',
+            package: 'الباقة',
+            status: 'الحالة',
+            price: 'السعر',
+            startedAt: 'وقت البدء',
+            actions: 'الإجراءات',
+            timeAndAmount: 'الوقت والمبلغ'
+        },
+        status: {
+            pending: 'قيد الانتظار',
+            processing: 'جاري التنفيذ',
+            awaiting_captcha: 'في انتظار الكابتشا',
+            awaiting_package: 'في انتظار اختيار الباقة',
+            awaiting_final_confirm: 'في انتظار التأكيد',
+            completing: 'جاري الإتمام',
+            completed: 'مكتمل',
+            failed: 'فشل',
+            cancelled: 'ملغي'
+        },
+        actions: {
+            continue: 'متابعة',
+            cancel: 'إلغاء',
+            view: 'عرض التفاصيل',
+            confirmPayment: 'تأكيد الدفع'
+        },
+        dialogs: {
+            confirmPaymentTitle: 'تأكيد الدفع النهائي',
+            confirmPaymentDesc: 'هذه الخطوة الأخيرة قبل إتمام الشراء',
+            package: 'الباقة',
+            price: 'السعر',
+            stbNumber: 'رقم الريسيفر',
+            cardNumber: 'رقم الكارت',
+            warning: 'سيتم الإلغاء تلقائياً خلال 10 ثواني!',
+            cancel: 'إلغاء',
+            confirm: 'تأكيد الدفع',
+            confirming: 'جاري التأكيد...'
+        },
+        messages: {
+            confirmSuccess: 'تم تأكيد الدفع بنجاح',
+            confirmFailed: 'فشل في تأكيد الدفع',
+            cancelSuccess: 'تم إلغاء العملية واسترداد المبلغ',
+            cancelFailed: 'فشل في إلغاء العملية',
+            autoCancel: 'تم إلغاء العملية تلقائياً لانتهاء المهلة واسترداد المبلغ'
+        }
+    },
+    adminBeinAccounts: {
+        title: 'إدارة حسابات beIN',
+        subtitle: 'إدارة حسابات البوت للتوزيع الذكي',
+        addAccount: 'إضافة حساب',
+        refresh: 'تحديث',
+        stats: {
+            total: 'إجمالي الحسابات',
+            active: 'نشط',
+            available: 'متاح',
+            resting: 'في الراحة',
+            limited: 'محدود المعدل'
+        },
+        table: {
+            account: 'الحساب',
+            proxy: 'البروكسي',
+            status: 'الحالة',
+            priority: 'الأولوية',
+            balance: 'رصيد beIN',
+            successRate: 'نسبة النجاح',
+            operations: 'العمليات',
+            lastUsed: 'آخر استخدام',
+            lastError: 'آخر خطأ',
+            actions: 'الإجراءات',
+            accountsList: 'قائمة الحسابات',
+            noAccounts: 'لا توجد حسابات. أضف حسابك الأول!'
+        },
+        status: {
+            active: 'نشط',
+            cooldown: 'راحة',
+            limited: 'محدود المعدل',
+            disabled: 'معطل',
+            error: 'مشكلة'
+        },
+        actions: {
+            enable: 'تفعيل',
+            disable: 'إيقاف',
+            reset: 'إعادة تعيين',
+            delete: 'حذف'
+        },
+        dialogs: {
+            addTitle: 'إضافة حساب beIN جديد',
+            editTitle: 'تعديل الحساب',
+            username: 'اسم المستخدم / البريد',
+            password: 'كلمة المرور',
+            passwordKeep: 'كلمة المرور (اتركها فارغة للإبقاء)',
+            totpSecret: 'TOTP Secret (2FA)',
+            label: 'التسمية (اختياري)',
+            labelPlaceholder: 'مثال: الحساب الرئيسي',
+            optional: 'اختياري',
+            priority: 'الأولوية',
+            proxy: 'البروكسي',
+            selectProxy: 'اختر البروكسي',
+            noProxy: '-- بدون بروكسي --',
+            add: 'إضافة'
+        },
+        messages: {
+            loadFailed: 'فشل في تحميل الحسابات',
+            addSuccess: 'تم إضافة الحساب بنجاح',
+            addFailed: 'فشل في إضافة الحساب',
+            updateSuccess: 'تم تحديث الحساب بنجاح',
+            updateFailed: 'فشل في تحديث الحساب',
+            toggleFailed: 'فشل في تغيير حالة الحساب',
+            resetFailed: 'فشل في إعادة تعيين الحساب',
+            deleteConfirm: 'هل أنت متأكد من حذف هذا الحساب؟',
+            deleteSuccess: 'تم حذف الحساب بنجاح',
+            deleteFailed: 'فشل في حذف الحساب',
+            enableSuccess: 'تم تفعيل الحساب بنجاح',
+            disableSuccess: 'تم تعطيل الحساب بنجاح'
+        }
+    },
+    adminProxies: {
+        title: 'إدارة البروكسي',
+        subtitle: 'إدارة عناوين IP واتصالات beIN',
+        addProxy: 'إضافة بروكسي',
+        refresh: 'تحديث',
+        stats: {
+            totalServers: 'إجمالي السيرفرات',
+            activeServers: 'السيرفرات النشطة',
+            connectionIssues: 'مشاكل الاتصال',
+            linkedAccounts: 'الحسابات المرتبطة'
+        },
+        table: {
+            label: 'التسمية',
+            hostPort: 'العنوان:المنفذ',
+            auth: 'المصادقة',
+            status: 'الحالة',
+            currentIP: 'IP الحالي',
+            accounts: 'الحسابات المرتبطة',
+            lastChecked: 'آخر فحص',
+            actions: 'الإجراءات',
+            serversList: 'قائمة السيرفرات',
+            noProxies: 'لا توجد سيرفرات بروكسي. أضف واحداً الآن!'
+        },
+        status: {
+            active: 'متصل',
+            error: 'مشاكل',
+            testing: 'جاري الفحص...',
+            offline: 'غير متصل',
+            disabled: 'معطل',
+            new: 'جديد'
+        },
+        actions: {
+            testConnection: 'اختبار الاتصال',
+            enable: 'تفعيل',
+            disable: 'تعطيل',
+            delete: 'حذف'
+        },
+        dialogs: {
+            addTitle: 'إضافة سيرفر بروكسي جديد',
+            editTitle: 'تعديل البروكسي',
+            label: 'التسمية',
+            labelPlaceholder: 'مثال: سيرفر مصر الرئيسي',
+            ip: 'عنوان IP / المضيف',
+            port: 'المنفذ',
+            username: 'اسم المستخدم (اختياري)',
+            password: 'كلمة المرور (اختياري)',
+            optional: 'اختياري',
+            noChange: '(لا تغيير)',
+            noAuthHint: 'اترك اسم المستخدم وكلمة المرور فارغين إذا كان البروكسي بدون مصادقة',
+            keepPasswordHint: 'اترك كلمة المرور فارغة للإبقاء على الحالية',
+            testConnection: 'اختبار الاتصال',
+            testing: 'جاري الاختبار...',
+            add: 'إضافة',
+            adding: 'جاري الإضافة...',
+            saving: 'جاري الحفظ...'
+        },
+        messages: {
+            loadFailed: 'فشل في تحميل البروكسيات',
+            addSuccess: 'تم إضافة البروكسي بنجاح',
+            addFailed: 'فشل في إضافة البروكسي',
+            updateSuccess: 'تم تحديث البروكسي بنجاح',
+            updateFailed: 'فشل في تحديث البروكسي',
+            testSuccess: 'تم الاتصال بنجاح',
+            testFailed: 'فشل الاتصال',
+            testError: 'فشل في اختبار البروكسي',
+            statusChanged: 'تم تغيير حالة البروكسي',
+            statusChangeFailed: 'فشل تغيير الحالة',
+            deleteConfirm: 'هل أنت متأكد من حذف هذا البروكسي؟',
+            deleteSuccess: 'تم حذف البروكسي بنجاح',
+            deleteFailed: 'فشل في حذف البروكسي'
+        }
+    },
     manager: {
         dashboard: {
             title: 'لوحة المدير',
@@ -684,13 +942,20 @@ export const ar = {
             totalUsers: 'إجمالي المستخدمين',
             activeUsers: 'المستخدمين النشطين',
             totalBalance: 'إجمالي الرصيد',
-            todayOperations: 'عمليات اليوم'
+            todayOperations: 'عمليات اليوم',
+            yourUsers: 'المستخدمين التابعين لك',
+            yourUsersDesc: 'قائمة بآخر المستخدمين الذين قمت بإضافتهم',
+            actionsLog: 'سجل النشاطات',
+            actionsLogDesc: 'آخر العمليات التي تمت من قبلك أو من قبل مستخدميك'
         },
         users: {
             title: 'إدارة المستخدمين',
             subtitle: 'إدارة المستخدمين تحت إشرافك',
             searchPlaceholder: 'البحث بالاسم أو البريد...',
             addUser: 'إضافة مستخدم',
+            yourBalance: 'رصيدك',
+            maxAmount: 'الحد الأقصى',
+            deleting: 'جاري الحذف...',
             table: {
                 user: 'المستخدم',
                 email: 'البريد الإلكتروني',
@@ -777,10 +1042,13 @@ export const ar = {
             resetPassword: {
                 title: 'إعادة تعيين كلمة المرور',
                 message: 'هل أنت متأكد من إعادة تعيين كلمة المرور لـ',
+                confirmMessage: 'هل تريد إعادة تعيين كلمة مرور',
                 newPassword: 'كلمة المرور الجديدة',
                 reset: 'إعادة تعيين',
+                resetButton: 'إعادة التعيين',
                 resetting: 'جاري إعادة التعيين...',
-                copyPassword: 'نسخ كلمة المرور'
+                copyPassword: 'نسخ كلمة المرور',
+                saveHint: 'احفظ كلمة المرور الجديدة وأرسلها للمستخدم'
             },
             userStats: {
                 title: 'إحصائيات المستخدم',

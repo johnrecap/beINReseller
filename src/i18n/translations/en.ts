@@ -44,7 +44,12 @@ export const en = {
         activeOperations: 'Active Operations',
         viewAll: 'View All',
         unread: 'Unread',
-        allRead: 'Mark All Read'
+        allRead: 'Mark All Read',
+        seconds: 'seconds',
+        minutes: 'minutes',
+        hours: 'hours',
+        yes: 'Yes',
+        no: 'No'
     },
     auth: {
         username: 'Username',
@@ -283,9 +288,13 @@ export const en = {
         message: 'We apologize for this error. Please reload the page or try again later.',
         reloadPage: 'Reload Page',
         errorDetails: 'Error Details',
+        accessDenied: 'Access Denied',
+        accessDeniedMessage: 'Sorry, you do not have permission to view this page. Please contact the administrator if you believe this is an error.',
+        backToHome: 'Back to Home'
     },
     userStats: {
         title: 'User Statistics',
+        titleWithUser: 'User Statistics: {username}',
         deposits: 'Deposits',
         deposit: 'Deposit',
         deductions: 'Deductions',
@@ -296,6 +305,40 @@ export const en = {
         currentBalance: 'Current Balance',
         correction: 'Correction',
         close: 'Close',
+        balanced: 'Balanced',
+        discrepancy: 'Discrepancy',
+        alerts: {
+            title: 'Alerts',
+            correct: 'Correct',
+            done: 'Done'
+        },
+        operationStats: {
+            title: 'Operation Statistics',
+            total: 'Total',
+            completed: 'Completed',
+            failed: 'Failed',
+            cancelled: 'Cancelled',
+            pending: 'Pending',
+            processing: 'Processing'
+        },
+        tabs: {
+            transactions: 'Transactions',
+            operations: 'Operations'
+        },
+        table: {
+            date: 'Date',
+            type: 'Type',
+            amount: 'Amount',
+            balanceAfter: 'Balance After',
+            notes: 'Notes',
+            card: 'Card',
+            status: 'Status',
+            renew: 'Renewal'
+        },
+        loadMore: 'Load More',
+        loadMoreCount: 'Load More ({loaded} of {total})',
+        connectionFailed: 'Failed to connect to server',
+        correctionFailed: 'Correction failed'
     },
     admin: {
         dashboard: {
@@ -479,7 +522,9 @@ export const en = {
                 save: 'Save Changes',
                 confirmBalance: 'Confirm Balance',
                 creating: 'Creating...',
-                updating: 'Updating...'
+                updating: 'Updating...',
+                viewStats: 'User Statistics',
+                permanentDelete: 'Permanent Delete'
             },
             table: {
                 user: 'User',
@@ -507,7 +552,18 @@ export const en = {
                 username: 'Username',
                 email: 'Email',
                 password: 'Password',
-                newPassword: 'New Password'
+                newPassword: 'New Password',
+                role: 'Account Type',
+                roleUser: 'User',
+                roleManager: 'Manager',
+                roleAdmin: 'Admin',
+                depositBalance: 'Deposit Balance',
+                withdrawBalance: 'Withdraw Balance',
+                userLabel: 'User',
+                depositReason: 'Reason for deposit (optional)',
+                withdrawReason: 'Reason for withdrawal (optional)',
+                confirmDeposit: 'Confirm Deposit',
+                confirmWithdraw: 'Confirm Withdrawal'
             },
             messages: {
                 createSuccess: 'User created successfully',
@@ -516,7 +572,12 @@ export const en = {
                 resetSuccess: 'Password reset successfully',
                 copyPassword: 'Click to copy password',
                 statusSuccess: 'Status updated successfully',
-                error: 'An error occurred'
+                error: 'An error occurred',
+                deleteConfirmFull: 'Are you sure you want to permanently delete',
+                deleteDataWarning: 'All associated data will be deleted.',
+                deleteSuccess: 'User deleted successfully',
+                deleteFailed: 'Failed to delete user',
+                deleteError: 'An error occurred while deleting user'
             },
             userStats: {
                 title: 'User Statistics',
@@ -677,6 +738,203 @@ export const en = {
             noData: 'No data available'
         }
     },
+    activeOperations: {
+        title: 'Active Operations',
+        subtitle: 'Track ongoing operations and their status',
+        refresh: 'Refresh',
+        noOperations: 'No Active Operations',
+        noOperationsWithStatus: 'No operations with this status',
+        allComplete: 'All operations completed successfully. You can start a new operation now.',
+        startNew: 'Start New Operation',
+        table: {
+            cardNumber: 'Card',
+            type: 'Type',
+            package: 'Package',
+            status: 'Status',
+            price: 'Price',
+            startedAt: 'Started At',
+            actions: 'Actions',
+            timeAndAmount: 'Time & Amount'
+        },
+        status: {
+            pending: 'Pending',
+            processing: 'Processing',
+            awaiting_captcha: 'Awaiting Captcha',
+            awaiting_package: 'Awaiting Package',
+            awaiting_final_confirm: 'Awaiting Confirmation',
+            completing: 'Completing',
+            completed: 'Completed',
+            failed: 'Failed',
+            cancelled: 'Cancelled'
+        },
+        actions: {
+            continue: 'Continue',
+            cancel: 'Cancel',
+            view: 'View Details',
+            confirmPayment: 'Confirm Payment'
+        },
+        dialogs: {
+            confirmPaymentTitle: 'Confirm Final Payment',
+            confirmPaymentDesc: 'This is the last step before completing the purchase',
+            package: 'Package',
+            price: 'Price',
+            stbNumber: 'Receiver Number',
+            cardNumber: 'Card Number',
+            warning: 'Auto-cancel in 10 seconds!',
+            cancel: 'Cancel',
+            confirm: 'Confirm Payment',
+            confirming: 'Confirming...'
+        },
+        messages: {
+            confirmSuccess: 'Payment confirmed successfully',
+            confirmFailed: 'Failed to confirm payment',
+            cancelSuccess: 'Operation cancelled. Amount refunded.',
+            cancelFailed: 'Failed to cancel operation',
+            autoCancel: 'Operation auto-cancelled due to timeout. Amount refunded.'
+        }
+    },
+    adminBeinAccounts: {
+        title: 'beIN Account Management',
+        subtitle: 'Manage bot accounts for smart distribution',
+        addAccount: 'Add Account',
+        refresh: 'Refresh',
+        stats: {
+            total: 'Total Accounts',
+            active: 'Active',
+            available: 'Available',
+            resting: 'Resting',
+            limited: 'Rate Limited'
+        },
+        table: {
+            account: 'Account',
+            proxy: 'Proxy',
+            status: 'Status',
+            priority: 'Priority',
+            balance: 'beIN Balance',
+            successRate: 'Success Rate',
+            operations: 'Operations',
+            lastUsed: 'Last Used',
+            lastError: 'Last Error',
+            actions: 'Actions',
+            accountsList: 'Accounts List',
+            noAccounts: 'No accounts. Add your first account!'
+        },
+        status: {
+            active: 'Active',
+            cooldown: 'Cooldown',
+            limited: 'Rate Limited',
+            disabled: 'Disabled',
+            error: 'Error'
+        },
+        actions: {
+            enable: 'Enable',
+            disable: 'Disable',
+            reset: 'Reset',
+            delete: 'Delete'
+        },
+        dialogs: {
+            addTitle: 'Add beIN Account',
+            editTitle: 'Edit beIN Account',
+            username: 'Username / Email',
+            password: 'Password',
+            passwordKeep: 'Password (leave empty to keep)',
+            totpSecret: 'TOTP Secret (2FA)',
+            label: 'Label (Optional)',
+            labelPlaceholder: 'e.g. Main Account',
+            optional: 'Optional',
+            priority: 'Priority',
+            proxy: 'Proxy',
+            selectProxy: 'Select Proxy',
+            noProxy: '-- No Proxy --',
+            add: 'Add'
+        },
+        messages: {
+            loadFailed: 'Failed to load accounts',
+            addSuccess: 'Account added successfully',
+            addFailed: 'Failed to add account',
+            updateSuccess: 'Account updated successfully',
+            updateFailed: 'Failed to update account',
+            toggleFailed: 'Failed to toggle account status',
+            resetFailed: 'Failed to reset account',
+            deleteConfirm: 'Are you sure you want to delete this account?',
+            deleteSuccess: 'Account deleted successfully',
+            deleteFailed: 'Failed to delete account',
+            enableSuccess: 'Account enabled successfully',
+            disableSuccess: 'Account disabled successfully'
+        }
+    },
+    adminProxies: {
+        title: 'Proxy Management',
+        subtitle: 'Manage IP addresses and beIN connections',
+        addProxy: 'Add Proxy',
+        refresh: 'Refresh',
+        stats: {
+            totalServers: 'Total Servers',
+            activeServers: 'Active Servers',
+            connectionIssues: 'Connection Issues',
+            linkedAccounts: 'Linked Accounts'
+        },
+        table: {
+            label: 'Label',
+            hostPort: 'Host:Port',
+            auth: 'Auth',
+            status: 'Status',
+            currentIP: 'Current IP',
+            accounts: 'Linked Accounts',
+            lastChecked: 'Last Checked',
+            actions: 'Actions',
+            serversList: 'Servers List',
+            noProxies: 'No proxy servers. Add one now!'
+        },
+        status: {
+            active: 'Connected',
+            error: 'Issues',
+            testing: 'Testing...',
+            offline: 'Offline',
+            disabled: 'Disabled',
+            new: 'New'
+        },
+        actions: {
+            testConnection: 'Test Connection',
+            enable: 'Enable',
+            disable: 'Disable',
+            delete: 'Delete'
+        },
+        dialogs: {
+            addTitle: 'Add Proxy Server',
+            editTitle: 'Edit Proxy Server',
+            label: 'Label',
+            labelPlaceholder: 'e.g. Main Egypt Server',
+            ip: 'IP Address / Host',
+            port: 'Port',
+            username: 'Username (Optional)',
+            password: 'Password (Optional)',
+            optional: 'Optional',
+            noChange: '(No change)',
+            noAuthHint: 'Leave username and password empty if no authentication required',
+            keepPasswordHint: 'Leave password empty to keep current',
+            testConnection: 'Test Connection',
+            testing: 'Testing...',
+            add: 'Add',
+            adding: 'Adding...',
+            saving: 'Saving...'
+        },
+        messages: {
+            loadFailed: 'Failed to load proxies',
+            addSuccess: 'Proxy added successfully',
+            addFailed: 'Failed to add proxy',
+            updateSuccess: 'Proxy updated successfully',
+            updateFailed: 'Failed to update proxy',
+            testSuccess: 'Connection successful',
+            testFailed: 'Connection failed',
+            testError: 'Failed to test proxy',
+            statusChanged: 'Proxy status changed',
+            statusChangeFailed: 'Failed to change status',
+            deleteConfirm: 'Are you sure you want to delete this proxy?',
+            deleteSuccess: 'Proxy deleted successfully',
+            deleteFailed: 'Failed to delete proxy'
+        }
+    },
     manager: {
         dashboard: {
             title: 'Manager Dashboard',
@@ -684,13 +942,20 @@ export const en = {
             totalUsers: 'Total Users',
             activeUsers: 'Active Users',
             totalBalance: 'Total Balance',
-            todayOperations: 'Today Operations'
+            todayOperations: 'Today Operations',
+            yourUsers: 'Your Users',
+            yourUsersDesc: 'List of recent users you have added',
+            actionsLog: 'Activity Log',
+            actionsLogDesc: 'Recent operations by you or your users'
         },
         users: {
             title: 'User Management',
             subtitle: 'Manage users under your supervision',
             searchPlaceholder: 'Search by username or email...',
             addUser: 'Add User',
+            yourBalance: 'Your Balance',
+            maxAmount: 'Maximum',
+            deleting: 'Deleting...',
             table: {
                 user: 'User',
                 email: 'Email',
@@ -777,10 +1042,13 @@ export const en = {
             resetPassword: {
                 title: 'Reset Password',
                 message: 'Are you sure you want to reset password for',
+                confirmMessage: 'Do you want to reset password for',
                 newPassword: 'New Password',
                 reset: 'Reset Password',
+                resetButton: 'Reset',
                 resetting: 'Resetting...',
-                copyPassword: 'Copy Password'
+                copyPassword: 'Copy Password',
+                saveHint: 'Save the new password and send it to the user'
             },
             userStats: {
                 title: 'User Statistics',

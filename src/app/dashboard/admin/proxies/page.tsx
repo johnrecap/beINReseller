@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Proxy {
     id: string
@@ -68,6 +69,7 @@ const initialFormData = {
 export default function ProxiesPage() {
     const { data: session, status } = useSession()
     const router = useRouter()
+    const { t } = useTranslation()
     const [proxies, setProxies] = useState<Proxy[]>([])
     const [loading, setLoading] = useState(true)
     const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -86,11 +88,11 @@ export default function ProxiesPage() {
                 setProxies(data.proxies)
             }
         } catch {
-            toast.error('فشل في تحميل البروكسيات')
+            toast.error(t.adminProxies?.messages?.loadFailed || 'Failed to load proxies')
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [t])
 
     useEffect(() => {
         if (status === 'authenticated') {
@@ -120,7 +122,7 @@ export default function ProxiesPage() {
             })
             const data = await res.json()
             if (data.success) {
-                toast.success('تم إضافة البروكسي بنجاح')
+                toast.success(t.adminProxies?.messages?.addSuccess || 'Proxy added successfully')
                 setAddDialogOpen(false)
                 setFormData(initialFormData)
                 fetchProxies()
@@ -128,7 +130,7 @@ export default function ProxiesPage() {
                 toast.error(data.error)
             }
         } catch {
-            toast.error('فشل في إضافة البروكسي')
+            toast.error(t.adminProxies?.messages?.addFailed || 'Failed to add proxy')
         } finally {
             setSubmitting(false)
         }
@@ -153,7 +155,7 @@ export default function ProxiesPage() {
             })
             const data = await res.json()
             if (data.success) {
-                toast.success('تم تحديث البروكسي بنجاح')
+                toast.success(t.adminProxies?.messages?.updateSuccess || 'Proxy updated successfully')
                 setEditProxy(null)
                 setFormData(initialFormData)
                 fetchProxies()
@@ -161,14 +163,14 @@ export default function ProxiesPage() {
                 toast.error(data.error)
             }
         } catch {
-            toast.error('فشل في تحديث البروكسي')
+            toast.error(t.adminProxies?.messages?.updateFailed || 'Failed to update proxy')
         } finally {
             setSubmitting(false)
         }
     }
 
     const handleDeleteProxy = async (proxy: Proxy) => {
-        if (!confirm('هل أنت متأكد من حذف هذا البروكسي؟')) return
+        if (!confirm(t.adminProxies?.messages?.deleteConfirm || 'Are you sure you want to delete this proxy?')) return
         try {
             const res = await fetch(`/api/admin/proxies/${proxy.id}`, {
                 method: 'DELETE'
@@ -181,7 +183,7 @@ export default function ProxiesPage() {
                 toast.error(data.error)
             }
         } catch {
-            toast.error('فشل في حذف البروكسي')
+            toast.error(t.adminProxies?.messages?.deleteFailed || 'Failed to delete proxy')
         }
     }
 
@@ -193,13 +195,13 @@ export default function ProxiesPage() {
             })
             const data = await res.json()
             if (data.success) {
-                toast.success(`تم الاتصال بنجاح: ${data.result.ip}`)
+                toast.success(`${t.adminProxies?.messages?.testSuccess || 'Connection successful'}: ${data.result.ip}`)
                 fetchProxies()
             } else {
-                toast.error(data.error || 'فشل الاتصال')
+                toast.error(data.error || t.adminProxies?.messages?.testFailed || 'Connection failed')
             }
         } catch {
-            toast.error('فشل في اختبار البروكسي')
+            toast.error(t.adminProxies?.messages?.testError || 'Failed to test proxy')
         } finally {
             setTestingProxyId(null)
         }
@@ -216,25 +218,25 @@ export default function ProxiesPage() {
             })
             const data = await res.json()
             if (data.success) {
-                toast.success('تم تغيير حالة البروكسي')
+                toast.success(t.adminProxies?.messages?.statusChanged || 'Proxy status changed')
                 fetchProxies()
             }
         } catch {
-            toast.error('فشل تغيير الحالة')
+            toast.error(t.adminProxies?.messages?.statusChangeFailed || 'Failed to change status')
         }
     }
 
     const getStatusBadge = (proxy: Proxy) => {
         if (!proxy.isActive) {
-            return <Badge variant="secondary" className="gap-1 opacity-50"><XCircle className="h-3 w-3" /> معطل</Badge>
+            return <Badge variant="secondary" className="gap-1 opacity-50"><XCircle className="h-3 w-3" />{t.adminProxies?.status?.disabled || 'Disabled'}</Badge>
         }
         if (proxy.failureCount > 0) {
-            return <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" /> مشاكل</Badge>
+            return <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />{t.adminProxies?.status?.error || 'Issues'}</Badge>
         }
         if (proxy.lastTestedAt) {
-            return <Badge variant="default" className="gap-1 bg-green-600"><CheckCircle className="h-3 w-3" /> متصل</Badge>
+            return <Badge variant="default" className="gap-1 bg-green-600"><CheckCircle className="h-3 w-3" />{t.adminProxies?.status?.active || 'Connected'}</Badge>
         }
-        return <Badge variant="outline" className="gap-1">جديد</Badge>
+        return <Badge variant="outline" className="gap-1">{t.adminProxies?.status?.new || 'New'}</Badge>
     }
 
     if (status === 'loading' || loading) {
@@ -258,40 +260,40 @@ export default function ProxiesPage() {
                         <Globe className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">إدارة Proxies</h1>
-                        <p className="text-muted-foreground text-sm">إدارة عناوين IP والاتصال بـ beIN</p>
+                        <h1 className="text-2xl font-bold text-foreground">{t.adminProxies?.title || 'Proxy Management'}</h1>
+                        <p className="text-muted-foreground text-sm">{t.adminProxies?.subtitle || 'Manage IP addresses and beIN connections'}</p>
                     </div>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={fetchProxies}>
                         <RefreshCw className="h-4 w-4 ml-2" />
-                        تحديث
+                        {t.adminProxies?.refresh || t.common?.refresh || 'Refresh'}
                     </Button>
                     <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                         <DialogTrigger asChild>
                             <Button>
                                 <Plus className="h-4 w-4 ml-2" />
-                                إضافة Proxy
+                                {t.adminProxies?.addProxy || 'Add Proxy'}
                             </Button>
                         </DialogTrigger>
                         <DialogContent dir="rtl" className="max-w-md">
                             <DialogHeader>
-                                <DialogTitle>إضافة Proxy جديد</DialogTitle>
+                                <DialogTitle>{t.adminProxies?.dialogs?.addTitle || 'Add New Proxy'}</DialogTitle>
                             </DialogHeader>
                             <form onSubmit={handleAddProxy} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="label">التسمية *</Label>
+                                    <Label htmlFor="label">{t.adminProxies?.dialogs?.label || 'Label'} *</Label>
                                     <Input
                                         id="label"
                                         value={formData.label}
                                         onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                                        placeholder="مثال: سيرفر مصر الرئيسي"
+                                        placeholder={t.adminProxies?.dialogs?.labelPlaceholder || 'e.g. Main Egypt Server'}
                                         required
                                     />
                                 </div>
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="col-span-2 space-y-2">
-                                        <Label htmlFor="host">عنوان IP *</Label>
+                                        <Label htmlFor="host">{t.adminProxies?.dialogs?.ip || 'IP Address'} *</Label>
                                         <Input
                                             id="host"
                                             value={formData.host}
@@ -302,7 +304,7 @@ export default function ProxiesPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="port">المنفذ *</Label>
+                                        <Label htmlFor="port">{t.adminProxies?.dialogs?.port || 'Port'} *</Label>
                                         <Input
                                             id="port"
                                             type="number"
@@ -318,36 +320,36 @@ export default function ProxiesPage() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-2">
-                                        <Label htmlFor="username">اسم المستخدم</Label>
+                                        <Label htmlFor="username">{t.adminProxies?.dialogs?.username || 'Username'}</Label>
                                         <Input
                                             id="username"
                                             value={formData.username}
                                             onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                            placeholder="اختياري"
+                                            placeholder={t.adminProxies?.dialogs?.optional || 'Optional'}
                                             className="dir-ltr"
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="password">كلمة المرور</Label>
+                                        <Label htmlFor="password">{t.adminProxies?.dialogs?.password || 'Password'}</Label>
                                         <Input
                                             id="password"
                                             type="password"
                                             value={formData.password}
                                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                            placeholder="اختياري"
+                                            placeholder={t.adminProxies?.dialogs?.optional || 'Optional'}
                                             className="dir-ltr"
                                         />
                                     </div>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    اترك اسم المستخدم وكلمة المرور فارغين إذا كان البروكسي بدون مصادقة
+                                    {t.adminProxies?.dialogs?.noAuthHint || 'Leave username and password empty if no authentication required'}
                                 </p>
                                 <DialogFooter>
                                     <DialogClose asChild>
-                                        <Button type="button" variant="outline">إلغاء</Button>
+                                        <Button type="button" variant="outline">{t.common?.cancel || 'Cancel'}</Button>
                                     </DialogClose>
                                     <Button type="submit" disabled={submitting}>
-                                        {submitting ? 'جاري الإضافة...' : 'إضافة'}
+                                        {submitting ? t.adminProxies?.dialogs?.adding || 'Adding...' : t.adminProxies?.dialogs?.add || 'Add'}
                                     </Button>
                                 </DialogFooter>
                             </form>
@@ -365,7 +367,7 @@ export default function ProxiesPage() {
                         </div>
                         <div>
                             <div className="text-2xl font-bold">{totalProxies}</div>
-                            <div className="text-sm text-muted-foreground">إجمالي السيرفرات</div>
+                            <div className="text-sm text-muted-foreground">{t.adminProxies?.stats?.totalServers || 'Total Servers'}</div>
                         </div>
                     </CardContent>
                 </Card>
@@ -376,7 +378,7 @@ export default function ProxiesPage() {
                         </div>
                         <div>
                             <div className="text-2xl font-bold text-green-600">{activeProxies}</div>
-                            <div className="text-sm text-muted-foreground">سيرفر نشط</div>
+                            <div className="text-sm text-muted-foreground">{t.adminProxies?.stats?.activeServers || 'Active Servers'}</div>
                         </div>
                     </CardContent>
                 </Card>
@@ -387,7 +389,7 @@ export default function ProxiesPage() {
                         </div>
                         <div>
                             <div className="text-2xl font-bold text-red-600">{failedProxies}</div>
-                            <div className="text-sm text-muted-foreground">مشاكل اتصال</div>
+                            <div className="text-sm text-muted-foreground">{t.adminProxies?.stats?.connectionIssues || 'Connection Issues'}</div>
                         </div>
                     </CardContent>
                 </Card>
@@ -398,7 +400,7 @@ export default function ProxiesPage() {
                         </div>
                         <div>
                             <div className="text-2xl font-bold">{proxies.reduce((acc, curr) => acc + curr.accountsCount, 0)}</div>
-                            <div className="text-sm text-muted-foreground">حساب مرتبط</div>
+                            <div className="text-sm text-muted-foreground">{t.adminProxies?.stats?.linkedAccounts || 'Linked Accounts'}</div>
                         </div>
                     </CardContent>
                 </Card>
@@ -409,27 +411,27 @@ export default function ProxiesPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Network className="h-5 w-5" />
-                        قائمة السيرفرات
+                        {t.adminProxies?.table?.serversList || 'Servers List'}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>التسمية</TableHead>
-                                <TableHead className="text-center">Host:Port</TableHead>
-                                <TableHead className="text-center">Auth</TableHead>
-                                <TableHead className="text-center">الحالة</TableHead>
-                                <TableHead className="text-center">IP الحالي</TableHead>
-                                <TableHead className="text-center">الحسابات</TableHead>
-                                <TableHead className="text-center">الإجراءات</TableHead>
+                                <TableHead>{t.adminProxies?.table?.label || 'Label'}</TableHead>
+                                <TableHead className="text-center">{t.adminProxies?.table?.hostPort || 'Host:Port'}</TableHead>
+                                <TableHead className="text-center">{t.adminProxies?.table?.auth || 'Auth'}</TableHead>
+                                <TableHead className="text-center">{t.adminProxies?.table?.status || 'Status'}</TableHead>
+                                <TableHead className="text-center">{t.adminProxies?.table?.currentIP || 'Current IP'}</TableHead>
+                                <TableHead className="text-center">{t.adminProxies?.table?.accounts || 'Accounts'}</TableHead>
+                                <TableHead className="text-center">{t.adminProxies?.table?.actions || 'Actions'}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {proxies.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                                        لا توجد سيرفرات بروكسي. أضف واحداً الآن!
+                                        {t.adminProxies?.table?.noProxies || 'No proxy servers. Add one now!'}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -443,9 +445,9 @@ export default function ProxiesPage() {
                                         </TableCell>
                                         <TableCell className="text-center">
                                             {proxy.hasPassword ? (
-                                                <Badge variant="default" className="bg-green-600">نعم</Badge>
+                                                <Badge variant="default" className="bg-green-600">{t.common?.yes || 'Yes'}</Badge>
                                             ) : (
-                                                <Badge variant="secondary">لا</Badge>
+                                                <Badge variant="secondary">{t.common?.no || 'No'}</Badge>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">{getStatusBadge(proxy)}</TableCell>
@@ -462,7 +464,7 @@ export default function ProxiesPage() {
                                                     size="sm"
                                                     onClick={() => handleTestProxy(proxy)}
                                                     disabled={testingProxyId === proxy.id}
-                                                    title="اختبار الاتصال"
+                                                    title={t.adminProxies?.actions?.testConnection || 'Test Connection'}
                                                 >
                                                     <Activity className={`h-4 w-4 ${testingProxyId === proxy.id ? 'animate-spin' : ''}`} />
                                                 </Button>
@@ -470,7 +472,7 @@ export default function ProxiesPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => handleToggleStatus(proxy)}
-                                                    title={proxy.isActive ? 'تعطيل' : 'تفعيل'}
+                                                    title={proxy.isActive ? t.adminProxies?.actions?.disable || 'Disable' : t.adminProxies?.actions?.enable || 'Enable'}
                                                 >
                                                     <div className={`h-2 w-2 rounded-full ${proxy.isActive ? 'bg-green-600' : 'bg-gray-300'}`} />
                                                 </Button>
@@ -488,7 +490,7 @@ export default function ProxiesPage() {
                                                             isActive: proxy.isActive
                                                         })
                                                     }}
-                                                    title="تعديل"
+                                                    title={t.common?.edit || 'Edit'}
                                                 >
                                                     <Edit className="h-4 w-4" />
                                                 </Button>
@@ -496,7 +498,7 @@ export default function ProxiesPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => handleDeleteProxy(proxy)}
-                                                    title="حذف"
+                                                    title={t.adminProxies?.actions?.delete || 'Delete'}
                                                     className="text-red-600 hover:text-red-700"
                                                     disabled={proxy.accountsCount > 0}
                                                 >
@@ -516,11 +518,11 @@ export default function ProxiesPage() {
             <Dialog open={!!editProxy} onOpenChange={(open) => !open && setEditProxy(null)}>
                 <DialogContent dir="rtl" className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>تعديل البروكسي</DialogTitle>
+                        <DialogTitle>{t.adminProxies?.dialogs?.editTitle || 'Edit Proxy'}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleUpdateProxy} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="edit-label">التسمية *</Label>
+                            <Label htmlFor="edit-label">{t.adminProxies?.dialogs?.label || 'Label'} *</Label>
                             <Input
                                 id="edit-label"
                                 value={formData.label}
@@ -530,7 +532,7 @@ export default function ProxiesPage() {
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                             <div className="col-span-2 space-y-2">
-                                <Label htmlFor="edit-host">عنوان IP *</Label>
+                                <Label htmlFor="edit-host">{t.adminProxies?.dialogs?.ip || 'IP Address'} *</Label>
                                 <Input
                                     id="edit-host"
                                     value={formData.host}
@@ -540,7 +542,7 @@ export default function ProxiesPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-port">المنفذ *</Label>
+                                <Label htmlFor="edit-port">{t.adminProxies?.dialogs?.port || 'Port'} *</Label>
                                 <Input
                                     id="edit-port"
                                     type="number"
@@ -555,36 +557,36 @@ export default function ProxiesPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2">
-                                <Label htmlFor="edit-username">اسم المستخدم</Label>
+                                <Label htmlFor="edit-username">{t.adminProxies?.dialogs?.username || 'Username'}</Label>
                                 <Input
                                     id="edit-username"
                                     value={formData.username}
                                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                    placeholder="اختياري"
+                                    placeholder={t.adminProxies?.dialogs?.optional || 'Optional'}
                                     className="dir-ltr"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-password">كلمة المرور</Label>
+                                <Label htmlFor="edit-password">{t.adminProxies?.dialogs?.password || 'Password'}</Label>
                                 <Input
                                     id="edit-password"
                                     type="password"
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                    placeholder={editProxy?.hasPassword ? '(لا تغيير)' : 'اختياري'}
+                                    placeholder={editProxy?.hasPassword ? t.adminProxies?.dialogs?.noChange || '(No change)' : t.adminProxies?.dialogs?.optional || 'Optional'}
                                     className="dir-ltr"
                                 />
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            اترك كلمة المرور فارغة للإبقاء على الحالية
+                            {t.adminProxies?.dialogs?.keepPasswordHint || 'Leave password empty to keep current'}
                         </p>
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button type="button" variant="outline">إلغاء</Button>
+                                <Button type="button" variant="outline">{t.common?.cancel || 'Cancel'}</Button>
                             </DialogClose>
                             <Button type="submit" disabled={submitting}>
-                                {submitting ? 'جاري الحفظ...' : 'حفظ'}
+                                {submitting ? t.adminProxies?.dialogs?.saving || 'Saving...' : t.common?.save || 'Save'}
                             </Button>
                         </DialogFooter>
                     </form>

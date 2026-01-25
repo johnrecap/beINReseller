@@ -32,21 +32,21 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
     useEffect(() => {
         if (email && email.length > 0) {
             if (!email.endsWith(EMAIL_DOMAIN)) {
-                setEmailWarning(`الصيغة الصحيحة: اسم_المستخدم${EMAIL_DOMAIN}`)
+                setEmailWarning(`${t.manager?.dialogs?.createUser?.correctFormat || 'Correct format'}: username${EMAIL_DOMAIN}`)
             } else {
                 setEmailWarning("")
             }
         } else {
             setEmailWarning("")
         }
-    }, [email])
+    }, [email, t])
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
 
         // Validate email format
         if (!email.endsWith(EMAIL_DOMAIN)) {
-            setError(`البريد الإلكتروني يجب أن ينتهي بـ ${EMAIL_DOMAIN}`)
+            setError(`${t.manager?.dialogs?.createUser?.emailMustEndWith || 'Email must end with'} ${EMAIL_DOMAIN}`)
             return
         }
 
@@ -94,7 +94,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
             <div className="bg-card rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200 border border-border">
                 <div className="flex justify-between items-center p-4 border-b border-border">
                     <h3 className="font-bold text-foreground">{t.admin.users.dialogs.createTitle}</h3>
-                    <button onClick={onClose} title="إغلاق" className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
+                    <button onClick={onClose} title={t.common?.close || 'Close'} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -108,7 +108,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             type="text"
                             required
                             minLength={3}
-                            placeholder="اسم المستخدم"
+                            placeholder={t.auth?.username || 'Username'}
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             onBlur={handleUsernameBlur}
@@ -145,13 +145,13 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             type="password"
                             required
                             minLength={6}
-                            placeholder="كلمة المرور"
+                            placeholder={t.auth?.password || 'Password'}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm dir-ltr"
                         />
                     </div>
 
                     <div>
-                        <label htmlFor="role" className="block text-sm font-medium text-foreground mb-1">نوع الحساب</label>
+                        <label htmlFor="role" className="block text-sm font-medium text-foreground mb-1">{t.admin?.users?.dialogs?.role || 'Account Type'}</label>
                         <select
                             id="role"
                             name="role"
@@ -159,14 +159,14 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess }: CreateU
                             defaultValue="USER"
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         >
-                            <option value="USER">مستخدم (User)</option>
-                            <option value="MANAGER">مدير (Manager)</option>
-                            <option value="ADMIN">أدمن (Admin)</option>
+                            <option value="USER">{t.admin?.users?.dialogs?.roleUser || 'User'}</option>
+                            <option value="MANAGER">{t.admin?.users?.dialogs?.roleManager || 'Manager'}</option>
+                            <option value="ADMIN">{t.admin?.users?.dialogs?.roleAdmin || 'Admin'}</option>
                         </select>
                     </div>
 
                     <div>
-                        <label htmlFor="balance" className="block text-sm font-medium text-foreground mb-1">الرصيد الأولي</label>
+                        <label htmlFor="balance" className="block text-sm font-medium text-foreground mb-1">{t.manager?.dialogs?.createUser?.initialBalance || 'Initial Balance'}</label>
                         <input
                             id="balance"
                             name="balance"

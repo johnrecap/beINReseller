@@ -52,7 +52,7 @@ export default function DashboardHeader({ username, role }: DashboardHeaderProps
                     className="flex items-center gap-2 bg-gradient-to-l from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white shadow-lg"
                 >
                     <Home className="w-4 h-4" />
-                    <span>الرئيسية</span>
+                    <span>{t.sidebar?.home || 'Home'}</span>
                 </Button>
             </Link>
         </motion.div>

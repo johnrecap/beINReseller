@@ -74,12 +74,12 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                 <div className={`flex justify-between items-center p-4 border-b border-border ${isDeposit ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
                     <h3 className={`font-bold flex items-center gap-2 ${isDeposit ? 'text-green-800 dark:text-green-400' : 'text-red-800 dark:text-red-400'}`}>
                         <Wallet className="w-5 h-5" />
-                        {isDeposit ? 'إيداع رصيد' : 'سحب رصيد'}
+                        {isDeposit ? (t.admin?.users?.dialogs?.depositBalance || 'Deposit Balance') : (t.admin?.users?.dialogs?.withdrawBalance || 'Withdraw Balance')}
                     </h3>
                     <button
                         onClick={handleClose}
                         className={`p-1 rounded-lg ${isDeposit ? 'hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700' : 'hover:bg-red-100 dark:hover:bg-red-900/40 text-red-700'}`}
-                        title="إغلاق"
+                        title={t.common?.close || 'Close'}
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -96,7 +96,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                             }`}
                     >
                         <ArrowUpCircle className="w-4 h-4" />
-                        إيداع
+                        {t.transactions?.deposit || 'Deposit'}
                     </button>
                     <button
                         type="button"
@@ -107,19 +107,19 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                             }`}
                     >
                         <ArrowDownCircle className="w-4 h-4" />
-                        سحب
+                        {t.transactions?.withdrawal || 'Withdraw'}
                     </button>
                 </div>
 
                 {/* User Info */}
                 <div className="p-4 bg-secondary/30 border-b border-border text-sm">
-                    المستخدم: <span className="font-bold">{username}</span>
+                    {t.admin?.users?.dialogs?.userLabel || 'User'}: <span className="font-bold">{username}</span>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-foreground mb-1">
-                            المبلغ ($)
+                            {t.admin?.users?.dialogs?.amount || 'Amount'} ($)
                         </label>
                         <input
                             name="amount"
@@ -138,13 +138,13 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
 
                     <div>
                         <label className="block text-sm font-medium text-foreground mb-1">
-                            ملاحظات
+                            {t.admin?.users?.dialogs?.notes || 'Notes'}
                         </label>
                         <textarea
                             name="notes"
                             rows={2}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 text-sm bg-background"
-                            placeholder={isDeposit ? 'سبب الإيداع (اختياري)' : 'سبب السحب (اختياري)'}
+                            placeholder={isDeposit ? (t.admin?.users?.dialogs?.depositReason || 'Reason for deposit (optional)') : (t.admin?.users?.dialogs?.withdrawReason || 'Reason for withdrawal (optional)')}
                         />
                     </div>
 
@@ -160,7 +160,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                             onClick={handleClose}
                             className="flex-1 px-4 py-2 text-sm font-medium text-foreground bg-secondary rounded-lg hover:bg-secondary/80"
                         >
-                            إلغاء
+                            {t.common?.cancel || 'Cancel'}
                         </button>
                         <button
                             type="submit"
@@ -171,7 +171,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                                 }`}
                         >
                             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {isDeposit ? 'تأكيد الإيداع' : 'تأكيد السحب'}
+                            {isDeposit ? (t.admin?.users?.dialogs?.confirmDeposit || 'Confirm Deposit') : (t.admin?.users?.dialogs?.confirmWithdraw || 'Confirm Withdrawal')}
                         </button>
                     </div>
                 </form>

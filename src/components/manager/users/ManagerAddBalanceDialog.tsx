@@ -52,7 +52,7 @@ export default function ManagerAddBalanceDialog({
             const json = await res.json()
 
             if (!res.ok) {
-                throw new Error(json.error || 'حدث خطأ')
+                throw new Error(json.error || t.admin?.users?.messages?.error || 'An error occurred')
             }
 
             onSuccess()
@@ -82,12 +82,12 @@ export default function ManagerAddBalanceDialog({
                 <div className={`flex justify-between items-center p-4 border-b border-border ${isDeposit ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
                     <h3 className={`font-bold flex items-center gap-2 ${isDeposit ? 'text-green-800 dark:text-green-400' : 'text-red-800 dark:text-red-400'}`}>
                         <Wallet className="w-5 h-5" />
-                        {isDeposit ? 'إيداع رصيد' : 'سحب رصيد'}
+                        {isDeposit ? (t.admin?.users?.dialogs?.depositBalance || 'Deposit Balance') : (t.admin?.users?.dialogs?.withdrawBalance || 'Withdraw Balance')}
                     </h3>
                     <button
                         onClick={handleClose}
                         className={`p-1 rounded-lg ${isDeposit ? 'hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700' : 'hover:bg-red-100 dark:hover:bg-red-900/40 text-red-700'}`}
-                        title="إغلاق"
+                        title={t.common?.close || 'Close'}
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -104,7 +104,7 @@ export default function ManagerAddBalanceDialog({
                             }`}
                     >
                         <ArrowUpCircle className="w-4 h-4" />
-                        إيداع
+                        {t.transactions?.deposit || 'Deposit'}
                     </button>
                     <button
                         type="button"
@@ -115,22 +115,22 @@ export default function ManagerAddBalanceDialog({
                             }`}
                     >
                         <ArrowDownCircle className="w-4 h-4" />
-                        سحب
+                        {t.transactions?.withdrawal || 'Withdraw'}
                     </button>
                 </div>
 
                 {/* User Info & Manager Balance */}
                 <div className="p-4 bg-secondary/30 border-b border-border text-sm space-y-1">
-                    <div>المستخدم: <span className="font-bold">{username}</span></div>
+                    <div>{t.admin?.users?.dialogs?.userLabel || 'User'}: <span className="font-bold">{username}</span></div>
                     <div className="text-muted-foreground">
-                        رصيدك الحالي: <span className="font-bold text-foreground">${managerBalance.toFixed(2)}</span>
+                        {t.manager?.users?.yourBalance || 'Your Balance'}: <span className="font-bold text-foreground">${managerBalance.toFixed(2)}</span>
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-foreground mb-1">
-                            المبلغ ($)
+                            {t.admin?.users?.dialogs?.amount || 'Amount'} ($)
                         </label>
                         <input
                             name="amount"
@@ -148,20 +148,20 @@ export default function ManagerAddBalanceDialog({
                         />
                         {isDeposit && (
                             <p className="text-xs text-muted-foreground mt-1 text-center">
-                                الحد الأقصى: ${managerBalance.toFixed(2)}
+                                {t.manager?.users?.maxAmount || 'Maximum'}: ${managerBalance.toFixed(2)}
                             </p>
                         )}
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-foreground mb-1">
-                            ملاحظات
+                            {t.admin?.users?.dialogs?.notes || 'Notes'}
                         </label>
                         <textarea
                             name="notes"
                             rows={2}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 text-sm bg-background"
-                            placeholder={isDeposit ? 'سبب الإيداع (اختياري)' : 'سبب السحب (اختياري)'}
+                            placeholder={isDeposit ? (t.admin?.users?.dialogs?.depositReason || 'Reason for deposit (optional)') : (t.admin?.users?.dialogs?.withdrawReason || 'Reason for withdrawal (optional)')}
                         />
                     </div>
 
@@ -177,7 +177,7 @@ export default function ManagerAddBalanceDialog({
                             onClick={handleClose}
                             className="flex-1 px-4 py-2 text-sm font-medium text-foreground bg-secondary rounded-lg hover:bg-secondary/80"
                         >
-                            إلغاء
+                            {t.common?.cancel || 'Cancel'}
                         </button>
                         <button
                             type="submit"
@@ -188,7 +188,7 @@ export default function ManagerAddBalanceDialog({
                                 }`}
                         >
                             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {isDeposit ? 'تأكيد الإيداع' : 'تأكيد السحب'}
+                            {isDeposit ? (t.admin?.users?.dialogs?.confirmDeposit || 'Confirm Deposit') : (t.admin?.users?.dialogs?.confirmWithdraw || 'Confirm Withdrawal')}
                         </button>
                     </div>
                 </form>

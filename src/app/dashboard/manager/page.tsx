@@ -5,6 +5,7 @@ import { ManagerActionsLog } from "@/components/manager/ManagerActionsLog"
 import { CreateUserDialog } from "@/components/manager/CreateUserDialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { headers } from "next/headers"
+import { ManagerPageContent } from "@/components/manager/ManagerPageContent"
 
 // Helper to fetch data server-side
 async function getManagerDashboardData() {
@@ -39,52 +40,5 @@ export default async function ManagerDashboardPage() {
     // 2. Fetch Data
     const data = await getManagerDashboardData()
 
-    if (!data) {
-        return <div className="p-8 text-center text-red-500">فشل في تحميل البيانات</div>
-    }
-
-    const { stats, recentUsers, recentActions } = data
-
-    return (
-        <div className="flex-1 space-y-8 p-8 pt-6">
-            <div className="flex items-center justify-between space-y-2">
-                <h2 className="text-3xl font-bold tracking-tight">لوحة تحكم المدير</h2>
-                <div className="flex items-center space-x-2">
-                    <CreateUserDialog />
-                </div>
-            </div>
-
-            {/* Stats Cards */}
-            <ManagerStats stats={stats} />
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-
-                {/* Managed Users List */}
-                <Card className="col-span-4">
-                    <CardHeader>
-                        <CardTitle>المستخدمين التابعين لك</CardTitle>
-                        <CardDescription>
-                            قائمة بآخر المستخدمين الذين قمت بإضافتهم
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <ManagerUsersList users={recentUsers} />
-                    </CardContent>
-                </Card>
-
-                {/* Recent Actions Log */}
-                <Card className="col-span-3">
-                    <CardHeader>
-                        <CardTitle>سجل النشاطات</CardTitle>
-                        <CardDescription>
-                            آخر العمليات التي تمت من قبلك أو من قبل مستخدميك
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <ManagerActionsLog actions={recentActions} />
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
-    )
+    return <ManagerPageContent data={data} />
 }

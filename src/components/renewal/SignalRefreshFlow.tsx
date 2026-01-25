@@ -83,7 +83,7 @@ export function SignalRefreshFlow() {
                             setStep('success')
                         } else {
                             // Activation failed
-                            setError(responseData.error || 'لم يتم التفعيل')
+                            setError(responseData.error || sr.activationFailed || 'Activation failed')
                             setStep('status')
                         }
                     } else {
@@ -91,7 +91,7 @@ export function SignalRefreshFlow() {
                     }
                 } else if (data.status === 'FAILED') {
                     clearInterval(pollInterval)
-                    setError(data.responseMessage || 'فشلت العملية')
+                    setError(data.responseMessage || sr.operationFailed || 'Operation failed')
                     setStep('error')
                 }
             } catch (err: unknown) {
@@ -122,12 +122,12 @@ export function SignalRefreshFlow() {
             const data = await res.json()
 
             if (!res.ok) {
-                throw new Error(data.error || 'فشل في فحص الكارت')
+                throw new Error(data.error || sr.checkFailed || 'Failed to check card')
             }
 
             setOperationId(data.operationId)
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'حدث خطأ')
+            setError(err instanceof Error ? err.message : (t.common?.error || 'An error occurred'))
             setStep('error')
         }
     }
@@ -150,7 +150,7 @@ export function SignalRefreshFlow() {
             const data = await res.json()
 
             if (!res.ok) {
-                throw new Error(data.error || 'فشل في تفعيل الإشارة')
+                throw new Error(data.error || sr.activateFailed || 'Failed to activate signal')
             }
 
             // Update operationId if new one was created
@@ -161,7 +161,7 @@ export function SignalRefreshFlow() {
             // Trigger polling restart
             setPollTrigger(prev => prev + 1)
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'حدث خطأ في التفعيل')
+            setError(err instanceof Error ? err.message : (sr.activationError || 'Activation error'))
             setStep('status') // Go back to status so user can retry
             setActivating(false)
         }

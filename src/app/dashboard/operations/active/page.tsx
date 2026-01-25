@@ -30,47 +30,47 @@ interface Operation {
 
 const getStatusConfig = (t: ReturnType<typeof useTranslation>['t']) => ({
     PENDING: {
-        label: t.status?.pending || 'قيد الانتظار',
+        label: t.status?.pending || 'Pending',
         color: 'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30',
         icon: <Clock className="w-4 h-4" />
     },
     PROCESSING: {
-        label: t.status?.processing || 'جاري المعالجة',
+        label: t.status?.processing || 'Processing',
         color: 'bg-[#06B6D4]/10 text-[#06B6D4] border border-[#06B6D4]/30',
         icon: <Loader2 className="w-4 h-4 animate-spin" />
     },
     AWAITING_CAPTCHA: {
-        label: t.status?.awaitingCaptcha || 'مطلوب كابتشا',
+        label: t.status?.awaitingCaptcha || 'Awaiting Captcha',
         color: 'bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/30',
         icon: <AlertCircle className="w-4 h-4" />
     },
     AWAITING_PACKAGE: {
-        label: t.status?.awaitingPackage || 'في انتظار الباقة',
+        label: t.status?.awaitingPackage || 'Awaiting Package',
         color: 'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30',
         icon: <Package className="w-4 h-4" />
     },
     AWAITING_FINAL_CONFIRM: {
-        label: t.status?.awaitingFinalConfirm || 'في انتظار التأكيد',
+        label: t.status?.awaitingFinalConfirm || 'Awaiting Confirm',
         color: 'bg-[#F97316]/10 text-[#F97316] border border-[#F97316]/30',
         icon: <ShieldCheck className="w-4 h-4" />
     },
     COMPLETING: {
-        label: t.status?.completing || 'جاري الإتمام',
+        label: t.status?.completing || 'Completing',
         color: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
         icon: <Loader2 className="w-4 h-4 animate-spin" />
     },
     COMPLETED: {
-        label: t.status?.completed || 'مكتمل',
+        label: t.status?.completed || 'Completed',
         color: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
         icon: <CheckCircle className="w-4 h-4" />
     },
     FAILED: {
-        label: t.status?.failed || 'فشل',
+        label: t.status?.failed || 'Failed',
         color: 'bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/30',
         icon: <XCircle className="w-4 h-4" />
     },
     CANCELLED: {
-        label: t.status?.cancelled || 'ملغاة',
+        label: t.status?.cancelled || 'Cancelled',
         color: 'bg-gray-500/10 text-gray-500 border border-gray-500/30',
         icon: <XCircle className="w-4 h-4" />
     },
@@ -84,25 +84,28 @@ interface FilterTab {
     color: string
 }
 
-const FILTER_TABS: FilterTab[] = [
-    { id: 'PENDING', label: 'قيد الانتظار', icon: <Clock className="w-4 h-4" />, color: '#3B82F6' },
-    { id: 'AWAITING_CAPTCHA', label: 'مطلوب كابتشا', icon: <AlertCircle className="w-4 h-4" />, color: '#F59E0B' },
-    { id: 'AWAITING_PACKAGE', label: 'في انتظار الباقة', icon: <Package className="w-4 h-4" />, color: '#3B82F6' },
-    { id: 'AWAITING_FINAL_CONFIRM', label: 'انتظار التأكيد', icon: <AlertTriangle className="w-4 h-4" />, color: '#F97316' },
-    { id: 'COMPLETING', label: 'جاري الإتمام', icon: <Loader2 className="w-4 h-4" />, color: '#00A651' },
-    { id: 'PROCESSING', label: 'جاري المعالجة', icon: <RefreshCw className="w-4 h-4" />, color: '#06B6D4' },
+const getFilterTabs = (t: ReturnType<typeof useTranslation>['t']): FilterTab[] => [
+    { id: 'PENDING', label: t.activeOperations?.status?.pending || t.status?.pending || 'Pending', icon: <Clock className="w-4 h-4" />, color: '#3B82F6' },
+    { id: 'AWAITING_CAPTCHA', label: t.activeOperations?.status?.awaiting_captcha || t.status?.awaitingCaptcha || 'Awaiting Captcha', icon: <AlertCircle className="w-4 h-4" />, color: '#F59E0B' },
+    { id: 'AWAITING_PACKAGE', label: t.activeOperations?.status?.awaiting_package || t.status?.awaitingPackage || 'Awaiting Package', icon: <Package className="w-4 h-4" />, color: '#3B82F6' },
+    { id: 'AWAITING_FINAL_CONFIRM', label: t.activeOperations?.status?.awaiting_final_confirm || t.status?.awaitingFinalConfirm || 'Awaiting Confirm', icon: <AlertTriangle className="w-4 h-4" />, color: '#F97316' },
+    { id: 'COMPLETING', label: t.activeOperations?.status?.completing || t.status?.completing || 'Completing', icon: <Loader2 className="w-4 h-4" />, color: '#00A651' },
+    { id: 'PROCESSING', label: t.activeOperations?.status?.processing || t.status?.processing || 'Processing', icon: <RefreshCw className="w-4 h-4" />, color: '#06B6D4' },
 ]
 
 function FilterTabs({
     activeFilters,
-    onFilterChange
+    onFilterChange,
+    t
 }: {
     activeFilters: OperationStatus[]
     onFilterChange: (status: OperationStatus) => void
+    t: ReturnType<typeof useTranslation>['t']
 }) {
+    const FILTER_TABS = getFilterTabs(t)
     return (
         <div className="flex flex-wrap gap-2 mb-6 animate-in slide-in-from-top-4 duration-500">
-            <span className="text-sm text-muted-foreground self-center ml-2 hidden sm:inline">تصفية حسب:</span>
+            <span className="text-sm text-muted-foreground self-center ml-2 hidden sm:inline">{t.common?.filter || 'Filter'}:</span>
             {FILTER_TABS.map((tab) => {
                 const isActive = activeFilters.includes(tab.id)
                 return (
@@ -139,12 +142,14 @@ function FinalConfirmDialog({
     operation,
     onConfirm,
     onCancel,
-    isLoading
+    isLoading,
+    t
 }: {
     operation: Operation
     onConfirm: () => void
     onCancel: (isAutoCancel?: boolean) => void
     isLoading: boolean
+    t: ReturnType<typeof useTranslation>['t']
 }) {
     const [timeLeft, setTimeLeft] = useState<number>(0)
     const [showWarning, setShowWarning] = useState(false)
@@ -199,8 +204,8 @@ function FinalConfirmDialog({
                             <ShieldCheck className="w-8 h-8" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">تأكيد الدفع النهائي</h2>
-                            <p className="text-orange-100 text-sm">هذه الخطوة الأخيرة قبل إتمام الشراء</p>
+                            <h2 className="text-xl font-bold">{t.activeOperations?.dialogs?.confirmPaymentTitle || 'Confirm Final Payment'}</h2>
+                            <p className="text-orange-100 text-sm">{t.activeOperations?.dialogs?.confirmPaymentDesc || 'This is the last step before completing the purchase'}</p>
                         </div>
                     </div>
                 </div>
@@ -210,21 +215,21 @@ function FinalConfirmDialog({
                     {/* Package Info */}
                     <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border">
                         <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">الباقة:</span>
-                            <span className="font-bold text-foreground">{packageInfo?.name || 'غير محدد'}</span>
+                            <span className="text-muted-foreground">{t.activeOperations?.dialogs?.package || 'Package'}:</span>
+                            <span className="font-bold text-foreground">{packageInfo?.name || t.operations?.notSpecified || 'Not specified'}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">السعر:</span>
+                            <span className="text-muted-foreground">{t.activeOperations?.dialogs?.price || 'Price'}:</span>
                             <span className="font-bold text-[#00A651]">{packageInfo?.price || operation.amount} USD</span>
                         </div>
                         {operation.stbNumber && (
                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">رقم الريسيفر:</span>
+                                <span className="text-muted-foreground">{t.activeOperations?.dialogs?.stbNumber || 'Receiver Number'}:</span>
                                 <span className="font-mono text-sm">{operation.stbNumber}</span>
                             </div>
                         )}
                         <div className="flex justify-between items-center border-t border-border pt-2 mt-2">
-                            <span className="text-muted-foreground">رقم الكارت:</span>
+                            <span className="text-muted-foreground">{t.activeOperations?.dialogs?.cardNumber || 'Card Number'}:</span>
                             <span className="font-mono text-sm bg-muted px-2 py-0.5 rounded">****{operation.cardNumber.slice(-4)}</span>
                         </div>
                     </div>
@@ -244,7 +249,7 @@ function FinalConfirmDialog({
                         <div className="flex items-center justify-center gap-2 p-3 bg-[#ED1C24]/10 rounded-xl border border-[#ED1C24]/30 animate-pulse">
                             <AlertTriangle className="w-5 h-5 text-[#ED1C24]" />
                             <span className="text-sm font-bold text-[#ED1C24]">
-                                ⚠️ سيتم إلغاء العملية تلقائياً!
+                                {t.activeOperations?.dialogs?.warning || 'Auto-cancel in 10 seconds!'}
                             </span>
                         </div>
                     )}
@@ -256,7 +261,7 @@ function FinalConfirmDialog({
                             disabled={isLoading}
                             className="flex-1 px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors disabled:opacity-50"
                         >
-                            إلغاء
+                            {t.activeOperations?.dialogs?.cancel || 'Cancel'}
                         </button>
                         <button
                             onClick={onConfirm}
@@ -266,12 +271,12 @@ function FinalConfirmDialog({
                             {isLoading ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    جاري التأكيد...
+                                    {t.activeOperations?.dialogs?.confirming || 'Confirming...'}
                                 </>
                             ) : (
                                 <>
                                     <CheckCircle className="w-4 h-4" />
-                                    تأكيد الدفع
+                                    {t.activeOperations?.dialogs?.confirm || 'Confirm Payment'}
                                 </>
                             )}
                         </button>
@@ -313,7 +318,7 @@ export default function ActiveOperationsPage() {
             }
             setError(null)
         } catch {
-            setError('فشل في جلب العمليات')
+            setError(t.common?.error || 'Failed to fetch operations')
         } finally {
             setLoading(false)
         }
@@ -335,13 +340,13 @@ export default function ActiveOperationsPage() {
     }
 
     const handleCancel = async (operationId: string) => {
-        if (!confirm('هل أنت متأكد من إلغاء هذه العملية؟')) return
+        if (!confirm(t.common?.cancelConfirmation || 'Are you sure you want to cancel this operation?')) return
 
         try {
             await fetch(`/api/operations/${operationId}/cancel`, { method: 'POST' })
             fetchOperations()
         } catch {
-            alert('فشل في إلغاء العملية')
+            alert(t.activeOperations?.messages?.cancelFailed || 'Failed to cancel operation')
         }
     }
 
@@ -357,10 +362,10 @@ export default function ActiveOperationsPage() {
                 setConfirmingOperation(null)
                 fetchOperations()
             } else {
-                alert(data.error || 'فشل في تأكيد الدفع')
+                alert(data.error || t.activeOperations?.messages?.confirmFailed || 'Payment confirmation failed')
             }
         } catch {
-            alert('حدث خطأ في الاتصال')
+            alert(t.common?.connectionError || 'Connection error')
         } finally {
             setIsConfirmLoading(false)
         }
@@ -378,13 +383,13 @@ export default function ActiveOperationsPage() {
                 setConfirmingOperation(null)
                 fetchOperations()
                 if (isAutoCancel) {
-                    alert('تم إلغاء العملية تلقائياً لانتهاء المهلة واسترداد المبلغ')
+                    alert(t.activeOperations?.messages?.autoCancel || 'Operation auto-cancelled due to timeout. Amount refunded.')
                 }
             } else {
-                alert(data.error || 'فشل في إلغاء العملية')
+                alert(data.error || t.activeOperations?.messages?.cancelFailed || 'Failed to cancel operation')
             }
         } catch {
-            alert('حدث خطأ في الاتصال')
+            alert(t.common?.connectionError || 'Connection error')
         } finally {
             setIsConfirmLoading(false)
         }
@@ -396,11 +401,11 @@ export default function ActiveOperationsPage() {
         const diffMs = now - created
         const diffSec = Math.floor(diffMs / 1000)
 
-        if (diffSec < 60) return `${diffSec} ثانية`
+        if (diffSec < 60) return `${diffSec} ${t.common?.seconds || 'seconds'}`
         const diffMin = Math.floor(diffSec / 60)
-        if (diffMin < 60) return `${diffMin} دقيقة`
+        if (diffMin < 60) return `${diffMin} ${t.common?.minutes || 'minutes'}`
         const diffHour = Math.floor(diffMin / 60)
-        return `${diffHour} ساعة`
+        return `${diffHour} ${t.common?.hours || 'hours'}`
     }
 
     // Filter Logic
@@ -425,6 +430,7 @@ export default function ActiveOperationsPage() {
                     onConfirm={handleConfirmPurchase}
                     onCancel={handleCancelConfirm}
                     isLoading={isConfirmLoading}
+                    t={t}
                 />
             )}
 
@@ -435,8 +441,8 @@ export default function ActiveOperationsPage() {
                         <RefreshCw className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">العمليات النشطة</h1>
-                        <p className="text-muted-foreground text-sm">متابعة العمليات الجارية وحالتها</p>
+                        <h1 className="text-2xl font-bold text-foreground">{t.activeOperations?.title || 'Active Operations'}</h1>
+                        <p className="text-muted-foreground text-sm">{t.activeOperations?.subtitle || 'Track ongoing operations and their status'}</p>
                     </div>
                 </div>
                 <button
@@ -444,7 +450,7 @@ export default function ActiveOperationsPage() {
                     className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 border border-[#374151] rounded-xl hover:bg-muted transition-colors text-sm font-medium"
                 >
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    تحديث
+                    {t.activeOperations?.refresh || 'Refresh'}
                 </button>
             </div>
 
@@ -467,27 +473,27 @@ export default function ActiveOperationsPage() {
                             </div>
 
                             <h2 className="text-2xl font-bold text-foreground mb-2 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200">
-                                لا توجد عمليات جارية
+                                {t.activeOperations?.noOperations || 'No Active Operations'}
                             </h2>
                             <p className="text-muted-foreground mb-8 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-300">
-                                جميع العمليات مكتملة بنجاح، يمكنك البدء بعملية جديدة الآن
+                                {t.activeOperations?.allComplete || 'All operations completed successfully. Start a new operation now.'}
                             </p>
 
                             <button
                                 onClick={() => router.push('/dashboard/renew')}
                                 className="px-8 py-3.5 bg-[#00A651] hover:bg-[#008f45] text-white rounded-xl font-bold transition-all shadow-lg shadow-green-500/30 hover:shadow-green-500/40 hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-400"
                             >
-                                ابدأ عملية جديدة
+                                {t.activeOperations?.startNew || 'Start New Operation'}
                             </button>
                         </div>
                     </div>
                 ) : (
                     <>
-                        <FilterTabs activeFilters={activeFilters} onFilterChange={handleFilterChange} />
+                        <FilterTabs activeFilters={activeFilters} onFilterChange={handleFilterChange} t={t} />
 
                         {filteredOperations.length === 0 ? (
                             <div className="text-center py-12 bg-card rounded-2xl border border-border border-dashed">
-                                <p className="text-muted-foreground">لا توجد عمليات بهذه الحالة</p>
+                                <p className="text-muted-foreground">{t.activeOperations?.noOperationsWithStatus || 'No operations with this status'}</p>
                             </div>
                         ) : (
                             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden animate-in fade-in duration-500">
@@ -496,10 +502,10 @@ export default function ActiveOperationsPage() {
                                     <table className="w-full">
                                         <thead className="bg-muted/30 border-b border-border">
                                             <tr>
-                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">الكارت</th>
-                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">الحالة</th>
-                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">الوقت ومبلغ</th>
-                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">إجراءات</th>
+                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.cardNumber || 'Card'}</th>
+                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.status || 'Status'}</th>
+                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.timeAndAmount || 'Time & Amount'}</th>
+                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.actions || 'Actions'}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border">
@@ -549,12 +555,12 @@ export default function ActiveOperationsPage() {
                                                                         {isAwaitingConfirm ? (
                                                                             <>
                                                                                 <ShieldCheck className="w-3.5 h-3.5" />
-                                                                                تأكيد الدفع
+                                                                                {t.activeOperations?.actions?.confirmPayment || 'Confirm Payment'}
                                                                             </>
                                                                         ) : (
                                                                             <>
                                                                                 <ExternalLink className="w-3.5 h-3.5" />
-                                                                                متابعة
+                                                                                {t.activeOperations?.actions?.continue || 'Continue'}
                                                                             </>
                                                                         )}
                                                                     </button>
@@ -564,8 +570,8 @@ export default function ActiveOperationsPage() {
                                                                         onClick={() => handleCancel(op.id)}
                                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-lg text-xs font-medium hover:bg-[#ED1C24]/20 transition-colors"
                                                                     >
-                                                                        <XCircle className="w-3.5 h-3.5" />
-                                                                        إلغاء
+                                                                    <XCircle className="w-3.5 h-3.5" />
+                                                                        {t.activeOperations?.actions?.cancel || 'Cancel'}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -611,7 +617,7 @@ export default function ActiveOperationsPage() {
                                                                 : 'bg-[#00A651] text-white'
                                                                 }`}
                                                         >
-                                                            {isAwaitingConfirm ? 'تأكيد الدفع' : 'متابعة'}
+                                                            {isAwaitingConfirm ? t.activeOperations?.actions?.confirmPayment || 'Confirm Payment' : t.activeOperations?.actions?.continue || 'Continue'}
                                                         </button>
                                                     )}
                                                     {canCancel && (
@@ -619,7 +625,7 @@ export default function ActiveOperationsPage() {
                                                             onClick={() => handleCancel(op.id)}
                                                             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-lg text-sm font-medium"
                                                         >
-                                                            إلغاء
+                                                            {t.activeOperations?.actions?.cancel || 'Cancel'}
                                                         </button>
                                                     )}
                                                 </div>

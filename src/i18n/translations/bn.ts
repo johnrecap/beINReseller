@@ -44,7 +44,12 @@ export const bn = {
         activeOperations: 'সক্রিয় অপারেশন',
         viewAll: 'সব দেখুন',
         unread: 'অপঠিত',
-        allRead: 'সব পঠিত হিসেবে চিহ্নিত করুন'
+        allRead: 'সব পঠিত হিসেবে চিহ্নিত করুন',
+        seconds: 'সেকেন্ড',
+        minutes: 'মিনিট',
+        hours: 'ঘন্টা',
+        yes: 'হ্যাঁ',
+        no: 'না'
     },
     auth: {
         username: 'ব্যবহারকারীর নাম',
@@ -283,19 +288,57 @@ export const bn = {
         message: 'এই ত্রুটির জন্য আমরা দুঃখিত। দয়া করে পৃষ্ঠাটি পুনরায় লোড করুন বা পরে আবার চেষ্টা করুন।',
         reloadPage: 'পৃষ্ঠা পুনরায় লোড করুন',
         errorDetails: 'ত্রুটির বিবরণ',
+        accessDenied: 'অ্যাক্সেস অস্বীকৃত',
+        accessDeniedMessage: 'দুঃখিত, এই পৃষ্ঠাটি দেখার অনুমতি আপনার নেই। যদি আপনি মনে করেন এটি একটি ভুল, অনুগ্রহ করে প্রশাসকের সাথে যোগাযোগ করুন।',
+        backToHome: 'হোমে ফিরে যান'
     },
     userStats: {
         title: 'ব্যবহারকারীর পরিসংখ্যান',
+        titleWithUser: 'ব্যবহারকারীর পরিসংখ্যান: {username}',
         deposits: 'জমা',
         deposit: 'জমা',
         deductions: 'কর্তন',
         refunds: 'ফেরত',
         refund: 'ফেরত',
-        withdraw: 'উঠ্তোলন',
+        withdraw: 'উত্তোলন',
         operationDeduct: 'অপারেশন কর্তন',
         currentBalance: 'বর্তমান ব্যালেন্স',
         correction: 'সংশোধন',
         close: 'বন্ধ করুন',
+        balanced: 'সমতুল্য',
+        discrepancy: 'পার্থক্য',
+        alerts: {
+            title: 'সতর্কতা',
+            correct: 'সংশোধন',
+            done: 'সম্পন্ন'
+        },
+        operationStats: {
+            title: 'অপারেশন পরিসংখ্যান',
+            total: 'মোট',
+            completed: 'সম্পন্ন',
+            failed: 'ব্যর্থ',
+            cancelled: 'বাতিল',
+            pending: 'অপেক্ষমাণ',
+            processing: 'প্রক্রিয়াধীন'
+        },
+        tabs: {
+            transactions: 'লেনদেন',
+            operations: 'অপারেশন'
+        },
+        table: {
+            date: 'তারিখ',
+            type: 'ধরন',
+            amount: 'পরিমাণ',
+            balanceAfter: 'ব্যালেন্সের পরে',
+            notes: 'নোট',
+            card: 'কার্ড',
+            status: 'অবস্থা',
+            renew: 'নবায়ন'
+        },
+        loadMore: 'আরো লোড করুন',
+        loadMoreCount: 'আরো লোড করুন ({loaded} এর মধ্যে {total})',
+        connectionFailed: 'সার্ভারে সংযোগ করতে ব্যর্থ',
+        correctionFailed: 'সংশোধন ব্যর্থ'
     },
     admin: {
         dashboard: {
@@ -479,7 +522,9 @@ export const bn = {
                 save: 'পরিবর্তন সংরক্ষণ করুন',
                 confirmBalance: 'ব্যালেন্স নিশ্চিত করুন',
                 creating: 'তৈরি করা হচ্ছে...',
-                updating: 'আপডেট করা হচ্ছে...'
+                updating: 'আপডেট করা হচ্ছে...',
+                viewStats: 'ইউজার পরিসংখ্যান',
+                permanentDelete: 'স্থায়ীভাবে মুছে ফেলুন'
             },
             table: {
                 user: 'ইউজার',
@@ -507,7 +552,18 @@ export const bn = {
                 username: 'ইউজারনেম',
                 email: 'ইমেইল',
                 password: 'পাসওয়ার্ড',
-                newPassword: 'নতুন পাসওয়ার্ড'
+                newPassword: 'নতুন পাসওয়ার্ড',
+                role: 'অ্যাকাউন্ট টাইপ',
+                roleUser: 'ইউজার',
+                roleManager: 'ম্যানেজার',
+                roleAdmin: 'অ্যাডমিন',
+                depositBalance: 'ব্যালেন্স জমা',
+                withdrawBalance: 'ব্যালেন্স উত্তোলন',
+                userLabel: 'ইউজার',
+                depositReason: 'জমার কারণ (ঐচ্ছিক)',
+                withdrawReason: 'উত্তোলনের কারণ (ঐচ্ছিক)',
+                confirmDeposit: 'জমা নিশ্চিত করুন',
+                confirmWithdraw: 'উত্তোলন নিশ্চিত করুন'
             },
             messages: {
                 createSuccess: 'ইউজার সফলভাবে তৈরি হয়েছে',
@@ -516,7 +572,12 @@ export const bn = {
                 resetSuccess: 'পাসওয়ার্ড সফলভাবে রিসেট করা হয়েছে',
                 copyPassword: 'পাসওয়ার্ড কপি করতে ক্লিক করুন',
                 statusSuccess: 'স্থিতি সফলভাবে আপডেট করা হয়েছে',
-                error: 'একটি ত্রুটি ঘটেছে'
+                error: 'একটি ত্রুটি ঘটেছে',
+                deleteConfirmFull: 'আপনি কি নিশ্চিত যে আপনি স্থায়ীভাবে মুছে ফেলতে চান',
+                deleteDataWarning: 'সমস্ত সংশ্লিষ্ট ডেটা মুছে ফেলা হবে।',
+                deleteSuccess: 'ইউজার সফলভাবে মুছে ফেলা হয়েছে',
+                deleteFailed: 'ইউজার মুছতে ব্যর্থ',
+                deleteError: 'ইউজার মোছার সময় একটি ত্রুটি ঘটেছে'
             },
             userStats: {
                 title: 'ইউজার পরিসংখ্যান',
@@ -677,6 +738,203 @@ export const bn = {
             noData: 'কোন তথ্য নেই'
         }
     },
+    activeOperations: {
+        title: 'সক্রিয় অপারেশন',
+        subtitle: 'চলমান অপারেশন এবং তাদের অবস্থা ট্র্যাক করুন',
+        refresh: 'রিফ্রেশ',
+        noOperations: 'কোন সক্রিয় অপারেশন নেই',
+        noOperationsWithStatus: 'এই অবস্থায় কোন অপারেশন নেই',
+        allComplete: 'সব অপারেশন সফলভাবে সম্পন্ন হয়েছে। আপনি এখন নতুন অপারেশন শুরু করতে পারেন।',
+        startNew: 'নতুন অপারেশন শুরু করুন',
+        table: {
+            cardNumber: 'কার্ড',
+            type: 'ধরন',
+            package: 'প্যাকেজ',
+            status: 'অবস্থা',
+            price: 'মূল্য',
+            startedAt: 'শুরুর সময়',
+            actions: 'কর্ম',
+            timeAndAmount: 'সময় ও মূল্য'
+        },
+        status: {
+            pending: 'অপেক্ষমাণ',
+            processing: 'প্রক্রিয়াধীন',
+            awaiting_captcha: 'ক্যাপচার অপেক্ষায়',
+            awaiting_package: 'প্যাকেজ নির্বাচনের অপেক্ষায়',
+            awaiting_final_confirm: 'নিশ্চিতকরণের অপেক্ষায়',
+            completing: 'সম্পন্ন হচ্ছে',
+            completed: 'সম্পন্ন',
+            failed: 'ব্যর্থ',
+            cancelled: 'বাতিল'
+        },
+        actions: {
+            continue: 'চালিয়ে যান',
+            cancel: 'বাতিল',
+            view: 'বিস্তারিত দেখুন',
+            confirmPayment: 'পেমেন্ট নিশ্চিত করুন'
+        },
+        dialogs: {
+            confirmPaymentTitle: 'চূড়ান্ত পেমেন্ট নিশ্চিত করুন',
+            confirmPaymentDesc: 'এটি ক্রয় সম্পন্ন করার আগে শেষ ধাপ',
+            package: 'প্যাকেজ',
+            price: 'মূল্য',
+            stbNumber: 'রিসিভার নম্বর',
+            cardNumber: 'কার্ড নম্বর',
+            warning: '১০ সেকেন্ডে স্বয়ংক্রিয় বাতিল!',
+            cancel: 'বাতিল',
+            confirm: 'পেমেন্ট নিশ্চিত করুন',
+            confirming: 'নিশ্চিত করা হচ্ছে...'
+        },
+        messages: {
+            confirmSuccess: 'পেমেন্ট সফলভাবে নিশ্চিত হয়েছে',
+            confirmFailed: 'পেমেন্ট নিশ্চিত করতে ব্যর্থ',
+            cancelSuccess: 'অপারেশন বাতিল। অর্থ ফেরত দেওয়া হয়েছে।',
+            cancelFailed: 'অপারেশন বাতিল করতে ব্যর্থ',
+            autoCancel: 'সময় শেষ হওয়ায় অপারেশন স্বয়ংক্রিয় বাতিল। অর্থ ফেরত দেওয়া হয়েছে।'
+        }
+    },
+    adminBeinAccounts: {
+        title: 'beIN অ্যাকাউন্ট ব্যবস্থাপনা',
+        subtitle: 'স্মার্ট বিতরণের জন্য বট অ্যাকাউন্ট পরিচালনা করুন',
+        addAccount: 'অ্যাকাউন্ট যোগ করুন',
+        refresh: 'রিফ্রেশ',
+        stats: {
+            total: 'মোট অ্যাকাউন্ট',
+            active: 'সক্রিয়',
+            available: 'উপলব্ধ',
+            resting: 'বিশ্রামে',
+            limited: 'রেট সীমিত'
+        },
+        table: {
+            account: 'অ্যাকাউন্ট',
+            proxy: 'প্রক্সি',
+            status: 'অবস্থা',
+            priority: 'অগ্রাধিকার',
+            balance: 'beIN ব্যালেন্স',
+            successRate: 'সাফল্যের হার',
+            operations: 'অপারেশন',
+            lastUsed: 'সর্বশেষ ব্যবহার',
+            lastError: 'সর্বশেষ ত্রুটি',
+            actions: 'কর্ম',
+            accountsList: 'অ্যাকাউন্ট তালিকা',
+            noAccounts: 'কোন অ্যাকাউন্ট নেই। আপনার প্রথম অ্যাকাউন্ট যোগ করুন!'
+        },
+        status: {
+            active: 'সক্রিয়',
+            cooldown: 'বিশ্রাম',
+            limited: 'রেট সীমিত',
+            disabled: 'নিষ্ক্রিয়',
+            error: 'সমস্যা'
+        },
+        actions: {
+            enable: 'সক্রিয় করুন',
+            disable: 'নিষ্ক্রিয় করুন',
+            reset: 'রিসেট',
+            delete: 'মুছুন'
+        },
+        dialogs: {
+            addTitle: 'নতুন beIN অ্যাকাউন্ট যোগ করুন',
+            editTitle: 'অ্যাকাউন্ট সম্পাদনা করুন',
+            username: 'ইউজারনেম / ইমেল',
+            password: 'পাসওয়ার্ড',
+            passwordKeep: 'পাসওয়ার্ড (রাখতে খালি রাখুন)',
+            totpSecret: 'TOTP Secret (2FA)',
+            label: 'লেবেল (ঐচ্ছিক)',
+            labelPlaceholder: 'যেমন: মূল অ্যাকাউন্ট',
+            optional: 'ঐচ্ছিক',
+            priority: 'অগ্রাধিকার',
+            proxy: 'প্রক্সি',
+            selectProxy: 'প্রক্সি নির্বাচন করুন',
+            noProxy: '-- কোন প্রক্সি নেই --',
+            add: 'যোগ করুন'
+        },
+        messages: {
+            loadFailed: 'অ্যাকাউন্ট লোড করতে ব্যর্থ',
+            addSuccess: 'অ্যাকাউন্ট সফলভাবে যোগ করা হয়েছে',
+            addFailed: 'অ্যাকাউন্ট যোগ করতে ব্যর্থ',
+            updateSuccess: 'অ্যাকাউন্ট সফলভাবে আপডেট করা হয়েছে',
+            updateFailed: 'অ্যাকাউন্ট আপডেট করতে ব্যর্থ',
+            toggleFailed: 'অ্যাকাউন্ট অবস্থা পরিবর্তন করতে ব্যর্থ',
+            resetFailed: 'অ্যাকাউন্ট রিসেট করতে ব্যর্থ',
+            deleteConfirm: 'আপনি কি নিশ্চিত যে এই অ্যাকাউন্ট মুছতে চান?',
+            deleteSuccess: 'অ্যাকাউন্ট সফলভাবে মুছে ফেলা হয়েছে',
+            deleteFailed: 'অ্যাকাউন্ট মুছতে ব্যর্থ',
+            enableSuccess: 'অ্যাকাউন্ট সফলভাবে সক্রিয় করা হয়েছে',
+            disableSuccess: 'অ্যাকাউন্ট সফলভাবে নিষ্ক্রিয় করা হয়েছে'
+        }
+    },
+    adminProxies: {
+        title: 'প্রক্সি ব্যবস্থাপনা',
+        subtitle: 'IP ঠিকানা এবং beIN সংযোগ পরিচালনা করুন',
+        addProxy: 'প্রক্সি যোগ করুন',
+        refresh: 'রিফ্রেশ',
+        stats: {
+            totalServers: 'মোট সার্ভার',
+            activeServers: 'সক্রিয় সার্ভার',
+            connectionIssues: 'সংযোগ সমস্যা',
+            linkedAccounts: 'লিঙ্কড অ্যাকাউন্ট'
+        },
+        table: {
+            label: 'লেবেল',
+            hostPort: 'হোস্ট:পোর্ট',
+            auth: 'প্রমাণীকরণ',
+            status: 'অবস্থা',
+            currentIP: 'বর্তমান IP',
+            accounts: 'লিঙ্কড অ্যাকাউন্ট',
+            lastChecked: 'সর্বশেষ চেক',
+            actions: 'কর্ম',
+            serversList: 'সার্ভার তালিকা',
+            noProxies: 'কোন প্রক্সি সার্ভার নেই। এখনই একটি যোগ করুন!'
+        },
+        status: {
+            active: 'সংযুক্ত',
+            error: 'সমস্যা',
+            testing: 'পরীক্ষা করা হচ্ছে...',
+            offline: 'অফলাইন',
+            disabled: 'নিষ্ক্রিয়',
+            new: 'নতুন'
+        },
+        actions: {
+            testConnection: 'সংযোগ পরীক্ষা',
+            enable: 'সক্রিয় করুন',
+            disable: 'নিষ্ক্রিয় করুন',
+            delete: 'মুছুন'
+        },
+        dialogs: {
+            addTitle: 'নতুন প্রক্সি সার্ভার যোগ করুন',
+            editTitle: 'প্রক্সি সম্পাদনা করুন',
+            label: 'লেবেল',
+            labelPlaceholder: 'যেমন: মূল মিশর সার্ভার',
+            ip: 'IP ঠিকানা / হোস্ট',
+            port: 'পোর্ট',
+            username: 'ইউজারনেম (ঐচ্ছিক)',
+            password: 'পাসওয়ার্ড (ঐচ্ছিক)',
+            optional: 'ঐচ্ছিক',
+            noChange: '(পরিবর্তন নেই)',
+            noAuthHint: 'প্রমাণীকরণ প্রয়োজন না হলে ইউজারনেম এবং পাসওয়ার্ড খালি রাখুন',
+            keepPasswordHint: 'বর্তমান রাখতে পাসওয়ার্ড খালি রাখুন',
+            testConnection: 'সংযোগ পরীক্ষা',
+            testing: 'পরীক্ষা হচ্ছে...',
+            add: 'যোগ করুন',
+            adding: 'যোগ করা হচ্ছে...',
+            saving: 'সংরক্ষণ করা হচ্ছে...'
+        },
+        messages: {
+            loadFailed: 'প্রক্সি লোড করতে ব্যর্থ',
+            addSuccess: 'প্রক্সি সফলভাবে যোগ করা হয়েছে',
+            addFailed: 'প্রক্সি যোগ করতে ব্যর্থ',
+            updateSuccess: 'প্রক্সি সফলভাবে আপডেট করা হয়েছে',
+            updateFailed: 'প্রক্সি আপডেট করতে ব্যর্থ',
+            testSuccess: 'সংযোগ সফল',
+            testFailed: 'সংযোগ ব্যর্থ',
+            testError: 'প্রক্সি পরীক্ষা করতে ব্যর্থ',
+            statusChanged: 'প্রক্সি অবস্থা পরিবর্তন করা হয়েছে',
+            statusChangeFailed: 'অবস্থা পরিবর্তন করতে ব্যর্থ',
+            deleteConfirm: 'আপনি কি নিশ্চিত যে এই প্রক্সি মুছতে চান?',
+            deleteSuccess: 'প্রক্সি সফলভাবে মুছে ফেলা হয়েছে',
+            deleteFailed: 'প্রক্সি মুছতে ব্যর্থ'
+        }
+    },
     manager: {
         dashboard: {
             title: 'ম্যানেজার ড্যাশবোর্ড',
@@ -684,13 +942,20 @@ export const bn = {
             totalUsers: 'মোট ব্যবহারকারী',
             activeUsers: 'সক্রিয় ব্যবহারকারী',
             totalBalance: 'মোট ব্যালেন্স',
-            todayOperations: 'আজকের অপারেশন'
+            todayOperations: 'আজকের অপারেশন',
+            yourUsers: 'আপনার ব্যবহারকারীরা',
+            yourUsersDesc: 'আপনি যোগ করেছেন এমন সাম্প্রতিক ব্যবহারকারীদের তালিকা',
+            actionsLog: 'কার্যকলাপ লগ',
+            actionsLogDesc: 'আপনার বা আপনার ব্যবহারকারীদের সাম্প্রতিক অপারেশন'
         },
         users: {
             title: 'ব্যবহারকারী পরিচালনা',
             subtitle: 'আপনার তত্ত্বাবধানে থাকা ব্যবহারকারীদের পরিচালনা করুন',
             searchPlaceholder: 'নাম বা ইমেল দিয়ে খুঁজুন...',
             addUser: 'ব্যবহারকারী যোগ করুন',
+            yourBalance: 'আপনার ব্যালেন্স',
+            maxAmount: 'সর্বোচ্চ',
+            deleting: 'মুছছে...',
             table: {
                 user: 'ব্যবহারকারী',
                 email: 'ইমেল',
@@ -777,10 +1042,13 @@ export const bn = {
             resetPassword: {
                 title: 'পাসওয়ার্ড রিসেট',
                 message: 'আপনি কি নিশ্চিত যে পাসওয়ার্ড রিসেট করতে চান',
+                confirmMessage: 'আপনি কি পাসওয়ার্ড রিসেট করতে চান',
                 newPassword: 'নতুন পাসওয়ার্ড',
                 reset: 'পাসওয়ার্ড রিসেট',
+                resetButton: 'রিসেট',
                 resetting: 'রিসেট হচ্ছে...',
-                copyPassword: 'পাসওয়ার্ড কপি করুন'
+                copyPassword: 'পাসওয়ার্ড কপি করুন',
+                saveHint: 'নতুন পাসওয়ার্ড সংরক্ষণ করুন এবং ব্যবহারকারীকে পাঠান'
             },
             userStats: {
                 title: 'ব্যবহারকারী পরিসংখ্যান',

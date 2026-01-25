@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ArrowRight, ArrowLeft, User, Calendar, Wallet, BarChart2 } from 'lucide-react'
 import { format } from 'date-fns'
-import { ar } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface DeletedUser {
     id: string
@@ -19,10 +20,19 @@ interface DeletedUser {
 }
 
 export default function DeletedUsersTable() {
+    const { t, language } = useTranslation()
     const [users, setUsers] = useState<DeletedUser[]>([])
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
+
+    const localeMap = {
+        ar: ar,
+        en: enUS,
+        bn: bn
+    }
+
+    const currentLocale = localeMap[language as keyof typeof localeMap] || enUS
 
     const fetchUsers = useCallback(async () => {
         setLoading(true)
@@ -61,12 +71,12 @@ export default function DeletedUsersTable() {
                     <table className="w-full">
                         <thead className="bg-secondary border-b border-border">
                             <tr>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">المستخدم</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">الدور</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">الرصيد وقت الحذف</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">العمليات</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">تاريخ الحذف</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">حذف بواسطة</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.manager?.deletedUsers?.table?.user || 'User'}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.profile?.role || 'Role'}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.manager?.deletedUsers?.balanceAtDeletion || 'Balance at Deletion'}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.common?.operations || 'Operations'}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.manager?.deletedUsers?.table?.deletedAt || 'Deleted At'}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.manager?.deletedUsers?.table?.deletedBy || 'Deleted By'}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -83,7 +93,7 @@ export default function DeletedUsersTable() {
                                 ))
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-muted-foreground">لا توجد حسابات محذوفة</td>
+                                    <td colSpan={6} className="p-8 text-center text-muted-foreground">{t.manager?.deletedUsers?.noDeletedUsers || 'No deleted accounts'}</td>
                                 </tr>
                             ) : (
                                 users.map((user) => (
@@ -107,23 +117,23 @@ export default function DeletedUsersTable() {
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                                                 <Wallet className="w-4 h-4" />
-                                                <span className="font-bold">{(user.deletedBalance ?? 0).toLocaleString()} دولار</span>
+                                                <span className="font-bold">{(user.deletedBalance ?? 0).toLocaleString()} {t.header?.currency || 'USD'}</span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-xs text-muted-foreground">
                                             <div className="flex items-center gap-1">
                                                 <BarChart2 className="w-3 h-3" />
-                                                <span>{user.operationCount} عملية، {user.transactionCount} معاملة</span>
+                                                <span>{user.operationCount} {t.admin?.users?.table?.operation || 'ops'}, {user.transactionCount} {t.admin?.users?.table?.transaction || 'txns'}</span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-xs text-muted-foreground">
                                             <div className="flex items-center gap-1">
                                                 <Calendar className="w-3 h-3" />
-                                                {format(new Date(user.deletedAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
+                                                {format(new Date(user.deletedAt), 'dd/MM/yyyy HH:mm', { locale: currentLocale })}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-xs text-muted-foreground">
-                                            {user.deletedByUsername || 'غير معروف'}
+                                            {user.deletedByUsername || t.common?.unknown || 'Unknown'}
                                         </td>
                                     </tr>
                                 ))
@@ -136,14 +146,14 @@ export default function DeletedUsersTable() {
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-border">
                         <p className="text-sm text-muted-foreground">
-                            الصفحة {page} من {totalPages}
+                            {t.pagination?.page || 'Page'} {page} {t.pagination?.of || 'of'} {totalPages}
                         </p>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 disabled={page <= 1}
                                 className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="الصفحة السابقة"
+                                title={t.pagination?.previousPage || 'Previous Page'}
                             >
                                 <ArrowRight className="w-4 h-4" />
                             </button>
@@ -151,7 +161,7 @@ export default function DeletedUsersTable() {
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 disabled={page >= totalPages}
                                 className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="الصفحة التالية"
+                                title={t.pagination?.nextPage || 'Next Page'}
                             >
                                 <ArrowLeft className="w-4 h-4" />
                             </button>

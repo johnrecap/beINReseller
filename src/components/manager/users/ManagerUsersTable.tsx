@@ -84,8 +84,9 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
     }, [fetchUsers])
 
     const handleToggleStatus = async (user: User) => {
-        const action = user.isActive ? 'تعطيل' : 'تفعيل'
-        if (!confirm(`هل أنت متأكد من ${action} المستخدم "${user.username}"؟`)) return
+        const action = user.isActive ? (t.admin?.users?.actions?.disable || 'Disable') : (t.admin?.users?.actions?.enable || 'Enable')
+        const confirmMsg = user.isActive ? t.admin?.users?.actions?.disableConfirm : t.admin?.users?.actions?.enableConfirm
+        if (!confirm(confirmMsg || `Are you sure you want to ${action.toLowerCase()} "${user.username}"?`)) return
 
         try {
             const res = await fetch(`/api/manager/users/${user.id}`, {
@@ -96,7 +97,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
             if (res.ok) fetchUsers()
             else {
                 const data = await res.json()
-                alert(data.error || 'فشل تحديث الحالة')
+                alert(data.error || t.admin?.users?.messages?.error || 'Failed to update status')
             }
         } catch (error) {
             console.error('Failed to update status', error)
@@ -118,13 +119,13 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                 fetchUsers()
                 onBalanceChange() // Refresh manager balance
                 setDeleteUser(null)
-                alert(data.message || 'تم حذف المستخدم بنجاح')
+                alert(data.message || t.admin?.users?.messages?.deleteSuccess || 'User deleted successfully')
             } else {
-                setDeleteError(data.error || 'فشل حذف المستخدم')
+                setDeleteError(data.error || t.admin?.users?.messages?.deleteFailed || 'Failed to delete user')
             }
         } catch (error) {
             console.error('Failed to delete user', error)
-            setDeleteError('حدث خطأ أثناء حذف المستخدم')
+            setDeleteError(t.admin?.users?.messages?.deleteError || 'An error occurred while deleting user')
         } finally {
             setDeleteLoading(false)
         }
@@ -143,14 +144,14 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                     <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                     <input
                         type="text"
-                        placeholder="البحث بالاسم أو الإيميل..."
+                        placeholder={t.admin?.users?.actions?.searchPlaceholder || 'Search by username or email...'}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="w-full pr-10 pl-4 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground"
                     />
                 </div>
                 <div className="text-sm text-muted-foreground self-center">
-                    رصيدك: <span className="font-bold text-foreground">${managerBalance.toFixed(2)}</span>
+                    {t.manager?.users?.yourBalance || 'Your Balance'}: <span className="font-bold text-foreground">${managerBalance.toFixed(2)}</span>
                 </div>
             </div>
 
@@ -160,11 +161,11 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                     <table className="w-full">
                         <thead className="bg-secondary border-b border-border">
                             <tr>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">المستخدم</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">الرصيد</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">الحالة</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">تاريخ الإنشاء</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">الإجراءات</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.user || 'User'}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.balance || 'Balance'}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.status || 'Status'}</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.created || 'Created At'}</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin?.users?.table?.actions || 'Actions'}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -180,7 +181,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                 ))
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="p-8 text-center text-muted-foreground">لا يوجد مستخدمين</td>
+                                    <td colSpan={5} className="p-8 text-center text-muted-foreground">{t.admin?.users?.table?.noUsers || 'No users found'}</td>
                                 </tr>
                             ) : (
                                 users.map((user) => (
@@ -200,7 +201,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                                 : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                                                 }`}>
                                                 {user.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                                                {user.isActive ? 'نشط' : 'معطل'}
+                                                {user.isActive ? (t.admin?.users?.table?.active || 'Active') : (t.admin?.users?.table?.inactive || 'Inactive')}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -211,14 +212,14 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                                 <button
                                                     onClick={() => setBalanceUser(user)}
                                                     className="p-1.5 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 rounded-lg transition-colors"
-                                                    title="إدارة الرصيد"
+                                                    title={t.admin?.users?.actions?.addBalance || 'Manage Balance'}
                                                 >
                                                     <Wallet className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => setResetUser(user)}
                                                     className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 rounded-lg transition-colors"
-                                                    title="إعادة تعيين كلمة المرور"
+                                                    title={t.admin?.users?.actions?.resetPassword || 'Reset Password'}
                                                 >
                                                     <KeyRound className="w-4 h-4" />
                                                 </button>
@@ -228,14 +229,14 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                                         ? 'hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600'
                                                         : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600'
                                                         }`}
-                                                    title={user.isActive ? 'تعطيل' : 'تفعيل'}
+                                                    title={user.isActive ? (t.admin?.users?.actions?.disable || 'Disable') : (t.admin?.users?.actions?.enable || 'Enable')}
                                                 >
                                                     {user.isActive ? <Ban className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteUser(user)}
                                                     className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-700 rounded-lg transition-colors"
-                                                    title="حذف المستخدم"
+                                                    title={t.manager?.users?.actions?.delete || 'Delete User'}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
@@ -252,14 +253,14 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-border">
                         <p className="text-sm text-muted-foreground">
-                            صفحة {page} من {totalPages}
+                            {t.admin?.logs?.pagination?.page || 'Page'} {page} {t.admin?.logs?.pagination?.of || 'of'} {totalPages}
                         </p>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 disabled={page <= 1}
                                 className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="الصفحة السابقة"
+                                title={t.pagination?.previousPage || 'Previous Page'}
                             >
                                 <ArrowRight className="w-4 h-4" />
                             </button>
@@ -267,7 +268,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 disabled={page >= totalPages}
                                 className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="الصفحة التالية"
+                                title={t.pagination?.nextPage || 'Next Page'}
                             >
                                 <ArrowLeft className="w-4 h-4" />
                             </button>
@@ -298,15 +299,15 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                     <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5 text-red-500" />
-                            تأكيد حذف المستخدم
+                            {t.manager?.deletedUsers?.deleteConfirmUser || 'Confirm Delete User'}
                         </AlertDialogTitle>
                         <AlertDialogDescription className="space-y-2">
                             <p>
-                                هل أنت متأكد من حذف المستخدم <span className="font-bold text-foreground">{deleteUser?.username}</span>؟
+                                {t.manager?.deletedUsers?.deleteConfirmUser || 'Are you sure you want to delete user'} <span className="font-bold text-foreground">{deleteUser?.username}</span>?
                             </p>
                             {deleteUser && deleteUser.balance > 0 && (
                                 <p className="text-green-600 dark:text-green-400 font-medium">
-                                    سيتم إرجاع ${deleteUser.balance.toFixed(2)} لرصيدك
+                                    {t.manager?.deletedUsers?.balanceRefund || 'Balance of'} ${deleteUser.balance.toFixed(2)} {t.manager?.deletedUsers?.willBeRefunded || 'will be refunded to your account'}
                                 </p>
                             )}
                             {deleteError && (
@@ -315,7 +316,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deleteLoading}>إلغاء</AlertDialogCancel>
+                        <AlertDialogCancel disabled={deleteLoading}>{t.common?.cancel || 'Cancel'}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={(e) => {
                                 e.preventDefault() // Prevent auto-close
@@ -324,7 +325,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                             disabled={deleteLoading}
                             className="bg-red-600 hover:bg-red-700 text-white"
                         >
-                            {deleteLoading ? 'جاري الحذف...' : 'حذف'}
+                            {deleteLoading ? (t.manager?.users?.deleting || 'Deleting...') : (t.manager?.users?.actions?.delete || 'Delete')}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

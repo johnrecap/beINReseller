@@ -75,23 +75,23 @@ interface StatsData {
 }
 
 const getTransactionTypeLabels = (t: ReturnType<typeof useTranslation>['t']) => ({
-    DEPOSIT: { label: t.userStats?.deposit || 'إيداع', color: 'text-green-600 bg-green-50 dark:bg-green-900/20', icon: ArrowUpCircle },
-    WITHDRAW: { label: t.userStats?.withdraw || 'سحب', color: 'text-red-600 bg-red-50 dark:bg-red-900/20', icon: ArrowDownCircle },
-    REFUND: { label: t.userStats?.refund || 'استرداد', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', icon: RefreshCw },
-    OPERATION_DEDUCT: { label: t.userStats?.operationDeduct || 'خصم عملية', color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', icon: TrendingDown },
-    CORRECTION: { label: t.userStats?.correction || 'تصحيح', color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20', icon: Wrench },
+    DEPOSIT: { label: t.userStats?.deposit || 'Deposit', color: 'text-green-600 bg-green-50 dark:bg-green-900/20', icon: ArrowUpCircle },
+    WITHDRAW: { label: t.userStats?.withdraw || 'Withdraw', color: 'text-red-600 bg-red-50 dark:bg-red-900/20', icon: ArrowDownCircle },
+    REFUND: { label: t.userStats?.refund || 'Refund', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', icon: RefreshCw },
+    OPERATION_DEDUCT: { label: t.userStats?.operationDeduct || 'Operation Deduction', color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', icon: TrendingDown },
+    CORRECTION: { label: t.userStats?.correction || 'Correction', color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20', icon: Wrench },
 })
 
 const getStatusLabels = (t: ReturnType<typeof useTranslation>['t']) => ({
-    COMPLETED: { label: t.status?.completed || 'مكتمل', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-    FAILED: { label: t.status?.failed || 'فشل', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-    CANCELLED: { label: t.status?.cancelled || 'ملغى', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
-    PENDING: { label: t.status?.pending || 'قيد الانتظار', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-    PROCESSING: { label: t.status?.processing || 'قيد المعالجة', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    AWAITING_CAPTCHA: { label: t.status?.awaitingCaptcha || 'بانتظار الكابتشا', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
-    AWAITING_PACKAGE: { label: t.status?.awaitingPackage || 'بانتظار الباقة', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
-    AWAITING_FINAL_CONFIRM: { label: t.status?.awaitingFinalConfirm || 'بانتظار التأكيد', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-    COMPLETING: { label: t.status?.completing || 'جاري الإتمام', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
+    COMPLETED: { label: t.status?.completed || 'Completed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+    FAILED: { label: t.status?.failed || 'Failed', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+    CANCELLED: { label: t.status?.cancelled || 'Cancelled', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
+    PENDING: { label: t.status?.pending || 'Pending', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
+    PROCESSING: { label: t.status?.processing || 'Processing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    AWAITING_CAPTCHA: { label: t.status?.awaitingCaptcha || 'Awaiting Captcha', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+    AWAITING_PACKAGE: { label: t.status?.awaitingPackage || 'Awaiting Package', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
+    AWAITING_FINAL_CONFIRM: { label: t.status?.awaitingFinalConfirm || 'Awaiting Confirm', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    COMPLETING: { label: t.status?.completing || 'Completing', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
 })
 
 export default function UserStatsDialog({ isOpen, onClose, userId, username }: UserStatsDialogProps) {
@@ -139,7 +139,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
             const result = await res.json()
 
             if (!res.ok) {
-                setError(result.error || 'حدث خطأ')
+                            setError(result.error || t.common?.error || 'Error')
                 return
             }
 
@@ -161,7 +161,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                 setOpTotal(result.pagination.operations.total)
             }
         } catch {
-            setError('فشل الاتصال بالخادم')
+            setError(t.userStats?.connectionFailed || 'Failed to connect to server')
         } finally {
             setLoading(false)
             setLoadingMore(false)
@@ -198,7 +198,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
             const result = await res.json()
 
             if (!res.ok) {
-                throw new Error(result.error || 'فشل التصحيح')
+                throw new Error(result.error || t.userStats?.correctionFailed || 'Correction failed')
             }
 
             if (result.corrected) {
@@ -213,7 +213,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
             }
         } catch (err) {
             console.error('Correction error:', err)
-            alert(err instanceof Error ? err.message : 'حدث خطأ')
+            alert(err instanceof Error ? err.message : t.common?.error || 'Error')
         } finally {
             setCorrecting(null)
         }
@@ -231,12 +231,12 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/50">
                     <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        📊 إحصائيات المستخدم: {username}
+                        {t.userStats?.title || 'User Statistics'}: {username}
                     </h2>
                     <button
                         onClick={onClose}
                         className="p-2 hover:bg-secondary rounded-lg transition-colors"
-                        title="إغلاق"
+                        title={t.userStats?.close || 'Close'}
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -257,10 +257,10 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                         <div className="space-y-6">
                             {/* Financial Summary Cards */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
                                     <div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-2">
                                         <ArrowUpCircle className="w-5 h-5" />
-                                        <span className="text-sm font-medium">الإيداعات</span>
+                                        <span className="text-sm font-medium">{t.userStats?.deposits || 'Deposits'}</span>
                                     </div>
                                     <p className="text-2xl font-bold text-green-700 dark:text-green-300">
                                         ${data.financials.totalDeposits.toLocaleString()}
@@ -270,7 +270,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                 <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
                                     <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 mb-2">
                                         <TrendingDown className="w-5 h-5" />
-                                        <span className="text-sm font-medium">الخصومات</span>
+                                        <span className="text-sm font-medium">{t.userStats?.deductions || 'Deductions'}</span>
                                     </div>
                                     <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
                                         ${data.financials.totalDeductions.toLocaleString()}
@@ -280,7 +280,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                                     <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-2">
                                         <RefreshCw className="w-5 h-5" />
-                                        <span className="text-sm font-medium">الاستردادات</span>
+                                        <span className="text-sm font-medium">{t.userStats?.refunds || 'Refunds'}</span>
                                     </div>
                                     <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
                                         ${data.financials.totalRefunds.toLocaleString()}
@@ -296,7 +296,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         : 'text-red-600 dark:text-red-400'
                                         }`}>
                                         <Wallet className="w-5 h-5" />
-                                        <span className="text-sm font-medium">الرصيد الحالي</span>
+                                        <span className="text-sm font-medium">{t.userStats?.currentBalance || 'Current Balance'}</span>
                                     </div>
                                     <p className={`text-2xl font-bold ${data.financials.isBalanceValid
                                         ? 'text-purple-700 dark:text-purple-300'
@@ -308,7 +308,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         ? 'text-purple-600 dark:text-purple-400'
                                         : 'text-red-600 dark:text-red-400'
                                         }`}>
-                                        {data.financials.isBalanceValid ? '✓ متطابق' : `فرق: $${data.financials.discrepancy.toFixed(2)}`}
+                                        {data.financials.isBalanceValid ? `✓ ${t.userStats?.balanced || 'Balanced'}` : `${t.userStats?.discrepancy || 'Discrepancy'}: $${data.financials.discrepancy.toFixed(2)}`}
                                     </p>
                                 </div>
                             </div>
@@ -318,32 +318,32 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
                                     <h3 className="font-bold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
                                         <AlertTriangle className="w-5 h-5" />
-                                        تحذيرات ({data.alerts.length})
+                                        {t.userStats?.alerts?.title || 'Alerts'} ({data.alerts.length})
                                     </h3>
                                     <div className="space-y-2">
                                         {data.alerts.map((alert, idx) => (
                                             <div key={idx} className="flex items-center justify-between gap-2 text-sm">
                                                 <div className="flex items-start gap-2 text-red-600 dark:text-red-400">
-                                                    <span>🔴</span>
+                                                    <span></span>
                                                     <span>{alert.message}</span>
                                                 </div>
                                                 <button
                                                     onClick={() => handleCorrect(alert.type, alert.operationId)}
                                                     disabled={correcting === `${alert.type}-${alert.operationId || 'none'}`}
                                                     className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-xs font-medium transition-colors"
-                                                    title="تصحيح هذا التحذير"
+                                                    title={t.userStats?.alerts?.correct || 'Correct'}
                                                 >
                                                     {correcting === `${alert.type}-${alert.operationId || 'none'}` ? (
                                                         <Loader2 className="w-3 h-3 animate-spin" />
                                                     ) : correctionSuccess === `${alert.type}-${alert.operationId || 'none'}` ? (
                                                         <>
                                                             <CheckCircle className="w-3 h-3" />
-                                                            تم
+                                                            {t.userStats?.alerts?.done || 'Done'}
                                                         </>
                                                     ) : (
                                                         <>
                                                             <Wrench className="w-3 h-3" />
-                                                            تصحيح
+                                                            {t.userStats?.alerts?.correct || 'Correct'}
                                                         </>
                                                     )}
                                                 </button>
@@ -357,32 +357,32 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                             <div className="bg-secondary/50 rounded-xl p-4">
                                 <h3 className="font-bold text-foreground mb-3 flex items-center gap-2">
                                     <DollarSign className="w-5 h-5" />
-                                    إحصائيات العمليات
+                                    {t.userStats?.operationStats?.title || 'Operation Statistics'}
                                 </h3>
                                 <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-center">
                                     <div className="bg-card rounded-lg p-2">
                                         <p className="text-lg font-bold">{data.operations.total}</p>
-                                        <p className="text-xs text-muted-foreground">الإجمالي</p>
+                                        <p className="text-xs text-muted-foreground">{t.userStats?.operationStats?.total || 'Total'}</p>
                                     </div>
                                     <div className="bg-card rounded-lg p-2">
                                         <p className="text-lg font-bold text-green-600">{data.operations.completed}</p>
-                                        <p className="text-xs text-muted-foreground">مكتمل</p>
+                                        <p className="text-xs text-muted-foreground">{t.userStats?.operationStats?.completed || 'Completed'}</p>
                                     </div>
                                     <div className="bg-card rounded-lg p-2">
                                         <p className="text-lg font-bold text-red-600">{data.operations.failed}</p>
-                                        <p className="text-xs text-muted-foreground">فاشل</p>
+                                        <p className="text-xs text-muted-foreground">{t.userStats?.operationStats?.failed || 'Failed'}</p>
                                     </div>
                                     <div className="bg-card rounded-lg p-2">
                                         <p className="text-lg font-bold text-gray-600">{data.operations.cancelled}</p>
-                                        <p className="text-xs text-muted-foreground">ملغى</p>
+                                        <p className="text-xs text-muted-foreground">{t.userStats?.operationStats?.cancelled || 'Cancelled'}</p>
                                     </div>
                                     <div className="bg-card rounded-lg p-2">
                                         <p className="text-lg font-bold text-yellow-600">{data.operations.pending}</p>
-                                        <p className="text-xs text-muted-foreground">قيد الانتظار</p>
+                                        <p className="text-xs text-muted-foreground">{t.userStats?.operationStats?.pending || 'Pending'}</p>
                                     </div>
                                     <div className="bg-card rounded-lg p-2">
                                         <p className="text-lg font-bold text-blue-600">{data.operations.processing}</p>
-                                        <p className="text-xs text-muted-foreground">قيد المعالجة</p>
+                                        <p className="text-xs text-muted-foreground">{t.userStats?.operationStats?.processing || 'Processing'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -397,7 +397,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                     >
-                                        المعاملات ({txTotal})
+                                        {t.userStats?.tabs?.transactions || 'Transactions'} ({txTotal})
                                     </button>
                                     <button
                                         onClick={() => setActiveTab('operations')}
@@ -406,7 +406,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                     >
-                                        العمليات ({opTotal})
+                                        {t.userStats?.tabs?.operations || 'Operations'} ({opTotal})
                                     </button>
                                 </div>
                             </div>
@@ -418,11 +418,11 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         <table className="w-full">
                                             <thead className="bg-secondary text-xs">
                                                 <tr>
-                                                    <th className="px-4 py-2 text-right">التاريخ</th>
-                                                    <th className="px-4 py-2 text-right">النوع</th>
-                                                    <th className="px-4 py-2 text-right">المبلغ</th>
-                                                    <th className="px-4 py-2 text-right">الرصيد بعد</th>
-                                                    <th className="px-4 py-2 text-right">ملاحظات</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.date || 'Date'}</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.type || 'Type'}</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.amount || 'Amount'}</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.balanceAfter || 'Balance After'}</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.notes || 'Notes'}</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-border">
@@ -432,7 +432,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                     return (
                                                         <tr key={tx.id} className="hover:bg-secondary/50">
                                                             <td className="px-4 py-2 text-sm">
-                                                                {format(new Date(tx.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
+                                                                {format(new Date(tx.createdAt), 'dd/MM/yyyy HH:mm', { locale: getDateLocale() })}
                                                             </td>
                                                             <td className="px-4 py-2">
                                                                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeInfo.color}`}>
@@ -469,7 +469,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 ) : (
                                                     <ChevronDown className="w-4 h-4" />
                                                 )}
-                                                تحميل المزيد ({transactions.length} من {txTotal})
+                                                {t.userStats?.loadMore || 'Load More'} ({transactions.length}/{txTotal})
                                             </button>
                                         </div>
                                     )}
@@ -483,11 +483,11 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         <table className="w-full">
                                             <thead className="bg-secondary text-xs">
                                                 <tr>
-                                                    <th className="px-4 py-2 text-right">التاريخ</th>
-                                                    <th className="px-4 py-2 text-right">النوع</th>
-                                                    <th className="px-4 py-2 text-right">الكارت</th>
-                                                    <th className="px-4 py-2 text-right">المبلغ</th>
-                                                    <th className="px-4 py-2 text-right">الحالة</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.date || 'Date'}</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.type || 'Type'}</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.card || 'Card'}</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.amount || 'Amount'}</th>
+                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.status || 'Status'}</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-border">
@@ -496,10 +496,10 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                     return (
                                                         <tr key={op.id} className="hover:bg-secondary/50">
                                                             <td className="px-4 py-2 text-sm">
-                                                                {format(new Date(op.createdAt), 'dd/MM/yyyy HH:mm', { locale: ar })}
+                                                                {format(new Date(op.createdAt), 'dd/MM/yyyy HH:mm', { locale: getDateLocale() })}
                                                             </td>
                                                             <td className="px-4 py-2 text-sm">
-                                                                {op.type === 'RENEW' ? 'تجديد' : op.type}
+                                                                {op.type === 'RENEW' ? t.userStats?.table?.renew || 'Renewal' : op.type}
                                                             </td>
                                                             <td className="px-4 py-2 text-sm font-mono">
                                                                 ****{op.cardNumber.slice(-4)}
@@ -532,7 +532,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 ) : (
                                                     <ChevronDown className="w-4 h-4" />
                                                 )}
-                                                تحميل المزيد ({operations.length} من {opTotal})
+                                                {t.userStats?.loadMore || 'Load More'} ({operations.length}/{opTotal})
                                             </button>
                                         </div>
                                     )}

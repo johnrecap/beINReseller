@@ -67,7 +67,7 @@ export default function ResetPasswordDialog({ isOpen, onClose, userId, username 
                         <KeyRound className="w-5 h-5" />
                         {t.admin.users.dialogs.resetTitle}
                     </h3>
-                    <button onClick={handleClose} title="إغلاق" className="p-1 hover:bg-white/50 rounded-lg text-amber-700">
+                    <button onClick={handleClose} title={t.common?.close || 'Close'} className="p-1 hover:bg-white/50 rounded-lg text-amber-700">
                         <X className="w-5 h-5" />
                     </button>
                 </div>

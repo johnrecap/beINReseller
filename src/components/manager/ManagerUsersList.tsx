@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Trash2, Loader2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { useTranslation } from '@/hooks/useTranslation'
 import {
     Table,
     TableBody,
@@ -45,6 +46,7 @@ export function ManagerUsersList({ users }: ManagerUsersListProps) {
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [openDialogId, setOpenDialogId] = useState<string | null>(null)
     const router = useRouter()
+    const { t, dir } = useTranslation()
 
     const handleDelete = async (user: User) => {
         setDeletingId(user.id)
@@ -57,37 +59,39 @@ export function ManagerUsersList({ users }: ManagerUsersListProps) {
             const data = await res.json()
             
             if (res.ok) {
-                toast.success(data.message || 'تم حذف المستخدم بنجاح')
+                toast.success(data.message || t.manager?.messages?.userDeleted || 'User deleted successfully')
                 router.refresh()
             } else {
-                toast.error(data.error || 'فشل في حذف المستخدم')
+                toast.error(data.error || t.manager?.messages?.error || 'Failed to delete user')
             }
         } catch {
-            toast.error('حدث خطأ أثناء الحذف')
+            toast.error(t.manager?.messages?.error || 'An error occurred')
         } finally {
             setDeletingId(null)
         }
     }
+
+    const textAlign = dir === 'rtl' ? 'text-right' : 'text-left'
 
     return (
         <div className="rounded-md border">
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="text-right">اسم المستخدم</TableHead>
-                        <TableHead className="text-right">البريد الإلكتروني</TableHead>
-                        <TableHead className="text-right">الرصيد</TableHead>
-                        <TableHead className="text-right">الحالة</TableHead>
-                        <TableHead className="text-right">العمليات</TableHead>
-                        <TableHead className="text-right">تاريخ الإضافة</TableHead>
-                        <TableHead className="text-center w-[80px]">إجراءات</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.users?.table?.user || 'Username'}</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.users?.table?.email || 'Email'}</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.users?.table?.balance || 'Balance'}</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.users?.table?.status || 'Status'}</TableHead>
+                        <TableHead className={textAlign}>{t.common?.operations || 'Operations'}</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.users?.table?.created || 'Date Added'}</TableHead>
+                        <TableHead className="text-center w-[80px]">{t.common?.actions || 'Actions'}</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {users.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={7} className="h-24 text-center">
-                                لا يوجد مستخدمين مرتبطين
+                                {t.manager?.users?.table?.noUsers || 'No linked users'}
                             </TableCell>
                         </TableRow>
                     ) : (
@@ -98,7 +102,7 @@ export function ManagerUsersList({ users }: ManagerUsersListProps) {
                                 <TableCell>${user.balance.toFixed(2)}</TableCell>
                                 <TableCell>
                                     <Badge variant={user.isActive ? "default" : "destructive"}>
-                                        {user.isActive ? "نشط" : "معطل"}
+                                        {user.isActive ? (t.manager?.users?.table?.active || "Active") : (t.manager?.users?.table?.inactive || "Inactive")}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>{user.operationsCount}</TableCell>
@@ -112,7 +116,7 @@ export function ManagerUsersList({ users }: ManagerUsersListProps) {
                                             <button
                                                 disabled={deletingId === user.id}
                                                 className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                                                title="حذف المستخدم"
+                                                title={t.manager?.users?.actions?.delete || 'Delete user'}
                                             >
                                                 {deletingId === user.id ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -123,32 +127,32 @@ export function ManagerUsersList({ users }: ManagerUsersListProps) {
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
                                             <AlertDialogHeader>
-                                                <div className="flex items-center gap-3 justify-end">
-                                                    <AlertDialogTitle>حذف المستخدم</AlertDialogTitle>
+                                                <div className={`flex items-center gap-3 ${dir === 'rtl' ? 'justify-end' : 'justify-start'}`}>
+                                                    <AlertDialogTitle>{t.manager?.users?.actions?.delete || 'Delete User'}</AlertDialogTitle>
                                                     <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
                                                         <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
                                                     </div>
                                                 </div>
-                                                <AlertDialogDescription className="text-right space-y-2">
+                                                <AlertDialogDescription className={`${textAlign} space-y-2`}>
                                                     <p>
-                                                        هل أنت متأكد من حذف المستخدم <strong className="text-foreground">{user.username}</strong>؟
+                                                        {t.manager?.deletedUsers?.deleteConfirmUser || 'Are you sure you want to delete user'} <strong className="text-foreground">{user.username}</strong>?
                                                     </p>
                                                     {user.balance > 0 && (
                                                         <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                                                             <p className="text-green-700 dark:text-green-400 font-medium">
-                                                                سيتم إرجاع رصيد <strong className="text-green-800 dark:text-green-300">${user.balance.toFixed(2)}</strong> لحسابك
+                                                                {t.manager?.deletedUsers?.balanceRefund || 'Balance of'} <strong className="text-green-800 dark:text-green-300">${user.balance.toFixed(2)}</strong> {t.manager?.deletedUsers?.willBeRefunded || 'will be refunded to your account'}
                                                             </p>
                                                         </div>
                                                     )}
                                                     <p className="text-xs text-muted-foreground">
-                                                        هذا الإجراء لا يمكن التراجع عنه
+                                                        {t.manager?.deletedUsers?.cannotUndo || 'This action cannot be undone'}
                                                     </p>
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
-                                                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                                <AlertDialogCancel>{t.common?.cancel || 'Cancel'}</AlertDialogCancel>
                                                 <AlertDialogAction onClick={() => handleDelete(user)}>
-                                                    حذف المستخدم
+                                                    {t.manager?.users?.actions?.delete || 'Delete User'}
                                                 </AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>

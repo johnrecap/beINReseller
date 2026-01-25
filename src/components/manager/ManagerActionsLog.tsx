@@ -1,3 +1,5 @@
+'use client'
+
 import {
     Table,
     TableBody,
@@ -7,6 +9,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { format } from "date-fns"
+import { useTranslation } from "@/hooks/useTranslation"
 
 interface Action {
     id: string
@@ -23,22 +26,25 @@ interface ManagerActionsLogProps {
 }
 
 export function ManagerActionsLog({ actions }: ManagerActionsLogProps) {
+    const { t, dir } = useTranslation()
+    const textAlign = dir === 'rtl' ? 'text-right' : 'text-left'
+
     return (
         <div className="rounded-md border">
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="text-right">المستخدم</TableHead>
-                        <TableHead className="text-right">نوع العملية</TableHead>
-                        <TableHead className="text-right">التفاصيل</TableHead>
-                        <TableHead className="text-right">التوقيت</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.actionsLog?.user || 'User'}</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.actionsLog?.action || 'Action Type'}</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.actionsLog?.details || 'Details'}</TableHead>
+                        <TableHead className={textAlign}>{t.manager?.actionsLog?.date || 'Time'}</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {actions.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={4} className="h-24 text-center">
-                                لا توجد سجلات عمليات حديثة
+                                {t.manager?.actionsLog?.noLogs || 'No recent action logs'}
                             </TableCell>
                         </TableRow>
                     ) : (

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
+import { useTranslation } from '@/hooks/useTranslation'
 import {
     BarChart3,
     TrendingUp,
@@ -43,7 +44,7 @@ interface AnalyticsData {
         byStatus: { status: string; label: string; count: number }[]
         hourly: { hour: number; label: string; count: number }[]
     }
-    topResellers: {
+    topUsers: {
         id: string
         username: string
         operationsCount: number
@@ -62,6 +63,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function AnalyticsPage() {
     const { data: session, status } = useSession()
+    const { t, dir } = useTranslation()
     const [data, setData] = useState<AnalyticsData | null>(null)
     const [loading, setLoading] = useState(true)
     const [period, setPeriod] = useState(30)
@@ -109,7 +111,7 @@ export default function AnalyticsPage() {
     }
 
     return (
-        <div className="p-6 space-y-6" dir="rtl">
+        <div className="p-6 space-y-6" dir={dir}>
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -117,8 +119,8 @@ export default function AnalyticsPage() {
                         <BarChart3 className="w-6 h-6" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">التحليلات</h1>
-                        <p className="text-muted-foreground">إحصائيات مفصلة عن العمليات</p>
+                        <h1 className="text-2xl font-bold text-foreground">{t.analytics?.title || 'Analytics'}</h1>
+                        <p className="text-muted-foreground">{t.analytics?.subtitle || 'Detailed operations statistics'}</p>
                     </div>
                 </div>
 
@@ -127,11 +129,11 @@ export default function AnalyticsPage() {
                     value={period}
                     onChange={(e) => setPeriod(Number(e.target.value))}
                     className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                    aria-label="اختر الفترة الزمنية"
+                    aria-label={t.analytics?.periodSelector || 'Select period'}
                 >
-                    <option value={7}>آخر 7 أيام</option>
-                    <option value={30}>آخر 30 يوم</option>
-                    <option value={90}>آخر 90 يوم</option>
+                    <option value={7}>{t.analytics?.last7Days || 'Last 7 days'}</option>
+                    <option value={30}>{t.analytics?.last30Days || 'Last 30 days'}</option>
+                    <option value={90}>{t.analytics?.last90Days || 'Last 90 days'}</option>
                 </select>
             </div>
 
@@ -139,26 +141,26 @@ export default function AnalyticsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <SummaryCard
                     icon={<Activity className="w-6 h-6" />}
-                    label="إجمالي العمليات"
-                    value={(data.summary.totalOperations ?? 0).toLocaleString('ar-SA')}
+                    label={t.analytics?.summary?.totalOperations || 'Total Operations'}
+                    value={(data.summary.totalOperations ?? 0).toLocaleString()}
                     color="blue"
                 />
                 <SummaryCard
                     icon={<DollarSign className="w-6 h-6" />}
-                    label="إجمالي الإيرادات"
-                    value={`${data.summary.totalRevenue.toFixed(2)} ر.س`}
+                    label={t.analytics?.summary?.totalRevenue || 'Total Revenue'}
+                    value={`${data.summary.totalRevenue.toFixed(2)} ${t.header?.currency || 'USD'}`}
                     color="green"
                 />
                 <SummaryCard
                     icon={<Target className="w-6 h-6" />}
-                    label="نسبة النجاح"
+                    label={t.analytics?.summary?.successRate || 'Success Rate'}
                     value={`${data.summary.successRate}%`}
                     color="purple"
                 />
                 <SummaryCard
                     icon={<TrendingUp className="w-6 h-6" />}
-                    label="متوسط العمليات/يوم"
-                    value={(data.summary.avgOperationsPerDay ?? 0).toLocaleString('ar-SA')}
+                    label={t.analytics?.summary?.avgPerDay || 'Avg Operations/Day'}
+                    value={(data.summary.avgOperationsPerDay ?? 0).toLocaleString()}
                     color="amber"
                 />
             </div>
@@ -169,7 +171,7 @@ export default function AnalyticsPage() {
                 <div className="bg-card rounded-xl shadow-sm border border-border p-6">
                     <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-blue-500" />
-                        العمليات اليومية
+                        {t.analytics?.charts?.dailyOperations || 'Daily Operations'}
                     </h3>
                     <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={data.charts.daily}>
@@ -182,14 +184,14 @@ export default function AnalyticsPage() {
                                 type="monotone"
                                 dataKey="operations"
                                 stroke="#3B82F6"
-                                name="العمليات"
+                                name={t.analytics?.charts?.operations || 'Operations'}
                                 strokeWidth={2}
                             />
                             <Line
                                 type="monotone"
                                 dataKey="revenue"
                                 stroke="#10B981"
-                                name="الإيرادات"
+                                name={t.analytics?.charts?.revenue || 'Revenue'}
                                 strokeWidth={2}
                             />
                         </LineChart>
@@ -200,7 +202,7 @@ export default function AnalyticsPage() {
                 <div className="bg-card rounded-xl shadow-sm border border-border p-6">
                     <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                         <PieChart className="w-5 h-5 text-purple-500" />
-                        العمليات حسب النوع
+                        {t.analytics?.charts?.byType || 'Operations by Type'}
                     </h3>
                     <ResponsiveContainer width="100%" height={300}>
                         <RechartsPie>
@@ -231,7 +233,7 @@ export default function AnalyticsPage() {
                 <div className="bg-card rounded-xl shadow-sm border border-border p-6">
                     <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                         <Clock className="w-5 h-5 text-amber-500" />
-                        توزيع العمليات بالساعة
+                        {t.analytics?.charts?.hourlyDistribution || 'Hourly Distribution'}
                     </h3>
                     <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={data.charts.hourly}>
@@ -239,7 +241,7 @@ export default function AnalyticsPage() {
                             <XAxis dataKey="label" fontSize={10} />
                             <YAxis fontSize={12} />
                             <Tooltip />
-                            <Bar dataKey="count" fill="#8B5CF6" name="العمليات" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="count" fill="#8B5CF6" name={t.analytics?.charts?.operations || 'Operations'} radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -248,7 +250,7 @@ export default function AnalyticsPage() {
                 <div className="bg-card rounded-xl shadow-sm border border-border p-6">
                     <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                         <Activity className="w-5 h-5 text-green-500" />
-                        العمليات حسب الحالة
+                        {t.analytics?.charts?.byStatus || 'Operations by Status'}
                     </h3>
                     <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={data.charts.byStatus} layout="vertical">
@@ -256,7 +258,7 @@ export default function AnalyticsPage() {
                             <XAxis type="number" fontSize={12} />
                             <YAxis dataKey="label" type="category" fontSize={12} width={100} />
                             <Tooltip />
-                            <Bar dataKey="count" name="العدد" radius={[0, 4, 4, 0]}>
+                            <Bar dataKey="count" name={t.analytics?.charts?.count || 'Count'} radius={[0, 4, 4, 0]}>
                                 {data.charts.byStatus.map((entry) => (
                                     <Cell key={entry.status} fill={STATUS_COLORS[entry.status] || '#6B7280'} />
                                 ))}
@@ -270,20 +272,20 @@ export default function AnalyticsPage() {
             <div className="bg-card rounded-xl shadow-sm border border-border p-6">
                 <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                     <Users className="w-5 h-5 text-indigo-500" />
-                    أفضل 10 موزعين
+                    {t.analytics?.topResellers?.title || 'Top 10 Resellers'}
                 </h3>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-border">
-                                <th className="text-right py-3 px-4 font-medium text-muted-foreground">#</th>
-                                <th className="text-right py-3 px-4 font-medium text-muted-foreground">الموزع</th>
-                                <th className="text-right py-3 px-4 font-medium text-muted-foreground">عدد العمليات</th>
-                                <th className="text-right py-3 px-4 font-medium text-muted-foreground">إجمالي الإيرادات</th>
+                                <th className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.rank || '#'}</th>
+                                <th className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.reseller || 'Reseller'}</th>
+                                <th className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.operationsCount || 'Operations Count'}</th>
+                                <th className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.totalRevenue || 'Total Revenue'}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {data.topResellers.map((reseller, index) => (
+                            {data.topUsers.map((reseller, index) => (
                                 <tr key={reseller.id} className="border-b border-border/50 hover:bg-secondary">
                                     <td className="py-3 px-4">
                                         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${index === 0 ? 'bg-yellow-500' :
@@ -294,14 +296,14 @@ export default function AnalyticsPage() {
                                         </span>
                                     </td>
                                     <td className="py-3 px-4 font-medium text-foreground">{reseller.username}</td>
-                                    <td className="py-3 px-4 text-muted-foreground">{(reseller.operationsCount ?? 0).toLocaleString('ar-SA')}</td>
-                                    <td className="py-3 px-4 text-green-600 font-medium">{reseller.totalRevenue.toFixed(2)} ر.س</td>
+                                    <td className="py-3 px-4 text-muted-foreground">{(reseller.operationsCount ?? 0).toLocaleString()}</td>
+                                    <td className="py-3 px-4 text-green-600 font-medium">{reseller.totalRevenue.toFixed(2)} {t.header?.currency || 'USD'}</td>
                                 </tr>
                             ))}
-                            {data.topResellers.length === 0 && (
+                            {data.topUsers.length === 0 && (
                                 <tr>
                                     <td colSpan={4} className="py-8 text-center text-muted-foreground">
-                                        لا توجد بيانات
+                                        {t.analytics?.topResellers?.noData || 'No data available'}
                                     </td>
                                 </tr>
                             )}

@@ -76,10 +76,19 @@ export const useStore = create<AppStore>()(
         }),
         {
             name: 'bein-store',
+            version: 1, // Increment to trigger migration for existing users
             partialize: (state) => ({
                 sidebarOpen: state.sidebarOpen,
                 language: state.language,
             }),
+            migrate: (persistedState: unknown, version: number) => {
+                const state = persistedState as { sidebarOpen?: boolean; language?: string }
+                if (version === 0) {
+                    // Migration: Reset language to English for existing users
+                    return { ...state, language: 'en' }
+                }
+                return state
+            },
         }
     )
 )

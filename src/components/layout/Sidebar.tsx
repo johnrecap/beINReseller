@@ -65,17 +65,17 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const resellerLinks = [...baseLinks, ...renewalLinks, ...commonLinks]
 
     const managerLinks = [
-        { href: '/dashboard/manager', label: 'لوحة المدير', icon: BarChart3 },
-        { href: '/dashboard/manager/users', label: 'إدارة المستخدمين', icon: Users },
-        { href: '/dashboard/manager/deleted-users', label: 'الحسابات المحذوفة', icon: Trash2 },
+        { href: '/dashboard/manager', label: t.sidebar.managerPanel, icon: BarChart3 },
+        { href: '/dashboard/manager/users', label: t.sidebar.manageUsers, icon: Users },
+        { href: '/dashboard/manager/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
     ]
 
     const adminLinks = [
         { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
         { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
-        { href: '/dashboard/admin/deleted-users', label: 'الحسابات المحذوفة', icon: Trash2 },
-        { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts || 'حسابات beIN', icon: Users },
-        { href: '/dashboard/admin/proxies', label: 'إدارة البروكسي', icon: Globe },
+        { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
+        { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
+        { href: '/dashboard/admin/proxies', label: t.sidebar.proxyManagement, icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
         { href: '/dashboard/admin/bein-config', label: t.sidebar.beinConfig, icon: Bot },
         { href: '/dashboard/admin/settings', label: t.sidebar.settings, icon: Settings },
@@ -206,7 +206,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         {isManager && (
                             <div>
                                 <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
-                                    لوحة المدير
+                                    {t.sidebar.managerPanel}
                                 </h4>
                                 <div className="space-y-1">
                                     {managerLinks.map((link) => {

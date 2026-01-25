@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Users } from 'lucide-react'
 import ManagerUsersTable from '@/components/manager/users/ManagerUsersTable'
+import { useTranslation } from '@/hooks/useTranslation'
 
 export default function ManagerUsersPage() {
+    const { t, dir } = useTranslation()
     const [managerBalance, setManagerBalance] = useState(0)
     const [loading, setLoading] = useState(true)
 
@@ -42,15 +44,15 @@ export default function ManagerUsersPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" dir={dir}>
             {/* Page Header */}
             <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center shadow-lg">
                     <Users className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">إدارة المستخدمين</h1>
-                    <p className="text-muted-foreground text-sm">إدارة المستخدمين التابعين لك - حذف، رصيد، كلمة مرور، تفعيل/تعطيل</p>
+                    <h1 className="text-2xl font-bold text-foreground">{t.manager?.users?.title || 'User Management'}</h1>
+                    <p className="text-muted-foreground text-sm">{t.manager?.users?.subtitle || 'Manage users under your supervision'}</p>
                 </div>
             </div>
 

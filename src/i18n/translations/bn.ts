@@ -77,6 +77,10 @@ export const bn = {
         resellerPanel: 'রিসেলার কন্ট্রোল প্যানেল',
         adminRole: 'অ্যাডমিন',
         resellerRole: 'রিসেলার',
+        managerPanel: 'ম্যানেজার প্যানেল',
+        manageUsers: 'ব্যবহারকারী পরিচালনা',
+        deletedAccounts: 'মুছে ফেলা অ্যাকাউন্ট',
+        proxyManagement: 'প্রক্সি ব্যবস্থাপনা',
     },
     header: {
         balance: 'আমার ব্যালেন্স',
@@ -641,5 +645,192 @@ export const bn = {
         title: 'সিস্টেম রক্ষণাবেক্ষণে',
         message: 'সিস্টেম রক্ষণাবেক্ষণে রয়েছে, পরে আবার চেষ্টা করুন',
         hint: 'আপনি সাইডবার থেকে অন্যান্য পেজ ব্রাউজ করতে পারেন'
+    },
+    analytics: {
+        title: 'অ্যানালিটিক্স',
+        subtitle: 'অপারেশনের বিস্তারিত পরিসংখ্যান',
+        periodSelector: 'সময়কাল নির্বাচন করুন',
+        last7Days: 'শেষ ৭ দিন',
+        last30Days: 'শেষ ৩০ দিন',
+        last90Days: 'শেষ ৯০ দিন',
+        summary: {
+            totalOperations: 'মোট অপারেশন',
+            totalRevenue: 'মোট আয়',
+            successRate: 'সাফল্যের হার',
+            avgPerDay: 'গড় অপারেশন/দিন'
+        },
+        charts: {
+            dailyOperations: 'দৈনিক অপারেশন',
+            byType: 'ধরন অনুযায়ী অপারেশন',
+            hourlyDistribution: 'ঘণ্টাভিত্তিক বিতরণ',
+            byStatus: 'অবস্থা অনুযায়ী অপারেশন',
+            operations: 'অপারেশন',
+            revenue: 'আয়',
+            count: 'সংখ্যা'
+        },
+        topResellers: {
+            title: 'শীর্ষ ১০ রিসেলার',
+            rank: '#',
+            reseller: 'রিসেলার',
+            operationsCount: 'অপারেশন সংখ্যা',
+            totalRevenue: 'মোট আয়',
+            noData: 'কোন তথ্য নেই'
+        }
+    },
+    manager: {
+        dashboard: {
+            title: 'ম্যানেজার ড্যাশবোর্ড',
+            subtitle: 'আপনার টিম পরিচালনা এবং কর্মক্ষমতা ট্র্যাক করুন',
+            totalUsers: 'মোট ব্যবহারকারী',
+            activeUsers: 'সক্রিয় ব্যবহারকারী',
+            totalBalance: 'মোট ব্যালেন্স',
+            todayOperations: 'আজকের অপারেশন'
+        },
+        users: {
+            title: 'ব্যবহারকারী পরিচালনা',
+            subtitle: 'আপনার তত্ত্বাবধানে থাকা ব্যবহারকারীদের পরিচালনা করুন',
+            searchPlaceholder: 'নাম বা ইমেল দিয়ে খুঁজুন...',
+            addUser: 'ব্যবহারকারী যোগ করুন',
+            table: {
+                user: 'ব্যবহারকারী',
+                email: 'ইমেল',
+                balance: 'ব্যালেন্স',
+                status: 'অবস্থা',
+                lastActivity: 'সর্বশেষ কার্যকলাপ',
+                created: 'তৈরির তারিখ',
+                actions: 'কর্ম',
+                active: 'সক্রিয়',
+                inactive: 'নিষ্ক্রিয়',
+                noUsers: 'কোন ব্যবহারকারী পাওয়া যায়নি'
+            },
+            actions: {
+                addBalance: 'ব্যালেন্স যোগ করুন',
+                deductBalance: 'ব্যালেন্স কাটুন',
+                resetPassword: 'পাসওয়ার্ড রিসেট',
+                viewStats: 'পরিসংখ্যান দেখুন',
+                disable: 'নিষ্ক্রিয় করুন',
+                enable: 'সক্রিয় করুন',
+                delete: 'মুছুন'
+            }
+        },
+        deletedUsers: {
+            title: 'মুছে ফেলা অ্যাকাউন্ট',
+            subtitle: 'মুছে ফেলা ব্যবহারকারী অ্যাকাউন্ট দেখুন এবং পুনরুদ্ধার করুন',
+            balanceAtDeletion: 'মোছার সময় ব্যালেন্স',
+            table: {
+                user: 'ব্যবহারকারী',
+                email: 'ইমেল',
+                deletedAt: 'মোছার তারিখ',
+                deletedBy: 'মুছেছেন',
+                actions: 'কর্ম'
+            },
+            actions: {
+                restore: 'পুনরুদ্ধার',
+                permanentDelete: 'স্থায়ী মুছুন'
+            },
+            noDeletedUsers: 'কোন মুছে ফেলা অ্যাকাউন্ট নেই',
+            restoreConfirm: 'আপনি কি নিশ্চিত যে এই অ্যাকাউন্ট পুনরুদ্ধার করতে চান?',
+            deleteConfirm: 'আপনি কি নিশ্চিত যে এই অ্যাকাউন্ট স্থায়ীভাবে মুছতে চান? এই কর্ম পূর্বাবস্থায় ফেরানো যাবে না।',
+            deleteConfirmUser: 'আপনি কি নিশ্চিত যে ব্যবহারকারী মুছতে চান',
+            balanceRefund: 'ব্যালেন্স',
+            willBeRefunded: 'আপনার অ্যাকাউন্টে ফেরত দেওয়া হবে',
+            cannotUndo: 'এই কর্ম পূর্বাবস্থায় ফেরানো যাবে না'
+        },
+            actions: {
+                restore: 'পুনরুদ্ধার',
+                permanentDelete: 'স্থায়ী মুছুন'
+            },
+            noDeletedUsers: 'কোন মুছে ফেলা অ্যাকাউন্ট নেই',
+            restoreConfirm: 'আপনি কি নিশ্চিত যে এই অ্যাকাউন্ট পুনরুদ্ধার করতে চান?',
+            deleteConfirm: 'আপনি কি নিশ্চিত যে এই অ্যাকাউন্ট স্থায়ীভাবে মুছতে চান? এই কর্ম পূর্বাবস্থায় ফেরানো যাবে না।'
+        },
+        dialogs: {
+            createUser: {
+                title: 'নতুন ব্যবহারকারী তৈরি করুন',
+                description: 'একটি নতুন অ্যাকাউন্ট তৈরি করুন এবং সরাসরি আপনার অ্যাকাউন্টের সাথে লিঙ্ক করুন।',
+                username: 'ব্যবহারকারীর নাম',
+                email: 'ইমেল',
+                password: 'পাসওয়ার্ড',
+                initialBalance: 'প্রাথমিক ব্যালেন্স',
+                availableBalance: 'আপনার উপলব্ধ ব্যালেন্স',
+                create: 'ব্যবহারকারী তৈরি',
+                creating: 'তৈরি হচ্ছে...',
+                usernameMinError: 'ব্যবহারকারীর নাম কমপক্ষে ৩ অক্ষরের হতে হবে',
+                emailInvalid: 'ভুল ইমেল ঠিকানা',
+                emailMustEndWith: 'ইমেল শেষ হতে হবে',
+                passwordMinError: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে',
+                balanceMinError: 'ব্যালেন্স ০ বা তার বেশি হতে হবে',
+                correctFormat: 'সঠিক ফরম্যাট',
+                balanceExceeds: 'অনুরোধিত ব্যালেন্স আপনার উপলব্ধ ব্যালেন্সের চেয়ে বেশি!',
+                balanceLowWarning: 'সতর্কতা: এই স্থানান্তরের পরে আপনার ব্যালেন্স কম হবে'
+            },
+            addBalance: {
+                title: 'ব্যালেন্স যোগ',
+                currentBalance: 'বর্তমান ব্যালেন্স',
+                amount: 'পরিমাণ',
+                notes: 'নোট (ঐচ্ছিক)',
+                notesPlaceholder: 'ব্যালেন্স যোগের কারণ...',
+                add: 'ব্যালেন্স যোগ করুন',
+                adding: 'যোগ হচ্ছে...'
+            },
+            deductBalance: {
+                title: 'ব্যালেন্স কাটুন',
+                currentBalance: 'বর্তমান ব্যালেন্স',
+                amount: 'পরিমাণ',
+                notes: 'নোট (ঐচ্ছিক)',
+                notesPlaceholder: 'কাটার কারণ...',
+                deduct: 'ব্যালেন্স কাটুন',
+                deducting: 'কাটা হচ্ছে...'
+            },
+            resetPassword: {
+                title: 'পাসওয়ার্ড রিসেট',
+                message: 'আপনি কি নিশ্চিত যে পাসওয়ার্ড রিসেট করতে চান',
+                newPassword: 'নতুন পাসওয়ার্ড',
+                reset: 'পাসওয়ার্ড রিসেট',
+                resetting: 'রিসেট হচ্ছে...',
+                copyPassword: 'পাসওয়ার্ড কপি করুন'
+            },
+            userStats: {
+                title: 'ব্যবহারকারী পরিসংখ্যান',
+                totalOperations: 'মোট অপারেশন',
+                successRate: 'সাফল্যের হার',
+                totalSpent: 'মোট খরচ',
+                deposits: 'মোট জমা',
+                lastOperation: 'সর্বশেষ অপারেশন',
+                noOperations: 'এখনও কোন অপারেশন নেই'
+            }
+        },
+        actionsLog: {
+            title: 'কর্ম লগ',
+            user: 'ব্যবহারকারী',
+            action: 'কর্ম',
+            details: 'বিস্তারিত',
+            date: 'তারিখ',
+            noLogs: 'কোন কর্ম লগ করা হয়নি'
+        },
+        stats: {
+            title: 'ম্যানেজার পরিসংখ্যান',
+            usersManaged: 'পরিচালিত ব্যবহারকারী',
+            totalDeposits: 'মোট জমা',
+            totalOperations: 'মোট অপারেশন',
+            activeToday: 'আজ সক্রিয়',
+            currentBalance: 'আপনার ব্যালেন্স',
+            availableForTransfer: 'ব্যবহারকারীদের কাছে স্থানান্তর করার জন্য উপলব্ধ ব্যালেন্স',
+            totalUsersLinked: 'আপনার সাথে সংযুক্ত মোট ব্যবহারকারী',
+            totalActionsRecorded: 'মোট রেকর্ড করা কর্ম',
+            totalBalances: 'মোট ব্যালেন্স',
+            sumOfUserBalances: 'সংযুক্ত ব্যবহারকারীদের ব্যালেন্সের সমষ্টি'
+        },
+        messages: {
+            userCreated: 'ব্যবহারকারী সফলভাবে তৈরি হয়েছে',
+            balanceAdded: 'ব্যালেন্স সফলভাবে যোগ হয়েছে',
+            balanceDeducted: 'ব্যালেন্স সফলভাবে কাটা হয়েছে',
+            passwordReset: 'পাসওয়ার্ড সফলভাবে রিসেট হয়েছে',
+            userDisabled: 'ব্যবহারকারী সফলভাবে নিষ্ক্রিয় হয়েছে',
+            userEnabled: 'ব্যবহারকারী সফলভাবে সক্রিয় হয়েছে',
+            userDeleted: 'ব্যবহারকারী সফলভাবে মুছে ফেলা হয়েছে',
+            userRestored: 'ব্যবহারকারী সফলভাবে পুনরুদ্ধার হয়েছে',
+            error: 'একটি ত্রুটি ঘটেছে'
+        }
     }
 }

@@ -77,6 +77,10 @@ export const ar = {
         resellerPanel: 'لوحة تحكم الموزعين',
         adminRole: 'مدير',
         resellerRole: 'موزع',
+        managerPanel: 'لوحة المدير',
+        manageUsers: 'إدارة المستخدمين',
+        deletedAccounts: 'الحسابات المحذوفة',
+        proxyManagement: 'إدارة البروكسي',
     },
     header: {
         balance: 'رصيدي',
@@ -641,5 +645,184 @@ export const ar = {
         title: 'النظام تحت الصيانة',
         message: 'النظام تحت الصيانة يرجى المحاولة لاحقاً',
         hint: 'يمكنك تصفح باقي الصفحات من القائمة الجانبية'
+    },
+    analytics: {
+        title: 'التحليلات',
+        subtitle: 'إحصائيات مفصلة عن العمليات',
+        periodSelector: 'اختر الفترة الزمنية',
+        last7Days: 'آخر 7 أيام',
+        last30Days: 'آخر 30 يوم',
+        last90Days: 'آخر 90 يوم',
+        summary: {
+            totalOperations: 'إجمالي العمليات',
+            totalRevenue: 'إجمالي الإيرادات',
+            successRate: 'نسبة النجاح',
+            avgPerDay: 'متوسط العمليات/يوم'
+        },
+        charts: {
+            dailyOperations: 'العمليات اليومية',
+            byType: 'العمليات حسب النوع',
+            hourlyDistribution: 'توزيع العمليات بالساعة',
+            byStatus: 'العمليات حسب الحالة',
+            operations: 'العمليات',
+            revenue: 'الإيرادات',
+            count: 'العدد'
+        },
+        topResellers: {
+            title: 'أفضل 10 موزعين',
+            rank: '#',
+            reseller: 'الموزع',
+            operationsCount: 'عدد العمليات',
+            totalRevenue: 'إجمالي الإيرادات',
+            noData: 'لا توجد بيانات'
+        }
+    },
+    manager: {
+        dashboard: {
+            title: 'لوحة المدير',
+            subtitle: 'إدارة فريقك ومتابعة الأداء',
+            totalUsers: 'إجمالي المستخدمين',
+            activeUsers: 'المستخدمين النشطين',
+            totalBalance: 'إجمالي الرصيد',
+            todayOperations: 'عمليات اليوم'
+        },
+        users: {
+            title: 'إدارة المستخدمين',
+            subtitle: 'إدارة المستخدمين تحت إشرافك',
+            searchPlaceholder: 'البحث بالاسم أو البريد...',
+            addUser: 'إضافة مستخدم',
+            table: {
+                user: 'المستخدم',
+                email: 'البريد الإلكتروني',
+                balance: 'الرصيد',
+                status: 'الحالة',
+                lastActivity: 'آخر نشاط',
+                created: 'تاريخ الإنشاء',
+                actions: 'الإجراءات',
+                active: 'نشط',
+                inactive: 'غير نشط',
+                noUsers: 'لا يوجد مستخدمين'
+            },
+            actions: {
+                addBalance: 'إضافة رصيد',
+                deductBalance: 'خصم رصيد',
+                resetPassword: 'إعادة تعيين كلمة المرور',
+                viewStats: 'عرض الإحصائيات',
+                disable: 'تعطيل',
+                enable: 'تفعيل',
+                delete: 'حذف'
+            }
+        },
+        deletedUsers: {
+            title: 'الحسابات المحذوفة',
+            subtitle: 'عرض واستعادة حسابات المستخدمين المحذوفة',
+            balanceAtDeletion: 'الرصيد وقت الحذف',
+            table: {
+                user: 'المستخدم',
+                email: 'البريد الإلكتروني',
+                deletedAt: 'تاريخ الحذف',
+                deletedBy: 'حذف بواسطة',
+                actions: 'الإجراءات'
+            },
+            actions: {
+                restore: 'استعادة',
+                permanentDelete: 'حذف نهائي'
+            },
+            noDeletedUsers: 'لا توجد حسابات محذوفة',
+            restoreConfirm: 'هل أنت متأكد من استعادة هذا الحساب؟',
+            deleteConfirm: 'هل أنت متأكد من الحذف النهائي لهذا الحساب؟ لا يمكن التراجع عن هذا الإجراء.',
+            deleteConfirmUser: 'هل أنت متأكد من حذف المستخدم',
+            balanceRefund: 'سيتم إرجاع رصيد',
+            willBeRefunded: 'لحسابك',
+            cannotUndo: 'هذا الإجراء لا يمكن التراجع عنه'
+        },
+        dialogs: {
+            createUser: {
+                title: 'إنشاء مستخدم جديد',
+                description: 'قم بإنشاء حساب جديد وربطه بحسابك مباشرة.',
+                username: 'اسم المستخدم',
+                email: 'البريد الإلكتروني',
+                password: 'كلمة المرور',
+                initialBalance: 'الرصيد الأولي',
+                availableBalance: 'رصيدك المتاح',
+                create: 'إنشاء المستخدم',
+                creating: 'جاري الإنشاء...',
+                usernameMinError: 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل',
+                emailInvalid: 'البريد الإلكتروني غير صالح',
+                emailMustEndWith: 'البريد الإلكتروني يجب أن ينتهي بـ',
+                passwordMinError: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
+                balanceMinError: 'الرصيد يجب أن يكون 0 أو أكثر',
+                correctFormat: 'الصيغة الصحيحة',
+                balanceExceeds: 'الرصيد المطلوب أكبر من رصيدك المتاح!',
+                balanceLowWarning: 'تحذير: رصيدك سيكون منخفضاً بعد هذا التحويل'
+            },
+            addBalance: {
+                title: 'إضافة رصيد',
+                currentBalance: 'الرصيد الحالي',
+                amount: 'المبلغ',
+                notes: 'ملاحظات (اختياري)',
+                notesPlaceholder: 'سبب إضافة الرصيد...',
+                add: 'إضافة الرصيد',
+                adding: 'جاري الإضافة...'
+            },
+            deductBalance: {
+                title: 'خصم رصيد',
+                currentBalance: 'الرصيد الحالي',
+                amount: 'المبلغ',
+                notes: 'ملاحظات (اختياري)',
+                notesPlaceholder: 'سبب الخصم...',
+                deduct: 'خصم الرصيد',
+                deducting: 'جاري الخصم...'
+            },
+            resetPassword: {
+                title: 'إعادة تعيين كلمة المرور',
+                message: 'هل أنت متأكد من إعادة تعيين كلمة المرور لـ',
+                newPassword: 'كلمة المرور الجديدة',
+                reset: 'إعادة تعيين',
+                resetting: 'جاري إعادة التعيين...',
+                copyPassword: 'نسخ كلمة المرور'
+            },
+            userStats: {
+                title: 'إحصائيات المستخدم',
+                totalOperations: 'إجمالي العمليات',
+                successRate: 'نسبة النجاح',
+                totalSpent: 'إجمالي الإنفاق',
+                deposits: 'إجمالي الإيداعات',
+                lastOperation: 'آخر عملية',
+                noOperations: 'لا توجد عمليات بعد'
+            }
+        },
+        actionsLog: {
+            title: 'سجل الإجراءات',
+            user: 'المستخدم',
+            action: 'الإجراء',
+            details: 'التفاصيل',
+            date: 'التاريخ',
+            noLogs: 'لا توجد إجراءات مسجلة'
+        },
+        stats: {
+            title: 'إحصائيات المدير',
+            usersManaged: 'المستخدمين المُدارين',
+            totalDeposits: 'إجمالي الإيداعات',
+            totalOperations: 'إجمالي العمليات',
+            activeToday: 'النشطين اليوم',
+            currentBalance: 'رصيدك الحالي',
+            availableForTransfer: 'الرصيد المتاح لتحويله للمستخدمين',
+            totalUsersLinked: 'إجمالي المستخدمين المرتبطين بك',
+            totalActionsRecorded: 'إجمالي العمليات المسجلة',
+            totalBalances: 'إجمالي الأرصدة',
+            sumOfUserBalances: 'مجموع أرصدة المستخدمين التابعين'
+        },
+        messages: {
+            userCreated: 'تم إنشاء المستخدم بنجاح',
+            balanceAdded: 'تم إضافة الرصيد بنجاح',
+            balanceDeducted: 'تم خصم الرصيد بنجاح',
+            passwordReset: 'تم إعادة تعيين كلمة المرور بنجاح',
+            userDisabled: 'تم تعطيل المستخدم بنجاح',
+            userEnabled: 'تم تفعيل المستخدم بنجاح',
+            userDeleted: 'تم حذف المستخدم بنجاح',
+            userRestored: 'تم استعادة المستخدم بنجاح',
+            error: 'حدث خطأ'
+        }
     }
 }

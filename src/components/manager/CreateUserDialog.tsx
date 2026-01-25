@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { Loader2, Plus, AlertTriangle, Wallet } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslation } from "@/hooks/useTranslation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -30,26 +31,28 @@ import { Input } from "@/components/ui/input"
 
 const EMAIL_DOMAIN = "@deshpanel.com"
 
-const formSchema = z.object({
-    username: z.string().min(3, "اسم المستخدم يجب أن يكون 3 أحرف على الأقل"),
-    email: z.string()
-        .email("البريد الإلكتروني غير صالح")
-        .refine(
-            (email) => email.endsWith(EMAIL_DOMAIN),
-            `البريد الإلكتروني يجب أن ينتهي بـ ${EMAIL_DOMAIN}`
-        ),
-    password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
-    balance: z.number().min(0, "الرصيد يجب أن يكون 0 أو أكثر"),
-})
-
-type FormData = z.infer<typeof formSchema>
-
 export function CreateUserDialog() {
     const [open, setOpen] = useState(false)
     const [emailWarning, setEmailWarning] = useState("")
     const [managerBalance, setManagerBalance] = useState<number | null>(null)
     const [loadingBalance, setLoadingBalance] = useState(false)
     const router = useRouter()
+    const { t, language } = useTranslation()
+
+    // Dynamic validation schema with translations
+    const formSchema = z.object({
+        username: z.string().min(3, t.manager?.dialogs?.createUser?.usernameMinError || "Username must be at least 3 characters"),
+        email: z.string()
+            .email(t.manager?.dialogs?.createUser?.emailInvalid || "Invalid email address")
+            .refine(
+                (email) => email.endsWith(EMAIL_DOMAIN),
+                `${t.manager?.dialogs?.createUser?.emailMustEndWith || 'Email must end with'} ${EMAIL_DOMAIN}`
+            ),
+        password: z.string().min(6, t.manager?.dialogs?.createUser?.passwordMinError || "Password must be at least 6 characters"),
+        balance: z.number().min(0, t.manager?.dialogs?.createUser?.balanceMinError || "Balance must be 0 or more"),
+    })
+
+    type FormData = z.infer<typeof formSchema>
 
     const form = useForm<FormData>({
         resolver: zodResolver(formSchema),
@@ -100,14 +103,14 @@ export function CreateUserDialog() {
     useEffect(() => {
         if (watchEmail && watchEmail.length > 0) {
             if (!watchEmail.endsWith(EMAIL_DOMAIN)) {
-                setEmailWarning(`الصيغة الصحيحة: اسم_المستخدم${EMAIL_DOMAIN}`)
+                setEmailWarning(`${t.manager?.dialogs?.createUser?.correctFormat || 'Correct format'}: username${EMAIL_DOMAIN}`)
             } else {
                 setEmailWarning("")
             }
         } else {
             setEmailWarning("")
         }
-    }, [watchEmail])
+    }, [watchEmail, t, language])
 
     // Check if balance exceeds manager's available balance
     const isBalanceExceeding = managerBalance !== null && watchBalance > managerBalance
@@ -124,16 +127,16 @@ export function CreateUserDialog() {
             const data = await response.json()
 
             if (!response.ok) {
-                throw new Error(data.error || "فشل إنشاء المستخدم")
+                throw new Error(data.error || t.manager?.messages?.error || "Failed to create user")
             }
 
-            toast.success("تم إنشاء المستخدم بنجاح")
+            toast.success(t.manager?.messages?.userCreated || "User created successfully")
             setOpen(false)
             form.reset()
             router.refresh()
 
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "حدث خطأ ما")
+            toast.error(error instanceof Error ? error.message : (t.manager?.messages?.error || "An error occurred"))
         }
     }
 
@@ -142,14 +145,14 @@ export function CreateUserDialog() {
             <DialogTrigger asChild>
                 <Button>
                     <Plus className="ml-2 h-4 w-4" />
-                    إضافة مستخدم
+                    {t.manager?.users?.addUser || 'Add User'}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>إضافة مستخدم جديد</DialogTitle>
+                    <DialogTitle>{t.manager?.dialogs?.createUser?.title || 'Add New User'}</DialogTitle>
                     <DialogDescription>
-                        قم بإنشاء حساب جديد وربطه بحسابك مباشرة.
+                        {t.manager?.dialogs?.createUser?.description || 'Create a new account and link it to your account directly.'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -157,7 +160,7 @@ export function CreateUserDialog() {
                 <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-lg border">
                     <div className="flex items-center gap-2">
                         <Wallet className="h-4 w-4 text-[#00A651]" />
-                        <span className="text-sm text-muted-foreground">رصيدك المتاح:</span>
+                        <span className="text-sm text-muted-foreground">{t.manager?.dialogs?.createUser?.availableBalance || 'Your available balance'}:</span>
                     </div>
                     {loadingBalance ? (
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -175,7 +178,7 @@ export function CreateUserDialog() {
                             name="username"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>اسم المستخدم</FormLabel>
+                                    <FormLabel>{t.manager?.dialogs?.createUser?.username || 'Username'}</FormLabel>
                                     <FormControl>
                                         <Input
                                             placeholder="user123"
@@ -195,7 +198,7 @@ export function CreateUserDialog() {
                             name="email"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>البريد الإلكتروني</FormLabel>
+                                    <FormLabel>{t.manager?.dialogs?.createUser?.email || 'Email'}</FormLabel>
                                     <FormControl>
                                         <Input
                                             type="email"
@@ -218,7 +221,7 @@ export function CreateUserDialog() {
                             name="password"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>كلمة المرور</FormLabel>
+                                    <FormLabel>{t.manager?.dialogs?.createUser?.password || 'Password'}</FormLabel>
                                     <FormControl>
                                         <Input type="password" {...field} />
                                     </FormControl>
@@ -231,7 +234,7 @@ export function CreateUserDialog() {
                             name="balance"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>الرصيد الأولي</FormLabel>
+                                    <FormLabel>{t.manager?.dialogs?.createUser?.initialBalance || 'Initial Balance'}</FormLabel>
                                     <FormControl>
                                         <Input
                                             type="number"
@@ -243,13 +246,13 @@ export function CreateUserDialog() {
                                     {isBalanceExceeding && (
                                         <div className="flex items-center gap-1 text-red-600 dark:text-red-400 text-xs">
                                             <AlertTriangle className="w-3 h-3" />
-                                            <span>الرصيد المطلوب أكبر من رصيدك المتاح!</span>
+                                            <span>{t.manager?.dialogs?.createUser?.balanceExceeds || 'Requested balance exceeds your available balance!'}</span>
                                         </div>
                                     )}
                                     {isBalanceCloseToLimit && (
                                         <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs">
                                             <AlertTriangle className="w-3 h-3" />
-                                            <span>تحذير: رصيدك سيكون منخفضاً بعد هذا التحويل</span>
+                                            <span>{t.manager?.dialogs?.createUser?.balanceLowWarning || 'Warning: Your balance will be low after this transfer'}</span>
                                         </div>
                                     )}
                                     <FormMessage />
@@ -262,7 +265,7 @@ export function CreateUserDialog() {
                                 disabled={isSubmitting || isBalanceExceeding}
                             >
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                إنشاء
+                                {t.manager?.dialogs?.createUser?.create || 'Create'}
                             </Button>
                         </DialogFooter>
                     </form>

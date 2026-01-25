@@ -77,6 +77,10 @@ export const en = {
         resellerPanel: 'Reseller Control Panel',
         adminRole: 'Admin',
         resellerRole: 'Reseller',
+        managerPanel: 'Manager Panel',
+        manageUsers: 'Manage Users',
+        deletedAccounts: 'Deleted Accounts',
+        proxyManagement: 'Proxy Management',
     },
     header: {
         balance: 'My Balance',
@@ -641,5 +645,184 @@ export const en = {
         title: 'System Under Maintenance',
         message: 'System is under maintenance, please try again later',
         hint: 'You can browse other pages from the sidebar'
+    },
+    analytics: {
+        title: 'Analytics',
+        subtitle: 'Detailed operations statistics',
+        periodSelector: 'Select period',
+        last7Days: 'Last 7 days',
+        last30Days: 'Last 30 days',
+        last90Days: 'Last 90 days',
+        summary: {
+            totalOperations: 'Total Operations',
+            totalRevenue: 'Total Revenue',
+            successRate: 'Success Rate',
+            avgPerDay: 'Avg Operations/Day'
+        },
+        charts: {
+            dailyOperations: 'Daily Operations',
+            byType: 'Operations by Type',
+            hourlyDistribution: 'Hourly Distribution',
+            byStatus: 'Operations by Status',
+            operations: 'Operations',
+            revenue: 'Revenue',
+            count: 'Count'
+        },
+        topResellers: {
+            title: 'Top 10 Resellers',
+            rank: '#',
+            reseller: 'Reseller',
+            operationsCount: 'Operations Count',
+            totalRevenue: 'Total Revenue',
+            noData: 'No data available'
+        }
+    },
+    manager: {
+        dashboard: {
+            title: 'Manager Dashboard',
+            subtitle: 'Manage your team and track performance',
+            totalUsers: 'Total Users',
+            activeUsers: 'Active Users',
+            totalBalance: 'Total Balance',
+            todayOperations: 'Today Operations'
+        },
+        users: {
+            title: 'User Management',
+            subtitle: 'Manage users under your supervision',
+            searchPlaceholder: 'Search by username or email...',
+            addUser: 'Add User',
+            table: {
+                user: 'User',
+                email: 'Email',
+                balance: 'Balance',
+                status: 'Status',
+                lastActivity: 'Last Activity',
+                created: 'Created',
+                actions: 'Actions',
+                active: 'Active',
+                inactive: 'Inactive',
+                noUsers: 'No users found'
+            },
+            actions: {
+                addBalance: 'Add Balance',
+                deductBalance: 'Deduct Balance',
+                resetPassword: 'Reset Password',
+                viewStats: 'View Statistics',
+                disable: 'Disable',
+                enable: 'Enable',
+                delete: 'Delete'
+            }
+        },
+        deletedUsers: {
+            title: 'Deleted Accounts',
+            subtitle: 'View and restore deleted user accounts',
+            balanceAtDeletion: 'Balance at Deletion',
+            table: {
+                user: 'User',
+                email: 'Email',
+                deletedAt: 'Deleted At',
+                deletedBy: 'Deleted By',
+                actions: 'Actions'
+            },
+            actions: {
+                restore: 'Restore',
+                permanentDelete: 'Permanent Delete'
+            },
+            noDeletedUsers: 'No deleted accounts',
+            restoreConfirm: 'Are you sure you want to restore this account?',
+            deleteConfirm: 'Are you sure you want to permanently delete this account? This action cannot be undone.',
+            deleteConfirmUser: 'Are you sure you want to delete user',
+            balanceRefund: 'Balance of',
+            willBeRefunded: 'will be refunded to your account',
+            cannotUndo: 'This action cannot be undone'
+        },
+        dialogs: {
+            createUser: {
+                title: 'Create New User',
+                description: 'Create a new account and link it to your account directly.',
+                username: 'Username',
+                email: 'Email',
+                password: 'Password',
+                initialBalance: 'Initial Balance',
+                availableBalance: 'Your available balance',
+                create: 'Create User',
+                creating: 'Creating...',
+                usernameMinError: 'Username must be at least 3 characters',
+                emailInvalid: 'Invalid email address',
+                emailMustEndWith: 'Email must end with',
+                passwordMinError: 'Password must be at least 6 characters',
+                balanceMinError: 'Balance must be 0 or more',
+                correctFormat: 'Correct format',
+                balanceExceeds: 'Requested balance exceeds your available balance!',
+                balanceLowWarning: 'Warning: Your balance will be low after this transfer'
+            },
+            addBalance: {
+                title: 'Add Balance',
+                currentBalance: 'Current Balance',
+                amount: 'Amount',
+                notes: 'Notes (Optional)',
+                notesPlaceholder: 'Reason for adding balance...',
+                add: 'Add Balance',
+                adding: 'Adding...'
+            },
+            deductBalance: {
+                title: 'Deduct Balance',
+                currentBalance: 'Current Balance',
+                amount: 'Amount',
+                notes: 'Notes (Optional)',
+                notesPlaceholder: 'Reason for deduction...',
+                deduct: 'Deduct Balance',
+                deducting: 'Deducting...'
+            },
+            resetPassword: {
+                title: 'Reset Password',
+                message: 'Are you sure you want to reset password for',
+                newPassword: 'New Password',
+                reset: 'Reset Password',
+                resetting: 'Resetting...',
+                copyPassword: 'Copy Password'
+            },
+            userStats: {
+                title: 'User Statistics',
+                totalOperations: 'Total Operations',
+                successRate: 'Success Rate',
+                totalSpent: 'Total Spent',
+                deposits: 'Total Deposits',
+                lastOperation: 'Last Operation',
+                noOperations: 'No operations yet'
+            }
+        },
+        actionsLog: {
+            title: 'Actions Log',
+            user: 'User',
+            action: 'Action',
+            details: 'Details',
+            date: 'Date',
+            noLogs: 'No actions logged'
+        },
+        stats: {
+            title: 'Manager Statistics',
+            usersManaged: 'Users Managed',
+            totalDeposits: 'Total Deposits',
+            totalOperations: 'Total Operations',
+            activeToday: 'Active Today',
+            currentBalance: 'Your Balance',
+            availableForTransfer: 'Available balance to transfer to users',
+            totalUsersLinked: 'Total users linked to you',
+            totalActionsRecorded: 'Total actions recorded',
+            totalBalances: 'Total Balances',
+            sumOfUserBalances: 'Sum of linked users balances'
+        },
+        messages: {
+            userCreated: 'User created successfully',
+            balanceAdded: 'Balance added successfully',
+            balanceDeducted: 'Balance deducted successfully',
+            passwordReset: 'Password reset successfully',
+            userDisabled: 'User disabled successfully',
+            userEnabled: 'User enabled successfully',
+            userDeleted: 'User deleted successfully',
+            userRestored: 'User restored successfully',
+            error: 'An error occurred'
+        }
     }
 }

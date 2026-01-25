@@ -850,7 +850,8 @@ export const ar = {
             enable: 'تفعيل',
             disable: 'إيقاف',
             reset: 'إعادة تعيين',
-            delete: 'حذف'
+            delete: 'حذف',
+            refreshBalance: 'تحديث الرصيد'
         },
         dialogs: {
             addTitle: 'إضافة حساب beIN جديد',
@@ -880,7 +881,10 @@ export const ar = {
             deleteSuccess: 'تم حذف الحساب بنجاح',
             deleteFailed: 'فشل في حذف الحساب',
             enableSuccess: 'تم تفعيل الحساب بنجاح',
-            disableSuccess: 'تم تعطيل الحساب بنجاح'
+            disableSuccess: 'تم تعطيل الحساب بنجاح',
+            accountNotActive: 'الحساب غير نشط',
+            balanceUpdated: 'تم تحديث الرصيد',
+            balanceFailed: 'فشل في جلب الرصيد'
         }
     },
     adminProxies: {

@@ -31,12 +31,13 @@ const HEARTBEAT_TTL_SECONDS = 15;  // Operation expires after 15s without heartb
 
 interface OperationJobData {
     operationId: string;
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE';
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE' | 'CHECK_ACCOUNT_BALANCE';
     cardNumber: string;
     duration?: string;
     promoCode?: string;
     userId?: string;
     amount?: number;
+    accountId?: string;  // For CHECK_ACCOUNT_BALANCE
 }
 
 // Custom error for cancelled operations
@@ -166,13 +167,18 @@ export async function processOperationHttp(
     job: Job<OperationJobData>,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    const { operationId, type, cardNumber, promoCode, userId, amount } = job.data;
+    const { operationId, type, cardNumber, promoCode, userId, amount, accountId } = job.data;
     let selectedAccountId: string | null = null;
 
     console.log(`📥 [HTTP] Processing ${operationId}: ${type}`);
 
     try {
         switch (type) {
+            case 'CHECK_ACCOUNT_BALANCE':
+                if (accountId) {
+                    await handleCheckAccountBalance(accountId);
+                }
+                break;
             case 'START_RENEWAL':
                 await handleStartRenewalHttp(operationId, cardNumber, accountPool);
                 break;
@@ -1371,6 +1377,94 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
     }
 
     return null;
+}
+
+/**
+ * CHECK_ACCOUNT_BALANCE - Fetch dealer balance for admin display
+ * This is called from the admin panel to update account balance
+ */
+async function handleCheckAccountBalance(accountId: string): Promise<void> {
+    console.log(`💰 [HTTP] Checking balance for account ${accountId}`);
+
+    // Get account with proxy
+    const account = await prisma.beinAccount.findUnique({
+        where: { id: accountId },
+        include: { proxy: true }
+    });
+
+    if (!account) {
+        throw new Error(`Account ${accountId} not found`);
+    }
+
+    if (!account.isActive) {
+        throw new Error(`Account ${accountId} is not active`);
+    }
+
+    // Get or create HTTP client
+    const client = await getHttpClient(account);
+    
+    // Reload config
+    await client.reloadConfig();
+
+    // Login if needed
+    if (!client.isSessionActive()) {
+        console.log(`[HTTP] Logging in to fetch balance...`);
+        const loginResult = await client.login(
+            account.username,
+            account.password,
+            account.totpSecret || undefined
+        );
+
+        if (!loginResult.success) {
+            throw new Error(loginResult.error || 'Login failed');
+        }
+
+        // Save session to cache
+        try {
+            const sessionData = await client.exportSession();
+            const sessionTimeout = client.getSessionTimeout();
+            await saveSessionToCache(account.id, sessionData, sessionTimeout);
+        } catch (saveError) {
+            console.error('[HTTP] Failed to save session:', saveError);
+        }
+    }
+
+    // Use a test card number or fetch balance from dashboard
+    // For simplicity, we'll try to get the balance from the packages page
+    // using a dummy approach - we need any card number to access the page
+    
+    // Get a recent successful card number from this account's operations
+    const recentOp = await prisma.operation.findFirst({
+        where: {
+            beinAccountId: accountId,
+            status: 'COMPLETED',
+            cardNumber: { not: '' }
+        },
+        orderBy: { completedAt: 'desc' },
+        select: { cardNumber: true }
+    });
+
+    const testCardNumber = recentOp?.cardNumber || '0000000000';
+    
+    console.log(`[HTTP] Fetching balance using card: ${testCardNumber.slice(0, 4)}****`);
+    
+    // Fetch dealer balance
+    const balanceResult = await client.fetchDealerBalance(testCardNumber);
+
+    if (balanceResult.success && balanceResult.balance !== null) {
+        // Update the account with the new balance
+        await prisma.beinAccount.update({
+            where: { id: accountId },
+            data: {
+                dealerBalance: balanceResult.balance,
+                balanceUpdatedAt: new Date()
+            }
+        });
+        console.log(`✅ [HTTP] Balance updated: ${balanceResult.balance} USD`);
+    } else {
+        console.log(`⚠️ [HTTP] Could not fetch balance: ${balanceResult.error}`);
+        throw new Error(balanceResult.error || 'Failed to fetch balance');
+    }
 }
 
 /**

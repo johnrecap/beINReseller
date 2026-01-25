@@ -14,7 +14,9 @@ import {
     XCircle,
     Clock,
     AlertTriangle,
-    Users
+    Users,
+    Loader2,
+    DollarSign
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -105,6 +107,9 @@ export default function BeinAccountsPage() {
         priority: 0,
         proxyId: ''
     })
+
+    // State for tracking balance refresh
+    const [refreshingBalanceId, setRefreshingBalanceId] = useState<string | null>(null)
 
     const fetchAccounts = useCallback(async () => {
         try {
@@ -239,6 +244,31 @@ export default function BeinAccountsPage() {
             }
         } catch {
             toast.error(t.adminBeinAccounts?.messages?.deleteFailed || 'Failed to delete account')
+        }
+    }
+
+    const handleRefreshBalance = async (account: BeinAccount) => {
+        if (!account.isActive) {
+            toast.error(t.adminBeinAccounts?.messages?.accountNotActive || 'Account is not active')
+            return
+        }
+        
+        setRefreshingBalanceId(account.id)
+        try {
+            const res = await fetch(`/api/admin/bein-accounts/${account.id}/check-balance`, {
+                method: 'POST'
+            })
+            const data = await res.json()
+            if (data.success) {
+                toast.success(data.message || `${t.adminBeinAccounts?.messages?.balanceUpdated || 'Balance updated'}: ${data.balance} USD`)
+                fetchAccounts()
+            } else {
+                toast.error(data.error || t.adminBeinAccounts?.messages?.balanceFailed || 'Failed to fetch balance')
+            }
+        } catch {
+            toast.error(t.adminBeinAccounts?.messages?.balanceFailed || 'Failed to fetch balance')
+        } finally {
+            setRefreshingBalanceId(null)
         }
     }
 
@@ -459,13 +489,31 @@ export default function BeinAccountsPage() {
                                         <TableCell className="text-center">{getStatusBadge(account)}</TableCell>
                                         <TableCell className="text-center">{account.priority}</TableCell>
                                         <TableCell className="text-center">
-                                            {account.dealerBalance !== null ? (
-                                                <span className="font-bold text-blue-600">
-                                                    {account.dealerBalance} USD
-                                                </span>
-                                            ) : (
-                                                <span className="text-muted-foreground">-</span>
-                                            )}
+                                            <div className="flex items-center justify-center gap-1">
+                                                {refreshingBalanceId === account.id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                                                ) : account.dealerBalance !== null ? (
+                                                    <span className="font-bold text-blue-600">
+                                                        {account.dealerBalance} USD
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground">-</span>
+                                                )}
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 w-6 p-0"
+                                                    onClick={() => handleRefreshBalance(account)}
+                                                    disabled={refreshingBalanceId === account.id || !account.isActive}
+                                                    title={t.adminBeinAccounts?.actions?.refreshBalance || 'Refresh Balance'}
+                                                >
+                                                    {refreshingBalanceId === account.id ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                    ) : (
+                                                        <RefreshCw className="h-3 w-3" />
+                                                    )}
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <span className={account.successRate >= 80 ? 'text-green-600' : account.successRate >= 50 ? 'text-yellow-600' : 'text-red-600'}>

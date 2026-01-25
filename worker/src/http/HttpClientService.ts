@@ -1537,6 +1537,100 @@ export class HttpClientService {
     }
 
     // =============================================
+    // DEALER BALANCE CHECK (Admin Feature)
+    // =============================================
+
+    /**
+     * Fetch the dealer's current credit balance from beIN
+     * This is used by the admin panel to display account balances
+     * 
+     * The balance is extracted from a page that shows:
+     * "Adding Packages - Your Current Credit Balance is XXX USD"
+     * 
+     * @param cardNumber - Any valid card number to access the packages page
+     * @returns The dealer balance in USD, or null if not found
+     */
+    async fetchDealerBalance(cardNumber: string): Promise<{ success: boolean; balance: number | null; error?: string }> {
+        console.log(`[HTTP] Fetching dealer balance...`);
+
+        try {
+            // We need to navigate to the packages page to see the balance
+            // First, check if we're logged in
+            if (!this.sessionValid) {
+                return { success: false, balance: null, error: 'Not logged in' };
+            }
+
+            // Navigate to renewal page
+            const renewUrl = this.buildFullUrl(this.config.renewUrl);
+            console.log('[HTTP] GET renewal page for balance check...');
+
+            const renewRes = await this.axios.get(renewUrl, {
+                headers: this.buildGetHeaders(renewUrl)
+            });
+
+            // Check for errors
+            const error = this.checkForErrors(renewRes.data);
+            if (error) {
+                return { success: false, balance: null, error };
+            }
+
+            // Extract ViewState
+            this.currentViewState = this.extractHiddenFields(renewRes.data);
+            if (!this.currentViewState) {
+                return { success: false, balance: null, error: 'Failed to extract ViewState' };
+            }
+
+            // Submit card number to get to packages page
+            const cardFormData: Record<string, string> = {
+                ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$txtSmartNo': cardNumber,
+                'ctl00$ContentPlaceHolder1$btnSubmit': 'Submit'
+            };
+
+            console.log('[HTTP] POST card number for balance check...');
+            const cardRes = await this.axios.post(
+                renewUrl,
+                this.buildFormData(cardFormData),
+                {
+                    headers: this.buildPostHeaders(renewUrl)
+                }
+            );
+
+            // Check for errors
+            const cardError = this.checkForErrors(cardRes.data);
+            if (cardError) {
+                return { success: false, balance: null, error: cardError };
+            }
+
+            // Extract balance from page
+            // "Adding Packages - Your Current Credit Balance is 435 USD"
+            const pageText = cardRes.data;
+            const balanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
+            
+            if (balanceMatch) {
+                const balance = parseFloat(balanceMatch[1]);
+                console.log(`[HTTP] 💰 Dealer Balance: ${balance} USD`);
+                return { success: true, balance };
+            }
+
+            // Try alternative pattern
+            const altMatch = pageText.match(/Credit Balance[:\s]+(\d+(?:\.\d{1,2})?)\s*USD/i);
+            if (altMatch) {
+                const balance = parseFloat(altMatch[1]);
+                console.log(`[HTTP] 💰 Dealer Balance (alt): ${balance} USD`);
+                return { success: true, balance };
+            }
+
+            console.log('[HTTP] ⚠️ Could not extract balance from page');
+            return { success: false, balance: null, error: 'Balance not found on page' };
+
+        } catch (err: any) {
+            console.error('[HTTP] Fetch balance error:', err.message);
+            return { success: false, balance: null, error: `Fetch failed: ${err.message}` };
+        }
+    }
+
+    // =============================================
     // PROMO CODE FLOW
     // =============================================
 

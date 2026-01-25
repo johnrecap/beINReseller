@@ -850,7 +850,8 @@ export const en = {
             enable: 'Enable',
             disable: 'Disable',
             reset: 'Reset',
-            delete: 'Delete'
+            delete: 'Delete',
+            refreshBalance: 'Refresh Balance'
         },
         dialogs: {
             addTitle: 'Add beIN Account',
@@ -880,7 +881,10 @@ export const en = {
             deleteSuccess: 'Account deleted successfully',
             deleteFailed: 'Failed to delete account',
             enableSuccess: 'Account enabled successfully',
-            disableSuccess: 'Account disabled successfully'
+            disableSuccess: 'Account disabled successfully',
+            accountNotActive: 'Account is not active',
+            balanceUpdated: 'Balance updated',
+            balanceFailed: 'Failed to fetch balance'
         }
     },
     adminProxies: {

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, RefreshCw, ExternalLink, XCircle, Clock, AlertCircle, CheckCircle, Package, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
 
-type OperationStatus = 'PENDING' | 'PROCESSING' | 'AWAITING_CAPTCHA' | 'AWAITING_PACKAGE' | 'AWAITING_FINAL_CONFIRM' | 'COMPLETING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+type OperationStatus = 'PENDING' | 'PROCESSING' | 'AWAITING_CAPTCHA' | 'AWAITING_PACKAGE' | 'AWAITING_FINAL_CONFIRM' | 'COMPLETING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED'
 
 interface SelectedPackage {
     index: number
@@ -73,6 +73,11 @@ const getStatusConfig = (t: ReturnType<typeof useTranslation>['t']) => ({
         label: t.status?.cancelled || 'Cancelled',
         color: 'bg-gray-500/10 text-gray-500 border border-gray-500/30',
         icon: <XCircle className="w-4 h-4" />
+    },
+    EXPIRED: {
+        label: t.status?.expired || 'Expired',
+        color: 'bg-orange-500/10 text-orange-500 border border-orange-500/30',
+        icon: <Clock className="w-4 h-4" />
     },
 })
 

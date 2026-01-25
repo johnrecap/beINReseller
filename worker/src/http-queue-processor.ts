@@ -10,7 +10,7 @@
 import { Job } from 'bullmq';
 import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage } from './http';
-import { AccountPoolManager } from './pool';
+import { AccountPoolManager, AccountQueueManager, getQueueManager } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
@@ -25,6 +25,9 @@ import {
     releaseLoginLock,
     waitForLoginComplete
 } from './lib/session-cache';
+
+// Heartbeat configuration
+const HEARTBEAT_TTL_SECONDS = 15;  // Operation expires after 15s without heartbeat
 
 interface OperationJobData {
     operationId: string;
@@ -246,10 +249,21 @@ async function handleStartRenewalHttp(
         data: { status: 'PROCESSING' }
     });
 
-    // Get next available account
-    const selectedAccount = await accountPool.getNextAvailableAccount();
-    if (!selectedAccount) {
-        throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+    // Get next available account with queue-based retry
+    // If no account is immediately available, wait in queue up to 2 minutes
+    const queueManager = getQueueManager(accountPool);
+    const queueResult = await queueManager.acquireAccountWithQueue(operationId, 0, 120_000);
+    
+    if (!queueResult.account) {
+        if (queueResult.timedOut) {
+            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
+        }
+        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+    }
+    
+    const selectedAccount = queueResult.account;
+    if (queueResult.waitTimeMs > 0) {
+        console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
 
     await prisma.operation.update({
@@ -328,12 +342,19 @@ async function handleStartRenewalHttp(
 
             // Fallback to manual if auto-solve failed or not configured
             if (!solution) {
+                // Set heartbeat expiry for auto-cancel if user leaves page
+                const now = new Date();
+                const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
+                
                 await prisma.operation.update({
                     where: { id: operationId },
                     data: {
                         status: 'AWAITING_CAPTCHA',
                         captchaImage: loginResult.captchaImage,
-                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS),
+                        // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
+                        lastHeartbeat: now,
+                        heartbeatExpiry: heartbeatExpiry
                     }
                 });
 
@@ -423,6 +444,10 @@ async function handleStartRenewalHttp(
     console.log(`[HTTP] Session exported: ViewState=${sessionData.viewState?.__VIEWSTATE?.length || 0} chars, Cookies=${sessionData.cookies.length} chars`);
 
     // Update operation with packages AND session data
+    // CRITICAL: Set heartbeatExpiry so cleanup cron knows when to auto-cancel
+    const now = new Date();
+    const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
+    
     await prisma.operation.update({
         where: { id: operationId },
         data: {
@@ -432,6 +457,9 @@ async function handleStartRenewalHttp(
             captchaImage: null,
             captchaSolution: null,
             captchaExpiry: null,
+            // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
+            lastHeartbeat: now,
+            heartbeatExpiry: heartbeatExpiry,
             // Store session data for COMPLETE_PURCHASE to restore
             responseData: JSON.stringify({
                 sessionData: sessionData,
@@ -440,6 +468,16 @@ async function handleStartRenewalHttp(
             })
         }
     });
+
+    // IMPORTANT: Release account lock after packages are loaded
+    // The account is no longer needed while user selects package
+    // This allows other operations to use the account
+    try {
+        await accountPool.releaseLock(selectedAccount.id);
+        console.log(`🔓 [HTTP] Released account lock for ${selectedAccount.username} - user selecting package`);
+    } catch (releaseError) {
+        console.warn(`[HTTP] Failed to release account lock:`, releaseError);
+    }
 
     console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
 }
@@ -571,12 +609,19 @@ async function handleCompletePurchaseHttp(
         const updatedSessionData = await client.exportSession();
         console.log(`[HTTP] 💾 Session exported after completePurchase: ViewState=${updatedSessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
 
+        // Set heartbeat expiry for auto-cancel if user leaves page
+        const now = new Date();
+        const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
+        
         await prisma.operation.update({
             where: { id: operationId },
             data: {
                 status: 'AWAITING_FINAL_CONFIRM',
                 finalConfirmExpiry: new Date(Date.now() + 120000),
                 responseMessage: result.message,
+                // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
+                lastHeartbeat: now,
+                heartbeatExpiry: heartbeatExpiry,
                 // CRITICAL: Save updated session with new ViewState
                 responseData: JSON.stringify({
                     sessionData: updatedSessionData,

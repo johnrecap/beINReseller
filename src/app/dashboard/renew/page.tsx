@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useBalance } from '@/hooks/useBalance'
 import { useMaintenance } from '@/hooks/useMaintenance'
+import { useOperationHeartbeat } from '@/hooks/useOperationHeartbeat'
 import { Loader2, CheckCircle, XCircle, AlertCircle, CreditCard, Package, Lock, Sparkles, ShieldCheck, Clock, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -204,6 +205,25 @@ export default function RenewWizardPage() {
     const [showConfirmation, setShowConfirmation] = useState(false)  // Show price confirmation dialog
     const [showExpiryWarning, setShowExpiryWarning] = useState(false)  // Show warning before auto-cancel
     const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
+
+    // Heartbeat system - keeps operation alive while user is on page
+    // If heartbeats stop (browser close, tab close), operation will be auto-cancelled
+    const shouldSendHeartbeat = operationId !== null && 
+        ['packages', 'captcha', 'awaiting-final-confirm'].includes(step)
+    
+    useOperationHeartbeat({
+        operationId,
+        enabled: shouldSendHeartbeat,
+        onExpired: () => {
+            // Operation was expired by cleanup cron
+            setResult({ success: false, message: (t.renew as any)?.result?.expired || 'انتهت مهلة العملية - تم إغلاق المتصفح أو فقد الاتصال' })
+            setStep('result')
+            refetchBalance()
+        },
+        onError: (error) => {
+            console.error('[Heartbeat Error]', error)
+        }
+    })
 
     // Check URL for existing operationId (for resuming operations)
     useEffect(() => {

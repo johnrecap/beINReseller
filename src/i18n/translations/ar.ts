@@ -238,6 +238,7 @@ export const ar = {
         completed: 'مكتملة',
         failed: 'فشلت',
         cancelled: 'ملغاة',
+        expired: 'منتهية الصلاحية',
     },
     operations: {
         renew: 'تجديد الاشتراك',

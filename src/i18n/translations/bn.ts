@@ -238,6 +238,7 @@ export const bn = {
         completed: 'সম্পন্ন',
         failed: 'ব্যর্থ',
         cancelled: 'বাতিল করা',
+        expired: 'মেয়াদ শেষ',
     },
     operations: {
         renew: 'সাবস্ক্রিপশন নবায়ন',

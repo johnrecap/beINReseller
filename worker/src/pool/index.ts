@@ -10,6 +10,12 @@ export {
     initializePoolManager,
 } from './account-pool-manager'
 
+// Queue manager (for sequential processing)
+export {
+    AccountQueueManager,
+    getQueueManager,
+} from './account-queue-manager'
+
 // Types
 export type {
     PoolConfig,

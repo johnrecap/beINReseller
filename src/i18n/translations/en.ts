@@ -238,6 +238,7 @@ export const en = {
         completed: 'Completed',
         failed: 'Failed',
         cancelled: 'Cancelled',
+        expired: 'Expired',
     },
     operations: {
         renew: 'Renew Subscription',

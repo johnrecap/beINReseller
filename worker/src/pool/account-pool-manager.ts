@@ -349,6 +349,93 @@ export class AccountPoolManager {
     }
 
     /**
+     * Force release a lock (for cleanup cron or admin use)
+     * This releases the lock regardless of owner
+     */
+    async forceReleaseLock(accountId: string): Promise<void> {
+        const key = `bein:account:lock:${accountId}`
+        await this.redis.del(key)
+        console.log(`🔓 Force released lock for account ${accountId}`)
+    }
+
+    /**
+     * Get next available account with retry and backoff
+     * 
+     * This method retries getting an account with exponential backoff
+     * instead of failing immediately when no accounts are available.
+     * 
+     * @param maxRetries - Maximum retry attempts (default 5)
+     * @param initialDelayMs - Initial delay between retries (default 1000ms)
+     * @param maxDelayMs - Maximum delay between retries (default 10000ms)
+     */
+    async getNextAvailableAccountWithRetry(
+        maxRetries: number = 5,
+        initialDelayMs: number = 1000,
+        maxDelayMs: number = 10000
+    ): Promise<BeinAccount | null> {
+        let delay = initialDelayMs
+        let lastError = ''
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            const account = await this.getNextAvailableAccount()
+            if (account) {
+                if (attempt > 0) {
+                    console.log(`✅ Got account on retry ${attempt}: ${account.username}`)
+                }
+                return account
+            }
+
+            if (attempt < maxRetries) {
+                console.log(`⏳ No accounts available, retry ${attempt + 1}/${maxRetries} in ${delay}ms`)
+                await new Promise(resolve => setTimeout(resolve, delay))
+                
+                // Exponential backoff
+                delay = Math.min(delay * 1.5, maxDelayMs)
+            }
+        }
+
+        console.warn(`⚠️ Failed to get account after ${maxRetries} retries`)
+        return null
+    }
+
+    /**
+     * Check if any account is currently available (without acquiring)
+     * Useful for checking pool status before entering queue
+     */
+    async hasAvailableAccount(): Promise<boolean> {
+        if (!this.configLoaded) {
+            await this.loadConfig()
+        }
+
+        const accounts = await prisma.beinAccount.findMany({
+            where: {
+                isActive: true,
+                OR: [
+                    { cooldownUntil: null },
+                    { cooldownUntil: { lte: new Date() } },
+                ],
+            },
+            select: { id: true }
+        })
+
+        for (const account of accounts) {
+            const health = await this.checkAccountHealth(account.id)
+            if (health.isAvailable) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /**
+     * Get Redis connection (for queue manager)
+     */
+    getRedis(): Redis {
+        return this.redis
+    }
+
+    /**
      * Close connection (no-op since we use shared Redis)
      */
     async close(): Promise<void> {

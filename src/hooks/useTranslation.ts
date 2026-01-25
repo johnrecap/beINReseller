@@ -6,7 +6,8 @@ const translations = { ar, en, bn }
 
 export function useTranslation() {
     const { language } = useStore()
-    const t = translations[language as keyof typeof translations] || ar
+    // English (en) is the fallback language for any missing translations
+    const t = translations[language as keyof typeof translations] || en
 
     return {
         t,

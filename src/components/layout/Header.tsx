@@ -3,7 +3,7 @@
 import { MobileMenuButton } from './Sidebar'
 import NotificationBell from '@/components/NotificationBell'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
-import { ThemeToggle } from '@/components/ui/ThemeToggle'
+// Theme toggle removed - dark theme is now permanent
 
 interface HeaderProps {
     title: string
@@ -21,9 +21,6 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
 
             {/* Left Side */}
             <div className="flex items-center gap-2 lg:gap-4">
-                {/* Theme Toggle */}
-                <ThemeToggle />
-
                 {/* Language Switcher */}
                 <LanguageSwitcher />
 

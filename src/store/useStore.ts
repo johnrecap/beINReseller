@@ -66,8 +66,8 @@ export const useStore = create<AppStore>()(
             sidebarOpen: true,
             setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-            // Language state
-            language: 'ar',
+            // Language state - English as default
+            language: 'en',
             setLanguage: (language) => set({ language }),
 
             // Loading states

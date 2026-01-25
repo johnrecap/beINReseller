@@ -26,7 +26,8 @@ export default function Providers({ children }: ProvidersProps) {
             <ThemeProvider
                 attribute="class"
                 defaultTheme="dark"
-                enableSystem
+                forcedTheme="dark"
+                enableSystem={false}
                 disableTransitionOnChange={false}
             >
                 <LanguageSync />

@@ -4,4 +4,5 @@ export const languages = {
     bn: { name: 'বাংলা', dir: 'ltr', flag: '🇧🇩' }
 }
 
-export const defaultLanguage = 'ar'
+// English set as the primary/default language for the entire website
+export const defaultLanguage = 'en'

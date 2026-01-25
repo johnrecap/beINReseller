@@ -26,6 +26,7 @@ export const ar = {
         close: 'إغلاق',
         copy: 'نسخ',
         retry: 'إعادة المحاولة',
+        confirmDelete: 'هل أنت متأكد من حذف هذا العنصر؟',
         all: 'الكل',
         reset: 'إعادة تعيين',
         edit: 'تعديل',
@@ -603,14 +604,28 @@ export const ar = {
         page: 'صفحة',
         of: 'من',
         previous: 'السابق',
-        next: 'التالي'
+        next: 'التالي',
+        previousPage: 'الصفحة السابقة',
+        nextPage: 'الصفحة التالية'
     },
     userStats: {
+        title: 'إحصائيات المستخدم',
+        deposits: 'الإيداعات',
         deposit: 'إيداع',
-        withdraw: 'سحب',
+        deductions: 'الخصومات',
+        refunds: 'المستردات',
         refund: 'استرداد',
+        withdraw: 'سحب',
         operationDeduct: 'خصم عملية',
-        correction: 'تصحيح'
+        currentBalance: 'الرصيد الحالي',
+        correction: 'تصحيح',
+        close: 'إغلاق'
+    },
+    errorBoundary: {
+        title: 'حدث خطأ غير متوقع',
+        message: 'نعتذر عن هذا الخطأ. يرجى إعادة تحميل الصفحة أو المحاولة لاحقاً.',
+        reloadPage: 'إعادة تحميل الصفحة',
+        errorDetails: 'تفاصيل الخطأ'
     },
     bulk: {
         title: 'عمليات جماعية',

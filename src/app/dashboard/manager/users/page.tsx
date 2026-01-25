@@ -13,7 +13,7 @@ export default function ManagerUsersPage() {
             const res = await fetch('/api/manager/dashboard')
             const data = await res.json()
             if (res.ok) {
-                setManagerBalance(data.managerBalance || 0)
+                setManagerBalance(data.stats?.managerBalance || 0)
             }
         } catch (error) {
             console.error('Failed to fetch manager balance', error)

@@ -1565,7 +1565,7 @@ export class HttpClientService {
             console.log('[HTTP] GET renewal page for balance check...');
 
             const renewRes = await this.axios.get(renewUrl, {
-                headers: this.buildGetHeaders(renewUrl)
+                headers: { 'Referer': this.config.loginUrl }
             });
 
             // Check for errors

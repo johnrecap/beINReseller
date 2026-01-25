@@ -98,8 +98,7 @@ export async function GET(request: Request) {
                         // Count of managed users (via ManagerUser junction)
                         _count: { 
                             select: { 
-                                managedUsers: true,
-                                createdUsers: true
+                                managedUsers: true
                             } 
                         },
                     },
@@ -113,8 +112,8 @@ export async function GET(request: Request) {
             return NextResponse.json({
                 users: users.map(u => ({
                     ...u,
-                    // Combined count of users managed via ManagerUser and directly created users
-                    managedUsersCount: u._count.managedUsers + u._count.createdUsers
+                    // Count of users managed via ManagerUser
+                    managedUsersCount: u._count.managedUsers
                 })),
                 total,
                 page,
@@ -231,7 +230,9 @@ export async function GET(request: Request) {
 
     } catch (error) {
         console.error('List users error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        console.error('Error details:', errorMessage)
+        return NextResponse.json({ error: 'حدث خطأ في الخادم', details: errorMessage }, { status: 500 })
     }
 }
 

@@ -19,7 +19,8 @@ import {
     Sparkles,
     Loader2,
     Globe,
-    Trash2
+    Trash2,
+    Megaphone
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -79,6 +80,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
         { href: '/dashboard/admin/bein-config', label: t.sidebar.beinConfig, icon: Bot },
         { href: '/dashboard/admin/settings', label: t.sidebar.settings, icon: Settings },
+        { href: '/dashboard/admin/settings/announcements', label: t.sidebar.announcements || 'Announcements', icon: Megaphone },
         { href: '/dashboard/admin/logs', label: t.sidebar.logs, icon: FileText },
     ]
 

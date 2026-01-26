@@ -335,3 +335,32 @@ model Proxy {
   @@unique([host, port])
   @@map("proxies")
 }
+
+// ===== Announcement Banner System =====
+
+model AnnouncementBanner {
+  id            String   @id @default(cuid())
+  
+  // ===== Content =====
+  message       String                           // Announcement text (max 200 chars)
+  
+  // ===== Display Settings =====
+  isActive      Boolean  @default(true) @map("is_active")
+  animationType String   @default("gradient") @map("animation_type")  // gradient, typing, glow, slide, marquee, none
+  colors        Json     @default("[]")          // Array of color hex codes for gradients
+  textSize      String   @default("medium") @map("text_size")        // small, medium, large
+  position      String   @default("top")         // top, bottom, floating
+  isDismissable Boolean  @default(true) @map("is_dismissable")
+  
+  // ===== Scheduling =====
+  startDate     DateTime? @map("start_date")     // Optional: when to start showing
+  endDate       DateTime? @map("end_date")       // Optional: when to stop showing
+  
+  // ===== Timestamps =====
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@index([startDate, endDate])
+  @@map("announcement_banners")
+}

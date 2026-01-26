@@ -5,6 +5,7 @@ import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import StatsCards from '@/components/dashboard/StatsCards'
 import RecentOperations from '@/components/dashboard/RecentOperations'
 import QuickActionTile from '@/components/dashboard/QuickActionTile'
+import AnnouncementBanner from '@/components/AnnouncementBanner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Zap, RefreshCw } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -33,6 +34,9 @@ export default function DashboardContent({ user }: DashboardContentProps) {
                 username={user.username}
                 role={user.role as 'ADMIN' | 'MANAGER' | 'USER'}
             />
+
+            {/* Announcement Banner */}
+            <AnnouncementBanner />
 
             {/* Stats Cards Row */}
             <StatsCards />

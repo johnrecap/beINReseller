@@ -109,6 +109,7 @@ export const en = {
         refreshSignal: 'Refresh Signal',
         refreshSignalDesc: 'Reactivate the signal',
         ago: 'ago',
+        operations: 'Operations',
         totalOperations: 'Total Operations',
         totalSpent: 'Total Spent',
         currentBalance: 'Current Balance',

@@ -109,6 +109,7 @@ export const bn = {
         refreshSignal: 'সিগন্যাল রিফ্রেশ',
         refreshSignalDesc: 'সিগন্যাল পুনরায় সক্রিয় করুন',
         ago: 'আগে',
+        operations: 'অপারেশন',
         totalOperations: 'মোট অপারেশন',
         totalSpent: 'মোট খরচ',
         currentBalance: 'বর্তমান ব্যালেন্স',

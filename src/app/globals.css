@@ -284,3 +284,212 @@
 .simple-button:active {
   background: #007a3d;
 }
+
+/* ===========================================
+   Dashboard Visual Enhancements - Animations
+   =========================================== */
+
+/* Gradient Shift Animation - For animated borders */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Gradient Text Flow - For balance display */
+@keyframes gradient-flow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Pulse Glow - For icons */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px currentColor;
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+    opacity: 0.9;
+  }
+}
+
+/* Text Glow Pulse - For announcement banner */
+@keyframes text-glow-pulse {
+  0%, 100% {
+    text-shadow: 0 0 10px currentColor;
+  }
+  50% {
+    text-shadow: 0 0 20px currentColor, 0 0 30px currentColor, 0 0 40px currentColor;
+  }
+}
+
+/* Shimmer Loading - For skeletons */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Float Animation - Subtle hover effect */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Marquee - For scrolling text */
+@keyframes marquee {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* Typing Cursor Blink */
+@keyframes cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Slide In From Left */
+@keyframes slide-in-left {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Slide In From Right */
+@keyframes slide-in-right {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ===========================================
+   Glassmorphism Utility Classes
+   =========================================== */
+
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-hover {
+  transition: all 0.3s ease;
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Animated Gradient Border */
+.gradient-border {
+  position: relative;
+  background: linear-gradient(var(--color-bg-card), var(--color-bg-card)) padding-box,
+              linear-gradient(90deg, #3b82f6, #00ff00, #3b82f6) border-box;
+  border: 2px solid transparent;
+  background-size: 100% 100%, 200% 100%;
+}
+
+.gradient-border-animated {
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Gradient Text */
+.gradient-text {
+  background: linear-gradient(90deg, #3b82f6, #00ff00, #00A651, #3b82f6);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-flow 4s ease infinite;
+}
+
+/* Shimmer Skeleton */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Glow Effect Classes */
+.glow-green {
+  box-shadow: 0 0 20px rgba(0, 166, 81, 0.3);
+}
+
+.glow-green-hover:hover {
+  box-shadow: 0 0 30px rgba(0, 166, 81, 0.4), 0 0 60px rgba(0, 166, 81, 0.2);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.glow-blue-hover:hover {
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2);
+}
+
+/* Card Hover Transform */
+.card-hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-hover-lift:hover {
+  transform: translateY(-5px) scale(1.01);
+}
+
+/* Icon Pulse */
+.icon-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .gradient-border-animated,
+  .gradient-text,
+  .shimmer,
+  .icon-pulse,
+  .card-hover-lift:hover {
+    animation: none;
+    transform: none;
+  }
+}

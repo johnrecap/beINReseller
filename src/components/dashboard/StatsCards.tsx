@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import { useTranslation } from '@/hooks/useTranslation'
+import { useCountUp } from '@/hooks/useCountUp'
 import { motion } from 'framer-motion'
 
 interface Stats {
@@ -16,6 +17,43 @@ interface Stats {
         createdAt: string
     } | null
     successRate: number
+}
+
+// Shimmer loading skeleton component
+function ShimmerCard() {
+    return (
+        <div className="relative overflow-hidden rounded-[var(--border-radius-lg)] bg-[rgba(255,255,255,0.03)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] p-6">
+            <div className="flex items-center justify-between">
+                <div className="flex-1 space-y-3">
+                    {/* Title shimmer */}
+                    <div className="h-4 w-24 rounded shimmer bg-[rgba(255,255,255,0.05)]" />
+                    {/* Value shimmer */}
+                    <div className="h-9 w-32 rounded shimmer bg-[rgba(255,255,255,0.05)]" />
+                    {/* Description shimmer */}
+                    <div className="h-3 w-16 rounded shimmer bg-[rgba(255,255,255,0.05)]" />
+                </div>
+                {/* Icon shimmer */}
+                <div className="h-12 w-12 rounded-full shimmer bg-[rgba(255,255,255,0.05)]" />
+            </div>
+        </div>
+    )
+}
+
+// Animated balance display with gradient text
+function AnimatedBalance({ value }: { value: number }) {
+    const animatedValue = useCountUp(value, { duration: 1200, decimals: 2, easing: 'easeOut' })
+    
+    return (
+        <span className="font-bold text-[36px] gradient-text">
+            {animatedValue}
+        </span>
+    )
+}
+
+// Animated number display
+function AnimatedNumber({ value, decimals = 0 }: { value: number; decimals?: number }) {
+    const animatedValue = useCountUp(value, { duration: 800, decimals, easing: 'easeOut' })
+    return <>{animatedValue}</>
 }
 
 export default function StatsCards() {
@@ -45,14 +83,19 @@ export default function StatsCards() {
         }
     }
 
+    // Loading state with shimmer skeletons
     if (loading) {
         return (
             <div className="grid gap-[var(--space-lg)] md:grid-cols-2 lg:grid-cols-4">
                 {[...Array(4)].map((_, i) => (
-                    <div
+                    <motion.div
                         key={i}
-                        className="h-32 rounded-[var(--border-radius-lg)] bg-[var(--color-bg-elevated)] animate-pulse"
-                    />
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4, delay: i * 0.1 }}
+                    >
+                        <ShimmerCard />
+                    </motion.div>
                 ))}
             </div>
         )
@@ -61,19 +104,21 @@ export default function StatsCards() {
     const cards = [
         {
             title: t.dashboard.myBalance,
-            value: stats?.balance?.toFixed(2) || '0.00',
+            value: stats?.balance || 0,
             icon: Wallet,
             desc: t.header.currency,
-            isHero: true,  // Hero card flag
-            trend: undefined
+            isHero: true,
+            trend: undefined,
+            useAnimatedBalance: true
         },
         {
             title: t.dashboard.todayOperations,
             value: stats?.todayOperations || 0,
             icon: Activity,
-            desc: 'Operations',
+            desc: t.dashboard.operations || 'Operations',
             isHero: false,
-            trend: undefined
+            trend: undefined,
+            useAnimatedBalance: false
         },
         {
             title: t.dashboard.lastOperation,
@@ -81,17 +126,19 @@ export default function StatsCards() {
                 ? formatDistanceToNow(new Date(stats.lastOperation.createdAt), { locale: getDateLocale() })
                 : '-',
             icon: Clock,
-            desc: 'Ago',
+            desc: t.dashboard.ago || 'Ago',
             isHero: false,
-            trend: undefined
+            trend: undefined,
+            useAnimatedBalance: false
         },
         {
             title: t.dashboard.successRate,
-            value: `${stats?.successRate ?? 0}%`,
+            value: stats?.successRate ?? 0,
             icon: TrendingUp,
-            desc: 'Success',
+            desc: t.dashboard.success || 'Success',
             isHero: false,
-            trend: 'up' as const
+            trend: 'up' as const,
+            useAnimatedBalance: false
         }
     ]
 
@@ -100,32 +147,32 @@ export default function StatsCards() {
             {cards.map((card, i) => (
                 <motion.div
                     key={i}
+                    className="group"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{
                         duration: 0.5,
-                        delay: i * 0.05,
-                        ease: 'easeOut'
+                        delay: i * 0.08,
+                        ease: [0.25, 0.46, 0.45, 0.94]
                     }}
                 >
                     <StatCard
                         title={card.title}
-                        value={card.value}
+                        value={
+                            card.useAnimatedBalance && typeof card.value === 'number' ? (
+                                <AnimatedBalance value={card.value} />
+                            ) : card.isHero === false && typeof card.value === 'number' && card.title === t.dashboard.successRate ? (
+                                <><AnimatedNumber value={card.value} />%</>
+                            ) : card.isHero === false && typeof card.value === 'number' && card.title === t.dashboard.todayOperations ? (
+                                <AnimatedNumber value={card.value} />
+                            ) : (
+                                card.value
+                            )
+                        }
                         icon={card.icon}
                         description={card.desc}
                         trend={card.trend}
-                        className={
-                            card.isHero
-                                ? `
-                                    relative overflow-hidden
-                                    border-l-2 border-l-[var(--color-primary-green)]
-                                    before:absolute before:inset-0 
-                                    before:bg-gradient-to-br before:from-[rgba(0,166,81,0.1)] before:to-transparent
-                                    before:pointer-events-none
-                                `
-                                : ''
-                        }
-                        valueClassName={card.isHero ? 'text-[36px] text-[var(--color-primary-green)]' : ''}
+                        isHero={card.isHero}
                     />
                 </motion.div>
             ))}

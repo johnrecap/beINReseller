@@ -105,7 +105,7 @@ export function SignalRefreshFlow() {
     // Step 1: Check card status
     const handleCheckCard = async () => {
         if (cardNumber.length < 10) {
-            setError(sr.invalidCard || 'رقم الكارت غير صحيح')
+            setError(sr.invalidCard)
             return
         }
 
@@ -185,10 +185,10 @@ export function SignalRefreshFlow() {
                     <div className="text-center">
                         <Zap className="w-12 h-12 mx-auto text-[#00A651] mb-2" />
                         <h2 className="text-xl font-bold text-foreground">
-                            {sr.title || 'تجديد الإشارة'}
+                            {sr.title}
                         </h2>
                         <p className="text-sm text-muted-foreground mt-1">
-                            {sr.description || 'أدخل رقم الكارت لتجديد إشارة الريسيفر'}
+                            {sr.description}
                         </p>
                     </div>
 
@@ -198,7 +198,7 @@ export function SignalRefreshFlow() {
                             type="text"
                             value={cardNumber}
                             onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ''))}
-                            placeholder={sr.cardPlaceholder || 'أدخل رقم الكارت (10-16 رقم)'}
+                            placeholder={sr.cardPlaceholder}
                             className="w-full ps-10 pe-4 py-3 bg-secondary border border-border rounded-lg focus:ring-2 focus:ring-[#00A651] focus:border-transparent text-foreground"
                             maxLength={16}
                             dir="ltr"
@@ -215,7 +215,7 @@ export function SignalRefreshFlow() {
                         className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                     >
                         <Search className="w-5 h-5" />
-                        {sr.checkButton || 'فحص الكارت'}
+                        {sr.checkButton}
                     </button>
                 </div>
             )}
@@ -225,7 +225,7 @@ export function SignalRefreshFlow() {
                 <div className="text-center space-y-4 py-8">
                     <Loader2 className="w-12 h-12 mx-auto text-[#00A651] animate-spin" />
                     <p className="text-muted-foreground">
-                        {sr.checking || 'جاري فحص الكارت...'}
+                        {sr.checking}
                     </p>
                 </div>
             )}
@@ -253,7 +253,7 @@ export function SignalRefreshFlow() {
                                 className="flex-1 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                             >
                                 <Zap className="w-5 h-5" />
-                                {sr.activateButton || 'تفعيل الإشارة'}
+                                {sr.activateButton}
                             </button>
                         )}
 
@@ -261,7 +261,7 @@ export function SignalRefreshFlow() {
                             onClick={handleReset}
                             className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-lg hover:bg-secondary/80 transition-all"
                         >
-                            {sr.tryAnother || 'كارت آخر'}
+                            {sr.tryAnother}
                         </button>
                     </div>
                 </div>
@@ -272,7 +272,7 @@ export function SignalRefreshFlow() {
                 <div className="text-center space-y-4 py-8">
                     <Loader2 className="w-12 h-12 mx-auto text-green-500 animate-spin" />
                     <p className="text-muted-foreground">
-                        {sr.activating || 'جاري تفعيل الإشارة...'}
+                        {sr.activating}
                     </p>
                 </div>
             )}
@@ -282,7 +282,7 @@ export function SignalRefreshFlow() {
                 <div className="text-center space-y-4 py-8">
                     <CheckCircle className="w-16 h-16 mx-auto text-green-500" />
                     <h3 className="text-xl font-bold text-green-600 dark:text-green-400">
-                        {sr.successActivated || 'تم تفعيل الإشارة بنجاح!'}
+                        {sr.successActivated}
                     </h3>
 
                     {cardStatus && (
@@ -296,7 +296,7 @@ export function SignalRefreshFlow() {
                         className="mt-4 px-6 py-2 bg-secondary text-foreground font-medium rounded-lg hover:bg-secondary/80 transition-all flex items-center justify-center gap-2 mx-auto"
                     >
                         <RefreshCw className="w-4 h-4" />
-                        {sr.refreshAnother || 'تجديد كارت آخر'}
+                        {sr.refreshAnother}
                     </button>
                 </div>
             )}
@@ -306,7 +306,7 @@ export function SignalRefreshFlow() {
                 <div className="text-center space-y-4 py-8">
                     <XCircle className="w-16 h-16 mx-auto text-red-500" />
                     <h3 className="text-xl font-bold text-red-600 dark:text-red-400">
-                        {sr.error || 'حدث خطأ'}
+                        {sr.error}
                     </h3>
                     <p className="text-muted-foreground">
                         {error}
@@ -315,7 +315,7 @@ export function SignalRefreshFlow() {
                         onClick={handleReset}
                         className="px-6 py-2 bg-secondary text-foreground font-medium rounded-lg hover:bg-secondary/80 transition-all"
                     >
-                        {sr.tryAgain || 'حاول مرة أخرى'}
+                        {sr.tryAgain}
                     </button>
                 </div>
             )}

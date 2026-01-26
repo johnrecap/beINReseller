@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge'
 import { FileText, Calendar, Receipt, Package, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Contract {
     type: string
@@ -21,6 +22,9 @@ interface ContractsTableProps {
  * Improved layout for better readability of long package names
  */
 export function ContractsTable({ contracts }: ContractsTableProps) {
+    const { t } = useTranslation()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ct = (t as any).contracts || {}
 
     if (!contracts || contracts.length === 0) {
         return null
@@ -32,21 +36,21 @@ export function ContractsTable({ contracts }: ContractsTableProps) {
             return (
                 <Badge className="bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20 whitespace-nowrap">
                     <CheckCircle className="w-3 h-3 me-1.5" />
-                    نشط
+                    {ct.statusActive}
                 </Badge>
             )
         } else if (statusLower.includes('cancel')) {
             return (
                 <Badge className="bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20 whitespace-nowrap">
                     <XCircle className="w-3 h-3 me-1.5" />
-                    ملغي
+                    {ct.statusCancelled}
                 </Badge>
             )
         } else if (statusLower.includes('expir')) {
             return (
                 <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/20 hover:bg-yellow-500/20 whitespace-nowrap">
                     <Clock className="w-3 h-3 me-1" />
-                    منتهي
+                    {ct.statusExpired}
                 </Badge>
             )
         }
@@ -73,7 +77,7 @@ export function ContractsTable({ contracts }: ContractsTableProps) {
                     <div className="p-1.5 bg-purple-500/10 rounded-lg">
                         <FileText className="w-5 h-5 text-purple-400" />
                     </div>
-                    العقود والاشتراكات
+                    {ct.title}
                 </h3>
                 <span className="text-xs font-mono bg-gray-800/80 text-gray-400 px-2.5 py-1 rounded-md border border-gray-700/50">
                     {contracts.length}
@@ -90,13 +94,13 @@ export function ContractsTable({ contracts }: ContractsTableProps) {
                     <thead className="bg-gray-800/40">
                         <tr className="text-gray-400 text-xs border-b border-gray-700/50">
                             {/* Fixed width for metadata columns to keep them compact */}
-                            <th className="px-5 py-4 text-start font-medium w-[150px]">النوع</th>
-                            <th className="px-5 py-4 text-start font-medium w-[120px]">الحالة</th>
+                            <th className="px-5 py-4 text-start font-medium w-[150px]">{ct.type}</th>
+                            <th className="px-5 py-4 text-start font-medium w-[120px]">{ct.status}</th>
                             {/* Auto width for Package to take remaining space */}
-                            <th className="px-5 py-4 text-start font-medium min-w-[400px]">اسم الباقة</th>
-                            <th className="px-5 py-4 text-center font-medium w-[130px]">تاريخ البداية</th>
-                            <th className="px-5 py-4 text-center font-medium w-[130px]">تاريخ الانتهاء</th>
-                            <th className="px-5 py-4 text-center font-medium w-[120px]">الفاتورة</th>
+                            <th className="px-5 py-4 text-start font-medium min-w-[400px]">{ct.packageName}</th>
+                            <th className="px-5 py-4 text-center font-medium w-[130px]">{ct.startDate}</th>
+                            <th className="px-5 py-4 text-center font-medium w-[130px]">{ct.expiryDate}</th>
+                            <th className="px-5 py-4 text-center font-medium w-[120px]">{ct.invoiceNo}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700/40">
@@ -161,7 +165,7 @@ export function ContractsTable({ contracts }: ContractsTableProps) {
                         <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/30">
                             <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5 flex items-center gap-1.5">
                                 <Package className="w-3 h-3" />
-                                اسم الباقة
+                                {ct.packageName}
                             </p>
                             <p className="text-gray-100 text-base font-bold leading-relaxed">
                                 {contract.package}
@@ -171,15 +175,15 @@ export function ContractsTable({ contracts }: ContractsTableProps) {
                         {/* Row 3: Details Grid */}
                         <div className="grid grid-cols-3 gap-2 text-center">
                             <div className="bg-gray-800/20 rounded-lg p-2.5 border border-gray-800">
-                                <p className="text-[10px] text-gray-500 mb-1">تاريخ البداية</p>
+                                <p className="text-[10px] text-gray-500 mb-1">{ct.startDate}</p>
                                 <p className="text-gray-300 text-xs font-mono">{contract.startDate}</p>
                             </div>
                             <div className="bg-gray-800/20 rounded-lg p-2.5 border border-gray-800">
-                                <p className="text-[10px] text-gray-500 mb-1">تاريخ الانتهاء</p>
+                                <p className="text-[10px] text-gray-500 mb-1">{ct.expiryDate}</p>
                                 <p className="text-gray-300 text-xs font-mono">{contract.expiryDate}</p>
                             </div>
                             <div className="bg-gray-800/20 rounded-lg p-2.5 border border-gray-800">
-                                <p className="text-[10px] text-gray-500 mb-1">رقم الفاتورة</p>
+                                <p className="text-[10px] text-gray-500 mb-1">{ct.invoiceNo}</p>
                                 <p className="text-gray-400 text-xs font-mono tracking-wider">{contract.invoiceNo}</p>
                             </div>
                         </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowUpRight, ArrowDownLeft, Wallet } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface TransactionStatsProps {
     stats: {
@@ -11,6 +12,7 @@ interface TransactionStatsProps {
 }
 
 export default function TransactionStats({ stats }: TransactionStatsProps) {
+    const { t } = useTranslation()
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -20,10 +22,10 @@ export default function TransactionStats({ stats }: TransactionStatsProps) {
                     <ArrowUpRight className="w-16 h-16 text-[#00A651]" />
                 </div>
                 <div className="relative z-10">
-                    <p className="text-sm font-medium text-muted-foreground mb-2">إجمالي الإيداعات</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">{t.transactions?.totalDeposits}</p>
                     <div className="flex items-baseline gap-1">
                         <span className="text-3xl font-bold text-[#00A651]">{stats.totalDeposits.toLocaleString()}</span>
-                        <span className="text-xs text-muted-foreground">USD</span>
+                        <span className="text-xs text-muted-foreground">{t.transactions?.currency}</span>
                     </div>
                 </div>
             </div>
@@ -34,10 +36,10 @@ export default function TransactionStats({ stats }: TransactionStatsProps) {
                     <ArrowDownLeft className="w-16 h-16 text-[#ED1C24]" />
                 </div>
                 <div className="relative z-10">
-                    <p className="text-sm font-medium text-muted-foreground mb-2">إجمالي المصروفات</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">{t.transactions?.totalExpenses}</p>
                     <div className="flex items-baseline gap-1">
                         <span className="text-3xl font-bold text-[#ED1C24]">{stats.totalWithdrawals.toLocaleString()}</span>
-                        <span className="text-xs text-muted-foreground">USD</span>
+                        <span className="text-xs text-muted-foreground">{t.transactions?.currency}</span>
                     </div>
                 </div>
             </div>
@@ -48,10 +50,10 @@ export default function TransactionStats({ stats }: TransactionStatsProps) {
                     <Wallet className="w-16 h-16 text-white" />
                 </div>
                 <div className="relative z-10">
-                    <p className="text-sm font-medium text-white/80 mb-2">الرصيد الحالي</p>
+                    <p className="text-sm font-medium text-white/80 mb-2">{t.transactions?.currentBalance}</p>
                     <div className="flex items-baseline gap-1">
                         <span className="text-3xl font-bold text-white">{stats.currentBalance.toLocaleString()}</span>
-                        <span className="text-xs text-white/70">USD</span>
+                        <span className="text-xs text-white/70">{t.transactions?.currency}</span>
                     </div>
                 </div>
             </div>

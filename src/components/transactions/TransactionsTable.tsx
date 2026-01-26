@@ -25,16 +25,20 @@ const typeColors: Record<string, string> = {
     CORRECTION: 'bg-gray-500/10 text-gray-500 border border-gray-500/30',
 }
 
-const typeLabels: Record<string, string> = {
-    DEPOSIT: 'إيداع',
-    WITHDRAW: 'سحب',
-    REFUND: 'استرداد',
-    OPERATION_DEDUCT: 'عملية',
-    CORRECTION: 'تصحيح',
-}
-
 export default function TransactionsTable() {
     const { t, language } = useTranslation()
+    
+    const getTypeLabel = (type: string): string => {
+        const labels: Record<string, string> = {
+            DEPOSIT: t.transactions?.typeDeposit || 'Deposit',
+            WITHDRAW: t.transactions?.typeWithdraw || 'Withdraw',
+            REFUND: t.transactions?.typeRefund || 'Refund',
+            OPERATION_DEDUCT: t.transactions?.typeOperation || 'Operation',
+            CORRECTION: t.transactions?.typeCorrection || 'Correction',
+        }
+        return labels[type] || type
+    }
+    
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [stats, setStats] = useState({ totalDeposits: 0, totalWithdrawals: 0, currentBalance: 0 })
     const [loading, setLoading] = useState(true)
@@ -197,16 +201,16 @@ export default function TransactionsTable() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${typeColors[tx.type] || 'bg-gray-100 dark:bg-gray-800'} transition-transform hover:scale-105`}>
-                                            {typeLabels[tx.type] || tx.type}
+                                            {getTypeLabel(tx.type)}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-base font-bold dir-ltr text-right">
                                         <span className={tx.amount > 0 ? 'text-[#00A651]' : tx.amount < 0 ? 'text-[#ED1C24]' : 'text-muted-foreground'}>
-                                            {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(2)} دولار
+                                            {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(2)} {t.transactions?.currency}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-base font-mono text-foreground dir-ltr text-right">
-                                        {tx.balanceAfter.toFixed(2)} دولار
+                                        {tx.balanceAfter.toFixed(2)} {t.transactions?.currency}
                                     </td>
                                     <td className="px-6 py-4 text-sm text-muted-foreground">
                                         <div className="max-w-[250px] truncate" title={tx.notes || ''}>
@@ -235,7 +239,7 @@ export default function TransactionsTable() {
                         >
                             <div className="flex justify-between items-start mb-3">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${typeColors[tx.type] || 'bg-gray-100 dark:bg-gray-800'}`}>
-                                    {typeLabels[tx.type] || tx.type}
+                                    {getTypeLabel(tx.type)}
                                 </span>
                                 <span className="text-xs text-muted-foreground dir-ltr">
                                     {format(new Date(tx.createdAt), 'HH:mm dd/MM/yyyy', { locale: getDateLocale() })}
@@ -270,7 +274,7 @@ export default function TransactionsTable() {
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
                         <p className="text-sm text-muted-foreground hidden sm:block">
-                            عرض {(page - 1) * 10 + 1}-{Math.min(page * 10, transactions.length + (page - 1) * 10)} من {totalPages * 10}
+                            {t.transactions?.showingRange?.replace('{start}', String((page - 1) * 10 + 1)).replace('{end}', String(Math.min(page * 10, transactions.length + (page - 1) * 10))).replace('{total}', String(totalPages * 10))}
                         </p>
                         <div className="flex gap-2 w-full sm:w-auto justify-between sm:justify-start">
                             <button

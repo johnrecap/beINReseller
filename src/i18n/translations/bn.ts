@@ -203,6 +203,16 @@ export const bn = {
         notes: 'নোট',
         noTransactions: 'কোন লেনদেন নেই',
         noMatchingTransactions: 'কোন আর্থিক লেনদেন পাওয়া যায়নি',
+        typeDeposit: 'জমা',
+        typeWithdraw: 'উত্তোলন',
+        typeRefund: 'ফেরত',
+        typeOperation: 'অপারেশন',
+        typeCorrection: 'সংশোধন',
+        currency: 'USD',
+        showingRange: '{start}-{end} দেখাচ্ছে মোট {total}',
+        totalDeposits: 'মোট জমা',
+        totalExpenses: 'মোট ব্যয়',
+        currentBalance: 'বর্তমান ব্যালেন্স',
     },
     profile: {
         title: 'আমার প্রোফাইল',
@@ -720,7 +730,23 @@ export const bn = {
         successChecked: 'কার্ড সফলভাবে চেক হয়েছে!',
         refreshAnother: 'অন্য কার্ড রিফ্রেশ',
         error: 'একটি ত্রুটি ঘটেছে',
-        tryAgain: 'আবার চেষ্টা করুন'
+        tryAgain: 'আবার চেষ্টা করুন',
+        checkButton: 'কার্ড চেক করুন',
+        checking: 'কার্ড চেক হচ্ছে...',
+        activateButton: 'সিগন্যাল অ্যাক্টিভেট',
+        activating: 'সিগন্যাল অ্যাক্টিভেট হচ্ছে...'
+    },
+    contracts: {
+        title: 'চুক্তি ও সাবস্ক্রিপশন',
+        type: 'ধরন',
+        status: 'অবস্থা',
+        packageName: 'প্যাকেজের নাম',
+        startDate: 'শুরুর তারিখ',
+        expiryDate: 'মেয়াদ শেষের তারিখ',
+        invoiceNo: 'ইনভয়েস নং',
+        statusActive: 'সক্রিয়',
+        statusCancelled: 'বাতিল',
+        statusExpired: 'মেয়াদ শেষ'
     },
     maintenance: {
         title: 'সিস্টেম রক্ষণাবেক্ষণে',

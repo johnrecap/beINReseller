@@ -203,6 +203,16 @@ export const en = {
         notes: 'Notes',
         noTransactions: 'No Transactions',
         noMatchingTransactions: 'No transactions found',
+        typeDeposit: 'Deposit',
+        typeWithdraw: 'Withdraw',
+        typeRefund: 'Refund',
+        typeOperation: 'Operation',
+        typeCorrection: 'Correction',
+        currency: 'USD',
+        showingRange: 'Showing {start}-{end} of {total}',
+        totalDeposits: 'Total Deposits',
+        totalExpenses: 'Total Expenses',
+        currentBalance: 'Current Balance',
     },
     profile: {
         title: 'My Profile',
@@ -720,7 +730,23 @@ export const en = {
         successChecked: 'Card checked successfully!',
         refreshAnother: 'Refresh Another Card',
         error: 'An error occurred',
-        tryAgain: 'Try Again'
+        tryAgain: 'Try Again',
+        checkButton: 'Check Card',
+        checking: 'Checking card...',
+        activateButton: 'Activate Signal',
+        activating: 'Activating signal...'
+    },
+    contracts: {
+        title: 'Contracts & Subscriptions',
+        type: 'Type',
+        status: 'Status',
+        packageName: 'Package Name',
+        startDate: 'Start Date',
+        expiryDate: 'Expiry Date',
+        invoiceNo: 'Invoice No.',
+        statusActive: 'Active',
+        statusCancelled: 'Cancelled',
+        statusExpired: 'Expired'
     },
     maintenance: {
         title: 'System Under Maintenance',

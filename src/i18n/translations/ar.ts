@@ -203,6 +203,16 @@ export const ar = {
         notes: 'ملاحظات',
         noTransactions: 'لا توجد معاملات',
         noMatchingTransactions: 'لم يتم العثور على أي معاملات مالية',
+        typeDeposit: 'إيداع',
+        typeWithdraw: 'سحب',
+        typeRefund: 'استرداد',
+        typeOperation: 'عملية',
+        typeCorrection: 'تصحيح',
+        currency: 'دولار',
+        showingRange: 'عرض {start}-{end} من {total}',
+        totalDeposits: 'إجمالي الإيداعات',
+        totalExpenses: 'إجمالي المصروفات',
+        currentBalance: 'الرصيد الحالي',
     },
     profile: {
         title: 'الملف الشخصي',
@@ -636,7 +646,23 @@ export const ar = {
         successChecked: 'تم فحص الكارت بنجاح!',
         refreshAnother: 'تجديد كارت آخر',
         error: 'حدث خطأ',
-        tryAgain: 'حاول مرة أخرى'
+        tryAgain: 'حاول مرة أخرى',
+        checkButton: 'فحص الكارت',
+        checking: 'جاري فحص الكارت...',
+        activateButton: 'تفعيل الإشارة',
+        activating: 'جاري تفعيل الإشارة...'
+    },
+    contracts: {
+        title: 'العقود والاشتراكات',
+        type: 'النوع',
+        status: 'الحالة',
+        packageName: 'اسم الباقة',
+        startDate: 'تاريخ البداية',
+        expiryDate: 'تاريخ الانتهاء',
+        invoiceNo: 'رقم الفاتورة',
+        statusActive: 'نشط',
+        statusCancelled: 'ملغي',
+        statusExpired: 'منتهي'
     },
     notifications: {
         title: 'الإشعارات',

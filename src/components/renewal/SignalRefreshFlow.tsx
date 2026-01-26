@@ -7,7 +7,7 @@ import { CardStatusDisplay } from './CardStatusDisplay'
 import { ContractsTable } from './ContractsTable'
 import { Loader2, Zap, CreditCard, CheckCircle, XCircle, RefreshCw, Search, Download } from 'lucide-react'
 import { toast } from 'sonner'
-import html2canvas from 'html2canvas'
+import { toPng } from 'html-to-image'
 
 interface Contract {
     type: string
@@ -190,29 +190,16 @@ export function SignalRefreshFlow() {
 
         setIsDownloading(true)
         try {
-            // Wait a brief moment to ensure DOM is fully rendered
-            await new Promise(resolve => setTimeout(resolve, 100))
-
-            const canvas = await html2canvas(captureRef.current, {
+            const dataUrl = await toPng(captureRef.current, {
                 backgroundColor: '#1a1d26',
-                scale: 2,
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                imageTimeout: 15000,
-                onclone: (clonedDoc) => {
-                    // Ensure the cloned element is visible
-                    const clonedElement = clonedDoc.querySelector('[data-capture="true"]')
-                    if (clonedElement) {
-                        (clonedElement as HTMLElement).style.display = 'block'
-                    }
-                }
+                pixelRatio: 2,
+                cacheBust: true,
             })
 
             const date = new Date().toISOString().split('T')[0]
             const link = document.createElement('a')
             link.download = `beIN-${cardNumber}-${date}.png`
-            link.href = canvas.toDataURL('image/png')
+            link.href = dataUrl
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)

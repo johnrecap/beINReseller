@@ -3,8 +3,8 @@ import { requireAuth } from '@/lib/auth-utils'
 import HistoryPageClient from '@/components/history/HistoryPageClient'
 
 export const metadata = {
-    title: 'سجل العمليات | beIN Panel',
-    description: 'عرض جميع العمليات السابقة',
+    title: 'Operations History | Desh Panel',
+    description: 'View all previous operations',
 }
 
 export default async function HistoryPage() {

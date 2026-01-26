@@ -1,6 +1,6 @@
 export const ar = {
     common: {
-        welcome: 'مخزون القمة العالمي',
+        welcome: 'Desh Panel',
         login: 'دخول',
         logout: 'خروج',
         dashboard: 'لوحة التحكم',
@@ -80,10 +80,10 @@ export const ar = {
         settings: 'الإعدادات',
         logs: 'السجلات',
         logout: 'تسجيل الخروج',
-        resellerPanel: 'لوحة تحكم الموزعين',
-        adminRole: 'مدير',
+        resellerPanel: 'لوحة تحكم Desh',
+        adminRole: 'مدير النظام',
         resellerRole: 'موزع',
-        managerPanel: 'لوحة المدير',
+        managerPanel: 'لوحة إدارة المستخدمين',
         manageUsers: 'إدارة المستخدمين',
         deletedAccounts: 'الحسابات المحذوفة',
         proxyManagement: 'إدارة البروكسي',
@@ -113,7 +113,7 @@ export const ar = {
         currentBalance: 'الرصيد الحالي',
         dailyStats: 'إحصائيات يومية',
         adminWelcome: 'مرحباً بك في لوحة تحكم الإدارة',
-        managerWelcome: 'مرحباً بك، مدير النظام',
+        managerWelcome: 'مرحباً بك في لوحة إدارة المستخدمين',
         userWelcome: 'استمتع بخدماتنا المميزة',
     },
     forms: {
@@ -263,7 +263,7 @@ export const ar = {
             title: 'لوحة تحكم الإدارة',
             subtitle: 'نظرة عامة على النظام والعمليات',
             stats: {
-                totalUsers: 'إجمالي الموزعين',
+                totalUsers: 'إجمالي المديرين',
                 totalBalance: 'إجمالي الأرصدة',
                 todayOperations: 'عمليات اليوم',
                 successRate: 'نسبة النجاح',
@@ -383,7 +383,7 @@ export const ar = {
                 maintenanceMsg: 'رسالة الصيانة',
                 maintenancePlaceholder: 'النظام تحت الصيانة حالياً...',
                 notificationMsg: 'رسالة تنبيه (تظهر في لوحة التحكم)',
-                notificationPlaceholder: 'تنويه هام للموزعين...'
+                notificationPlaceholder: 'تنويه هام للمستخدمين...'
             },
             actions: {
                 save: 'حفظ التغييرات'
@@ -401,7 +401,7 @@ export const ar = {
                 login: 'تسجيل دخول',
                 updateSettings: 'تعديل إعدادات',
                 addBalance: 'شحن رصيد',
-                createUser: 'إضافة موزع',
+                createUser: 'إنشاء مستخدم',
                 resetPassword: 'تغيير كلمة مرور'
             },
             table: {
@@ -426,22 +426,22 @@ export const ar = {
         },
         users: {
             tabs: {
-                distributors: 'الموزعين',
+                distributors: 'المديرين',
                 users: 'المستخدمين'
             },
             roles: {
-                admin: 'أدمن',
-                manager: 'موزع',
+                admin: 'مدير النظام',
+                manager: 'مدير',
                 user: 'مستخدم'
             },
             filters: {
-                filterByDistributor: 'تصفية حسب الموزع',
-                allDistributors: 'جميع الموزعين',
+                filterByDistributor: 'تصفية حسب المدير',
+                allDistributors: 'جميع المديرين',
                 clearFilter: 'إزالة الفلتر'
             },
             actions: {
                 addUser: 'إضافة مستخدم جديد',
-                addDistributor: 'إضافة موزع جديد',
+                addDistributor: 'إضافة مدير جديد',
                 searchPlaceholder: 'بحث باسم المستخدم أو البريد...',
                 disableConfirm: 'هل أنت متأكد من تعطيل هذا المستخدم؟',
                 enableConfirm: 'هل أنت متأكد من تفعيل هذا المستخدم؟',
@@ -471,12 +471,12 @@ export const ar = {
                 operation: 'عملية',
                 transaction: 'معاملة',
                 noUsers: 'لا يوجد مستخدمين',
-                noDistributors: 'لا يوجد موزعين',
-                manager: 'الموزع',
+                noDistributors: 'لا يوجد مديرين',
+                manager: 'المدير',
                 managedUsersCount: 'عدد المستخدمين'
             },
             dialogs: {
-                createTitle: 'إضافة موزع جديد',
+                createTitle: 'إضافة مستخدم جديد',
                 editTitle: 'تعديل بيانات المستخدم',
                 balanceTitle: 'شحن رصيد',
                 resetTitle: 'إعادة تعيين كلمة المرور',
@@ -492,7 +492,7 @@ export const ar = {
                 role: 'نوع الحساب',
                 roleUser: 'مستخدم',
                 roleManager: 'مدير',
-                roleAdmin: 'أدمن',
+                roleAdmin: 'مدير النظام',
                 depositBalance: 'إيداع رصيد',
                 withdrawBalance: 'سحب رصيد',
                 userLabel: 'المستخدم',
@@ -961,8 +961,8 @@ export const ar = {
     },
     manager: {
         dashboard: {
-            title: 'لوحة المدير',
-            subtitle: 'إدارة فريقك ومتابعة الأداء',
+            title: 'لوحة إدارة المستخدمين',
+            subtitle: 'إدارة فريقك ومتابعة أدائهم',
             totalUsers: 'إجمالي المستخدمين',
             activeUsers: 'المستخدمين النشطين',
             totalBalance: 'إجمالي الرصيد',

@@ -111,7 +111,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         {/* Header */}
                         <div className="flex h-16 items-center px-6 border-b border-sidebar-border">
                             <span className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                                📺 beIN Panel
+                                Desh Panel
                             </span>
                         </div>
 
@@ -160,7 +160,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     {/* Header */}
                     <div className="flex h-16 items-center px-6 border-b border-sidebar-border">
                         <span className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                            📺 beIN Panel
+                            Desh Panel
                         </span>
                         <div className="ml-auto lg:hidden">
                             <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 text-sidebar-foreground">

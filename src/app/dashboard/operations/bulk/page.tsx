@@ -5,8 +5,8 @@ import { Layers } from 'lucide-react'
 import Link from 'next/link'
 
 export const metadata = {
-    title: 'عمليات الجملة | beIN Panel',
-    description: 'تجديد اشتراكات متعددة دفعة واحدة',
+    title: 'Bulk Operations | Desh Panel',
+    description: 'Renew multiple subscriptions at once',
 }
 
 export default async function BulkOperationsPage() {

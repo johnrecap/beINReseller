@@ -5,8 +5,8 @@ import BeINConfigForm from '@/components/admin/BeINConfigForm'
 import { Bot } from 'lucide-react'
 
 export const metadata = {
-    title: 'إعدادات روبوت beIN | beIN Panel',
-    description: 'ضبط إعدادات الأتمتة والربط مع موقع beIN',
+    title: 'beIN Bot Settings | Desh Panel',
+    description: 'Configure automation and beIN integration settings',
 }
 
 export default async function BeINConfigPage() {

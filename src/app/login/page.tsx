@@ -1,11 +1,19 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import Image from 'next/image'
 import LoginForm from "@/components/auth/LoginForm"
 import { LoginCard } from "@/components/auth/LoginCard"
+import { useTranslation } from '@/hooks/useTranslation'
 
 function LoginPageContent() {
+    const { t } = useTranslation()
+    
+    // Set dynamic page title
+    useEffect(() => {
+        document.title = 'Login | Desh Panel'
+    }, [])
+    
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
 

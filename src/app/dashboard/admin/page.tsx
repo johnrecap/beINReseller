@@ -4,8 +4,8 @@ import { auth } from '@/lib/auth'
 import AdminDashboardClient from '@/components/admin/AdminDashboardClient'
 
 export const metadata = {
-    title: 'لوحة الإدارة | beIN Panel',
-    description: 'إحصائيات وإدارة النظام',
+    title: 'Admin Dashboard | Desh Panel',
+    description: 'System statistics and management',
 }
 
 export default async function AdminDashboardPage() {

@@ -1,6 +1,6 @@
 export const en = {
     common: {
-        welcome: 'Al Qimma Global Store',
+        welcome: 'Desh Panel',
         login: 'Login',
         logout: 'Logout',
         dashboard: 'Dashboard',
@@ -80,10 +80,10 @@ export const en = {
         settings: 'Settings',
         logs: 'Logs',
         logout: 'Logout',
-        resellerPanel: 'Reseller Control Panel',
-        adminRole: 'Admin',
+        resellerPanel: 'Desh Control Panel',
+        adminRole: 'System Admin',
         resellerRole: 'Reseller',
-        managerPanel: 'Manager Panel',
+        managerPanel: 'User Management Panel',
         manageUsers: 'Manage Users',
         deletedAccounts: 'Deleted Accounts',
         proxyManagement: 'Proxy Management',
@@ -113,7 +113,7 @@ export const en = {
         currentBalance: 'Current Balance',
         dailyStats: 'Daily Statistics',
         adminWelcome: 'Welcome to Admin Panel',
-        managerWelcome: 'Welcome, Manager',
+        managerWelcome: 'Welcome to User Management Panel',
         userWelcome: 'Enjoy our premium services',
     },
     forms: {
@@ -467,7 +467,7 @@ export const en = {
                 maintenanceMsg: 'Maintenance Message',
                 maintenancePlaceholder: 'System is under maintenance...',
                 notificationMsg: 'Notification Message (Shown in Dashboard)',
-                notificationPlaceholder: 'Important notice for resellers...'
+                notificationPlaceholder: 'Important notice for users...'
             },
             actions: {
                 save: 'Save Changes'
@@ -514,7 +514,7 @@ export const en = {
                 users: 'Users'
             },
             roles: {
-                admin: 'Admin',
+                admin: 'System Admin',
                 manager: 'Manager',
                 user: 'User'
             },
@@ -576,7 +576,7 @@ export const en = {
                 role: 'Account Type',
                 roleUser: 'User',
                 roleManager: 'Manager',
-                roleAdmin: 'Admin',
+                roleAdmin: 'System Admin',
                 depositBalance: 'Deposit Balance',
                 withdrawBalance: 'Withdraw Balance',
                 userLabel: 'User',
@@ -961,8 +961,8 @@ export const en = {
     },
     manager: {
         dashboard: {
-            title: 'Manager Dashboard',
-            subtitle: 'Manage your team and track performance',
+            title: 'User Management Panel',
+            subtitle: 'Manage your team and track their performance',
             totalUsers: 'Total Users',
             activeUsers: 'Active Users',
             totalBalance: 'Total Balance',

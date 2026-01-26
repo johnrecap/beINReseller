@@ -206,6 +206,11 @@ export default function RenewWizardPage() {
     const [showExpiryWarning, setShowExpiryWarning] = useState(false)  // Show warning before auto-cancel
     const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
 
+    // Set dynamic page title
+    useEffect(() => {
+        document.title = `${(t.renew as any)?.title || 'Subscription Renewal'} | Desh Panel`
+    }, [t])
+
     // Heartbeat system - keeps operation alive while user is on page
     // If heartbeats stop (browser close, tab close), operation will be auto-cancelled
     const shouldSendHeartbeat = operationId !== null && 
@@ -382,7 +387,7 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (!res.ok) {
-                toast.error(data.error || 'حدث خطأ')
+                toast.error(data.error || t.common?.error || 'Error')
                 return
             }
 
@@ -864,7 +869,7 @@ export default function RenewWizardPage() {
                                 <div className="bg-muted/50 rounded-xl p-4 space-y-3">
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.package || 'الباقة:'}</span>
-                                        <span className="font-bold text-foreground">{selectedPackageInfo?.name || 'غير محدد'}</span>
+                                        <span className="font-bold text-foreground">{selectedPackageInfo?.name || t.operations?.notSpecified || 'Not specified'}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.price || 'السعر:'}</span>

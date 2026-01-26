@@ -41,7 +41,7 @@ export default function LoginForm() {
                 router.refresh()
             }
         } catch {
-            setError('حدث خطأ غير متوقع')
+            setError(t.auth?.unexpectedError || 'Unexpected error')
         } finally {
             setIsLoading(false)
         }

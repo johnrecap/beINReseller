@@ -303,6 +303,11 @@ export default function ActiveOperationsPage() {
     const [isConfirmLoading, setIsConfirmLoading] = useState(false)
     const [activeFilters, setActiveFilters] = useState<OperationStatus[]>([])
 
+    // Set dynamic page title
+    useEffect(() => {
+        document.title = `${t.activeOperations?.title || 'Active Operations'} | Desh Panel`
+    }, [t])
+
     const fetchOperations = useCallback(async () => {
         try {
             const res = await fetch('/api/operations?status=active&limit=50')

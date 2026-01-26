@@ -77,6 +77,11 @@ export default function ProxiesPage() {
     const [testingProxyId, setTestingProxyId] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
 
+    // Set dynamic page title
+    useEffect(() => {
+        document.title = `${t.adminProxies?.title || 'Proxy Management'} | Desh Panel`
+    }, [t])
+
     // Form state
     const [formData, setFormData] = useState(initialFormData)
 

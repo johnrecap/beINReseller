@@ -99,6 +99,11 @@ export default function BeinAccountsPage() {
     const [addDialogOpen, setAddDialogOpen] = useState(false)
     const [editAccount, setEditAccount] = useState<BeinAccount | null>(null)
 
+    // Set dynamic page title
+    useEffect(() => {
+        document.title = `${t.adminBeinAccounts?.title || 'beIN Accounts'} | Desh Panel`
+    }, [t])
+
     const [formData, setFormData] = useState({
         username: '',
         password: '',

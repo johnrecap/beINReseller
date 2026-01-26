@@ -25,6 +25,11 @@ export default function NotificationsPage() {
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
 
+    // Set dynamic page title
+    useEffect(() => {
+        document.title = `${t.notifications?.title || 'Notifications'} | Desh Panel`
+    }, [t])
+
     const getDateLocale = () => {
         switch (language) {
             case 'ar': return ar

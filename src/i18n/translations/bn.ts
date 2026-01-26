@@ -1,6 +1,6 @@
 export const bn = {
     common: {
-        welcome: 'আল কিম্মা গ্লোবাল স্টোর',
+        welcome: 'Desh Panel',
         login: 'লগইন',
         logout: 'লগআউট',
         dashboard: 'ড্যাশবোর্ড',
@@ -80,10 +80,10 @@ export const bn = {
         settings: 'সেটিংস',
         logs: 'লগ',
         logout: 'লগআউট',
-        resellerPanel: 'রিসেলার কন্ট্রোল প্যানেল',
-        adminRole: 'অ্যাডমিন',
+        resellerPanel: 'Desh কন্ট্রোল প্যানেল',
+        adminRole: 'সিস্টেম অ্যাডমিন',
         resellerRole: 'রিসেলার',
-        managerPanel: 'ম্যানেজার প্যানেল',
+        managerPanel: 'ব্যবহারকারী পরিচালনা প্যানেল',
         manageUsers: 'ব্যবহারকারী পরিচালনা',
         deletedAccounts: 'মুছে ফেলা অ্যাকাউন্ট',
         proxyManagement: 'প্রক্সি ব্যবস্থাপনা',
@@ -113,7 +113,7 @@ export const bn = {
         currentBalance: 'বর্তমান ব্যালেন্স',
         dailyStats: 'দৈনিক পরিসংখ্যান',
         adminWelcome: 'অ্যাডমিন প্যানেলে স্বাগতম',
-        managerWelcome: 'স্বাগতম, ম্যানেজার',
+        managerWelcome: 'ব্যবহারকারী পরিচালনা প্যানেলে স্বাগতম',
         userWelcome: 'আমাদের প্রিমিয়াম পরিষেবা উপভোগ করুন',
     },
     forms: {
@@ -467,7 +467,7 @@ export const bn = {
                 maintenanceMsg: 'মেইনটেনেন্স বার্তা',
                 maintenancePlaceholder: 'সিস্টেম বর্তমানে রক্ষণাবেক্ষণের অধীনে...',
                 notificationMsg: 'নোটিফিকেশন বার্তা (ড্যাশবোর্ডে প্রদর্শিত)',
-                notificationPlaceholder: 'রিসেলারদের জন্য গুরুত্বপূর্ণ বিজ্ঞপ্তি...'
+                notificationPlaceholder: 'ব্যবহারকারীদের জন্য গুরুত্বপূর্ণ বিজ্ঞপ্তি...'
             },
             actions: {
                 save: 'পরিবর্তন সংরক্ষণ করুন'
@@ -514,8 +514,8 @@ export const bn = {
                 users: 'ইউজার'
             },
             roles: {
-                admin: 'অ্যাডমিন',
-                manager: 'পরিবেশক',
+                admin: 'সিস্টেম অ্যাডমিন',
+                manager: 'ম্যানেজার',
                 user: 'ইউজার'
             },
             filters: {
@@ -576,7 +576,7 @@ export const bn = {
                 role: 'অ্যাকাউন্ট টাইপ',
                 roleUser: 'ইউজার',
                 roleManager: 'ম্যানেজার',
-                roleAdmin: 'অ্যাডমিন',
+                roleAdmin: 'সিস্টেম অ্যাডমিন',
                 depositBalance: 'ব্যালেন্স জমা',
                 withdrawBalance: 'ব্যালেন্স উত্তোলন',
                 userLabel: 'ইউজার',
@@ -961,8 +961,8 @@ export const bn = {
     },
     manager: {
         dashboard: {
-            title: 'ম্যানেজার ড্যাশবোর্ড',
-            subtitle: 'আপনার টিম পরিচালনা এবং কর্মক্ষমতা ট্র্যাক করুন',
+            title: 'ব্যবহারকারী পরিচালনা প্যানেল',
+            subtitle: 'আপনার টিম পরিচালনা এবং তাদের কর্মক্ষমতা ট্র্যাক করুন',
             totalUsers: 'মোট ব্যবহারকারী',
             activeUsers: 'সক্রিয় ব্যবহারকারী',
             totalBalance: 'মোট ব্যালেন্স',

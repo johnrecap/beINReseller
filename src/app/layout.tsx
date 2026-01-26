@@ -10,8 +10,8 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "beIN Sports Reseller Panel",
-  description: "لوحة تحكم موزعي خدمات beIN Sports",
+  title: "Desh Panel",
+  description: "Desh Panel - beIN Sports Subscription Management System",
 };
 
 import Providers from "@/components/providers/Providers";

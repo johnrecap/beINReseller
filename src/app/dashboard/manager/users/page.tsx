@@ -10,6 +10,11 @@ export default function ManagerUsersPage() {
     const [managerBalance, setManagerBalance] = useState(0)
     const [loading, setLoading] = useState(true)
 
+    // Set dynamic page title
+    useEffect(() => {
+        document.title = `${t.manager?.users?.title || 'User Management'} | Desh Panel`
+    }, [t])
+
     const fetchManagerBalance = useCallback(async () => {
         try {
             const res = await fetch('/api/manager/dashboard')

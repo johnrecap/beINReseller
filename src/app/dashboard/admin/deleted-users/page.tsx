@@ -5,7 +5,7 @@ import DeletedUsersTable from '@/components/admin/users/DeletedUsersTable'
 import { DeletedUsersPageHeader, LoadingState } from '@/components/shared/DeletedUsersPageHeader'
 
 export const metadata = {
-    title: 'Deleted Accounts | beIN Panel',
+    title: 'Deleted Accounts | Desh Panel',
     description: 'View deleted accounts with balance and transactions',
 }
 

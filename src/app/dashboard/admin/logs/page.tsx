@@ -5,8 +5,8 @@ import LogsTable from '@/components/admin/LogsTable'
 import { ShieldAlert } from 'lucide-react'
 
 export const metadata = {
-    title: 'سجلات النشاط | beIN Panel',
-    description: 'مراقبة نشاط المستخدمين والنظام',
+    title: 'Activity Logs | Desh Panel',
+    description: 'Monitor user and system activity',
 }
 
 export default async function AdminLogsPage() {

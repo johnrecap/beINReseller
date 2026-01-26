@@ -5,8 +5,8 @@ import SettingsForm from '@/components/admin/SettingsForm'
 import { Settings } from 'lucide-react'
 
 export const metadata = {
-    title: 'إعدادات النظام | beIN Panel',
-    description: 'التحكم في الأسعار وإعدادات النظام',
+    title: 'System Settings | Desh Panel',
+    description: 'Manage pricing and system settings',
 }
 
 export default async function AdminSettingsPage() {

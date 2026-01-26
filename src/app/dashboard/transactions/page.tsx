@@ -4,8 +4,8 @@ import TransactionsTable from '@/components/transactions/TransactionsTable'
 import { Wallet } from 'lucide-react'
 
 export const metadata = {
-    title: 'المعاملات المالية | beIN Panel',
-    description: 'سجل المعاملات المالية والشحن والسحب',
+    title: 'Transactions | Desh Panel',
+    description: 'Financial transactions, deposits and withdrawals history',
 }
 
 export default async function TransactionsPage() {

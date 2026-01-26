@@ -68,6 +68,11 @@ export default function AnalyticsPage() {
     const [loading, setLoading] = useState(true)
     const [period, setPeriod] = useState(30)
 
+    // Set dynamic page title
+    useEffect(() => {
+        document.title = `${t.analytics?.title || 'Analytics'} | Desh Panel`
+    }, [t])
+
     useEffect(() => {
         if (status === 'unauthenticated') {
             redirect('/login')

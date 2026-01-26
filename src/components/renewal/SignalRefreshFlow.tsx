@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { CardStatusDisplay } from './CardStatusDisplay'
 import { ContractsTable } from './ContractsTable'
+import { BeINExportTable } from './BeINExportTable'
 import { Loader2, Zap, CreditCard, CheckCircle, XCircle, RefreshCw, Search, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { toPng } from 'html-to-image'
@@ -49,6 +50,7 @@ export function SignalRefreshFlow() {
     const [pollTrigger, setPollTrigger] = useState(0) // Used to restart polling
     const [isDownloading, setIsDownloading] = useState(false)
     const captureRef = useRef<HTMLDivElement>(null)
+    const exportRef = useRef<HTMLDivElement>(null)
 
     // Poll for operation status
     useEffect(() => {
@@ -181,17 +183,17 @@ export function SignalRefreshFlow() {
         setActivating(false)
     }
 
-    // Download image of card status and contracts
+    // Download image of card status - beIN Sport styled export
     const handleDownloadImage = async () => {
-        if (!captureRef.current) {
+        if (!exportRef.current) {
             toast.error(sr.downloadFailed || 'Failed to download image')
             return
         }
 
         setIsDownloading(true)
         try {
-            const dataUrl = await toPng(captureRef.current, {
-                backgroundColor: '#1a1d26',
+            const dataUrl = await toPng(exportRef.current, {
+                backgroundColor: '#ffffff',
                 pixelRatio: 2,
                 cacheBust: true,
             })
@@ -385,6 +387,24 @@ export function SignalRefreshFlow() {
                     >
                         {sr.tryAgain}
                     </button>
+                </div>
+            )}
+
+            {/* Hidden beIN Sport styled export component - for image download */}
+            {contracts.length > 0 && (
+                <div 
+                    ref={exportRef}
+                    style={{ 
+                        position: 'absolute', 
+                        left: '-9999px', 
+                        top: 0,
+                        zIndex: -1 
+                    }}
+                >
+                    <BeINExportTable 
+                        cardNumber={cardNumber}
+                        contracts={contracts}
+                    />
                 </div>
             )}
         </div>

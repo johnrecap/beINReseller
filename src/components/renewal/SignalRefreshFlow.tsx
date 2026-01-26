@@ -183,21 +183,39 @@ export function SignalRefreshFlow() {
 
     // Download image of card status and contracts
     const handleDownloadImage = async () => {
-        if (!captureRef.current) return
+        if (!captureRef.current) {
+            toast.error(sr.downloadFailed || 'Failed to download image')
+            return
+        }
 
         setIsDownloading(true)
         try {
+            // Wait a brief moment to ensure DOM is fully rendered
+            await new Promise(resolve => setTimeout(resolve, 100))
+
             const canvas = await html2canvas(captureRef.current, {
                 backgroundColor: '#1a1d26',
                 scale: 2,
                 useCORS: true,
+                allowTaint: true,
+                logging: false,
+                imageTimeout: 15000,
+                onclone: (clonedDoc) => {
+                    // Ensure the cloned element is visible
+                    const clonedElement = clonedDoc.querySelector('[data-capture="true"]')
+                    if (clonedElement) {
+                        (clonedElement as HTMLElement).style.display = 'block'
+                    }
+                }
             })
 
             const date = new Date().toISOString().split('T')[0]
             const link = document.createElement('a')
             link.download = `beIN-${cardNumber}-${date}.png`
             link.href = canvas.toDataURL('image/png')
+            document.body.appendChild(link)
             link.click()
+            document.body.removeChild(link)
 
             toast.success(sr.downloadSuccess || 'Image downloaded successfully!')
         } catch (error) {
@@ -279,7 +297,7 @@ export function SignalRefreshFlow() {
                     </button>
 
                     {/* Capturable Area */}
-                    <div ref={captureRef} className="space-y-4">
+                    <div ref={captureRef} data-capture="true" className="space-y-4 p-4 bg-[#1a1d26] rounded-lg">
                         <CardStatusDisplay {...cardStatus} />
 
                         {/* Contracts Table */}
@@ -349,7 +367,7 @@ export function SignalRefreshFlow() {
 
                     {/* Capturable Area */}
                     {cardStatus && (
-                        <div ref={captureRef} className="mt-4">
+                        <div ref={captureRef} data-capture="true" className="mt-4 p-4 bg-[#1a1d26] rounded-lg">
                             <CardStatusDisplay {...cardStatus} />
                         </div>
                     )}

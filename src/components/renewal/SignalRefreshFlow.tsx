@@ -1,11 +1,13 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { CardStatusDisplay } from './CardStatusDisplay'
 import { ContractsTable } from './ContractsTable'
-import { Loader2, Zap, CreditCard, CheckCircle, XCircle, RefreshCw, Search } from 'lucide-react'
+import { Loader2, Zap, CreditCard, CheckCircle, XCircle, RefreshCw, Search, Download } from 'lucide-react'
+import { toast } from 'sonner'
+import html2canvas from 'html2canvas'
 
 interface Contract {
     type: string
@@ -45,6 +47,8 @@ export function SignalRefreshFlow() {
     const [error, setError] = useState<string | null>(null)
     const [activating, setActivating] = useState(false)
     const [pollTrigger, setPollTrigger] = useState(0) // Used to restart polling
+    const [isDownloading, setIsDownloading] = useState(false)
+    const captureRef = useRef<HTMLDivElement>(null)
 
     // Poll for operation status
     useEffect(() => {
@@ -177,6 +181,33 @@ export function SignalRefreshFlow() {
         setActivating(false)
     }
 
+    // Download image of card status and contracts
+    const handleDownloadImage = async () => {
+        if (!captureRef.current) return
+
+        setIsDownloading(true)
+        try {
+            const canvas = await html2canvas(captureRef.current, {
+                backgroundColor: '#1a1d26',
+                scale: 2,
+                useCORS: true,
+            })
+
+            const date = new Date().toISOString().split('T')[0]
+            const link = document.createElement('a')
+            link.download = `beIN-${cardNumber}-${date}.png`
+            link.href = canvas.toDataURL('image/png')
+            link.click()
+
+            toast.success(sr.downloadSuccess || 'Image downloaded successfully!')
+        } catch (error) {
+            console.error('Download failed:', error)
+            toast.error(sr.downloadFailed || 'Failed to download image')
+        } finally {
+            setIsDownloading(false)
+        }
+    }
+
     return (
         <div className="max-w-lg mx-auto space-y-6">
             {/* Input Step */}
@@ -233,12 +264,29 @@ export function SignalRefreshFlow() {
             {/* Status Display Step - with Activate Button */}
             {step === 'status' && cardStatus && (
                 <div className="space-y-4">
-                    <CardStatusDisplay {...cardStatus} />
+                    {/* Download Image Button */}
+                    <button
+                        onClick={handleDownloadImage}
+                        disabled={isDownloading}
+                        className="w-full py-2.5 bg-[#00A651] hover:bg-[#008f45] text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {isDownloading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Download className="w-4 h-4" />
+                        )}
+                        {isDownloading ? (sr.downloading || 'Downloading...') : (sr.downloadImage || 'Download Image')}
+                    </button>
 
-                    {/* Contracts Table */}
-                    {contracts.length > 0 && (
-                        <ContractsTable contracts={contracts} />
-                    )}
+                    {/* Capturable Area */}
+                    <div ref={captureRef} className="space-y-4">
+                        <CardStatusDisplay {...cardStatus} />
+
+                        {/* Contracts Table */}
+                        {contracts.length > 0 && (
+                            <ContractsTable contracts={contracts} />
+                        )}
+                    </div>
 
                     {error && (
                         <p className="text-red-500 text-sm text-center">{error}</p>
@@ -285,8 +333,23 @@ export function SignalRefreshFlow() {
                         {sr.successActivated}
                     </h3>
 
+                    {/* Download Image Button */}
+                    <button
+                        onClick={handleDownloadImage}
+                        disabled={isDownloading}
+                        className="w-full py-2.5 bg-[#00A651] hover:bg-[#008f45] text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {isDownloading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Download className="w-4 h-4" />
+                        )}
+                        {isDownloading ? (sr.downloading || 'Downloading...') : (sr.downloadImage || 'Download Image')}
+                    </button>
+
+                    {/* Capturable Area */}
                     {cardStatus && (
-                        <div className="mt-4">
+                        <div ref={captureRef} className="mt-4">
                             <CardStatusDisplay {...cardStatus} />
                         </div>
                     )}

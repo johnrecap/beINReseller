@@ -734,7 +734,11 @@ export const bn = {
         checkButton: 'কার্ড চেক করুন',
         checking: 'কার্ড চেক হচ্ছে...',
         activateButton: 'সিগন্যাল অ্যাক্টিভেট',
-        activating: 'সিগন্যাল অ্যাক্টিভেট হচ্ছে...'
+        activating: 'সিগন্যাল অ্যাক্টিভেট হচ্ছে...',
+        downloadImage: 'ছবি ডাউনলোড',
+        downloading: 'ডাউনলোড হচ্ছে...',
+        downloadSuccess: 'ছবি সফলভাবে ডাউনলোড হয়েছে!',
+        downloadFailed: 'ছবি ডাউনলোড ব্যর্থ হয়েছে'
     },
     contracts: {
         title: 'চুক্তি ও সাবস্ক্রিপশন',

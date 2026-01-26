@@ -734,7 +734,11 @@ export const en = {
         checkButton: 'Check Card',
         checking: 'Checking card...',
         activateButton: 'Activate Signal',
-        activating: 'Activating signal...'
+        activating: 'Activating signal...',
+        downloadImage: 'Download Image',
+        downloading: 'Downloading...',
+        downloadSuccess: 'Image downloaded successfully!',
+        downloadFailed: 'Failed to download image'
     },
     contracts: {
         title: 'Contracts & Subscriptions',

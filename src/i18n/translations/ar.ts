@@ -650,7 +650,11 @@ export const ar = {
         checkButton: 'فحص الكارت',
         checking: 'جاري فحص الكارت...',
         activateButton: 'تفعيل الإشارة',
-        activating: 'جاري تفعيل الإشارة...'
+        activating: 'جاري تفعيل الإشارة...',
+        downloadImage: 'تحميل الصورة',
+        downloading: 'جاري التحميل...',
+        downloadSuccess: 'تم تحميل الصورة بنجاح!',
+        downloadFailed: 'فشل تحميل الصورة'
     },
     contracts: {
         title: 'العقود والاشتراكات',

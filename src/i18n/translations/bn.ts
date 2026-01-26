@@ -110,6 +110,7 @@ export const bn = {
         refreshSignalDesc: 'সিগন্যাল পুনরায় সক্রিয় করুন',
         ago: 'আগে',
         operations: 'অপারেশন',
+        success: 'সাফল্য',
         totalOperations: 'মোট অপারেশন',
         totalSpent: 'মোট খরচ',
         currentBalance: 'বর্তমান ব্যালেন্স',

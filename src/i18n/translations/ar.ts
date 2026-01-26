@@ -110,6 +110,7 @@ export const ar = {
         refreshSignalDesc: 'أعد تنشيط الإشارة',
         ago: 'منذ',
         operations: 'العمليات',
+        success: 'نجاح',
         totalOperations: 'إجمالي العمليات',
         totalSpent: 'إجمالي المصروفات',
         currentBalance: 'الرصيد الحالي',

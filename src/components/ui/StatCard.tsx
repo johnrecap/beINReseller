@@ -3,10 +3,11 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { LucideIcon } from "lucide-react"
+import { ReactNode } from "react"
 
 interface StatCardProps {
     title: string
-    value: string | number
+    value: ReactNode
     icon: LucideIcon
     description?: string
     trend?: 'up' | 'down' | 'neutral'

@@ -1603,29 +1603,23 @@ export class HttpClientService {
             }
 
             // Extract balance from page
-            // "Adding Packages - Your Current Credit Balance is 435 USD"
+            // "Your Current Credit Balance is 1,340 USD"
             const pageText = cardRes.data;
             
-            // Debug: Log a snippet of the page to see the actual format
-            const balanceSection = pageText.match(/balance[^<]*</gi);
-            if (balanceSection) {
-                console.log('[HTTP] Balance section found:', balanceSection.slice(0, 3));
-            }
-            
-            // Try multiple patterns
+            // Try multiple patterns - handle commas in numbers like 1,340
             const patterns = [
-                /Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i,
-                /Credit Balance[:\s]+(\d+(?:\.\d{1,2})?)\s*USD/i,
-                /Balance[:\s]+(\d+(?:\.\d{1,2})?)\s*USD/i,
-                /(\d+(?:\.\d{1,2})?)\s*USD\s*(?:Credit|Balance)/i,
-                /class="[^"]*balance[^"]*"[^>]*>[\s\S]*?(\d+(?:\.\d{1,2})?)\s*USD/i
+                /Current Credit Balance is ([\d,]+(?:\.\d{1,2})?)\s*USD/i,
+                /Credit Balance[:\s]+([\d,]+(?:\.\d{1,2})?)\s*USD/i,
+                /Balance[:\s]+([\d,]+(?:\.\d{1,2})?)\s*USD/i,
+                /([\d,]+(?:\.\d{1,2})?)\s*USD\s*(?:Credit|Balance)/i
             ];
             
             for (const pattern of patterns) {
                 const match = pageText.match(pattern);
                 if (match) {
-                    const balance = parseFloat(match[1]);
-                    console.log(`[HTTP] 💰 Dealer Balance: ${balance} USD (pattern: ${pattern.source.slice(0, 30)}...)`);
+                    // Remove commas before parsing: "1,340" -> "1340"
+                    const balance = parseFloat(match[1].replace(/,/g, ''));
+                    console.log(`[HTTP] 💰 Dealer Balance: ${balance} USD`);
                     return { success: true, balance };
                 }
             }

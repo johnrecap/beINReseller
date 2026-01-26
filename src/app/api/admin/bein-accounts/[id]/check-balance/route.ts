@@ -70,24 +70,40 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
 
         // Wait for the job to complete (with timeout)
+        // Since job has removeOnComplete: true, we check the database for updates
         const MAX_WAIT_MS = 60000 // 60 seconds
         const POLL_INTERVAL_MS = 1000 // 1 second
         const startTime = Date.now()
 
+        // Get the initial balance to detect changes
+        const initialBalance = account.dealerBalance
+        const initialUpdatedAt = account.balanceUpdatedAt?.getTime() || 0
+
         while (Date.now() - startTime < MAX_WAIT_MS) {
-            // Check if job is completed
+            // Check if job failed
             const jobState = await job.getState()
             
-            if (jobState === 'completed') {
-                // Get updated account data
-                const updatedAccount = await prisma.beinAccount.findUnique({
-                    where: { id },
-                    select: {
-                        dealerBalance: true,
-                        balanceUpdatedAt: true
-                    }
-                })
+            if (jobState === 'failed') {
+                const failedReason = job.failedReason || 'Unknown error'
+                return NextResponse.json({
+                    success: false,
+                    error: `فشل في جلب الرصيد: ${failedReason}`
+                }, { status: 500 })
+            }
 
+            // Check if balance was updated in database
+            const updatedAccount = await prisma.beinAccount.findUnique({
+                where: { id },
+                select: {
+                    dealerBalance: true,
+                    balanceUpdatedAt: true
+                }
+            })
+
+            const newUpdatedAt = updatedAccount?.balanceUpdatedAt?.getTime() || 0
+
+            // If balanceUpdatedAt changed, the job completed
+            if (newUpdatedAt > initialUpdatedAt) {
                 return NextResponse.json({
                     success: true,
                     balance: updatedAccount?.dealerBalance ?? null,
@@ -98,12 +114,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 })
             }
 
-            if (jobState === 'failed') {
-                const failedReason = job.failedReason || 'Unknown error'
-                return NextResponse.json({
-                    success: false,
-                    error: `فشل في جلب الرصيد: ${failedReason}`
-                }, { status: 500 })
+            // Job completed and removed - check if state is null/undefined
+            if (jobState === 'completed' || jobState === 'unknown' || !jobState) {
+                // Job finished, check database one more time
+                const finalAccount = await prisma.beinAccount.findUnique({
+                    where: { id },
+                    select: {
+                        dealerBalance: true,
+                        balanceUpdatedAt: true
+                    }
+                })
+
+                const finalUpdatedAt = finalAccount?.balanceUpdatedAt?.getTime() || 0
+                
+                if (finalUpdatedAt > initialUpdatedAt) {
+                    return NextResponse.json({
+                        success: true,
+                        balance: finalAccount?.dealerBalance ?? null,
+                        updatedAt: finalAccount?.balanceUpdatedAt?.toISOString() ?? null,
+                        message: finalAccount?.dealerBalance !== null && finalAccount?.dealerBalance !== undefined
+                            ? `تم تحديث الرصيد: ${finalAccount.dealerBalance} USD`
+                            : 'لم يتم العثور على الرصيد'
+                    })
+                }
             }
 
             // Wait before next poll

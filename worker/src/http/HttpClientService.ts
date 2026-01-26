@@ -1605,20 +1605,29 @@ export class HttpClientService {
             // Extract balance from page
             // "Adding Packages - Your Current Credit Balance is 435 USD"
             const pageText = cardRes.data;
-            const balanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
             
-            if (balanceMatch) {
-                const balance = parseFloat(balanceMatch[1]);
-                console.log(`[HTTP] 💰 Dealer Balance: ${balance} USD`);
-                return { success: true, balance };
+            // Debug: Log a snippet of the page to see the actual format
+            const balanceSection = pageText.match(/balance[^<]*</gi);
+            if (balanceSection) {
+                console.log('[HTTP] Balance section found:', balanceSection.slice(0, 3));
             }
-
-            // Try alternative pattern
-            const altMatch = pageText.match(/Credit Balance[:\s]+(\d+(?:\.\d{1,2})?)\s*USD/i);
-            if (altMatch) {
-                const balance = parseFloat(altMatch[1]);
-                console.log(`[HTTP] 💰 Dealer Balance (alt): ${balance} USD`);
-                return { success: true, balance };
+            
+            // Try multiple patterns
+            const patterns = [
+                /Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i,
+                /Credit Balance[:\s]+(\d+(?:\.\d{1,2})?)\s*USD/i,
+                /Balance[:\s]+(\d+(?:\.\d{1,2})?)\s*USD/i,
+                /(\d+(?:\.\d{1,2})?)\s*USD\s*(?:Credit|Balance)/i,
+                /class="[^"]*balance[^"]*"[^>]*>[\s\S]*?(\d+(?:\.\d{1,2})?)\s*USD/i
+            ];
+            
+            for (const pattern of patterns) {
+                const match = pageText.match(pattern);
+                if (match) {
+                    const balance = parseFloat(match[1]);
+                    console.log(`[HTTP] 💰 Dealer Balance: ${balance} USD (pattern: ${pattern.source.slice(0, 30)}...)`);
+                    return { success: true, balance };
+                }
             }
 
             console.log('[HTTP] ⚠️ Could not extract balance from page');

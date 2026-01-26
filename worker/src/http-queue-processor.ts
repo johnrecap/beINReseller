@@ -176,9 +176,14 @@ export async function processOperationHttp(
         switch (type) {
             case 'CHECK_ACCOUNT_BALANCE':
                 if (accountId) {
-                    await handleCheckAccountBalance(accountId);
+                    try {
+                        await handleCheckAccountBalance(accountId);
+                    } catch (balanceError: any) {
+                        console.error(`❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for ${accountId}:`, balanceError.message);
+                        // Don't throw - this job type has no operation to refund
+                    }
                 }
-                break;
+                return; // Exit early - no operation to update on success or failure
             case 'START_RENEWAL':
                 await handleStartRenewalHttp(operationId, cardNumber, accountPool);
                 break;

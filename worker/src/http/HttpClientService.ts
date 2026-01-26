@@ -1513,10 +1513,10 @@ export class HttpClientService {
             }
 
             // Extract dealer balance from page
-            // "Adding Packages - Your Current Credit Balance is 435 USD"
+            // "Adding Packages - Your Current Credit Balance is 1,340 USD"
             const pageText = $('body').text();
-            const balanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
-            const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1]) : undefined;
+            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d{1,2})?)\s*USD/i);
+            const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : undefined;
 
             if (dealerBalance !== undefined) {
                 console.log(`[HTTP] 💰 Dealer Balance: ${dealerBalance} USD`);
@@ -1885,11 +1885,11 @@ export class HttpClientService {
             const $ = cheerio.load(res.data);
             const pageText = $('body').text();
 
-            // Match pattern: "Your Current Credit Balance is 435 USD"
-            const balanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
+            // Match pattern: "Your Current Credit Balance is 1,340 USD"
+            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d{1,2})?)\s*USD/i);
 
             if (balanceMatch) {
-                const balance = parseFloat(balanceMatch[1]);
+                const balance = parseFloat(balanceMatch[1].replace(/,/g, ''));
                 console.log(`[HTTP] 💰 Current Balance: ${balance} USD`);
                 return balance;
             }
@@ -2175,11 +2175,11 @@ export class HttpClientService {
             const $ = cheerio.load(res.data);
             const pageText = $('body').text();
 
-            // Match pattern: "Your Current Credit Balance is 435 USD"
-            const balanceMatch = pageText.match(/Current Credit Balance is (\d+(?:\.\d{1,2})?)\s*USD/i);
+            // Match pattern: "Your Current Credit Balance is 1,340 USD"
+            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d{1,2})?)\s*USD/i);
 
             if (balanceMatch) {
-                return parseFloat(balanceMatch[1]);
+                return parseFloat(balanceMatch[1].replace(/,/g, ''));
             }
 
             return null;

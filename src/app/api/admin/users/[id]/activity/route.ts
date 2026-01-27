@@ -1,11 +1,11 @@
 /**
- * GET /api/admin/users/[userId]/activity
+ * GET /api/admin/users/[id]/activity
  * 
  * Returns detailed activity information for a specific user.
  * Admin only endpoint.
  * 
  * URL params:
- * - userId: User ID to get activity for
+ * - id: User ID to get activity for
  */
 
 import { NextResponse } from 'next/server'
@@ -15,7 +15,7 @@ import prisma from '@/lib/prisma'
 
 export async function GET(
     request: Request,
-    { params }: { params: Promise<{ userId: string }> }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const session = await auth()
@@ -27,7 +27,7 @@ export async function GET(
             )
         }
         
-        const { userId } = await params
+        const { id: userId } = await params
         
         // Verify user exists and get basic info
         const user = await prisma.user.findUnique({

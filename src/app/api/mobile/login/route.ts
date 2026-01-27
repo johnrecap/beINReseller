@@ -5,10 +5,13 @@ import { generateMobileToken } from '@/lib/mobile-auth'
 import { trackLogin } from '@/lib/services/activityTracker'
 
 /**
- * POST /api/auth/mobile-login
+ * POST /api/mobile/login
  * 
  * Mobile-specific login endpoint that returns JWT token in response body.
  * This endpoint is designed for Flutter/mobile apps that can't use HTTP-only cookies.
+ * 
+ * NOTE: This endpoint is placed under /api/mobile/ to avoid NextAuth's catch-all
+ * route at /api/auth/[...nextauth] which intercepts all /api/auth/* routes.
  * 
  * Request Body:
  * {

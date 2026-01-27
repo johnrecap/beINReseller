@@ -1200,5 +1200,80 @@ export const en = {
         failedToDelete: 'Failed to delete announcement',
         failedToUpdate: 'Failed to update status',
         enterMessage: 'Please enter announcement text'
+    },
+    activity: {
+        title: 'User Activity Monitoring',
+        subtitle: 'Track activity and identify inactive accounts',
+        tabs: {
+            overview: 'Overview',
+            inactiveUsers: 'Inactive Users'
+        },
+        metrics: {
+            totalUsers: 'Total Users',
+            active: 'Active',
+            recent: 'Recent',
+            warning: 'Warning',
+            inactive: 'Inactive',
+            critical: 'Critical'
+        },
+        status: {
+            active: 'Active',
+            recent: 'Recent',
+            warning: 'Warning',
+            inactive: 'Inactive',
+            critical: 'Critical'
+        },
+        days: {
+            lessThan3: '< 3 days',
+            range3to7: '3-7 days',
+            range7to14: '7-14 days',
+            range14to30: '14-30 days',
+            moreThan30: '> 30 days'
+        },
+        table: {
+            user: 'User',
+            role: 'Role',
+            lastLogin: 'Last Login',
+            lastOperation: 'Last Operation',
+            stats: 'Stats',
+            status: 'Status',
+            actions: 'Actions',
+            logins: 'Logins:',
+            operations: 'Ops:',
+            neverLoggedIn: 'Never logged in',
+            noInactiveUsers: 'No inactive users found'
+        },
+        filters: {
+            searchPlaceholder: 'Search by name or email...',
+            allRoles: 'All Roles',
+            inactiveSince: 'Inactive for',
+            showing: 'Showing',
+            of: 'of',
+            inactiveUsers: 'inactive users'
+        },
+        chart: {
+            activityTrend: 'Activity Trend',
+            logins: 'Logins',
+            operations: 'Operations',
+            distribution: 'Activity Distribution'
+        },
+        topActive: {
+            title: 'Most Active Users',
+            rank: '#',
+            user: 'User',
+            role: 'Role',
+            logins: 'Logins',
+            operations: 'Operations'
+        },
+        periods: {
+            last7Days: 'Last 7 days',
+            last30Days: 'Last 30 days',
+            last90Days: 'Last 90 days'
+        },
+        time: {
+            today: 'Today',
+            yesterday: 'Yesterday',
+            daysAgo: '{days} days ago'
+        }
     }
 }

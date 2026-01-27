@@ -16,6 +16,7 @@ import { createNotification } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from './types/proxy';
+import { trackOperationComplete } from './lib/activity-tracker';
 import { 
     getSessionFromCache, 
     saveSessionToCache, 
@@ -777,6 +778,17 @@ async function handleConfirmPurchaseHttp(
         });
 
         await accountPool.markAccountUsed(operation.beinAccountId);
+
+        // Track activity for user engagement metrics
+        if (operation.userId) {
+            await trackOperationComplete(
+                operation.userId,
+                operationId,
+                'RENEW',
+                operation.amount,
+                { packageName: selectedPackage?.name }
+            );
+        }
 
         if (operation.userId) {
             await createNotification({

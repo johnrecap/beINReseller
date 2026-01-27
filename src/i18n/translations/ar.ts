@@ -1200,5 +1200,80 @@ export const ar = {
         failedToDelete: 'فشل في حذف الإعلان',
         failedToUpdate: 'فشل في تحديث الحالة',
         enterMessage: 'الرجاء إدخال نص الإعلان'
+    },
+    activity: {
+        title: 'مراقبة نشاط المستخدمين',
+        subtitle: 'تتبع النشاط وتحديد الحسابات غير النشطة',
+        tabs: {
+            overview: 'نظرة عامة',
+            inactiveUsers: 'المستخدمون غير النشطين'
+        },
+        metrics: {
+            totalUsers: 'إجمالي المستخدمين',
+            active: 'نشط',
+            recent: 'نشاط حديث',
+            warning: 'تحذير',
+            inactive: 'غير نشط',
+            critical: 'خامل'
+        },
+        status: {
+            active: 'نشط',
+            recent: 'نشاط حديث',
+            warning: 'تحذير',
+            inactive: 'غير نشط',
+            critical: 'خامل'
+        },
+        days: {
+            lessThan3: '< 3 أيام',
+            range3to7: '3-7 أيام',
+            range7to14: '7-14 يوم',
+            range14to30: '14-30 يوم',
+            moreThan30: '> 30 يوم'
+        },
+        table: {
+            user: 'المستخدم',
+            role: 'الدور',
+            lastLogin: 'آخر دخول',
+            lastOperation: 'آخر عملية',
+            stats: 'الإحصائيات',
+            status: 'الحالة',
+            actions: 'الإجراءات',
+            logins: 'دخول:',
+            operations: 'عمليات:',
+            neverLoggedIn: 'لم يسجل دخول',
+            noInactiveUsers: 'لا يوجد مستخدمين غير نشطين'
+        },
+        filters: {
+            searchPlaceholder: 'بحث بالاسم أو البريد...',
+            allRoles: 'كل الأدوار',
+            inactiveSince: 'غير نشط منذ',
+            showing: 'عرض',
+            of: 'من',
+            inactiveUsers: 'مستخدم غير نشط'
+        },
+        chart: {
+            activityTrend: 'اتجاه النشاط',
+            logins: 'تسجيلات الدخول',
+            operations: 'العمليات',
+            distribution: 'توزيع النشاط'
+        },
+        topActive: {
+            title: 'أكثر المستخدمين نشاطاً',
+            rank: '#',
+            user: 'المستخدم',
+            role: 'الدور',
+            logins: 'تسجيلات الدخول',
+            operations: 'العمليات'
+        },
+        periods: {
+            last7Days: 'آخر 7 أيام',
+            last30Days: 'آخر 30 يوم',
+            last90Days: 'آخر 90 يوم'
+        },
+        time: {
+            today: 'اليوم',
+            yesterday: 'أمس',
+            daysAgo: 'منذ {days} يوم'
+        }
     }
 }

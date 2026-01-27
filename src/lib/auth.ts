@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import prisma from "@/lib/prisma"
 import { authConfig } from "@/lib/auth.config"
+import { trackLogin } from "@/lib/services/activityTracker"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     ...authConfig,
@@ -46,10 +47,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     throw new Error("اسم المستخدم أو كلمة المرور غير صحيحة")
                 }
 
-                // Update last login
-                await prisma.user.update({
-                    where: { id: user.id },
-                    data: { lastLoginAt: new Date() },
+                // Track login activity (updates lastLoginAt, increments loginCount, logs activity)
+                await trackLogin({
+                    userId: user.id,
+                    // Note: IP and user agent would need to be passed from middleware
+                    // For now, we track the basic login event
+                }).catch(err => {
+                    // Don't fail login if tracking fails
+                    console.error('Failed to track login:', err)
                 })
 
                 // Return user data for session

@@ -58,6 +58,12 @@ model User {
   deletedBalance  Float?        @map("deleted_balance")
   deletedByUserId String?       @map("deleted_by_user_id")
   
+  // ===== Enhanced Activity Tracking =====
+  lastOperationAt       DateTime?     @map("last_operation_at")
+  loginCount            Int           @default(0) @map("login_count")
+  totalOperations       Int           @default(0) @map("total_operations")
+  inactivityWarningAt   DateTime?     @map("inactivity_warning_at")
+  
   // Creator tracking - who created this user
   createdById     String?       @map("created_by_id")
   createdBy       User?         @relation("UserCreator", fields: [createdById], references: [id])
@@ -75,6 +81,9 @@ model User {
   managerActions  UserAction[]  @relation("ManagerActions")
   userActions     UserAction[]  @relation("UserActions")
 
+  @@index([lastLoginAt])
+  @@index([lastOperationAt])
+  @@index([role, isActive])
   @@map("users")
 }
 
@@ -204,12 +213,19 @@ model ActivityLog {
   details   Json?
   ipAddress String?  @map("ip_address")
   userAgent String?  @map("user_agent")
+  
+  // ===== Enhanced Context =====
+  targetId    String?  @map("target_id")    // Related record ID (operation, user, etc.)
+  targetType  String?  @map("target_type")  // Model name: 'Operation', 'User', 'Transaction'
+  duration    Int?                          // Action duration in ms (for performance tracking)
+  
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt])
   @@index([action])
+  @@index([targetType, targetId])
   @@map("activity_logs")
 }
 

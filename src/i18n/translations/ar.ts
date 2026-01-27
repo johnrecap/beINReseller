@@ -88,6 +88,7 @@ export const ar = {
         deletedAccounts: 'الحسابات المحذوفة',
         proxyManagement: 'إدارة البروكسي',
         announcements: 'الإعلانات',
+        activityMonitoring: 'مراقبة النشاط',
     },
     header: {
         balance: 'رصيدي',

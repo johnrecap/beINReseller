@@ -88,6 +88,7 @@ export const en = {
         deletedAccounts: 'Deleted Accounts',
         proxyManagement: 'Proxy Management',
         announcements: 'Announcements',
+        activityMonitoring: 'Activity Monitoring',
     },
     header: {
         balance: 'My Balance',

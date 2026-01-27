@@ -20,7 +20,8 @@ import {
     Loader2,
     Globe,
     Trash2,
-    Megaphone
+    Megaphone,
+    Activity
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -74,6 +75,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const adminLinks = [
         { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
         { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
+        { href: '/dashboard/admin/users/activity', label: t.sidebar.activityMonitoring || 'Activity Monitoring', icon: Activity },
         { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
         { href: '/dashboard/admin/proxies', label: t.sidebar.proxyManagement, icon: Globe },

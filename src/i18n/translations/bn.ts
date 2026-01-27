@@ -88,6 +88,7 @@ export const bn = {
         deletedAccounts: 'মুছে ফেলা অ্যাকাউন্ট',
         proxyManagement: 'প্রক্সি ব্যবস্থাপনা',
         announcements: 'ঘোষণা',
+        activityMonitoring: 'কার্যকলাপ পর্যবেক্ষণ',
     },
     header: {
         balance: 'আমার ব্যালেন্স',

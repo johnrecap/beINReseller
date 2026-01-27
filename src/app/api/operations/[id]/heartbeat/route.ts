@@ -11,11 +11,12 @@
  * - User leaving page
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
 import { OperationStatus } from '@prisma/client'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
 // Configuration
 const HEARTBEAT_TTL_SECONDS = 15  // Operation expires after 15s without heartbeat
@@ -27,15 +28,24 @@ const HEARTBEAT_REQUIRED_STATUSES: OperationStatus[] = [
     'AWAITING_CAPTCHA'
 ]
 
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
+
 export async function POST(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params
-        const session = await auth()
+        const authUser = await getAuthUser(request)
         
-        if (!session?.user?.id) {
+        if (!authUser?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
         
@@ -43,7 +53,7 @@ export async function POST(
         const operation = await prisma.operation.findFirst({
             where: {
                 id,
-                userId: session.user.id,
+                userId: authUser.id,
                 status: { in: HEARTBEAT_REQUIRED_STATUSES }
             },
             select: {
@@ -103,21 +113,21 @@ export async function POST(
  * GET - Check heartbeat status (for debugging)
  */
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params
-        const session = await auth()
+        const authUser = await getAuthUser(request)
         
-        if (!session?.user?.id) {
+        if (!authUser?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
         
         const operation = await prisma.operation.findFirst({
             where: {
                 id,
-                userId: session.user.id
+                userId: authUser.id
             },
             select: {
                 id: true,

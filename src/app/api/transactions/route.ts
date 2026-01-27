@@ -1,13 +1,23 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
-export async function GET(request: Request) {
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
+
+export async function GET(request: NextRequest) {
     try {
-        // Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -21,7 +31,7 @@ export async function GET(request: Request) {
 
         // Build where clause
         const where: Prisma.TransactionWhereInput = {
-            userId: session.user.id,
+            userId: authUser.id,
         }
 
         // Parallel queries for efficiency
@@ -46,7 +56,7 @@ export async function GET(request: Request) {
             prisma.transaction.count({ where }),
             // 3. Get user balance
             prisma.user.findUnique({
-                where: { id: session.user.id },
+                where: { id: authUser.id },
                 select: { balance: true }
             }),
             // 4. Get total deposits (positive amounts)

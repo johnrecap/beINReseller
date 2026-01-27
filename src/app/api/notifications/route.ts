@@ -1,15 +1,25 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { markAsRead, markAllAsRead } from '@/lib/notification'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
 
 /**
  * GET /api/notifications - Get user notifications
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
         }
 
@@ -19,7 +29,7 @@ export async function GET(request: Request) {
         const unreadOnly = searchParams.get('unread') === 'true'
 
         const where = {
-            userId: session.user.id,
+            userId: authUser.id,
             ...(unreadOnly && { read: false }),
         }
 
@@ -32,7 +42,7 @@ export async function GET(request: Request) {
             }),
             prisma.notification.count({ where }),
             prisma.notification.count({
-                where: { userId: session.user.id, read: false }
+                where: { userId: authUser.id, read: false }
             }),
         ])
 
@@ -56,10 +66,10 @@ export async function GET(request: Request) {
 /**
  * PUT /api/notifications - Mark notifications as read
  */
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
         }
 
@@ -67,12 +77,12 @@ export async function PUT(request: Request) {
         const { notificationId, markAll } = body
 
         if (markAll) {
-            await markAllAsRead(session.user.id)
+            await markAllAsRead(authUser.id)
             return NextResponse.json({ success: true, message: 'تم تحديد الكل كمقروء' })
         }
 
         if (notificationId) {
-            await markAsRead(notificationId, session.user.id)
+            await markAsRead(notificationId, authUser.id)
             return NextResponse.json({ success: true, message: 'تم التحديد كمقروء' })
         }
 

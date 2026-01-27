@@ -1,15 +1,25 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
 
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -44,7 +54,7 @@ export async function GET(
         }
 
         // Check ownership (user can only see their own operations)
-        if (operation.userId !== session.user.id && session.user.role !== 'ADMIN') {
+        if (operation.userId !== authUser.id && authUser.role !== 'ADMIN') {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 403 }

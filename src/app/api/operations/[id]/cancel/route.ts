@@ -1,16 +1,26 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { operationsQueue } from '@/lib/queue'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
 
 export async function POST(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -32,7 +42,7 @@ export async function POST(
         }
 
         // Check ownership
-        if (operation.userId !== session.user.id) {
+        if (operation.userId !== authUser.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 403 }
@@ -95,7 +105,7 @@ export async function POST(
                 // Log activity
                 await tx.activityLog.create({
                     data: {
-                        userId: session.user!.id,
+                        userId: authUser.id,
                         action: 'OPERATION_CANCELLED',
                         details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}**** (استرداد سابق)`,
                         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
@@ -143,7 +153,7 @@ export async function POST(
             // Log activity
             await tx.activityLog.create({
                 data: {
-                    userId: session.user!.id,
+                    userId: authUser.id,
                     action: 'OPERATION_CANCELLED',
                     details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}****`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',

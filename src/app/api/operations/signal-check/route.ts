@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
@@ -6,6 +6,20 @@ import { addOperationJob } from '@/lib/queue'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    // Try web session first
+    const session = await auth()
+    if (session?.user?.id) {
+        return session.user
+    }
+    // Fall back to mobile token
+    return getMobileUserFromRequest(request)
+}
 
 // Validation schema
 const signalCheckSchema = z.object({
@@ -20,11 +34,11 @@ const signalCheckSchema = z.object({
  * - Sends Job to Worker to check card and fetch status
  * - Returns operationId for polling
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        // 1. Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // 1. Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -32,7 +46,7 @@ export async function POST(request: Request) {
         }
 
         // 2. Check permission - only users with SIGNAL_ACTIVATE can access
-        if (!roleHasPermission(session.user.role, PERMISSIONS.SIGNAL_ACTIVATE)) {
+        if (!roleHasPermission(authUser.role, PERMISSIONS.SIGNAL_ACTIVATE)) {
             return NextResponse.json(
                 { error: 'صلاحيات غير كافية' },
                 { status: 403 }
@@ -41,7 +55,7 @@ export async function POST(request: Request) {
 
         // 3. Check rate limit
         const { allowed, result: rateLimitResult } = await withRateLimit(
-            `operations:${session.user.id}`,
+            `operations:${authUser.id}`,
             RATE_LIMITS.operations
         )
 
@@ -84,7 +98,7 @@ export async function POST(request: Request) {
         // 5. Create operation
         const operation = await prisma.operation.create({
             data: {
-                userId: session.user.id,
+                userId: authUser.id,
                 type: 'SIGNAL_REFRESH', // Use SIGNAL_REFRESH since it's a valid enum value
                 cardNumber,
                 amount: 0,
@@ -95,7 +109,7 @@ export async function POST(request: Request) {
         // 6. Log activity
         await prisma.activityLog.create({
             data: {
-                userId: session.user.id,
+                userId: authUser.id,
                 action: 'SIGNAL_CHECK_STARTED',
                 details: `فحص كارت ****${cardNumber.slice(-4)}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
@@ -108,7 +122,7 @@ export async function POST(request: Request) {
                 operationId: operation.id,
                 type: 'SIGNAL_CHECK',
                 cardNumber,
-                userId: session.user.id,
+                userId: authUser.id,
             })
         } catch (queueError) {
             console.error('Failed to add signal check job to queue:', queueError)
@@ -125,11 +139,21 @@ export async function POST(request: Request) {
             )
         }
 
-        // 8. Return success
+        // 8. Return success with operation for polling
         return NextResponse.json({
             success: true,
             operationId: operation.id,
             message: 'جاري فحص الكارت...',
+            // Include operation for Flutter compatibility
+            operation: {
+                id: operation.id,
+                userId: operation.userId,
+                type: operation.type,
+                cardNumber: operation.cardNumber,
+                amount: operation.amount,
+                status: operation.status,
+                createdAt: operation.createdAt.toISOString(),
+            },
         })
 
     } catch (error) {

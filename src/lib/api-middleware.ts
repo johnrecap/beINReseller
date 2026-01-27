@@ -3,8 +3,9 @@ import { Session } from 'next-auth'
 import { auth } from '@/lib/auth'
 import { checkRateLimit, RateLimitConfig, rateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limiter'
 import { errorResponse, ERROR_MESSAGES } from '@/lib/api-response'
-import { hasRole, RoleLevel, roleHasPermission, roleHasAnyPermission } from '@/lib/auth-utils'
+import { hasRole, RoleLevel, roleHasPermission, roleHasAnyPermission, AuthenticatedUser } from '@/lib/auth-utils'
 import { Permission } from '@/lib/permissions'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
 // Context type for App Router handlers
 export interface RouteContext {
@@ -13,6 +14,7 @@ export interface RouteContext {
 
 // Type for the wrapped handler (authenticated)
 // Accepts: Request, Session, and optional Context
+// NOTE: Session now includes mobile auth - user data is guaranteed to exist
 export type AuthorizedApiHandler = (
     req: NextRequest,
     session: Session,
@@ -24,8 +26,45 @@ interface WithAuthOptions {
 }
 
 /**
+ * Helper function to get authenticated user from either:
+ * 1. NextAuth session (web app - checked first)
+ * 2. Bearer token (mobile app - checked second)
+ * 
+ * Returns a mock Session object for compatibility with existing handlers.
+ */
+async function getAuthSession(req: NextRequest): Promise<Session | null> {
+    // Step 1: Try NextAuth session first (web app)
+    const session = await auth()
+    if (session?.user?.id) {
+        return session
+    }
+    
+    // Step 2: Try mobile token (Bearer token from Authorization header)
+    const mobileUser = getMobileUserFromRequest(req)
+    if (mobileUser) {
+        // Create a mock Session object that matches NextAuth Session structure
+        return {
+            user: {
+                id: mobileUser.id,
+                username: mobileUser.username,
+                email: mobileUser.email || '',
+                role: mobileUser.role,
+                balance: mobileUser.balance,
+            },
+            expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+        } as Session
+    }
+    
+    return null
+}
+
+/**
  * Middleware wrapper to enforce authentication and optional role check.
  * Catches ONLY auth errors. Propagates all other errors.
+ * 
+ * NOW SUPPORTS BOTH:
+ * - Web sessions (NextAuth cookies)
+ * - Mobile tokens (Bearer token in Authorization header)
  * 
  * Usage:
  * export const GET = withAuth(async (req, session, context) => { ... })
@@ -35,8 +74,8 @@ export function withAuth(
     options: WithAuthOptions = {}
 ) {
     return async (req: NextRequest, context?: RouteContext) => {
-        // 1. Check Authentication
-        const session = await auth()
+        // 1. Check Authentication (Web session OR Mobile token)
+        const session = await getAuthSession(req)
         if (!session?.user?.id) {
             return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401, 'UNAUTHORIZED')
         }
@@ -118,6 +157,10 @@ interface WithPermissionOptions {
 /**
  * Middleware wrapper to enforce authentication and permission check.
  * 
+ * NOW SUPPORTS BOTH:
+ * - Web sessions (NextAuth cookies)
+ * - Mobile tokens (Bearer token in Authorization header)
+ * 
  * Usage:
  * export const POST = withPermission(async (req, session) => { ... }, { permission: PERMISSIONS.SUBSCRIPTION_RENEW })
  * or for multiple permissions (ANY):
@@ -128,8 +171,8 @@ export function withPermission(
     options: WithPermissionOptions
 ) {
     return async (req: NextRequest, context?: RouteContext) => {
-        // 1. Check Authentication
-        const session = await auth()
+        // 1. Check Authentication (Web session OR Mobile token)
+        const session = await getAuthSession(req)
         if (!session?.user?.id) {
             return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401, 'UNAUTHORIZED')
         }

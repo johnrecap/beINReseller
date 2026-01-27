@@ -1,16 +1,30 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
 const profileSchema = z.object({
     email: z.string().email('البريد الإلكتروني غير صالح').optional(),
 })
 
-export async function GET(_request: Request) {
+/**
+ * Helper to get authenticated user from session or mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    // Try NextAuth session first
+    const session = await auth()
+    if (session?.user?.id) {
+        return session.user
+    }
+    // Try mobile token
+    return getMobileUserFromRequest(request)
+}
+
+export async function GET(request: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -18,7 +32,7 @@ export async function GET(_request: Request) {
         }
 
         const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: authUser.id },
             select: {
                 id: true,
                 username: true,
@@ -54,10 +68,10 @@ export async function GET(_request: Request) {
     }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -65,7 +79,7 @@ export async function PATCH(request: Request) {
         }
 
         // Only ADMIN can change their own email
-        if (session.user.role !== 'ADMIN') {
+        if (authUser.role !== 'ADMIN') {
             return NextResponse.json(
                 { error: 'غير مصرح لك بتعديل الإيميل' },
                 { status: 403 }
@@ -90,7 +104,7 @@ export async function PATCH(request: Request) {
                 where: { email }
             })
 
-            if (existing && existing.id !== session.user.id) {
+            if (existing && existing.id !== authUser.id) {
                 return NextResponse.json(
                     { error: 'البريد الإلكتروني مستخدم بالفعل' },
                     { status: 400 }
@@ -99,7 +113,7 @@ export async function PATCH(request: Request) {
         }
 
         const updatedUser = await prisma.user.update({
-            where: { id: session.user.id },
+            where: { id: authUser.id },
             data: {
                 email: email || undefined,
             },

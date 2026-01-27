@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { addOperationJob } from '@/lib/queue'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
 // Validation schema
 const selectPackageSchema = z.object({
@@ -18,6 +19,15 @@ interface AvailablePackage {
 }
 
 /**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
+
+/**
  * POST /api/operations/[id]/select-package
  * 
  * اختيار الباقة وإتمام الشراء
@@ -30,9 +40,9 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // 1. Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // 1. Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -74,7 +84,7 @@ export async function POST(
             }
 
             // Check ownership
-            if (operation.userId !== session.user.id) {
+            if (operation.userId !== authUser.id) {
                 throw new Error('FORBIDDEN')
             }
 
@@ -96,7 +106,7 @@ export async function POST(
 
             // Get user balance
             const user = await tx.user.findUnique({
-                where: { id: session.user.id },
+                where: { id: authUser.id },
                 select: { id: true, balance: true },
             })
 
@@ -158,7 +168,7 @@ export async function POST(
                 type: 'COMPLETE_PURCHASE',
                 cardNumber: result.operation.cardNumber,
                 promoCode,
-                userId: session.user.id,
+                userId: authUser.id,
                 amount: result.selectedPackage.price,
             })
         } catch (queueError) {

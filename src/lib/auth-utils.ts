@@ -1,11 +1,24 @@
 import { auth } from './auth'
 import { redirect } from 'next/navigation'
+import { NextRequest } from 'next/server'
 import { 
     Permission, 
     roleHasPermission, 
     roleHasAnyPermission,
     PERMISSIONS 
 } from './permissions'
+import { getMobileUserFromRequest, MobileUser } from './mobile-auth'
+
+/**
+ * Unified user type for both web session and mobile token
+ */
+export interface AuthenticatedUser {
+    id: string
+    username: string
+    email?: string | null
+    role: string
+    balance: number
+}
 
 /**
  * Get the current authenticated user from session
@@ -219,4 +232,121 @@ export async function canRenew(): Promise<boolean> {
  */
 export async function canActivateSignal(): Promise<boolean> {
     return checkPermission(PERMISSIONS.SIGNAL_ACTIVATE)
+}
+
+// ============================================
+// DUAL AUTH FUNCTIONS (WEB + MOBILE)
+// ============================================
+
+/**
+ * Get authenticated user from either:
+ * 1. NextAuth session (web app - checked first)
+ * 2. Bearer token (mobile app - checked second)
+ * 
+ * This allows the same API routes to serve both web and mobile clients.
+ * 
+ * @param request - Next.js request object (needed for mobile token extraction)
+ * @returns User data or null if not authenticated
+ */
+export async function getAuthenticatedUser(request: NextRequest): Promise<AuthenticatedUser | null> {
+    // Step 1: Try NextAuth session first (web app)
+    const session = await auth()
+    if (session?.user?.id) {
+        return {
+            id: session.user.id,
+            username: session.user.username,
+            email: session.user.email,
+            role: session.user.role,
+            balance: session.user.balance,
+        }
+    }
+    
+    // Step 2: Try mobile token (Bearer token from Authorization header)
+    const mobileUser = getMobileUserFromRequest(request)
+    if (mobileUser) {
+        return mobileUser
+    }
+    
+    // No authentication found
+    return null
+}
+
+/**
+ * Require authentication for API routes - works with both web session and mobile token.
+ * Returns error object instead of redirect (suitable for API routes).
+ * 
+ * @param request - Next.js request object
+ * @returns Object with either { user } or { error, status }
+ */
+export async function requireAuthAPI(request: NextRequest) {
+    const user = await getAuthenticatedUser(request)
+    
+    if (!user) {
+        return { error: 'غير مصرح', status: 401 }
+    }
+    
+    return { user }
+}
+
+/**
+ * Require specific role for API routes - works with both web session and mobile token.
+ * 
+ * @param request - Next.js request object
+ * @param requiredRole - Minimum required role level
+ * @returns Object with either { user } or { error, status }
+ */
+export async function requireRoleAPIWithMobile(request: NextRequest, requiredRole: RoleLevel) {
+    const user = await getAuthenticatedUser(request)
+    
+    if (!user) {
+        return { error: 'غير مصرح', status: 401 }
+    }
+    
+    if (!hasRole(user.role, requiredRole)) {
+        return { error: 'صلاحيات غير كافية', status: 403 }
+    }
+    
+    return { user }
+}
+
+/**
+ * Require specific permission for API routes - works with both web session and mobile token.
+ * 
+ * @param request - Next.js request object
+ * @param permission - Required permission
+ * @returns Object with either { user } or { error, status }
+ */
+export async function requirePermissionAPIWithMobile(request: NextRequest, permission: Permission) {
+    const user = await getAuthenticatedUser(request)
+    
+    if (!user) {
+        return { error: 'غير مصرح', status: 401 }
+    }
+    
+    if (!roleHasPermission(user.role, permission)) {
+        return { error: 'صلاحيات غير كافية', status: 403 }
+    }
+    
+    return { user }
+}
+
+/**
+ * Require any of the specified permissions - works with both web session and mobile token.
+ * 
+ * @param request - Next.js request object
+ * @param permissions - Array of permissions (user needs at least one)
+ * @returns Object with either { user } or { error, status }
+ */
+export async function requireAnyPermissionAPIWithMobile(request: NextRequest, permissions: Permission[]) {
+    const user = await getAuthenticatedUser(request)
+    
+    if (!user) {
+        return { error: 'غير مصرح', status: 401 }
+    }
+    
+    if (!roleHasAnyPermission(user.role, permissions)) {
+        return { error: 'صلاحيات غير كافية', status: 403 }
+    }
+    
+    return { user }
 }

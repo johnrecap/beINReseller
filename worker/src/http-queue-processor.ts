@@ -446,7 +446,8 @@ async function handleStartRenewalHttp(
         index: pkg.index,
         name: pkg.name,
         price: pkg.price,
-        checkboxSelector: pkg.checkboxValue // Keep for compatibility
+        checkboxSelector: pkg.checkboxValue, // Keep for compatibility (backend)
+        checkboxValue: pkg.checkboxValue,    // Add for Flutter compatibility
     }));
 
     // CRITICAL: Export session data for cross-worker access

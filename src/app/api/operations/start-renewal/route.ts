@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
@@ -6,6 +6,20 @@ import { addOperationJob } from '@/lib/queue'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    // Try web session first
+    const session = await auth()
+    if (session?.user?.id) {
+        return session.user
+    }
+    // Fall back to mobile token
+    return getMobileUserFromRequest(request)
+}
 
 // Validation schema
 const startRenewalSchema = z.object({
@@ -20,11 +34,11 @@ const startRenewalSchema = z.object({
  * - يرسل Job للـ Worker لبدء الجلسة واستخراج الباقات
  * - يُرجع operationId للمتابعة
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        // 1. Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // 1. Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -32,7 +46,7 @@ export async function POST(request: Request) {
         }
 
         // 2. Check permission - only users with SUBSCRIPTION_RENEW can access
-        if (!roleHasPermission(session.user.role, PERMISSIONS.SUBSCRIPTION_RENEW)) {
+        if (!roleHasPermission(authUser.role, PERMISSIONS.SUBSCRIPTION_RENEW)) {
             return NextResponse.json(
                 { error: 'صلاحيات غير كافية' },
                 { status: 403 }
@@ -41,7 +55,7 @@ export async function POST(request: Request) {
 
         // 3. Check rate limit
         const { allowed, result: rateLimitResult } = await withRateLimit(
-            `operations:${session.user.id}`,
+            `operations:${authUser.id}`,
             RATE_LIMITS.operations
         )
 
@@ -83,7 +97,7 @@ export async function POST(request: Request) {
         // 5. Create operation (no balance deduction yet - will be done after package selection)
         const operation = await prisma.operation.create({
             data: {
-                userId: session.user.id,
+                userId: authUser.id,
                 type: 'RENEW',
                 cardNumber,
                 amount: 0, // سيُحدد بعد اختيار الباقة
@@ -95,7 +109,7 @@ export async function POST(request: Request) {
         await prisma.$transaction([
             prisma.activityLog.create({
                 data: {
-                    userId: session.user.id,
+                    userId: authUser.id,
                     action: 'RENEWAL_STARTED',
                     details: `بدء تجديد للكارت ****${cardNumber.slice(-4)}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
@@ -103,7 +117,7 @@ export async function POST(request: Request) {
             }),
             prisma.userAction.create({
                 data: {
-                    userId: session.user.id,
+                    userId: authUser.id,
                     actionType: 'RENEWAL_STARTED',
                     details: { cardNumber: cardNumber.slice(-4), operationId: operation.id },
                     // If user has a manager, you might want to link it here, 
@@ -119,7 +133,7 @@ export async function POST(request: Request) {
                 operationId: operation.id,
                 type: 'START_RENEWAL',
                 cardNumber,
-                userId: session.user.id,
+                userId: authUser.id,
             })
         } catch (queueError) {
             console.error('Failed to add job to queue:', queueError)
@@ -137,11 +151,21 @@ export async function POST(request: Request) {
             )
         }
 
-        // 8. Return success
+        // 8. Return success with full operation object for Flutter
         return NextResponse.json({
             success: true,
             operationId: operation.id,
             message: 'جاري بدء عملية التجديد...',
+            // Include full operation for Flutter compatibility
+            operation: {
+                id: operation.id,
+                userId: operation.userId,
+                type: operation.type,
+                cardNumber: operation.cardNumber,
+                amount: operation.amount,
+                status: operation.status,
+                createdAt: operation.createdAt.toISOString(),
+            },
         })
 
     } catch (error) {

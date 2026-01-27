@@ -1,18 +1,28 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
 
 /**
  * GET /api/operations/[id]/captcha
  * Returns the CAPTCHA image and expiry time
  */
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
         }
 
@@ -33,7 +43,7 @@ export async function GET(
             return NextResponse.json({ error: 'العملية غير موجودة' }, { status: 404 })
         }
 
-        if (operation.userId !== session.user.id) {
+        if (operation.userId !== authUser.id) {
             return NextResponse.json({ error: 'غير مصرح لك بالوصول لهذه العملية' }, { status: 403 })
         }
 
@@ -65,21 +75,23 @@ export async function GET(
  * Submits the CAPTCHA solution
  */
 export async function POST(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
         }
 
         const { id } = await params
 
         const body = await request.json()
-        const { solution } = body
+        // Accept both 'solution' (backend standard) and 'captcha' (Flutter sends this)
+        const { solution, captcha } = body
+        const captchaSolution = solution || captcha
 
-        if (!solution || typeof solution !== 'string') {
+        if (!captchaSolution || typeof captchaSolution !== 'string') {
             return NextResponse.json({ error: 'رمز التحقق مطلوب' }, { status: 400 })
         }
 
@@ -92,7 +104,7 @@ export async function POST(
             return NextResponse.json({ error: 'العملية غير موجودة' }, { status: 404 })
         }
 
-        if (operation.userId !== session.user.id) {
+        if (operation.userId !== authUser.id) {
             return NextResponse.json({ error: 'غير مصرح لك بهذه العملية' }, { status: 403 })
         }
 
@@ -103,7 +115,7 @@ export async function POST(
         // Update with solution
         await prisma.operation.update({
             where: { id },
-            data: { captchaSolution: solution }
+            data: { captchaSolution: captchaSolution }
         })
 
         return NextResponse.json({ success: true })

@@ -3,143 +3,39 @@
  * 
  * Comprehensive service for tracking user activity, detecting inactive accounts,
  * and generating engagement metrics.
+ * 
+ * NOTE: This is a server-only module. Do not import in client components.
  */
 
 import prisma from '@/lib/prisma'
 import { Prisma, Role } from '@prisma/client'
 
-// ===== TYPES =====
+// Re-export types from shared types file for convenience
+export type {
+    ActivityAction,
+    ActivityStatusType,
+    TrackLoginParams,
+    TrackOperationParams,
+    TrackActivityParams,
+    ActivityLogEntry,
+    UserActivitySummary,
+    InactiveUser,
+    InactivityMetrics,
+    RoleMetrics
+} from '@/types/activity'
 
-export type ActivityAction = 
-    // Authentication
-    | 'AUTH_LOGIN'
-    | 'AUTH_LOGOUT'
-    | 'AUTH_FAILED'
-    // Operations
-    | 'OPERATION_START'
-    | 'OPERATION_COMPLETE'
-    | 'OPERATION_FAIL'
-    | 'OPERATION_CANCEL'
-    // Balance
-    | 'BALANCE_ADD'
-    | 'BALANCE_WITHDRAW'
-    | 'BALANCE_TRANSFER'
-    // User Management
-    | 'USER_CREATE'
-    | 'USER_UPDATE'
-    | 'USER_DELETE'
-    | 'USER_RESTORE'
-    | 'USER_ACTIVATE'
-    | 'USER_DEACTIVATE'
-    // Settings
-    | 'SETTINGS_UPDATE'
-    | 'PASSWORD_CHANGE'
-    | 'PASSWORD_RESET'
-    // Manager Actions
-    | 'MANAGER_ADD_USER'
-    | 'MANAGER_REMOVE_USER'
-    | 'MANAGER_TRANSFER_BALANCE'
-    // Legacy compatibility
-    | 'LOGIN'
-    | 'LOGOUT'
+import type {
+    ActivityStatusType,
+    TrackLoginParams,
+    TrackOperationParams,
+    TrackActivityParams,
+    InactiveUser,
+    UserActivitySummary,
+    InactivityMetrics,
+    RoleMetrics
+} from '@/types/activity'
 
-export interface TrackLoginParams {
-    userId: string
-    ipAddress?: string | null
-    userAgent?: string | null
-    success?: boolean
-}
-
-export interface TrackOperationParams {
-    userId: string
-    operationId: string
-    operationType: 'RENEW' | 'CHECK_BALANCE' | 'SIGNAL_REFRESH'
-    status: 'start' | 'complete' | 'fail' | 'cancel'
-    amount?: number
-    metadata?: Record<string, unknown>
-}
-
-export interface TrackActivityParams {
-    userId: string
-    action: ActivityAction
-    details?: Record<string, unknown>
-    targetId?: string
-    targetType?: string
-    ipAddress?: string | null
-    userAgent?: string | null
-    duration?: number
-}
-
-export interface ActivityLogEntry {
-    id: string
-    action: string
-    details: unknown
-    createdAt: Date
-    ipAddress: string | null
-    targetId: string | null
-    targetType: string | null
-}
-
-export interface UserActivitySummary {
-    lastLoginAt: Date | null
-    lastOperationAt: Date | null
-    loginCount: number
-    totalOperations: number
-    daysSinceLastLogin: number | null
-    daysSinceLastOperation: number | null
-    daysSinceLastActivity: number | null
-    activityStatus: ActivityStatusType
-    recentActivities: ActivityLogEntry[]
-}
-
-export interface InactiveUser {
-    id: string
-    username: string
-    email: string
-    role: Role
-    lastLoginAt: Date | null
-    lastOperationAt: Date | null
-    daysSinceLastActivity: number
-    loginCount: number
-    totalOperations: number
-    activityStatus: ActivityStatusType
-    createdAt: Date
-}
-
-export interface InactivityMetrics {
-    total: number
-    active: number      // < 3 days
-    recent: number      // 3-7 days
-    warning: number     // 7-14 days
-    inactive: number    // 14-30 days
-    critical: number    // > 30 days
-    byRole: {
-        ADMIN: RoleMetrics
-        MANAGER: RoleMetrics
-        USER: RoleMetrics
-    }
-}
-
-export interface RoleMetrics {
-    total: number
-    active: number
-    recent: number
-    warning: number
-    inactive: number
-    critical: number
-}
-
-export type ActivityStatusType = 'active' | 'recent' | 'warning' | 'inactive' | 'critical'
-
-// ===== THRESHOLDS =====
-
-const ACTIVITY_THRESHOLDS = {
-    active: 3,      // < 3 days
-    recent: 7,      // 3-7 days
-    warning: 14,    // 7-14 days
-    inactive: 30,   // 14-30 days
-    critical: 60    // > 30 days
-} as const
+import { ACTIVITY_THRESHOLDS } from '@/types/activity'
 
 // ===== CORE TRACKING FUNCTIONS =====
 
@@ -605,9 +501,9 @@ function getLastActivityDate(lastLogin: Date | null, lastOperation: Date | null)
 }
 
 /**
- * Get activity status based on days since last activity
+ * Get activity status based on days since last activity (local implementation for internal use)
  */
-export function getActivityStatus(days: number | null): ActivityStatusType {
+function getActivityStatus(days: number | null): ActivityStatusType {
     if (days === null || days < 0) return 'critical'
     if (days < ACTIVITY_THRESHOLDS.active) return 'active'
     if (days < ACTIVITY_THRESHOLDS.recent) return 'recent'
@@ -631,24 +527,11 @@ function getActivityStatusFromDate(
     return 'critical'
 }
 
-/**
- * Format days since last activity as human-readable string
- */
-export function formatDaysSinceActivity(days: number | null, locale: 'ar' | 'en' = 'en'): string {
-    if (days === null || days < 0) {
-        return locale === 'ar' ? 'لم يسجل دخول' : 'Never logged in'
-    }
-    if (days === 0) {
-        return locale === 'ar' ? 'اليوم' : 'Today'
-    }
-    if (days === 1) {
-        return locale === 'ar' ? 'أمس' : 'Yesterday'
-    }
-    if (locale === 'ar') {
-        return `منذ ${days} يوم`
-    }
-    return `${days} days ago`
-}
+// Re-export formatDaysSinceActivity from activity-status for convenience (client-safe)
+export { formatDaysSinceActivity, getActivityStatus as getActivityStatusFn } from '@/lib/activity-status'
+
+// Also export the local getActivityStatus for backwards compatibility
+export { getActivityStatus }
 
 export default {
     trackLogin,
@@ -658,6 +541,5 @@ export default {
     getInactiveUsers,
     calculateInactivityMetrics,
     getActivityTrends,
-    getActivityStatus,
-    formatDaysSinceActivity
+    getActivityStatus
 }

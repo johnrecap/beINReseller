@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { ActivityStatusBadge } from '@/components/ui/ActivityStatusBadge'
-import { INACTIVITY_FILTER_OPTIONS } from '@/lib/activity-status'
-import { formatDaysSinceActivity, type InactiveUser, type ActivityStatusType } from '@/lib/services/activityTracker'
+import { INACTIVITY_FILTER_OPTIONS, formatDaysSinceActivity } from '@/lib/activity-status'
+import type { InactiveUser, ActivityStatusType } from '@/types/activity'
 import { 
     ChevronLeft, 
     ChevronRight, 

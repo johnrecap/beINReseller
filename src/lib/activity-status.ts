@@ -161,6 +161,37 @@ export function getActionLabel(action: string, locale: 'ar' | 'en' = 'en'): stri
     return ACTION_LABELS[action]?.[locale] || action
 }
 
+/**
+ * Get activity status based on days since last activity
+ */
+export function getActivityStatus(days: number | null): ActivityStatusType {
+    if (days === null || days < 0) return 'critical'
+    if (days < ACTIVITY_THRESHOLDS.active) return 'active'
+    if (days < ACTIVITY_THRESHOLDS.recent) return 'recent'
+    if (days < ACTIVITY_THRESHOLDS.warning) return 'warning'
+    if (days < ACTIVITY_THRESHOLDS.inactive) return 'inactive'
+    return 'critical'
+}
+
+/**
+ * Format days since last activity as human-readable string
+ */
+export function formatDaysSinceActivity(days: number | null, locale: 'ar' | 'en' = 'en'): string {
+    if (days === null || days < 0) {
+        return locale === 'ar' ? 'لم يسجل دخول' : 'Never logged in'
+    }
+    if (days === 0) {
+        return locale === 'ar' ? 'اليوم' : 'Today'
+    }
+    if (days === 1) {
+        return locale === 'ar' ? 'أمس' : 'Yesterday'
+    }
+    if (locale === 'ar') {
+        return `منذ ${days} يوم`
+    }
+    return `${days} days ago`
+}
+
 export default {
     ACTIVITY_STATUS,
     ACTIVITY_THRESHOLDS,
@@ -169,5 +200,7 @@ export default {
     ACTION_LABELS,
     getStatusConfig,
     getStatusList,
-    getActionLabel
+    getActionLabel,
+    getActivityStatus,
+    formatDaysSinceActivity
 }

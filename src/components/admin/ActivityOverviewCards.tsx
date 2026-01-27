@@ -3,7 +3,7 @@
 import { Users, UserCheck, AlertTriangle, UserX, Clock } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { ACTIVITY_STATUS, STATUS_CHART_COLORS } from '@/lib/activity-status'
-import type { InactivityMetrics } from '@/lib/services/activityTracker'
+import type { InactivityMetrics } from '@/types/activity'
 
 interface ActivityOverviewCardsProps {
     metrics: InactivityMetrics

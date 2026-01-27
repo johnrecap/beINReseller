@@ -23,7 +23,7 @@ import {
 } from 'recharts'
 import { ActivityOverviewCards, InactivityBreakdown } from '@/components/admin/ActivityOverviewCards'
 import { InactiveUsersTable } from '@/components/admin/InactiveUsersTable'
-import type { InactivityMetrics, InactiveUser } from '@/lib/services/activityTracker'
+import type { InactivityMetrics, InactiveUser } from '@/types/activity'
 
 interface ActivityAnalyticsData {
     period: { days: number; startDate: string; endDate: string }

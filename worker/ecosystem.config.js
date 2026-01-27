@@ -2,7 +2,7 @@
  * PM2 Ecosystem Configuration - VPS 20 Optimized
  * 
  * Server: 6 vCPU, 12 GB RAM
- * Workers: 8 × 8 Concurrency = 64 concurrent operations
+ * Workers: 10 × 8 Concurrency = 80 concurrent operations
  * 
  * Optimizations Applied:
  * - HTTP Client mode (fast, no browser overhead)
@@ -96,6 +96,20 @@ module.exports = {
             env: { ...COMMON_ENV, WORKER_ID: 'worker-8' },
             error_file: './logs/worker-8-error.log',
             out_file: './logs/worker-8-out.log',
+        },
+        {
+            name: 'bein-worker-9',
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-9' },
+            error_file: './logs/worker-9-error.log',
+            out_file: './logs/worker-9-out.log',
+        },
+        {
+            name: 'bein-worker-10',
+            ...COMMON_CONFIG,
+            env: { ...COMMON_ENV, WORKER_ID: 'worker-10' },
+            error_file: './logs/worker-10-error.log',
+            out_file: './logs/worker-10-out.log',
         },
     ],
 }

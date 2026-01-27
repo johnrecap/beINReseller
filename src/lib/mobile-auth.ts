@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken'
+import jwt, { SignOptions } from 'jsonwebtoken'
 import { NextRequest } from 'next/server'
 
 /**
@@ -42,7 +42,7 @@ function getJwtSecret(): string {
  * @param user - User data to encode in token
  * @param expiresIn - Token expiry (default: 7 days)
  */
-export function generateMobileToken(user: MobileUser, expiresIn: string = '7d'): string {
+export function generateMobileToken(user: MobileUser, expiresIn: SignOptions['expiresIn'] = '7d'): string {
     const secret = getJwtSecret()
     
     const payload = {

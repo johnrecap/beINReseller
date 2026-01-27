@@ -81,10 +81,11 @@ export default function UserActivityPage() {
     
     // Auth check
     useEffect(() => {
+        if (status === 'loading') return // Wait for session to load
         if (status === 'unauthenticated') {
             redirect('/login')
         }
-        if (session?.user?.role !== 'ADMIN') {
+        if (status === 'authenticated' && session?.user?.role !== 'ADMIN') {
             redirect('/dashboard')
         }
     }, [session, status])

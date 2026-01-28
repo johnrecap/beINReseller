@@ -1,12 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireRoleAPI } from '@/lib/auth-utils'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { Prisma } from '@prisma/client'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
     try {
-        const authResult = await requireRoleAPI('MANAGER')
+        const authResult = await requireRoleAPIWithMobile(request, 'MANAGER')
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }

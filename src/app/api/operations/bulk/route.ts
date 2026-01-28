@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
@@ -7,6 +7,20 @@ import { addOperationJob } from '@/lib/queue'
 import { createNotification } from '@/lib/notification'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    // Try web session first
+    const session = await auth()
+    if (session?.user?.id) {
+        return session.user
+    }
+    // Fall back to mobile token
+    return getMobileUserFromRequest(request)
+}
 
 const MAX_CARDS_PER_REQUEST = 10
 
@@ -19,11 +33,11 @@ const bulkOperationSchema = z.object({
     duration: z.string().optional(),
 })
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        // Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -31,7 +45,7 @@ export async function POST(request: Request) {
         }
 
         // Check permission - only users with SUBSCRIPTION_BULK can access
-        if (!roleHasPermission(session.user.role, PERMISSIONS.SUBSCRIPTION_BULK)) {
+        if (!roleHasPermission(authUser.role, PERMISSIONS.SUBSCRIPTION_BULK)) {
             return NextResponse.json(
                 { error: 'صلاحيات غير كافية' },
                 { status: 403 }
@@ -60,7 +74,7 @@ export async function POST(request: Request) {
 
         // Get user and check balance
         const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: authUser.id },
             select: { id: true, balance: true },
         })
 

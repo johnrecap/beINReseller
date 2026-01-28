@@ -1,15 +1,25 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { addOperationJob } from '@/lib/queue'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
 
 export async function POST(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
         }
 
@@ -30,7 +40,7 @@ export async function POST(
         }
 
         // Check ownership
-        if (operation.userId !== session.user.id) {
+        if (operation.userId !== authUser.id) {
             return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
         }
 
@@ -56,7 +66,7 @@ export async function POST(
             operationId: id,
             type: 'APPLY_PROMO',
             promoCode,
-            userId: session.user.id,
+            userId: authUser.id,
             cardNumber: operation.cardNumber,
         })
 

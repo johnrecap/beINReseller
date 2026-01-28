@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
@@ -6,6 +6,20 @@ import { addOperationJob } from '@/lib/queue'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    // Try web session first
+    const session = await auth()
+    if (session?.user?.id) {
+        return session.user
+    }
+    // Fall back to mobile token
+    return getMobileUserFromRequest(request)
+}
 
 // Validation schema
 const signalRefreshSchema = z.object({
@@ -20,11 +34,11 @@ const signalRefreshSchema = z.object({
  * - يرسل Job للـ Worker لتجديد الإشارة
  * - يُرجع operationId للمتابعة
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        // 1. Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // 1. Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -32,7 +46,7 @@ export async function POST(request: Request) {
         }
 
         // 2. Check permission - only users with SIGNAL_ACTIVATE can access
-        if (!roleHasPermission(session.user.role, PERMISSIONS.SIGNAL_ACTIVATE)) {
+        if (!roleHasPermission(authUser.role, PERMISSIONS.SIGNAL_ACTIVATE)) {
             return NextResponse.json(
                 { error: 'صلاحيات غير كافية' },
                 { status: 403 }
@@ -41,7 +55,7 @@ export async function POST(request: Request) {
 
         // 3. Check rate limit
         const { allowed, result: rateLimitResult } = await withRateLimit(
-            `operations:${session.user.id}`,
+            `operations:${authUser.id}`,
             RATE_LIMITS.operations
         )
 
@@ -84,7 +98,7 @@ export async function POST(request: Request) {
         // 5. Create operation (Signal refresh is free - no balance deduction)
         const operation = await prisma.operation.create({
             data: {
-                userId: session.user.id,
+                userId: authUser.id,
                 type: 'SIGNAL_REFRESH',
                 cardNumber,
                 amount: 0, // تجديد الإشارة مجاني
@@ -95,7 +109,7 @@ export async function POST(request: Request) {
         // 6. Log activity
         await prisma.activityLog.create({
             data: {
-                userId: session.user.id,
+                userId: authUser.id,
                 action: 'SIGNAL_REFRESH_STARTED',
                 details: `بدء تجديد إشارة للكارت ****${cardNumber.slice(-4)}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
@@ -108,7 +122,7 @@ export async function POST(request: Request) {
                 operationId: operation.id,
                 type: 'SIGNAL_REFRESH',
                 cardNumber,
-                userId: session.user.id,
+                userId: authUser.id,
             })
         } catch (queueError) {
             console.error('Failed to add signal refresh job to queue:', queueError)

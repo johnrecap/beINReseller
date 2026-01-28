@@ -1,19 +1,29 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { compare, hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
 
 const changePasswordSchema = z.object({
     currentPassword: z.string().min(1, 'كلمة المرور الحالية مطلوبة'),
     newPassword: z.string().min(6, 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل'),
 })
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -21,7 +31,7 @@ export async function POST(request: Request) {
         }
 
         // Only ADMIN can change their own password
-        if (session.user.role !== 'ADMIN') {
+        if (authUser.role !== 'ADMIN') {
             return NextResponse.json(
                 { error: 'غير مصرح لك بتغيير كلمة المرور' },
                 { status: 403 }
@@ -30,7 +40,7 @@ export async function POST(request: Request) {
 
         // Rate limit password change attempts (3 per hour)
         const { allowed, result: rateLimitResult } = await withRateLimit(
-            `password-change:${session.user.id}`,
+            `password-change:${authUser.id}`,
             RATE_LIMITS.passwordChange
         )
 
@@ -55,7 +65,7 @@ export async function POST(request: Request) {
 
         // Get user with password
         const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: authUser.id },
         })
 
         if (!user) {

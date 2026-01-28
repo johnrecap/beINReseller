@@ -8,15 +8,25 @@
  * - limit: Items per page (default: 20)
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
-export async function GET(request: Request) {
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
+
+export async function GET(request: NextRequest) {
     try {
-        const session = await auth()
+        const authUser = await getAuthUser(request)
         
-        if (!session?.user?.id) {
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -29,7 +39,7 @@ export async function GET(request: Request) {
         
         const [logs, total] = await Promise.all([
             prisma.activityLog.findMany({
-                where: { userId: session.user.id },
+                where: { userId: authUser.id },
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * limit,
                 take: limit,
@@ -43,7 +53,7 @@ export async function GET(request: Request) {
                     targetType: true
                 }
             }),
-            prisma.activityLog.count({ where: { userId: session.user.id } })
+            prisma.activityLog.count({ where: { userId: authUser.id } })
         ])
         
         return NextResponse.json({

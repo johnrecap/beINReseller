@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
@@ -9,6 +9,20 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { createNotification } from '@/lib/notification'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    // Try web session first
+    const session = await auth()
+    if (session?.user?.id) {
+        return session.user
+    }
+    // Fall back to mobile token
+    return getMobileUserFromRequest(request)
+}
 
 // Validation schema
 const createOperationSchema = z.object({
@@ -17,11 +31,11 @@ const createOperationSchema = z.object({
     duration: z.string().optional(),
 })
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        // 1. Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // 1. Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -29,7 +43,7 @@ export async function POST(request: Request) {
         }
 
         // 2. Check permission - only users with SUBSCRIPTION_RENEW can access
-        if (!roleHasPermission(session.user.role, PERMISSIONS.SUBSCRIPTION_RENEW)) {
+        if (!roleHasPermission(authUser.role, PERMISSIONS.SUBSCRIPTION_RENEW)) {
             return NextResponse.json(
                 { error: 'صلاحيات غير كافية' },
                 { status: 403 }
@@ -38,7 +52,7 @@ export async function POST(request: Request) {
 
         // 3. Check rate limit
         const { allowed, result: rateLimitResult } = await withRateLimit(
-            `operations:${session.user.id}`,
+            `operations:${authUser.id}`,
             RATE_LIMITS.operations
         )
 
@@ -73,7 +87,7 @@ export async function POST(request: Request) {
 
         // 5. Get user (basic check)
         const userExists = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: authUser.id },
             select: { id: true },
         })
 
@@ -88,7 +102,7 @@ export async function POST(request: Request) {
         const result = await prisma.$transaction(async (tx) => {
             // Get fresh user balance inside transaction (prevents race condition)
             const user = await tx.user.findUnique({
-                where: { id: session.user.id },
+                where: { id: authUser.id },
                 select: { id: true, balance: true },
             })
 
@@ -163,13 +177,13 @@ export async function POST(request: Request) {
                 type,
                 cardNumber,
                 duration,
-                userId: session.user.id,
+                userId: authUser.id,
                 amount: price,
             })
 
             // Send notification
             await createNotification({
-                userId: session.user.id,
+                userId: authUser.id,
                 title: 'تم استلام طلبك',
                 message: `جاري معالجة عملية ${type === 'RENEW' ? 'التجديد' : type === 'CHECK_BALANCE' ? 'الاستعلام' : 'تنشيط الإشارة'}`,
                 type: 'info',

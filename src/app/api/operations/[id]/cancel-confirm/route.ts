@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { addOperationJob } from '@/lib/queue'
+import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+
+/**
+ * Helper to get authenticated user from session OR mobile token
+ */
+async function getAuthUser(request: NextRequest) {
+    const session = await auth()
+    if (session?.user?.id) return session.user
+    return getMobileUserFromRequest(request)
+}
 
 /**
  * POST /api/operations/[id]/cancel-confirm
@@ -16,9 +26,9 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // 1. Check authentication
-        const session = await auth()
-        if (!session?.user?.id) {
+        // 1. Check authentication (supports both web session and mobile token)
+        const authUser = await getAuthUser(request)
+        if (!authUser?.id) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -48,7 +58,7 @@ export async function POST(
         }
 
         // Check ownership
-        if (operation.userId !== session.user.id) {
+        if (operation.userId !== authUser.id) {
             return NextResponse.json(
                 { error: 'غير مصرح بالوصول لهذه العملية' },
                 { status: 403 }
@@ -68,7 +78,7 @@ export async function POST(
             operationId: id,
             type: 'CANCEL_CONFIRM',
             cardNumber: operation.cardNumber,
-            userId: session.user.id,
+            userId: authUser.id,
             amount: operation.amount,
         })
 

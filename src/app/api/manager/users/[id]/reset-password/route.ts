@@ -1,16 +1,16 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireRoleAPI } from '@/lib/auth-utils'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 export async function POST(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params
-        const authResult = await requireRoleAPI('MANAGER')
+        const authResult = await requireRoleAPIWithMobile(request, 'MANAGER')
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }

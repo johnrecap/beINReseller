@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -9,10 +9,9 @@ interface RouteParams {
 // GET /api/admin/proxies/[id] - Get single proxy
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params
@@ -68,10 +67,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/admin/proxies/[id] - Update proxy
 export async function PUT(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params
@@ -207,10 +205,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/admin/proxies/[id] - Delete proxy
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params

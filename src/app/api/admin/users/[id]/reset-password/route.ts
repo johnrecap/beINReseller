@@ -1,18 +1,19 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { hash } from 'bcryptjs'
 
 export async function POST(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+        const adminUser = authResult.user
 
         const body = await request.json()
         const { newPassword } = body
@@ -29,7 +30,7 @@ export async function POST(
         // Log
         await prisma.activityLog.create({
             data: {
-                userId: session.user.id,
+                userId: adminUser.id,
                 action: 'ADMIN_RESET_PASSWORD',
                 details: `Reset password for user ${id}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown'

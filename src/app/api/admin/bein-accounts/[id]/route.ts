@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import Redis from 'ioredis'
 
 interface RouteParams {
@@ -10,10 +10,9 @@ interface RouteParams {
 // GET /api/admin/bein-accounts/[id] - Get account details
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params
@@ -95,10 +94,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/admin/bein-accounts/[id] - Update account
 export async function PUT(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params
@@ -166,10 +164,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/admin/bein-accounts/[id] - Delete account
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params

@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { Role } from '@/lib/permissions'
 import { z } from 'zod'
 import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
-import { requireRoleAPI } from '@/lib/auth-utils'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
@@ -14,9 +14,9 @@ const createUserSchema = z.object({
     balance: z.number().optional().default(0),
 })
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
     try {
-        const authResult = await requireRoleAPI('ADMIN')
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
@@ -236,9 +236,9 @@ export async function GET(request: Request) {
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        const authResult = await requireRoleAPI('ADMIN')
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }

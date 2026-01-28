@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { Queue } from 'bullmq'
 import redis from '@/lib/redis'
 
@@ -29,10 +29,9 @@ const getAdminQueue = () => {
 // POST /api/admin/bein-accounts/[id]/check-balance
 export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params

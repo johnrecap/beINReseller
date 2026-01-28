@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 
 // All beIN-related setting keys
@@ -52,11 +52,11 @@ const BEIN_SETTINGS_KEYS = [
     'worker_headless',
 ]
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const settings = await prisma.setting.findMany({
@@ -85,12 +85,13 @@ export async function GET() {
     }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+        const adminUser = authResult.user
 
         const body = await request.json()
 
@@ -120,7 +121,7 @@ export async function PUT(request: Request) {
         // Log activity
         await prisma.activityLog.create({
             data: {
-                userId: session.user.id,
+                userId: adminUser.id,
                 action: 'ADMIN_UPDATE_BEIN_CONFIG',
                 details: JSON.stringify({ keysUpdated: validUpdates.map(([k]) => k) }),
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown'

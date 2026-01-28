@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 
@@ -9,14 +9,14 @@ const updateUserSchema = z.object({
 })
 
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> } // Fix for Next.js 15+
 ) {
     try {
         const { id } = await params
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const user = await prisma.user.findUnique({
@@ -47,14 +47,14 @@ export async function GET(
 }
 
 export async function PATCH(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const body = await request.json()
@@ -81,18 +81,19 @@ export async function PATCH(
 }
 
 export async function DELETE(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+        const user = authResult.user
 
         // Prevent deleting self
-        if (session.user.id === id) {
+        if (user.id === id) {
             return NextResponse.json({ error: 'لا يمكنك حذف حسابك الشخصي' }, { status: 400 })
         }
 
@@ -114,13 +115,13 @@ export async function DELETE(
             }
         }
 
-        // Soft delete - preserve data and mark as deleted
+// Soft delete - preserve data and mark as deleted
         await prisma.user.update({
             where: { id },
             data: {
                 deletedAt: new Date(),
                 deletedBalance: userToDelete.balance,
-                deletedByUserId: session.user.id,
+                deletedByUserId: user.id,
                 isActive: false,
             }
         })
@@ -128,7 +129,7 @@ export async function DELETE(
         // Log activity
         await prisma.activityLog.create({
             data: {
-                userId: session.user.id,
+                userId: user.id,
                 action: 'ADMIN_DELETE_USER',
                 details: `Deleted user: ${userToDelete.username} (balance: ${userToDelete.balance})`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown'

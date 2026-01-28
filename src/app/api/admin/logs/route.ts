@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { searchParams } = new URL(request.url)

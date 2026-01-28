@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 
 const poolSettings = [
     { key: 'pool_round_robin_enabled', value: 'true' },
@@ -16,12 +16,11 @@ const poolSettings = [
 ]
 
 // POST /api/admin/seed-pool-settings - Seed Pool settings (Admin only)
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const results = []
@@ -79,12 +78,11 @@ export async function POST(_request: NextRequest) {
 }
 
 // GET /api/admin/seed-pool-settings - Get current Pool settings (Admin only)
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const settings = await prisma.setting.findMany({

@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 
 /**
@@ -12,7 +12,7 @@ import prisma from '@/lib/prisma'
  * - آخر المعاملات والعمليات
  */
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
@@ -24,9 +24,9 @@ export async function GET(
         const opSkip = parseInt(searchParams.get('opSkip') || '0')
 
         // 1. Check admin authentication
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         // 2. Get user with current balance

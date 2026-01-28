@@ -8,23 +8,19 @@
  * - id: User ID to get activity for
  */
 
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { getUserActivitySummary } from '@/lib/services/activityTracker'
 import prisma from '@/lib/prisma'
 
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth()
-        
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json(
-                { error: 'غير مصرح' },
-                { status: 401 }
-            )
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
         
         const { id: userId } = await params

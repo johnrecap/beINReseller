@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import Redis from 'ioredis'
 
 interface RouteParams {
@@ -10,10 +10,9 @@ interface RouteParams {
 // POST /api/admin/bein-accounts/[id]/reset - Reset account (clear cooldown, failures, etc.)
 export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params

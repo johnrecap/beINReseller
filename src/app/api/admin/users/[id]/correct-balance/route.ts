@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 
 /**
@@ -11,7 +11,7 @@ import prisma from '@/lib/prisma'
  * - يحدث العملية كـ "مصححة"
  */
 export async function POST(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
@@ -23,10 +23,11 @@ export async function POST(
         }
 
         // 1. Check admin authentication
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+        const adminUser = authResult.user
 
         // 2. Get user with current balance
         const user = await prisma.user.findUnique({
@@ -160,11 +161,11 @@ export async function POST(
                 data: { balance: { increment: correctionAmount } }
             })
 
-            // Create correction transaction
+// Create correction transaction
             const correctionTx = await tx.transaction.create({
                 data: {
                     userId,
-                    adminId: session.user.id,
+                    adminId: adminUser.id,
                     operationId: operationToCorrect,
                     amount: correctionAmount,
                     balanceAfter: updatedUser.balance,

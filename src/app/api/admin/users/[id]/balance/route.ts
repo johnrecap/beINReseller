@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
@@ -11,19 +11,20 @@ const addBalanceSchema = z.object({
 })
 
 export async function PATCH(
-    request: Request,
+    request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params
-        const session = await auth()
-        if (!session?.user?.id || session.user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+        const adminUser = authResult.user
 
         // Rate Limit
         const { allowed, result: limitResult } = await withRateLimit(
-            `admin:${session.user.id}`,
+            `admin:${adminUser.id}`,
             RATE_LIMITS.admin
         )
         if (!allowed) {
@@ -60,7 +61,7 @@ export async function PATCH(
                 data: { balance: { increment: amount } }
             })
 
-            // 3. Create Transaction Record
+// 3. Create Transaction Record
             await tx.transaction.create({
                 data: {
                     userId: id,
@@ -68,14 +69,14 @@ export async function PATCH(
                     amount: amount,
                     balanceAfter: updatedUser.balance,
                     notes: notes || 'شحن رصيد بواسطة الإدارة',
-                    adminId: session.user.id
+                    adminId: adminUser.id
                 }
             })
 
             // 4. Log Activity
             await tx.activityLog.create({
                 data: {
-                    userId: session.user.id,
+                    userId: adminUser.id,
                     action: 'ADMIN_ADD_BALANCE',
                     details: `Added ${amount} to user ${currentUser.username}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown'

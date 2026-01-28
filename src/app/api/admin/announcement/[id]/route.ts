@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
+import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { prisma } from '@/lib/prisma'
 
 interface RouteParams {
@@ -10,15 +10,11 @@ interface RouteParams {
  * GET /api/admin/announcement/[id]
  * Get a single announcement banner
  */
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-        
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            )
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ success: false, error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params
@@ -51,15 +47,11 @@ export async function GET(request: Request, { params }: RouteParams) {
  * PUT /api/admin/announcement/[id]
  * Update an announcement banner
  */
-export async function PUT(request: Request, { params }: RouteParams) {
+export async function PUT(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-        
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            )
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ success: false, error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params
@@ -128,15 +120,11 @@ export async function PUT(request: Request, { params }: RouteParams) {
  * DELETE /api/admin/announcement/[id]
  * Delete an announcement banner
  */
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-        
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            )
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ success: false, error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params
@@ -162,15 +150,11 @@ export async function DELETE(request: Request, { params }: RouteParams) {
  * PATCH /api/admin/announcement/[id]
  * Toggle banner active state
  */
-export async function PATCH(request: Request, { params }: RouteParams) {
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-        
-        if (!session?.user || session.user.role !== 'ADMIN') {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            )
+        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        if ('error' in authResult) {
+            return NextResponse.json({ success: false, error: authResult.error }, { status: authResult.status })
         }
 
         const { id } = await params

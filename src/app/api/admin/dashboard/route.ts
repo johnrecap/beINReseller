@@ -14,25 +14,62 @@ export async function GET(request: NextRequest) {
         const last7Days = subDays(today, 6)
 
         const [
-            usersCount,
+            // User stats
+            totalUsersCount,
+            activeUsersCount,
             totalBalance,
+            
+            // Operation stats
+            totalOperationsCount,
             todayOperationsCount,
+            pendingOperationsCount,
             last7DaysOperations,
+            
+            // Revenue stats
+            totalRevenueResult,
+            todayRevenueResult,
+            
+            // beIN accounts & proxies
+            activeBeinAccountsCount,
+            beinAccountsHealth,
+            activeProxiesCount,
+            
+            // For charts and lists
             recentFailedOperations,
             recentDeposits,
             dailyOperations
         ] = await Promise.all([
             // Total users
             prisma.user.count(),
+            
+            // Active users (logged in within last 30 days or isActive)
+            prisma.user.count({
+                where: {
+                    isActive: true,
+                    deletedAt: null
+                }
+            }),
 
             // Total balance across all users
             prisma.user.aggregate({
                 _sum: { balance: true }
             }),
+            
+            // Total operations (all time)
+            prisma.operation.count(),
 
             // Today's operations count
             prisma.operation.count({
                 where: { createdAt: { gte: today } }
+            }),
+            
+            // Pending operations
+            prisma.operation.count({
+                where: { 
+                    status: { 
+                        in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'] 
+                    } 
+                }
             }),
 
             // Last 7 days operations for success rate
@@ -40,6 +77,43 @@ export async function GET(request: NextRequest) {
                 by: ['status'],
                 where: { createdAt: { gte: last7Days } },
                 _count: { id: true }
+            }),
+            
+            // Total revenue (sum of completed operation amounts)
+            prisma.operation.aggregate({
+                where: { status: 'COMPLETED' },
+                _sum: { amount: true }
+            }),
+            
+            // Today's revenue
+            prisma.operation.aggregate({
+                where: { 
+                    status: 'COMPLETED',
+                    createdAt: { gte: today }
+                },
+                _sum: { amount: true }
+            }),
+            
+            // Active beIN accounts
+            prisma.beinAccount.count({
+                where: { isActive: true }
+            }),
+            
+            // beIN accounts health check (for worker status)
+            prisma.beinAccount.findMany({
+                where: { isActive: true },
+                select: {
+                    id: true,
+                    consecutiveFailures: true,
+                    lastUsedAt: true,
+                    lastError: true
+                },
+                take: 10
+            }),
+            
+            // Active proxies
+            prisma.proxy.count({
+                where: { isActive: true }
             }),
 
             // Recent failed operations
@@ -77,6 +151,20 @@ export async function GET(request: NextRequest) {
         const completedOps = last7DaysOperations.find(g => g.status === 'COMPLETED')?._count.id ?? 0
         const successRate = totalOps > 0 ? Math.round((completedOps / totalOps) * 100) : 0
 
+        // Determine worker status based on beIN accounts health
+        let workerStatus: 'healthy' | 'running' | 'unknown' = 'unknown'
+        if (beinAccountsHealth.length > 0) {
+            const healthyAccounts = beinAccountsHealth.filter(acc => acc.consecutiveFailures < 3)
+            if (healthyAccounts.length === beinAccountsHealth.length) {
+                workerStatus = 'healthy'
+            } else if (healthyAccounts.length > 0) {
+                workerStatus = 'running'
+            } else {
+                // All accounts have issues
+                workerStatus = 'unknown'
+            }
+        }
+
         // Format chart data - ensure 7 days
         const chartData = []
         for (let i = 0; i < 7; i++) {
@@ -109,13 +197,49 @@ export async function GET(request: NextRequest) {
             date: tx.createdAt.toISOString()
         }))
 
+        // Return stats with field names matching Flutter expectations
         return NextResponse.json({
+            // Stats object with all fields Flutter expects
             stats: {
-                totalUsers: usersCount,
+                // User stats
+                totalUsers: totalUsersCount,
+                activeUsers: activeUsersCount,
+                
+                // Operation stats
+                totalOperations: totalOperationsCount,
+                operationsToday: todayOperationsCount,  // Flutter expects this name
+                pendingOperations: pendingOperationsCount,
+                
+                // Revenue stats
+                totalRevenue: totalRevenueResult._sum.amount ?? 0,
+                revenueToday: todayRevenueResult._sum.amount ?? 0,
+                
+                // Legacy field (keep for web dashboard compatibility)
                 totalBalance: totalBalance._sum.balance ?? 0,
-                todayOperations: todayOperationsCount,
+                todayOperations: todayOperationsCount,  // Keep legacy name too
+                
+                // System stats
+                activeBeinAccounts: activeBeinAccountsCount,
+                activeProxies: activeProxiesCount,
+                workerStatus: workerStatus,
+                
+                // Performance stats
                 successRate: successRate
             },
+            
+            // Also expose at root level for Flutter (it checks both stats.X and X)
+            totalUsers: totalUsersCount,
+            activeUsers: activeUsersCount,
+            totalOperations: totalOperationsCount,
+            operationsToday: todayOperationsCount,
+            pendingOperations: pendingOperationsCount,
+            totalRevenue: totalRevenueResult._sum.amount ?? 0,
+            revenueToday: todayRevenueResult._sum.amount ?? 0,
+            activeBeinAccounts: activeBeinAccountsCount,
+            activeProxies: activeProxiesCount,
+            workerStatus: workerStatus,
+            
+            // Chart and list data
             chartData,
             recentFailures,
             recentDeposits: formattedRecentDeposits

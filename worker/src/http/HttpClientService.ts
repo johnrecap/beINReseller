@@ -1513,7 +1513,7 @@ export class HttpClientService {
             // Extract dealer balance from page
             // "Adding Packages - Your Current Credit Balance is 1,340 USD"
             const pageText = $('body').text();
-            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d{1,2})?)\s*USD/i);
+            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i);
             const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : undefined;
 
             if (dealerBalance !== undefined) {
@@ -1604,12 +1604,12 @@ export class HttpClientService {
             // "Your Current Credit Balance is 1,340 USD"
             const pageText = cardRes.data;
             
-            // Try multiple patterns - handle commas in numbers like 1,340
+            // Try multiple patterns - handle commas in numbers like 1,340 and any decimal places like 2,000.001
             const patterns = [
-                /Current Credit Balance is ([\d,]+(?:\.\d{1,2})?)\s*USD/i,
-                /Credit Balance[:\s]+([\d,]+(?:\.\d{1,2})?)\s*USD/i,
-                /Balance[:\s]+([\d,]+(?:\.\d{1,2})?)\s*USD/i,
-                /([\d,]+(?:\.\d{1,2})?)\s*USD\s*(?:Credit|Balance)/i
+                /Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i,
+                /Credit Balance[:\s]+([\d,]+(?:\.\d+)?)\s*USD/i,
+                /Balance[:\s]+([\d,]+(?:\.\d+)?)\s*USD/i,
+                /([\d,]+(?:\.\d+)?)\s*USD\s*(?:Credit|Balance)/i
             ];
             
             for (const pattern of patterns) {
@@ -1884,7 +1884,7 @@ export class HttpClientService {
             const pageText = $('body').text();
 
             // Match pattern: "Your Current Credit Balance is 1,340 USD"
-            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d{1,2})?)\s*USD/i);
+            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i);
 
             if (balanceMatch) {
                 const balance = parseFloat(balanceMatch[1].replace(/,/g, ''));
@@ -2174,7 +2174,7 @@ export class HttpClientService {
             const pageText = $('body').text();
 
             // Match pattern: "Your Current Credit Balance is 1,340 USD"
-            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d{1,2})?)\s*USD/i);
+            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i);
 
             if (balanceMatch) {
                 return parseFloat(balanceMatch[1].replace(/,/g, ''));

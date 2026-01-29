@@ -410,7 +410,7 @@ export const en = {
                 checkSelectors: 'Check Balance Selectors',
                 poolSettings: 'Account Distribution Settings',
                 advanced: 'Advanced Settings',
-                userProxySettings: 'User Proxy Settings'
+                userProxySettings: 'Sensitive System Settings'
             },
             fields: {
                 email: 'Email',
@@ -449,13 +449,13 @@ export const en = {
                 maxDelay: 'Max Delay (ms)',
                 maxConsecutiveFailures: 'Max Consecutive Failures',
                 autoDisable: 'Auto-disable Account on Repeated Failures',
-                userProxyLimit: 'Number of Users with Proxy Linked'
+                userProxyLimit: 'Internal System Distribution Limit'
             },
             hints: {
                 maxRequestsPerAccount: 'Number of requests allowed per account in the time window',
                 rateLimitWindow: '300 = 5 minutes',
                 cooldownDuration: '600 = 10 minutes',
-                userProxyLimit: 'Will show "Proxy Linked" for the oldest N users based on creation date. If 0 or empty, all users will show "No Proxy"'
+                userProxyLimit: '⚠️ WARNING: Do NOT change this value without contacting technical support. Changing this value may affect the entire system operation.'
             },
             actions: {
                 save: 'Save Settings',

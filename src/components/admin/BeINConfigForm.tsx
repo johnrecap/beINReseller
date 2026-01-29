@@ -101,15 +101,15 @@ export default function BeINConfigForm() {
             ]
         },
         {
-            title: t.admin.config.sections.userProxySettings || 'إعدادات بروكسي المستخدمين',
+            title: t.admin.config.sections.userProxySettings || 'إعدادات حساسة للنظام',
             icon: '🔗',
             fields: [
                 { 
                     key: 'user_proxy_limit', 
-                    label: t.admin.config.fields.userProxyLimit || 'عدد المستخدمين المربوطين بالبروكسي', 
+                    label: t.admin.config.fields.userProxyLimit || 'حد التوزيع الداخلي للنظام', 
                     type: 'number', 
                     placeholder: '10',
-                    hint: t.admin.config.hints?.userProxyLimit || 'سيتم عرض "تم ربط البروكسي" لأقدم N مستخدم بناءً على تاريخ الإنشاء. إذا كان الرقم 0 أو فارغ، سيظهر "بدون بروكسي" لجميع المستخدمين'
+                    hint: t.admin.config.hints?.userProxyLimit || '⚠️ تحذير هام: لا تقم بتغيير هذا الرقم نهائياً إلا بعد التواصل مع الدعم الفني. تغيير هذه القيمة قد يؤثر على عمل النظام بشكل كامل.'
                 },
             ]
         },

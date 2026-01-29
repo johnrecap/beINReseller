@@ -50,3 +50,4 @@ worker/.env
 # Agent
 .agent
 .opencode
+.claude

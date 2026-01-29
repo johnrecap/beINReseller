@@ -100,6 +100,19 @@ export default function BeINConfigForm() {
                 { key: 'worker_headless', label: t.admin.config.fields.headless, type: 'checkbox' },
             ]
         },
+        {
+            title: t.admin.config.sections.userProxySettings || 'إعدادات بروكسي المستخدمين',
+            icon: '🔗',
+            fields: [
+                { 
+                    key: 'user_proxy_limit', 
+                    label: t.admin.config.fields.userProxyLimit || 'عدد المستخدمين المربوطين بالبروكسي', 
+                    type: 'number', 
+                    placeholder: '10',
+                    hint: t.admin.config.hints?.userProxyLimit || 'سيتم عرض "تم ربط البروكسي" لأقدم N مستخدم بناءً على تاريخ الإنشاء. إذا كان الرقم 0 أو فارغ، سيظهر "بدون بروكسي" لجميع المستخدمين'
+                },
+            ]
+        },
     ], [t])
 
     useEffect(() => {

@@ -409,7 +409,8 @@ export const bn = {
                 renewSelectors: 'রিনিউ সিলেক্টর',
                 checkSelectors: 'চেক ব্যালেন্স সিলেক্টর',
                 poolSettings: 'অ্যাকাউন্ট বিতরণ সেটিংস',
-                advanced: 'উন্নত সেটিংস'
+                advanced: 'উন্নত সেটিংস',
+                userProxySettings: 'ব্যবহারকারী প্রক্সি সেটিংস'
             },
             fields: {
                 email: 'ইমেইল',
@@ -447,12 +448,14 @@ export const bn = {
                 minDelay: 'ন্যূনতম বিলম্ব (মিলিসেকেন্ড)',
                 maxDelay: 'সর্বোচ্চ বিলম্ব (মিলিসেকেন্ড)',
                 maxConsecutiveFailures: 'সর্বোচ্চ পরপর ব্যর্থতা',
-                autoDisable: 'পুনরাবৃত্তি ব্যর্থতায় অ্যাকাউন্ট স্বয়ংক্রিয়-অক্ষম'
+                autoDisable: 'পুনরাবৃত্তি ব্যর্থতায় অ্যাকাউন্ট স্বয়ংক্রিয়-অক্ষম',
+                userProxyLimit: 'প্রক্সি সংযুক্ত ব্যবহারকারীর সংখ্যা'
             },
             hints: {
                 maxRequestsPerAccount: 'সময় উইন্ডোতে প্রতি অ্যাকাউন্টে অনুমোদিত অনুরোধের সংখ্যা',
                 rateLimitWindow: '300 = 5 মিনিট',
-                cooldownDuration: '600 = 10 মিনিট'
+                cooldownDuration: '600 = 10 মিনিট',
+                userProxyLimit: 'তৈরির তারিখ অনুসারে সবচেয়ে পুরনো N জন ব্যবহারকারীকে "প্রক্সি সংযুক্ত" দেখাবে। 0 বা খালি হলে সব ব্যবহারকারী "প্রক্সি নেই" দেখাবে'
             },
             actions: {
                 save: 'সেটিংস সংরক্ষণ করুন',
@@ -571,7 +574,9 @@ export const bn = {
                 noUsers: 'কোন ইউজার পাওয়া যায়নি',
                 noDistributors: 'কোন পরিবেশক পাওয়া যায়নি',
                 manager: 'পরিবেশক',
-                managedUsersCount: 'ইউজার সংখ্যা'
+                managedUsersCount: 'ইউজার সংখ্যা',
+                proxyLinked: 'প্রক্সি সংযুক্ত',
+                noProxy: 'প্রক্সি নেই'
             },
             dialogs: {
                 createTitle: 'নতুন রিসেলার যোগ করুন',

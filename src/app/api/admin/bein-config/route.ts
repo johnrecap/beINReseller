@@ -50,6 +50,9 @@ const BEIN_SETTINGS_KEYS = [
     'worker_session_timeout',
     'worker_max_retries',
     'worker_headless',
+
+    // User Proxy Settings
+    'user_proxy_limit',  // Number of users with proxy linked (display only)
 ]
 
 export async function GET(request: NextRequest) {

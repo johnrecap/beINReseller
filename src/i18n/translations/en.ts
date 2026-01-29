@@ -409,7 +409,8 @@ export const en = {
                 renewSelectors: 'Renew Selectors',
                 checkSelectors: 'Check Balance Selectors',
                 poolSettings: 'Account Distribution Settings',
-                advanced: 'Advanced Settings'
+                advanced: 'Advanced Settings',
+                userProxySettings: 'User Proxy Settings'
             },
             fields: {
                 email: 'Email',
@@ -447,12 +448,14 @@ export const en = {
                 minDelay: 'Min Delay (ms)',
                 maxDelay: 'Max Delay (ms)',
                 maxConsecutiveFailures: 'Max Consecutive Failures',
-                autoDisable: 'Auto-disable Account on Repeated Failures'
+                autoDisable: 'Auto-disable Account on Repeated Failures',
+                userProxyLimit: 'Number of Users with Proxy Linked'
             },
             hints: {
                 maxRequestsPerAccount: 'Number of requests allowed per account in the time window',
                 rateLimitWindow: '300 = 5 minutes',
-                cooldownDuration: '600 = 10 minutes'
+                cooldownDuration: '600 = 10 minutes',
+                userProxyLimit: 'Will show "Proxy Linked" for the oldest N users based on creation date. If 0 or empty, all users will show "No Proxy"'
             },
             actions: {
                 save: 'Save Settings',
@@ -571,7 +574,9 @@ export const en = {
                 noUsers: 'No users found',
                 noDistributors: 'No distributors found',
                 manager: 'Distributor',
-                managedUsersCount: 'Users Count'
+                managedUsersCount: 'Users Count',
+                proxyLinked: 'Proxy Linked',
+                noProxy: 'No Proxy'
             },
             dialogs: {
                 createTitle: 'Add New Reseller',

@@ -121,6 +121,24 @@ export async function GET(request: NextRequest) {
                 totalPages: Math.ceil(total / limit)
             })
         } else if (roleFilter === 'users') {
+            // Get proxy limit setting for users tab
+            const proxyLimitSetting = await prisma.setting.findUnique({
+                where: { key: 'user_proxy_limit' }
+            })
+            const proxyLimit = proxyLimitSetting ? parseInt(proxyLimitSetting.value) || 0 : 0
+
+            // Get IDs of users who should have proxy linked (oldest N users by creation date)
+            let proxyLinkedUserIds: string[] = []
+            if (proxyLimit > 0) {
+                const oldestUsers = await prisma.user.findMany({
+                    where: { role: 'USER', deletedAt: null },
+                    select: { id: true },
+                    orderBy: { createdAt: 'asc' },
+                    take: proxyLimit
+                })
+                proxyLinkedUserIds = oldestUsers.map(u => u.id)
+            }
+
             const [users, total] = await Promise.all([
                 prisma.user.findMany({
                     where,
@@ -184,7 +202,9 @@ export async function GET(request: NextRequest) {
                         creatorId: creator?.id || null,
                         creatorUsername: creator?.username || null,
                         creatorEmail: creator?.email || null,
-                        creatorRole: creator?.role || null
+                        creatorRole: creator?.role || null,
+                        // Proxy status (based on user_proxy_limit setting)
+                        hasProxyLinked: proxyLinkedUserIds.includes(u.id)
                     }
                 }),
                 total,

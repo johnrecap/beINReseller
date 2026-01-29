@@ -325,7 +325,8 @@ export const ar = {
                 renewSelectors: 'محددات صفحة التجديد',
                 checkSelectors: 'محددات صفحة الاستعلام',
                 poolSettings: 'إعدادات توزيع الحسابات',
-                advanced: 'إعدادات متقدمة'
+                advanced: 'إعدادات متقدمة',
+                userProxySettings: 'إعدادات بروكسي المستخدمين'
             },
             fields: {
                 email: 'البريد الإلكتروني',
@@ -363,12 +364,14 @@ export const ar = {
                 minDelay: 'الحد الأدنى للتأخير (مللي ثانية)',
                 maxDelay: 'الحد الأقصى للتأخير (مللي ثانية)',
                 maxConsecutiveFailures: 'الحد الأقصى للفشل المتتالي',
-                autoDisable: 'تعطيل الحساب تلقائياً عند الفشل المتكرر'
+                autoDisable: 'تعطيل الحساب تلقائياً عند الفشل المتكرر',
+                userProxyLimit: 'عدد المستخدمين المربوطين بالبروكسي'
             },
             hints: {
                 maxRequestsPerAccount: 'عدد الطلبات المسموحة لكل حساب في النافذة الزمنية',
                 rateLimitWindow: '300 = 5 دقائق',
-                cooldownDuration: '600 = 10 دقائق'
+                cooldownDuration: '600 = 10 دقائق',
+                userProxyLimit: 'سيتم عرض "تم ربط البروكسي" لأقدم N مستخدم بناءً على تاريخ الإنشاء. إذا كان الرقم 0 أو فارغ، سيظهر "بدون بروكسي" لجميع المستخدمين'
             },
             actions: {
                 save: 'حفظ الإعدادات',
@@ -487,7 +490,9 @@ export const ar = {
                 noUsers: 'لا يوجد مستخدمين',
                 noDistributors: 'لا يوجد مديرين',
                 manager: 'المدير',
-                managedUsersCount: 'عدد المستخدمين'
+                managedUsersCount: 'عدد المستخدمين',
+                proxyLinked: 'تم ربط البروكسي',
+                noProxy: 'بدون بروكسي'
             },
             dialogs: {
                 createTitle: 'إضافة مستخدم جديد',

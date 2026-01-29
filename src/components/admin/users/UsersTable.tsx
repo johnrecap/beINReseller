@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X } from 'lucide-react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, LinkSlash } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
@@ -29,6 +29,8 @@ interface User {
     creatorUsername?: string | null
     creatorEmail?: string | null
     creatorRole?: string | null
+    // Proxy status (for users tab)
+    hasProxyLinked?: boolean
 }
 
 // Distributor type (for distributors tab)
@@ -322,13 +324,26 @@ export default function UsersTable() {
                 <p className="font-bold text-foreground dir-ltr text-right">{(user.balance ?? 0).toLocaleString()} {t.header.currency}</p>
             </td>
             <td className="px-4 py-3">
-                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.isActive
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                <div className="flex flex-col gap-1">
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.isActive
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        }`}>
+                        {user.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
+                        {user.isActive ? t.admin.users.table.active : t.admin.users.table.inactive}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                        user.hasProxyLinked
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
                     }`}>
-                    {user.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
-                    {user.isActive ? t.admin.users.table.active : t.admin.users.table.inactive}
-                </span>
+                        <Link2 className="w-3 h-3" />
+                        {user.hasProxyLinked 
+                            ? (t.admin?.users?.table?.proxyLinked || 'تم ربط البروكسي')
+                            : (t.admin?.users?.table?.noProxy || 'بدون بروكسي')
+                        }
+                    </span>
+                </div>
             </td>
             <td className="px-4 py-3 text-xs text-muted-foreground">
                 <p>{user.operationCount ?? 0} {t.admin.users.table.operation}</p>

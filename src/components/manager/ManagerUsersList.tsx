@@ -115,7 +115,7 @@ export function ManagerUsersList({ users }: ManagerUsersListProps) {
                                         <AlertDialogTrigger asChild>
                                             <button
                                                 disabled={deletingId === user.id}
-                                                className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                                                className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg transition-colors disabled:opacity-50"
                                                 title={t.manager?.users?.actions?.delete || 'Delete user'}
                                             >
                                                 {deletingId === user.id ? (

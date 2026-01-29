@@ -244,7 +244,7 @@ export default function UsersTable() {
                 {format(new Date(distributor.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
             </td>
             <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-2 justify-end">
                     <button
                         onClick={() => setStatsUser(distributor)}
                         className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"
@@ -353,7 +353,7 @@ export default function UsersTable() {
                 {format(new Date(user.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
             </td>
             <td className="px-4 py-3">
-                <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-2 justify-end">
                     <button
                         onClick={() => setStatsUser(user)}
                         className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"

@@ -208,7 +208,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                             {format(new Date(user.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex items-center gap-2 justify-end">
                                                 <button
                                                     onClick={() => setBalanceUser(user)}
                                                     className="p-1.5 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 rounded-lg transition-colors"

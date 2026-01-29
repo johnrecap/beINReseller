@@ -493,3 +493,31 @@
     transform: none;
   }
 }
+
+/* ===========================================
+   Browser Compatibility Fallbacks
+   =========================================== */
+
+/* Fallback for browsers that don't support backdrop-filter */
+@supports not (backdrop-filter: blur(10px)) {
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl,
+  .backdrop-blur-3xl {
+    background-color: rgba(2, 6, 23, 0.95) !important;
+  }
+  
+  .glass {
+    background: rgba(2, 6, 23, 0.95) !important;
+  }
+  
+  /* Light mode fallback */
+  :root:not(.dark) .backdrop-blur-sm,
+  :root:not(.dark) .backdrop-blur-md,
+  :root:not(.dark) .backdrop-blur-lg,
+  :root:not(.dark) .backdrop-blur-xl {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+  }
+}

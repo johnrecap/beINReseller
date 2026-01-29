@@ -109,7 +109,7 @@ export default function StatsCards() {
             desc: t.header.currency,
             isHero: true,
             trend: undefined,
-            useAnimatedBalance: true
+            useAnimatedBalance: false
         },
         {
             title: t.dashboard.todayOperations,
@@ -161,6 +161,10 @@ export default function StatsCards() {
                         value={
                             card.useAnimatedBalance && typeof card.value === 'number' ? (
                                 <AnimatedBalance value={card.value} />
+                            ) : card.isHero && typeof card.value === 'number' ? (
+                                <span className="font-bold text-[36px] gradient-text">
+                                    {card.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
                             ) : card.isHero === false && typeof card.value === 'number' && card.title === t.dashboard.successRate ? (
                                 <><AnimatedNumber value={card.value} />%</>
                             ) : card.isHero === false && typeof card.value === 'number' && card.title === t.dashboard.todayOperations ? (

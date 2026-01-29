@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -12,6 +12,13 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   title: "Desh Panel",
   description: "Desh Panel - beIN Sports Subscription Management System",
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 import Providers from "@/components/providers/Providers";

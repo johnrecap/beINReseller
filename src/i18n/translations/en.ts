@@ -50,7 +50,8 @@ export const en = {
         hours: 'hours',
         yes: 'Yes',
         no: 'No',
-        unknown: 'Unknown'
+        unknown: 'Unknown',
+        optional: 'Optional'
     },
     auth: {
         username: 'Username',
@@ -319,7 +320,7 @@ export const en = {
         withdraw: 'Withdraw',
         operationDeduct: 'Operation Deduction',
         currentBalance: 'Current Balance',
-        correction: 'Correction',
+        correctionLabel: 'Correction',
         close: 'Close',
         balanced: 'Balanced',
         discrepancy: 'Discrepancy',
@@ -354,7 +355,39 @@ export const en = {
         loadMore: 'Load More',
         loadMoreCount: 'Load More ({loaded} of {total})',
         connectionFailed: 'Failed to connect to server',
-        correctionFailed: 'Correction failed'
+        correctionFailed: 'Correction failed',
+        correction: {
+            dialogTitle: 'Balance Correction',
+            currentBalance: 'Current Balance',
+            expectedBalance: 'Expected Balance',
+            difference: 'Difference',
+            excess: 'Excess',
+            deficit: 'Deficit',
+            chooseMethod: 'Choose correction method',
+            addInitial: 'Add as Initial Balance',
+            addInitialDesc: 'Records the amount as an initial deposit in transactions',
+            deductExcess: 'Deduct Excess Balance',
+            deductExcessDesc: 'Deducts the difference from user balance',
+            addMissing: 'Add Missing Amount',
+            addMissingDesc: 'Adds the missing amount to user balance',
+            notes: 'Notes',
+            notesPlaceholder: 'Reason for correction...',
+            confirm: 'Confirm Correction',
+            willSetToZero: 'Balance will be set to zero because the difference exceeds current balance'
+        },
+        audit: {
+            title: 'Balance Calculation Details',
+            type: 'Type',
+            direction: 'Direction',
+            total: 'Total',
+            operations: 'Operations',
+            withdrawals: 'Withdrawals',
+            corrections: 'Corrections',
+            expected: 'Expected Balance',
+            actual: 'Actual Balance',
+            balanced: 'Balance Matched',
+            needsCorrection: 'Needs Correction'
+        }
     },
     admin: {
         dashboard: {

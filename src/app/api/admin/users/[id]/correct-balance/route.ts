@@ -5,10 +5,11 @@ import prisma from '@/lib/prisma'
 /**
  * POST /api/admin/users/[id]/correct-balance
  * 
- * تصحيح رصيد المستخدم الزائد
- * - يحسب الفرق ويخصمه إذا كان زيادة
- * - يسجل معاملة CORRECTION
- * - يحدث العملية كـ "مصححة"
+ * تصحيح رصيد المستخدم
+ * - BALANCE_MISMATCH: تصحيح الفرق في الرصيد
+ * - INITIALIZE_BALANCE: إضافة رصيد مبدئي كإيداع
+ * - ADD_MISSING: إضافة المبلغ الناقص
+ * - DOUBLE_REFUND / OVER_REFUND: تصحيح الاستردادات الزائدة
  */
 export async function POST(
     request: NextRequest,
@@ -17,9 +18,10 @@ export async function POST(
     try {
         const { id: userId } = await params
         const body = await request.json()
-        const { type, operationId } = body as {
-            type: 'BALANCE_MISMATCH' | 'DOUBLE_REFUND' | 'OVER_REFUND'
+        const { type, operationId, notes: customNotes } = body as {
+            type: 'BALANCE_MISMATCH' | 'DOUBLE_REFUND' | 'OVER_REFUND' | 'INITIALIZE_BALANCE' | 'ADD_MISSING'
             operationId?: string
+            notes?: string
         }
 
         // 1. Check admin authentication
@@ -42,9 +44,81 @@ export async function POST(
         let correctionAmount = 0
         let correctionNotes = ''
         let operationToCorrect: string | null = null
+        let transactionType: 'CORRECTION' | 'DEPOSIT' = 'CORRECTION'
 
+        // Helper: Calculate expected balance
+        const calculateExpectedBalance = async () => {
+            const transactions = await prisma.transaction.findMany({
+                where: { userId },
+                select: { type: true, amount: true }
+            })
+
+            let totalDeposits = 0
+            let totalDeductions = 0
+            let totalRefunds = 0
+            let totalWithdrawals = 0
+            let totalCorrections = 0
+
+            for (const tx of transactions) {
+                switch (tx.type) {
+                    case 'DEPOSIT':
+                        totalDeposits += tx.amount
+                        break
+                    case 'OPERATION_DEDUCT':
+                        totalDeductions += Math.abs(tx.amount)
+                        break
+                    case 'REFUND':
+                        totalRefunds += tx.amount
+                        break
+                    case 'WITHDRAW':
+                        totalWithdrawals += Math.abs(tx.amount)
+                        break
+                    case 'CORRECTION':
+                        totalCorrections += tx.amount
+                        break
+                }
+            }
+
+            return totalDeposits - totalDeductions + totalRefunds - totalWithdrawals + totalCorrections
+        }
+
+        // 3. Handle INITIALIZE_BALANCE - Add as initial deposit
+        if (type === 'INITIALIZE_BALANCE') {
+            const expectedBalance = await calculateExpectedBalance()
+            const discrepancy = user.balance - expectedBalance
+
+            if (discrepancy > 0.01) {
+                // User has more balance than expected - create DEPOSIT to record it
+                correctionAmount = discrepancy // Positive amount for DEPOSIT
+                transactionType = 'DEPOSIT'
+                correctionNotes = customNotes || 'رصيد مبدئي / Initial Balance'
+            } else {
+                return NextResponse.json({
+                    success: true,
+                    message: 'لا يوجد رصيد زائد لتسجيله كرصيد مبدئي',
+                    corrected: false
+                })
+            }
+        }
+        // Handle ADD_MISSING - Add missing amount for negative discrepancy
+        else if (type === 'ADD_MISSING') {
+            const expectedBalance = await calculateExpectedBalance()
+            const discrepancy = user.balance - expectedBalance
+
+            if (discrepancy < -0.01) {
+                // User has less balance than expected - add the missing amount
+                correctionAmount = Math.abs(discrepancy) // Positive CORRECTION to add
+                correctionNotes = customNotes || `إضافة رصيد ناقص: $${Math.abs(discrepancy).toFixed(2)} / Adding missing balance`
+            } else {
+                return NextResponse.json({
+                    success: true,
+                    message: 'لا يوجد رصيد ناقص لإضافته',
+                    corrected: false
+                })
+            }
+        }
         // 3. Handle DOUBLE_REFUND or OVER_REFUND
-        if ((type === 'DOUBLE_REFUND' || type === 'OVER_REFUND') && operationId) {
+        else if ((type === 'DOUBLE_REFUND' || type === 'OVER_REFUND') && operationId) {
             // Check if already corrected
             const operation = await prisma.operation.findUnique({
                 where: { id: operationId },
@@ -84,55 +158,32 @@ export async function POST(
                 operationToCorrect = operationId
             }
         }
-        // Handle BALANCE_MISMATCH
+        // Handle BALANCE_MISMATCH - Deduct excess balance
         else if (type === 'BALANCE_MISMATCH') {
-            // Get all transactions to calculate expected balance
-            const transactions = await prisma.transaction.findMany({
-                where: { userId },
-                select: { type: true, amount: true }
-            })
-
-            let totalDeposits = 0
-            let totalDeductions = 0
-            let totalRefunds = 0
-            let totalWithdrawals = 0
-            let totalCorrections = 0
-
-            for (const tx of transactions) {
-                switch (tx.type) {
-                    case 'DEPOSIT':
-                        totalDeposits += tx.amount
-                        break
-                    case 'OPERATION_DEDUCT':
-                        totalDeductions += Math.abs(tx.amount)
-                        break
-                    case 'REFUND':
-                        totalRefunds += tx.amount
-                        break
-                    case 'WITHDRAW':
-                        totalWithdrawals += Math.abs(tx.amount)
-                        break
-                    case 'CORRECTION':
-                        totalCorrections += tx.amount
-                        break
-                }
-            }
-
-            const expectedBalance = totalDeposits - totalDeductions + totalRefunds - totalWithdrawals + totalCorrections
+            const expectedBalance = await calculateExpectedBalance()
             const actualBalance = user.balance
             const discrepancy = actualBalance - expectedBalance
 
             // فقط إذا الفرق موجب (زيادة) نقوم بالخصم
             if (discrepancy > 0.01) {
-                correctionAmount = -discrepancy // خصم الزيادة
-                correctionNotes = `تصحيح رصيد زائد: الفرق كان $${discrepancy.toFixed(2)}`
+                // Prevent negative balance: only deduct up to current balance
+                const maxDeduction = Math.min(discrepancy, user.balance)
+                correctionAmount = -maxDeduction // خصم الزيادة
+                
+                if (maxDeduction < discrepancy) {
+                    // Can't deduct full amount, balance will be $0
+                    correctionNotes = customNotes || `تصحيح رصيد زائد: الفرق كان $${discrepancy.toFixed(2)} (تم خصم $${maxDeduction.toFixed(2)} - الرصيد أصبح صفر)`
+                } else {
+                    correctionNotes = customNotes || `تصحيح رصيد زائد: الفرق كان $${discrepancy.toFixed(2)}`
+                }
             } else if (discrepancy < -0.01) {
-                // الفرق سالب = المستخدم ناقص رصيد - يحتاج مراجعة يدوية
+                // الفرق سالب = المستخدم ناقص رصيد - now we inform the user to use ADD_MISSING instead
                 return NextResponse.json({
                     success: false,
-                    message: `الرصيد ناقص بـ $${Math.abs(discrepancy).toFixed(2)} - يحتاج مراجعة يدوية`,
+                    message: `الرصيد ناقص بـ $${Math.abs(discrepancy).toFixed(2)} - استخدم خيار "إضافة المبلغ الناقص"`,
                     needsManualReview: true,
-                    discrepancy
+                    discrepancy,
+                    suggestedAction: 'ADD_MISSING'
                 })
             } else {
                 return NextResponse.json({
@@ -169,7 +220,7 @@ export async function POST(
                     operationId: operationToCorrect,
                     amount: correctionAmount,
                     balanceAfter: updatedUser.balance,
-                    type: 'CORRECTION',
+                    type: transactionType,
                     notes: correctionNotes
                 }
             })

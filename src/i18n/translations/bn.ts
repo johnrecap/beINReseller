@@ -50,7 +50,8 @@ export const bn = {
         hours: 'ঘন্টা',
         yes: 'হ্যাঁ',
         no: 'না',
-        unknown: 'অজানা'
+        unknown: 'অজানা',
+        optional: 'ঐচ্ছিক'
     },
     auth: {
         username: 'ব্যবহারকারীর নাম',
@@ -319,7 +320,7 @@ export const bn = {
         withdraw: 'উত্তোলন',
         operationDeduct: 'অপারেশন কর্তন',
         currentBalance: 'বর্তমান ব্যালেন্স',
-        correction: 'সংশোধন',
+        correctionLabel: 'সংশোধন',
         close: 'বন্ধ করুন',
         balanced: 'সমতুল্য',
         discrepancy: 'পার্থক্য',
@@ -354,7 +355,39 @@ export const bn = {
         loadMore: 'আরো লোড করুন',
         loadMoreCount: 'আরো লোড করুন ({loaded} এর মধ্যে {total})',
         connectionFailed: 'সার্ভারে সংযোগ করতে ব্যর্থ',
-        correctionFailed: 'সংশোধন ব্যর্থ'
+        correctionFailed: 'সংশোধন ব্যর্থ',
+        correction: {
+            dialogTitle: 'ব্যালেন্স সংশোধন',
+            currentBalance: 'বর্তমান ব্যালেন্স',
+            expectedBalance: 'প্রত্যাশিত ব্যালেন্স',
+            difference: 'পার্থক্য',
+            excess: 'অতিরিক্ত',
+            deficit: 'ঘাটতি',
+            chooseMethod: 'সংশোধন পদ্ধতি নির্বাচন করুন',
+            addInitial: 'প্রাথমিক ব্যালেন্স হিসেবে যোগ করুন',
+            addInitialDesc: 'লেনদেনে প্রাথমিক জমা হিসেবে পরিমাণ রেকর্ড করে',
+            deductExcess: 'অতিরিক্ত ব্যালেন্স কর্তন করুন',
+            deductExcessDesc: 'ব্যবহারকারীর ব্যালেন্স থেকে পার্থক্য কর্তন করে',
+            addMissing: 'অনুপস্থিত পরিমাণ যোগ করুন',
+            addMissingDesc: 'ব্যবহারকারীর ব্যালেন্সে অনুপস্থিত পরিমাণ যোগ করে',
+            notes: 'নোট',
+            notesPlaceholder: 'সংশোধনের কারণ...',
+            confirm: 'সংশোধন নিশ্চিত করুন',
+            willSetToZero: 'পার্থক্য বর্তমান ব্যালেন্স অতিক্রম করায় ব্যালেন্স শূন্য হয়ে যাবে'
+        },
+        audit: {
+            title: 'ব্যালেন্স হিসাবের বিবরণ',
+            type: 'ধরন',
+            direction: 'দিক',
+            total: 'মোট',
+            operations: 'অপারেশন',
+            withdrawals: 'উত্তোলন',
+            corrections: 'সংশোধন',
+            expected: 'প্রত্যাশিত ব্যালেন্স',
+            actual: 'প্রকৃত ব্যালেন্স',
+            balanced: 'ব্যালেন্স মিলেছে',
+            needsCorrection: 'সংশোধন প্রয়োজন'
+        }
     },
     admin: {
         dashboard: {

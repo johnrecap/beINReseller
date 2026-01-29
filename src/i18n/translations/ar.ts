@@ -50,7 +50,8 @@ export const ar = {
         hours: 'ساعة',
         yes: 'نعم',
         no: 'لا',
-        unknown: 'غير معروف'
+        unknown: 'غير معروف',
+        optional: 'اختياري'
     },
     auth: {
         username: 'اسم المستخدم',
@@ -705,7 +706,7 @@ export const ar = {
         withdraw: 'سحب',
         operationDeduct: 'خصم عملية',
         currentBalance: 'الرصيد الحالي',
-        correction: 'تصحيح',
+        correctionLabel: 'تصحيح',
         close: 'إغلاق',
         balanced: 'متطابق',
         discrepancy: 'فرق',
@@ -740,7 +741,39 @@ export const ar = {
         loadMore: 'تحميل المزيد',
         loadMoreCount: 'تحميل المزيد ({loaded} من {total})',
         connectionFailed: 'فشل الاتصال بالخادم',
-        correctionFailed: 'فشل التصحيح'
+        correctionFailed: 'فشل التصحيح',
+        correction: {
+            dialogTitle: 'تصحيح الرصيد',
+            currentBalance: 'الرصيد الحالي',
+            expectedBalance: 'الرصيد المتوقع',
+            difference: 'الفرق',
+            excess: 'زيادة',
+            deficit: 'نقص',
+            chooseMethod: 'اختر طريقة التصحيح',
+            addInitial: 'إضافة كرصيد مبدئي',
+            addInitialDesc: 'يسجل المبلغ كإيداع مبدئي في سجل المعاملات',
+            deductExcess: 'خصم الرصيد الزائد',
+            deductExcessDesc: 'يخصم الفرق من رصيد المستخدم',
+            addMissing: 'إضافة المبلغ الناقص',
+            addMissingDesc: 'يضيف المبلغ الناقص إلى رصيد المستخدم',
+            notes: 'ملاحظات',
+            notesPlaceholder: 'سبب التصحيح...',
+            confirm: 'تأكيد التصحيح',
+            willSetToZero: 'سيتم تصفير الرصيد لأن الفرق أكبر من الرصيد الحالي'
+        },
+        audit: {
+            title: 'تفاصيل حساب الرصيد',
+            type: 'النوع',
+            direction: 'الاتجاه',
+            total: 'المجموع',
+            operations: 'العمليات',
+            withdrawals: 'السحوبات',
+            corrections: 'التصحيحات',
+            expected: 'الرصيد المتوقع',
+            actual: 'الرصيد الفعلي',
+            balanced: 'الرصيد متطابق',
+            needsCorrection: 'يحتاج تصحيح'
+        }
     },
     errorBoundary: {
         title: 'حدث خطأ غير متوقع',

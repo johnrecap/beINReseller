@@ -62,6 +62,7 @@ export async function GET(
         let totalDeductions = 0
         let totalRefunds = 0
         let totalWithdrawals = 0
+        let totalCorrections = 0
 
         for (const tx of transactions) {
             switch (tx.type) {
@@ -77,11 +78,14 @@ export async function GET(
                 case 'WITHDRAW':
                     totalWithdrawals += Math.abs(tx.amount)
                     break
+                case 'CORRECTION':
+                    totalCorrections += tx.amount
+                    break
             }
         }
 
         // Calculate expected balance
-        const expectedBalance = totalDeposits - totalDeductions + totalRefunds - totalWithdrawals
+        const expectedBalance = totalDeposits - totalDeductions + totalRefunds - totalWithdrawals + totalCorrections
         const actualBalance = user.balance
         const discrepancy = actualBalance - expectedBalance
         const isBalanceValid = Math.abs(discrepancy) < 0.01
@@ -262,6 +266,7 @@ export async function GET(
                 totalDeductions,
                 totalRefunds,
                 totalWithdrawals,
+                totalCorrections,
                 expectedBalance,
                 actualBalance,
                 discrepancy,

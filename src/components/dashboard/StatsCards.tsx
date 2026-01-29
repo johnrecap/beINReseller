@@ -163,7 +163,7 @@ export default function StatsCards() {
                                 <AnimatedBalance value={card.value} />
                             ) : card.isHero && typeof card.value === 'number' ? (
                                 <span className="font-bold text-[36px] gradient-text">
-                                    {card.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {card.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             ) : card.isHero === false && typeof card.value === 'number' && card.title === t.dashboard.successRate ? (
                                 <><AnimatedNumber value={card.value} />%</>

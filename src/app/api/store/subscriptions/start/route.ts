@@ -53,11 +53,38 @@ export async function POST(request: NextRequest) {
         })
         
         if (existingSubscription) {
-            return errorResponse(
-                'هناك عملية جارية لهذا الكارت',
-                400,
-                'SUBSCRIPTION_IN_PROGRESS'
-            )
+            // Auto-cancel if older than 10 minutes
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
+            
+            if (existingSubscription.createdAt < tenMinutesAgo) {
+                // Cancel the old subscription
+                await prisma.storeSubscription.update({
+                    where: { id: existingSubscription.id },
+                    data: { 
+                        status: 'CANCELLED',
+                        resultMessage: 'تم الإلغاء تلقائياً بسبب انتهاء المهلة'
+                    }
+                })
+                
+                // Also cancel the operation if exists
+                if (existingSubscription.operationId) {
+                    await prisma.operation.update({
+                        where: { id: existingSubscription.operationId },
+                        data: { 
+                            status: 'CANCELLED',
+                            responseMessage: 'تم الإلغاء تلقائياً بسبب انتهاء المهلة'
+                        }
+                    }).catch(() => {}) // Ignore if operation doesn't exist
+                }
+                
+                console.log(`[Store] Auto-cancelled expired subscription ${existingSubscription.id}`)
+            } else {
+                return errorResponse(
+                    'هناك عملية جارية لهذا الكارت',
+                    400,
+                    'SUBSCRIPTION_IN_PROGRESS'
+                )
+            }
         }
         
         // 4. Get markup percentage from settings

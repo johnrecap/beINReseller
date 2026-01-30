@@ -90,6 +90,16 @@ export const en = {
         proxyManagement: 'Proxy Management',
         announcements: 'Announcements',
         activityMonitoring: 'Activity Monitoring',
+        // App Management (Store)
+        appManagement: 'App Management',
+        appDashboard: 'Dashboard',
+        appProducts: 'Products',
+        appCategories: 'Categories',
+        appOrders: 'Orders',
+        appSubscriptions: 'Subscriptions',
+        appCustomers: 'Customers',
+        appShipping: 'Shipping',
+        appSettings: 'App Settings',
     },
     header: {
         balance: 'My Balance',

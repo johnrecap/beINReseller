@@ -90,6 +90,16 @@ export const bn = {
         proxyManagement: 'প্রক্সি ব্যবস্থাপনা',
         announcements: 'ঘোষণা',
         activityMonitoring: 'কার্যকলাপ পর্যবেক্ষণ',
+        // App Management (Store)
+        appManagement: 'অ্যাপ ব্যবস্থাপনা',
+        appDashboard: 'ড্যাশবোর্ড',
+        appProducts: 'পণ্য',
+        appCategories: 'বিভাগ',
+        appOrders: 'অর্ডার',
+        appSubscriptions: 'সাবস্ক্রিপশন',
+        appCustomers: 'গ্রাহক',
+        appShipping: 'শিপিং',
+        appSettings: 'অ্যাপ সেটিংস',
     },
     header: {
         balance: 'আমার ব্যালেন্স',

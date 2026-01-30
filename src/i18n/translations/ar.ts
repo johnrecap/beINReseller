@@ -90,6 +90,16 @@ export const ar = {
         proxyManagement: 'إدارة البروكسي',
         announcements: 'الإعلانات',
         activityMonitoring: 'مراقبة النشاط',
+        // App Management (Store)
+        appManagement: 'إدارة التطبيق',
+        appDashboard: 'لوحة التحكم',
+        appProducts: 'المنتجات',
+        appCategories: 'الفئات',
+        appOrders: 'الطلبات',
+        appSubscriptions: 'الاشتراكات',
+        appCustomers: 'العملاء',
+        appShipping: 'الشحن',
+        appSettings: 'إعدادات التطبيق',
     },
     header: {
         balance: 'رصيدي',

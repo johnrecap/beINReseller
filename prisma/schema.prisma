@@ -122,7 +122,8 @@ model UserAction {
 
 model Operation {
   id              String          @id @default(cuid())
-  userId          String          @map("user_id")
+  userId          String?         @map("user_id")
+  customerId      String?         @map("customer_id")  // Store App customer
   type            OperationType
   cardNumber      String          @map("card_number")
   amount          Float
@@ -163,7 +164,8 @@ model Operation {
   updatedAt       DateTime        @updatedAt @map("updated_at")
   completedAt     DateTime?       @map("completed_at")
 
-  user         User          @relation(fields: [userId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+  customer     Customer?     @relation(fields: [customerId], references: [id])
   beinAccount  BeinAccount?  @relation(fields: [beinAccountId], references: [id])
   transactions Transaction[] @relation("OperationTransactions")
   
@@ -171,6 +173,7 @@ model Operation {
   storeSubscription StoreSubscription?
 
   @@index([userId])
+  @@index([customerId])
   @@index([cardNumber])
   @@index([status])
   @@index([userId, status, createdAt])
@@ -424,6 +427,7 @@ model Customer {
   orders          Order[]
   subscriptions   StoreSubscription[]
   payments        Payment[]
+  operations      Operation[]
 
   @@index([email])
   @@index([isActive])

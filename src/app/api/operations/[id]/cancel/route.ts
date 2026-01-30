@@ -132,23 +132,25 @@ export async function POST(
                 },
             })
 
-            // Refund user balance
-            const user = await tx.user.update({
-                where: { id: operation.userId },
-                data: { balance: { increment: operation.amount } },
-            })
+            // Refund user balance (only if userId exists - admin panel operations)
+            if (operation.userId) {
+                const user = await tx.user.update({
+                    where: { id: operation.userId },
+                    data: { balance: { increment: operation.amount } },
+                })
 
-            // Create refund transaction
-            await tx.transaction.create({
-                data: {
-                    userId: operation.userId,
-                    type: 'REFUND',
-                    amount: operation.amount,
-                    balanceAfter: user.balance,
-                    operationId: operation.id,
-                    notes: 'استرداد مبلغ عملية ملغاة',
-                },
-            })
+                // Create refund transaction
+                await tx.transaction.create({
+                    data: {
+                        userId: operation.userId,
+                        type: 'REFUND',
+                        amount: operation.amount,
+                        balanceAfter: user.balance,
+                        operationId: operation.id,
+                        notes: 'استرداد مبلغ عملية ملغاة',
+                    },
+                })
+            }
 
             // Log activity
             await tx.activityLog.create({

@@ -29,6 +29,7 @@ export async function addOperationJob(data: {
     duration?: string
     promoCode?: string      // Promo code for discount (Wizard flow)
     userId?: string
+    customerId?: string     // Store customer ID (for store app)
     amount?: number
 }) {
     return operationsQueue.add('process-operation', data, {

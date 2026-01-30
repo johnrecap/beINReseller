@@ -127,8 +127,8 @@ export async function GET(request: Request) {
                         }
                     })
 
-                    // 2. Refund user balance only if amount > 0 AND no existing refund
-                    if (shouldRefund) {
+                    // 2. Refund user balance only if amount > 0 AND no existing refund AND has userId (not store customer)
+                    if (shouldRefund && operation.userId) {
                         // Check for existing refund to prevent double refund
                         const existingRefund = await tx.transaction.findFirst({
                             where: {
@@ -162,35 +162,39 @@ export async function GET(request: Request) {
                         }
                     }
 
-                    // 3. Create notification for user
-                    await tx.notification.create({
-                        data: {
-                            userId: operation.userId,
-                            title: 'انتهت مهلة العملية',
-                            message: shouldRefund
-                                ? `تم إلغاء العملية تلقائياً واسترداد ${operation.amount} ريال. السبب: ${expiryReason}`
-                                : `تم إلغاء العملية تلقائياً. السبب: ${expiryReason}`,
-                            type: 'warning',
-                            link: `/dashboard/operations/${operation.id}`
-                        }
-                    })
+                    // 3. Create notification for user (only if userId exists - not store customer)
+                    if (operation.userId) {
+                        await tx.notification.create({
+                            data: {
+                                userId: operation.userId,
+                                title: 'انتهت مهلة العملية',
+                                message: shouldRefund
+                                    ? `تم إلغاء العملية تلقائياً واسترداد ${operation.amount} ريال. السبب: ${expiryReason}`
+                                    : `تم إلغاء العملية تلقائياً. السبب: ${expiryReason}`,
+                                type: 'warning',
+                                link: `/dashboard/operations/${operation.id}`
+                            }
+                        })
+                    }
 
-                    // 4. Log activity
-                    await tx.activityLog.create({
-                        data: {
-                            userId: operation.userId,
-                            action: 'OPERATION_EXPIRED_NO_HEARTBEAT',
-                            details: {
-                                operationId: operation.id,
-                                previousStatus: operation.status,
-                                lastHeartbeat: operation.lastHeartbeat?.toISOString() || null,
-                                heartbeatExpiry: operation.heartbeatExpiry?.toISOString() || null,
-                                refunded: shouldRefund ? operation.amount : 0,
-                                reason: expiryReason
-                            },
-                            ipAddress: 'cleanup-cron'
-                        }
-                    })
+                    // 4. Log activity (only if userId exists - not store customer)
+                    if (operation.userId) {
+                        await tx.activityLog.create({
+                            data: {
+                                userId: operation.userId,
+                                action: 'OPERATION_EXPIRED_NO_HEARTBEAT',
+                                details: {
+                                    operationId: operation.id,
+                                    previousStatus: operation.status,
+                                    lastHeartbeat: operation.lastHeartbeat?.toISOString() || null,
+                                    heartbeatExpiry: operation.heartbeatExpiry?.toISOString() || null,
+                                    refunded: shouldRefund ? operation.amount : 0,
+                                    reason: expiryReason
+                                },
+                                ipAddress: 'cleanup-cron'
+                            }
+                        })
+                    }
                 })
 
                 // 5. Release beIN account lock in Redis (outside transaction)

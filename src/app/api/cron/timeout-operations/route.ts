@@ -101,8 +101,8 @@ export async function GET(request: Request) {
                         },
                     })
 
-                    // Refund user balance only if amount > 0 AND no existing refund
-                    if (shouldRefund) {
+                    // Refund user balance only if amount > 0 AND no existing refund AND has userId (not store customer)
+                    if (shouldRefund && operation.userId) {
                         // ===== CRITICAL: Check for existing refund to prevent double refund =====
                         const existingRefund = await tx.transaction.findFirst({
                             where: {
@@ -133,17 +133,19 @@ export async function GET(request: Request) {
                         }
                     }
 
-                    // Log activity
-                    await tx.activityLog.create({
-                        data: {
-                            userId: operation.userId,
-                            action: 'OPERATION_TIMEOUT',
-                            details: shouldRefund
-                                ? `${timeoutMessage} - تم استرداد ${operation.amount} ريال`
-                                : timeoutMessage,
-                            ipAddress: 'cron-job',
-                        },
-                    })
+                    // Log activity (only if userId exists - not store customer)
+                    if (operation.userId) {
+                        await tx.activityLog.create({
+                            data: {
+                                userId: operation.userId,
+                                action: 'OPERATION_TIMEOUT',
+                                details: shouldRefund
+                                    ? `${timeoutMessage} - تم استرداد ${operation.amount} ريال`
+                                    : timeoutMessage,
+                                ipAddress: 'cron-job',
+                            },
+                        })
+                    }
                 })
 
                 refundedCount++

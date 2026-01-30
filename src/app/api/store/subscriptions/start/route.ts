@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
         // 6. Create Operation (using existing reseller system)
         const operation = await prisma.operation.create({
             data: {
-                userId: customer.id, // Note: Store customer ID used here
+                customerId: customer.id, // Store customer ID (not userId!)
                 type: 'RENEW',
                 cardNumber,
                 amount: 0, // Will be set after package selection
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
                 operationId: operation.id,
                 type: 'START_RENEWAL',
                 cardNumber,
-                userId: customer.id,
+                customerId: customer.id,
             })
         } catch (queueError) {
             console.error('Failed to add job to queue:', queueError)

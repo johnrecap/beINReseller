@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { successResponse, errorResponse, handleApiError, validationErrorResponse } from '@/lib/api-response'
-import { generateVerificationToken, getVerifyTokenExpiry } from '@/lib/store-auth'
+import { generateVerificationToken, getVerifyTokenExpiry, generateStoreToken } from '@/lib/store-auth'
 
 // Validation schema
 const registerSchema = z.object({
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         const verifyToken = generateVerificationToken()
         const verifyExpires = getVerifyTokenExpiry()
         
-        // Create customer
+        // Create customer (auto-verify for now, can require email verification later)
         const customer = await prisma.customer.create({
             data: {
                 email: email.toLowerCase(),
@@ -63,17 +63,28 @@ export async function POST(request: NextRequest) {
                 preferredLang,
                 verifyToken,
                 verifyExpires,
-                isVerified: false,
+                isVerified: true, // Auto-verify for now
                 isActive: true,
             },
             select: {
                 id: true,
                 email: true,
                 name: true,
+                nameAr: true,
+                phone: true,
                 country: true,
                 preferredLang: true,
                 createdAt: true,
             }
+        })
+        
+        // Generate JWT token for immediate login
+        const token = generateStoreToken({
+            id: customer.id,
+            email: customer.email,
+            name: customer.name,
+            country: customer.country,
+            preferredLang: customer.preferredLang,
         })
         
         // TODO: Send verification email
@@ -85,10 +96,10 @@ export async function POST(request: NextRequest) {
         }
         
         return successResponse(
-            { customer },
+            { token, customer },
             preferredLang === 'ar' 
-                ? 'تم إنشاء الحساب بنجاح. يرجى التحقق من بريدك الإلكتروني.'
-                : 'Account created successfully. Please check your email to verify.',
+                ? 'تم إنشاء الحساب بنجاح'
+                : 'Account created successfully',
             201
         )
         

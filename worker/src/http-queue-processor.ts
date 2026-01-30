@@ -861,22 +861,22 @@ async function handleCancelConfirmHttp(
             where: { operationId, type: 'REFUND' }
         });
 
-        if (!existingRefund) {
+        if (!existingRefund && operation.userId) {
             await prisma.$transaction(async (tx) => {
                 const user = await tx.user.findUnique({
-                    where: { id: operation.userId },
+                    where: { id: operation.userId! },
                     select: { balance: true }
                 });
 
                 if (user) {
                     const newBalance = user.balance + operation.amount!;
                     await tx.user.update({
-                        where: { id: operation.userId },
+                        where: { id: operation.userId! },
                         data: { balance: newBalance }
                     });
                     await tx.transaction.create({
                         data: {
-                            userId: operation.userId,
+                            userId: operation.userId!,
                             type: 'REFUND',
                             amount: operation.amount!,
                             balanceAfter: newBalance,

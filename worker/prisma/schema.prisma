@@ -122,7 +122,8 @@ model UserAction {
 
 model Operation {
   id              String          @id @default(cuid())
-  userId          String          @map("user_id")
+  userId          String?         @map("user_id")
+  customerId      String?         @map("customer_id")  // Store App customer
   type            OperationType
   cardNumber      String          @map("card_number")
   amount          Float
@@ -163,11 +164,16 @@ model Operation {
   updatedAt       DateTime        @updatedAt @map("updated_at")
   completedAt     DateTime?       @map("completed_at")
 
-  user         User          @relation(fields: [userId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+  customer     Customer?     @relation(fields: [customerId], references: [id])
   beinAccount  BeinAccount?  @relation(fields: [beinAccountId], references: [id])
   transactions Transaction[] @relation("OperationTransactions")
+  
+  // Store App - Links to customer subscription purchase
+  storeSubscription StoreSubscription?
 
   @@index([userId])
+  @@index([customerId])
   @@index([cardNumber])
   @@index([status])
   @@index([userId, status, createdAt])
@@ -379,4 +385,448 @@ model AnnouncementBanner {
   @@index([isActive])
   @@index([startDate, endDate])
   @@map("announcement_banners")
+}
+
+// =====================================================
+// ===== DESH STORE - B2C Mobile App Models =====
+// =====================================================
+
+// ===== Store Customer (End Users - separate from Resellers) =====
+model Customer {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  phone           String?
+  name            String
+  nameAr          String?   @map("name_ar")
+  passwordHash    String    @map("password_hash")
+  
+  // Verification
+  isVerified      Boolean   @default(false) @map("is_verified")
+  verifyToken     String?   @map("verify_token")
+  verifyExpires   DateTime? @map("verify_expires")
+  
+  // Password Reset
+  resetToken      String?   @map("reset_token")
+  resetExpires    DateTime? @map("reset_expires")
+  
+  // Status & Preferences
+  isActive        Boolean   @default(true) @map("is_active")
+  preferredLang   String    @default("ar") @map("preferred_lang")
+  country         String    @default("SA")  // SA or EG
+  
+  // Store Credit - for failed operations (customer can retry without paying)
+  storeCredit     Float     @default(0) @map("store_credit")
+  
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  lastLoginAt     DateTime? @map("last_login_at")
+  
+  // Relations
+  addresses       CustomerAddress[]
+  orders          Order[]
+  subscriptions   StoreSubscription[]
+  payments        Payment[]
+  operations      Operation[]
+
+  @@index([email])
+  @@index([isActive])
+  @@index([country])
+  @@map("customers")
+}
+
+// ===== Customer Saved Addresses =====
+model CustomerAddress {
+  id          String   @id @default(cuid())
+  customerId  String   @map("customer_id")
+  
+  // Contact
+  name        String
+  phone       String
+  
+  // Location
+  country     String   // SA or EG
+  city        String
+  district    String?
+  street      String
+  building    String?
+  floor       String?
+  apartment   String?
+  postalCode  String?  @map("postal_code")
+  
+  // Settings
+  isDefault   Boolean  @default(false) @map("is_default")
+  
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orders      Order[]
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+// ===== Product Categories =====
+model ProductCategory {
+  id            String    @id @default(cuid())
+  name          String
+  nameAr        String    @map("name_ar")
+  description   String?
+  descriptionAr String?   @map("description_ar")
+  image         String?
+  
+  // Display
+  isActive      Boolean   @default(true) @map("is_active")
+  sortOrder     Int       @default(0) @map("sort_order")
+  
+  // Timestamps
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  products      Product[]
+
+  @@index([isActive, sortOrder])
+  @@map("product_categories")
+}
+
+// ===== Physical Products (Dishes, Receivers, Accessories) =====
+model Product {
+  id              String   @id @default(cuid())
+  categoryId      String   @map("category_id")
+  sku             String?  @unique
+  
+  // Names
+  name            String
+  nameAr          String   @map("name_ar")
+  description     String?
+  descriptionAr   String?  @map("description_ar")
+  
+  // Pricing (Multi-Currency)
+  priceSAR        Float    @map("price_sar")
+  priceEGP        Float    @map("price_egp")
+  comparePriceSAR Float?   @map("compare_price_sar")  // Original price for discounts
+  comparePriceEGP Float?   @map("compare_price_egp")
+  
+  // Inventory
+  stock           Int      @default(0)
+  trackStock      Boolean  @default(true) @map("track_stock")
+  
+  // Media
+  images          String[] // Array of image URLs
+  
+  // Specifications
+  specifications  Json?    // Product specs as JSON
+  
+  // Display
+  isActive        Boolean  @default(true) @map("is_active")
+  isFeatured      Boolean  @default(false) @map("is_featured")
+  sortOrder       Int      @default(0) @map("sort_order")
+  
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  category        ProductCategory @relation(fields: [categoryId], references: [id])
+  orderItems      OrderItem[]
+
+  @@index([categoryId])
+  @@index([isActive, isFeatured])
+  @@index([isActive, sortOrder])
+  @@map("products")
+}
+
+// ===== Subscription Packages (for Store App) =====
+model SubscriptionPackage {
+  id            String   @id @default(cuid())
+  
+  // Names
+  name          String
+  nameAr        String   @map("name_ar")
+  description   String?
+  descriptionAr String?  @map("description_ar")
+  
+  // Duration
+  duration      Int      // months (1, 3, 6, 12)
+  
+  // Pricing (Multi-Currency)
+  priceSAR      Float    @map("price_sar")
+  priceEGP      Float    @map("price_egp")
+  
+  // Features
+  features      String[] // List of features
+  featuresAr    String[] @map("features_ar")
+  
+  // Display
+  isActive      Boolean  @default(true) @map("is_active")
+  isPopular     Boolean  @default(false) @map("is_popular")
+  sortOrder     Int      @default(0) @map("sort_order")
+  
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  subscriptions StoreSubscription[]
+
+  @@index([isActive, sortOrder])
+  @@map("subscription_packages")
+}
+
+// ===== Order Status Enum =====
+enum OrderStatus {
+  PENDING           // Awaiting payment
+  PAID              // Payment received
+  PROCESSING        // Being prepared
+  SHIPPED           // Shipped to customer
+  DELIVERED         // Delivered
+  CANCELLED         // Cancelled
+  REFUNDED          // Refunded
+}
+
+// ===== Customer Orders =====
+model Order {
+  id              String      @id @default(cuid())
+  customerId      String      @map("customer_id")
+  addressId       String?     @map("address_id")
+  orderNumber     String      @unique @map("order_number")  // ORD-20240130-XXXX
+  status          OrderStatus @default(PENDING)
+  
+  // Pricing
+  currency        String      @default("SAR")
+  subtotal        Float
+  shippingCost    Float       @default(0) @map("shipping_cost")
+  discount        Float       @default(0)
+  total           Float
+  
+  // Shipping Info (snapshot at order time)
+  shippingName    String      @map("shipping_name")
+  shippingPhone   String      @map("shipping_phone")
+  shippingCountry String      @map("shipping_country")
+  shippingCity    String      @map("shipping_city")
+  shippingAddress String      @map("shipping_address")
+  shippingNotes   String?     @map("shipping_notes")
+  
+  // Tracking
+  trackingNumber  String?     @map("tracking_number")
+  
+  // Payment
+  paymentId       String?     @unique @map("payment_id")
+  
+  // Timestamps
+  paidAt          DateTime?   @map("paid_at")
+  processedAt     DateTime?   @map("processed_at")
+  shippedAt       DateTime?   @map("shipped_at")
+  deliveredAt     DateTime?   @map("delivered_at")
+  cancelledAt     DateTime?   @map("cancelled_at")
+  cancelReason    String?     @map("cancel_reason")
+  
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  
+  // Relations
+  customer        Customer         @relation(fields: [customerId], references: [id])
+  address         CustomerAddress? @relation(fields: [addressId], references: [id])
+  items           OrderItem[]
+  payment         Payment?         @relation(fields: [paymentId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderNumber])
+  @@map("orders")
+}
+
+// ===== Order Items =====
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String   @map("order_id")
+  productId String   @map("product_id")
+  
+  // Snapshot at order time
+  name      String
+  nameAr    String   @map("name_ar")
+  image     String?
+  
+  // Quantity & Price
+  quantity  Int
+  price     Float    // Price per unit at time of purchase
+  
+  // Relations
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+// ===== Store Subscription Status Enum =====
+enum StoreSubStatus {
+  PENDING            // Just created, fetching packages from beIN
+  AWAITING_PACKAGE   // Waiting for customer to select package
+  AWAITING_PAYMENT   // Package selected, waiting for Stripe payment
+  PAID               // Payment received, continuing operation
+  PROCESSING         // Operation in progress (worker processing)
+  AWAITING_CAPTCHA   // Needs captcha from customer
+  COMPLETING         // Final step in progress
+  COMPLETED          // Successfully renewed
+  FAILED             // Failed - store credit added to customer
+  REFUNDED           // Manually refunded
+  CANCELLED          // Cancelled by customer
+}
+
+// ===== Store Subscription (beIN renewals from mobile app) =====
+model StoreSubscription {
+  id            String         @id @default(cuid())
+  customerId    String         @map("customer_id")
+  packageId     String?        @map("package_id")  // Optional - packages fetched from beIN dynamically
+  
+  // Card Info
+  cardNumber    String         @map("card_number")
+  
+  // Status
+  status        StoreSubStatus @default(PENDING)
+  
+  // beIN Package Info (from dynamic fetch)
+  packageName     String?      @map("package_name")      // Package name from beIN
+  packagePrice    Float?       @map("package_price")     // Original beIN price
+  
+  // Pricing (with markup)
+  currency        String       @default("SAR")
+  price           Float        @default(0)               // Final price to customer (beIN + markup)
+  markupPercent   Float        @default(20) @map("markup_percent")  // e.g., 20%
+  
+  // Store Credit Used
+  creditUsed      Float        @default(0) @map("credit_used")  // Store credit applied
+  
+  // Stripe
+  stripePaymentIntentId String? @map("stripe_payment_intent_id")
+  
+  // Links
+  paymentId     String?        @unique @map("payment_id")
+  operationId   String?        @unique @map("operation_id")  // Links to existing Operation table
+  
+  // Result
+  resultMessage String?        @map("result_message")
+  
+  // Timestamps
+  completedAt   DateTime?      @map("completed_at")
+  failedAt      DateTime?      @map("failed_at")
+  refundedAt    DateTime?      @map("refunded_at")
+  
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  
+  // Relations
+  customer      Customer            @relation(fields: [customerId], references: [id])
+  package       SubscriptionPackage? @relation(fields: [packageId], references: [id])
+  payment       Payment?            @relation(fields: [paymentId], references: [id])
+  operation     Operation?          @relation(fields: [operationId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("store_subscriptions")
+}
+
+// ===== Payment Status Enum =====
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+// ===== Payment Type Enum =====
+enum PaymentType {
+  ORDER          // Physical product order
+  SUBSCRIPTION   // beIN subscription
+}
+
+// ===== Payments (Stripe) =====
+model Payment {
+  id                    String        @id @default(cuid())
+  customerId            String        @map("customer_id")
+  
+  // Stripe
+  stripePaymentIntentId String        @unique @map("stripe_payment_intent_id")
+  stripeCustomerId      String?       @map("stripe_customer_id")
+  
+  // Amount
+  amount                Float
+  currency              String        @default("SAR")
+  
+  // Status
+  status                PaymentStatus @default(PENDING)
+  type                  PaymentType
+  
+  // Metadata
+  metadata              Json?
+  failureMessage        String?       @map("failure_message")
+  
+  // Refund
+  refundedAmount        Float?        @map("refunded_amount")
+  refundedAt            DateTime?     @map("refunded_at")
+  
+  // Timestamps
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  
+  // Relations
+  customer              Customer           @relation(fields: [customerId], references: [id])
+  order                 Order?
+  subscription          StoreSubscription?
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+// ===== Shipping Regions =====
+model ShippingRegion {
+  id              String   @id @default(cuid())
+  
+  // Country
+  country         String   // SA or EG
+  countryName     String   @map("country_name")
+  countryNameAr   String   @map("country_name_ar")
+  
+  // City
+  city            String
+  cityAr          String   @map("city_ar")
+  
+  // Shipping
+  shippingCostSAR Float    @map("shipping_cost_sar")
+  shippingCostEGP Float    @map("shipping_cost_egp")
+  estimatedDays   Int      @default(3) @map("estimated_days")
+  
+  // Status
+  isActive        Boolean  @default(true) @map("is_active")
+  
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  @@unique([country, city])
+  @@index([country, isActive])
+  @@map("shipping_regions")
+}
+
+// ===== Store Settings =====
+model StoreSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("store_settings")
 }

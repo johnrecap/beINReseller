@@ -116,7 +116,7 @@ export async function processOperation(
                 where: { id: operationId },
                 select: { userId: true, amount: true, beinAccountId: true }
             })
-            opUserId = opUserId || op?.userId
+            opUserId = opUserId || op?.userId || undefined
             opAmount = opAmount || op?.amount
             selectedAccountId = op?.beinAccountId || selectedAccountId
         }
@@ -524,11 +524,11 @@ async function handleCancelConfirm(
 
         if (existingRefund) {
             console.log(`⚠️ Refund already exists for operation ${operationId}, skipping to prevent double refund`)
-        } else {
+        } else if (operation.userId) {
             await prisma.$transaction(async (tx) => {
                 // Get current balance
                 const user = await tx.user.findUnique({
-                    where: { id: operation.userId },
+                    where: { id: operation.userId! },
                     select: { balance: true }
                 })
 
@@ -537,14 +537,14 @@ async function handleCancelConfirm(
 
                     // Update user balance
                     await tx.user.update({
-                        where: { id: operation.userId },
+                        where: { id: operation.userId! },
                         data: { balance: newBalance }
                     })
 
                     // Create refund transaction
                     await tx.transaction.create({
                         data: {
-                            userId: operation.userId,
+                            userId: operation.userId!,
                             type: 'REFUND',
                             amount: operation.amount!,
                             balanceAfter: newBalance,

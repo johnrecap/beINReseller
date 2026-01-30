@@ -177,9 +177,9 @@ export function ImageUpload({
                     onDrop={handleDrop}
                     onClick={() => inputRef.current?.click()}
                     className={cn(
-                        'relative border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer',
-                        'hover:border-primary/50 hover:bg-muted/50',
-                        dragActive && 'border-primary bg-primary/5',
+                        'relative border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer min-h-[120px]',
+                        'border-border hover:border-primary/50 hover:bg-accent/50',
+                        dragActive && 'border-primary bg-primary/10',
                         uploading && 'pointer-events-none opacity-50'
                     )}
                 >
@@ -200,10 +200,10 @@ export function ImageUpload({
                             </>
                         ) : (
                             <>
-                                <div className="p-3 rounded-full bg-primary/10 mb-3">
+                                <div className="p-3 rounded-full bg-primary/20 mb-3">
                                     <Upload className="h-6 w-6 text-primary" />
                                 </div>
-                                <p className="text-sm font-medium">
+                                <p className="text-sm font-medium text-foreground">
                                     {dragActive ? 'Drop image here' : 'Click or drag image to upload'}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">

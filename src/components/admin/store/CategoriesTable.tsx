@@ -29,6 +29,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Plus, Edit, Trash2, Tags, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Category {
     id: string
@@ -269,12 +270,12 @@ export function CategoriesTable({ categories: initialCategories }: CategoriesTab
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="image">Image URL</Label>
-                            <Input
-                                id="image"
+                            <Label>Category Image</Label>
+                            <ImageUpload
                                 value={formData.image}
-                                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                                placeholder="https://example.com/image.jpg"
+                                onChange={(url) => setFormData({ ...formData, image: url as string })}
+                                type="category"
+                                multiple={false}
                             />
                         </div>
 

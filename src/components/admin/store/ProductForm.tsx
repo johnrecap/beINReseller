@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -66,7 +67,7 @@ export function ProductForm({ product, categories, onSuccess, onCancel }: Produc
         stock: product?.stock?.toString() || '0',
         isActive: product?.isActive ?? true,
         isFeatured: product?.isFeatured ?? false,
-        images: product?.images?.join('\n') || '',
+        images: product?.images || [] as string[],
     })
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -88,7 +89,7 @@ export function ProductForm({ product, categories, onSuccess, onCancel }: Produc
                 stock: parseInt(formData.stock),
                 isActive: formData.isActive,
                 isFeatured: formData.isFeatured,
-                images: formData.images.split('\n').map(s => s.trim()).filter(Boolean),
+                images: formData.images,
             }
 
             const url = product 
@@ -254,13 +255,13 @@ export function ProductForm({ product, categories, onSuccess, onCancel }: Produc
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="images">Image URLs (one per line)</Label>
-                <textarea
-                    id="images"
+                <Label>Product Images</Label>
+                <ImageUpload
                     value={formData.images}
-                    onChange={(e) => setFormData({ ...formData, images: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md min-h-[80px] bg-background font-mono text-sm"
-                    placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
+                    onChange={(urls) => setFormData({ ...formData, images: urls as string[] })}
+                    type="product"
+                    multiple={true}
+                    maxFiles={5}
                 />
             </div>
 

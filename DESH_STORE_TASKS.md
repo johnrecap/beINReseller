@@ -3,7 +3,7 @@
 > **Project:** beIN Sports B2C Mobile Store App  
 > **Started:** January 30, 2026  
 > **Last Updated:** January 30, 2026  
-> **Status:** Phase 3 Completed - Admin Panel Ready
+> **Status:** Phase 4 Completed - Ready for Flutter App Development
 
 ---
 
@@ -595,22 +595,37 @@
 
 ### 4.2 Server-Side Integration
 
-- [x] **Stripe Utility Library** (`src/lib/stripe.ts`)
-  - [x] Initialize Stripe client
-  - [x] Create PaymentIntent helper
-  - [x] Confirm PaymentIntent helper
-  - [x] Refund helper
-  - [x] Cancel PaymentIntent helper
+- [x] **Stripe Utility Library** (`src/lib/store-pricing.ts`)
+  - [x] Get Stripe secret key from settings
+  - [x] Currency configuration (SAR/EGP)
+  - [x] `toStripeAmount()` - Convert to smallest unit
+  - [x] `fromStripeAmount()` - Convert from smallest unit
 
-- [ ] **Currency Handling**
-  - [x] SAR configuration (smallest unit = halalas)
-  - [x] EGP configuration (smallest unit = piasters)
+- [x] **Store Subscription Utilities** (`src/lib/store-subscription.ts`)
+  - [x] `handleFailedSubscription()` - Add store credit on failure
+  - [x] `syncSubscriptionStatus()` - Sync from operation status
+
+- [x] **Currency Handling**
+  - [x] SAR configuration (smallest unit = halalas, multiplier 100)
+  - [x] EGP configuration (smallest unit = piasters, multiplier 100)
   - [x] Conversion functions
 
-- [ ] **Webhook Handler**
-  - [ ] Signature verification
-  - [ ] Event type routing
-  - [ ] Idempotency handling
+- [x] **PaymentIntent Creation** (in API routes)
+  - [x] Orders API: `stripe.paymentIntents.create()` in `/api/store/orders`
+  - [x] Subscriptions API: `stripe.paymentIntents.create()` in `/api/store/subscriptions/[id]/select-package`
+  - [x] Returns clientSecret for frontend
+
+- [x] **PaymentIntent Cancellation**
+  - [x] `stripe.paymentIntents.cancel()` in order cancellation
+  - [x] `stripe.refunds.create()` for paid orders
+
+- [x] **Webhook Handler** (`/api/store/webhooks/stripe`)
+  - [x] Signature verification with `stripe.webhooks.constructEvent()`
+  - [x] Event type routing (switch statement)
+  - [x] Idempotency handling (skip if already processed)
+  - [x] `payment_intent.succeeded` handler
+  - [x] `payment_intent.payment_failed` handler
+  - [x] `charge.refunded` handler
 
 ### 4.3 Test Stripe Flow
 
@@ -630,9 +645,14 @@
   - [ ] Verify webhook
   - [ ] Check status updates
 
-### 4.4 Commit Checkpoint
+### 4.4 Dependencies
 
-- [ ] Commit: `feat(store): complete Stripe integration`
+- [x] `stripe` package installed (v20.3.0)
+- [ ] `@stripe/stripe-js` (for Flutter/web client - optional)
+
+### 4.5 Commit Checkpoint
+
+- [x] Stripe integration code complete (included in Phase 2 commits)
 
 ---
 

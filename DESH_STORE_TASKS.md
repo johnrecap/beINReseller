@@ -371,54 +371,55 @@
 
 ### 2.8 Orders API (`/api/store/orders/*`)
 
-- [ ] **GET `/api/store/orders`**
-  - [ ] Require authentication
-  - [ ] List customer's orders
-  - [ ] Pagination
-  - [ ] Filter by status
-  - [ ] Sort by date (newest first)
-  - [ ] Include items summary
+- [x] **GET `/api/store/orders`**
+  - [x] Require authentication
+  - [x] List customer's orders
+  - [x] Pagination
+  - [x] Filter by status
+  - [x] Sort by date (newest first)
+  - [x] Include items summary
 
-- [ ] **POST `/api/store/orders`**
-  - [ ] Require authentication
-  - [ ] Validate cart items
-  - [ ] Verify stock availability
-  - [ ] Calculate totals (subtotal, shipping, discount)
-  - [ ] Get/create shipping address
-  - [ ] Generate order number
-  - [ ] Create Stripe PaymentIntent
-  - [ ] Create Order and OrderItems
-  - [ ] Return order with Stripe clientSecret
+- [x] **POST `/api/store/orders`**
+  - [x] Require authentication
+  - [x] Validate cart items
+  - [x] Verify stock availability
+  - [x] Calculate totals (subtotal, shipping, discount)
+  - [x] Get/create shipping address
+  - [x] Generate order number
+  - [x] Create Stripe PaymentIntent
+  - [x] Create Order and OrderItems
+  - [x] Return order with Stripe clientSecret
 
-- [ ] **GET `/api/store/orders/[id]`**
-  - [ ] Require authentication
-  - [ ] Verify ownership
-  - [ ] Return full order details
-  - [ ] Include all items
-  - [ ] Include payment info
-  - [ ] Include shipping address
+- [x] **GET `/api/store/orders/[id]`**
+  - [x] Require authentication
+  - [x] Verify ownership
+  - [x] Return full order details
+  - [x] Include all items
+  - [x] Include payment info
+  - [x] Include shipping address
+  - [x] Include status timeline
 
-- [ ] **POST `/api/store/orders/[id]/cancel`**
-  - [ ] Require authentication
-  - [ ] Check if cancellable (PENDING, PAID)
-  - [ ] Cancel Stripe PaymentIntent or refund
-  - [ ] Restore product stock
-  - [ ] Update status to CANCELLED
+- [x] **POST `/api/store/orders/[id]/cancel`**
+  - [x] Require authentication
+  - [x] Check if cancellable (PENDING, PAID, PROCESSING)
+  - [x] Cancel Stripe PaymentIntent or refund
+  - [x] Restore product stock
+  - [x] Update status to CANCELLED/REFUNDED
 
 ### 2.9 Stripe Webhook (`/api/store/webhooks/stripe`)
 
-- [ ] **POST `/api/store/webhooks/stripe`**
-  - [ ] Verify Stripe signature
-  - [ ] Handle `payment_intent.succeeded`
-    - [ ] Find order/subscription by paymentIntentId
-    - [ ] Update payment status
-    - [ ] Continue flow if not already confirmed
-  - [ ] Handle `payment_intent.payment_failed`
-    - [ ] Update payment status
-    - [ ] Log failure reason
-  - [ ] Handle `charge.refunded`
-    - [ ] Update payment status
-    - [ ] Update order/subscription status
+- [x] **POST `/api/store/webhooks/stripe`**
+  - [x] Verify Stripe signature
+  - [x] Handle `payment_intent.succeeded`
+    - [x] Find order/subscription by paymentIntentId
+    - [x] Update payment status
+    - [x] Continue flow if not already confirmed
+  - [x] Handle `payment_intent.payment_failed`
+    - [x] Update payment status
+    - [x] Log failure reason
+  - [x] Handle `charge.refunded`
+    - [x] Update payment status
+    - [x] Update order/subscription status
 
 ### 2.10 Install Dependencies
 
@@ -430,8 +431,8 @@
 - [x] Commit: `feat(store): add auth API endpoints`
 - [x] Commit: `feat(store): add products and categories API`
 - [x] Commit: `feat(store): add subscriptions API with Stripe flow`
-- [ ] Commit: `feat(store): add orders API`
-- [ ] Commit: `feat(store): add Stripe webhook handler`
+- [x] Commit: `feat(store): add orders API`
+- [x] Commit: `feat(store): add Stripe webhook handler`
 
 ---
 
@@ -1285,9 +1286,9 @@ These tasks should be done by the user while development continues:
 | Phase | Status | Progress |
 |-------|--------|----------|
 | Phase 1: Database | ✅ Complete | 100% |
-| Phase 2: API Routes | 🔄 In Progress | 85% |
+| Phase 2: API Routes | ✅ Complete | 100% |
 | Phase 3: Admin Panel | ⏳ Pending | 0% |
-| Phase 4: Stripe | 🔄 Partial | 50% |
+| Phase 4: Stripe | ✅ Complete | 100% |
 | Phase 5: Flutter App | ⏳ Pending | 0% |
 | Phase 6: Testing | ⏳ Pending | 0% |
 

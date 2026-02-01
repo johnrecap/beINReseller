@@ -58,7 +58,7 @@ const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
 /**
  * Get or create HTTP client for an account
  * Includes proxy config if the account has one assigned
- * Now also attempts to restore session from Redis cache
+ * Now also attempts to restore session from Redis cache with server validation
  */
 async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
     // Include proxy in cache key to separate clients per proxy
@@ -87,8 +87,24 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
         const cachedSession = await getSessionFromCache(account.id);
         if (cachedSession) {
             await client.importSession(cachedSession);
-            client.markSessionValidFromCache();
+            // Use original login time to properly calculate session age
+            client.markSessionValidFromCache(cachedSession.lastLoginTime);
+            
+            const sessionAge = client.getSessionAge();
             console.log(`[HTTP] 🔄 Restored session from Redis cache for ${account.username}`);
+            
+            // Validate on server if session is older than threshold
+            // This prevents using sessions that beIN's server has invalidated
+            if (sessionAge >= SESSION_VALIDATION_THRESHOLD_MINUTES) {
+                console.log(`[HTTP] 🔍 Session age (${sessionAge} min) >= threshold (${SESSION_VALIDATION_THRESHOLD_MINUTES} min), validating on server...`);
+                const isValid = await client.validateCachedSessionOnServer();
+                
+                if (!isValid) {
+                    console.log(`[HTTP] ⚠️ Cached session expired on server for ${account.username}, clearing cache`);
+                    await deleteSessionFromCache(account.id);
+                    client.resetSession();
+                }
+            }
         }
     } catch (error) {
         console.log(`[HTTP] ⚠️ Failed to restore cached session for ${account.username}, will login fresh`);
@@ -138,6 +154,11 @@ const SESSION_TIMEOUTS = {
     completePurchase: 60 * 60 * 1000,  // 60 min (longer - user selecting package)
     signalActivate: 30 * 60 * 1000     // 30 min (short - just activation)
 };
+
+// Session age threshold for server validation (in minutes)
+// Cached sessions older than this will be validated on server before use
+// This prevents using expired sessions that beIN's server has invalidated
+const SESSION_VALIDATION_THRESHOLD_MINUTES = 15;
 
 /**
  * Check if an error is related to session expiry
@@ -335,7 +356,7 @@ async function handleStartRenewalHttp(
                 const cachedSession = await getSessionFromCache(selectedAccount.id);
                 if (cachedSession) {
                     await client.importSession(cachedSession);
-                    client.markSessionValidFromCache();
+                    client.markSessionValidFromCache(cachedSession.lastLoginTime);
                     console.log(`[HTTP] ✅ Got session from cache after waiting`);
                     needsFreshLogin = false;
                 }
@@ -1149,7 +1170,7 @@ async function handleSignalCheckHttp(
                     const cachedSession = await getSessionFromCache(account.id);
                     if (cachedSession) {
                         await httpClient.importSession(cachedSession);
-                        httpClient.markSessionValidFromCache();
+                        httpClient.markSessionValidFromCache(cachedSession.lastLoginTime);
                         console.log(`[HTTP] ✅ Got session from cache after waiting`);
                         needsFreshLogin = false;
                     }

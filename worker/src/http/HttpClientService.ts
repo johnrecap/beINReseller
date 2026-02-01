@@ -745,12 +745,72 @@ export class HttpClientService {
 
     /**
      * Mark session as valid when restored from Redis cache
-     * Used when session is imported from cache (no fresh login needed)
+     * Uses the original login time to properly calculate session age
+     * @param originalLoginTime - ISO timestamp from cached session (optional)
      */
-    public markSessionValidFromCache(): void {
+    public markSessionValidFromCache(originalLoginTime?: string): void {
         this.sessionValid = true;
-        this.lastLoginTime = new Date();
-        console.log('[HTTP] Session marked valid from Redis cache');
+        // Use original login time if provided, otherwise fallback to now
+        if (originalLoginTime) {
+            this.lastLoginTime = new Date(originalLoginTime);
+            const ageMinutes = Math.floor((Date.now() - this.lastLoginTime.getTime()) / 60000);
+            console.log(`[HTTP] Session marked valid from Redis cache (age: ${ageMinutes} min)`);
+        } else {
+            this.lastLoginTime = new Date();
+            console.log('[HTTP] Session marked valid from Redis cache (no original time, using now)');
+        }
+    }
+
+    /**
+     * Get session age in minutes
+     * Returns -1 if session is not active
+     */
+    public getSessionAge(): number {
+        if (!this.lastLoginTime) return -1;
+        return Math.floor((Date.now() - this.lastLoginTime.getTime()) / 60000);
+    }
+
+    /**
+     * Validate cached session on server before trusting it
+     * Makes a lightweight HTTP request to check if session is still valid
+     * Unlike validateSession(), this doesn't refresh login time - just checks validity
+     * 
+     * @returns true if session is valid on server, false if expired
+     */
+    public async validateCachedSessionOnServer(): Promise<boolean> {
+        console.log('[HTTP] 🔍 Validating cached session on server...');
+        
+        try {
+            const checkUrl = this.buildFullUrl(this.config?.checkUrl || '/Dealers/Pages/frmCheck.aspx');
+            
+            const response = await this.axios.get(checkUrl, {
+                timeout: 15000,
+                maxRedirects: 5,
+                validateStatus: () => true  // Accept any status to analyze response
+            });
+            
+            // Use existing session expiry detection (5-layer approach)
+            const expiryReason = this.checkForSessionExpiry(response.data);
+            if (expiryReason) {
+                console.log(`[HTTP] ⚠️ Cached session validation FAILED: ${expiryReason}`);
+                this.invalidateSession();
+                return false;
+            }
+            
+            // Update ViewState from response for future requests
+            const newViewState = this.extractHiddenFields(response.data);
+            if (newViewState && newViewState.__VIEWSTATE) {
+                this.currentViewState = newViewState;
+                console.log(`[HTTP] ✅ Cached session validation PASSED (ViewState updated: ${newViewState.__VIEWSTATE.length} chars)`);
+            } else {
+                console.log('[HTTP] ✅ Cached session validation PASSED');
+            }
+            
+            return true;
+        } catch (error: any) {
+            console.log(`[HTTP] ⚠️ Cached session validation request failed: ${error.message}`);
+            return false;  // Assume invalid on network error
+        }
     }
 
     /**

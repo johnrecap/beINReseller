@@ -306,7 +306,7 @@ export function SignalRefreshFlow() {
 
                         {/* Contracts Table */}
                         {contracts.length > 0 && (
-                            <ContractsTable contracts={contracts} />
+                            <ContractsTable contracts={contracts} expiryDate={cardStatus.expiryDate} />
                         )}
                     </div>
 
@@ -323,7 +323,7 @@ export function SignalRefreshFlow() {
                                 className="flex-1 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                             >
                                 <Zap className="w-5 h-5" />
-                                {sr.activateButton}
+                                Activate ( {cardStatus.activateCount.current} / {cardStatus.activateCount.max} )
                             </button>
                         )}
 
@@ -406,7 +406,7 @@ export function SignalRefreshFlow() {
             )}
 
             {/* Hidden beIN Sport styled export component - for image download */}
-            {contracts.length > 0 && (
+            {contracts.length > 0 && cardStatus && (
                 <div 
                     ref={exportRef}
                     style={{ 
@@ -419,6 +419,7 @@ export function SignalRefreshFlow() {
                     <BeINExportTable 
                         cardNumber={cardNumber}
                         contracts={contracts}
+                        expiryDate={cardStatus.expiryDate}
                     />
                 </div>
             )}

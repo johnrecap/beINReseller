@@ -423,7 +423,10 @@ export class HttpClientService {
                     'Home',
                     'Dashboard',
                     'Packages',
-                    'Settings'
+                    'Settings',
+                    // QPay section has pre-filled error from dealer settings - not relevant to renewal flow
+                    'Mobile number is required',
+                    'valid mobile number'
                 ];
 
                 const isNavigation = nonErrorPatterns.some(pattern =>

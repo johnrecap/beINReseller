@@ -111,5 +111,25 @@ module.exports = {
             error_file: './logs/worker-10-error.log',
             out_file: './logs/worker-10-out.log',
         },
+        // Session Keep-Alive Worker - Keeps beIN sessions warm
+        {
+            name: 'bein-keepalive',
+            script: 'dist/keepalive.js',
+            cwd: __dirname,
+            instances: 1,
+            exec_mode: 'fork',
+            max_memory_restart: '256M',
+            merge_logs: true,
+            time: true,
+            watch: false,
+            autorestart: true,
+            max_restarts: 10,
+            restart_delay: 10000,
+            env: {
+                NODE_ENV: 'production',
+            },
+            error_file: './logs/keepalive-error.log',
+            out_file: './logs/keepalive-out.log',
+        },
     ],
 }

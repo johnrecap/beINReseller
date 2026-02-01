@@ -81,7 +81,6 @@ export class HttpClientService {
 
         // Build axios config
         const axiosConfig: Record<string, unknown> = {
-            jar: this.jar,  // Required for wrapper() when no proxy
             withCredentials: true,
             headers: HttpClientService.BROWSER_HEADERS,
             timeout: 30000,
@@ -89,31 +88,33 @@ export class HttpClientService {
             validateStatus: (status: number) => status < 500
         };
 
-        // FIX: Use wrapper() for both proxy and non-proxy modes
-        // wrapper() properly captures cookies during redirect chains (required for Akamai)
-        // createCookieAgent was not capturing auth cookies during 302 redirects
+        // IMPORTANT: wrapper() does NOT work with custom httpsAgent (throws error)
+        // For proxy mode, we MUST use createCookieAgent to wrap the proxy agent
+        // For non-proxy mode, we can use wrapper() directly
         if (proxyConfig) {
-            // PROXY MODE: Use wrapper() with custom httpsAgent
+            // PROXY MODE: Use createCookieAgent to wrap proxy agent with cookie support
             const proxyManager = getProxyManager();
             const proxyUrl = proxyManager.buildProxyUrlFromConfig(proxyConfig);
             const proxyType = proxyConfig.proxyType || 'socks5';
             
-            // Create proxy agent (wrapper() will handle cookies, not the agent)
-            let httpsAgent;
             if (proxyType === 'socks5') {
-                httpsAgent = new SocksProxyAgent(proxyUrl);
+                const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
+                axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, { 
+                    cookies: { jar: this.jar } 
+                });
             } else {
-                httpsAgent = new HttpsProxyAgent(proxyUrl);
+                const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
+                axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, { 
+                    cookies: { jar: this.jar } 
+                });
             }
             
-            axiosConfig.httpsAgent = httpsAgent;
             axiosConfig.proxy = false;
-            
-            // Use wrapper() for proper cookie handling during redirects
-            this.axios = wrapper(axios.create(axiosConfig));
-            console.log(`[HTTP] Using proxy: ${proxyManager.getMaskedProxyUrlFromConfig(proxyConfig)} (wrapper mode)`);
+            this.axios = axios.create(axiosConfig);
+            console.log(`[HTTP] Using proxy: ${proxyManager.getMaskedProxyUrlFromConfig(proxyConfig)} (cookie-aware agent)`);
         } else {
             // NO PROXY MODE: Use wrapper() for automatic cookie handling
+            axiosConfig.jar = this.jar;
             this.axios = wrapper(axios.create(axiosConfig));
             console.log('[HTTP] No proxy - using wrapper() for automatic cookie handling');
         }
@@ -641,37 +642,39 @@ export class HttpClientService {
 
             // Build axios config with proxy if available
             const axiosConfig: Record<string, unknown> = {
-                jar: this.jar,  // Required for wrapper()
                 withCredentials: true,
                 headers: HttpClientService.BROWSER_HEADERS,
                 timeout: 30000,
                 maxRedirects: 5
             };
 
-            // FIX: Use wrapper() for both proxy and non-proxy modes
-            // wrapper() properly captures cookies during redirect chains (required for Akamai)
+            // IMPORTANT: wrapper() does NOT work with custom httpsAgent (throws error)
+            // For proxy mode, we MUST use createCookieAgent to wrap the proxy agent
+            // For non-proxy mode, we can use wrapper() directly
             if (this.proxyConfig) {
-                // PROXY MODE: Use wrapper() with custom httpsAgent
+                // PROXY MODE: Use createCookieAgent to wrap proxy agent with cookie support
                 const proxyManager = getProxyManager();
                 const proxyUrl = proxyManager.buildProxyUrlFromConfig(this.proxyConfig);
                 const proxyType = this.proxyConfig.proxyType || 'socks5';
                 
-                // Create proxy agent (wrapper() will handle cookies, not the agent)
-                let httpsAgent;
                 if (proxyType === 'socks5') {
-                    httpsAgent = new SocksProxyAgent(proxyUrl);
+                    const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
+                    axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, { 
+                        cookies: { jar: this.jar } 
+                    });
                 } else {
-                    httpsAgent = new HttpsProxyAgent(proxyUrl);
+                    const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
+                    axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, { 
+                        cookies: { jar: this.jar } 
+                    });
                 }
                 
-                axiosConfig.httpsAgent = httpsAgent;
                 axiosConfig.proxy = false;
-
-                // Use wrapper() for proper cookie handling during redirects
-                this.axios = wrapper(axios.create(axiosConfig));
-                console.log(`[HTTP] Session imported with proxy: ${proxyManager.getMaskedProxyUrlFromConfig(this.proxyConfig)} (wrapper mode)`);
+                this.axios = axios.create(axiosConfig);
+                console.log(`[HTTP] Session imported with proxy: ${proxyManager.getMaskedProxyUrlFromConfig(this.proxyConfig)} (cookie-aware agent)`);
             } else {
                 // NO PROXY MODE: Use wrapper()
+                axiosConfig.jar = this.jar;
                 this.axios = wrapper(axios.create(axiosConfig));
                 console.log('[HTTP] Session imported - using wrapper() for automatic cookie handling');
             }

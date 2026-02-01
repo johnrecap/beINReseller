@@ -140,6 +140,19 @@ const SESSION_TIMEOUTS = {
 };
 
 /**
+ * Check if an error is related to session expiry
+ * Used to determine if we should clear Redis cache
+ */
+function isSessionExpiryError(error: any): boolean {
+    const message = error?.message?.toLowerCase() || '';
+    return (
+        (message.includes('session') && (message.includes('expir') || message.includes('login'))) ||
+        message.includes('login page') ||
+        message.includes('cached title')
+    );
+}
+
+/**
  * AUDIT FIX 4.2: Validate session age with per-flow timeout
  * @param savedAt - ISO string of when session was saved
  * @param flowType - Type of flow to determine timeout
@@ -228,6 +241,12 @@ export async function processOperationHttp(
             opUserId = op?.userId || undefined;
             opAmount = op?.amount || undefined;
             selectedAccountId = op?.beinAccountId || null;
+        }
+
+        // Clear stale session from Redis if this was a session expiry error
+        if (selectedAccountId && isSessionExpiryError(error)) {
+            console.log(`[HTTP] 🗑️ Clearing stale session from Redis for account ${selectedAccountId}`);
+            await deleteSessionFromCache(selectedAccountId);
         }
 
         // Mark failed and refund
@@ -1061,6 +1080,13 @@ async function handleSignalRefreshHttp(
     } catch (error: any) {
         // Mark account as used even on failure
         await accountPool.markAccountUsed(account.id);
+        
+        // Delete session from cache on session-related errors
+        if (isSessionExpiryError(error)) {
+            console.log(`[HTTP] 🗑️ Clearing stale session from Redis for account ${account.id}`);
+            await deleteSessionFromCache(account.id);
+        }
+        
         throw error;
     }
 }
@@ -1240,8 +1266,9 @@ async function handleSignalCheckHttp(
     } catch (error: any) {
         await accountPool.markAccountUsed(account.id);
         
-        // Delete session from cache on session-related errors
-        if (error.message?.includes('Session expired') || error.message?.includes('login')) {
+        // Delete session from cache on session-related errors (case-insensitive)
+        if (isSessionExpiryError(error)) {
+            console.log(`[HTTP] 🗑️ Clearing stale session from Redis for account ${account.id}`);
             await deleteSessionFromCache(account.id);
         }
         
@@ -1365,6 +1392,13 @@ async function handleSignalActivateHttp(
 
     } catch (error: any) {
         await accountPool.markAccountUsed(account.id);
+        
+        // Delete session from cache on session-related errors
+        if (isSessionExpiryError(error)) {
+            console.log(`[HTTP] 🗑️ Clearing stale session from Redis for account ${account.id}`);
+            await deleteSessionFromCache(account.id);
+        }
+        
         throw error;
     }
 }

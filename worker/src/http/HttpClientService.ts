@@ -1346,7 +1346,9 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
                 // tbSerial2 is NOT included here - it appears AFTER first Load click
-                [loadBtnName]: loadBtnValue
+                [loadBtnName]: loadBtnValue,
+                // FIX: Clear hidden QPay mobile field to prevent ASP.NET validation error
+                'ctl00$ContentPlaceHolder1$ctrlQPay$txtMobileNumber': ''
             };
 
             // Check if page uses ScriptManager (AJAX UpdatePanel)
@@ -1462,7 +1464,9 @@ export class HttpClientService {
                     'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
                     'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
                     'ctl00$ContentPlaceHolder1$tbSerial2': formattedCard,
-                    [step2BtnName]: step2BtnValue
+                    [step2BtnName]: step2BtnValue,
+                    // FIX: Clear hidden QPay mobile field to prevent ASP.NET validation error
+                    'ctl00$ContentPlaceHolder1$ctrlQPay$txtMobileNumber': ''
                 };
 
                 console.log('[HTTP] POST load packages (step 2: tbSerial2 confirmation)...');

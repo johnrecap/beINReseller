@@ -89,33 +89,29 @@ export class HttpClientService {
             validateStatus: (status: number) => status < 500
         };
 
-        // FIX: Proper cookie handling with proxy using createCookieAgent()
-        // This properly integrates cookies during redirect chains (required for Akamai)
+        // FIX: Use wrapper() for both proxy and non-proxy modes
+        // wrapper() properly captures cookies during redirect chains (required for Akamai)
+        // createCookieAgent was not capturing auth cookies during 302 redirects
         if (proxyConfig) {
-            // PROXY MODE: Use createCookieAgent to wrap proxy agent with cookie support
+            // PROXY MODE: Use wrapper() with custom httpsAgent
             const proxyManager = getProxyManager();
             const proxyUrl = proxyManager.buildProxyUrlFromConfig(proxyConfig);
             const proxyType = proxyConfig.proxyType || 'socks5';
             
-            // Create a cookie-aware agent that wraps the proxy agent
-            // This ensures cookies are properly handled during redirect chains
+            // Create proxy agent (wrapper() will handle cookies, not the agent)
+            let httpsAgent;
             if (proxyType === 'socks5') {
-                const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
-                axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, { 
-                    cookies: { jar: this.jar } 
-                });
+                httpsAgent = new SocksProxyAgent(proxyUrl);
             } else {
-                const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
-                axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, { 
-                    cookies: { jar: this.jar } 
-                });
+                httpsAgent = new HttpsProxyAgent(proxyUrl);
             }
             
-            axiosConfig.proxy = false; // Disable axios built-in proxy
-
-            // Create axios instance - cookie handling is done by the agent
-            this.axios = axios.create(axiosConfig);
-            console.log(`[HTTP] Using proxy: ${proxyManager.getMaskedProxyUrlFromConfig(proxyConfig)} (cookie-aware agent)`);
+            axiosConfig.httpsAgent = httpsAgent;
+            axiosConfig.proxy = false;
+            
+            // Use wrapper() for proper cookie handling during redirects
+            this.axios = wrapper(axios.create(axiosConfig));
+            console.log(`[HTTP] Using proxy: ${proxyManager.getMaskedProxyUrlFromConfig(proxyConfig)} (wrapper mode)`);
         } else {
             // NO PROXY MODE: Use wrapper() for automatic cookie handling
             this.axios = wrapper(axios.create(axiosConfig));
@@ -255,16 +251,14 @@ export class HttpClientService {
 
     /**
      * Build POST request headers
-     * NOTE: We only add Content-Type, Referer, Origin
-     * The BROWSER_HEADERS are already set as axios defaults
-     * This matches the old working project pattern
-     * @param refererUrl - The URL to use as Referer and Origin base
+     * NOTE: Origin header removed to match working project behavior
+     * Some servers (with Akamai) may block requests with unexpected Origin
+     * @param refererUrl - The URL to use as Referer
      */
     private buildPostHeaders(refererUrl: string): Record<string, string> {
         return {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Referer': refererUrl,
-            'Origin': new URL(refererUrl).origin
+            'Referer': refererUrl
         };
     }
 
@@ -647,38 +641,35 @@ export class HttpClientService {
 
             // Build axios config with proxy if available
             const axiosConfig: Record<string, unknown> = {
-                jar: this.jar,  // Required for wrapper() when no proxy
+                jar: this.jar,  // Required for wrapper()
                 withCredentials: true,
                 headers: HttpClientService.BROWSER_HEADERS,
                 timeout: 30000,
                 maxRedirects: 5
             };
 
-            // FIX: Proper cookie handling with proxy using createCookieAgent()
-            // Same logic as constructor - ensures cookies work during redirect chains
+            // FIX: Use wrapper() for both proxy and non-proxy modes
+            // wrapper() properly captures cookies during redirect chains (required for Akamai)
             if (this.proxyConfig) {
-                // PROXY MODE: Use createCookieAgent to wrap proxy agent with cookie support
+                // PROXY MODE: Use wrapper() with custom httpsAgent
                 const proxyManager = getProxyManager();
                 const proxyUrl = proxyManager.buildProxyUrlFromConfig(this.proxyConfig);
                 const proxyType = this.proxyConfig.proxyType || 'socks5';
                 
-                // Create a cookie-aware agent that wraps the proxy agent
+                // Create proxy agent (wrapper() will handle cookies, not the agent)
+                let httpsAgent;
                 if (proxyType === 'socks5') {
-                    const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
-                    axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, { 
-                        cookies: { jar: this.jar } 
-                    });
+                    httpsAgent = new SocksProxyAgent(proxyUrl);
                 } else {
-                    const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
-                    axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, { 
-                        cookies: { jar: this.jar } 
-                    });
+                    httpsAgent = new HttpsProxyAgent(proxyUrl);
                 }
                 
+                axiosConfig.httpsAgent = httpsAgent;
                 axiosConfig.proxy = false;
 
-                this.axios = axios.create(axiosConfig);
-                console.log(`[HTTP] Session imported with proxy: ${proxyManager.getMaskedProxyUrlFromConfig(this.proxyConfig)} (cookie-aware agent)`);
+                // Use wrapper() for proper cookie handling during redirects
+                this.axios = wrapper(axios.create(axiosConfig));
+                console.log(`[HTTP] Session imported with proxy: ${proxyManager.getMaskedProxyUrlFromConfig(this.proxyConfig)} (wrapper mode)`);
             } else {
                 // NO PROXY MODE: Use wrapper()
                 this.axios = wrapper(axios.create(axiosConfig));
@@ -1064,6 +1055,50 @@ export class HttpClientService {
             );
 
             console.log(`[HTTP] Login response: ${loginRes.status}`);
+
+            // === DEBUG: Log cookie information after login ===
+            // This helps diagnose authentication issues with Akamai/beIN
+            const setCookieHeaders = loginRes.headers['set-cookie'];
+            if (setCookieHeaders && setCookieHeaders.length > 0) {
+                console.log(`[HTTP] 🍪 Set-Cookie headers (${setCookieHeaders.length}):`);
+                setCookieHeaders.forEach((c: string) => console.log(`[HTTP]   - ${c.split(';')[0]}`));
+            } else {
+                console.log(`[HTTP] ⚠️ No Set-Cookie headers in login response`);
+            }
+
+            // Log final URL after redirects
+            const finalUrlDebug = loginRes.request?.res?.responseUrl || loginRes.config?.url || 'unknown';
+            console.log(`[HTTP] 🔄 Final URL after redirects: ${finalUrlDebug}`);
+
+            // Verify cookies in jar after login
+            const loginCookies = await this.jar.getCookies(this.config.loginUrl);
+            console.log(`[HTTP] 🍪 Cookie jar after login: ${loginCookies.length} cookies`);
+            loginCookies.forEach(c => console.log(`[HTTP]   - ${c.key}: ${c.value.substring(0, 30)}...`));
+
+            // Check specifically for auth cookie
+            const hasAuthCookie = loginCookies.some(c => c.key.includes('SBSDealerAuth'));
+            if (!hasAuthCookie) {
+                console.log(`[HTTP] ⚠️ WARNING: SBSDealerAuth cookie NOT found after login!`);
+                
+                // FALLBACK: Try manual cookie capture from Set-Cookie headers
+                // This handles cases where wrapper() didn't capture cookies during redirect
+                if (setCookieHeaders && setCookieHeaders.length > 0) {
+                    console.log(`[HTTP] 🔧 Attempting manual cookie capture from headers...`);
+                    for (const cookieStr of setCookieHeaders) {
+                        try {
+                            await this.jar.setCookie(cookieStr, this.config.loginUrl);
+                        } catch (e) {
+                            // Ignore invalid cookies
+                        }
+                    }
+                    const cookiesAfterManual = await this.jar.getCookies(this.config.loginUrl);
+                    console.log(`[HTTP] 🍪 Cookie jar after manual capture: ${cookiesAfterManual.length} cookies`);
+                    cookiesAfterManual.forEach(c => console.log(`[HTTP]   - ${c.key}: ${c.value.substring(0, 30)}...`));
+                }
+            } else {
+                console.log(`[HTTP] ✅ SBSDealerAuth cookie present`);
+            }
+            // === END DEBUG ===
 
             // Check for errors in HTML
             const error = this.checkForErrors(loginRes.data);

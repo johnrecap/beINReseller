@@ -285,7 +285,8 @@ export function SignalRefreshFlow() {
             {/* Status Display Step - with Activate Button */}
             {step === 'status' && cardStatus && (
                 <div className="overflow-x-auto">
-                    <div className="w-fit mx-auto min-w-full space-y-4">
+                    {/* Inner container: min-width matches table + padding, centered */}
+                    <div className="mx-auto space-y-4" style={{ minWidth: '890px', width: 'fit-content' }}>
                         {/* Download Image Button */}
                         <button
                             onClick={handleDownloadImage}
@@ -300,8 +301,8 @@ export function SignalRefreshFlow() {
                             {isDownloading ? (sr.downloading || 'Downloading...') : (sr.downloadImage || 'Download Image')}
                         </button>
 
-                        {/* Capturable Area */}
-                        <div ref={captureRef} data-capture="true" className="w-fit mx-auto space-y-4 p-4 bg-[#1a1d26] rounded-lg">
+                        {/* Capturable Area - full width of container */}
+                        <div ref={captureRef} data-capture="true" className="w-full space-y-4 p-4 bg-[#1a1d26] rounded-lg">
                             <CardStatusDisplay {...cardStatus} />
 
                             {/* Contracts Table - BeIN Sport style */}
@@ -314,7 +315,7 @@ export function SignalRefreshFlow() {
                             <p className="text-red-500 text-sm text-center">{error}</p>
                         )}
 
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 w-full">
                             {/* Activate Button - only if can activate */}
                             {cardStatus.canActivate !== false && cardStatus.activateCount.current < cardStatus.activateCount.max && (
                                 <button

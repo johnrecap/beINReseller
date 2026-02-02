@@ -43,7 +43,7 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
     // Desktop Table (also used for export)
     const DesktopTable = ({ forExport = false }: { forExport?: boolean }) => (
         <div 
-            data-export-table={forExport ? "true" : undefined}
+            data-export-table={(!isMobile || forExport) ? "true" : undefined}
             style={{ 
                 backgroundColor: '#ffffff', 
                 padding: '20px',

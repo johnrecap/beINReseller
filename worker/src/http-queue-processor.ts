@@ -26,6 +26,13 @@ import {
     releaseLoginLock,
     waitForLoginComplete
 } from './lib/session-cache';
+import {
+    getCachedPackages,
+    cachePackages,
+    getCachedSTB,
+    cacheSTB,
+    invalidatePackageCache
+} from './lib/package-cache';
 
 // Heartbeat configuration
 const HEARTBEAT_TTL_SECONDS = 15;  // Operation expires after 15s without heartbeat
@@ -59,11 +66,14 @@ const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
  * Get or create HTTP client for an account
  * Includes proxy config if the account has one assigned
  * Now also attempts to restore session from Redis cache
+ * 
+ * OPTIMIZATION: Parallel session restore + config reload
  */
 async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
     // Include proxy in cache key to separate clients per proxy
     const cacheKey = account.proxyId ? `${account.id}:${account.proxyId}` : account.id;
     let client = httpClients.get(cacheKey);
+    let isNewClient = false;
 
     if (!client) {
         // Build proxy config from account's relation
@@ -79,15 +89,20 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
         client = new HttpClientService(proxyConfig);
         await client.initialize();
         httpClients.set(cacheKey, client);
+        isNewClient = true;
         console.log(`[HTTP] Created client for ${account.username}${proxyConfig ? ` with proxy ${proxyConfig.host}:${proxyConfig.port}` : ' without proxy'}`);
     }
 
-    // Try to restore session from Redis cache (shared between workers)
+    // OPTIMIZATION: Run session restore and config reload in parallel
     try {
-        const cachedSession = await getSessionFromCache(account.id);
+        const [cachedSession, _] = await Promise.all([
+            getSessionFromCache(account.id),
+            isNewClient ? Promise.resolve() : client.reloadConfig()  // Only reload for existing clients
+        ]);
+        
         if (cachedSession) {
             await client.importSession(cachedSession);
-            client.markSessionValidFromCache();
+            client.markSessionValidFromCache(cachedSession.expiresAt);
             console.log(`[HTTP] 🔄 Restored session from Redis cache for ${account.username}`);
         }
     } catch (error) {
@@ -96,6 +111,67 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
     }
 
     return client;
+}
+
+/**
+ * Execute an operation with automatic session retry on expiry
+ * If session expires mid-operation, re-login and retry once
+ * 
+ * @param httpClient - The HTTP client to use
+ * @param account - The beIN account
+ * @param operation - The async operation to execute
+ * @param operationName - Name for logging
+ * @returns The result of the operation
+ */
+async function withSessionRetry<T>(
+    httpClient: HttpClientService,
+    account: BeinAccount & { proxy?: Proxy | null },
+    operation: () => Promise<T>,
+    operationName: string
+): Promise<T> {
+    try {
+        return await operation();
+    } catch (error: any) {
+        const isSessionExpired = 
+            error.message?.includes('Session Expired') ||
+            error.message?.includes('Session expired') ||
+            error.message?.includes('login page') ||
+            error.message?.includes('Login page');
+        
+        if (!isSessionExpired) {
+            throw error;  // Not a session error, rethrow
+        }
+        
+        console.log(`[HTTP] ⚠️ Session expired during ${operationName}, performing fresh login...`);
+        
+        // Clear cached session
+        await deleteSessionFromCache(account.id);
+        httpClient.invalidateSession();
+        
+        // Perform fresh login
+        const loginResult = await httpClient.login(
+            account.username,
+            account.password,
+            account.totpSecret || undefined
+        );
+        
+        if (loginResult.requiresCaptcha) {
+            // Can't auto-retry if CAPTCHA required - throw with clear message
+            throw new Error(`Session expired during ${operationName} and re-login requires CAPTCHA`);
+        }
+        
+        if (!loginResult.success) {
+            throw new Error(`Session expired during ${operationName} and re-login failed: ${loginResult.error}`);
+        }
+        
+        // Save new session to cache
+        const newSession = await httpClient.exportSession();
+        await saveSessionToCache(account.id, newSession, httpClient.getSessionTimeout());
+        console.log(`[HTTP] ✅ Fresh login successful, retrying ${operationName}...`);
+        
+        // Retry the operation once
+        return await operation();
+    }
 }
 
 /**
@@ -240,6 +316,11 @@ export async function processOperationHttp(
 
 /**
  * START_RENEWAL - Login, check card, load packages
+ * 
+ * OPTIMIZATIONS:
+ * - Package caching: If same card was checked <10 min ago, return cached packages instantly
+ * - STB caching: Skip checkCard() if STB is cached (1 hour TTL)
+ * - Session retry: Auto re-login if session expires mid-operation
  */
 async function handleStartRenewalHttp(
     operationId: string,
@@ -254,6 +335,45 @@ async function handleStartRenewalHttp(
         where: { id: operationId },
         select: { userId: true }
     });
+
+    // ============================================
+    // OPTIMIZATION 1: Check package cache first
+    // Skip all HTTP requests if packages are cached
+    // ============================================
+    const cachedPackageData = await getCachedPackages(cardNumber);
+    if (cachedPackageData && cachedPackageData.packages.length > 0) {
+        console.log(`[HTTP] ⚡ CACHE HIT - Using cached packages (${cachedPackageData.packages.length} packages)`);
+        
+        const packages = cachedPackageData.packages.map((pkg, i) => ({
+            index: pkg.index,
+            name: pkg.name,
+            price: pkg.price,
+            checkboxSelector: pkg.checkboxValue,
+            checkboxValue: pkg.checkboxValue,
+        }));
+        
+        const now = new Date();
+        const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
+        
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'AWAITING_PACKAGE',
+                stbNumber: cachedPackageData.stbNumber,
+                availablePackages: packages,
+                lastHeartbeat: now,
+                heartbeatExpiry: heartbeatExpiry,
+                responseData: JSON.stringify({
+                    dealerBalance: cachedPackageData.dealerBalance,
+                    fromCache: true,
+                    cachedAt: new Date(cachedPackageData.cachedAt).toISOString()
+                })
+            }
+        });
+        
+        console.log(`✅ [HTTP] Packages loaded from cache for ${operationId}: ${packages.length} packages`);
+        return;  // Skip all HTTP calls!
+    }
 
     // Mark as PROCESSING
     await prisma.operation.update({
@@ -316,7 +436,7 @@ async function handleStartRenewalHttp(
                 const cachedSession = await getSessionFromCache(selectedAccount.id);
                 if (cachedSession) {
                     await client.importSession(cachedSession);
-                    client.markSessionValidFromCache();
+                    client.markSessionValidFromCache(cachedSession.expiresAt);
                     console.log(`[HTTP] ✅ Got session from cache after waiting`);
                     needsFreshLogin = false;
                 }
@@ -413,21 +533,59 @@ async function handleStartRenewalHttp(
 
     await checkIfCancelled(operationId);
 
-    // Step 2: Check card (extract STB)
-    console.log(`🔍 [HTTP] Checking card...`);
-    const checkResult = await client.checkCard(cardNumber);
-    if (!checkResult.success) {
-        throw new Error(checkResult.error || 'Card check failed');
+    // ============================================
+    // OPTIMIZATION 2: STB Caching - Skip checkCard if STB is cached
+    // OPTIMIZATION 3: Session Retry - Auto re-login on session expiry
+    // ============================================
+    
+    // Step 2: Check card (extract STB) - with caching and retry
+    let stbNumber: string | undefined;
+    const cachedStb = await getCachedSTB(cardNumber);
+    
+    if (cachedStb) {
+        // STB is cached - skip check page entirely (saves ~600ms)
+        console.log(`[HTTP] ⚡ STB CACHE HIT - Skipping checkCard (STB: ${cachedStb})`);
+        client.setSTBNumber(cachedStb);
+        stbNumber = cachedStb;
+    } else {
+        // Need to call check page - with session retry
+        console.log(`🔍 [HTTP] Checking card...`);
+        const checkResult = await withSessionRetry(
+            client,
+            selectedAccount,
+            () => client.checkCard(cardNumber),
+            'checkCard'
+        );
+        
+        if (!checkResult.success) {
+            throw new Error(checkResult.error || 'Card check failed');
+        }
+        
+        stbNumber = checkResult.stbNumber;
+        
+        // Cache STB for future operations (1 hour TTL)
+        if (stbNumber) {
+            await cacheSTB(cardNumber, stbNumber);
+        }
     }
 
     await checkIfCancelled(operationId);
 
-    // Step 3: Load packages
+    // Step 3: Load packages - with session retry
     console.log(`📦 [HTTP] Loading packages...`);
-    const packagesResult = await client.loadPackages(cardNumber);
+    const packagesResult = await withSessionRetry(
+        client,
+        selectedAccount,
+        () => client.loadPackages(cardNumber),
+        'loadPackages'
+    );
+    
     if (!packagesResult.success) {
         throw new Error(packagesResult.error || 'Failed to load packages');
     }
+    
+    // Use STB from check or from packagesResult
+    const finalStbNumber = stbNumber || packagesResult.stbNumber || client.getSTBNumber();
 
     // Update account's dealer balance (for admin display)
     if (packagesResult.dealerBalance !== undefined) {
@@ -450,6 +608,16 @@ async function handleStartRenewalHttp(
         checkboxValue: pkg.checkboxValue,    // Add for Flutter compatibility
     }));
 
+    // ============================================
+    // OPTIMIZATION 4: Cache packages for future requests
+    // ============================================
+    await cachePackages(
+        cardNumber,
+        packagesResult.packages,
+        finalStbNumber || null,
+        packagesResult.dealerBalance || null
+    );
+
     // CRITICAL: Export session data for cross-worker access
     // Different PM2 workers have separate memory, so we need to persist
     // ViewState and cookies in the database
@@ -465,7 +633,7 @@ async function handleStartRenewalHttp(
         where: { id: operationId },
         data: {
             status: 'AWAITING_PACKAGE',
-            stbNumber: packagesResult.stbNumber || client.getSTBNumber(),
+            stbNumber: finalStbNumber,
             availablePackages: packages,
             captchaImage: null,
             captchaSolution: null,
@@ -693,6 +861,7 @@ async function handleConfirmPurchaseHttp(
             amount: true,
             status: true,
             stbNumber: true,  // CRITICAL: Need for confirmPurchase
+            cardNumber: true, // OPTIMIZATION: Need for cache invalidation
             finalConfirmExpiry: true,
             responseData: true  // CRITICAL: Need this for session restoration
         }
@@ -768,6 +937,11 @@ async function handleConfirmPurchaseHttp(
     const selectedPackage = operation.selectedPackage as { name: string } | null;
 
     if (result.success) {
+        // OPTIMIZATION: Invalidate package cache since packages changed after purchase
+        if (operation.cardNumber) {
+            await invalidatePackageCache(operation.cardNumber);
+        }
+        
         await prisma.operation.update({
             where: { id: operationId },
             data: {
@@ -948,66 +1122,114 @@ async function handleSignalRefreshHttp(
         data: { beinAccountId: account.id }
     });
 
-    // Get or create HTTP client for this account
+    // Get or create HTTP client for this account (includes session restore from Redis)
     const httpClient = await getHttpClient(account);
 
     try {
-        // Step 1: Login (with CAPTCHA handling)
-        const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
+        // Step 1: Login with session caching (like other handlers)
+        let needsFreshLogin = true;
+        
+        // Check if we already have a valid session from Redis cache
+        if (httpClient.isSessionActive()) {
+            console.log(`[HTTP] ✅ Using cached session for ${account.username}`);
+            needsFreshLogin = false;
+        }
 
-        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            console.log(`🧩 [HTTP] CAPTCHA required for signal refresh ${operationId}`);
-
-            let solution: string | null = null;
-
-            // Try auto-solve with 2Captcha first
-            const captchaApiKey = await getCaptchaApiKey();
-            if (captchaApiKey) {
-                try {
-                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
-                    const captchaSolver = new CaptchaSolver(captchaApiKey);
-                    solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
-                } catch (autoSolveError: any) {
-                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
-                }
-            } else {
-                console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
-            }
-
-            // Fallback to manual if auto-solve failed or not configured
-            if (!solution) {
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        status: 'AWAITING_CAPTCHA',
-                        captchaImage: loginResult.captchaImage,
-                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+        if (needsFreshLogin) {
+            // Try to acquire login lock to prevent race conditions
+            const lockAcquired = await acquireLoginLock(account.id, WORKER_ID);
+            
+            if (!lockAcquired) {
+                // Another worker is logging in, wait for it to complete
+                console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
+                const loginCompleted = await waitForLoginComplete(account.id);
+                
+                if (loginCompleted) {
+                    // Try to get the session from cache now
+                    const cachedSession = await getSessionFromCache(account.id);
+                    if (cachedSession) {
+                        await httpClient.importSession(cachedSession);
+                        httpClient.markSessionValidFromCache(cachedSession.expiresAt);
+                        console.log(`[HTTP] ✅ Got session from cache after waiting`);
+                        needsFreshLogin = false;
                     }
-                });
-
-                solution = await waitForCaptchaSolution(operationId);
-                if (!solution) {
-                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
                 }
             }
+        }
 
-            // Submit with CAPTCHA
-            const loginWithCaptcha = await httpClient.submitLogin(
-                account.username,
-                account.password,
-                account.totpSecret || undefined,
-                solution
-            );
+        if (needsFreshLogin) {
+            const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
 
-            if (!loginWithCaptcha.success) {
-                throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                console.log(`🧩 [HTTP] CAPTCHA required for signal refresh ${operationId}`);
+
+                let solution: string | null = null;
+
+                // Try auto-solve with 2Captcha first
+                const captchaApiKey = await getCaptchaApiKey();
+                if (captchaApiKey) {
+                    try {
+                        console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                        const captchaSolver = new CaptchaSolver(captchaApiKey);
+                        solution = await captchaSolver.solve(loginResult.captchaImage);
+                        console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
+                    } catch (autoSolveError: any) {
+                        console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                    }
+                } else {
+                    console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
+                }
+
+                // Fallback to manual if auto-solve failed or not configured
+                if (!solution) {
+                    await prisma.operation.update({
+                        where: { id: operationId },
+                        data: {
+                            status: 'AWAITING_CAPTCHA',
+                            captchaImage: loginResult.captchaImage,
+                            captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                        }
+                    });
+
+                    solution = await waitForCaptchaSolution(operationId);
+                    if (!solution) {
+                        await releaseLoginLock(account.id, WORKER_ID);
+                        throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                    }
+                }
+
+                // Submit with CAPTCHA
+                const loginWithCaptcha = await httpClient.submitLogin(
+                    account.username,
+                    account.password,
+                    account.totpSecret || undefined,
+                    solution
+                );
+
+                if (!loginWithCaptcha.success) {
+                    await releaseLoginLock(account.id, WORKER_ID);
+                    throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+                }
+                console.log('🔑 [HTTP] Login with CAPTCHA successful');
+            } else if (!loginResult.success) {
+                await releaseLoginLock(account.id, WORKER_ID);
+                throw new Error(loginResult.error || 'Login failed');
+            } else {
+                console.log('🔑 [HTTP] Login successful');
             }
-            console.log('🔑 [HTTP] Login with CAPTCHA successful');
-        } else if (!loginResult.success) {
-            throw new Error(loginResult.error || 'Login failed');
-        } else {
-            console.log('🔑 [HTTP] Login successful');
+
+            // Save session to cache after successful login
+            try {
+                const sessionData = await httpClient.exportSession();
+                const sessionTimeout = httpClient.getSessionTimeout();
+                await saveSessionToCache(account.id, sessionData, sessionTimeout);
+                console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
+            } catch (saveError) {
+                console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
+            }
+
+            // Release login lock
+            await releaseLoginLock(account.id, WORKER_ID);
         }
 
         await checkIfCancelled(operationId);
@@ -1123,7 +1345,7 @@ async function handleSignalCheckHttp(
                     const cachedSession = await getSessionFromCache(account.id);
                     if (cachedSession) {
                         await httpClient.importSession(cachedSession);
-                        httpClient.markSessionValidFromCache();
+                        httpClient.markSessionValidFromCache(cachedSession.expiresAt);
                         console.log(`[HTTP] ✅ Got session from cache after waiting`);
                         needsFreshLogin = false;
                     }
@@ -1203,8 +1425,13 @@ async function handleSignalCheckHttp(
 
         await checkIfCancelled(operationId);
 
-        // Step 2: Check card status ONLY (no activation)
-        const checkResult = await httpClient.checkCardForSignal(cardNumber);
+        // Step 2: Check card status ONLY (no activation) - with session retry
+        const checkResult = await withSessionRetry(
+            httpClient,
+            account,
+            () => httpClient.checkCardForSignal(cardNumber),
+            'checkCardForSignal'
+        );
 
         if (!checkResult.success) {
             throw new Error(checkResult.error || 'Card check failed');
@@ -1494,4 +1721,11 @@ export function closeAllHttpClients(): void {
     }
     httpClients.clear();
     console.log('[HTTP] All HTTP clients closed');
+}
+
+/**
+ * Get the httpClients map for external use (e.g., SessionKeepAlive)
+ */
+export function getHttpClientsMap(): Map<string, HttpClientService> {
+    return httpClients;
 }

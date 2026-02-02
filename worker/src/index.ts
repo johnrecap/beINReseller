@@ -11,6 +11,11 @@
  * - Uses AccountPoolManager for smart distribution
  * - Supports multiple workers with account locking
  * - Round Robin with rate limiting per account
+ * 
+ * Session Keep-Alive (HTTP mode):
+ * - Background session refresh every 10 minutes
+ * - Keeps beIN accounts always logged in
+ * - Reduces CAPTCHA requirements
  */
 
 // IMPORTANT: Skip TLS verification for Bright Data proxy (self-signed certs)
@@ -21,9 +26,10 @@ import 'dotenv/config'
 import { Worker } from 'bullmq'
 import { BeINAutomation } from './automation/bein-automation'
 import { processOperation } from './queue-processor'
-import { processOperationHttp, closeAllHttpClients } from './http-queue-processor'
+import { processOperationHttp, closeAllHttpClients, getHttpClientsMap } from './http-queue-processor'
 import { initializePoolManager, AccountPoolManager } from './pool'
 import { IdleMonitor } from './utils/idle-monitor'
+import { SessionKeepAlive } from './utils/session-keepalive'
 import { getRedisConnection, closeRedisConnection } from './lib/redis'
 
 // Validate environment
@@ -49,6 +55,10 @@ const connection = getRedisConnection(REDIS_URL)
 let automation: BeINAutomation | null = null
 let accountPool: AccountPoolManager | null = null
 let idleMonitor: IdleMonitor | null = null
+let sessionKeepAlive: SessionKeepAlive | null = null
+
+// Keep-alive configuration (10 minutes default)
+const KEEPALIVE_INTERVAL_MS = parseInt(process.env.WORKER_KEEPALIVE_INTERVAL || '600000')
 
 async function main() {
     console.log('🚀 beIN Worker Starting...')
@@ -86,6 +96,13 @@ async function main() {
         idleMonitor.start()
     } else {
         console.log('🌐 Using HTTP Client - no browser needed')
+        
+        // Start session keep-alive for HTTP mode
+        // This keeps beIN sessions alive by sending periodic requests
+        const httpClients = getHttpClientsMap()
+        sessionKeepAlive = new SessionKeepAlive(httpClients)
+        sessionKeepAlive.start(KEEPALIVE_INTERVAL_MS)
+        console.log(`💓 Session Keep-Alive started (${Math.floor(KEEPALIVE_INTERVAL_MS / 60000)} min interval)`)
     }
 
     // Create worker with increased concurrency and rate limit
@@ -133,6 +150,11 @@ async function main() {
         // Stop idle monitor first (Playwright mode)
         if (idleMonitor) {
             idleMonitor.stop()
+        }
+
+        // Stop session keep-alive (HTTP mode)
+        if (sessionKeepAlive) {
+            sessionKeepAlive.stop()
         }
 
         await worker.close()

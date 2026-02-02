@@ -50,6 +50,7 @@ export class HttpClientService {
     // Session tracking for persistent login
     private lastLoginTime: Date | null = null;
     private sessionValid: boolean = false;
+    private sessionExpiresAt: number | null = null;  // Unix timestamp (ms) for reliable expiry tracking
 
     // Proxy config for manual proxy
     private proxyConfig: ProxyConfig | null = null;
@@ -57,6 +58,9 @@ export class HttpClientService {
     // Config caching
     private static configCache: { data: BeINHttpConfig; timestamp: number } | null = null;
     private static readonly CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+    
+    // Default session timeout: 15 minutes (conservative)
+    private static readonly DEFAULT_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
     // Browser-like headers (matching old working project)
     // NOTE: Sec-Fetch-* headers were REMOVED because:
@@ -173,7 +177,7 @@ export class HttpClientService {
             checkUrl: get('bein_check_url', '/Dealers/Pages/frmCheck.aspx'),
             signalUrl: get('bein_signal_url', '/RefreshSignal'),
 
-            sessionTimeout: parseInt(get('worker_session_timeout', '25')),
+            sessionTimeout: parseInt(get('worker_session_timeout', '15')),
             maxRetries: parseInt(get('worker_max_retries', '3'))
         };
 
@@ -627,18 +631,25 @@ export class HttpClientService {
 
     /**
      * Export session for Redis caching
+     * Includes timestamps for cross-worker session tracking
      */
     async exportSession(): Promise<SessionData> {
         const cookieStr = await this.jar.serialize();
+        const now = Date.now();
+        const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+        
         return {
             cookies: JSON.stringify(cookieStr),
             viewState: this.currentViewState || undefined,
-            lastLoginTime: new Date().toISOString()
+            lastLoginTime: new Date().toISOString(),
+            loginTimestamp: this.sessionExpiresAt ? (this.sessionExpiresAt - timeoutMs) : now,
+            expiresAt: this.sessionExpiresAt || (now + timeoutMs)
         };
     }
 
     /**
      * Import session from Redis
+     * Restores cookies, ViewState, and session expiry
      */
     async importSession(data: SessionData): Promise<void> {
         try {
@@ -691,11 +702,21 @@ export class HttpClientService {
                 this.currentViewState = data.viewState;
             }
 
+            // Restore session expiry from cached data
+            if (data.expiresAt) {
+                this.sessionExpiresAt = data.expiresAt;
+            } else if (data.loginTimestamp) {
+                // Calculate expiry from loginTimestamp
+                const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+                this.sessionExpiresAt = data.loginTimestamp + timeoutMs;
+            }
+
             console.log('[HTTP] Session imported successfully');
         } catch (error) {
             console.error('[HTTP] Failed to import session:', error);
             // Reset to clean state
             this.jar = new CookieJar();
+            this.sessionExpiresAt = null;
         }
     }
 
@@ -708,26 +729,54 @@ export class HttpClientService {
         this.currentStbNumber = null;
         this.lastLoginTime = null;
         this.sessionValid = false;
+        this.sessionExpiresAt = null;
         console.log('[HTTP] Session reset');
     }
 
     /**
      * Check if current session is still active (within timeout period)
-     * Uses sessionTimeout from config (in minutes)
+     * Uses sessionExpiresAt if available (from Redis cache), otherwise falls back to lastLoginTime
      */
     isSessionActive(): boolean {
-        if (!this.lastLoginTime || !this.sessionValid) {
+        if (!this.sessionValid) {
             return false;
         }
 
-        const elapsed = Date.now() - this.lastLoginTime.getTime();
-        const timeoutMs = (this.config?.sessionTimeout || 25) * 60 * 1000; // default 25 min
+        const now = Date.now();
+
+        // Prefer sessionExpiresAt if available (more accurate for cross-worker)
+        if (this.sessionExpiresAt) {
+            const isActive = now < this.sessionExpiresAt;
+            const remainingMs = this.sessionExpiresAt - now;
+            
+            if (isActive) {
+                const remainingMin = Math.floor(remainingMs / 60000);
+                const remainingSec = Math.floor((remainingMs % 60000) / 1000);
+                console.log(`[HTTP] Session active (${remainingMin}m ${remainingSec}s remaining)`);
+            } else {
+                const expiredAgoMs = -remainingMs;
+                const expiredAgoMin = Math.floor(expiredAgoMs / 60000);
+                console.log(`[HTTP] Session expired (${expiredAgoMin} min ago)`);
+                this.sessionValid = false;
+            }
+            return isActive;
+        }
+
+        // Fallback to lastLoginTime
+        if (!this.lastLoginTime) {
+            return false;
+        }
+
+        const elapsed = now - this.lastLoginTime.getTime();
+        const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
         const isActive = elapsed < timeoutMs;
 
         if (isActive) {
-            console.log(`[HTTP] Session active (${Math.floor(elapsed / 60000)} min / ${this.config?.sessionTimeout || 25} min timeout)`);
+            const remainingMs = timeoutMs - elapsed;
+            const remainingMin = Math.floor(remainingMs / 60000);
+            console.log(`[HTTP] Session active (~${remainingMin} min remaining, age-based)`);
         } else {
-            console.log(`[HTTP] Session expired (${Math.floor(elapsed / 60000)} min ago)`);
+            console.log(`[HTTP] Session expired (${Math.floor(elapsed / 60000)} min old)`);
             this.sessionValid = false;
         }
 
@@ -736,21 +785,38 @@ export class HttpClientService {
 
     /**
      * Mark session as valid after successful login
+     * Sets both lastLoginTime and sessionExpiresAt for reliable tracking
      */
     private markSessionValid(): void {
-        this.lastLoginTime = new Date();
+        const now = Date.now();
+        const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+        
+        this.lastLoginTime = new Date(now);
+        this.sessionExpiresAt = now + timeoutMs;
         this.sessionValid = true;
-        console.log('[HTTP] Session marked as valid');
+        
+        console.log(`[HTTP] Session marked as valid (expires in ${Math.floor(timeoutMs / 60000)} min)`);
     }
 
     /**
      * Mark session as valid when restored from Redis cache
-     * Used when session is imported from cache (no fresh login needed)
+     * Uses expiresAt from session data if available
+     * @param expiresAt - Optional expiry timestamp from cached session
      */
-    public markSessionValidFromCache(): void {
+    public markSessionValidFromCache(expiresAt?: number): void {
         this.sessionValid = true;
         this.lastLoginTime = new Date();
-        console.log('[HTTP] Session marked valid from Redis cache');
+        
+        if (expiresAt && expiresAt > Date.now()) {
+            this.sessionExpiresAt = expiresAt;
+            const remainingMin = Math.floor((expiresAt - Date.now()) / 60000);
+            console.log(`[HTTP] Session marked valid from cache (${remainingMin} min remaining)`);
+        } else {
+            // No expiresAt or already expired - set new expiry
+            const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+            this.sessionExpiresAt = Date.now() + timeoutMs;
+            console.log('[HTTP] Session marked valid from cache (new expiry set)');
+        }
     }
 
     /**
@@ -758,7 +824,7 @@ export class HttpClientService {
      * Used for setting Redis TTL
      */
     public getSessionTimeout(): number {
-        return this.config?.sessionTimeout || 25;
+        return this.config?.sessionTimeout || 15;
     }
 
     /**
@@ -768,6 +834,7 @@ export class HttpClientService {
     public invalidateSession(): void {
         this.sessionValid = false;
         this.lastLoginTime = null;
+        this.sessionExpiresAt = null;
         this.currentViewState = null;
         console.log('[HTTP] ⚠️ Session invalidated - will require fresh login');
     }

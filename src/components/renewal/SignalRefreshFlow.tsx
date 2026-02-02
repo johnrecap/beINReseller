@@ -230,7 +230,7 @@ export function SignalRefreshFlow() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="max-w-full mx-auto space-y-6">
             {/* Input Step */}
             {step === 'input' && (
                 <div className="space-y-4">
@@ -300,14 +300,12 @@ export function SignalRefreshFlow() {
                     </button>
 
                     {/* Capturable Area */}
-                    <div ref={captureRef} data-capture="true" className="space-y-4 p-4 bg-[#1a1d26] rounded-lg">
+                    <div ref={captureRef} data-capture="true" className="space-y-4 p-4 bg-[#1a1d26] rounded-lg overflow-x-auto">
                         <CardStatusDisplay {...cardStatus} />
 
                         {/* Contracts Table - BeIN Sport style */}
                         {contracts.length > 0 && (
-                            <div className="overflow-x-auto rounded-lg">
-                                <BeINExportTable cardNumber={cardNumber} contracts={contracts} />
-                            </div>
+                            <BeINExportTable cardNumber={cardNumber} contracts={contracts} />
                         )}
                     </div>
 

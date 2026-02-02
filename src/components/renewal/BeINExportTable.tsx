@@ -25,8 +25,7 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
             backgroundColor: '#ffffff', 
             padding: '20px',
             fontFamily: 'Arial, Helvetica, sans-serif',
-            fontSize: '12px',
-            minWidth: '950px'
+            fontSize: '12px'
         }}>
             {/* Card Number */}
             <div style={{ 

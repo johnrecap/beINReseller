@@ -154,7 +154,6 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                 fontSize: '16px', 
                 fontWeight: 'bold',
                 marginBottom: '12px',
-                color: '#333333',
                 padding: '8px',
                 backgroundColor: '#663399',
                 color: '#ffffff',

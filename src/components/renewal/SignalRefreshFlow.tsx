@@ -284,57 +284,54 @@ export function SignalRefreshFlow() {
 
             {/* Status Display Step - with Activate Button */}
             {step === 'status' && cardStatus && (
-                <div className="overflow-x-auto">
-                    {/* Inner container: min-width matches table + padding, centered */}
-                    <div className="mx-auto space-y-4" style={{ minWidth: '890px', width: 'fit-content' }}>
-                        {/* Download Image Button */}
-                        <button
-                            onClick={handleDownloadImage}
-                            disabled={isDownloading}
-                            className="w-full py-2.5 bg-[#00A651] hover:bg-[#008f45] text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {isDownloading ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Download className="w-4 h-4" />
-                            )}
-                            {isDownloading ? (sr.downloading || 'Downloading...') : (sr.downloadImage || 'Download Image')}
-                        </button>
+                <div className="w-fit mx-auto space-y-4">
+                    {/* Download Image Button */}
+                    <button
+                        onClick={handleDownloadImage}
+                        disabled={isDownloading}
+                        className="w-full py-2.5 bg-[#00A651] hover:bg-[#008f45] text-white font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {isDownloading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Download className="w-4 h-4" />
+                        )}
+                        {isDownloading ? (sr.downloading || 'Downloading...') : (sr.downloadImage || 'Download Image')}
+                    </button>
 
-                        {/* Capturable Area - full width of container */}
-                        <div ref={captureRef} data-capture="true" className="w-full space-y-4 p-4 bg-[#1a1d26] rounded-lg">
-                            <CardStatusDisplay {...cardStatus} />
+                    {/* Capturable Area - fits content width */}
+                    <div ref={captureRef} data-capture="true" className="space-y-4 p-4 bg-[#1a1d26] rounded-lg">
+                        <CardStatusDisplay {...cardStatus} />
 
-                            {/* Contracts Table - BeIN Sport style */}
-                            {contracts.length > 0 && (
-                                <BeINExportTable cardNumber={cardNumber} contracts={contracts} />
-                            )}
-                        </div>
+                        {/* Contracts Table - BeIN Sport style */}
+                        {contracts.length > 0 && (
+                            <BeINExportTable cardNumber={cardNumber} contracts={contracts} />
+                        )}
+                    </div>
 
-                        {error && (
-                            <p className="text-red-500 text-sm text-center">{error}</p>
+                    {error && (
+                        <p className="text-red-500 text-sm text-center">{error}</p>
+                    )}
+
+                    <div className="flex gap-3">
+                        {/* Activate Button - only if can activate */}
+                        {cardStatus.canActivate !== false && cardStatus.activateCount.current < cardStatus.activateCount.max && (
+                            <button
+                                onClick={handleActivate}
+                                disabled={activating}
+                                className="flex-1 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Zap className="w-5 h-5" />
+                                {sr.activateButton}
+                            </button>
                         )}
 
-                        <div className="flex gap-3 w-full">
-                            {/* Activate Button - only if can activate */}
-                            {cardStatus.canActivate !== false && cardStatus.activateCount.current < cardStatus.activateCount.max && (
-                                <button
-                                    onClick={handleActivate}
-                                    disabled={activating}
-                                    className="flex-1 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <Zap className="w-5 h-5" />
-                                    {sr.activateButton}
-                                </button>
-                            )}
-
-                            <button
-                                onClick={handleReset}
-                                className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-lg hover:bg-secondary/80 transition-all"
-                            >
-                                {sr.tryAnother}
-                            </button>
-                        </div>
+                        <button
+                            onClick={handleReset}
+                            className="flex-1 py-3 bg-secondary text-foreground font-medium rounded-lg hover:bg-secondary/80 transition-all"
+                        >
+                            {sr.tryAnother}
+                        </button>
                     </div>
                 </div>
             )}

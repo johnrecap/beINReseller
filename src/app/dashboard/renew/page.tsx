@@ -523,7 +523,7 @@ export default function RenewWizardPage() {
     }
 
     return (
-        <div className="container max-w-[600px] mx-auto py-8 px-[var(--space-lg)]">
+        <div className="container max-w-full mx-auto py-8 px-[var(--space-lg)] overflow-x-auto">
             {/* Maintenance Mode Overlay - blocks interaction when enabled */}
             {!isMaintenanceLoading && isMaintenanceMode && (
                 <MaintenanceOverlay message={maintenanceMessage} />

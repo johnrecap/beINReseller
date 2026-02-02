@@ -277,7 +277,7 @@ export function SignalRefreshFlow() {
 
             {/* Status Display Step - with Activate Button */}
             {step === 'status' && cardStatus && (
-                <div className="w-fit mx-auto space-y-4">
+                <div className="w-full md:w-fit mx-auto space-y-4">
                     {/* Download Image Button */}
                     <button
                         onClick={handleDownloadImage}

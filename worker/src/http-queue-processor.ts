@@ -116,6 +116,7 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
 /**
  * Execute an operation with automatic session retry on expiry
  * If session expires mid-operation, re-login and retry once
+ * Now includes 2Captcha auto-solve for CAPTCHA challenges during re-login
  * 
  * @param httpClient - The HTTP client to use
  * @param account - The beIN account
@@ -155,12 +156,37 @@ async function withSessionRetry<T>(
             account.totpSecret || undefined
         );
         
-        if (loginResult.requiresCaptcha) {
-            // Can't auto-retry if CAPTCHA required - throw with clear message
-            throw new Error(`Session expired during ${operationName} and re-login requires CAPTCHA`);
-        }
-        
-        if (!loginResult.success) {
+        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+            // Try 2Captcha auto-solve
+            console.log(`[HTTP] 🧩 CAPTCHA required during session retry, attempting auto-solve...`);
+            const captchaApiKey = await getCaptchaApiKey();
+            
+            if (captchaApiKey) {
+                try {
+                    const captchaSolver = new CaptchaSolver(captchaApiKey);
+                    const solution = await captchaSolver.solve(loginResult.captchaImage);
+                    console.log(`[HTTP] ✅ CAPTCHA auto-solved: ${solution}`);
+                    
+                    // Submit login with CAPTCHA solution
+                    const loginWithCaptcha = await httpClient.submitLogin(
+                        account.username,
+                        account.password,
+                        account.totpSecret || undefined,
+                        solution
+                    );
+                    
+                    if (!loginWithCaptcha.success) {
+                        throw new Error(`Session expired during ${operationName} and re-login with CAPTCHA failed: ${loginWithCaptcha.error}`);
+                    }
+                    
+                    console.log(`[HTTP] ✅ Re-login with CAPTCHA successful`);
+                } catch (captchaError: any) {
+                    throw new Error(`Session expired during ${operationName} and CAPTCHA auto-solve failed: ${captchaError.message}`);
+                }
+            } else {
+                throw new Error(`Session expired during ${operationName} and re-login requires CAPTCHA (no API key configured)`);
+            }
+        } else if (!loginResult.success) {
             throw new Error(`Session expired during ${operationName} and re-login failed: ${loginResult.error}`);
         }
         
@@ -336,45 +362,6 @@ async function handleStartRenewalHttp(
         select: { userId: true }
     });
 
-    // ============================================
-    // OPTIMIZATION 1: Check package cache first
-    // Skip all HTTP requests if packages are cached
-    // ============================================
-    const cachedPackageData = await getCachedPackages(cardNumber);
-    if (cachedPackageData && cachedPackageData.packages.length > 0) {
-        console.log(`[HTTP] ⚡ CACHE HIT - Using cached packages (${cachedPackageData.packages.length} packages)`);
-        
-        const packages = cachedPackageData.packages.map((pkg, i) => ({
-            index: pkg.index,
-            name: pkg.name,
-            price: pkg.price,
-            checkboxSelector: pkg.checkboxValue,
-            checkboxValue: pkg.checkboxValue,
-        }));
-        
-        const now = new Date();
-        const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
-        
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                status: 'AWAITING_PACKAGE',
-                stbNumber: cachedPackageData.stbNumber,
-                availablePackages: packages,
-                lastHeartbeat: now,
-                heartbeatExpiry: heartbeatExpiry,
-                responseData: JSON.stringify({
-                    dealerBalance: cachedPackageData.dealerBalance,
-                    fromCache: true,
-                    cachedAt: new Date(cachedPackageData.cachedAt).toISOString()
-                })
-            }
-        });
-        
-        console.log(`✅ [HTTP] Packages loaded from cache for ${operationId}: ${packages.length} packages`);
-        return;  // Skip all HTTP calls!
-    }
-
     // Mark as PROCESSING
     await prisma.operation.update({
         where: { id: operationId },
@@ -534,13 +521,18 @@ async function handleStartRenewalHttp(
     await checkIfCancelled(operationId);
 
     // ============================================
-    // OPTIMIZATION 2: STB Caching - Skip checkCard if STB is cached
-    // OPTIMIZATION 3: Session Retry - Auto re-login on session expiry
+    // OPTIMIZATION 1: STB Cache - Skip checkCard if we have cached STB
+    // OPTIMIZATION 2: Session Retry - Auto re-login on session expiry
+    // NOTE: We MUST still call loadPackages() to get correct ViewState!
+    //       Package cache is only used for faster display, NOT to skip loadPackages
     // ============================================
     
-    // Step 2: Check card (extract STB) - with caching and retry
+    // Step 2: Check card (extract STB) - with caching
     let stbNumber: string | undefined;
-    const cachedStb = await getCachedSTB(cardNumber);
+    
+    // Check BOTH package cache and STB cache for cached STB
+    const cachedPackageData = await getCachedPackages(cardNumber);
+    const cachedStb = cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
     
     if (cachedStb) {
         // STB is cached - skip check page entirely (saves ~600ms)
@@ -571,7 +563,8 @@ async function handleStartRenewalHttp(
 
     await checkIfCancelled(operationId);
 
-    // Step 3: Load packages - with session retry
+    // Step 3: Load packages - ALWAYS call this to get correct ViewState
+    // Even if packages are cached, we need fresh ViewState for completePurchase
     console.log(`📦 [HTTP] Loading packages...`);
     const packagesResult = await withSessionRetry(
         client,
@@ -1109,10 +1102,20 @@ async function handleSignalRefreshHttp(
         data: { status: 'PROCESSING' }
     });
 
-    // Acquire account
-    const account = await accountPool.getNextAvailableAccount();
-    if (!account) {
-        throw new Error('No beIN accounts available');
+    // Acquire account using queue-based system (with wait if busy)
+    const queueManager = getQueueManager(accountPool);
+    const queueResult = await queueManager.acquireAccountWithQueue(operationId, 0, 120_000);
+    
+    if (!queueResult.account) {
+        if (queueResult.timedOut) {
+            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
+        }
+        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+    }
+    
+    const account = queueResult.account;
+    if (queueResult.waitTimeMs > 0) {
+        console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
     console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`);
 
@@ -1306,10 +1309,20 @@ async function handleSignalCheckHttp(
         data: { status: 'PROCESSING' }
     });
 
-    // Acquire account
-    const account = await accountPool.getNextAvailableAccount();
-    if (!account) {
-        throw new Error('No beIN accounts available');
+    // Acquire account using queue-based system (with wait if busy)
+    const queueManager = getQueueManager(accountPool);
+    const queueResult = await queueManager.acquireAccountWithQueue(operationId, 0, 120_000);
+    
+    if (!queueResult.account) {
+        if (queueResult.timedOut) {
+            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
+        }
+        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+    }
+    
+    const account = queueResult.account;
+    if (queueResult.waitTimeMs > 0) {
+        console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
     console.log(`✅ Selected account: ${account.label || account.username}`);
 

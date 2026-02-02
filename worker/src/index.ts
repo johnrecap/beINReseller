@@ -97,10 +97,37 @@ async function main() {
     } else {
         console.log('🌐 Using HTTP Client - no browser needed')
         
-        // Start session keep-alive for HTTP mode
-        // This keeps beIN sessions alive by sending periodic requests
+        // Create session keep-alive for HTTP mode
         const httpClients = getHttpClientsMap()
         sessionKeepAlive = new SessionKeepAlive(httpClients)
+        
+        // ============================================
+        // PRE-LOGIN ALL ACCOUNTS before processing jobs
+        // This ensures all accounts are "warm" and ready for instant operations
+        // Timeout: 2 minutes max to prevent blocking worker startup
+        // ============================================
+        const PRE_LOGIN_TIMEOUT_MS = parseInt(process.env.PRE_LOGIN_TIMEOUT || '120000') // 2 minutes default
+        
+        console.log('🔑 Pre-logging all beIN accounts (this may take a moment)...')
+        const preLoginStartTime = Date.now()
+        
+        try {
+            // Wrap pre-login in a timeout to prevent infinite hang
+            const preLoginPromise = sessionKeepAlive.preLoginAllAccounts()
+            const timeoutPromise = new Promise<{ success: number; failed: number; captcha: number }>((_, reject) => {
+                setTimeout(() => reject(new Error('Pre-login timeout')), PRE_LOGIN_TIMEOUT_MS)
+            })
+            
+            const preLoginResult = await Promise.race([preLoginPromise, timeoutPromise])
+            const preLoginDuration = Math.round((Date.now() - preLoginStartTime) / 1000)
+            console.log(`🔑 Pre-login complete in ${preLoginDuration}s: ${preLoginResult.success} warm, ${preLoginResult.failed} cold`)
+        } catch (preLoginError: any) {
+            const preLoginDuration = Math.round((Date.now() - preLoginStartTime) / 1000)
+            console.warn(`⚠️ Pre-login failed or timed out after ${preLoginDuration}s: ${preLoginError.message}`)
+            console.warn('⚠️ Worker will continue - accounts will login on first operation')
+        }
+        
+        // Start keep-alive AFTER pre-login (runs even if pre-login failed)
         sessionKeepAlive.start(KEEPALIVE_INTERVAL_MS)
         console.log(`💓 Session Keep-Alive started (${Math.floor(KEEPALIVE_INTERVAL_MS / 60000)} min interval)`)
     }

@@ -17,6 +17,7 @@ import { prisma } from '../lib/prisma';
 import { HttpClientService } from '../http';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from '../types/proxy';
+import { CaptchaSolver } from './captcha-solver';
 import {
     getSessionFromCache,
     saveSessionToCache,
@@ -25,6 +26,21 @@ import {
     refreshSessionExpiry,
     getSessionRemainingTime
 } from '../lib/session-cache';
+
+/**
+ * Get 2Captcha API key from database settings
+ */
+async function getCaptchaApiKey(): Promise<string | null> {
+    try {
+        const setting = await prisma.setting.findUnique({
+            where: { key: 'captcha_2captcha_key' }
+        });
+        return setting?.value || null;
+    } catch (error) {
+        console.error('[KeepAlive] Failed to get CAPTCHA API key:', error);
+        return null;
+    }
+}
 
 // Keep-alive configuration
 const DEFAULT_KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000;  // 10 minutes
@@ -175,6 +191,7 @@ export class SessionKeepAlive {
 
     /**
      * Refresh a single account's session
+     * Now includes automatic re-login for expired/cold accounts
      */
     async refreshSession(account: BeinAccount & { proxy?: Proxy | null }): Promise<RefreshResult> {
         const result: RefreshResult = {
@@ -186,9 +203,19 @@ export class SessionKeepAlive {
         try {
             // Check if session exists in cache
             const cachedSession = await getSessionFromCache(account.id);
+            
             if (!cachedSession) {
-                result.error = 'No cached session';
-                console.log(`[KeepAlive] ⏭️ ${account.username}: No cached session, skipping`);
+                // No cached session - attempt re-login to keep account warm
+                console.log(`[KeepAlive] 🔑 ${account.username}: No session, attempting re-login...`);
+                const loginSuccess = await this.preLogin(account);
+                if (loginSuccess) {
+                    result.success = true;
+                    result.remainingTimeMs = SESSION_TIMEOUT_MS;
+                    console.log(`[KeepAlive] ✅ ${account.username}: Re-login successful (now warm)`);
+                } else {
+                    result.error = 'Re-login failed';
+                    console.log(`[KeepAlive] ❌ ${account.username}: Re-login failed (account cold)`);
+                }
                 return result;
             }
 
@@ -197,9 +224,18 @@ export class SessionKeepAlive {
             result.remainingTimeMs = remainingMs;
 
             if (remainingMs < 0) {
-                result.error = 'Session already expired';
-                console.log(`[KeepAlive] ⏭️ ${account.username}: Session already expired`);
+                // Session expired - attempt re-login
+                console.log(`[KeepAlive] 🔑 ${account.username}: Session expired, attempting re-login...`);
                 await deleteSessionFromCache(account.id);
+                const loginSuccess = await this.preLogin(account);
+                if (loginSuccess) {
+                    result.success = true;
+                    result.remainingTimeMs = SESSION_TIMEOUT_MS;
+                    console.log(`[KeepAlive] ✅ ${account.username}: Re-login successful after expiry`);
+                } else {
+                    result.error = 'Re-login failed after expiry';
+                    console.log(`[KeepAlive] ❌ ${account.username}: Re-login failed after expiry`);
+                }
                 return result;
             }
 
@@ -227,20 +263,37 @@ export class SessionKeepAlive {
                 result.remainingTimeMs = SESSION_TIMEOUT_MS;
                 console.log(`[KeepAlive] ✅ ${account.username}: Session refreshed (15 min)`);
             } else {
-                // Session expired on beIN side - delete from cache
+                // Session expired on beIN side - attempt immediate re-login
+                console.log(`[KeepAlive] 🔑 ${account.username}: Session expired on beIN, attempting re-login...`);
                 await deleteSessionFromCache(account.id);
                 client.invalidateSession();
                 
-                result.error = 'Session expired on beIN portal';
-                console.log(`[KeepAlive] ❌ ${account.username}: Session expired, will login next time`);
+                const loginSuccess = await this.preLogin(account);
+                if (loginSuccess) {
+                    result.success = true;
+                    result.remainingTimeMs = SESSION_TIMEOUT_MS;
+                    console.log(`[KeepAlive] ✅ ${account.username}: Re-login successful after beIN expiry`);
+                } else {
+                    result.error = 'Session expired on beIN portal, re-login failed';
+                    console.log(`[KeepAlive] ❌ ${account.username}: Re-login failed after beIN expiry`);
+                }
             }
 
         } catch (error: any) {
             result.error = error.message;
             console.error(`[KeepAlive] ❌ ${account.username}: ${error.message}`);
 
-            // On error, invalidate the session to force fresh login
+            // On error, invalidate the session and try re-login
             await deleteSessionFromCache(account.id);
+            
+            console.log(`[KeepAlive] 🔑 ${account.username}: Error occurred, attempting re-login...`);
+            const loginSuccess = await this.preLogin(account);
+            if (loginSuccess) {
+                result.success = true;
+                result.remainingTimeMs = SESSION_TIMEOUT_MS;
+                result.error = undefined;
+                console.log(`[KeepAlive] ✅ ${account.username}: Re-login successful after error`);
+            }
         }
 
         return result;
@@ -390,12 +443,14 @@ export class SessionKeepAlive {
 
     /**
      * Pre-login an account (establish fresh session without cached one)
+     * Now includes 2Captcha auto-solve for CAPTCHA challenges
      */
     async preLogin(account: BeinAccount & { proxy?: Proxy | null }): Promise<boolean> {
         try {
             console.log(`[KeepAlive] 🔑 Pre-login for ${account.username}...`);
 
             const client = await this.getOrCreateClient(account);
+            await client.reloadConfig();
 
             // Perform actual login
             const loginResult = await client.login(
@@ -410,13 +465,50 @@ export class SessionKeepAlive {
                 await saveSessionToCache(account.id, sessionData, 16);
                 console.log(`[KeepAlive] ✅ Pre-login successful for ${account.username}`);
                 return true;
-            } else if (loginResult.requiresCaptcha) {
-                console.log(`[KeepAlive] ⚠️ Pre-login requires CAPTCHA for ${account.username}`);
-                return false;
-            } else {
-                console.log(`[KeepAlive] ❌ Pre-login failed for ${account.username}: ${loginResult.error}`);
-                return false;
             }
+
+            // Handle CAPTCHA requirement with 2Captcha auto-solve
+            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                console.log(`[KeepAlive] 🧩 CAPTCHA required for ${account.username}, attempting auto-solve...`);
+
+                // Get 2Captcha API key
+                const captchaApiKey = await getCaptchaApiKey();
+                if (!captchaApiKey) {
+                    console.log(`[KeepAlive] ⚠️ No 2Captcha API key configured, skipping ${account.username}`);
+                    return false;
+                }
+
+                try {
+                    const captchaSolver = new CaptchaSolver(captchaApiKey);
+                    const solution = await captchaSolver.solve(loginResult.captchaImage);
+                    console.log(`[KeepAlive] ✅ CAPTCHA auto-solved for ${account.username}: ${solution}`);
+
+                    // Submit login with CAPTCHA solution
+                    const loginWithCaptcha = await client.submitLogin(
+                        account.username,
+                        account.password,
+                        account.totpSecret || undefined,
+                        solution
+                    );
+
+                    if (loginWithCaptcha.success) {
+                        // Save session to cache
+                        const sessionData = await client.exportSession();
+                        await saveSessionToCache(account.id, sessionData, 16);
+                        console.log(`[KeepAlive] ✅ Pre-login successful (with CAPTCHA) for ${account.username}`);
+                        return true;
+                    } else {
+                        console.log(`[KeepAlive] ❌ Login failed after CAPTCHA for ${account.username}: ${loginWithCaptcha.error}`);
+                        return false;
+                    }
+                } catch (captchaError: any) {
+                    console.log(`[KeepAlive] ❌ CAPTCHA auto-solve failed for ${account.username}: ${captchaError.message}`);
+                    return false;
+                }
+            }
+
+            console.log(`[KeepAlive] ❌ Pre-login failed for ${account.username}: ${loginResult.error}`);
+            return false;
 
         } catch (error: any) {
             console.error(`[KeepAlive] ❌ Pre-login error for ${account.username}: ${error.message}`);

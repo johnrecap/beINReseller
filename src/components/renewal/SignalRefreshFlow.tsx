@@ -230,7 +230,7 @@ export function SignalRefreshFlow() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-6xl mx-auto space-y-6">
             {/* Input Step */}
             {step === 'input' && (
                 <div className="space-y-4">

@@ -49,7 +49,6 @@ export function SignalRefreshFlow() {
     const [pollTrigger, setPollTrigger] = useState(0) // Used to restart polling
     const [isDownloading, setIsDownloading] = useState(false)
     const captureRef = useRef<HTMLDivElement>(null)
-    const exportRef = useRef<HTMLDivElement>(null)
 
     // Poll for operation status
     useEffect(() => {
@@ -184,29 +183,27 @@ export function SignalRefreshFlow() {
 
     // Download image of card status - beIN Sport styled export
     const handleDownloadImage = async () => {
-        if (!exportRef.current || contracts.length === 0) {
+        if (!captureRef.current || contracts.length === 0) {
             toast.error(sr.downloadFailed || 'Failed to download image')
             return
         }
 
         setIsDownloading(true)
         try {
-            // Temporarily make the export element visible for capture
-            const exportElement = exportRef.current
-            const originalStyle = exportElement.style.cssText
-            exportElement.style.cssText = 'position: fixed; left: 0; top: 0; z-index: 9999; opacity: 1;'
+            // Find the BeINExportTable inside the capturable area
+            const captureElement = captureRef.current
+            const tableElement = captureElement.querySelector('[data-export-table]') as HTMLElement
             
-            // Wait for styles to apply
-            await new Promise(resolve => setTimeout(resolve, 100))
+            if (!tableElement) {
+                toast.error(sr.downloadFailed || 'Failed to download image')
+                return
+            }
 
-            const dataUrl = await toPng(exportElement, {
+            const dataUrl = await toPng(tableElement, {
                 backgroundColor: '#ffffff',
                 pixelRatio: 2,
                 cacheBust: true,
             })
-
-            // Restore original hidden style
-            exportElement.style.cssText = originalStyle
 
             const date = new Date().toISOString().split('T')[0]
             const link = document.createElement('a')
@@ -219,10 +216,6 @@ export function SignalRefreshFlow() {
             toast.success(sr.downloadSuccess || 'Image downloaded successfully!')
         } catch (error) {
             console.error('Download failed:', error)
-            // Restore style on error
-            if (exportRef.current) {
-                exportRef.current.style.cssText = 'position: absolute; left: -9999px; top: 0; z-index: -1;'
-            }
             toast.error(sr.downloadFailed || 'Failed to download image')
         } finally {
             setIsDownloading(false)
@@ -404,23 +397,6 @@ export function SignalRefreshFlow() {
                 </div>
             )}
 
-            {/* Hidden beIN Sport styled export component - for image download */}
-            {contracts.length > 0 && (
-                <div 
-                    ref={exportRef}
-                    style={{ 
-                        position: 'absolute', 
-                        left: '-9999px', 
-                        top: 0,
-                        zIndex: -1 
-                    }}
-                >
-                    <BeINExportTable 
-                        cardNumber={cardNumber}
-                        contracts={contracts}
-                    />
-                </div>
-            )}
         </div>
     )
 }

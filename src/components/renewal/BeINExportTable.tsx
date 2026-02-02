@@ -21,7 +21,9 @@ interface BeINExportTableProps {
  */
 export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps) {
     return (
-        <div style={{ 
+        <div 
+            data-export-table="true"
+            style={{ 
             backgroundColor: '#ffffff', 
             padding: '20px',
             fontFamily: 'Arial, Helvetica, sans-serif',

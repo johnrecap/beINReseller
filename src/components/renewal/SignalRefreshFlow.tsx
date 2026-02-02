@@ -4,7 +4,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { CardStatusDisplay } from './CardStatusDisplay'
-import { ContractsTable } from './ContractsTable'
 import { BeINExportTable } from './BeINExportTable'
 import { Loader2, Zap, CreditCard, CheckCircle, XCircle, RefreshCw, Search, Download } from 'lucide-react'
 import { toast } from 'sonner'
@@ -231,7 +230,7 @@ export function SignalRefreshFlow() {
     }
 
     return (
-        <div className="max-w-lg mx-auto space-y-6">
+        <div className="max-w-4xl mx-auto space-y-6">
             {/* Input Step */}
             {step === 'input' && (
                 <div className="space-y-4">
@@ -304,9 +303,11 @@ export function SignalRefreshFlow() {
                     <div ref={captureRef} data-capture="true" className="space-y-4 p-4 bg-[#1a1d26] rounded-lg">
                         <CardStatusDisplay {...cardStatus} />
 
-                        {/* Contracts Table */}
+                        {/* Contracts Table - BeIN Sport style */}
                         {contracts.length > 0 && (
-                            <ContractsTable contracts={contracts} />
+                            <div className="overflow-x-auto rounded-lg">
+                                <BeINExportTable cardNumber={cardNumber} contracts={contracts} />
+                            </div>
                         )}
                     </div>
 

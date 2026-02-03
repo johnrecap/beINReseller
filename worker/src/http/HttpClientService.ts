@@ -484,6 +484,30 @@ export class HttpClientService {
 
         console.log(`[HTTP] 🔍 Session check - Page title: "${pageTitle}"`);
 
+        // ============================================
+        // STEP 1.5: Detect redirect pages ("Object moved")
+        // These are HTTP 302 redirects - session is definitely expired
+        // ============================================
+        if (pageTitleLower.includes('object moved') || 
+            pageTitleLower.includes('redirect') ||
+            pageTitleLower === '' ||
+            html.includes('Object moved to')) {
+            console.log(`[HTTP] ⚠️ REDIRECT DETECTED - "${pageTitle}" indicates session expired`);
+            return 'Session Expired - Redirect detected (Object moved)';
+        }
+
+        // ============================================
+        // STEP 1.6: Check for empty/missing ViewState
+        // A valid ASP.NET page MUST have ViewState
+        // ============================================
+        const viewStateMatch = html.match(/id="__VIEWSTATE"[^>]*value="([^"]*)"/);
+        const viewStateValue = viewStateMatch ? viewStateMatch[1] : '';
+        
+        if (viewStateValue.length < 100) {
+            console.log(`[HTTP] ⚠️ EMPTY VIEWSTATE - Length: ${viewStateValue.length} (session likely expired)`);
+            return 'Session Expired - No ViewState (invalid page)';
+        }
+
         // Valid logged-in page title patterns (beIN SBS pages)
         const validPagePatterns = [
             'finance',      // Finance Module

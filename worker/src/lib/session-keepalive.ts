@@ -301,7 +301,7 @@ export class SessionKeepAliveService {
         if (ttl > 5 * 60) {
             console.log(`[KeepAlive] ${username}: Session healthy (${ttlMinutes} min remaining)`);
             // Refresh the session expiry (updates both internal expiresAt AND Redis TTL)
-            await refreshSessionExpiry(accountId, 20 * 60 * 1000);  // 20 min in ms
+            await refreshSessionExpiry(accountId, 15 * 60 * 1000);  // 15 min in ms
             return {
                 accountId,
                 username,
@@ -322,7 +322,7 @@ export class SessionKeepAliveService {
         if (sessionValid) {
             // Session still valid on beIN - save and extend TTL
             const sessionData = await client.exportSession();
-            await saveSessionToCache(accountId, sessionData, 20);
+            await saveSessionToCache(accountId, sessionData, 16);
             console.log(`[KeepAlive] ${username}: Session validated and extended`);
             return {
                 accountId,
@@ -366,7 +366,7 @@ export class SessionKeepAliveService {
 
                 if (finalLogin.success) {
                     const sessionData = await client.exportSession();
-                    await saveSessionToCache(accountId, sessionData, 20);
+                    await saveSessionToCache(accountId, sessionData, 16);
                     console.log(`[KeepAlive] ${username}: Login successful (CAPTCHA solved)`);
                     return {
                         accountId,
@@ -400,7 +400,7 @@ export class SessionKeepAliveService {
         // Login without CAPTCHA
         if (loginResult.success) {
             const sessionData = await client.exportSession();
-            await saveSessionToCache(accountId, sessionData, 20);
+            await saveSessionToCache(accountId, sessionData, 16);
             console.log(`[KeepAlive] ${username}: Login successful`);
             return {
                 accountId,

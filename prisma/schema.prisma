@@ -284,6 +284,7 @@ model BeinAccount {
   // ===== Dealer Balance (from beIN page) =====
   dealerBalance       Float?    @map("dealer_balance")      // USD balance from last transaction
   balanceUpdatedAt    DateTime? @map("balance_updated_at")  // When balance was last updated
+  lowBalanceAlertEnabled Boolean @default(false) @map("low_balance_alert_enabled")  // Enable admin alerts for this account
   
   // ===== Timestamps =====
   createdAt     DateTime @default(now()) @map("created_at")

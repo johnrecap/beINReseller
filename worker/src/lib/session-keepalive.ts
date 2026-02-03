@@ -24,6 +24,7 @@ import {
     refreshSessionExpiry 
 } from './session-cache';
 import { isAccountLocked } from '../pool/account-locking';
+import { checkAndNotifyLowBalance } from '../utils/notification';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from '../types/proxy';
 
@@ -233,6 +234,16 @@ export class SessionKeepAliveService {
                     failed++;
                 } else {
                     success++;
+                    
+                    // Proactive balance monitoring: Check if account has low balance
+                    // Uses stored balance from database (updated during package loading)
+                    if (account.dealerBalance !== null) {
+                        await checkAndNotifyLowBalance(
+                            account.id,
+                            account.label || account.username,
+                            account.dealerBalance
+                        );
+                    }
                 }
 
             } catch (error: any) {

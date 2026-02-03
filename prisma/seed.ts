@@ -90,6 +90,9 @@ async function main() {
         // Captcha Configuration
         { key: 'captcha_mode', value: 'manual' }, // 'manual' or 'auto'
         { key: 'captcha_timeout', value: '120' }, // seconds
+        
+        // Dealer Balance Alert (for beIN accounts)
+        { key: 'min_dealer_balance_alert', value: '300' }, // USD threshold for low balance alerts
     ]
 
     for (const setting of defaultSettings) {

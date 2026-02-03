@@ -399,6 +399,77 @@ export class AccountPoolManager {
     }
 
     /**
+     * Get next available account, excluding specific accounts
+     * Used for retrying with a different account when current one has issues
+     * (e.g., insufficient balance, login failure, session issues)
+     * 
+     * @param excludeAccountIds - Account IDs to skip
+     * @param minBalance - Minimum dealer balance required (optional)
+     * @returns An available account or null
+     */
+    async getNextAvailableAccountExcluding(
+        excludeAccountIds: string[],
+        minBalance?: number
+    ): Promise<BeinAccount | null> {
+        if (!this.configLoaded) {
+            await this.loadConfig()
+        }
+
+        const whereClause: any = {
+            isActive: true,
+            id: { notIn: excludeAccountIds },
+            OR: [
+                { cooldownUntil: null },
+                { cooldownUntil: { lte: new Date() } },
+            ],
+        }
+        
+        // Add balance filter if specified
+        if (minBalance !== undefined) {
+            whereClause.dealerBalance = { gte: minBalance }
+        }
+
+        const accounts = await prisma.beinAccount.findMany({
+            where: whereClause,
+            include: { proxy: true },
+            orderBy: [
+                { priority: 'desc' },
+                { dealerBalance: 'desc' },  // Prefer accounts with more balance
+                { lastUsedAt: 'asc' },      // Then least recently used
+            ],
+        })
+
+        console.log(`[Pool] Looking for alternative account (excluding ${excludeAccountIds.length}, minBalance: ${minBalance || 'any'})`)
+        console.log(`[Pool] Found ${accounts.length} candidate accounts`)
+
+        if (accounts.length === 0) {
+            console.log(`❌ No alternative accounts available`)
+            return null
+        }
+
+        // Try to get an available, unlocked account
+        for (const account of accounts) {
+            const health = await this.checkAccountHealth(account.id)
+            if (!health.isAvailable) {
+                console.log(`⏭️ Skipping ${account.label || account.username}: ${health.reason}`)
+                continue
+            }
+
+            const locked = await lockAccount(this.redis, account.id, this.workerId)
+            if (!locked) {
+                console.log(`🔒 Account ${account.label || account.username} is locked by another worker`)
+                continue
+            }
+
+            console.log(`✅ Selected alternative account: ${account.label || account.username} (Balance: ${account.dealerBalance || 'unknown'} USD)`)
+            return account
+        }
+
+        console.warn('⚠️ All alternative accounts are unavailable')
+        return null
+    }
+
+    /**
      * Check if any account is currently available (without acquiring)
      * Useful for checking pool status before entering queue
      */

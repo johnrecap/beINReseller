@@ -12,7 +12,7 @@ import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage } from './http';
 import { AccountPoolManager, AccountQueueManager, getQueueManager } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
-import { createNotification } from './utils/notification';
+import { createNotification, notifyAdminLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from './types/proxy';
@@ -114,9 +114,89 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
 }
 
 /**
+ * Check if an error message indicates session expiry
+ */
+function isSessionExpiredError(message: string | undefined): boolean {
+    if (!message) return false;
+    return message.includes('Session Expired') ||
+           message.includes('Session expired') ||
+           message.includes('login page') ||
+           message.includes('Login page');
+}
+
+/**
+ * Perform re-login with CAPTCHA handling
+ * @returns true if login successful, false otherwise
+ */
+async function performReLogin(
+    httpClient: HttpClientService,
+    account: BeinAccount & { proxy?: Proxy | null },
+    operationName: string
+): Promise<boolean> {
+    // Clear cached session
+    await deleteSessionFromCache(account.id);
+    httpClient.invalidateSession();
+    
+    // Perform fresh login
+    const loginResult = await httpClient.login(
+        account.username,
+        account.password,
+        account.totpSecret || undefined
+    );
+    
+    if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+        // Try 2Captcha auto-solve
+        console.log(`[HTTP] 🧩 CAPTCHA required during session retry, attempting auto-solve...`);
+        const captchaApiKey = await getCaptchaApiKey();
+        
+        if (captchaApiKey) {
+            try {
+                const captchaSolver = new CaptchaSolver(captchaApiKey);
+                const solution = await captchaSolver.solve(loginResult.captchaImage);
+                console.log(`[HTTP] ✅ CAPTCHA auto-solved: ${solution}`);
+                
+                // Submit login with CAPTCHA solution
+                const loginWithCaptcha = await httpClient.submitLogin(
+                    account.username,
+                    account.password,
+                    account.totpSecret || undefined,
+                    solution
+                );
+                
+                if (!loginWithCaptcha.success) {
+                    throw new Error(`Re-login with CAPTCHA failed: ${loginWithCaptcha.error}`);
+                }
+                
+                console.log(`[HTTP] ✅ Re-login with CAPTCHA successful`);
+            } catch (captchaError: any) {
+                throw new Error(`CAPTCHA auto-solve failed: ${captchaError.message}`);
+            }
+        } else {
+            throw new Error(`Re-login requires CAPTCHA but no API key configured`);
+        }
+    } else if (!loginResult.success) {
+        throw new Error(`Re-login failed: ${loginResult.error}`);
+    }
+    
+    // Save new session to cache
+    const newSession = await httpClient.exportSession();
+    // FIX: Update timestamps before saving
+    const now = Date.now();
+    newSession.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+    newSession.loginTimestamp = now;
+    await saveSessionToCache(account.id, newSession, httpClient.getSessionTimeout());
+    console.log(`[HTTP] ✅ Fresh login successful for ${operationName}`);
+    
+    return true;
+}
+
+/**
  * Execute an operation with automatic session retry on expiry
  * If session expires mid-operation, re-login and retry once
- * Now includes 2Captcha auto-solve for CAPTCHA challenges during re-login
+ * 
+ * ENHANCED: Now handles both thrown errors AND returned result objects with error fields
+ * This fixes the bug where loadPackages() returns { success: false, error: "Session Expired..." }
+ * instead of throwing, which bypassed the retry logic.
  * 
  * @param httpClient - The HTTP client to use
  * @param account - The beIN account
@@ -130,74 +210,41 @@ async function withSessionRetry<T>(
     operation: () => Promise<T>,
     operationName: string
 ): Promise<T> {
+    let result: T;
+    
     try {
-        return await operation();
+        result = await operation();
     } catch (error: any) {
-        const isSessionExpired = 
-            error.message?.includes('Session Expired') ||
-            error.message?.includes('Session expired') ||
-            error.message?.includes('login page') ||
-            error.message?.includes('Login page');
-        
-        if (!isSessionExpired) {
+        // Handle thrown errors
+        if (!isSessionExpiredError(error.message)) {
             throw error;  // Not a session error, rethrow
         }
         
-        console.log(`[HTTP] ⚠️ Session expired during ${operationName}, performing fresh login...`);
-        
-        // Clear cached session
-        await deleteSessionFromCache(account.id);
-        httpClient.invalidateSession();
-        
-        // Perform fresh login
-        const loginResult = await httpClient.login(
-            account.username,
-            account.password,
-            account.totpSecret || undefined
-        );
-        
-        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            // Try 2Captcha auto-solve
-            console.log(`[HTTP] 🧩 CAPTCHA required during session retry, attempting auto-solve...`);
-            const captchaApiKey = await getCaptchaApiKey();
-            
-            if (captchaApiKey) {
-                try {
-                    const captchaSolver = new CaptchaSolver(captchaApiKey);
-                    const solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log(`[HTTP] ✅ CAPTCHA auto-solved: ${solution}`);
-                    
-                    // Submit login with CAPTCHA solution
-                    const loginWithCaptcha = await httpClient.submitLogin(
-                        account.username,
-                        account.password,
-                        account.totpSecret || undefined,
-                        solution
-                    );
-                    
-                    if (!loginWithCaptcha.success) {
-                        throw new Error(`Session expired during ${operationName} and re-login with CAPTCHA failed: ${loginWithCaptcha.error}`);
-                    }
-                    
-                    console.log(`[HTTP] ✅ Re-login with CAPTCHA successful`);
-                } catch (captchaError: any) {
-                    throw new Error(`Session expired during ${operationName} and CAPTCHA auto-solve failed: ${captchaError.message}`);
-                }
-            } else {
-                throw new Error(`Session expired during ${operationName} and re-login requires CAPTCHA (no API key configured)`);
-            }
-        } else if (!loginResult.success) {
-            throw new Error(`Session expired during ${operationName} and re-login failed: ${loginResult.error}`);
-        }
-        
-        // Save new session to cache
-        const newSession = await httpClient.exportSession();
-        await saveSessionToCache(account.id, newSession, httpClient.getSessionTimeout());
-        console.log(`[HTTP] ✅ Fresh login successful, retrying ${operationName}...`);
+        console.log(`[HTTP] ⚠️ Session expired (thrown) during ${operationName}, performing fresh login...`);
+        await performReLogin(httpClient, account, operationName);
         
         // Retry the operation once
         return await operation();
     }
+    
+    // ENHANCED: Check if result object indicates session expiry
+    // This catches methods that return { success: false, error: "Session Expired..." } instead of throwing
+    if (result && typeof result === 'object' && 'success' in result && 'error' in result) {
+        const resultObj = result as unknown as { success: boolean; error?: string };
+        
+        if (!resultObj.success && isSessionExpiredError(resultObj.error)) {
+            console.log(`[HTTP] ⚠️ Session expired (returned) during ${operationName}, performing fresh login...`);
+            console.log(`[HTTP] Error was: ${resultObj.error}`);
+            
+            await performReLogin(httpClient, account, operationName);
+            
+            // Retry the operation once
+            console.log(`[HTTP] 🔄 Retrying ${operationName} after re-login...`);
+            return await operation();
+        }
+    }
+    
+    return result;
 }
 
 /**
@@ -658,6 +705,14 @@ async function handleStartRenewalHttp(
 
 /**
  * COMPLETE_PURCHASE - Select package, add to cart, enter STB, pause
+ * 
+ * ENHANCED: Now retries with different beIN accounts when failures occur:
+ * - Insufficient balance
+ * - Session errors
+ * - Login failures
+ * - CAPTCHA failures
+ * 
+ * Will try ALL available accounts before giving up.
  */
 async function handleCompletePurchaseHttp(
     operationId: string,
@@ -678,55 +733,13 @@ async function handleCompletePurchaseHttp(
             promoCode: true,
             stbNumber: true,
             amount: true,
+            cardNumber: true,
             responseData: true  // Contains saved session from START_RENEWAL
         }
     });
 
     if (!operation || !operation.beinAccountId) {
         throw new Error('Operation or account not found');
-    }
-
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { status: 'COMPLETING' }
-    });
-
-    // Get account
-    const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId },
-        include: { proxy: true }  // CRITICAL: Include proxy for HTTP client
-    });
-    if (!account) throw new Error('Account not found');
-
-    const client = await getHttpClient(account);
-
-    // CRITICAL: Restore session from database (cross-worker support)
-    // The session (ViewState + cookies) was saved after loadPackages
-    let dealerBalance: number | undefined;
-    if (operation.responseData) {
-        try {
-            const savedData = JSON.parse(operation.responseData as string);
-
-            // AUDIT FIX 4.2: Validate session age for completePurchase flow
-            if (savedData.savedAt) {
-                validateSessionAge(savedData.savedAt, 'completePurchase');
-            }
-
-            if (savedData.sessionData) {
-                console.log(`[HTTP] 🔄 Restoring session from database (saved at ${savedData.savedAt})`);
-                await client.importSession(savedData.sessionData);
-                console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
-            }
-            // Extract dealer balance for validation
-            dealerBalance = savedData.dealerBalance;
-            if (dealerBalance !== undefined) {
-                console.log(`[HTTP] 💰 Dealer Balance from saved data: ${dealerBalance} USD`);
-            }
-        } catch (parseError) {
-            console.error('[HTTP] ⚠️ Failed to parse saved session, continuing anyway:', parseError);
-        }
-    } else {
-        console.log('[HTTP] ⚠️ No saved session found - may fail if different worker');
     }
 
     const selectedPackage = operation.selectedPackage as {
@@ -740,96 +753,380 @@ async function handleCompletePurchaseHttp(
         throw new Error('No package selected');
     }
 
-    // ========== DEALER BALANCE CHECK ==========
-    // Check if beIN dealer account has enough balance for selected package
-    if (dealerBalance !== undefined && dealerBalance < selectedPackage.price) {
-        console.log(`[HTTP] ❌ INSUFFICIENT DEALER BALANCE: ${dealerBalance} USD < ${selectedPackage.price} USD`);
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'COMPLETING' }
+    });
 
-        // Mark account for cooldown (1 hour) - low balance
-        await accountPool.markAccountFailed(
-            operation.beinAccountId,
-            `INSUFFICIENT_BALANCE: ${dealerBalance} < ${selectedPackage.price}`
+    // Track which accounts we've tried
+    const triedAccountIds: string[] = [];
+    let currentAccountId = operation.beinAccountId;
+    let lastError = '';
+
+    // Retry loop - try all available accounts
+    while (true) {
+        const attemptNumber = triedAccountIds.length + 1;
+        console.log(`[HTTP] 🔄 Attempt ${attemptNumber}: Trying account ${currentAccountId}`);
+
+        const attemptResult = await attemptPurchaseWithAccount(
+            operationId,
+            operation,
+            currentAccountId,
+            selectedPackage,
+            promoCode,
+            accountPool,
+            triedAccountIds
         );
-        console.log(`[HTTP] 🔒 Account ${operation.beinAccountId} marked for cooldown (low balance)`);
 
-        // Throw error to trigger refund and notify user
-        throw new Error('رصيد حساب beIN غير كافي. برجاء المحاولة مرة أخرى مع حساب آخر.');
-    }
-    // ==========================================
-
-    // Convert to AvailablePackage format
-    // IMPORTANT: Use checkboxSelector as checkboxValue - this was stored from loadPackages()
-    const pkg: AvailablePackage = {
-        index: selectedPackage.index,
-        name: selectedPackage.name,
-        price: selectedPackage.price,
-        checkboxValue: selectedPackage.checkboxSelector  // This is the stored checkbox name
-    };
-
-    // Complete purchase using restored ViewState and checkbox values
-    console.log(`[HTTP] 📦 Completing purchase: ${pkg.name} @ ${pkg.price} USD`);
-    const result = await client.completePurchase(
-        pkg,
-        operation.promoCode || promoCode,
-        operation.stbNumber || undefined,
-        true // skipFinalClick - pause for confirmation
-    );
-
-    if (result.awaitingConfirm) {
-        console.log(`⏸️ [HTTP] Awaiting confirmation for ${operationId}`);
-
-        // CRITICAL: Export and save updated session for CONFIRM_PURCHASE
-        // ViewState changes after each POST, so we MUST save the new session
-        const updatedSessionData = await client.exportSession();
-        console.log(`[HTTP] 💾 Session exported after completePurchase: ViewState=${updatedSessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
-
-        // Set heartbeat expiry for auto-cancel if user leaves page
-        const now = new Date();
-        const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
-        
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                status: 'AWAITING_FINAL_CONFIRM',
-                finalConfirmExpiry: new Date(Date.now() + 120000),
-                responseMessage: result.message,
-                // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
-                lastHeartbeat: now,
-                heartbeatExpiry: heartbeatExpiry,
-                // CRITICAL: Save updated session with new ViewState
-                responseData: JSON.stringify({
-                    sessionData: updatedSessionData,
-                    dealerBalance: dealerBalance,  // Preserve for verification
-                    savedAt: new Date().toISOString()
-                })
-            }
-        });
-
-        if (operation.userId) {
-            await createNotification({
-                userId: operation.userId,
-                title: '⚠️ تأكيد الدفع مطلوب',
-                message: `${selectedPackage.name} - ${selectedPackage.price} USD`,
-                type: 'warning',
-                link: '/dashboard/operations'
-            });
+        if (attemptResult.success) {
+            console.log(`[HTTP] ✅ Purchase completed successfully on attempt ${attemptNumber}`);
+            return;
         }
-        return;
-    }
 
-    // If not awaiting (shouldn't happen with skipFinalClick=true)
-    if (result.success) {
+        // Mark this account as tried
+        triedAccountIds.push(currentAccountId);
+        lastError = attemptResult.error || 'Unknown error';
+
+        // Check if we should retry with a different account
+        if (!attemptResult.shouldRetryDifferentAccount) {
+            console.log(`[HTTP] ❌ Error is not recoverable with different account: ${lastError}`);
+            throw new Error(lastError);
+        }
+
+        console.log(`[HTTP] ⚠️ Attempt ${attemptNumber} failed: ${lastError}`);
+        console.log(`[HTTP] 🔍 Looking for alternative account (tried: ${triedAccountIds.length})...`);
+
+        // Try to get another account (with minimum balance filter for balance errors)
+        const minBalance = attemptResult.isBalanceError ? selectedPackage.price : undefined;
+        const nextAccount = await accountPool.getNextAvailableAccountExcluding(
+            triedAccountIds,
+            minBalance
+        );
+
+        if (!nextAccount) {
+            console.log(`[HTTP] ❌ No more accounts available after trying ${triedAccountIds.length}`);
+            
+            // Final error message
+            const finalError = attemptResult.isBalanceError
+                ? 'رصيد حساب beIN غير كافي. لا توجد حسابات أخرى متاحة برصيد كافٍ.'
+                : `فشلت العملية بعد تجربة ${triedAccountIds.length} حسابات. ${lastError}`;
+            
+            throw new Error(finalError);
+        }
+
+        // Update operation with new account
         await prisma.operation.update({
             where: { id: operationId },
-            data: {
-                status: 'COMPLETED',
-                responseMessage: result.message,
-                completedAt: new Date()
-            }
+            data: { beinAccountId: nextAccount.id }
         });
-        await accountPool.markAccountUsed(operation.beinAccountId);
-    } else {
+
+        currentAccountId = nextAccount.id;
+        console.log(`[HTTP] 🔄 Retrying with account: ${nextAccount.label || nextAccount.username} (Balance: ${nextAccount.dealerBalance || 'unknown'} USD)`);
+    }
+}
+
+/**
+ * Attempt purchase with a specific account
+ * Returns result indicating success, failure, or need to retry with different account
+ */
+async function attemptPurchaseWithAccount(
+    operationId: string,
+    operation: {
+        id: string;
+        userId: string | null;
+        cardNumber: string;
+        promoCode: string | null;
+        stbNumber: string | null;
+        amount: number | null;
+        responseData: any;
+    },
+    accountId: string,
+    selectedPackage: {
+        index: number;
+        name: string;
+        price: number;
+        checkboxSelector: string;
+    },
+    promoCode: string | undefined,
+    accountPool: AccountPoolManager,
+    triedAccountIds: string[]
+): Promise<{
+    success: boolean;
+    shouldRetryDifferentAccount: boolean;
+    isBalanceError: boolean;
+    error?: string;
+}> {
+    try {
+        // Get account
+        const account = await prisma.beinAccount.findUnique({
+            where: { id: accountId },
+            include: { proxy: true }
+        });
+        
+        if (!account) {
+            return {
+                success: false,
+                shouldRetryDifferentAccount: true,
+                isBalanceError: false,
+                error: 'Account not found'
+            };
+        }
+
+        const client = await getHttpClient(account);
+
+        // Try to restore session from database (for same-account retry from START_RENEWAL)
+        let dealerBalance: number | undefined;
+        const isOriginalAccount = triedAccountIds.length === 0;
+        
+        if (isOriginalAccount && operation.responseData) {
+            try {
+                const savedData = JSON.parse(operation.responseData as string);
+
+                // Validate session age
+                if (savedData.savedAt) {
+                    validateSessionAge(savedData.savedAt, 'completePurchase');
+                }
+
+                if (savedData.sessionData) {
+                    console.log(`[HTTP] 🔄 Restoring session from database`);
+                    await client.importSession(savedData.sessionData);
+                }
+                dealerBalance = savedData.dealerBalance;
+            } catch (parseError: any) {
+                console.log(`[HTTP] ⚠️ Could not restore saved session: ${parseError.message}`);
+            }
+        }
+
+        // For non-original account or if session restore failed, need fresh login + loadPackages
+        if (!isOriginalAccount || !client.isSessionActive()) {
+            console.log(`[HTTP] 🔑 New account - need fresh login and package load`);
+            
+            // Perform login
+            const loginResult = await client.login(
+                account.username,
+                account.password,
+                account.totpSecret || undefined
+            );
+
+            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                console.log(`[HTTP] 🧩 CAPTCHA required for login, attempting auto-solve...`);
+                const captchaApiKey = await getCaptchaApiKey();
+                
+                if (!captchaApiKey) {
+                    await accountPool.markAccountFailed(accountId, 'CAPTCHA required but no API key');
+                    return {
+                        success: false,
+                        shouldRetryDifferentAccount: true,
+                        isBalanceError: false,
+                        error: 'CAPTCHA required but no API key configured'
+                    };
+                }
+
+                try {
+                    const solver = new CaptchaSolver(captchaApiKey);
+                    const solution = await solver.solve(loginResult.captchaImage);
+                    
+                    const loginWithCaptcha = await client.submitLogin(
+                        account.username,
+                        account.password,
+                        account.totpSecret || undefined,
+                        solution
+                    );
+                    
+                    if (!loginWithCaptcha.success) {
+                        await accountPool.markAccountFailed(accountId, `CAPTCHA login failed: ${loginWithCaptcha.error}`);
+                        return {
+                            success: false,
+                            shouldRetryDifferentAccount: true,
+                            isBalanceError: false,
+                            error: `Login with CAPTCHA failed: ${loginWithCaptcha.error}`
+                        };
+                    }
+                } catch (captchaError: any) {
+                    await accountPool.markAccountFailed(accountId, `CAPTCHA solve failed: ${captchaError.message}`);
+                    return {
+                        success: false,
+                        shouldRetryDifferentAccount: true,
+                        isBalanceError: false,
+                        error: `CAPTCHA auto-solve failed: ${captchaError.message}`
+                    };
+                }
+            } else if (!loginResult.success) {
+                await accountPool.markAccountFailed(accountId, `Login failed: ${loginResult.error}`);
+                return {
+                    success: false,
+                    shouldRetryDifferentAccount: true,
+                    isBalanceError: false,
+                    error: `Login failed: ${loginResult.error}`
+                };
+            }
+
+            // Load packages with session retry
+            console.log(`[HTTP] 📦 Loading packages for new account...`);
+            const packagesResult = await withSessionRetry(
+                client,
+                account,
+                () => client.loadPackages(operation.cardNumber),
+                'loadPackages'
+            );
+
+            if (!packagesResult.success) {
+                // Check if it's a session error that was already retried
+                if (isSessionExpiredError(packagesResult.error)) {
+                    await accountPool.markAccountFailed(accountId, `Session error: ${packagesResult.error}`);
+                    return {
+                        success: false,
+                        shouldRetryDifferentAccount: true,
+                        isBalanceError: false,
+                        error: packagesResult.error
+                    };
+                }
+                throw new Error(packagesResult.error || 'Failed to load packages');
+            }
+
+            dealerBalance = packagesResult.dealerBalance;
+            
+            // Update account balance in database
+            if (dealerBalance !== undefined) {
+                await prisma.beinAccount.update({
+                    where: { id: accountId },
+                    data: {
+                        dealerBalance,
+                        balanceUpdatedAt: new Date()
+                    }
+                });
+            }
+        }
+
+        // ========== DEALER BALANCE CHECK ==========
+        if (dealerBalance !== undefined && dealerBalance < selectedPackage.price) {
+            console.log(`[HTTP] ❌ INSUFFICIENT DEALER BALANCE: ${dealerBalance} USD < ${selectedPackage.price} USD`);
+
+            // Mark account for cooldown
+            await accountPool.markAccountFailed(
+                accountId,
+                `INSUFFICIENT_BALANCE: ${dealerBalance} < ${selectedPackage.price}`
+            );
+
+            // Notify admins
+            await notifyAdminLowBalance(
+                accountId,
+                account.label || account.username,
+                dealerBalance,
+                selectedPackage.price
+            );
+
+            // Release lock before trying another account
+            await accountPool.releaseLock(accountId);
+
+            return {
+                success: false,
+                shouldRetryDifferentAccount: true,
+                isBalanceError: true,
+                error: `Insufficient balance: ${dealerBalance} < ${selectedPackage.price}`
+            };
+        }
+
+        // Convert to AvailablePackage format
+        const pkg: AvailablePackage = {
+            index: selectedPackage.index,
+            name: selectedPackage.name,
+            price: selectedPackage.price,
+            checkboxValue: selectedPackage.checkboxSelector
+        };
+
+        // Complete purchase
+        console.log(`[HTTP] 📦 Completing purchase: ${pkg.name} @ ${pkg.price} USD`);
+        const result = await client.completePurchase(
+            pkg,
+            operation.promoCode || promoCode,
+            operation.stbNumber || undefined,
+            true // skipFinalClick - pause for confirmation
+        );
+
+        if (result.awaitingConfirm) {
+            console.log(`⏸️ [HTTP] Awaiting confirmation for ${operationId}`);
+
+            // Export and save updated session for CONFIRM_PURCHASE
+            const updatedSessionData = await client.exportSession();
+
+            // Set heartbeat expiry
+            const now = new Date();
+            const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
+            
+            await prisma.operation.update({
+                where: { id: operationId },
+                data: {
+                    status: 'AWAITING_FINAL_CONFIRM',
+                    finalConfirmExpiry: new Date(Date.now() + 120000),
+                    responseMessage: result.message,
+                    lastHeartbeat: now,
+                    heartbeatExpiry: heartbeatExpiry,
+                    responseData: JSON.stringify({
+                        sessionData: updatedSessionData,
+                        dealerBalance: dealerBalance,
+                        savedAt: new Date().toISOString()
+                    })
+                }
+            });
+
+            if (operation.userId) {
+                await createNotification({
+                    userId: operation.userId,
+                    title: '⚠️ تأكيد الدفع مطلوب',
+                    message: `${selectedPackage.name} - ${selectedPackage.price} USD`,
+                    type: 'warning',
+                    link: '/dashboard/operations'
+                });
+            }
+
+            return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
+        }
+
+        // Direct success (shouldn't happen with skipFinalClick=true)
+        if (result.success) {
+            await prisma.operation.update({
+                where: { id: operationId },
+                data: {
+                    status: 'COMPLETED',
+                    responseMessage: result.message,
+                    completedAt: new Date()
+                }
+            });
+            await accountPool.markAccountUsed(accountId);
+            return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
+        }
+
+        // Purchase failed
         throw new Error(result.message);
+
+    } catch (error: any) {
+        const errorMessage = error.message || 'Unknown error';
+        console.log(`[HTTP] ❌ attemptPurchaseWithAccount failed: ${errorMessage}`);
+
+        // Determine if we should retry with different account
+        const isRecoverableError = 
+            isSessionExpiredError(errorMessage) ||
+            errorMessage.includes('CAPTCHA') ||
+            errorMessage.includes('login') ||
+            errorMessage.includes('Login') ||
+            errorMessage.includes('balance') ||
+            errorMessage.includes('Balance') ||
+            errorMessage.includes('timeout') ||
+            errorMessage.includes('network');
+
+        if (isRecoverableError) {
+            try {
+                await accountPool.releaseLock(accountId);
+            } catch { /* ignore */ }
+        }
+
+        return {
+            success: false,
+            shouldRetryDifferentAccount: isRecoverableError,
+            isBalanceError: false,
+            error: errorMessage
+        };
     }
 }
 

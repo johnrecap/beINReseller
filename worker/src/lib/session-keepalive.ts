@@ -322,6 +322,10 @@ export class SessionKeepAliveService {
         if (sessionValid) {
             // Session still valid on beIN - save and extend TTL
             const sessionData = await client.exportSession();
+            // FIX: Update timestamps before saving (exportSession returns OLD expiresAt)
+            const now = Date.now();
+            sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+            sessionData.loginTimestamp = now;
             await saveSessionToCache(accountId, sessionData, 16);
             console.log(`[KeepAlive] ${username}: Session validated and extended`);
             return {
@@ -366,6 +370,10 @@ export class SessionKeepAliveService {
 
                 if (finalLogin.success) {
                     const sessionData = await client.exportSession();
+                    // FIX: Update timestamps before saving
+                    const now = Date.now();
+                    sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+                    sessionData.loginTimestamp = now;
                     await saveSessionToCache(accountId, sessionData, 16);
                     console.log(`[KeepAlive] ${username}: Login successful (CAPTCHA solved)`);
                     return {
@@ -400,6 +408,10 @@ export class SessionKeepAliveService {
         // Login without CAPTCHA
         if (loginResult.success) {
             const sessionData = await client.exportSession();
+            // FIX: Update timestamps before saving
+            const now = Date.now();
+            sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+            sessionData.loginTimestamp = now;
             await saveSessionToCache(accountId, sessionData, 16);
             console.log(`[KeepAlive] ${username}: Login successful`);
             return {

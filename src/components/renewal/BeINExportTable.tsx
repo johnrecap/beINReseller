@@ -34,11 +34,11 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
             if (typeof window === 'undefined') return
             
             const screenWidth = window.innerWidth
-            const availableWidth = screenWidth - 48 // account for page padding
+            const availableWidth = screenWidth - 80 // more padding for better fit
             
             if (availableWidth < TABLE_WIDTH) {
                 const newScale = availableWidth / TABLE_WIDTH
-                setScaleFactor(Math.max(newScale, 0.35)) // minimum 35% scale
+                setScaleFactor(Math.max(newScale, 0.30)) // minimum 30% scale
             } else {
                 setScaleFactor(1)
             }

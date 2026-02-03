@@ -641,7 +641,9 @@ export const ar = {
             captchaInvalid: 'الكابتشا غير صحيحة',
             insufficientBalance: 'رصيد غير كافي',
             promoApplied: 'تم تطبيق الكود! الأسعار محدثة',
-            promoFailed: 'فشل تطبيق الكود'
+            promoFailed: 'فشل تطبيق الكود',
+            existingOperation: 'هناك عملية لهذا الكارت',
+            existingOperationAction: 'للمتابعة اضغط هنا'
         },
         modes: {
             signalRefresh: 'تجديد الإشارة',

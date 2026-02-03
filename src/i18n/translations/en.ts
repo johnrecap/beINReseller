@@ -757,7 +757,9 @@ export const en = {
             autoCancelled: 'Operation auto-cancelled due to timeout. Amount refunded.',
             cancelled: 'Operation cancelled. Amount refunded.',
             cancelFailed: 'Failed to cancel operation',
-            expiryWarning: 'Auto-cancel in 10 seconds!'
+            expiryWarning: 'Auto-cancel in 10 seconds!',
+            existingOperation: 'There is an ongoing operation for this card',
+            existingOperationAction: 'Click here to continue'
         },
         modes: {
             signalRefresh: 'Signal Refresh',

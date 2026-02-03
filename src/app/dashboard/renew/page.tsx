@@ -387,7 +387,23 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (!res.ok) {
-                toast.error(data.error || t.common?.error || 'Error')
+                // Check if this is a duplicate operation error (API returns operationId)
+                if (data.operationId) {
+                    toast.error(
+                        (t.renew as any)?.toast?.existingOperation || 'هناك عملية لهذا الكارت',
+                        {
+                            action: {
+                                label: (t.renew as any)?.toast?.existingOperationAction || 'للمتابعة اضغط هنا',
+                                onClick: () => {
+                                    window.location.href = '/dashboard/operations/active'
+                                }
+                            },
+                            duration: 8000,
+                        }
+                    )
+                } else {
+                    toast.error(data.error || t.common?.error || 'Error')
+                }
                 return
             }
 

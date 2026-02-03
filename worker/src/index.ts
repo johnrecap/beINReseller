@@ -6,12 +6,14 @@
  * HTTP Mode:
  * - Uses direct HTTP requests via Axios (fast, lightweight)
  * - Session caching in Redis for persistence across workers
- * - Keep-alive service to maintain sessions
  * 
  * Multi-Account Support:
  * - Uses AccountPoolManager for smart distribution
  * - Supports multiple workers with account locking
  * - Round Robin with rate limiting per account
+ * 
+ * NOTE: Session keep-alive is handled by the separate bein-keepalive process.
+ * Workers do NOT run their own keep-alive to avoid duplication.
  */
 
 // IMPORTANT: Skip TLS verification for Bright Data proxy (self-signed certs)
@@ -20,9 +22,8 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 import 'dotenv/config'
 import { Worker } from 'bullmq'
-import { processOperationHttp, closeAllHttpClients, getHttpClientsMap } from './http-queue-processor'
+import { processOperationHttp, closeAllHttpClients } from './http-queue-processor'
 import { initializePoolManager, AccountPoolManager } from './pool'
-import { SessionKeepAlive } from './utils/session-keepalive'
 import { getRedisConnection, closeRedisConnection } from './lib/redis'
 
 // Validate environment
@@ -43,10 +44,6 @@ const WORKER_RATE_LIMIT = parseInt(process.env.WORKER_RATE_LIMIT || '30')
 const connection = getRedisConnection(REDIS_URL)
 
 let accountPool: AccountPoolManager | null = null
-let sessionKeepAlive: SessionKeepAlive | null = null
-
-// Keep-alive configuration (10 minutes default)
-const KEEPALIVE_INTERVAL_MS = parseInt(process.env.WORKER_KEEPALIVE_INTERVAL || '600000')
 
 async function main() {
     console.log('beIN Worker Starting...')
@@ -54,6 +51,7 @@ async function main() {
     console.log(`Worker ID: ${WORKER_ID}`)
     console.log(`Concurrency: ${WORKER_CONCURRENCY}, Rate Limit: ${WORKER_RATE_LIMIT}/min`)
     console.log(`Mode: HTTP Client (Fast Mode)`)
+    console.log(`Keep-Alive: Handled by bein-keepalive process (workers do not run keep-alive)`)
 
     // Initialize Account Pool Manager (uses shared Redis connection)
     accountPool = await initializePoolManager(REDIS_URL, WORKER_ID)
@@ -62,40 +60,6 @@ async function main() {
     // Get pool status
     const poolStatus = await accountPool.getPoolStatus()
     console.log(`Pool Status: ${poolStatus.availableNow}/${poolStatus.activeAccounts} accounts available`)
-
-    // Create session keep-alive for HTTP mode (with worker ID for distributed locking)
-    const httpClients = getHttpClientsMap()
-    sessionKeepAlive = new SessionKeepAlive(httpClients, WORKER_ID)
-    
-    // ============================================
-    // PRE-LOGIN ALL ACCOUNTS before processing jobs
-    // This ensures all accounts are "warm" and ready for instant operations
-    // Timeout: 2 minutes max to prevent blocking worker startup
-    // ============================================
-    const PRE_LOGIN_TIMEOUT_MS = parseInt(process.env.PRE_LOGIN_TIMEOUT || '120000') // 2 minutes default
-    
-    console.log('Pre-logging all beIN accounts (this may take a moment)...')
-    const preLoginStartTime = Date.now()
-    
-    try {
-        // Wrap pre-login in a timeout to prevent infinite hang
-        const preLoginPromise = sessionKeepAlive.preLoginAllAccounts()
-        const timeoutPromise = new Promise<{ success: number; failed: number; captcha: number; skipped: number }>((_, reject) => {
-            setTimeout(() => reject(new Error('Pre-login timeout')), PRE_LOGIN_TIMEOUT_MS)
-        })
-        
-        const preLoginResult = await Promise.race([preLoginPromise, timeoutPromise])
-        const preLoginDuration = Math.round((Date.now() - preLoginStartTime) / 1000)
-        console.log(`Pre-login complete in ${preLoginDuration}s: ${preLoginResult.success} warm, ${preLoginResult.failed} cold`)
-    } catch (preLoginError: any) {
-        const preLoginDuration = Math.round((Date.now() - preLoginStartTime) / 1000)
-        console.warn(`Pre-login failed or timed out after ${preLoginDuration}s: ${preLoginError.message}`)
-        console.warn('Worker will continue - accounts will login on first operation')
-    }
-    
-    // Start keep-alive AFTER pre-login (runs even if pre-login failed)
-    sessionKeepAlive.start(KEEPALIVE_INTERVAL_MS)
-    console.log(`Session Keep-Alive started (${Math.floor(KEEPALIVE_INTERVAL_MS / 60000)} min interval)`)
 
     // Create worker with increased concurrency and rate limit
     const worker = new Worker(
@@ -131,11 +95,6 @@ async function main() {
     // Graceful shutdown
     const shutdown = async () => {
         console.log(`\n[${WORKER_ID}] Shutting down worker...`)
-
-        // Stop session keep-alive
-        if (sessionKeepAlive) {
-            sessionKeepAlive.stop()
-        }
 
         await worker.close()
 

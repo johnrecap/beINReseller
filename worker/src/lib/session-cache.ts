@@ -20,9 +20,11 @@ import { gzipSync, gunzipSync } from 'zlib';
 // Redis key prefixes
 const SESSION_PREFIX = 'bein:session:';
 const LOGIN_LOCK_PREFIX = 'bein:login-lock:';
+const KEEPALIVE_LOCK_PREFIX = 'bein:keepalive-lock:';
 
 // Lock settings
 const LOGIN_LOCK_TTL_SECONDS = 60; // 60 seconds max for login
+const KEEPALIVE_LOCK_TTL_SECONDS = 120; // 120 seconds for keep-alive refresh (includes CAPTCHA solving)
 
 // Default session timeout (15 minutes = conservative approach)
 const DEFAULT_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
@@ -590,5 +592,71 @@ export async function getSessionRemainingTime(accountId: string): Promise<number
     } catch (error) {
         console.error(`[Session Cache] Error getting session remaining time:`, error);
         return -1;
+    }
+}
+
+// =============================================
+// KEEP-ALIVE LOCKING - Prevent multiple workers refreshing same account
+// =============================================
+
+/**
+ * Acquire lock before keep-alive refresh to prevent race conditions
+ * When multiple workers try to refresh the same account simultaneously,
+ * only one will succeed, others will skip.
+ * 
+ * @param accountId - beIN account ID
+ * @param workerId - Worker identifier
+ * @returns true if lock acquired, false if another worker is refreshing
+ */
+export async function acquireKeepAliveLock(accountId: string, workerId: string): Promise<boolean> {
+    try {
+        const redis = getRedisConnection();
+        const key = `${KEEPALIVE_LOCK_PREFIX}${accountId}`;
+        
+        // SET NX = only set if not exists (atomic operation)
+        const result = await redis.set(key, workerId, 'EX', KEEPALIVE_LOCK_TTL_SECONDS, 'NX');
+        
+        if (result === 'OK') {
+            console.log(`[Session Cache] 🔒 Acquired keep-alive lock for ${accountId.substring(0, 8)}... (worker: ${workerId.substring(0, 15)})`);
+            return true;
+        } else {
+            // Check who owns the lock
+            const owner = await redis.get(key);
+            console.log(`[Session Cache] ⏭️ Keep-alive lock busy for ${accountId.substring(0, 8)}... (owned by: ${owner?.substring(0, 15) || 'unknown'})`);
+            return false;
+        }
+    } catch (error) {
+        console.error(`[Session Cache] Error acquiring keep-alive lock:`, error);
+        return true; // Allow on error (graceful degradation)
+    }
+}
+
+/**
+ * Release keep-alive lock after refresh completes
+ * Only releases if the current worker owns the lock
+ * 
+ * @param accountId - beIN account ID
+ * @param workerId - Worker identifier
+ */
+export async function releaseKeepAliveLock(accountId: string, workerId: string): Promise<void> {
+    try {
+        const redis = getRedisConnection();
+        const key = `${KEEPALIVE_LOCK_PREFIX}${accountId}`;
+        
+        // Only release if we own the lock (Lua script for atomicity)
+        const script = `
+            if redis.call("get", KEYS[1]) == ARGV[1] then
+                return redis.call("del", KEYS[1])
+            else
+                return 0
+            end
+        `;
+        
+        const result = await redis.eval(script, 1, key, workerId);
+        if (result === 1) {
+            console.log(`[Session Cache] 🔓 Released keep-alive lock for ${accountId.substring(0, 8)}...`);
+        }
+    } catch (error) {
+        console.error(`[Session Cache] Error releasing keep-alive lock:`, error);
     }
 }

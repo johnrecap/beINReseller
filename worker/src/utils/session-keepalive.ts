@@ -24,7 +24,9 @@ import {
     deleteSessionFromCache,
     getAllCachedSessionIds,
     refreshSessionExpiry,
-    getSessionRemainingTime
+    getSessionRemainingTime,
+    acquireKeepAliveLock,
+    releaseKeepAliveLock
 } from '../lib/session-cache';
 
 /**
@@ -75,6 +77,7 @@ export class SessionKeepAlive {
     private interval: NodeJS.Timeout | null = null;
     private isRunning: boolean = false;
     private httpClients: Map<string, HttpClientService>;
+    private workerId: string;
     private metrics: KeepAliveMetrics = {
         totalRefreshAttempts: 0,
         successfulRefreshes: 0,
@@ -84,8 +87,9 @@ export class SessionKeepAlive {
     };
     private intervalMs: number = DEFAULT_KEEPALIVE_INTERVAL_MS;
 
-    constructor(httpClients: Map<string, HttpClientService>) {
+    constructor(httpClients: Map<string, HttpClientService>, workerId?: string) {
         this.httpClients = httpClients;
+        this.workerId = workerId || `worker-${process.pid}-${Date.now()}`;
     }
 
     /**
@@ -134,6 +138,7 @@ export class SessionKeepAlive {
 
     /**
      * Refresh all active beIN account sessions
+     * Uses distributed locking to prevent multiple workers refreshing same account
      */
     async refreshAllSessions(): Promise<RefreshResult[]> {
         const startTime = Date.now();
@@ -155,16 +160,37 @@ export class SessionKeepAlive {
 
             console.log(`[KeepAlive] Found ${accounts.length} active accounts`);
 
-            // Refresh each account's session
+            // Refresh each account's session (with locking)
+            let skippedByLock = 0;
             for (const account of accounts) {
-                const result = await this.refreshSession(account);
-                results.push(result);
-                this.metrics.totalRefreshAttempts++;
+                // Try to acquire lock - if another worker has it, skip
+                const lockAcquired = await acquireKeepAliveLock(account.id, this.workerId);
+                
+                if (!lockAcquired) {
+                    // Another worker is handling this account
+                    skippedByLock++;
+                    results.push({
+                        accountId: account.id,
+                        username: account.username,
+                        success: true, // Consider it success - another worker is handling it
+                        error: 'Skipped - another worker refreshing'
+                    });
+                    continue;
+                }
 
-                if (result.success) {
-                    this.metrics.successfulRefreshes++;
-                } else {
-                    this.metrics.failedRefreshes++;
+                try {
+                    const result = await this.refreshSession(account);
+                    results.push(result);
+                    this.metrics.totalRefreshAttempts++;
+
+                    if (result.success) {
+                        this.metrics.successfulRefreshes++;
+                    } else {
+                        this.metrics.failedRefreshes++;
+                    }
+                } finally {
+                    // Always release the lock
+                    await releaseKeepAliveLock(account.id, this.workerId);
                 }
 
                 // Small delay between accounts to avoid rate limiting
@@ -172,11 +198,11 @@ export class SessionKeepAlive {
             }
 
             // Log summary
-            const successful = results.filter(r => r.success).length;
+            const successful = results.filter(r => r.success && !r.error?.includes('Skipped')).length;
             const failed = results.filter(r => !r.success).length;
             const skipped = results.filter(r => r.error?.includes('No cached session')).length;
 
-            console.log(`[KeepAlive] ✅ Refresh complete: ${successful} success, ${failed - skipped} failed, ${skipped} skipped (no session)`);
+            console.log(`[KeepAlive] ✅ Refresh complete: ${successful} success, ${failed} failed, ${skippedByLock} skipped (locked), ${skipped} skipped (no session)`);
 
         } catch (error: any) {
             console.error('[KeepAlive] Error during refresh cycle:', error.message);
@@ -518,9 +544,10 @@ export class SessionKeepAlive {
 
     /**
      * Pre-login all active accounts (useful for worker startup)
+     * Uses distributed locking to prevent multiple workers logging same account
      */
-    async preLoginAllAccounts(): Promise<{ success: number; failed: number; captcha: number }> {
-        const results = { success: 0, failed: 0, captcha: 0 };
+    async preLoginAllAccounts(): Promise<{ success: number; failed: number; captcha: number; skipped: number }> {
+        const results = { success: 0, failed: 0, captcha: 0, skipped: 0 };
 
         const accounts = await prisma.beinAccount.findMany({
             where: { isActive: true },
@@ -541,18 +568,44 @@ export class SessionKeepAlive {
                 }
             }
 
-            const success = await this.preLogin(account);
-            if (success) {
-                results.success++;
-            } else {
-                results.failed++;
+            // Try to acquire lock - if another worker has it, skip
+            const lockAcquired = await acquireKeepAliveLock(account.id, this.workerId);
+            
+            if (!lockAcquired) {
+                // Another worker is handling this account
+                console.log(`[KeepAlive] ⏭️ ${account.username}: Another worker is logging in`);
+                results.skipped++;
+                continue;
+            }
+
+            try {
+                // Double-check session after acquiring lock (another worker might have just finished)
+                const sessionAfterLock = await getSessionFromCache(account.id);
+                if (sessionAfterLock) {
+                    const remaining = await getSessionRemainingTime(account.id);
+                    if (remaining > REFRESH_THRESHOLD_MS) {
+                        console.log(`[KeepAlive] ⏭️ ${account.username}: Session created by another worker`);
+                        results.success++;
+                        continue;
+                    }
+                }
+
+                const success = await this.preLogin(account);
+                if (success) {
+                    results.success++;
+                } else {
+                    results.failed++;
+                }
+            } finally {
+                // Always release the lock
+                await releaseKeepAliveLock(account.id, this.workerId);
             }
 
             // Delay between logins
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
-        console.log(`[KeepAlive] 🔑 Pre-login complete: ${results.success} success, ${results.failed} failed`);
+        console.log(`[KeepAlive] 🔑 Pre-login complete: ${results.success} success, ${results.failed} failed, ${results.skipped} skipped (locked)`);
         return results;
     }
 }

@@ -63,9 +63,9 @@ async function main() {
     const poolStatus = await accountPool.getPoolStatus()
     console.log(`Pool Status: ${poolStatus.availableNow}/${poolStatus.activeAccounts} accounts available`)
 
-    // Create session keep-alive for HTTP mode
+    // Create session keep-alive for HTTP mode (with worker ID for distributed locking)
     const httpClients = getHttpClientsMap()
-    sessionKeepAlive = new SessionKeepAlive(httpClients)
+    sessionKeepAlive = new SessionKeepAlive(httpClients, WORKER_ID)
     
     // ============================================
     // PRE-LOGIN ALL ACCOUNTS before processing jobs
@@ -80,7 +80,7 @@ async function main() {
     try {
         // Wrap pre-login in a timeout to prevent infinite hang
         const preLoginPromise = sessionKeepAlive.preLoginAllAccounts()
-        const timeoutPromise = new Promise<{ success: number; failed: number; captcha: number }>((_, reject) => {
+        const timeoutPromise = new Promise<{ success: number; failed: number; captcha: number; skipped: number }>((_, reject) => {
             setTimeout(() => reject(new Error('Pre-login timeout')), PRE_LOGIN_TIMEOUT_MS)
         })
         

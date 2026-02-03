@@ -50,6 +50,7 @@ export class HttpClientService {
     // Session tracking for persistent login
     private lastLoginTime: Date | null = null;
     private sessionValid: boolean = false;
+    private sessionExpiresAt: number | null = null;  // Unix timestamp (ms) for reliable expiry tracking
 
     // Proxy config for manual proxy
     private proxyConfig: ProxyConfig | null = null;
@@ -57,6 +58,9 @@ export class HttpClientService {
     // Config caching
     private static configCache: { data: BeINHttpConfig; timestamp: number } | null = null;
     private static readonly CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+    
+    // Default session timeout: 15 minutes (conservative)
+    private static readonly DEFAULT_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
     // Browser-like headers (matching old working project)
     // NOTE: Sec-Fetch-* headers were REMOVED because:
@@ -81,6 +85,7 @@ export class HttpClientService {
 
         // Build axios config
         const axiosConfig: Record<string, unknown> = {
+            jar: this.jar,  // Required for wrapper() when no proxy
             withCredentials: true,
             headers: HttpClientService.BROWSER_HEADERS,
             timeout: 30000,
@@ -88,15 +93,16 @@ export class HttpClientService {
             validateStatus: (status: number) => status < 500
         };
 
-        // IMPORTANT: wrapper() does NOT work with custom httpsAgent (throws error)
-        // For proxy mode, we MUST use createCookieAgent to wrap the proxy agent
-        // For non-proxy mode, we can use wrapper() directly
+        // FIX: Proper cookie handling with proxy using createCookieAgent()
+        // This properly integrates cookies during redirect chains (required for Akamai)
         if (proxyConfig) {
             // PROXY MODE: Use createCookieAgent to wrap proxy agent with cookie support
             const proxyManager = getProxyManager();
             const proxyUrl = proxyManager.buildProxyUrlFromConfig(proxyConfig);
             const proxyType = proxyConfig.proxyType || 'socks5';
             
+            // Create a cookie-aware agent that wraps the proxy agent
+            // This ensures cookies are properly handled during redirect chains
             if (proxyType === 'socks5') {
                 const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
                 axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, { 
@@ -109,12 +115,13 @@ export class HttpClientService {
                 });
             }
             
-            axiosConfig.proxy = false;
+            axiosConfig.proxy = false; // Disable axios built-in proxy
+
+            // Create axios instance - cookie handling is done by the agent
             this.axios = axios.create(axiosConfig);
             console.log(`[HTTP] Using proxy: ${proxyManager.getMaskedProxyUrlFromConfig(proxyConfig)} (cookie-aware agent)`);
         } else {
             // NO PROXY MODE: Use wrapper() for automatic cookie handling
-            axiosConfig.jar = this.jar;
             this.axios = wrapper(axios.create(axiosConfig));
             console.log('[HTTP] No proxy - using wrapper() for automatic cookie handling');
         }
@@ -170,7 +177,7 @@ export class HttpClientService {
             checkUrl: get('bein_check_url', '/Dealers/Pages/frmCheck.aspx'),
             signalUrl: get('bein_signal_url', '/RefreshSignal'),
 
-            sessionTimeout: parseInt(get('worker_session_timeout', '25')),
+            sessionTimeout: parseInt(get('worker_session_timeout', '15')),
             maxRetries: parseInt(get('worker_max_retries', '3'))
         };
 
@@ -252,14 +259,16 @@ export class HttpClientService {
 
     /**
      * Build POST request headers
-     * NOTE: Origin header removed to match working project behavior
-     * Some servers (with Akamai) may block requests with unexpected Origin
-     * @param refererUrl - The URL to use as Referer
+     * NOTE: We only add Content-Type, Referer, Origin
+     * The BROWSER_HEADERS are already set as axios defaults
+     * This matches the old working project pattern
+     * @param refererUrl - The URL to use as Referer and Origin base
      */
     private buildPostHeaders(refererUrl: string): Record<string, string> {
         return {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Referer': refererUrl
+            'Referer': refererUrl,
+            'Origin': new URL(refererUrl).origin
         };
     }
 
@@ -622,18 +631,25 @@ export class HttpClientService {
 
     /**
      * Export session for Redis caching
+     * Includes timestamps for cross-worker session tracking
      */
     async exportSession(): Promise<SessionData> {
         const cookieStr = await this.jar.serialize();
+        const now = Date.now();
+        const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+        
         return {
             cookies: JSON.stringify(cookieStr),
             viewState: this.currentViewState || undefined,
-            lastLoginTime: new Date().toISOString()
+            lastLoginTime: new Date().toISOString(),
+            loginTimestamp: this.sessionExpiresAt ? (this.sessionExpiresAt - timeoutMs) : now,
+            expiresAt: this.sessionExpiresAt || (now + timeoutMs)
         };
     }
 
     /**
      * Import session from Redis
+     * Restores cookies, ViewState, and session expiry
      */
     async importSession(data: SessionData): Promise<void> {
         try {
@@ -642,21 +658,22 @@ export class HttpClientService {
 
             // Build axios config with proxy if available
             const axiosConfig: Record<string, unknown> = {
+                jar: this.jar,  // Required for wrapper() when no proxy
                 withCredentials: true,
                 headers: HttpClientService.BROWSER_HEADERS,
                 timeout: 30000,
                 maxRedirects: 5
             };
 
-            // IMPORTANT: wrapper() does NOT work with custom httpsAgent (throws error)
-            // For proxy mode, we MUST use createCookieAgent to wrap the proxy agent
-            // For non-proxy mode, we can use wrapper() directly
+            // FIX: Proper cookie handling with proxy using createCookieAgent()
+            // Same logic as constructor - ensures cookies work during redirect chains
             if (this.proxyConfig) {
                 // PROXY MODE: Use createCookieAgent to wrap proxy agent with cookie support
                 const proxyManager = getProxyManager();
                 const proxyUrl = proxyManager.buildProxyUrlFromConfig(this.proxyConfig);
                 const proxyType = this.proxyConfig.proxyType || 'socks5';
                 
+                // Create a cookie-aware agent that wraps the proxy agent
                 if (proxyType === 'socks5') {
                     const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
                     axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, { 
@@ -670,11 +687,11 @@ export class HttpClientService {
                 }
                 
                 axiosConfig.proxy = false;
+
                 this.axios = axios.create(axiosConfig);
                 console.log(`[HTTP] Session imported with proxy: ${proxyManager.getMaskedProxyUrlFromConfig(this.proxyConfig)} (cookie-aware agent)`);
             } else {
                 // NO PROXY MODE: Use wrapper()
-                axiosConfig.jar = this.jar;
                 this.axios = wrapper(axios.create(axiosConfig));
                 console.log('[HTTP] Session imported - using wrapper() for automatic cookie handling');
             }
@@ -685,11 +702,21 @@ export class HttpClientService {
                 this.currentViewState = data.viewState;
             }
 
+            // Restore session expiry from cached data
+            if (data.expiresAt) {
+                this.sessionExpiresAt = data.expiresAt;
+            } else if (data.loginTimestamp) {
+                // Calculate expiry from loginTimestamp
+                const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+                this.sessionExpiresAt = data.loginTimestamp + timeoutMs;
+            }
+
             console.log('[HTTP] Session imported successfully');
         } catch (error) {
             console.error('[HTTP] Failed to import session:', error);
             // Reset to clean state
             this.jar = new CookieJar();
+            this.sessionExpiresAt = null;
         }
     }
 
@@ -702,26 +729,54 @@ export class HttpClientService {
         this.currentStbNumber = null;
         this.lastLoginTime = null;
         this.sessionValid = false;
+        this.sessionExpiresAt = null;
         console.log('[HTTP] Session reset');
     }
 
     /**
      * Check if current session is still active (within timeout period)
-     * Uses sessionTimeout from config (in minutes)
+     * Uses sessionExpiresAt if available (from Redis cache), otherwise falls back to lastLoginTime
      */
     isSessionActive(): boolean {
-        if (!this.lastLoginTime || !this.sessionValid) {
+        if (!this.sessionValid) {
             return false;
         }
 
-        const elapsed = Date.now() - this.lastLoginTime.getTime();
-        const timeoutMs = (this.config?.sessionTimeout || 25) * 60 * 1000; // default 25 min
+        const now = Date.now();
+
+        // Prefer sessionExpiresAt if available (more accurate for cross-worker)
+        if (this.sessionExpiresAt) {
+            const isActive = now < this.sessionExpiresAt;
+            const remainingMs = this.sessionExpiresAt - now;
+            
+            if (isActive) {
+                const remainingMin = Math.floor(remainingMs / 60000);
+                const remainingSec = Math.floor((remainingMs % 60000) / 1000);
+                console.log(`[HTTP] Session active (${remainingMin}m ${remainingSec}s remaining)`);
+            } else {
+                const expiredAgoMs = -remainingMs;
+                const expiredAgoMin = Math.floor(expiredAgoMs / 60000);
+                console.log(`[HTTP] Session expired (${expiredAgoMin} min ago)`);
+                this.sessionValid = false;
+            }
+            return isActive;
+        }
+
+        // Fallback to lastLoginTime
+        if (!this.lastLoginTime) {
+            return false;
+        }
+
+        const elapsed = now - this.lastLoginTime.getTime();
+        const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
         const isActive = elapsed < timeoutMs;
 
         if (isActive) {
-            console.log(`[HTTP] Session active (${Math.floor(elapsed / 60000)} min / ${this.config?.sessionTimeout || 25} min timeout)`);
+            const remainingMs = timeoutMs - elapsed;
+            const remainingMin = Math.floor(remainingMs / 60000);
+            console.log(`[HTTP] Session active (~${remainingMin} min remaining, age-based)`);
         } else {
-            console.log(`[HTTP] Session expired (${Math.floor(elapsed / 60000)} min ago)`);
+            console.log(`[HTTP] Session expired (${Math.floor(elapsed / 60000)} min old)`);
             this.sessionValid = false;
         }
 
@@ -730,80 +785,37 @@ export class HttpClientService {
 
     /**
      * Mark session as valid after successful login
+     * Sets both lastLoginTime and sessionExpiresAt for reliable tracking
      */
     private markSessionValid(): void {
-        this.lastLoginTime = new Date();
+        const now = Date.now();
+        const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+        
+        this.lastLoginTime = new Date(now);
+        this.sessionExpiresAt = now + timeoutMs;
         this.sessionValid = true;
-        console.log('[HTTP] Session marked as valid');
+        
+        console.log(`[HTTP] Session marked as valid (expires in ${Math.floor(timeoutMs / 60000)} min)`);
     }
 
     /**
      * Mark session as valid when restored from Redis cache
-     * Uses the original login time to properly calculate session age
-     * @param originalLoginTime - ISO timestamp from cached session (optional)
+     * Uses expiresAt from session data if available
+     * @param expiresAt - Optional expiry timestamp from cached session
      */
-    public markSessionValidFromCache(originalLoginTime?: string): void {
+    public markSessionValidFromCache(expiresAt?: number): void {
         this.sessionValid = true;
-        // Use original login time if provided, otherwise fallback to now
-        if (originalLoginTime) {
-            this.lastLoginTime = new Date(originalLoginTime);
-            const ageMinutes = Math.floor((Date.now() - this.lastLoginTime.getTime()) / 60000);
-            console.log(`[HTTP] Session marked valid from Redis cache (age: ${ageMinutes} min)`);
-        } else {
-            this.lastLoginTime = new Date();
-            console.log('[HTTP] Session marked valid from Redis cache (no original time, using now)');
-        }
-    }
-
-    /**
-     * Get session age in minutes
-     * Returns -1 if session is not active
-     */
-    public getSessionAge(): number {
-        if (!this.lastLoginTime) return -1;
-        return Math.floor((Date.now() - this.lastLoginTime.getTime()) / 60000);
-    }
-
-    /**
-     * Validate cached session on server before trusting it
-     * Makes a lightweight HTTP request to check if session is still valid
-     * Unlike validateSession(), this doesn't refresh login time - just checks validity
-     * 
-     * @returns true if session is valid on server, false if expired
-     */
-    public async validateCachedSessionOnServer(): Promise<boolean> {
-        console.log('[HTTP] 🔍 Validating cached session on server...');
+        this.lastLoginTime = new Date();
         
-        try {
-            const checkUrl = this.buildFullUrl(this.config?.checkUrl || '/Dealers/Pages/frmCheck.aspx');
-            
-            const response = await this.axios.get(checkUrl, {
-                timeout: 15000,
-                maxRedirects: 5,
-                validateStatus: () => true  // Accept any status to analyze response
-            });
-            
-            // Use existing session expiry detection (5-layer approach)
-            const expiryReason = this.checkForSessionExpiry(response.data);
-            if (expiryReason) {
-                console.log(`[HTTP] ⚠️ Cached session validation FAILED: ${expiryReason}`);
-                this.invalidateSession();
-                return false;
-            }
-            
-            // Update ViewState from response for future requests
-            const newViewState = this.extractHiddenFields(response.data);
-            if (newViewState && newViewState.__VIEWSTATE) {
-                this.currentViewState = newViewState;
-                console.log(`[HTTP] ✅ Cached session validation PASSED (ViewState updated: ${newViewState.__VIEWSTATE.length} chars)`);
-            } else {
-                console.log('[HTTP] ✅ Cached session validation PASSED');
-            }
-            
-            return true;
-        } catch (error: any) {
-            console.log(`[HTTP] ⚠️ Cached session validation request failed: ${error.message}`);
-            return false;  // Assume invalid on network error
+        if (expiresAt && expiresAt > Date.now()) {
+            this.sessionExpiresAt = expiresAt;
+            const remainingMin = Math.floor((expiresAt - Date.now()) / 60000);
+            console.log(`[HTTP] Session marked valid from cache (${remainingMin} min remaining)`);
+        } else {
+            // No expiresAt or already expired - set new expiry
+            const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+            this.sessionExpiresAt = Date.now() + timeoutMs;
+            console.log('[HTTP] Session marked valid from cache (new expiry set)');
         }
     }
 
@@ -812,7 +824,7 @@ export class HttpClientService {
      * Used for setting Redis TTL
      */
     public getSessionTimeout(): number {
-        return this.config?.sessionTimeout || 25;
+        return this.config?.sessionTimeout || 15;
     }
 
     /**
@@ -822,63 +834,9 @@ export class HttpClientService {
     public invalidateSession(): void {
         this.sessionValid = false;
         this.lastLoginTime = null;
+        this.sessionExpiresAt = null;
         this.currentViewState = null;
         console.log('[HTTP] ⚠️ Session invalidated - will require fresh login');
-    }
-
-    /**
-     * Validate session by making a lightweight request to beIN
-     * Used by keep-alive service to check if session is still valid on server side
-     * 
-     * @returns true if session is valid on beIN server, false if expired
-     */
-    public async validateSession(): Promise<boolean> {
-        if (!this.sessionValid) {
-            console.log('[HTTP] validateSession: No active session');
-            return false;
-        }
-
-        try {
-            // Use check page as a lightweight validation endpoint
-            const checkUrl = this.buildFullUrl(this.config?.checkUrl || '/Dealers/Pages/frmCheck.aspx');
-            console.log(`[HTTP] validateSession: Checking ${checkUrl}`);
-
-            const response = await this.axios.get(checkUrl, {
-                headers: {
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Referer': this.config?.loginUrl || 'https://sbs.beinsports.net/'
-                },
-                timeout: 15000,
-                maxRedirects: 0,
-                validateStatus: (status) => status < 400 || status === 302
-            });
-
-            // Check if we got redirected to login page (session expired)
-            const sessionExpiry = this.checkForSessionExpiry(response.data);
-            if (sessionExpiry) {
-                console.log(`[HTTP] validateSession: Session expired - ${sessionExpiry}`);
-                this.invalidateSession();
-                return false;
-            }
-
-            // Update ViewState for future requests
-            const newViewState = this.extractHiddenFields(response.data);
-            if (newViewState.__VIEWSTATE) {
-                this.currentViewState = newViewState;
-            }
-
-            // Refresh login timestamp
-            this.lastLoginTime = new Date();
-            console.log('[HTTP] validateSession: Session is valid ✅');
-            return true;
-
-        } catch (error: any) {
-            console.error(`[HTTP] validateSession error: ${error.message}`);
-            // Don't invalidate on network error - might be temporary
-            return false;
-        }
     }
 
     // =============================================
@@ -1058,50 +1016,6 @@ export class HttpClientService {
             );
 
             console.log(`[HTTP] Login response: ${loginRes.status}`);
-
-            // === DEBUG: Log cookie information after login ===
-            // This helps diagnose authentication issues with Akamai/beIN
-            const setCookieHeaders = loginRes.headers['set-cookie'];
-            if (setCookieHeaders && setCookieHeaders.length > 0) {
-                console.log(`[HTTP] 🍪 Set-Cookie headers (${setCookieHeaders.length}):`);
-                setCookieHeaders.forEach((c: string) => console.log(`[HTTP]   - ${c.split(';')[0]}`));
-            } else {
-                console.log(`[HTTP] ⚠️ No Set-Cookie headers in login response`);
-            }
-
-            // Log final URL after redirects
-            const finalUrlDebug = loginRes.request?.res?.responseUrl || loginRes.config?.url || 'unknown';
-            console.log(`[HTTP] 🔄 Final URL after redirects: ${finalUrlDebug}`);
-
-            // Verify cookies in jar after login
-            const loginCookies = await this.jar.getCookies(this.config.loginUrl);
-            console.log(`[HTTP] 🍪 Cookie jar after login: ${loginCookies.length} cookies`);
-            loginCookies.forEach(c => console.log(`[HTTP]   - ${c.key}: ${c.value.substring(0, 30)}...`));
-
-            // Check specifically for auth cookie
-            const hasAuthCookie = loginCookies.some(c => c.key.includes('SBSDealerAuth'));
-            if (!hasAuthCookie) {
-                console.log(`[HTTP] ⚠️ WARNING: SBSDealerAuth cookie NOT found after login!`);
-                
-                // FALLBACK: Try manual cookie capture from Set-Cookie headers
-                // This handles cases where wrapper() didn't capture cookies during redirect
-                if (setCookieHeaders && setCookieHeaders.length > 0) {
-                    console.log(`[HTTP] 🔧 Attempting manual cookie capture from headers...`);
-                    for (const cookieStr of setCookieHeaders) {
-                        try {
-                            await this.jar.setCookie(cookieStr, this.config.loginUrl);
-                        } catch (e) {
-                            // Ignore invalid cookies
-                        }
-                    }
-                    const cookiesAfterManual = await this.jar.getCookies(this.config.loginUrl);
-                    console.log(`[HTTP] 🍪 Cookie jar after manual capture: ${cookiesAfterManual.length} cookies`);
-                    cookiesAfterManual.forEach(c => console.log(`[HTTP]   - ${c.key}: ${c.value.substring(0, 30)}...`));
-                }
-            } else {
-                console.log(`[HTTP] ✅ SBSDealerAuth cookie present`);
-            }
-            // === END DEBUG ===
 
             // Check for errors in HTML
             const error = this.checkForErrors(loginRes.data);

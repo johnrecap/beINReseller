@@ -68,6 +68,11 @@ export interface SessionData {
     cookies: string; // JSON serialized cookies
     viewState?: HiddenFields;
     lastLoginTime?: string;
+    
+    // Enhanced session tracking for cross-worker sharing
+    loginTimestamp?: number;   // Unix timestamp (ms) when login occurred
+    expiresAt?: number;        // Unix timestamp (ms) when session expires
+    accountId?: string;        // Account ID for validation
 }
 
 export interface SignalRefreshResult {

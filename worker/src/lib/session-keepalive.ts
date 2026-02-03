@@ -88,7 +88,7 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
         const cachedSession = await getSessionFromCache(account.id);
         if (cachedSession) {
             await client.importSession(cachedSession);
-            client.markSessionValidFromCache(cachedSession.lastLoginTime);
+            client.markSessionValidFromCache();
         }
     } catch (error) {
         console.log(`[KeepAlive] Could not restore cached session for ${account.username}`);

@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState, useRef } from 'react'
+
 interface Contract {
     type: string
     status: string
@@ -12,36 +14,61 @@ interface Contract {
 interface BeINExportTableProps {
     cardNumber: string
     contracts: Contract[]
-    expiryDate?: string  // Card expiry date for the yellow banner
 }
 
 /**
- * BeINExportTable - Renders contracts table exactly like beIN Sport source
- * Used for image export/download - hidden in UI, captured with html-to-image
+ * BeINExportTable - Renders contracts table with responsive scaling
+ * Desktop: Full size table
+ * Mobile: Same table scaled down to fit screen width (centered)
+ * Export: Hidden full-size table for image download
  */
-export function BeINExportTable({ cardNumber, contracts, expiryDate }: BeINExportTableProps) {
-    // Get status cell background color (beIN portal style)
-    const getStatusCellStyle = (status: string): React.CSSProperties => {
-        const statusLower = status.toLowerCase()
-        if (statusLower.includes('active')) {
-            return { backgroundColor: '#ccffcc' }  // Light green
-        } else if (statusLower.includes('cancel')) {
-            return { backgroundColor: '#ffcccc' }  // Light pink/red
-        } else if (statusLower.includes('expir')) {
-            return { backgroundColor: '#ffffcc' }  // Light yellow
+export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps) {
+    const [scaleFactor, setScaleFactor] = useState(1)
+    const tableRef = useRef<HTMLDivElement>(null)
+    const [tableHeight, setTableHeight] = useState<number>(0)
+    const TABLE_WIDTH = 850
+
+    // Calculate scale factor based on screen width
+    useEffect(() => {
+        const calculateScale = () => {
+            if (typeof window === 'undefined') return
+            
+            const screenWidth = window.innerWidth
+            const availableWidth = screenWidth - 80 // more padding for better fit
+            
+            if (availableWidth < TABLE_WIDTH) {
+                const newScale = availableWidth / TABLE_WIDTH
+                setScaleFactor(Math.max(newScale, 0.30)) // minimum 30% scale
+            } else {
+                setScaleFactor(1)
+            }
         }
-        return {}
+        
+        calculateScale()
+        window.addEventListener('resize', calculateScale)
+        return () => window.removeEventListener('resize', calculateScale)
+    }, [])
+
+    // Measure actual table height after render
+    useEffect(() => {
+        if (tableRef.current) {
+            const height = tableRef.current.getBoundingClientRect().height
+            setTableHeight(height)
+        }
+    }, [contracts])
+
+    // Status color helper
+    const getStatusColor = (status: string) => {
+        const s = status.toLowerCase()
+        if (s === 'active') return { bg: '#ccffcc', text: '#006600' }
+        if (s === 'expired') return { bg: '#ffffcc', text: '#996600' }
+        return { bg: '#ffcccc', text: '#990000' } // Cancelled or other
     }
 
-    return (
-        <div style={{ 
-            backgroundColor: '#ffffff', 
-            padding: '20px',
-            fontFamily: 'Arial, Helvetica, sans-serif',
-            fontSize: '12px',
-            minWidth: '750px'
-        }}>
-            {/* Card Number Header */}
+    // Table content component (reused for both visible and export)
+    const TableContent = () => (
+        <>
+            {/* Card Number */}
             <div style={{ 
                 textAlign: 'center', 
                 fontSize: '18px', 
@@ -51,157 +78,138 @@ export function BeINExportTable({ cardNumber, contracts, expiryDate }: BeINExpor
             }}>
                 {cardNumber}
             </div>
-
-            {/* Fieldset container - beIN portal style */}
-            <fieldset style={{
-                border: '1px solid #cccccc',
-                margin: '10px 0',
-                padding: '10px'
-            }}>
-                <legend style={{
-                    padding: '0 8px',
-                    fontWeight: 'bold',
-                    color: '#333333',
-                    fontSize: '14px'
-                }}>
-                    Contracts
-                </legend>
-
-                {/* Yellow ErrorBox banner */}
-                {expiryDate && (
-                    <div style={{
-                        backgroundColor: '#FFFF99',
-                        border: '1px solid #CCCCCC',
-                        padding: '8px 12px',
-                        color: '#cc0000',
-                        fontWeight: 'bold',
-                        marginBottom: '12px',
-                        fontSize: '13px'
-                    }}>
-                        This Card still Valid and will be Expired on {expiryDate}
-                    </div>
-                )}
             
-                {/* Contracts Table - exact beIN Sport styling */}
-                <table style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    border: '1px solid #cccccc',
-                    fontSize: '12px'
-                }}>
-                    <thead>
-                        <tr style={{ 
-                            backgroundColor: '#663399', 
-                            color: '#ffffff',
-                            fontWeight: 'bold'
-                        }}>
-                            <th style={{ 
-                                padding: '8px 10px', 
-                                border: '1px solid #cccccc',
-                                textAlign: 'center'
-                            }}>
-                                Type
-                            </th>
-                            <th style={{ 
-                                padding: '8px 10px', 
-                                border: '1px solid #cccccc',
-                                textAlign: 'center'
-                            }}>
-                                Status
-                            </th>
-                            <th style={{ 
-                                padding: '8px 10px', 
-                                border: '1px solid #cccccc',
-                                textAlign: 'center'
-                            }}>
-                                Package
-                            </th>
-                            <th style={{ 
-                                padding: '8px 10px', 
-                                border: '1px solid #cccccc',
-                                textAlign: 'center'
-                            }}>
-                                Start Date
-                            </th>
-                            <th style={{ 
-                                padding: '8px 10px', 
-                                border: '1px solid #cccccc',
-                                textAlign: 'center'
-                            }}>
-                                Expiry Date
-                            </th>
-                            <th style={{ 
-                                padding: '8px 10px', 
-                                border: '1px solid #cccccc',
-                                textAlign: 'center'
-                            }}>
-                                Invoice No
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {contracts.map((contract, idx) => (
+            {/* Contracts Table - exact beIN Sport styling */}
+            <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                border: '1px solid #cccccc',
+                fontSize: '12px'
+            }}>
+                <thead>
+                    <tr style={{ 
+                        backgroundColor: '#663399', 
+                        color: '#ffffff',
+                        fontWeight: 'bold'
+                    }}>
+                        <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
+                            Invoice No
+                        </th>
+                        <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
+                            Expiry Date
+                        </th>
+                        <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
+                            Start Date
+                        </th>
+                        <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
+                            Package
+                        </th>
+                        <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
+                            Status
+                        </th>
+                        <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
+                            Type
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {contracts.map((contract, idx) => {
+                        const statusColor = getStatusColor(contract.status)
+                        return (
                             <tr 
                                 key={idx}
-                                style={{ 
-                                    backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f5f5f5'
-                                }}
+                                style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f5f5f5' }}
                             >
-                                <td style={{ 
-                                    padding: '6px 10px', 
-                                    border: '1px solid #cccccc',
-                                    textAlign: 'center',
-                                    color: '#333333'
-                                }}>
-                                    {contract.type}
+                                <td style={{ padding: '6px 10px', border: '1px solid #cccccc', textAlign: 'center', color: '#333333' }}>
+                                    {contract.invoiceNo}
                                 </td>
-                                <td style={{ 
-                                    padding: '6px 10px', 
-                                    border: '1px solid #cccccc',
-                                    textAlign: 'center',
-                                    color: '#333333',
-                                    fontWeight: 500,
-                                    ...getStatusCellStyle(contract.status)
-                                }}>
-                                    {contract.status}
+                                <td style={{ padding: '6px 10px', border: '1px solid #cccccc', textAlign: 'center', color: '#333333' }}>
+                                    {contract.expiryDate}
                                 </td>
-                                <td style={{ 
-                                    padding: '6px 10px', 
-                                    border: '1px solid #cccccc',
-                                    textAlign: 'center',
-                                    color: '#333333'
-                                }}>
+                                <td style={{ padding: '6px 10px', border: '1px solid #cccccc', textAlign: 'center', color: '#333333' }}>
+                                    {contract.startDate}
+                                </td>
+                                <td style={{ padding: '6px 10px', border: '1px solid #cccccc', textAlign: 'center', color: '#333333' }}>
                                     {contract.package}
                                 </td>
                                 <td style={{ 
                                     padding: '6px 10px', 
                                     border: '1px solid #cccccc',
                                     textAlign: 'center',
-                                    color: '#333333'
+                                    backgroundColor: statusColor.bg,
+                                    color: statusColor.text,
+                                    fontWeight: 500
                                 }}>
-                                    {contract.startDate}
+                                    {contract.status}
                                 </td>
-                                <td style={{ 
-                                    padding: '6px 10px', 
-                                    border: '1px solid #cccccc',
-                                    textAlign: 'center',
-                                    color: '#333333'
-                                }}>
-                                    {contract.expiryDate}
-                                </td>
-                                <td style={{ 
-                                    padding: '6px 10px', 
-                                    border: '1px solid #cccccc',
-                                    textAlign: 'center',
-                                    color: '#333333'
-                                }}>
-                                    {contract.invoiceNo}
+                                <td style={{ padding: '6px 10px', border: '1px solid #cccccc', textAlign: 'center', color: '#333333' }}>
+                                    {contract.type}
                                 </td>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </fieldset>
+                        )
+                    })}
+                </tbody>
+            </table>
+        </>
+    )
+
+    // Calculate the scaled height for the container
+    const scaledContainerHeight = tableHeight > 0 ? tableHeight * scaleFactor : 'auto'
+
+    return (
+        <div style={{ position: 'relative', width: '100%' }}>
+            {/* Container that holds the scaled table with proper height */}
+            <div 
+                style={{ 
+                    width: '100%',
+                    height: typeof scaledContainerHeight === 'number' ? `${scaledContainerHeight}px` : 'auto',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'flex-start'
+                }}
+            >
+                {/* Visible Scaled Table */}
+                <div
+                    ref={tableRef}
+                    style={{ 
+                        backgroundColor: '#ffffff', 
+                        padding: '20px',
+                        fontFamily: 'Arial, Helvetica, sans-serif',
+                        fontSize: '12px',
+                        width: `${TABLE_WIDTH}px`,
+                        flexShrink: 0,
+                        transform: scaleFactor < 1 ? `scale(${scaleFactor})` : 'none',
+                        transformOrigin: 'top center'
+                    }}
+                >
+                    <TableContent />
+                </div>
+            </div>
+
+            {/* Hidden Full-Size Table for Export - uses fixed position to not affect layout */}
+            <div 
+                style={{ 
+                    position: 'fixed',
+                    left: '-9999px',
+                    top: '-9999px',
+                    pointerEvents: 'none',
+                    zIndex: -1
+                }}
+            >
+                <div
+                    data-export-table="true"
+                    style={{ 
+                        backgroundColor: '#ffffff', 
+                        padding: '20px',
+                        fontFamily: 'Arial, Helvetica, sans-serif',
+                        fontSize: '12px',
+                        width: `${TABLE_WIDTH}px`
+                    }}
+                >
+                    <TableContent />
+                </div>
+            </div>
         </div>
     )
 }

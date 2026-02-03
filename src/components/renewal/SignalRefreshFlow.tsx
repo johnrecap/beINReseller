@@ -4,7 +4,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { CardStatusDisplay } from './CardStatusDisplay'
-import { ContractsTable } from './ContractsTable'
 import { BeINExportTable } from './BeINExportTable'
 import { Loader2, Zap, CreditCard, CheckCircle, XCircle, RefreshCw, Search, Download } from 'lucide-react'
 import { toast } from 'sonner'
@@ -50,7 +49,6 @@ export function SignalRefreshFlow() {
     const [pollTrigger, setPollTrigger] = useState(0) // Used to restart polling
     const [isDownloading, setIsDownloading] = useState(false)
     const captureRef = useRef<HTMLDivElement>(null)
-    const exportRef = useRef<HTMLDivElement>(null)
 
     // Poll for operation status
     useEffect(() => {
@@ -185,29 +183,27 @@ export function SignalRefreshFlow() {
 
     // Download image of card status - beIN Sport styled export
     const handleDownloadImage = async () => {
-        if (!exportRef.current || contracts.length === 0) {
+        if (!captureRef.current || contracts.length === 0) {
             toast.error(sr.downloadFailed || 'Failed to download image')
             return
         }
 
         setIsDownloading(true)
         try {
-            // Temporarily make the export element visible for capture
-            const exportElement = exportRef.current
-            const originalStyle = exportElement.style.cssText
-            exportElement.style.cssText = 'position: fixed; left: 0; top: 0; z-index: 9999; opacity: 1;'
+            // Find the BeINExportTable inside the capturable area
+            const captureElement = captureRef.current
+            const tableElement = captureElement.querySelector('[data-export-table]') as HTMLElement
             
-            // Wait for styles to apply
-            await new Promise(resolve => setTimeout(resolve, 100))
+            if (!tableElement) {
+                toast.error(sr.downloadFailed || 'Failed to download image')
+                return
+            }
 
-            const dataUrl = await toPng(exportElement, {
+            const dataUrl = await toPng(tableElement, {
                 backgroundColor: '#ffffff',
                 pixelRatio: 2,
                 cacheBust: true,
             })
-
-            // Restore original hidden style
-            exportElement.style.cssText = originalStyle
 
             const date = new Date().toISOString().split('T')[0]
             const link = document.createElement('a')
@@ -220,10 +216,6 @@ export function SignalRefreshFlow() {
             toast.success(sr.downloadSuccess || 'Image downloaded successfully!')
         } catch (error) {
             console.error('Download failed:', error)
-            // Restore style on error
-            if (exportRef.current) {
-                exportRef.current.style.cssText = 'position: absolute; left: -9999px; top: 0; z-index: -1;'
-            }
             toast.error(sr.downloadFailed || 'Failed to download image')
         } finally {
             setIsDownloading(false)
@@ -231,7 +223,7 @@ export function SignalRefreshFlow() {
     }
 
     return (
-        <div className="max-w-lg mx-auto space-y-6">
+        <div className="max-w-full mx-auto space-y-6">
             {/* Input Step */}
             {step === 'input' && (
                 <div className="space-y-4">
@@ -285,7 +277,7 @@ export function SignalRefreshFlow() {
 
             {/* Status Display Step - with Activate Button */}
             {step === 'status' && cardStatus && (
-                <div className="space-y-4">
+                <div className="w-full md:w-fit mx-auto space-y-4">
                     {/* Download Image Button */}
                     <button
                         onClick={handleDownloadImage}
@@ -300,13 +292,13 @@ export function SignalRefreshFlow() {
                         {isDownloading ? (sr.downloading || 'Downloading...') : (sr.downloadImage || 'Download Image')}
                     </button>
 
-                    {/* Capturable Area */}
+                    {/* Capturable Area - fits content width */}
                     <div ref={captureRef} data-capture="true" className="space-y-4 p-4 bg-[#1a1d26] rounded-lg">
                         <CardStatusDisplay {...cardStatus} />
 
-                        {/* Contracts Table */}
+                        {/* Contracts Table - BeIN Sport style */}
                         {contracts.length > 0 && (
-                            <ContractsTable contracts={contracts} expiryDate={cardStatus.expiryDate} />
+                            <BeINExportTable cardNumber={cardNumber} contracts={contracts} />
                         )}
                     </div>
 
@@ -323,7 +315,7 @@ export function SignalRefreshFlow() {
                                 className="flex-1 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                             >
                                 <Zap className="w-5 h-5" />
-                                Activate ( {cardStatus.activateCount.current} / {cardStatus.activateCount.max} )
+                                {sr.activateButton}
                             </button>
                         )}
 
@@ -405,24 +397,6 @@ export function SignalRefreshFlow() {
                 </div>
             )}
 
-            {/* Hidden beIN Sport styled export component - for image download */}
-            {contracts.length > 0 && cardStatus && (
-                <div 
-                    ref={exportRef}
-                    style={{ 
-                        position: 'absolute', 
-                        left: '-9999px', 
-                        top: 0,
-                        zIndex: -1 
-                    }}
-                >
-                    <BeINExportTable 
-                        cardNumber={cardNumber}
-                        contracts={contracts}
-                        expiryDate={cardStatus.expiryDate}
-                    />
-                </div>
-            )}
         </div>
     )
 }

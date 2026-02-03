@@ -839,6 +839,61 @@ export class HttpClientService {
         console.log('[HTTP] ⚠️ Session invalidated - will require fresh login');
     }
 
+    /**
+     * Validate session on beIN server
+     * Makes a lightweight request to check if session is still valid
+     * 
+     * @returns true if session is valid on beIN server, false if expired
+     */
+    public async validateSession(): Promise<boolean> {
+        if (!this.sessionValid) {
+            console.log('[HTTP] validateSession: No active session');
+            return false;
+        }
+
+        try {
+            // Use check page as a lightweight validation endpoint
+            const checkUrl = this.buildFullUrl(this.config?.checkUrl || '/Dealers/Pages/frmCheck.aspx');
+            console.log(`[HTTP] validateSession: Checking ${checkUrl}`);
+
+            const response = await this.axios.get(checkUrl, {
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Referer': this.config?.loginUrl || 'https://sbs.beinsports.net/'
+                },
+                timeout: 15000,
+                maxRedirects: 0,
+                validateStatus: (status) => status < 400 || status === 302
+            });
+
+            // Check if we got redirected to login page (session expired)
+            const sessionExpiry = this.checkForSessionExpiry(response.data);
+            if (sessionExpiry) {
+                console.log(`[HTTP] validateSession: Session expired - ${sessionExpiry}`);
+                this.invalidateSession();
+                return false;
+            }
+
+            // Update ViewState for future requests
+            const newViewState = this.extractHiddenFields(response.data);
+            if (newViewState.__VIEWSTATE) {
+                this.currentViewState = newViewState;
+            }
+
+            // Refresh login timestamp
+            this.lastLoginTime = new Date();
+            console.log('[HTTP] validateSession: Session is valid ✅');
+            return true;
+
+        } catch (error: any) {
+            console.error(`[HTTP] validateSession error: ${error.message}`);
+            // Don't invalidate on network error - might be temporary
+            return false;
+        }
+    }
+
     // =============================================
     // LOGIN FLOW
     // =============================================

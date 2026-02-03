@@ -1,20 +1,16 @@
 {
     "name": "bein-worker",
     "version": "1.0.0",
-    "description": "beIN Panel Automation Worker - Playwright-based queue processor",
+    "description": "beIN Panel Automation Worker - HTTP-based queue processor",
     "main": "dist/index.js",
     "scripts": {
         "build": "node -e \"require('fs').mkdirSync('prisma',{recursive:true})\" && node -e \"require('fs').copyFileSync('../prisma/schema.prisma','prisma/schema.prisma')\" && prisma generate && tsc",
-        "start": "node dist/index.js",
-        "dev": "ts-node src/index.ts",
-        "keepalive": "node dist/keepalive.js",
-        "keepalive:dev": "ts-node src/keepalive.ts",
-        "install:browser": "npx playwright install chromium"
+        "start": "node dist/index.js"
     },
     "keywords": [
         "bein",
         "automation",
-        "playwright",
+        "http",
         "worker"
     ],
     "author": "",
@@ -33,7 +29,6 @@
         "ioredis": "^5.4.2",
         "otplib": "^12.0.1",
         "pg": "^8.16.3",
-        "playwright": "^1.50.1",
         "socks-proxy-agent": "^8.0.5",
         "tough-cookie": "^5.1.1",
         "undici": "^6.21.0"

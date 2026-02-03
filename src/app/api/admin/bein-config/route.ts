@@ -54,6 +54,7 @@ const BEIN_SETTINGS_KEYS = [
     // Session Keep-Alive Settings (NEW)
     'worker_keepalive_enabled',         // Enable/disable background keep-alive
     'worker_keepalive_interval',        // Interval in minutes (default: 10)
+    'keepalive_interval_minutes',       // Session refresh interval (used by worker)
 
     // User Proxy Settings
     'user_proxy_limit',  // Number of users with proxy linked (display only)

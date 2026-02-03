@@ -24,9 +24,9 @@ interface BeINExportTableProps {
  */
 export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps) {
     const [scaleFactor, setScaleFactor] = useState(1)
-    const [tableHeight, setTableHeight] = useState<number | null>(null)
     const tableRef = useRef<HTMLDivElement>(null)
-    const TABLE_MIN_WIDTH = 890
+    const [tableHeight, setTableHeight] = useState<number>(0)
+    const TABLE_WIDTH = 850
 
     // Calculate scale factor based on screen width
     useEffect(() => {
@@ -36,8 +36,8 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
             const screenWidth = window.innerWidth
             const availableWidth = screenWidth - 48 // account for page padding
             
-            if (availableWidth < TABLE_MIN_WIDTH) {
-                const newScale = availableWidth / TABLE_MIN_WIDTH
+            if (availableWidth < TABLE_WIDTH) {
+                const newScale = availableWidth / TABLE_WIDTH
                 setScaleFactor(Math.max(newScale, 0.35)) // minimum 35% scale
             } else {
                 setScaleFactor(1)
@@ -49,12 +49,13 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
         return () => window.removeEventListener('resize', calculateScale)
     }, [])
 
-    // Measure table height for container adjustment
+    // Measure actual table height after render
     useEffect(() => {
         if (tableRef.current) {
-            setTableHeight(tableRef.current.offsetHeight)
+            const height = tableRef.current.getBoundingClientRect().height
+            setTableHeight(height)
         }
-    }, [contracts, scaleFactor])
+    }, [contracts])
 
     // Status color helper
     const getStatusColor = (status: string) => {
@@ -63,9 +64,6 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
         if (s === 'expired') return { bg: '#ffffcc', text: '#996600' }
         return { bg: '#ffcccc', text: '#990000' } // Cancelled or other
     }
-
-    // Calculate container height when scaled
-    const scaledHeight = tableHeight ? tableHeight * scaleFactor : 'auto'
 
     // Table content component (reused for both visible and export)
     const TableContent = () => (
@@ -155,18 +153,23 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
         </>
     )
 
+    // Calculate the scaled height for the container
+    const scaledContainerHeight = tableHeight > 0 ? tableHeight * scaleFactor : 'auto'
+
     return (
-        <>
-            {/* Visible Scaled Table - centered */}
+        <div style={{ position: 'relative', width: '100%' }}>
+            {/* Container that holds the scaled table with proper height */}
             <div 
                 style={{ 
                     width: '100%',
-                    height: typeof scaledHeight === 'number' ? `${scaledHeight}px` : 'auto',
-                    overflow: 'visible',
+                    height: typeof scaledContainerHeight === 'number' ? `${scaledContainerHeight}px` : 'auto',
+                    overflow: 'hidden',
                     display: 'flex',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    alignItems: 'flex-start'
                 }}
             >
+                {/* Visible Scaled Table */}
                 <div
                     ref={tableRef}
                     style={{ 
@@ -174,8 +177,8 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                         padding: '20px',
                         fontFamily: 'Arial, Helvetica, sans-serif',
                         fontSize: '12px',
-                        minWidth: `${TABLE_MIN_WIDTH - 40}px`,
-                        width: `${TABLE_MIN_WIDTH - 40}px`,
+                        width: `${TABLE_WIDTH}px`,
+                        flexShrink: 0,
                         transform: scaleFactor < 1 ? `scale(${scaleFactor})` : 'none',
                         transformOrigin: 'top center'
                     }}
@@ -184,14 +187,14 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                 </div>
             </div>
 
-            {/* Hidden Full-Size Table for Export - no transform */}
+            {/* Hidden Full-Size Table for Export - uses fixed position to not affect layout */}
             <div 
                 style={{ 
-                    position: 'absolute', 
-                    left: '-9999px', 
-                    top: 0,
-                    opacity: 1,
-                    pointerEvents: 'none'
+                    position: 'fixed',
+                    left: '-9999px',
+                    top: '-9999px',
+                    pointerEvents: 'none',
+                    zIndex: -1
                 }}
             >
                 <div
@@ -201,13 +204,13 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                         padding: '20px',
                         fontFamily: 'Arial, Helvetica, sans-serif',
                         fontSize: '12px',
-                        minWidth: `${TABLE_MIN_WIDTH - 40}px`
+                        width: `${TABLE_WIDTH}px`
                     }}
                 >
                     <TableContent />
                 </div>
             </div>
-        </>
+        </div>
     )
 }
 

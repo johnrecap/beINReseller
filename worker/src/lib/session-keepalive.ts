@@ -21,7 +21,7 @@ import {
     getSessionFromCache, 
     saveSessionToCache, 
     getSessionTTL,
-    extendSessionTTL 
+    refreshSessionExpiry 
 } from './session-cache';
 import { isAccountLocked } from '../pool/account-locking';
 import { BeinAccount, Proxy } from '@prisma/client';
@@ -300,8 +300,8 @@ export class SessionKeepAliveService {
         // If session has > 5 minutes left and we're not doing a forced refresh
         if (ttl > 5 * 60) {
             console.log(`[KeepAlive] ${username}: Session healthy (${ttlMinutes} min remaining)`);
-            // Just extend the TTL
-            await extendSessionTTL(accountId, 20);
+            // Refresh the session expiry (updates both internal expiresAt AND Redis TTL)
+            await refreshSessionExpiry(accountId, 20 * 60 * 1000);  // 20 min in ms
             return {
                 accountId,
                 username,

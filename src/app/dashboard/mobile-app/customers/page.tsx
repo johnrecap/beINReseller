@@ -128,21 +128,21 @@ export default function MobileAppCustomersPage() {
                         </div>
                         <div className="flex gap-2">
                             <Button
-                                variant={country === 'all' ? 'default' : 'outline'}
+                                variant={country === 'all' ? 'primary' : 'outline'}
                                 size="sm"
                                 onClick={() => setCountry('all')}
                             >
                                 الكل
                             </Button>
                             <Button
-                                variant={country === 'SA' ? 'default' : 'outline'}
+                                variant={country === 'SA' ? 'primary' : 'outline'}
                                 size="sm"
                                 onClick={() => setCountry('SA')}
                             >
                                 🇸🇦 السعودية
                             </Button>
                             <Button
-                                variant={country === 'EG' ? 'default' : 'outline'}
+                                variant={country === 'EG' ? 'primary' : 'outline'}
                                 size="sm"
                                 onClick={() => setCountry('EG')}
                             >
@@ -237,8 +237,8 @@ export default function MobileAppCustomersPage() {
                                             </td>
                                             <td className="py-3 px-4">
                                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${customer.isActive
-                                                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                                        : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                                                     }`}>
                                                     {customer.isActive ? 'نشط' : 'معطل'}
                                                 </span>

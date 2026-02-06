@@ -169,7 +169,7 @@ export default function MobileAppOrdersPage() {
                         {ORDER_STATUSES.map((s) => (
                             <Button
                                 key={s.value}
-                                variant={status === s.value ? 'default' : 'outline'}
+                                variant={status === s.value ? 'primary' : 'outline'}
                                 size="sm"
                                 onClick={() => setStatus(s.value)}
                             >

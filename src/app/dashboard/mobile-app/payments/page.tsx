@@ -159,7 +159,7 @@ export default function MobileAppPaymentsPage() {
                             {(['all', 'succeeded', 'pending', 'failed'] as const).map((s) => (
                                 <Button
                                     key={s}
-                                    variant={status === s ? 'default' : 'outline'}
+                                    variant={status === s ? 'primary' : 'outline'}
                                     size="sm"
                                     onClick={() => setStatus(s)}
                                 >

@@ -176,7 +176,7 @@ export default function CustomerDetailPage() {
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Link href="/dashboard/mobile-app/customers">
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="sm" className="p-2">
                         <ArrowRight className="h-5 w-5" />
                     </Button>
                 </Link>
@@ -186,8 +186,8 @@ export default function CustomerDetailPage() {
                 </div>
                 <div className="mr-auto flex gap-2">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${customer.isActive
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                         }`}>
                         {customer.isActive ? 'نشط' : 'معطل'}
                     </span>
@@ -274,7 +274,7 @@ export default function CustomerDetailPage() {
                     <CardContent className="space-y-3">
                         <div className="flex gap-2">
                             <Button
-                                variant={adjustmentType === 'credit' ? 'default' : 'outline'}
+                                variant={adjustmentType === 'credit' ? 'primary' : 'outline'}
                                 size="sm"
                                 className="flex-1"
                                 onClick={() => setAdjustmentType('credit')}
@@ -283,7 +283,7 @@ export default function CustomerDetailPage() {
                                 إضافة
                             </Button>
                             <Button
-                                variant={adjustmentType === 'debit' ? 'destructive' : 'outline'}
+                                variant={adjustmentType === 'debit' ? 'danger' : 'outline'}
                                 size="sm"
                                 className="flex-1"
                                 onClick={() => setAdjustmentType('debit')}
@@ -317,21 +317,21 @@ export default function CustomerDetailPage() {
             {/* Tabs */}
             <div className="flex gap-2 border-b">
                 <Button
-                    variant={activeTab === 'wallet' ? 'default' : 'ghost'}
+                    variant={activeTab === 'wallet' ? 'primary' : 'ghost'}
                     onClick={() => setActiveTab('wallet')}
                 >
                     <Wallet className="h-4 w-4 ml-2" />
                     المحفظة ({transactions.length})
                 </Button>
                 <Button
-                    variant={activeTab === 'operations' ? 'default' : 'ghost'}
+                    variant={activeTab === 'operations' ? 'primary' : 'ghost'}
                     onClick={() => setActiveTab('operations')}
                 >
                     <History className="h-4 w-4 ml-2" />
                     العمليات ({operations.length})
                 </Button>
                 <Button
-                    variant={activeTab === 'orders' ? 'default' : 'ghost'}
+                    variant={activeTab === 'orders' ? 'primary' : 'ghost'}
                     onClick={() => setActiveTab('orders')}
                 >
                     <ShoppingCart className="h-4 w-4 ml-2" />
@@ -351,8 +351,8 @@ export default function CustomerDetailPage() {
                                     <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border">
                                         <div className="flex items-center gap-3">
                                             <div className={`p-2 rounded-full ${tx.type === 'CREDIT' ? 'bg-green-100 text-green-600' :
-                                                    tx.type === 'REFUND' ? 'bg-blue-100 text-blue-600' :
-                                                        'bg-red-100 text-red-600'
+                                                tx.type === 'REFUND' ? 'bg-blue-100 text-blue-600' :
+                                                    'bg-red-100 text-red-600'
                                                 }`}>
                                                 {tx.type === 'CREDIT' ? <Plus className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
                                             </div>
@@ -388,8 +388,8 @@ export default function CustomerDetailPage() {
                                             </p>
                                         </div>
                                         <span className={`px-2 py-1 rounded text-xs font-medium ${op.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                                                op.status === 'FAILED' ? 'bg-red-100 text-red-800' :
-                                                    'bg-yellow-100 text-yellow-800'
+                                            op.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                                                'bg-yellow-100 text-yellow-800'
                                             }`}>
                                             {op.status}
                                         </span>
@@ -413,8 +413,8 @@ export default function CustomerDetailPage() {
                                         <div className="text-left">
                                             <p className="font-bold">{formatCurrency(order.total, order.currency)}</p>
                                             <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-800' :
-                                                    order.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                        'bg-blue-100 text-blue-800'
+                                                order.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                                    'bg-blue-100 text-blue-800'
                                                 }`}>
                                                 {order.status}
                                             </span>

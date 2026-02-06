@@ -12,10 +12,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import Stripe from 'stripe'
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2026-01-28.clover'
-})
+// Lazy-load Stripe to avoid build errors when env vars are not set
+let stripeInstance: Stripe | null = null
+
+function getStripe(): Stripe {
+    if (!stripeInstance) {
+        if (!process.env.STRIPE_SECRET_KEY) {
+            throw new Error('STRIPE_SECRET_KEY is not configured')
+        }
+        stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
+            apiVersion: '2026-01-28.clover'
+        })
+    }
+    return stripeInstance
+}
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
 
@@ -35,7 +45,7 @@ export async function POST(request: NextRequest) {
         let event: Stripe.Event
 
         try {
-            event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+            event = getStripe().webhooks.constructEvent(body, signature, webhookSecret)
         } catch (err) {
             console.error('Webhook signature verification failed:', err)
             return NextResponse.json(

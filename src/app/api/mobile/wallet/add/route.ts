@@ -12,10 +12,20 @@ import { prisma } from '@/lib/prisma'
 import Stripe from 'stripe'
 import { withCustomerAuth, CustomerTokenPayload } from '@/lib/customer-auth'
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2026-01-28.clover'
-})
+// Lazy-load Stripe to avoid build errors when env vars are not set
+let stripeInstance: Stripe | null = null
+
+function getStripe(): Stripe {
+    if (!stripeInstance) {
+        if (!process.env.STRIPE_SECRET_KEY) {
+            throw new Error('STRIPE_SECRET_KEY is not configured')
+        }
+        stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
+            apiVersion: '2026-01-28.clover'
+        })
+    }
+    return stripeInstance
+}
 
 // Configuration from settings (with defaults)
 const MIN_TOPUP = 10    // SAR/EGP
@@ -92,7 +102,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         let stripeCustomerId = customerData.stripeCustomerId
 
         if (!stripeCustomerId) {
-            const stripeCustomer = await stripe.customers.create({
+            const stripeCustomer = await getStripe().customers.create({
                 email: customerData.email,
                 name: customerData.name,
                 metadata: {
@@ -109,7 +119,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         }
 
         // Create PaymentIntent
-        const paymentIntent = await stripe.paymentIntents.create({
+        const paymentIntent = await getStripe().paymentIntents.create({
             amount: Math.round(amount * 100), // Convert to smallest currency unit
             currency,
             customer: stripeCustomerId,

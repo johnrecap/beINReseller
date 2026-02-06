@@ -154,7 +154,7 @@ export default function OrderDetailPage() {
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Link href="/dashboard/mobile-app/orders">
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="sm" className="p-2">
                         <ArrowRight className="h-5 w-5" />
                     </Button>
                 </Link>
@@ -293,7 +293,7 @@ export default function OrderDetailPage() {
                             <p className="font-medium">{order.customer.name}</p>
                             <p className="text-sm text-muted-foreground">{order.customer.email}</p>
                             <Link href={`/dashboard/mobile-app/customers/${order.customer.id}`}>
-                                <Button variant="link" className="p-0 h-auto mt-2">
+                                <Button variant="ghost" className="p-0 h-auto mt-2">
                                     عرض الملف الشخصي
                                 </Button>
                             </Link>

@@ -86,7 +86,6 @@ export async function POST(request: NextRequest) {
             where: { id: customer.id },
             data: {
                 lastLoginAt: new Date(),
-                loginCount: { increment: 1 }
             }
         })
 
@@ -108,8 +107,7 @@ export async function POST(request: NextRequest) {
                 name: updatedCustomer.name,
                 country: updatedCustomer.country,
                 preferredLang: updatedCustomer.preferredLang,
-                walletBalance: updatedCustomer.walletBalance,
-                loginCount: updatedCustomer.loginCount
+                storeCredit: updatedCustomer.storeCredit
             },
             tokens
         })

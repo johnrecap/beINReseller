@@ -22,16 +22,16 @@ enum OperationType {
 }
 
 enum OperationStatus {
-  PENDING            // في الانتظار
-  PROCESSING         // قيد المعالجة
-  AWAITING_CAPTCHA   // في انتظار حل الكابتشا
-  AWAITING_PACKAGE   // في انتظار اختيار الباقة (Wizard)
+  PENDING // في الانتظار
+  PROCESSING // قيد المعالجة
+  AWAITING_CAPTCHA // في انتظار حل الكابتشا
+  AWAITING_PACKAGE // في انتظار اختيار الباقة (Wizard)
   AWAITING_FINAL_CONFIRM // في انتظار التأكيد النهائي قبل الدفع
-  COMPLETING         // جاري إتمام الشراء (Wizard)
-  COMPLETED          // مكتمل
-  FAILED             // فشل
-  CANCELLED          // ملغى
-  EXPIRED            // انتهت المهلة - تم الإلغاء تلقائياً
+  COMPLETING // جاري إتمام الشراء (Wizard)
+  COMPLETED // مكتمل
+  FAILED // فشل
+  CANCELLED // ملغى
+  EXPIRED // انتهت المهلة - تم الإلغاء تلقائياً
 }
 
 enum TransactionType {
@@ -39,54 +39,54 @@ enum TransactionType {
   WITHDRAW
   REFUND
   OPERATION_DEDUCT
-  CORRECTION        // تصحيح رصيد زائد
+  CORRECTION // تصحيح رصيد زائد
 }
 
 // ===== Wallet Transaction Types (B2C Mobile App) =====
 enum WalletTransactionType {
-  CREDIT      // إضافة رصيد
-  DEBIT       // خصم (تجديد، شراء)
-  REFUND      // استرداد (عملية فاشلة)
+  CREDIT // إضافة رصيد
+  DEBIT // خصم (تجديد، شراء)
+  REFUND // استرداد (عملية فاشلة)
 }
 
 model User {
-  id              String        @id @default(cuid())
-  username        String        @unique
-  email           String        @unique
-  passwordHash    String        @map("password_hash")
-  role            Role          @default(USER)
-  balance         Float         @default(0)
-  isActive        Boolean       @default(true) @map("is_active")
-  lowBalanceAlert Float         @default(50) @map("low_balance_alert")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-  lastLoginAt     DateTime?     @map("last_login_at")
-  deletedAt       DateTime?     @map("deleted_at")
-  deletedBalance  Float?        @map("deleted_balance")
-  deletedByUserId String?       @map("deleted_by_user_id")
-  
+  id              String    @id @default(cuid())
+  username        String    @unique
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  role            Role      @default(USER)
+  balance         Float     @default(0)
+  isActive        Boolean   @default(true) @map("is_active")
+  lowBalanceAlert Float     @default(50) @map("low_balance_alert")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  lastLoginAt     DateTime? @map("last_login_at")
+  deletedAt       DateTime? @map("deleted_at")
+  deletedBalance  Float?    @map("deleted_balance")
+  deletedByUserId String?   @map("deleted_by_user_id")
+
   // ===== Enhanced Activity Tracking =====
-  lastOperationAt       DateTime?     @map("last_operation_at")
-  loginCount            Int           @default(0) @map("login_count")
-  totalOperations       Int           @default(0) @map("total_operations")
-  inactivityWarningAt   DateTime?     @map("inactivity_warning_at")
-  
+  lastOperationAt     DateTime? @map("last_operation_at")
+  loginCount          Int       @default(0) @map("login_count")
+  totalOperations     Int       @default(0) @map("total_operations")
+  inactivityWarningAt DateTime? @map("inactivity_warning_at")
+
   // Creator tracking - who created this user
-  createdById     String?       @map("created_by_id")
-  createdBy       User?         @relation("UserCreator", fields: [createdById], references: [id])
-  createdUsers    User[]        @relation("UserCreator")
+  createdById  String? @map("created_by_id")
+  createdBy    User?   @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers User[]  @relation("UserCreator")
 
   operations    Operation[]
-  transactions  Transaction[] @relation("UserTransactions")
-  adminActions  Transaction[] @relation("AdminTransactions")
+  transactions  Transaction[]  @relation("UserTransactions")
+  adminActions  Transaction[]  @relation("AdminTransactions")
   activityLogs  ActivityLog[]
   notifications Notification[]
-  
+
   // RBAC Relations
-  managedUsers    ManagerUser[] @relation("ManagerToUsers")
-  managerLink     ManagerUser[] @relation("UserToManager")
-  managerActions  UserAction[]  @relation("ManagerActions")
-  userActions     UserAction[]  @relation("UserActions")
+  managedUsers   ManagerUser[] @relation("ManagerToUsers")
+  managerLink    ManagerUser[] @relation("UserToManager")
+  managerActions UserAction[]  @relation("ManagerActions")
+  userActions    UserAction[]  @relation("UserActions")
 
   @@index([lastLoginAt])
   @@index([lastOperationAt])
@@ -95,13 +95,13 @@ model User {
 }
 
 model ManagerUser {
-  id         String   @id @default(cuid())
-  managerId  String   @map("manager_id")
-  userId     String   @map("user_id")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  managerId String   @map("manager_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  manager    User     @relation("ManagerToUsers", fields: [managerId], references: [id])
-  user       User     @relation("UserToManager", fields: [userId], references: [id])
+  manager User @relation("ManagerToUsers", fields: [managerId], references: [id])
+  user    User @relation("UserToManager", fields: [userId], references: [id])
 
   @@unique([managerId, userId])
   @@index([managerId])
@@ -110,15 +110,15 @@ model ManagerUser {
 }
 
 model UserAction {
-  id          String   @id @default(cuid())
-  managerId   String?  @map("manager_id")
-  userId      String   @map("user_id")
-  actionType  String   @map("action_type")
-  details     Json?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  managerId  String?  @map("manager_id")
+  userId     String   @map("user_id")
+  actionType String   @map("action_type")
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
 
-  manager     User?    @relation("ManagerActions", fields: [managerId], references: [id])
-  user        User     @relation("UserActions", fields: [userId], references: [id])
+  manager User? @relation("ManagerActions", fields: [managerId], references: [id])
+  user    User  @relation("UserActions", fields: [userId], references: [id])
 
   @@index([managerId])
   @@index([userId])
@@ -130,52 +130,52 @@ model UserAction {
 model Operation {
   id              String          @id @default(cuid())
   userId          String?         @map("user_id")
-  customerId      String?         @map("customer_id")  // Store App customer
+  customerId      String?         @map("customer_id") // Store App customer
   type            OperationType
   cardNumber      String          @map("card_number")
   amount          Float
   status          OperationStatus @default(PENDING)
   responseMessage String?         @map("response_message")
   responseData    Json?           @map("response_data")
-  
+
   // Captcha Fields
-  captchaImage    String?         @map("captcha_image")    // Base64
-  captchaSolution String?         @map("captcha_solution") 
-  captchaExpiry   DateTime?       @map("captcha_expiry")
+  captchaImage    String?   @map("captcha_image") // Base64
+  captchaSolution String?   @map("captcha_solution")
+  captchaExpiry   DateTime? @map("captcha_expiry")
 
   // beIN Account used for this operation
-  beinAccountId   String?         @map("bein_account_id")
+  beinAccountId String? @map("bein_account_id")
 
   // Wizard Interactive Fields
-  promoCode         String?       @map("promo_code")           // كود الخصم
-  stbNumber         String?       @map("stb_number")           // رقم الريسيفر
-  availablePackages Json?         @map("available_packages")   // الباقات المتاحة من beIN
-  selectedPackage   Json?         @map("selected_package")     // الباقة المختارة
-  finalConfirmExpiry DateTime?    @map("final_confirm_expiry") // انتهاء صلاحية التأكيد النهائي
+  promoCode          String?   @map("promo_code") // كود الخصم
+  stbNumber          String?   @map("stb_number") // رقم الريسيفر
+  availablePackages  Json?     @map("available_packages") // الباقات المتاحة من beIN
+  selectedPackage    Json?     @map("selected_package") // الباقة المختارة
+  finalConfirmExpiry DateTime? @map("final_confirm_expiry") // انتهاء صلاحية التأكيد النهائي
 
   // Heartbeat System - Auto-cancel stuck operations
-  lastHeartbeat      DateTime?    @map("last_heartbeat")       // آخر نبضة من المتصفح
-  heartbeatExpiry    DateTime?    @map("heartbeat_expiry")     // موعد انتهاء الصلاحية إذا لم يتم استقبال نبضة
-  
-  // Error tracking
-  error              String?      @map("error")                // رسالة الخطأ
+  lastHeartbeat   DateTime? @map("last_heartbeat") // آخر نبضة من المتصفح
+  heartbeatExpiry DateTime? @map("heartbeat_expiry") // موعد انتهاء الصلاحية إذا لم يتم استقبال نبضة
 
-  duration        String?         // 1, 3, 6, 12 months (for RENEW) - legacy
-  retryCount      Int             @default(0) @map("retry_count")
-  
+  // Error tracking
+  error String? @map("error") // رسالة الخطأ
+
+  duration   String? // 1, 3, 6, 12 months (for RENEW) - legacy
+  retryCount Int     @default(0) @map("retry_count")
+
   // Correction tracking
-  corrected       Boolean         @default(false)  // تم تصحيح هذه العملية
-  correctedAt     DateTime?       @map("corrected_at")
-  
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
-  completedAt     DateTime?       @map("completed_at")
+  corrected   Boolean   @default(false) // تم تصحيح هذه العملية
+  correctedAt DateTime? @map("corrected_at")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
 
   user         User?         @relation(fields: [userId], references: [id])
   customer     Customer?     @relation(fields: [customerId], references: [id])
   beinAccount  BeinAccount?  @relation(fields: [beinAccountId], references: [id])
   transactions Transaction[] @relation("OperationTransactions")
-  
+
   // Store App - Links to customer subscription purchase
   storeSubscription StoreSubscription?
 
@@ -220,18 +220,18 @@ model Setting {
 }
 
 model ActivityLog {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
+  id        String  @id @default(cuid())
+  userId    String  @map("user_id")
   action    String
   details   Json?
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+
   // ===== Enhanced Context =====
-  targetId    String?  @map("target_id")    // Related record ID (operation, user, etc.)
-  targetType  String?  @map("target_type")  // Model name: 'Operation', 'User', 'Transaction'
-  duration    Int?                          // Action duration in ms (for performance tracking)
-  
+  targetId   String? @map("target_id") // Related record ID (operation, user, etc.)
+  targetType String? @map("target_type") // Model name: 'Operation', 'User', 'Transaction'
+  duration   Int? // Action duration in ms (for performance tracking)
+
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
@@ -251,7 +251,7 @@ model Notification {
   message   String
   type      String   @default("info") // success, error, info, warning
   read      Boolean  @default(false)
-  link      String?  // Optional link to related content
+  link      String? // Optional link to related content
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
@@ -264,47 +264,47 @@ model Notification {
 // ===== beIN Multi-Account System =====
 
 model BeinAccount {
-  id            String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // ===== Login Credentials =====
-  username      String   @unique          // beIN email
-  password      String                    // Encrypted password
-  totpSecret    String?  @map("totp_secret")  // 2FA secret
-  
+  username   String  @unique // beIN email
+  password   String // Encrypted password
+  totpSecret String? @map("totp_secret") // 2FA secret
+
   // ===== Status =====
-  isActive      Boolean  @default(true) @map("is_active")
-  priority      Int      @default(0)      // Higher = first in Round Robin
-  customerOnly  Boolean  @default(false) @map("customer_only")  // للتطبيق فقط - Only for mobile app
-  label         String?                   // Optional display name
-  
+  isActive     Boolean @default(true) @map("is_active")
+  priority     Int     @default(0) // Higher = first in Round Robin
+  customerOnly Boolean @default(false) @map("customer_only") // للتطبيق فقط - Only for mobile app
+  label        String? // Optional display name
+
   // ===== Rate Limiting =====
   lastUsedAt    DateTime? @map("last_used_at")
   usageCount    Int       @default(0) @map("usage_count")
   cooldownUntil DateTime? @map("cooldown_until")
-  
+
   // ===== Health Tracking =====
-  consecutiveFailures Int    @default(0) @map("consecutive_failures")
-  totalFailures       Int    @default(0) @map("total_failures")
-  totalSuccess        Int    @default(0) @map("total_success")
-  lastError           String? @map("last_error")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  totalFailures       Int       @default(0) @map("total_failures")
+  totalSuccess        Int       @default(0) @map("total_success")
+  lastError           String?   @map("last_error")
   lastErrorAt         DateTime? @map("last_error_at")
-  
+
   // ===== Dealer Balance (from beIN page) =====
-  dealerBalance       Float?    @map("dealer_balance")      // USD balance from last transaction
-  balanceUpdatedAt    DateTime? @map("balance_updated_at")  // When balance was last updated
-  lowBalanceAlertEnabled Boolean @default(false) @map("low_balance_alert_enabled")  // Enable admin alerts for this account
-  
+  dealerBalance          Float?    @map("dealer_balance") // USD balance from last transaction
+  balanceUpdatedAt       DateTime? @map("balance_updated_at") // When balance was last updated
+  lowBalanceAlertEnabled Boolean   @default(false) @map("low_balance_alert_enabled") // Enable admin alerts for this account
+
   // ===== Timestamps =====
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // ===== Relations =====
-  operations    Operation[]
-  sessions      BeinAccountSession[]
+  operations Operation[]
+  sessions   BeinAccountSession[]
 
   // ===== Proxy Assignment =====
-  proxyId       String?  @map("proxy_id")
-  proxy         Proxy?   @relation(fields: [proxyId], references: [id])
+  proxyId String? @map("proxy_id")
+  proxy   Proxy?  @relation(fields: [proxyId], references: [id])
 
   @@index([isActive])
   @@index([cooldownUntil])
@@ -314,23 +314,23 @@ model BeinAccount {
 }
 
 model BeinAccountSession {
-  id           String   @id @default(cuid())
-  accountId    String   @map("account_id")
-  
+  id        String @id @default(cuid())
+  accountId String @map("account_id")
+
   // ===== Session Data =====
-  cookies      Json                       // Cookies JSON
-  storageState Json?    @map("storage_state")  // Full Playwright state
-  
+  cookies      Json // Cookies JSON
+  storageState Json? @map("storage_state") // Full Playwright state
+
   // ===== Validity =====
-  isValid      Boolean  @default(true) @map("is_valid")
-  expiresAt    DateTime @map("expires_at")
-  
+  isValid   Boolean  @default(true) @map("is_valid")
+  expiresAt DateTime @map("expires_at")
+
   // ===== Timestamps =====
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // ===== Relations =====
-  account      BeinAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account BeinAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
   @@index([isValid, expiresAt])
@@ -338,31 +338,31 @@ model BeinAccountSession {
 }
 
 model Proxy {
-  id            String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // ===== Manual Proxy Connection =====
-  host          String                      // IP address or hostname
-  port          Int                         // Port number
-  username      String?                     // Auth username (optional)
-  password      String?                     // Auth password (optional)
-  label         String                      // Display name (required)
-  
+  host     String // IP address or hostname
+  port     Int // Port number
+  username String? // Auth username (optional)
+  password String? // Auth password (optional)
+  label    String // Display name (required)
+
   // ===== Status =====
-  isActive      Boolean  @default(true) @map("is_active")
-  lastTestedAt  DateTime? @map("last_tested_at")
-  lastIp        String?   @map("last_ip")
-  
+  isActive     Boolean   @default(true) @map("is_active")
+  lastTestedAt DateTime? @map("last_tested_at")
+  lastIp       String?   @map("last_ip")
+
   // ===== Health =====
-  responseTimeMs Int?     @map("response_time_ms")
-  failureCount   Int      @default(0) @map("failure_count")
-  
+  responseTimeMs Int? @map("response_time_ms")
+  failureCount   Int  @default(0) @map("failure_count")
+
   // ===== Timestamps =====
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // ===== Relations =====
-  accounts      BeinAccount[]
-  
+  accounts BeinAccount[]
+
   // ===== Unique constraint on host:port =====
   @@unique([host, port])
   @@map("proxies")
@@ -371,26 +371,26 @@ model Proxy {
 // ===== Announcement Banner System =====
 
 model AnnouncementBanner {
-  id            String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // ===== Content =====
-  message       String                           // Announcement text (max 200 chars)
-  
+  message String // Announcement text (max 200 chars)
+
   // ===== Display Settings =====
-  isActive      Boolean  @default(true) @map("is_active")
-  animationType String   @default("gradient") @map("animation_type")  // gradient, typing, glow, slide, marquee, none
-  colors        Json     @default("[]")          // Array of color hex codes for gradients
-  textSize      String   @default("medium") @map("text_size")        // small, medium, large
-  position      String   @default("top")         // top, bottom, floating
-  isDismissable Boolean  @default(true) @map("is_dismissable")
-  
+  isActive      Boolean @default(true) @map("is_active")
+  animationType String  @default("gradient") @map("animation_type") // gradient, typing, glow, slide, marquee, none
+  colors        Json    @default("[]") // Array of color hex codes for gradients
+  textSize      String  @default("medium") @map("text_size") // small, medium, large
+  position      String  @default("top") // top, bottom, floating
+  isDismissable Boolean @default(true) @map("is_dismissable")
+
   // ===== Scheduling =====
-  startDate     DateTime? @map("start_date")     // Optional: when to start showing
-  endDate       DateTime? @map("end_date")       // Optional: when to stop showing
-  
+  startDate DateTime? @map("start_date") // Optional: when to start showing
+  endDate   DateTime? @map("end_date") // Optional: when to stop showing
+
   // ===== Timestamps =====
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([isActive])
   @@index([startDate, endDate])
@@ -403,49 +403,49 @@ model AnnouncementBanner {
 
 // ===== Store Customer (End Users - separate from Resellers) =====
 model Customer {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  phone           String?
-  name            String
-  nameAr          String?   @map("name_ar")
-  passwordHash    String    @map("password_hash")
-  
+  id           String  @id @default(cuid())
+  email        String  @unique
+  phone        String?
+  name         String
+  nameAr       String? @map("name_ar")
+  passwordHash String  @map("password_hash")
+
   // Verification
-  isVerified      Boolean   @default(false) @map("is_verified")
-  verifyToken     String?   @map("verify_token")
-  verifyExpires   DateTime? @map("verify_expires")
-  
+  isVerified    Boolean   @default(false) @map("is_verified")
+  verifyToken   String?   @map("verify_token")
+  verifyExpires DateTime? @map("verify_expires")
+
   // Password Reset
-  resetToken      String?   @map("reset_token")
-  resetExpires    DateTime? @map("reset_expires")
-  
+  resetToken   String?   @map("reset_token")
+  resetExpires DateTime? @map("reset_expires")
+
   // Status & Preferences
-  isActive        Boolean   @default(true) @map("is_active")
-  preferredLang   String    @default("ar") @map("preferred_lang")
-  country         String    @default("SA")  // SA or EG
-  
+  isActive      Boolean @default(true) @map("is_active")
+  preferredLang String  @default("ar") @map("preferred_lang")
+  country       String  @default("SA") // SA or EG
+
   // Store Credit - for failed operations (customer can retry without paying)
-  storeCredit     Float     @default(0) @map("store_credit")
-  
+  storeCredit Float @default(0) @map("store_credit")
+
   // ===== Wallet System (B2C Mobile App) =====
-  walletBalance     Float     @default(0) @map("wallet_balance")
-  stripeCustomerId  String?   @map("stripe_customer_id")
-  
+  walletBalance    Float   @default(0) @map("wallet_balance")
+  stripeCustomerId String? @map("stripe_customer_id")
+
   // Activity Tracking
-  loginCount        Int       @default(0) @map("login_count")
-  
+  loginCount Int @default(0) @map("login_count")
+
   // Timestamps
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  lastLoginAt     DateTime? @map("last_login_at")
-  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastLoginAt DateTime? @map("last_login_at")
+
   // Relations
-  addresses           CustomerAddress[]
-  orders              Order[]
-  subscriptions       StoreSubscription[]
-  payments            Payment[]
-  operations          Operation[]
-  walletTransactions  WalletTransaction[]
+  addresses          CustomerAddress[]
+  orders             Order[]
+  subscriptions      StoreSubscription[]
+  payments           Payment[]
+  operations         Operation[]
+  walletTransactions WalletTransaction[]
 
   @@index([email])
   @@index([isActive])
@@ -455,33 +455,33 @@ model Customer {
 
 // ===== Customer Saved Addresses =====
 model CustomerAddress {
-  id          String   @id @default(cuid())
-  customerId  String   @map("customer_id")
-  
+  id         String @id @default(cuid())
+  customerId String @map("customer_id")
+
   // Contact
-  name        String
-  phone       String
-  
+  name  String
+  phone String
+
   // Location
-  country     String   // SA or EG
-  city        String
-  district    String?
-  street      String
-  building    String?
-  floor       String?
-  apartment   String?
-  postalCode  String?  @map("postal_code")
-  
+  country    String // SA or EG
+  city       String
+  district   String?
+  street     String
+  building   String?
+  floor      String?
+  apartment  String?
+  postalCode String? @map("postal_code")
+
   // Settings
-  isDefault   Boolean  @default(false) @map("is_default")
-  
+  isDefault Boolean @default(false) @map("is_default")
+
   // Timestamps
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  orders      Order[]
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orders   Order[]
 
   @@index([customerId])
   @@map("customer_addresses")
@@ -489,23 +489,23 @@ model CustomerAddress {
 
 // ===== Product Categories =====
 model ProductCategory {
-  id            String    @id @default(cuid())
+  id            String  @id @default(cuid())
   name          String
-  nameAr        String    @map("name_ar")
+  nameAr        String  @map("name_ar")
   description   String?
-  descriptionAr String?   @map("description_ar")
+  descriptionAr String? @map("description_ar")
   image         String?
-  
+
   // Display
-  isActive      Boolean   @default(true) @map("is_active")
-  sortOrder     Int       @default(0) @map("sort_order")
-  
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
   // Timestamps
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  products      Product[]
+  products Product[]
 
   @@index([isActive, sortOrder])
   @@map("product_categories")
@@ -513,44 +513,44 @@ model ProductCategory {
 
 // ===== Physical Products (Dishes, Receivers, Accessories) =====
 model Product {
-  id              String   @id @default(cuid())
-  categoryId      String   @map("category_id")
-  sku             String?  @unique
-  
+  id         String  @id @default(cuid())
+  categoryId String  @map("category_id")
+  sku        String? @unique
+
   // Names
-  name            String
-  nameAr          String   @map("name_ar")
-  description     String?
-  descriptionAr   String?  @map("description_ar")
-  
+  name          String
+  nameAr        String  @map("name_ar")
+  description   String?
+  descriptionAr String? @map("description_ar")
+
   // Pricing (Multi-Currency)
-  priceSAR        Float    @map("price_sar")
-  priceEGP        Float    @map("price_egp")
-  comparePriceSAR Float?   @map("compare_price_sar")  // Original price for discounts
-  comparePriceEGP Float?   @map("compare_price_egp")
-  
+  priceSAR        Float  @map("price_sar")
+  priceEGP        Float  @map("price_egp")
+  comparePriceSAR Float? @map("compare_price_sar") // Original price for discounts
+  comparePriceEGP Float? @map("compare_price_egp")
+
   // Inventory
-  stock           Int      @default(0)
-  trackStock      Boolean  @default(true) @map("track_stock")
-  
+  stock      Int     @default(0)
+  trackStock Boolean @default(true) @map("track_stock")
+
   // Media
-  images          String[] // Array of image URLs
-  
+  images String[] // Array of image URLs
+
   // Specifications
-  specifications  Json?    // Product specs as JSON
-  
+  specifications Json? // Product specs as JSON
+
   // Display
-  isActive        Boolean  @default(true) @map("is_active")
-  isFeatured      Boolean  @default(false) @map("is_featured")
-  sortOrder       Int      @default(0) @map("sort_order")
-  
+  isActive   Boolean @default(true) @map("is_active")
+  isFeatured Boolean @default(false) @map("is_featured")
+  sortOrder  Int     @default(0) @map("sort_order")
+
   // Timestamps
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  category        ProductCategory @relation(fields: [categoryId], references: [id])
-  orderItems      OrderItem[]
+  category   ProductCategory @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
 
   @@index([categoryId])
   @@index([isActive, isFeatured])
@@ -560,34 +560,34 @@ model Product {
 
 // ===== Subscription Packages (for Store App) =====
 model SubscriptionPackage {
-  id            String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Names
   name          String
-  nameAr        String   @map("name_ar")
+  nameAr        String  @map("name_ar")
   description   String?
-  descriptionAr String?  @map("description_ar")
-  
+  descriptionAr String? @map("description_ar")
+
   // Duration
-  duration      Int      // months (1, 3, 6, 12)
-  
+  duration Int // months (1, 3, 6, 12)
+
   // Pricing (Multi-Currency)
-  priceSAR      Float    @map("price_sar")
-  priceEGP      Float    @map("price_egp")
-  
+  priceSAR Float @map("price_sar")
+  priceEGP Float @map("price_egp")
+
   // Features
-  features      String[] // List of features
-  featuresAr    String[] @map("features_ar")
-  
+  features   String[] // List of features
+  featuresAr String[] @map("features_ar")
+
   // Display
-  isActive      Boolean  @default(true) @map("is_active")
-  isPopular     Boolean  @default(false) @map("is_popular")
-  sortOrder     Int      @default(0) @map("sort_order")
-  
+  isActive  Boolean @default(true) @map("is_active")
+  isPopular Boolean @default(false) @map("is_popular")
+  sortOrder Int     @default(0) @map("sort_order")
+
   // Timestamps
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
   subscriptions StoreSubscription[]
 
@@ -597,60 +597,60 @@ model SubscriptionPackage {
 
 // ===== Order Status Enum =====
 enum OrderStatus {
-  PENDING           // Awaiting payment
-  PAID              // Payment received
-  PROCESSING        // Being prepared
-  SHIPPED           // Shipped to customer
-  DELIVERED         // Delivered
-  CANCELLED         // Cancelled
-  REFUNDED          // Refunded
+  PENDING // Awaiting payment
+  PAID // Payment received
+  PROCESSING // Being prepared
+  SHIPPED // Shipped to customer
+  DELIVERED // Delivered
+  CANCELLED // Cancelled
+  REFUNDED // Refunded
 }
 
 // ===== Customer Orders =====
 model Order {
-  id              String      @id @default(cuid())
-  customerId      String      @map("customer_id")
-  addressId       String?     @map("address_id")
-  orderNumber     String      @unique @map("order_number")  // ORD-20240130-XXXX
-  status          OrderStatus @default(PENDING)
-  
+  id          String      @id @default(cuid())
+  customerId  String      @map("customer_id")
+  addressId   String?     @map("address_id")
+  orderNumber String      @unique @map("order_number") // ORD-20240130-XXXX
+  status      OrderStatus @default(PENDING)
+
   // Pricing
-  currency        String      @default("SAR")
-  subtotal        Float
-  shippingCost    Float       @default(0) @map("shipping_cost")
-  discount        Float       @default(0)
-  total           Float
-  
+  currency     String @default("SAR")
+  subtotal     Float
+  shippingCost Float  @default(0) @map("shipping_cost")
+  discount     Float  @default(0)
+  total        Float
+
   // Shipping Info (snapshot at order time)
-  shippingName    String      @map("shipping_name")
-  shippingPhone   String      @map("shipping_phone")
-  shippingCountry String      @map("shipping_country")
-  shippingCity    String      @map("shipping_city")
-  shippingAddress String      @map("shipping_address")
-  shippingNotes   String?     @map("shipping_notes")
-  
+  shippingName    String  @map("shipping_name")
+  shippingPhone   String  @map("shipping_phone")
+  shippingCountry String  @map("shipping_country")
+  shippingCity    String  @map("shipping_city")
+  shippingAddress String  @map("shipping_address")
+  shippingNotes   String? @map("shipping_notes")
+
   // Tracking
-  trackingNumber  String?     @map("tracking_number")
-  
+  trackingNumber String? @map("tracking_number")
+
   // Payment
-  paymentId       String?     @unique @map("payment_id")
-  
+  paymentId String? @unique @map("payment_id")
+
   // Timestamps
-  paidAt          DateTime?   @map("paid_at")
-  processedAt     DateTime?   @map("processed_at")
-  shippedAt       DateTime?   @map("shipped_at")
-  deliveredAt     DateTime?   @map("delivered_at")
-  cancelledAt     DateTime?   @map("cancelled_at")
-  cancelReason    String?     @map("cancel_reason")
-  
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
-  
+  paidAt       DateTime? @map("paid_at")
+  processedAt  DateTime? @map("processed_at")
+  shippedAt    DateTime? @map("shipped_at")
+  deliveredAt  DateTime? @map("delivered_at")
+  cancelledAt  DateTime? @map("cancelled_at")
+  cancelReason String?   @map("cancel_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  customer        Customer         @relation(fields: [customerId], references: [id])
-  address         CustomerAddress? @relation(fields: [addressId], references: [id])
-  items           OrderItem[]
-  payment         Payment?         @relation(fields: [paymentId], references: [id])
+  customer Customer         @relation(fields: [customerId], references: [id])
+  address  CustomerAddress? @relation(fields: [addressId], references: [id])
+  items    OrderItem[]
+  payment  Payment?         @relation(fields: [paymentId], references: [id])
 
   @@index([customerId])
   @@index([status])
@@ -661,22 +661,22 @@ model Order {
 
 // ===== Order Items =====
 model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String   @map("order_id")
-  productId String   @map("product_id")
-  
+  id        String @id @default(cuid())
+  orderId   String @map("order_id")
+  productId String @map("product_id")
+
   // Snapshot at order time
-  name      String
-  nameAr    String   @map("name_ar")
-  image     String?
-  
+  name   String
+  nameAr String  @map("name_ar")
+  image  String?
+
   // Quantity & Price
-  quantity  Int
-  price     Float    // Price per unit at time of purchase
-  
+  quantity Int
+  price    Float // Price per unit at time of purchase
+
   // Relations
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id])
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
 
   @@index([orderId])
   @@index([productId])
@@ -685,66 +685,66 @@ model OrderItem {
 
 // ===== Store Subscription Status Enum =====
 enum StoreSubStatus {
-  PENDING            // Just created, fetching packages from beIN
-  AWAITING_PACKAGE   // Waiting for customer to select package
-  AWAITING_PAYMENT   // Package selected, waiting for Stripe payment
-  PAID               // Payment received, continuing operation
-  PROCESSING         // Operation in progress (worker processing)
-  AWAITING_CAPTCHA   // Needs captcha from customer
-  COMPLETING         // Final step in progress
-  COMPLETED          // Successfully renewed
-  FAILED             // Failed - store credit added to customer
-  REFUNDED           // Manually refunded
-  CANCELLED          // Cancelled by customer
+  PENDING // Just created, fetching packages from beIN
+  AWAITING_PACKAGE // Waiting for customer to select package
+  AWAITING_PAYMENT // Package selected, waiting for Stripe payment
+  PAID // Payment received, continuing operation
+  PROCESSING // Operation in progress (worker processing)
+  AWAITING_CAPTCHA // Needs captcha from customer
+  COMPLETING // Final step in progress
+  COMPLETED // Successfully renewed
+  FAILED // Failed - store credit added to customer
+  REFUNDED // Manually refunded
+  CANCELLED // Cancelled by customer
 }
 
 // ===== Store Subscription (beIN renewals from mobile app) =====
 model StoreSubscription {
-  id            String         @id @default(cuid())
-  customerId    String         @map("customer_id")
-  packageId     String?        @map("package_id")  // Optional - packages fetched from beIN dynamically
-  
+  id         String  @id @default(cuid())
+  customerId String  @map("customer_id")
+  packageId  String? @map("package_id") // Optional - packages fetched from beIN dynamically
+
   // Card Info
-  cardNumber    String         @map("card_number")
-  
+  cardNumber String @map("card_number")
+
   // Status
-  status        StoreSubStatus @default(PENDING)
-  
+  status StoreSubStatus @default(PENDING)
+
   // beIN Package Info (from dynamic fetch)
-  packageName     String?      @map("package_name")      // Package name from beIN
-  packagePrice    Float?       @map("package_price")     // Original beIN price
-  
+  packageName  String? @map("package_name") // Package name from beIN
+  packagePrice Float?  @map("package_price") // Original beIN price
+
   // Pricing (with markup)
-  currency        String       @default("SAR")
-  price           Float        @default(0)               // Final price to customer (beIN + markup)
-  markupPercent   Float        @default(20) @map("markup_percent")  // e.g., 20%
-  
+  currency      String @default("SAR")
+  price         Float  @default(0) // Final price to customer (beIN + markup)
+  markupPercent Float  @default(20) @map("markup_percent") // e.g., 20%
+
   // Store Credit Used
-  creditUsed      Float        @default(0) @map("credit_used")  // Store credit applied
-  
+  creditUsed Float @default(0) @map("credit_used") // Store credit applied
+
   // Stripe
   stripePaymentIntentId String? @map("stripe_payment_intent_id")
-  
+
   // Links
-  paymentId     String?        @unique @map("payment_id")
-  operationId   String?        @unique @map("operation_id")  // Links to existing Operation table
-  
+  paymentId   String? @unique @map("payment_id")
+  operationId String? @unique @map("operation_id") // Links to existing Operation table
+
   // Result
-  resultMessage String?        @map("result_message")
-  
+  resultMessage String? @map("result_message")
+
   // Timestamps
-  completedAt   DateTime?      @map("completed_at")
-  failedAt      DateTime?      @map("failed_at")
-  refundedAt    DateTime?      @map("refunded_at")
-  
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  
+  completedAt DateTime? @map("completed_at")
+  failedAt    DateTime? @map("failed_at")
+  refundedAt  DateTime? @map("refunded_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  customer      Customer            @relation(fields: [customerId], references: [id])
-  package       SubscriptionPackage? @relation(fields: [packageId], references: [id])
-  payment       Payment?            @relation(fields: [paymentId], references: [id])
-  operation     Operation?          @relation(fields: [operationId], references: [id])
+  customer  Customer             @relation(fields: [customerId], references: [id])
+  package   SubscriptionPackage? @relation(fields: [packageId], references: [id])
+  payment   Payment?             @relation(fields: [paymentId], references: [id])
+  operation Operation?           @relation(fields: [operationId], references: [id])
 
   @@index([customerId])
   @@index([status])
@@ -765,43 +765,43 @@ enum PaymentStatus {
 
 // ===== Payment Type Enum =====
 enum PaymentType {
-  ORDER          // Physical product order
-  SUBSCRIPTION   // beIN subscription
+  ORDER // Physical product order
+  SUBSCRIPTION // beIN subscription
 }
 
 // ===== Payments (Stripe) =====
 model Payment {
-  id                    String        @id @default(cuid())
-  customerId            String        @map("customer_id")
-  
+  id         String @id @default(cuid())
+  customerId String @map("customer_id")
+
   // Stripe
-  stripePaymentIntentId String        @unique @map("stripe_payment_intent_id")
-  stripeCustomerId      String?       @map("stripe_customer_id")
-  
+  stripePaymentIntentId String  @unique @map("stripe_payment_intent_id")
+  stripeCustomerId      String? @map("stripe_customer_id")
+
   // Amount
-  amount                Float
-  currency              String        @default("SAR")
-  
+  amount   Float
+  currency String @default("SAR")
+
   // Status
-  status                PaymentStatus @default(PENDING)
-  type                  PaymentType
-  
+  status PaymentStatus @default(PENDING)
+  type   PaymentType
+
   // Metadata
-  metadata              Json?
-  failureMessage        String?       @map("failure_message")
-  
+  metadata       Json?
+  failureMessage String? @map("failure_message")
+
   // Refund
-  refundedAmount        Float?        @map("refunded_amount")
-  refundedAt            DateTime?     @map("refunded_at")
-  
+  refundedAmount Float?    @map("refunded_amount")
+  refundedAt     DateTime? @map("refunded_at")
+
   // Timestamps
-  createdAt             DateTime      @default(now()) @map("created_at")
-  updatedAt             DateTime      @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   // Relations
-  customer              Customer           @relation(fields: [customerId], references: [id])
-  order                 Order?
-  subscription          StoreSubscription?
+  customer     Customer           @relation(fields: [customerId], references: [id])
+  order        Order?
+  subscription StoreSubscription?
 
   @@index([customerId])
   @@index([status])
@@ -811,29 +811,29 @@ model Payment {
 
 // ===== Shipping Regions =====
 model ShippingRegion {
-  id              String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Country
-  country         String   // SA or EG
-  countryName     String   @map("country_name")
-  countryNameAr   String   @map("country_name_ar")
-  
+  country       String // SA or EG
+  countryName   String @map("country_name")
+  countryNameAr String @map("country_name_ar")
+
   // City
-  city            String
-  cityAr          String   @map("city_ar")
-  
+  city   String
+  cityAr String @map("city_ar")
+
   // Shipping
-  shippingCostSAR Float    @map("shipping_cost_sar")
-  shippingCostEGP Float    @map("shipping_cost_egp")
-  estimatedDays   Int      @default(3) @map("estimated_days")
-  
+  shippingCostSAR Float @map("shipping_cost_sar")
+  shippingCostEGP Float @map("shipping_cost_egp")
+  estimatedDays   Int   @default(3) @map("estimated_days")
+
   // Status
-  isActive        Boolean  @default(true) @map("is_active")
-  
+  isActive Boolean @default(true) @map("is_active")
+
   // Timestamps
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   @@unique([country, city])
   @@index([country, isActive])
   @@map("shipping_regions")
@@ -851,28 +851,28 @@ model StoreSetting {
 
 // ===== Wallet Transactions (B2C Mobile App) =====
 model WalletTransaction {
-  id              String                @id @default(cuid())
-  customerId      String                @map("customer_id")
-  
+  id         String @id @default(cuid())
+  customerId String @map("customer_id")
+
   // Transaction Details
-  type            WalletTransactionType
-  amount          Float
-  balanceBefore   Float                 @map("balance_before")
-  balanceAfter    Float                 @map("balance_after")
-  
+  type          WalletTransactionType
+  amount        Float
+  balanceBefore Float                 @map("balance_before")
+  balanceAfter  Float                 @map("balance_after")
+
   // Description & Reference
-  description     String
-  referenceType   String?               @map("reference_type")  // PAYMENT, RENEWAL, REFUND, ORDER
-  referenceId     String?               @map("reference_id")
-  
+  description   String
+  referenceType String? @map("reference_type") // PAYMENT, RENEWAL, REFUND, ORDER
+  referenceId   String? @map("reference_id")
+
   // Stripe Integration (for add balance)
-  stripePaymentIntentId String?         @map("stripe_payment_intent_id")
-  
+  stripePaymentIntentId String? @map("stripe_payment_intent_id")
+
   // Timestamps
-  createdAt       DateTime              @default(now()) @map("created_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+
   // Relations
-  customer        Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, createdAt])
   @@index([referenceType, referenceId])

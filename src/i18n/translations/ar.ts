@@ -100,6 +100,15 @@ export const ar = {
         appCustomers: 'العملاء',
         appShipping: 'الشحن',
         appSettings: 'إعدادات التطبيق',
+        // Mobile App Dashboard
+        mobileApp: 'إدارة تطبيق الجوال',
+        mobileCustomers: 'العملاء',
+        mobileTransactions: 'المعاملات',
+        mobileOperations: 'العمليات',
+        mobileSettings: 'الإعدادات',
+        mobileOrders: 'الطلبات',
+        mobilePayments: 'المدفوعات',
+        mobileSubscriptions: 'الاشتراكات',
     },
     header: {
         balance: 'رصيدي',

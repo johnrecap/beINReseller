@@ -100,6 +100,15 @@ export const en = {
         appCustomers: 'Customers',
         appShipping: 'Shipping',
         appSettings: 'App Settings',
+        // Mobile App Dashboard
+        mobileApp: 'Mobile App Management',
+        mobileCustomers: 'Customers',
+        mobileTransactions: 'Transactions',
+        mobileOperations: 'Operations',
+        mobileSettings: 'Settings',
+        mobileOrders: 'Orders',
+        mobilePayments: 'Payments',
+        mobileSubscriptions: 'Subscriptions',
     },
     header: {
         balance: 'My Balance',

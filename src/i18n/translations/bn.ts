@@ -100,6 +100,15 @@ export const bn = {
         appCustomers: 'গ্রাহক',
         appShipping: 'শিপিং',
         appSettings: 'অ্যাপ সেটিংস',
+        // Mobile App Dashboard
+        mobileApp: 'মোবাইল অ্যাপ ব্যবস্থাপনা',
+        mobileCustomers: 'গ্রাহক',
+        mobileTransactions: 'লেনদেন',
+        mobileOperations: 'অপারেশন',
+        mobileSettings: 'সেটিংস',
+        mobileOrders: 'অর্ডার',
+        mobilePayments: 'পেমেন্ট',
+        mobileSubscriptions: 'সাবস্ক্রিপশন',
     },
     header: {
         balance: 'আমার ব্যালেন্স',

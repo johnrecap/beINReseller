@@ -14,7 +14,7 @@ import { withCustomerAuth, CustomerTokenPayload } from '@/lib/customer-auth'
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2024-11-20.acacia'
+    apiVersion: '2026-01-28.clover'
 })
 
 // Configuration from settings (with defaults)

@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
                 operationsCount: account._count.operations,
                 proxyId: account.proxyId,
                 proxy: account.proxy,
+                customerOnly: account.customerOnly,
                 hasTotpSecret: !!account.totpSecret // Indicate if TOTP is configured
             }
         })
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { username, password, totpSecret, label, priority } = body
+        const { username, password, totpSecret, label, priority, customerOnly } = body
 
         // Validate required fields
         if (!username || !password) {
@@ -161,6 +162,7 @@ export async function POST(request: NextRequest) {
                 totpSecret: totpSecret || null,
                 label: label || null,
                 priority: priority || 0,
+                customerOnly: customerOnly || false,
                 isActive: true
             }
         })

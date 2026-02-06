@@ -1,0 +1,213 @@
+2026-01-24T01:52:02: (node:1124146) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-24T01:52:02: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-24T01:52:05: ❌ [HTTP] Operation cmkrlha860004erk9xy5uulmz failed: please enter your 2FA verification Code.
+2026-01-24T05:18:42: (node:1134674) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-24T05:18:42: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-24T05:30:10: (node:1135434) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-24T05:30:10: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-24T06:24:43: (node:1138261) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-24T06:24:43: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-24T12:50:23: (node:1147172) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-24T12:50:23: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-24T20:22:51: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-24T20:22:51: ❌ [HTTP] Operation cmksp5tcl0031ipk9lcc2t3py failed: NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة
+2026-01-24T21:13:47: (node:1183366) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-24T21:13:47: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-24T21:52:09: ❌ [HTTP] Operation cmksscbwm000242k9wpaq2yld failed: Session Expired - Login page with cached title
+2026-01-25T21:50:12: (node:1324845) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-25T21:50:12: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-25T22:12:27: ❌ [HTTP] Operation cmku8ilit0010jfk9rhrrm6u8 failed: Session Expired - Login page with cached title
+2026-01-25T22:26:33: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-25T22:26:33: ❌ [HTTP] Operation cmku90r04000ioxk93o4lbqhv failed: No beIN accounts available
+2026-01-25T22:27:49: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-25T22:27:49: ❌ [HTTP] Operation cmku92d9m000moxk9p48fkiu1 failed: No beIN accounts available
+2026-01-25T23:41:49: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-25T23:41:49: ❌ [HTTP] Operation cmkubpjmd0003cpk9r8xh646l failed: NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة
+2026-01-25T23:55:00: (node:1337547) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-25T23:55:00: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-26T00:48:15: (node:1345767) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-26T00:48:15: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-26T00:48:16: ❌ [HTTP] Operation undefined failed: Balance not found on page
+2026-01-26T00:48:16: ❌ [worker-6] Job 127 failed: 
+2026-01-26T00:48:16: Invalid `prisma.operation.findUnique()` invocation:
+2026-01-26T00:48:16: 
+2026-01-26T00:48:16: {
+2026-01-26T00:48:16:   where: {
+2026-01-26T00:48:16:     id: undefined,
+2026-01-26T00:48:16: ?   AND?: OperationWhereInput | OperationWhereInput[],
+2026-01-26T00:48:16: ?   OR?: OperationWhereInput[],
+2026-01-26T00:48:16: ?   NOT?: OperationWhereInput | OperationWhereInput[],
+2026-01-26T00:48:16: ?   userId?: StringFilter | String,
+2026-01-26T00:48:16: ?   type?: EnumOperationTypeFilter | OperationType,
+2026-01-26T00:48:16: ?   cardNumber?: StringFilter | String,
+2026-01-26T00:48:16: ?   amount?: FloatFilter | Float,
+2026-01-26T00:48:16: ?   status?: EnumOperationStatusFilter | OperationStatus,
+2026-01-26T00:48:16: ?   responseMessage?: StringNullableFilter | String | Null,
+2026-01-26T00:48:16: ?   responseData?: JsonNullableFilter,
+2026-01-26T00:48:16: ?   captchaImage?: StringNullableFilter | String | Null,
+2026-01-26T00:48:16: ?   captchaSolution?: StringNullableFilter | String | Null,
+2026-01-26T00:48:16: ?   captchaExpiry?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:16: ?   beinAccountId?: StringNullableFilter | String | Null,
+2026-01-26T00:48:16: ?   promoCode?: StringNullableFilter | String | Null,
+2026-01-26T00:48:16: ?   stbNumber?: StringNullableFilter | String | Null,
+2026-01-26T00:48:16: ?   availablePackages?: JsonNullableFilter,
+2026-01-26T00:48:16: ?   selectedPackage?: JsonNullableFilter,
+2026-01-26T00:48:16: ?   finalConfirmExpiry?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:16: ?   lastHeartbeat?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:16: ?   heartbeatExpiry?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:16: ?   error?: StringNullableFilter | String | Null,
+2026-01-26T00:48:16: ?   duration?: StringNullableFilter | String | Null,
+2026-01-26T00:48:16: ?   retryCount?: IntFilter | Int,
+2026-01-26T00:48:16: ?   corrected?: BoolFilter | Boolean,
+2026-01-26T00:48:16: ?   correctedAt?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:16: ?   createdAt?: DateTimeFilter | DateTime,
+2026-01-26T00:48:16: ?   updatedAt?: DateTimeFilter | DateTime,
+2026-01-26T00:48:16: ?   completedAt?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:16: ?   user?: UserScalarRelationFilter | UserWhereInput,
+2026-01-26T00:48:16: ?   beinAccount?: BeinAccountNullableScalarRelationFilter | BeinAccountWhereInput | Null,
+2026-01-26T00:48:16: ?   transactions?: TransactionListRelationFilter
+2026-01-26T00:48:16:   },
+2026-01-26T00:48:16:   select: {
+2026-01-26T00:48:16:     userId: true,
+2026-01-26T00:48:16:     amount: true,
+2026-01-26T00:48:16:     beinAccountId: true
+2026-01-26T00:48:16:   }
+2026-01-26T00:48:16: }
+2026-01-26T00:48:16: 
+2026-01-26T00:48:16: Argument `where` of type OperationWhereUniqueInput needs at least one of `id` arguments. Available options are marked with ?.
+2026-01-26T00:48:35: ❌ [HTTP] Operation undefined failed: Balance not found on page
+2026-01-26T00:48:35: ❌ [worker-6] Job 128 failed: 
+2026-01-26T00:48:35: Invalid `prisma.operation.findUnique()` invocation:
+2026-01-26T00:48:35: 
+2026-01-26T00:48:35: {
+2026-01-26T00:48:35:   where: {
+2026-01-26T00:48:35:     id: undefined,
+2026-01-26T00:48:35: ?   AND?: OperationWhereInput | OperationWhereInput[],
+2026-01-26T00:48:35: ?   OR?: OperationWhereInput[],
+2026-01-26T00:48:35: ?   NOT?: OperationWhereInput | OperationWhereInput[],
+2026-01-26T00:48:35: ?   userId?: StringFilter | String,
+2026-01-26T00:48:35: ?   type?: EnumOperationTypeFilter | OperationType,
+2026-01-26T00:48:35: ?   cardNumber?: StringFilter | String,
+2026-01-26T00:48:35: ?   amount?: FloatFilter | Float,
+2026-01-26T00:48:35: ?   status?: EnumOperationStatusFilter | OperationStatus,
+2026-01-26T00:48:35: ?   responseMessage?: StringNullableFilter | String | Null,
+2026-01-26T00:48:35: ?   responseData?: JsonNullableFilter,
+2026-01-26T00:48:35: ?   captchaImage?: StringNullableFilter | String | Null,
+2026-01-26T00:48:35: ?   captchaSolution?: StringNullableFilter | String | Null,
+2026-01-26T00:48:35: ?   captchaExpiry?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:35: ?   beinAccountId?: StringNullableFilter | String | Null,
+2026-01-26T00:48:35: ?   promoCode?: StringNullableFilter | String | Null,
+2026-01-26T00:48:35: ?   stbNumber?: StringNullableFilter | String | Null,
+2026-01-26T00:48:35: ?   availablePackages?: JsonNullableFilter,
+2026-01-26T00:48:35: ?   selectedPackage?: JsonNullableFilter,
+2026-01-26T00:48:35: ?   finalConfirmExpiry?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:35: ?   lastHeartbeat?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:35: ?   heartbeatExpiry?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:35: ?   error?: StringNullableFilter | String | Null,
+2026-01-26T00:48:35: ?   duration?: StringNullableFilter | String | Null,
+2026-01-26T00:48:35: ?   retryCount?: IntFilter | Int,
+2026-01-26T00:48:35: ?   corrected?: BoolFilter | Boolean,
+2026-01-26T00:48:35: ?   correctedAt?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:35: ?   createdAt?: DateTimeFilter | DateTime,
+2026-01-26T00:48:35: ?   updatedAt?: DateTimeFilter | DateTime,
+2026-01-26T00:48:35: ?   completedAt?: DateTimeNullableFilter | DateTime | Null,
+2026-01-26T00:48:35: ?   user?: UserScalarRelationFilter | UserWhereInput,
+2026-01-26T00:48:35: ?   beinAccount?: BeinAccountNullableScalarRelationFilter | BeinAccountWhereInput | Null,
+2026-01-26T00:48:35: ?   transactions?: TransactionListRelationFilter
+2026-01-26T00:48:35:   },
+2026-01-26T00:48:35:   select: {
+2026-01-26T00:48:35:     userId: true,
+2026-01-26T00:48:35:     amount: true,
+2026-01-26T00:48:35:     beinAccountId: true
+2026-01-26T00:48:35:   }
+2026-01-26T00:48:35: }
+2026-01-26T00:48:35: 
+2026-01-26T00:48:35: Argument `where` of type OperationWhereUniqueInput needs at least one of `id` arguments. Available options are marked with ?.
+2026-01-26T07:41:43: (node:1354556) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-26T07:41:43: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-26T11:38:16: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-26T11:38:18: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-26T11:38:21: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-26T11:38:25: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-26T11:38:32: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-26T11:38:42: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-26T11:38:52: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-26T23:32:06: (node:1466235) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-26T23:32:06: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-26T23:32:07: ❌ [HTTP] Operation cmkvqsvub000en8k9f1ekfud4 failed: Session Expired - Login page with cached title
+2026-01-27T12:23:37: (node:1519376) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-27T12:23:37: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-27T12:30:15: [HTTP] Check card error: Maximum number of redirects exceeded
+2026-01-27T12:30:15: ❌ [HTTP] Operation cmkwikzqm001ldck9v1r5nzev failed: Check failed: Maximum number of redirects exceeded
+2026-01-27T12:42:47: [HTTP] Check card for signal error: timeout of 6383.382699038256ms exceeded
+2026-01-27T12:42:47: ❌ [HTTP] Operation cmkwj12gy002rdck92ehatlyc failed: Check failed: timeout of 6383.382699038256ms exceeded
+2026-01-27T14:07:30: (node:1585389) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-27T14:07:30: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-27T15:07:53: ❌ [HTTP] Operation cmkwo85jj000lhqk9t0llhsks failed: Login failed - redirected to error page
+2026-01-27T19:56:25: ❌ [HTTP] Operation cmkwyj6q5002ihqk97jmuv1pb failed: No packages available for this card
+2026-01-28T01:04:29: (node:1636164) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-28T01:04:29: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-28T01:06:37: ❌ [HTTP] Operation cmkx9jj8p000gaik9h1dsoobw failed: CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق
+2026-01-28T06:38:38: ❌ [worker-6] Worker error: Error: connect ETIMEDOUT
+2026-01-28T06:38:38:     at Socket.<anonymous> (/www/wwwroot/deshpanel.com/worker/node_modules/ioredis/built/Redis.js:171:41)
+2026-01-28T06:38:38:     at Object.onceWrapper (node:events:622:28)
+2026-01-28T06:38:38:     at Socket.emit (node:events:508:28)
+2026-01-28T06:38:38:     at Socket._onTimeout (node:net:604:8)
+2026-01-28T06:38:38:     at listOnTimeout (node:internal/timers:605:17)
+2026-01-28T06:38:38:     at process.processTimers (node:internal/timers:541:7) {
+2026-01-28T06:38:38:   errorno: 'ETIMEDOUT',
+2026-01-28T06:38:38:   code: 'ETIMEDOUT',
+2026-01-28T06:38:38:   syscall: 'connect'
+2026-01-28T06:38:38: }
+2026-01-28T06:38:48: ❌ [worker-6] Worker error: Error: connect ETIMEDOUT
+2026-01-28T06:38:48:     at Socket.<anonymous> (/www/wwwroot/deshpanel.com/worker/node_modules/ioredis/built/Redis.js:171:41)
+2026-01-28T06:38:48:     at Object.onceWrapper (node:events:622:28)
+2026-01-28T06:38:48:     at Socket.emit (node:events:508:28)
+2026-01-28T06:38:48:     at Socket._onTimeout (node:net:604:8)
+2026-01-28T06:38:48:     at listOnTimeout (node:internal/timers:605:17)
+2026-01-28T06:38:48:     at process.processTimers (node:internal/timers:541:7) {
+2026-01-28T06:38:48:   errorno: 'ETIMEDOUT',
+2026-01-28T06:38:48:   code: 'ETIMEDOUT',
+2026-01-28T06:38:48:   syscall: 'connect'
+2026-01-28T06:38:48: }
+2026-01-28T06:38:59: ❌ [worker-6] Worker error: Error: connect ETIMEDOUT
+2026-01-28T06:38:59:     at Socket.<anonymous> (/www/wwwroot/deshpanel.com/worker/node_modules/ioredis/built/Redis.js:171:41)
+2026-01-28T06:38:59:     at Object.onceWrapper (node:events:622:28)
+2026-01-28T06:38:59:     at Socket.emit (node:events:508:28)
+2026-01-28T06:38:59:     at Socket._onTimeout (node:net:604:8)
+2026-01-28T06:38:59:     at listOnTimeout (node:internal/timers:605:17)
+2026-01-28T06:38:59:     at process.processTimers (node:internal/timers:541:7) {
+2026-01-28T06:38:59:   errorno: 'ETIMEDOUT',
+2026-01-28T06:38:59:   code: 'ETIMEDOUT',
+2026-01-28T06:38:59:   syscall: 'connect'
+2026-01-28T06:38:59: }
+2026-01-28T11:29:45: (node:9661) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-28T11:29:45: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-28T17:03:15: (node:67373) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-28T17:03:15: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-28T19:26:59: ❌ [HTTP] Operation cmkycx82c003x2jhy00o3kvba failed: Login failed - redirected to error page
+2026-01-28T21:00:16: ❌ [HTTP] Operation cmkyg946v00722jhygui8z16h failed: Login failed - redirected to error page
+2026-01-29T09:50:53: (node:150507) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-29T09:50:53: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-29T09:50:56: ❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for cmkwyes330024hqk9z686u6u7: Login failed
+2026-01-29T14:44:01: (node:181607) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-29T14:44:01: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-29T19:46:43: (node:213231) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-29T19:46:43: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-30T15:05:52: (node:317854) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-30T15:05:52: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-30T16:50:38: (node:332384) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-30T16:50:38: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-30T20:40:52: (node:367097) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-30T20:40:52: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-31T15:24:25: (node:375186) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-31T15:24:25: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-31T18:06:10: ❌ [HTTP] Operation cml2kcscp0036kmhyfsu058wu failed: No packages available for this card
+2026-02-01T07:48:40: ❌ [HTTP] Operation cml3dqnvv00ajkmhy9u9ja12b failed: Session Expired - Login page with cached title
+2026-02-01T07:51:19: ❌ [HTTP] Operation cml3du00d00amkmhykq90bnkj failed: Login failed - redirected to error page
+2026-02-01T10:31:18: ❌ [HTTP] Operation cml3jjo6x00ckkmhysf76p6uh failed: Login failed - redirected to error page
+2026-02-01T13:08:14: ❌ [HTTP] Operation cml3p59hr00dtkmhyqtamant9 failed: Mobile number is required.Enter a valid mobile number.
+2026-02-01T13:17:10: ❌ [HTTP] Operation cml3pgxc200ezkmhyot74xqed failed: Mobile number is required.Enter a valid mobile number.
+2026-02-01T13:20:42: ❌ [HTTP] Operation cml3plgys00fekmhytfjbjymm failed: Mobile number is required.Enter a valid mobile number.
+2026-02-01T15:37:08: (node:594678) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-02-01T15:37:08: (Use `node --trace-warnings ...` to show where the warning was created)

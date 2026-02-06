@@ -49,6 +49,7 @@ interface BeinAccount {
     label: string | null
     isActive: boolean
     priority: number
+    customerOnly: boolean
     lastUsedAt: string | null
     usageCount: number
     cooldownUntil: string | null
@@ -110,6 +111,7 @@ export default function BeinAccountsPage() {
         totpSecret: '',
         label: '',
         priority: 0,
+        customerOnly: false,
         proxyId: ''
     })
 
@@ -166,7 +168,7 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 toast.success(t.adminBeinAccounts?.messages?.addSuccess || 'Account added successfully')
                 setAddDialogOpen(false)
-                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, proxyId: '' })
+                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, proxyId: '' })
                 fetchAccounts()
             } else {
                 toast.error(data.error)
@@ -196,7 +198,7 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 toast.success(t.adminBeinAccounts?.messages?.updateSuccess || 'Account updated successfully')
                 setEditAccount(null)
-                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, proxyId: '' })
+                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, proxyId: '' })
                 fetchAccounts()
             } else {
                 toast.error(data.error)
@@ -257,7 +259,7 @@ export default function BeinAccountsPage() {
             toast.error(t.adminBeinAccounts?.messages?.accountNotActive || 'Account is not active')
             return
         }
-        
+
         setRefreshingBalanceId(account.id)
         try {
             const res = await fetch(`/api/admin/bein-accounts/${account.id}/check-balance`, {
@@ -392,6 +394,18 @@ export default function BeinAccountsPage() {
                                             </option>
                                         ))}
                                     </select>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="checkbox"
+                                        id="customerOnly"
+                                        checked={formData.customerOnly}
+                                        onChange={(e) => setFormData({ ...formData, customerOnly: e.target.checked })}
+                                        className="h-4 w-4 rounded border-input"
+                                    />
+                                    <Label htmlFor="customerOnly" className="cursor-pointer">
+                                        للتطبيق فقط (Mobile App Only)
+                                    </Label>
                                 </div>
                                 <DialogFooter>
                                     <DialogClose asChild>
@@ -567,6 +581,7 @@ export default function BeinAccountsPage() {
                                                             totpSecret: '',
                                                             label: account.label || '',
                                                             priority: account.priority,
+                                                            customerOnly: account.customerOnly || false,
                                                             proxyId: account.proxyId || ''
                                                         })
                                                     }}
@@ -656,6 +671,18 @@ export default function BeinAccountsPage() {
                                     </option>
                                 ))}
                             </select>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="checkbox"
+                                id="edit-customerOnly"
+                                checked={formData.customerOnly}
+                                onChange={(e) => setFormData({ ...formData, customerOnly: e.target.checked })}
+                                className="h-4 w-4 rounded border-input"
+                            />
+                            <Label htmlFor="edit-customerOnly" className="cursor-pointer">
+                                للتطبيق فقط (Mobile App Only)
+                            </Label>
                         </div>
                         <DialogFooter>
                             <DialogClose asChild>

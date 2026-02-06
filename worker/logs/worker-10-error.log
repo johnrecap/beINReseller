@@ -1,0 +1,75 @@
+2026-01-27T15:08:06: (node:1585415) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-27T15:08:06: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-27T19:54:54: ❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for cmkwxursr0023hqk9fvmu0mx6: Login failed
+2026-01-27T19:58:29: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-27T19:58:31: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-27T19:58:34: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-27T19:58:39: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-27T19:58:46: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-27T19:58:56: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-27T19:59:06: ⚠️ All accounts are rate-limited, in cooldown, or locked
+2026-01-27T20:02:09: ❌ [HTTP] Operation cmkwyqk5x003khqk9xe4n5vpj failed: No packages available for this card
+2026-01-27T20:24:12: ❌ [HTTP] Operation cmkwziy4m004uhqk9aln0wohg failed: Login failed - redirected to error page
+2026-01-28T01:07:06: (node:1636192) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-28T01:07:06: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-28T06:38:38: ❌ [worker-10] Worker error: Error: connect ETIMEDOUT
+2026-01-28T06:38:38:     at Socket.<anonymous> (/www/wwwroot/deshpanel.com/worker/node_modules/ioredis/built/Redis.js:171:41)
+2026-01-28T06:38:38:     at Object.onceWrapper (node:events:622:28)
+2026-01-28T06:38:38:     at Socket.emit (node:events:508:28)
+2026-01-28T06:38:38:     at Socket._onTimeout (node:net:604:8)
+2026-01-28T06:38:38:     at listOnTimeout (node:internal/timers:605:17)
+2026-01-28T06:38:38:     at process.processTimers (node:internal/timers:541:7) {
+2026-01-28T06:38:38:   errorno: 'ETIMEDOUT',
+2026-01-28T06:38:38:   code: 'ETIMEDOUT',
+2026-01-28T06:38:38:   syscall: 'connect'
+2026-01-28T06:38:38: }
+2026-01-28T06:38:48: ❌ [worker-10] Worker error: Error: connect ETIMEDOUT
+2026-01-28T06:38:48:     at Socket.<anonymous> (/www/wwwroot/deshpanel.com/worker/node_modules/ioredis/built/Redis.js:171:41)
+2026-01-28T06:38:48:     at Object.onceWrapper (node:events:622:28)
+2026-01-28T06:38:48:     at Socket.emit (node:events:508:28)
+2026-01-28T06:38:48:     at Socket._onTimeout (node:net:604:8)
+2026-01-28T06:38:48:     at listOnTimeout (node:internal/timers:605:17)
+2026-01-28T06:38:48:     at process.processTimers (node:internal/timers:541:7) {
+2026-01-28T06:38:48:   errorno: 'ETIMEDOUT',
+2026-01-28T06:38:48:   code: 'ETIMEDOUT',
+2026-01-28T06:38:48:   syscall: 'connect'
+2026-01-28T06:38:48: }
+2026-01-28T06:38:58: ❌ [worker-10] Worker error: Error: connect ETIMEDOUT
+2026-01-28T06:38:58:     at Socket.<anonymous> (/www/wwwroot/deshpanel.com/worker/node_modules/ioredis/built/Redis.js:171:41)
+2026-01-28T06:38:58:     at Object.onceWrapper (node:events:622:28)
+2026-01-28T06:38:58:     at Socket.emit (node:events:508:28)
+2026-01-28T06:38:58:     at Socket._onTimeout (node:net:604:8)
+2026-01-28T06:38:58:     at listOnTimeout (node:internal/timers:605:17)
+2026-01-28T06:38:58:     at process.processTimers (node:internal/timers:541:7) {
+2026-01-28T06:38:58:   errorno: 'ETIMEDOUT',
+2026-01-28T06:38:58:   code: 'ETIMEDOUT',
+2026-01-28T06:38:58:   syscall: 'connect'
+2026-01-28T06:38:58: }
+2026-01-28T11:11:58: (node:9702) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-28T11:11:58: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-28T16:33:12: (node:67432) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-28T16:33:12: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-28T18:21:56: ❌ [HTTP] Operation cmkyaljw7002z2jhy13jpl1dd failed: Login failed - redirected to error page
+2026-01-28T19:56:34: ❌ [HTTP] Operation cmkydz9th00532jhyyps76y67 failed: Login failed - redirected to error page
+2026-01-29T09:30:20: (node:150563) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-29T09:30:20: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-29T09:30:24: ❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for cmkx0pezn005fhqk9s331rr0q: Login failed
+2026-01-29T11:24:17: ❌ [HTTP] Operation cmkzb4az8002f7khyfa821b56 failed: Login failed - redirected to error page
+2026-01-29T14:28:16: (node:181660) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-29T14:28:16: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-29T19:00:10: (node:213295) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-29T19:00:10: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-30T14:54:42: (node:317909) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-30T14:54:42: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-30T18:19:37: (node:332431) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-30T18:19:37: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-31T12:17:45: (node:375254) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-01-31T12:17:45: (Use `node --trace-warnings ...` to show where the warning was created)
+2026-01-31T14:24:36: ❌ [HTTP] Operation cml2cfx5x001ukmhyjvawbbw4 failed: The code is not the same as the image
+2026-01-31T18:15:34: ❌ [HTTP] Operation cml2kn1q70044kmhyqbc4syjz failed: لم يتم العثور على تأكيد النجاح من beIN
+2026-01-31T21:12:10: ❌ [HTTP] Operation cml2qzxvl006ukmhyd6o983og failed: The code is not the same as the image
+2026-02-01T11:07:38: ❌ [HTTP] Operation cml3kseiq00d6kmhyburdt11s failed: Add to cart failed: Mobile number is required.Enter a valid mobile number.
+2026-02-01T13:09:13: ❌ [HTTP] Operation cml3p6drq00dxkmhy9ev5wr6j failed: Mobile number is required.Enter a valid mobile number.
+2026-02-01T13:14:16: ❌ [HTTP] Operation cml3pddvq00efkmhy1wchv9zz failed: Session Expired - Login page with cached title
+2026-02-01T15:22:51: (node:594724) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2026-02-01T15:22:51: (Use `node --trace-warnings ...` to show where the warning was created)

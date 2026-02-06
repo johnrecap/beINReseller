@@ -47,7 +47,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const userRole = session?.user?.role
     const isAdmin = userRole === 'ADMIN'
     const isManager = userRole === 'MANAGER'
-    
+
     // Permission-based visibility
     const canRenew = canAccessSubscription(userRole)
     const canSignal = canAccessSignal(userRole)
@@ -56,20 +56,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const baseLinks = [
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
     ]
-    
+
     // Renewal/Operation links - only for users with permission (not MANAGER)
     const renewalLinks = canRenew ? [
         { href: '/dashboard/renew', label: t.bulk?.interactiveRenewal || 'Interactive Renewal', icon: Sparkles },
         { href: '/dashboard/operations/active', label: t.operations?.activeOperations || 'Active Operations', icon: Loader2 },
         { href: '/dashboard/history', label: t.sidebar.history, icon: History },
     ] : []
-    
+
     // Common links for all users
     const commonLinks = [
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
         { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },
     ]
-    
+
     // Combined reseller links
     const resellerLinks = [...baseLinks, ...renewalLinks, ...commonLinks]
 
@@ -103,6 +103,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin/app-management/customers', label: t.sidebar.appCustomers || 'Customers', icon: UserCircle },
         { href: '/dashboard/admin/app-management/shipping', label: t.sidebar.appShipping || 'Shipping', icon: Truck },
         { href: '/dashboard/admin/app-management/settings', label: t.sidebar.appSettings || 'App Settings', icon: Settings },
+    ]
+
+    // Mobile App Management links - Admin only
+    const mobileAppLinks = [
+        { href: '/dashboard/mobile-app/customers', label: t.sidebar.mobileCustomers || 'العملاء', icon: UserCircle },
+        { href: '/dashboard/mobile-app/transactions', label: t.sidebar.mobileTransactions || 'المعاملات', icon: CreditCard },
+        { href: '/dashboard/mobile-app/operations', label: t.sidebar.mobileOperations || 'العمليات', icon: Activity },
+        { href: '/dashboard/mobile-app/settings', label: t.sidebar.mobileSettings || 'الإعدادات', icon: Settings },
     ]
 
     const handleLogout = async () => {
@@ -279,7 +287,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                                 )}
                                             >
                                                 <Icon className="h-4 w-4" />
-                                            {link.label}
+                                                {link.label}
                                             </Link>
                                         )
                                     })}
@@ -298,6 +306,38 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     {appManagementLinks.map((link) => {
                                         const Icon = link.icon
                                         const isActive = pathname === link.href || (pathname.startsWith(link.href + '/') && link.href !== '/dashboard/admin/app-management')
+                                        return (
+                                            <Link
+                                                key={link.href}
+                                                href={link.href}
+                                                onClick={onClose}
+                                                className={cn(
+                                                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                                                    isActive
+                                                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                                                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
+                                                )}
+                                            >
+                                                <Icon className="h-4 w-4" />
+                                                {link.label}
+                                            </Link>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Mobile App Management - Admin Only */}
+                        {isAdmin && (
+                            <div>
+                                <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 flex items-center gap-2">
+                                    <Smartphone className="h-3 w-3" />
+                                    {t.sidebar.mobileApp || 'التطبيق المحمول'}
+                                </h4>
+                                <div className="space-y-1">
+                                    {mobileAppLinks.map((link) => {
+                                        const Icon = link.icon
+                                        const isActive = pathname === link.href || pathname.startsWith(link.href + '/')
                                         return (
                                             <Link
                                                 key={link.href}

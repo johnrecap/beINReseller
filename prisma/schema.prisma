@@ -42,6 +42,13 @@ enum TransactionType {
   CORRECTION        // تصحيح رصيد زائد
 }
 
+// ===== Wallet Transaction Types (B2C Mobile App) =====
+enum WalletTransactionType {
+  CREDIT      // إضافة رصيد
+  DEBIT       // خصم (تجديد، شراء)
+  REFUND      // استرداد (عملية فاشلة)
+}
+
 model User {
   id              String        @id @default(cuid())
   username        String        @unique
@@ -267,6 +274,7 @@ model BeinAccount {
   // ===== Status =====
   isActive      Boolean  @default(true) @map("is_active")
   priority      Int      @default(0)      // Higher = first in Round Robin
+  customerOnly  Boolean  @default(false) @map("customer_only")  // للتطبيق فقط - Only for mobile app
   label         String?                   // Optional display name
   
   // ===== Rate Limiting =====
@@ -301,6 +309,7 @@ model BeinAccount {
   @@index([isActive])
   @@index([cooldownUntil])
   @@index([priority])
+  @@index([customerOnly, isActive])
   @@map("bein_accounts")
 }
 
@@ -418,17 +427,25 @@ model Customer {
   // Store Credit - for failed operations (customer can retry without paying)
   storeCredit     Float     @default(0) @map("store_credit")
   
+  // ===== Wallet System (B2C Mobile App) =====
+  walletBalance     Float     @default(0) @map("wallet_balance")
+  stripeCustomerId  String?   @map("stripe_customer_id")
+  
+  // Activity Tracking
+  loginCount        Int       @default(0) @map("login_count")
+  
   // Timestamps
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   lastLoginAt     DateTime? @map("last_login_at")
   
   // Relations
-  addresses       CustomerAddress[]
-  orders          Order[]
-  subscriptions   StoreSubscription[]
-  payments        Payment[]
-  operations      Operation[]
+  addresses           CustomerAddress[]
+  orders              Order[]
+  subscriptions       StoreSubscription[]
+  payments            Payment[]
+  operations          Operation[]
+  walletTransactions  WalletTransaction[]
 
   @@index([email])
   @@index([isActive])
@@ -830,4 +847,34 @@ model StoreSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("store_settings")
+}
+
+// ===== Wallet Transactions (B2C Mobile App) =====
+model WalletTransaction {
+  id              String                @id @default(cuid())
+  customerId      String                @map("customer_id")
+  
+  // Transaction Details
+  type            WalletTransactionType
+  amount          Float
+  balanceBefore   Float                 @map("balance_before")
+  balanceAfter    Float                 @map("balance_after")
+  
+  // Description & Reference
+  description     String
+  referenceType   String?               @map("reference_type")  // PAYMENT, RENEWAL, REFUND, ORDER
+  referenceId     String?               @map("reference_id")
+  
+  // Stripe Integration (for add balance)
+  stripePaymentIntentId String?         @map("stripe_payment_intent_id")
+  
+  // Timestamps
+  createdAt       DateTime              @default(now()) @map("created_at")
+  
+  // Relations
+  customer        Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("wallet_transactions")
 }

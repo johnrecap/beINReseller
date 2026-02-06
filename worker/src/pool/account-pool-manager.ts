@@ -19,11 +19,13 @@ export class AccountPoolManager {
     private config: PoolConfig
     private workerId: string
     private configLoaded: boolean = false
+    private customerOnly: boolean | undefined  // Filter for customerOnly accounts
 
-    constructor(redisUrl?: string, workerId?: string) {
+    constructor(redisUrl?: string, workerId?: string, options?: { customerOnly?: boolean }) {
         // Use shared Redis connection instead of creating a new one
         this.redis = getRedisConnection(redisUrl)
         this.workerId = workerId || `worker-${process.pid}-${Date.now()}`
+        this.customerOnly = options?.customerOnly  // Store customer filter option
 
         // Default config (will be overwritten by loadConfig)
         this.config = {
@@ -56,15 +58,23 @@ export class AccountPoolManager {
             await this.loadConfig()
         }
 
+        // Build where clause with customerOnly filter if specified
+        const whereClause: any = {
+            isActive: true,
+            OR: [
+                { cooldownUntil: null },
+                { cooldownUntil: { lte: new Date() } },
+            ],
+        }
+
+        // Apply customerOnly filter if set
+        if (this.customerOnly !== undefined) {
+            whereClause.customerOnly = this.customerOnly
+        }
+
         // Get all active accounts not in cooldown
         const accounts = await prisma.beinAccount.findMany({
-            where: {
-                isActive: true,
-                OR: [
-                    { cooldownUntil: null },
-                    { cooldownUntil: { lte: new Date() } },
-                ],
-            },
+            where: whereClause,
             include: {
                 proxy: true,  // Include proxy relation for session ID
             },
@@ -388,7 +398,7 @@ export class AccountPoolManager {
             if (attempt < maxRetries) {
                 console.log(`⏳ No accounts available, retry ${attempt + 1}/${maxRetries} in ${delay}ms`)
                 await new Promise(resolve => setTimeout(resolve, delay))
-                
+
                 // Exponential backoff
                 delay = Math.min(delay * 1.5, maxDelayMs)
             }
@@ -423,10 +433,15 @@ export class AccountPoolManager {
                 { cooldownUntil: { lte: new Date() } },
             ],
         }
-        
+
         // Add balance filter if specified
         if (minBalance !== undefined) {
             whereClause.dealerBalance = { gte: minBalance }
+        }
+
+        // Apply customerOnly filter if set
+        if (this.customerOnly !== undefined) {
+            whereClause.customerOnly = this.customerOnly
         }
 
         const accounts = await prisma.beinAccount.findMany({
@@ -478,14 +493,21 @@ export class AccountPoolManager {
             await this.loadConfig()
         }
 
+        const whereClause: any = {
+            isActive: true,
+            OR: [
+                { cooldownUntil: null },
+                { cooldownUntil: { lte: new Date() } },
+            ],
+        }
+
+        // Apply customerOnly filter if set
+        if (this.customerOnly !== undefined) {
+            whereClause.customerOnly = this.customerOnly
+        }
+
         const accounts = await prisma.beinAccount.findMany({
-            where: {
-                isActive: true,
-                OR: [
-                    { cooldownUntil: null },
-                    { cooldownUntil: { lte: new Date() } },
-                ],
-            },
+            where: whereClause,
             select: { id: true }
         })
 
@@ -519,15 +541,19 @@ export class AccountPoolManager {
 // Singleton instance for the worker
 let poolManagerInstance: AccountPoolManager | null = null
 
-export function getPoolManager(redisUrl: string, workerId?: string): AccountPoolManager {
+export function getPoolManager(redisUrl: string, workerId?: string, options?: { customerOnly?: boolean }): AccountPoolManager {
+    // For customer-only pool, don't use singleton (separate instance)
+    if (options?.customerOnly !== undefined) {
+        return new AccountPoolManager(redisUrl, workerId, options)
+    }
     if (!poolManagerInstance) {
         poolManagerInstance = new AccountPoolManager(redisUrl, workerId)
     }
     return poolManagerInstance
 }
 
-export async function initializePoolManager(redisUrl: string, workerId?: string): Promise<AccountPoolManager> {
-    const manager = getPoolManager(redisUrl, workerId)
+export async function initializePoolManager(redisUrl: string, workerId?: string, options?: { customerOnly?: boolean }): Promise<AccountPoolManager> {
+    const manager = getPoolManager(redisUrl, workerId, options)
     await manager.initialize()
     return manager
 }

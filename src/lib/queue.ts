@@ -60,7 +60,7 @@ export async function addOperationJob(data: {
 export async function addCustomerOperationJob(data: {
     operationId: string
     type: string
-    cardNumber: string
+    cardNumber?: string     // Optional for CONFIRM_PURCHASE
     duration?: string
     customerId: string      // Required for customers
     amount?: number

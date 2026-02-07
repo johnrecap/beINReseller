@@ -138,7 +138,32 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
         data: { status: 'SUCCEEDED' }
     })
 
-    // Handle based on payment type
+    // =========================================================
+    // Handle MOBILE RENEWAL payments (from customer app)
+    // =========================================================
+    if (metadata.source === 'mobile_renewal' && metadata.operationId) {
+        console.log(`[Webhook] Mobile renewal payment detected for operation: ${metadata.operationId}`)
+
+        // Update operation status to COMPLETING (worker will call confirmPurchase)
+        await prisma.operation.update({
+            where: { id: metadata.operationId },
+            data: { status: 'COMPLETING' }
+        })
+
+        // Queue job to complete the purchase (call confirmPurchase on worker)
+        const { addCustomerOperationJob } = await import('@/lib/queue')
+        await addCustomerOperationJob({
+            operationId: metadata.operationId,
+            type: 'CONFIRM_PURCHASE',
+            customerId: metadata.customerId,
+            amount: parseFloat(metadata.customerPrice || '0')
+        })
+
+        console.log(`[Webhook] Queued CONFIRM_PURCHASE job for operation: ${metadata.operationId}`)
+        return
+    }
+
+    // Handle based on payment type (existing logic for store orders/subscriptions)
     if (payment.type === 'ORDER' && payment.order) {
         // Update order status to PAID
         if (payment.order.status === 'PENDING') {
@@ -213,8 +238,8 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
  */
 async function handleRefund(charge: Stripe.Charge) {
     // Get payment intent ID from charge
-    const paymentIntentId = typeof charge.payment_intent === 'string' 
-        ? charge.payment_intent 
+    const paymentIntentId = typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
         : charge.payment_intent?.id
 
     if (!paymentIntentId) {

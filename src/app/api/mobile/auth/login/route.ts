@@ -33,14 +33,14 @@ export async function POST(request: NextRequest) {
         if (!email || !password) {
             return NextResponse.json(
                 { success: false, error: 'البريد الإلكتروني وكلمة المرور مطلوبان' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             )
         }
 
         if (!isValidEmail(email)) {
             return NextResponse.json(
                 { success: false, error: 'البريد الإلكتروني غير صالح' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             )
         }
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         if (!customer) {
             return NextResponse.json(
                 { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             )
         }
 
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         if (!isValidPass) {
             return NextResponse.json(
                 { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' },
-                { status: 401 }
+                { status: 401, headers: corsHeaders }
             )
         }
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
         if (!customer.isVerified) {
             return NextResponse.json(
                 { success: false, error: 'يرجى تفعيل حسابك أولاً', code: 'NOT_VERIFIED' },
-                { status: 403 }
+                { status: 403, headers: corsHeaders }
             )
         }
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         if (!customer.isActive) {
             return NextResponse.json(
                 { success: false, error: 'الحساب معطل', code: 'ACCOUNT_DISABLED' },
-                { status: 403 }
+                { status: 403, headers: corsHeaders }
             )
         }
 
@@ -110,13 +110,14 @@ export async function POST(request: NextRequest) {
                 storeCredit: updatedCustomer.storeCredit
             },
             tokens
-        })
+        }, { headers: corsHeaders })
 
     } catch (error) {
         console.error('Login error:', error)
         return NextResponse.json(
             { success: false, error: 'حدث خطأ في تسجيل الدخول' },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         )
     }
 }
+

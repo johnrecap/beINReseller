@@ -42,21 +42,21 @@ export async function POST(request: NextRequest) {
         if (!email || !name || !password) {
             return NextResponse.json(
                 { success: false, error: 'جميع الحقول مطلوبة' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             )
         }
 
         if (!isValidEmail(email)) {
             return NextResponse.json(
                 { success: false, error: 'البريد الإلكتروني غير صالح' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             )
         }
 
         if (!isValidName(name)) {
             return NextResponse.json(
                 { success: false, error: 'الاسم يجب أن يكون على الأقل حرفين' },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             )
         }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         if (!passwordCheck.valid) {
             return NextResponse.json(
                 { success: false, error: passwordCheck.message },
-                { status: 400 }
+                { status: 400, headers: corsHeaders }
             )
         }
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         if (existingCustomer) {
             return NextResponse.json(
                 { success: false, error: 'البريد الإلكتروني مستخدم بالفعل' },
-                { status: 409 }
+                { status: 409, headers: corsHeaders }
             )
         }
 
@@ -112,13 +112,14 @@ export async function POST(request: NextRequest) {
             customerId: customer.id,
             // In development, return OTP for testing
             ...(process.env.NODE_ENV === 'development' && { otp })
-        })
+        }, { headers: corsHeaders })
 
     } catch (error) {
         console.error('Register error:', error)
         return NextResponse.json(
             { success: false, error: 'حدث خطأ في إنشاء الحساب' },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
         )
     }
 }
+

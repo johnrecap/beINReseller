@@ -4,17 +4,15 @@
  * Register a new customer account
  * - Validates email, name, password
  * - Hashes password with bcrypt
- * - Generates 6-digit OTP
- * - Creates customer record
- * - Sends verification email (TODO: implement email service)
+ * - Creates customer record (auto-verified)
+ * - Returns JWT tokens for immediate login
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import {
-    generateOTP,
-    getOTPExpiry,
+    generateTokenPair,
     isValidEmail,
     isValidPassword,
     isValidName
@@ -81,11 +79,9 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // ===== Create customer =====
+        // ===== Create customer (auto-verified) =====
 
         const passwordHash = await bcrypt.hash(password, 12)
-        const otp = generateOTP()
-        const otpExpiry = getOTPExpiry()
 
         const customer = await prisma.customer.create({
             data: {
@@ -94,24 +90,32 @@ export async function POST(request: NextRequest) {
                 passwordHash,
                 country,
                 preferredLang,
-                verifyToken: otp,
-                verifyExpires: otpExpiry,
-                isVerified: false,
+                isVerified: true,  // Auto-verified
                 isActive: true
             }
         })
 
-        // ===== Send verification email =====
-        // TODO: Implement email service
-        // For now, log OTP for development
-        console.log(`[Register] OTP for ${email}: ${otp}`)
+        // ===== Generate tokens for immediate login =====
+        const tokens = generateTokenPair({
+            customerId: customer.id,
+            email: customer.email,
+            name: customer.name,
+            country: customer.country,
+            preferredLang: customer.preferredLang
+        })
 
         return NextResponse.json({
             success: true,
-            message: 'تم إنشاء الحساب. يرجى التحقق من بريدك الإلكتروني',
-            customerId: customer.id,
-            // In development, return OTP for testing
-            ...(process.env.NODE_ENV === 'development' && { otp })
+            message: 'تم إنشاء الحساب بنجاح',
+            customer: {
+                id: customer.id,
+                email: customer.email,
+                name: customer.name,
+                country: customer.country,
+                preferredLang: customer.preferredLang,
+                storeCredit: customer.storeCredit
+            },
+            tokens
         }, { headers: corsHeaders })
 
     } catch (error) {
@@ -122,4 +126,5 @@ export async function POST(request: NextRequest) {
         )
     }
 }
+
 

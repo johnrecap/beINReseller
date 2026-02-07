@@ -18,6 +18,26 @@ module.exports = {
         },
 
         // ----------------------------
+        // 🔥 KEEP-ALIVE SERVICE
+        // ----------------------------
+        {
+            name: 'bein-keepalive',
+            script: 'dist/keepalive.js',
+            cwd: './worker',
+            instances: 1,
+            exec_mode: 'fork',
+            max_memory_restart: '200M',
+            autorestart: true,
+            merge_logs: true,
+            time: true,
+            env: {
+                NODE_ENV: 'production',
+            },
+            error_file: './logs/keepalive-error.log',
+            out_file: './logs/keepalive-out.log',
+        },
+
+        // ----------------------------
         // ⚙️ WORKER PROCESSES
         // ----------------------------
         ...createWorkers()

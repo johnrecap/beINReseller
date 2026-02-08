@@ -58,7 +58,7 @@ export class HttpClientService {
     // Config caching
     private static configCache: { data: BeINHttpConfig; timestamp: number } | null = null;
     private static readonly CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-    
+
     // Default session timeout: 15 minutes (conservative)
     private static readonly DEFAULT_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
@@ -100,21 +100,21 @@ export class HttpClientService {
             const proxyManager = getProxyManager();
             const proxyUrl = proxyManager.buildProxyUrlFromConfig(proxyConfig);
             const proxyType = proxyConfig.proxyType || 'socks5';
-            
+
             // Create a cookie-aware agent that wraps the proxy agent
             // This ensures cookies are properly handled during redirect chains
             if (proxyType === 'socks5') {
                 const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
-                axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, { 
-                    cookies: { jar: this.jar } 
+                axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, {
+                    cookies: { jar: this.jar }
                 });
             } else {
                 const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
-                axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, { 
-                    cookies: { jar: this.jar } 
+                axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, {
+                    cookies: { jar: this.jar }
                 });
             }
-            
+
             axiosConfig.proxy = false; // Disable axios built-in proxy
 
             // Create axios instance - cookie handling is done by the agent
@@ -176,6 +176,7 @@ export class HttpClientService {
             renewUrl: get('bein_renew_url', '/Dealers/Pages/frmSellPackages.aspx'),
             checkUrl: get('bein_check_url', '/Dealers/Pages/frmCheck.aspx'),
             signalUrl: get('bein_signal_url', '/RefreshSignal'),
+            installmentUrl: get('bein_installment_url', '/Dealers/Pages/frmPayMonthlyInstallment.aspx'),
 
             sessionTimeout: parseInt(get('worker_session_timeout', '15')),
             maxRetries: parseInt(get('worker_max_retries', '3'))
@@ -488,7 +489,7 @@ export class HttpClientService {
         // STEP 1.5: Detect redirect pages ("Object moved")
         // These are HTTP 302 redirects - session is definitely expired
         // ============================================
-        if (pageTitleLower.includes('object moved') || 
+        if (pageTitleLower.includes('object moved') ||
             pageTitleLower.includes('redirect') ||
             pageTitleLower === '' ||
             html.includes('Object moved to')) {
@@ -502,7 +503,7 @@ export class HttpClientService {
         // ============================================
         const viewStateMatch = html.match(/id="__VIEWSTATE"[^>]*value="([^"]*)"/);
         const viewStateValue = viewStateMatch ? viewStateMatch[1] : '';
-        
+
         if (viewStateValue.length < 100) {
             console.log(`[HTTP] ⚠️ EMPTY VIEWSTATE - Length: ${viewStateValue.length} (session likely expired)`);
             return 'Session Expired - No ViewState (invalid page)';
@@ -661,7 +662,7 @@ export class HttpClientService {
         const cookieStr = await this.jar.serialize();
         const now = Date.now();
         const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
-        
+
         return {
             cookies: JSON.stringify(cookieStr),
             viewState: this.currentViewState || undefined,
@@ -696,20 +697,20 @@ export class HttpClientService {
                 const proxyManager = getProxyManager();
                 const proxyUrl = proxyManager.buildProxyUrlFromConfig(this.proxyConfig);
                 const proxyType = this.proxyConfig.proxyType || 'socks5';
-                
+
                 // Create a cookie-aware agent that wraps the proxy agent
                 if (proxyType === 'socks5') {
                     const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
-                    axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, { 
-                        cookies: { jar: this.jar } 
+                    axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, {
+                        cookies: { jar: this.jar }
                     });
                 } else {
                     const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
-                    axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, { 
-                        cookies: { jar: this.jar } 
+                    axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, {
+                        cookies: { jar: this.jar }
                     });
                 }
-                
+
                 axiosConfig.proxy = false;
 
                 this.axios = axios.create(axiosConfig);
@@ -772,7 +773,7 @@ export class HttpClientService {
         if (this.sessionExpiresAt) {
             const isActive = now < this.sessionExpiresAt;
             const remainingMs = this.sessionExpiresAt - now;
-            
+
             if (isActive) {
                 const remainingMin = Math.floor(remainingMs / 60000);
                 const remainingSec = Math.floor((remainingMs % 60000) / 1000);
@@ -814,11 +815,11 @@ export class HttpClientService {
     private markSessionValid(): void {
         const now = Date.now();
         const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
-        
+
         this.lastLoginTime = new Date(now);
         this.sessionExpiresAt = now + timeoutMs;
         this.sessionValid = true;
-        
+
         console.log(`[HTTP] Session marked as valid (expires in ${Math.floor(timeoutMs / 60000)} min)`);
     }
 
@@ -830,7 +831,7 @@ export class HttpClientService {
     public markSessionValidFromCache(expiresAt?: number): void {
         this.sessionValid = true;
         this.lastLoginTime = new Date();
-        
+
         if (expiresAt && expiresAt > Date.now()) {
             this.sessionExpiresAt = expiresAt;
             const remainingMin = Math.floor((expiresAt - Date.now()) / 60000);
@@ -1756,7 +1757,7 @@ export class HttpClientService {
             // Extract balance from page
             // "Your Current Credit Balance is 1,340 USD"
             const pageText = cardRes.data;
-            
+
             // Try multiple patterns - handle commas in numbers like 1,340 and any decimal places like 2,000.001
             const patterns = [
                 /Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i,
@@ -1764,7 +1765,7 @@ export class HttpClientService {
                 /Balance[:\s]+([\d,]+(?:\.\d+)?)\s*USD/i,
                 /([\d,]+(?:\.\d+)?)\s*USD\s*(?:Credit|Balance)/i
             ];
-            
+
             for (const pattern of patterns) {
                 const match = pageText.match(pattern);
                 if (match) {
@@ -3226,6 +3227,334 @@ export class HttpClientService {
         } catch (error: any) {
             console.error('[HTTP] Signal activation error:', error.message);
             return { success: false, error: `Signal activation failed: ${error.message}` };
+        }
+    }
+
+    // =============================================
+    // MONTHLY INSTALLMENT METHODS
+    // =============================================
+
+    /**
+     * Load installment details for a card
+     * 
+     * Flow:
+     * 1. Navigate to installment page
+     * 2. Select "Smartcard: CISCO" dropdown
+     * 3. Enter card number & click "Load Another"
+     * 4. Enter confirm serial number & click "Load"
+     * 5. Extract installment details table
+     * 
+     * @param cardNumber - The smart card number
+     * @returns Installment details or error
+     */
+    async loadInstallment(cardNumber: string): Promise<import('./types').LoadInstallmentResult> {
+        console.log(`[HTTP] Loading installment for card: ${cardNumber.slice(0, 4)}****`);
+
+        try {
+            const installmentUrl = this.buildFullUrl(this.config.installmentUrl);
+
+            // Step 1: GET installment page
+            console.log(`[HTTP] GET ${installmentUrl}`);
+            const pageRes = await this.axios.get(installmentUrl, {
+                headers: { 'Referer': this.config.loginUrl }
+            });
+
+            // Check for session expiry
+            const sessionExpiry = this.checkForSessionExpiry(pageRes.data);
+            if (sessionExpiry) {
+                this.invalidateSession();
+                return { success: false, hasInstallment: false, error: sessionExpiry };
+            }
+
+            // Extract ViewState
+            this.currentViewState = this.extractHiddenFields(pageRes.data);
+
+            // Step 2: Select CISCO from dropdown and enter card number
+            // The dropdown has: Irdeto (1), CISCO (value needs to be determined from HTML)
+            const $ = cheerio.load(pageRes.data);
+
+            // Find the dropdown and get CISCO value
+            const dropdownId = 'ctl00$ContentPlaceHolder1$ddlType';
+            const ciscoOption = $(`select[name="${dropdownId}"] option`).filter((_, el) => {
+                const text = $(el).text().toLowerCase();
+                return text.includes('cisco');
+            });
+
+            const ciscoValue = ciscoOption.attr('value') || 'CISCO';
+            console.log(`[HTTP] CISCO dropdown value: "${ciscoValue}"`);
+
+            // Get Load Another button value
+            const loadAnotherBtnValue = this.extractButtonValue(pageRes.data, 'btnLoad2', 'Load Another');
+
+            // Step 3: POST - Select CISCO and enter card number, click Load Another
+            const loadFormData: Record<string, string> = {
+                ...this.currentViewState,
+                [dropdownId]: ciscoValue,
+                'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,
+                'ctl00$ContentPlaceHolder1$btnLoad2': loadAnotherBtnValue
+            };
+
+            console.log('[HTTP] POST - Load card number...');
+            const loadRes = await this.axios.post(
+                installmentUrl,
+                this.buildFormData(loadFormData),
+                {
+                    headers: this.buildPostHeaders(installmentUrl)
+                }
+            );
+
+            // Check for errors
+            const loadError = this.checkForErrors(loadRes.data);
+            if (loadError) {
+                console.log(`[HTTP] ❌ Load error: "${loadError}"`);
+                return { success: false, hasInstallment: false, error: loadError };
+            }
+
+            // Update ViewState
+            this.currentViewState = this.extractHiddenFields(loadRes.data);
+
+            // Step 4: Enter confirm serial and click Load
+            const $load = cheerio.load(loadRes.data);
+
+            // Check if "Confirm Serial Number" field appeared
+            const confirmSerialField = $load('input[name="ctl00$ContentPlaceHolder1$tbSerial2"]');
+            if (confirmSerialField.length === 0) {
+                console.log('[HTTP] ⚠️ Confirm serial field not found - card may not have installments');
+                return {
+                    success: true,
+                    hasInstallment: false,
+                    error: 'لا توجد أقساط لهذا الكارت'
+                };
+            }
+
+            // Get Load button value
+            const loadBtnValue = this.extractButtonValue(loadRes.data, 'btnLoad', 'Load');
+
+            // POST - Confirm serial and load details
+            const confirmFormData: Record<string, string> = {
+                ...this.currentViewState,
+                [dropdownId]: ciscoValue,
+                'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,
+                'ctl00$ContentPlaceHolder1$tbSerial2': cardNumber,
+                'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
+            };
+
+            console.log('[HTTP] POST - Confirm serial and load details...');
+            const detailsRes = await this.axios.post(
+                installmentUrl,
+                this.buildFormData(confirmFormData),
+                {
+                    headers: this.buildPostHeaders(installmentUrl)
+                }
+            );
+
+            // Check for errors
+            const detailsError = this.checkForErrors(detailsRes.data);
+            if (detailsError) {
+                console.log(`[HTTP] ❌ Details error: "${detailsError}"`);
+                return { success: false, hasInstallment: false, error: detailsError };
+            }
+
+            // Update ViewState for later payment
+            this.currentViewState = this.extractHiddenFields(detailsRes.data);
+
+            // Step 5: Extract installment details
+            const $details = cheerio.load(detailsRes.data);
+
+            // Check if contract information section exists
+            const contractSection = $details('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"]');
+            if (contractSection.length === 0) {
+                console.log('[HTTP] ⚠️ Contract info section not found');
+                return {
+                    success: true,
+                    hasInstallment: false,
+                    error: 'لا توجد أقساط لهذا الكارت'
+                };
+            }
+
+            // Extract package info
+            const packageText = $details('[id*="lblPackage"], [id*="Package"]').text().trim() ||
+                $details('td:contains("Package")').next('td').text().trim();
+
+            // Extract months to pay dropdown
+            const monthsToPay = $details('select[id*="ddlMonths"], [id*="Months"] option:selected').text().trim() ||
+                $details('[id*="lblMonths"]').text().trim() || 'Pay for 1 Part';
+
+            // Extract installment amounts from table
+            const installmentTable = $details('table[id*="PackageRun"], table:contains("Installment")');
+            let installment1 = 0;
+            let installment2 = 0;
+
+            installmentTable.find('tr').each((_, row) => {
+                const cells = $details(row).find('td');
+                if (cells.length >= 2) {
+                    const text = cells.first().text().trim();
+                    const value = parseFloat(cells.last().text().replace(/[^0-9.]/g, '')) || 0;
+                    if (text.includes('Installment 1') || text.includes('1')) {
+                        installment1 = value;
+                    } else if (text.includes('Installment 2') || text.includes('2')) {
+                        installment2 = value;
+                    }
+                }
+            });
+
+            // Extract contract dates
+            const contractStartDate = $details('[id*="lblStartDate"], [id*="StartDate"]').text().trim() ||
+                $details('td:contains("Contract Start")').next('td').text().trim();
+            const contractExpiryDate = $details('[id*="lblExpiryDate"], [id*="ExpiryDate"]').text().trim() ||
+                $details('td:contains("Contract Expiry")').next('td').text().trim();
+
+            // Extract prices
+            const invoicePriceText = $details('[id*="lblInvoicePrice"], [id*="InvoicePrice"]').text().trim() ||
+                $details('td:contains("Invoice Price")').next('td').text().trim();
+            const dealerPriceText = $details('[id*="lblDealerPrice"], [id*="DealerPrice"]').text().trim() ||
+                $details('td:contains("Dealer Price")').next('td').text().trim();
+
+            const invoicePrice = parseFloat(invoicePriceText.replace(/[^0-9.]/g, '')) || 0;
+            const dealerPrice = parseFloat(dealerPriceText.replace(/[^0-9.]/g, '')) || 0;
+
+            // Extract subscriber info
+            const subscriber = {
+                name: $details('[id*="txtName"], input[id*="Name"]').val()?.toString() ||
+                    $details('[id*="lblName"]').text().trim() || '',
+                email: $details('[id*="txtEmail"], input[id*="Email"]').val()?.toString() || '',
+                mobile: $details('[id*="txtMobile"], input[id*="Mobile"]').val()?.toString() || '',
+                city: $details('[id*="txtCity"], input[id*="City"]').val()?.toString() || '',
+                country: $details('[id*="ddlCountry"] option:selected').text().trim() || '',
+                homeTel: $details('[id*="txtHomeTel"], input[id*="HomeTel"]').val()?.toString() || '',
+                workTel: $details('[id*="txtWorkTel"], input[id*="WorkTel"]').val()?.toString() || '',
+                fax: $details('[id*="txtFax"], input[id*="Fax"]').val()?.toString() || '',
+                stbModel: $details('[id*="txtSTB"], input[id*="STB"]').val()?.toString() || '',
+                address: $details('[id*="txtAddress"], input[id*="Address"]').val()?.toString() || '',
+                remarks: $details('[id*="txtRemarks"], textarea[id*="Remarks"]').val()?.toString() || ''
+            };
+
+            // Extract dealer balance from page header
+            const pageText = $details('body').text();
+            const balanceMatch = pageText.match(/Balance\s*(?:is\s*)?\$?\s*(\d+(?:\.\d{2})?)\s*USD/i) ||
+                pageText.match(/(\d+(?:\.\d{2})?)\s*USD/);
+            const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1]) : undefined;
+
+            console.log(`[HTTP] ✅ Installment loaded: ${packageText}, Dealer Price: ${dealerPrice} USD`);
+
+            return {
+                success: true,
+                hasInstallment: true,
+                installment: {
+                    package: packageText || 'Premium Monthly Installment 2 Parts',
+                    monthsToPay,
+                    installment1,
+                    installment2,
+                    contractStartDate,
+                    contractExpiryDate,
+                    invoicePrice,
+                    dealerPrice
+                },
+                subscriber,
+                dealerBalance
+            };
+
+        } catch (error: any) {
+            console.error('[HTTP] Load installment error:', error.message);
+            return { success: false, hasInstallment: false, error: `Load installment failed: ${error.message}` };
+        }
+    }
+
+    /**
+     * Pay installment - clicks the Pay Installment button
+     * Must be called after loadInstallment()
+     * 
+     * @returns Payment result
+     */
+    async payInstallment(): Promise<import('./types').PayInstallmentResult> {
+        console.log('[HTTP] Paying installment...');
+
+        try {
+            const installmentUrl = this.buildFullUrl(this.config.installmentUrl);
+
+            // Verify we have ViewState from previous load
+            if (!this.currentViewState || !this.currentViewState.__VIEWSTATE) {
+                console.log('[HTTP] ⚠️ No ViewState - need to load installment first');
+                return { success: false, message: 'Please load installment details first' };
+            }
+
+            // Get current balance before payment
+            const balanceBefore = await this.getCurrentBalance();
+            console.log(`[HTTP] Balance before payment: $${balanceBefore}`);
+
+            // Get Pay Installment button value
+            // First, we need to re-fetch the page to get fresh ViewState
+            const pageRes = await this.axios.get(installmentUrl, {
+                headers: { 'Referer': installmentUrl }
+            });
+
+            // Check for session expiry
+            const sessionExpiry = this.checkForSessionExpiry(pageRes.data);
+            if (sessionExpiry) {
+                this.invalidateSession();
+                return { success: false, message: sessionExpiry };
+            }
+
+            // Update ViewState
+            this.currentViewState = this.extractHiddenFields(pageRes.data);
+
+            // Extract button value
+            const payBtnValue = this.extractButtonValue(pageRes.data, 'btnPayInstallment', 'Pay Installment');
+            console.log(`[HTTP] Pay button value: "${payBtnValue}"`);
+
+            // POST - Click Pay Installment button
+            const payFormData: Record<string, string> = {
+                ...this.currentViewState,
+                'ctl00$ContentPlaceHolder1$btnPayInstallment': payBtnValue
+            };
+
+            console.log('[HTTP] POST - Pay installment...');
+            const payRes = await this.axios.post(
+                installmentUrl,
+                this.buildFormData(payFormData),
+                {
+                    headers: this.buildPostHeaders(installmentUrl)
+                }
+            );
+
+            // Check for errors in response
+            const payError = this.checkForErrors(payRes.data);
+
+            // Check for success messages
+            const responseText = payRes.data.toLowerCase();
+            const hasSuccessMessage = responseText.includes('success') ||
+                responseText.includes('تم الدفع') ||
+                responseText.includes('payment completed') ||
+                responseText.includes('تمت العملية');
+
+            // Verify balance changed
+            const balanceAfter = await this.getCurrentBalance();
+            console.log(`[HTTP] Balance after payment: $${balanceAfter}`);
+
+            const balanceDecreased = balanceBefore !== null && balanceAfter !== null &&
+                balanceAfter < balanceBefore;
+
+            if (balanceDecreased || hasSuccessMessage) {
+                console.log('[HTTP] ✅ Installment payment successful');
+                return {
+                    success: true,
+                    message: 'تم دفع القسط بنجاح',
+                    newBalance: balanceAfter || undefined
+                };
+            } else if (payError) {
+                console.log(`[HTTP] ❌ Payment error: ${payError}`);
+                return { success: false, message: payError };
+            } else {
+                console.log('[HTTP] ⚠️ Payment status unclear - balance did not change');
+                return {
+                    success: false,
+                    message: 'لم يتم تأكيد الدفع - يرجى التحقق من الرصيد'
+                };
+            }
+
+        } catch (error: any) {
+            console.error('[HTTP] Pay installment error:', error.message);
+            return { success: false, message: `Payment failed: ${error.message}` };
         }
     }
 }

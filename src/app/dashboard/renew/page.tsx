@@ -14,11 +14,11 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
 import MaintenanceOverlay from '@/components/shared/MaintenanceOverlay'
-import { SignalRefreshFlow } from '@/components/renewal'
+import { SignalRefreshFlow, InstallmentPaymentFlow } from '@/components/renewal'
 import { Zap } from 'lucide-react'
 
 // Renewal Mode Type
-type RenewalMode = 'signal-refresh' | 'package-renewal'
+type RenewalMode = 'signal-refresh' | 'package-renewal' | 'installment'
 type WizardStep = 'card-input' | 'processing' | 'captcha' | 'packages' | 'completing' | 'awaiting-final-confirm' | 'result'
 
 interface AvailablePackage {
@@ -213,9 +213,9 @@ export default function RenewWizardPage() {
 
     // Heartbeat system - keeps operation alive while user is on page
     // If heartbeats stop (browser close, tab close), operation will be auto-cancelled
-    const shouldSendHeartbeat = operationId !== null && 
+    const shouldSendHeartbeat = operationId !== null &&
         ['packages', 'captcha', 'awaiting-final-confirm'].includes(step)
-    
+
     useOperationHeartbeat({
         operationId,
         enabled: shouldSendHeartbeat,
@@ -574,11 +574,26 @@ export default function RenewWizardPage() {
                     <Package className="h-5 w-5" />
                     {(t.renew as any)?.modes?.packageRenewal || 'تجديد'}
                 </button>
+                <button
+                    onClick={() => setRenewalMode('installment')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${renewalMode === 'installment'
+                        ? 'bg-[#00A651] text-white shadow-lg shadow-[rgba(0,166,81,0.3)]'
+                        : 'bg-[var(--color-bg-input)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)]'
+                        }`}
+                >
+                    <CreditCard className="h-5 w-5" />
+                    {(t.renew as any)?.modes?.installment || 'أقساط'}
+                </button>
             </div>
 
             {/* Signal Refresh Mode */}
             {renewalMode === 'signal-refresh' && (
                 <SignalRefreshFlow />
+            )}
+
+            {/* Installment Payment Mode */}
+            {renewalMode === 'installment' && (
+                <InstallmentPaymentFlow />
             )}
 
             {/* Package Renewal Mode (existing wizard) */}

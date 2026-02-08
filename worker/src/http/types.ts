@@ -22,6 +22,7 @@ export interface BeINHttpConfig {
     renewUrl: string;
     checkUrl: string;
     signalUrl: string;
+    installmentUrl: string;
 
     // Session
     sessionTimeout: number;
@@ -68,7 +69,7 @@ export interface SessionData {
     cookies: string; // JSON serialized cookies
     viewState?: HiddenFields;
     lastLoginTime?: string;
-    
+
     // Enhanced session tracking for cross-worker sharing
     loginTimestamp?: number;   // Unix timestamp (ms) when login occurred
     expiresAt?: number;        // Unix timestamp (ms) when session expires
@@ -116,4 +117,61 @@ export interface CheckCardForSignalResult {
     };
     contracts?: Contract[]; // Subscription history
     error?: string;
+}
+
+// =============================================
+// MONTHLY INSTALLMENT TYPES
+// =============================================
+
+/**
+ * Installment information from beIN frmPayMonthlyInstallment page
+ * Installments always have exactly 2 parts
+ */
+export interface InstallmentInfo {
+    package: string;            // e.g., "Premium Monthly Installment 2 Parts (2 Parts)"
+    monthsToPay: string;        // e.g., "Pay for 1 Part"
+    installment1: number;       // First installment amount (USD)
+    installment2: number;       // Second installment amount (USD)
+    contractStartDate: string;  // Format: DD/MM/YYYY
+    contractExpiryDate: string; // Format: DD/MM/YYYY
+    invoicePrice: number;       // Invoice Price (USD)
+    dealerPrice: number;        // Dealer Price (USD)
+}
+
+/**
+ * Subscriber information from installment page
+ */
+export interface SubscriberInfo {
+    name: string;
+    email: string;
+    mobile: string;
+    city: string;
+    country: string;
+    homeTel: string;
+    workTel: string;
+    fax: string;
+    stbModel: string;
+    address: string;
+    remarks: string;
+}
+
+/**
+ * Result of loading installment details
+ */
+export interface LoadInstallmentResult {
+    success: boolean;
+    installment?: InstallmentInfo;
+    subscriber?: SubscriberInfo;
+    dealerBalance?: number;
+    hasInstallment: boolean;    // true if card has pending installment
+    error?: string;
+}
+
+/**
+ * Result of paying installment
+ */
+export interface PayInstallmentResult {
+    success: boolean;
+    message: string;
+    newBalance?: number;
 }

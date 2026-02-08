@@ -17,9 +17,9 @@ import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from './types/proxy';
 import { trackOperationComplete } from './lib/activity-tracker';
-import { 
-    getSessionFromCache, 
-    saveSessionToCache, 
+import {
+    getSessionFromCache,
+    saveSessionToCache,
     deleteSessionFromCache,
     extendSessionTTL,
     acquireLoginLock,
@@ -39,7 +39,7 @@ const HEARTBEAT_TTL_SECONDS = 15;  // Operation expires after 15s without heartb
 
 interface OperationJobData {
     operationId: string;
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE' | 'CHECK_ACCOUNT_BALANCE';
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE' | 'CHECK_ACCOUNT_BALANCE' | 'START_INSTALLMENT' | 'CONFIRM_INSTALLMENT';
     cardNumber: string;
     duration?: string;
     promoCode?: string;
@@ -99,7 +99,7 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
             getSessionFromCache(account.id),
             isNewClient ? Promise.resolve() : client.reloadConfig()  // Only reload for existing clients
         ]);
-        
+
         if (cachedSession) {
             await client.importSession(cachedSession);
             client.markSessionValidFromCache(cachedSession.expiresAt);
@@ -119,9 +119,9 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
 function isSessionExpiredError(message: string | undefined): boolean {
     if (!message) return false;
     return message.includes('Session Expired') ||
-           message.includes('Session expired') ||
-           message.includes('login page') ||
-           message.includes('Login page');
+        message.includes('Session expired') ||
+        message.includes('login page') ||
+        message.includes('Login page');
 }
 
 /**
@@ -136,25 +136,25 @@ async function performReLogin(
     // Clear cached session
     await deleteSessionFromCache(account.id);
     httpClient.invalidateSession();
-    
+
     // Perform fresh login
     const loginResult = await httpClient.login(
         account.username,
         account.password,
         account.totpSecret || undefined
     );
-    
+
     if (loginResult.requiresCaptcha && loginResult.captchaImage) {
         // Try 2Captcha auto-solve
         console.log(`[HTTP] 🧩 CAPTCHA required during session retry, attempting auto-solve...`);
         const captchaApiKey = await getCaptchaApiKey();
-        
+
         if (captchaApiKey) {
             try {
                 const captchaSolver = new CaptchaSolver(captchaApiKey);
                 const solution = await captchaSolver.solve(loginResult.captchaImage);
                 console.log(`[HTTP] ✅ CAPTCHA auto-solved: ${solution}`);
-                
+
                 // Submit login with CAPTCHA solution
                 const loginWithCaptcha = await httpClient.submitLogin(
                     account.username,
@@ -162,11 +162,11 @@ async function performReLogin(
                     account.totpSecret || undefined,
                     solution
                 );
-                
+
                 if (!loginWithCaptcha.success) {
                     throw new Error(`Re-login with CAPTCHA failed: ${loginWithCaptcha.error}`);
                 }
-                
+
                 console.log(`[HTTP] ✅ Re-login with CAPTCHA successful`);
             } catch (captchaError: any) {
                 throw new Error(`CAPTCHA auto-solve failed: ${captchaError.message}`);
@@ -177,7 +177,7 @@ async function performReLogin(
     } else if (!loginResult.success) {
         throw new Error(`Re-login failed: ${loginResult.error}`);
     }
-    
+
     // Save new session to cache
     const newSession = await httpClient.exportSession();
     // FIX: Update timestamps before saving
@@ -186,7 +186,7 @@ async function performReLogin(
     newSession.loginTimestamp = now;
     await saveSessionToCache(account.id, newSession, httpClient.getSessionTimeout());
     console.log(`[HTTP] ✅ Fresh login successful for ${operationName}`);
-    
+
     return true;
 }
 
@@ -211,7 +211,7 @@ async function withSessionRetry<T>(
     operationName: string
 ): Promise<T> {
     let result: T;
-    
+
     try {
         result = await operation();
     } catch (error: any) {
@@ -219,31 +219,31 @@ async function withSessionRetry<T>(
         if (!isSessionExpiredError(error.message)) {
             throw error;  // Not a session error, rethrow
         }
-        
+
         console.log(`[HTTP] ⚠️ Session expired (thrown) during ${operationName}, performing fresh login...`);
         await performReLogin(httpClient, account, operationName);
-        
+
         // Retry the operation once
         return await operation();
     }
-    
+
     // ENHANCED: Check if result object indicates session expiry
     // This catches methods that return { success: false, error: "Session Expired..." } instead of throwing
     if (result && typeof result === 'object' && 'success' in result && 'error' in result) {
         const resultObj = result as unknown as { success: boolean; error?: string };
-        
+
         if (!resultObj.success && isSessionExpiredError(resultObj.error)) {
             console.log(`[HTTP] ⚠️ Session expired (returned) during ${operationName}, performing fresh login...`);
             console.log(`[HTTP] Error was: ${resultObj.error}`);
-            
+
             await performReLogin(httpClient, account, operationName);
-            
+
             // Retry the operation once
             console.log(`[HTTP] 🔄 Retrying ${operationName} after re-login...`);
             return await operation();
         }
     }
-    
+
     return result;
 }
 
@@ -355,6 +355,12 @@ export async function processOperationHttp(
             case 'SIGNAL_ACTIVATE':
                 await handleSignalActivateHttp(operationId, cardNumber, accountPool);
                 break;
+            case 'START_INSTALLMENT':
+                await handleStartInstallmentHttp(operationId, cardNumber, accountPool);
+                break;
+            case 'CONFIRM_INSTALLMENT':
+                await handleConfirmInstallmentHttp(operationId, cardNumber, accountPool);
+                break;
             default:
                 throw new Error(`Unsupported operation type for HTTP: ${type}`);
         }
@@ -419,14 +425,14 @@ async function handleStartRenewalHttp(
     // If no account is immediately available, wait in queue up to 2 minutes
     const queueManager = getQueueManager(accountPool);
     const queueResult = await queueManager.acquireAccountWithQueue(operationId, 0, 120_000);
-    
+
     if (!queueResult.account) {
         if (queueResult.timedOut) {
             throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
         }
         throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
     }
-    
+
     const selectedAccount = queueResult.account;
     if (queueResult.waitTimeMs > 0) {
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
@@ -449,7 +455,7 @@ async function handleStartRenewalHttp(
 
     // Step 1: Login (with Redis session caching and login locking)
     let needsFreshLogin = true;
-    
+
     // Check if we already have a valid session from Redis cache
     if (client.isSessionActive()) {
         console.log(`[HTTP] ✅ Using cached session for ${selectedAccount.username}`);
@@ -459,12 +465,12 @@ async function handleStartRenewalHttp(
     if (needsFreshLogin) {
         // Try to acquire login lock to prevent race conditions
         const lockAcquired = await acquireLoginLock(selectedAccount.id, WORKER_ID);
-        
+
         if (!lockAcquired) {
             // Another worker is logging in, wait for it to complete
             console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
             const loginCompleted = await waitForLoginComplete(selectedAccount.id);
-            
+
             if (loginCompleted) {
                 // Try to get the session from cache now
                 const cachedSession = await getSessionFromCache(selectedAccount.id);
@@ -511,7 +517,7 @@ async function handleStartRenewalHttp(
                 // Set heartbeat expiry for auto-cancel if user leaves page
                 const now = new Date();
                 const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
-                
+
                 await prisma.operation.update({
                     where: { id: operationId },
                     data: {
@@ -573,14 +579,14 @@ async function handleStartRenewalHttp(
     // NOTE: We MUST still call loadPackages() to get correct ViewState!
     //       Package cache is only used for faster display, NOT to skip loadPackages
     // ============================================
-    
+
     // Step 2: Check card (extract STB) - with caching
     let stbNumber: string | undefined;
-    
+
     // Check BOTH package cache and STB cache for cached STB
     const cachedPackageData = await getCachedPackages(cardNumber);
     const cachedStb = cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
-    
+
     if (cachedStb) {
         // STB is cached - skip check page entirely (saves ~600ms)
         console.log(`[HTTP] ⚡ STB CACHE HIT - Skipping checkCard (STB: ${cachedStb})`);
@@ -595,13 +601,13 @@ async function handleStartRenewalHttp(
             () => client.checkCard(cardNumber),
             'checkCard'
         );
-        
+
         if (!checkResult.success) {
             throw new Error(checkResult.error || 'Card check failed');
         }
-        
+
         stbNumber = checkResult.stbNumber;
-        
+
         // Cache STB for future operations (1 hour TTL)
         if (stbNumber) {
             await cacheSTB(cardNumber, stbNumber);
@@ -619,11 +625,11 @@ async function handleStartRenewalHttp(
         () => client.loadPackages(cardNumber),
         'loadPackages'
     );
-    
+
     if (!packagesResult.success) {
         throw new Error(packagesResult.error || 'Failed to load packages');
     }
-    
+
     // Use STB from check or from packagesResult
     const finalStbNumber = stbNumber || packagesResult.stbNumber || client.getSTBNumber();
 
@@ -668,7 +674,7 @@ async function handleStartRenewalHttp(
     // CRITICAL: Set heartbeatExpiry so cleanup cron knows when to auto-cancel
     const now = new Date();
     const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
-    
+
     await prisma.operation.update({
         where: { id: operationId },
         data: {
@@ -805,12 +811,12 @@ async function handleCompletePurchaseHttp(
 
         if (!nextAccount) {
             console.log(`[HTTP] ❌ No more accounts available after trying ${triedAccountIds.length}`);
-            
+
             // Final error message
             const finalError = attemptResult.isBalanceError
                 ? 'رصيد حساب beIN غير كافي. لا توجد حسابات أخرى متاحة برصيد كافٍ.'
                 : `فشلت العملية بعد تجربة ${triedAccountIds.length} حسابات. ${lastError}`;
-            
+
             throw new Error(finalError);
         }
 
@@ -862,7 +868,7 @@ async function attemptPurchaseWithAccount(
             where: { id: accountId },
             include: { proxy: true }
         });
-        
+
         if (!account) {
             return {
                 success: false,
@@ -877,7 +883,7 @@ async function attemptPurchaseWithAccount(
         // Try to restore session from database (for same-account retry from START_RENEWAL)
         let dealerBalance: number | undefined;
         const isOriginalAccount = triedAccountIds.length === 0;
-        
+
         if (isOriginalAccount && operation.responseData) {
             try {
                 const savedData = JSON.parse(operation.responseData as string);
@@ -900,7 +906,7 @@ async function attemptPurchaseWithAccount(
         // For non-original account or if session restore failed, need fresh login + loadPackages
         if (!isOriginalAccount || !client.isSessionActive()) {
             console.log(`[HTTP] 🔑 New account - need fresh login and package load`);
-            
+
             // Perform login
             const loginResult = await client.login(
                 account.username,
@@ -911,7 +917,7 @@ async function attemptPurchaseWithAccount(
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
                 console.log(`[HTTP] 🧩 CAPTCHA required for login, attempting auto-solve...`);
                 const captchaApiKey = await getCaptchaApiKey();
-                
+
                 if (!captchaApiKey) {
                     await accountPool.markAccountFailed(accountId, 'CAPTCHA required but no API key');
                     return {
@@ -925,14 +931,14 @@ async function attemptPurchaseWithAccount(
                 try {
                     const solver = new CaptchaSolver(captchaApiKey);
                     const solution = await solver.solve(loginResult.captchaImage);
-                    
+
                     const loginWithCaptcha = await client.submitLogin(
                         account.username,
                         account.password,
                         account.totpSecret || undefined,
                         solution
                     );
-                    
+
                     if (!loginWithCaptcha.success) {
                         await accountPool.markAccountFailed(accountId, `CAPTCHA login failed: ${loginWithCaptcha.error}`);
                         return {
@@ -985,7 +991,7 @@ async function attemptPurchaseWithAccount(
             }
 
             dealerBalance = packagesResult.dealerBalance;
-            
+
             // Update account balance in database
             if (dealerBalance !== undefined) {
                 await prisma.beinAccount.update({
@@ -1053,7 +1059,7 @@ async function attemptPurchaseWithAccount(
             // Set heartbeat expiry
             const now = new Date();
             const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
-            
+
             await prisma.operation.update({
                 where: { id: operationId },
                 data: {
@@ -1105,7 +1111,7 @@ async function attemptPurchaseWithAccount(
         console.log(`[HTTP] ❌ attemptPurchaseWithAccount failed: ${errorMessage}`);
 
         // Determine if we should retry with different account
-        const isRecoverableError = 
+        const isRecoverableError =
             isSessionExpiredError(errorMessage) ||
             errorMessage.includes('CAPTCHA') ||
             errorMessage.includes('login') ||
@@ -1231,7 +1237,7 @@ async function handleConfirmPurchaseHttp(
         if (operation.cardNumber) {
             await invalidatePackageCache(operation.cardNumber);
         }
-        
+
         await prisma.operation.update({
             where: { id: operationId },
             data: {
@@ -1402,14 +1408,14 @@ async function handleSignalRefreshHttp(
     // Acquire account using queue-based system (with wait if busy)
     const queueManager = getQueueManager(accountPool);
     const queueResult = await queueManager.acquireAccountWithQueue(operationId, 0, 120_000);
-    
+
     if (!queueResult.account) {
         if (queueResult.timedOut) {
             throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
         }
         throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
     }
-    
+
     const account = queueResult.account;
     if (queueResult.waitTimeMs > 0) {
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
@@ -1428,7 +1434,7 @@ async function handleSignalRefreshHttp(
     try {
         // Step 1: Login with session caching (like other handlers)
         let needsFreshLogin = true;
-        
+
         // Check if we already have a valid session from Redis cache
         if (httpClient.isSessionActive()) {
             console.log(`[HTTP] ✅ Using cached session for ${account.username}`);
@@ -1438,12 +1444,12 @@ async function handleSignalRefreshHttp(
         if (needsFreshLogin) {
             // Try to acquire login lock to prevent race conditions
             const lockAcquired = await acquireLoginLock(account.id, WORKER_ID);
-            
+
             if (!lockAcquired) {
                 // Another worker is logging in, wait for it to complete
                 console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
                 const loginCompleted = await waitForLoginComplete(account.id);
-                
+
                 if (loginCompleted) {
                     // Try to get the session from cache now
                     const cachedSession = await getSessionFromCache(account.id);
@@ -1609,14 +1615,14 @@ async function handleSignalCheckHttp(
     // Acquire account using queue-based system (with wait if busy)
     const queueManager = getQueueManager(accountPool);
     const queueResult = await queueManager.acquireAccountWithQueue(operationId, 0, 120_000);
-    
+
     if (!queueResult.account) {
         if (queueResult.timedOut) {
             throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
         }
         throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
     }
-    
+
     const account = queueResult.account;
     if (queueResult.waitTimeMs > 0) {
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
@@ -1634,7 +1640,7 @@ async function handleSignalCheckHttp(
     try {
         // Step 1: Login (with Redis session caching and login locking)
         let needsFreshLogin = true;
-        
+
         // Check if we already have a valid session from Redis cache
         if (httpClient.isSessionActive()) {
             console.log(`[HTTP] ✅ Using cached session for ${account.username}`);
@@ -1644,12 +1650,12 @@ async function handleSignalCheckHttp(
         if (needsFreshLogin) {
             // Try to acquire login lock to prevent race conditions
             const lockAcquired = await acquireLoginLock(account.id, WORKER_ID);
-            
+
             if (!lockAcquired) {
                 // Another worker is logging in, wait for it to complete
                 console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
                 const loginCompleted = await waitForLoginComplete(account.id);
-                
+
                 if (loginCompleted) {
                     // Try to get the session from cache now
                     const cachedSession = await getSessionFromCache(account.id);
@@ -1776,12 +1782,12 @@ async function handleSignalCheckHttp(
 
     } catch (error: any) {
         await accountPool.markAccountUsed(account.id);
-        
+
         // Delete session from cache on session-related errors
         if (error.message?.includes('Session expired') || error.message?.includes('login')) {
             await deleteSessionFromCache(account.id);
         }
-        
+
         throw error;
     }
 }
@@ -1957,7 +1963,7 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
 
     // Get or create HTTP client
     const client = await getHttpClient(account);
-    
+
     // Reload config
     await client.reloadConfig();
 
@@ -1987,7 +1993,7 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
     // Use a test card number or fetch balance from dashboard
     // For simplicity, we'll try to get the balance from the packages page
     // using a dummy approach - we need any card number to access the page
-    
+
     // Get a recent successful card number from this account's operations
     const recentOp = await prisma.operation.findFirst({
         where: {
@@ -2000,9 +2006,9 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
     });
 
     const testCardNumber = recentOp?.cardNumber || '0000000000';
-    
+
     console.log(`[HTTP] Fetching balance using card: ${testCardNumber.slice(0, 4)}****`);
-    
+
     // Fetch dealer balance
     const balanceResult = await client.fetchDealerBalance(testCardNumber);
 
@@ -2020,6 +2026,306 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
         console.log(`⚠️ [HTTP] Could not fetch balance: ${balanceResult.error}`);
         throw new Error(balanceResult.error || 'Failed to fetch balance');
     }
+}
+
+// =============================================
+// MONTHLY INSTALLMENT HANDLERS
+// =============================================
+
+/**
+ * START_INSTALLMENT - Login, check card, load installment details
+ * 
+ * Flow:
+ * 1. Acquire beIN account from pool
+ * 2. Login with session caching
+ * 3. Load installment details (select CISCO, enter card, load)
+ * 4. Set status to AWAITING_INSTALLMENT_CONFIRM if installment found
+ */
+async function handleStartInstallmentHttp(
+    operationId: string,
+    cardNumber: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`🚀 [HTTP] Starting installment load for ${operationId}`);
+
+    await checkIfCancelled(operationId);
+
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: { userId: true }
+    });
+
+    // Mark as PROCESSING
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { status: 'PROCESSING' }
+    });
+
+    // Get next available account with queue-based retry
+    const queueManager = getQueueManager(accountPool);
+    const queueResult = await queueManager.acquireAccountWithQueue(operationId, 0, 120_000);
+
+    if (!queueResult.account) {
+        if (queueResult.timedOut) {
+            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
+        }
+        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+    }
+
+    const selectedAccount = queueResult.account;
+    if (queueResult.waitTimeMs > 0) {
+        console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
+    }
+
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { beinAccountId: selectedAccount.id }
+    });
+
+    console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
+
+    // Get HTTP client for this account
+    const client = await getHttpClient(selectedAccount);
+    await client.reloadConfig();
+
+    await checkIfCancelled(operationId);
+
+    // Step 1: Login (with session caching)
+    let needsFreshLogin = !client.isSessionActive();
+
+    if (needsFreshLogin) {
+        const lockAcquired = await acquireLoginLock(selectedAccount.id, WORKER_ID);
+
+        if (!lockAcquired) {
+            console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
+            const loginCompleted = await waitForLoginComplete(selectedAccount.id);
+
+            if (loginCompleted) {
+                const cachedSession = await getSessionFromCache(selectedAccount.id);
+                if (cachedSession) {
+                    await client.importSession(cachedSession);
+                    client.markSessionValidFromCache(cachedSession.expiresAt);
+                    console.log(`[HTTP] ✅ Got session from cache after waiting`);
+                    needsFreshLogin = false;
+                }
+            }
+        }
+    }
+
+    if (needsFreshLogin) {
+        const loginResult = await client.login(
+            selectedAccount.username,
+            selectedAccount.password,
+            selectedAccount.totpSecret || undefined
+        );
+
+        // Handle CAPTCHA if needed (similar to renewal)
+        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+            console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
+
+            let solution: string | null = null;
+
+            // Try auto-solve with 2Captcha first
+            const captchaApiKey = await getCaptchaApiKey();
+            if (captchaApiKey) {
+                try {
+                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                    const captchaSolver = new CaptchaSolver(captchaApiKey);
+                    solution = await captchaSolver.solve(loginResult.captchaImage);
+                    console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
+                } catch (autoSolveError: any) {
+                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                }
+            }
+
+            // Fallback to manual if auto-solve failed
+            if (!solution) {
+                const now = new Date();
+                const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
+
+                await prisma.operation.update({
+                    where: { id: operationId },
+                    data: {
+                        status: 'AWAITING_CAPTCHA',
+                        captchaImage: loginResult.captchaImage,
+                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS),
+                        lastHeartbeat: now,
+                        heartbeatExpiry: heartbeatExpiry
+                    }
+                });
+
+                solution = await waitForCaptchaSolution(operationId);
+                if (!solution) {
+                    await releaseLoginLock(selectedAccount.id, WORKER_ID);
+                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                }
+            }
+
+            // Submit with CAPTCHA
+            const loginWithCaptcha = await client.submitLogin(
+                selectedAccount.username,
+                selectedAccount.password,
+                selectedAccount.totpSecret || undefined,
+                solution
+            );
+
+            if (!loginWithCaptcha.success) {
+                await releaseLoginLock(selectedAccount.id, WORKER_ID);
+                throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
+            }
+        } else if (!loginResult.success) {
+            await releaseLoginLock(selectedAccount.id, WORKER_ID);
+            throw new Error(loginResult.error || 'Login failed');
+        }
+
+        // Save session to cache
+        try {
+            const sessionData = await client.exportSession();
+            const sessionTimeout = client.getSessionTimeout();
+            await saveSessionToCache(selectedAccount.id, sessionData, sessionTimeout);
+            console.log(`[HTTP] 💾 Session saved to Redis cache`);
+        } catch (saveError) {
+            console.error('[HTTP] Failed to save session to cache:', saveError);
+        }
+
+        await releaseLoginLock(selectedAccount.id, WORKER_ID);
+    }
+
+    await checkIfCancelled(operationId);
+
+    // Step 2: Load installment details
+    console.log(`[HTTP] Loading installment for card ${cardNumber.slice(0, 4)}****`);
+
+    const installmentResult = await client.loadInstallment(cardNumber);
+
+    if (!installmentResult.success) {
+        throw new Error(installmentResult.error || 'Failed to load installment');
+    }
+
+    if (!installmentResult.hasInstallment) {
+        // No installment found - complete with message
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                status: 'COMPLETED',
+                responseMessage: 'لا توجد أقساط لهذا الكارت',
+                completedAt: new Date()
+            }
+        });
+
+        // Release account
+        await accountPool.markAccountUsed(selectedAccount.id);
+        return;
+    }
+
+    // Installment found - save details and wait for user confirmation
+    const now = new Date();
+    const confirmExpiry = new Date(now.getTime() + 60_000); // 60 seconds to confirm
+    const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
+
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: {
+            status: 'AWAITING_FINAL_CONFIRM',
+            // Store installment data in responseData
+            responseData: JSON.stringify({
+                installment: installmentResult.installment || null,
+                subscriber: installmentResult.subscriber || null,
+                dealerBalance: installmentResult.dealerBalance || null,
+                isInstallment: true // Flag to identify installment operations
+            }),
+            stbNumber: installmentResult.subscriber?.stbModel || null,
+            amount: installmentResult.installment?.dealerPrice || 0,
+            finalConfirmExpiry: confirmExpiry,
+            lastHeartbeat: now,
+            heartbeatExpiry: heartbeatExpiry
+        }
+    });
+
+    console.log(`✅ [HTTP] Installment loaded, awaiting confirmation`);
+    console.log(`   Package: ${installmentResult.installment?.package}`);
+    console.log(`   Dealer Price: ${installmentResult.installment?.dealerPrice} USD`);
+}
+
+/**
+ * CONFIRM_INSTALLMENT - Execute payment after user confirms
+ */
+async function handleConfirmInstallmentHttp(
+    operationId: string,
+    cardNumber: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`💰 [HTTP] Confirming installment payment for ${operationId}`);
+
+    await checkIfCancelled(operationId);
+
+    // Get operation with account
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        include: {
+            beinAccount: { include: { proxy: true } },
+            user: { select: { id: true } }
+        }
+    });
+
+    if (!operation?.beinAccount) {
+        throw new Error('No beIN account assigned to this operation');
+    }
+
+    const selectedAccount = operation.beinAccount;
+
+    // Get HTTP client
+    const client = await getHttpClient(selectedAccount);
+
+    // Execute payment
+    console.log(`[HTTP] Executing installment payment...`);
+    const payResult = await client.payInstallment();
+
+    if (!payResult.success) {
+        // Payment failed - refund user
+        if (operation.userId && operation.amount) {
+            await refundUser(operationId, operation.userId, operation.amount, payResult.message);
+        }
+        throw new Error(payResult.message);
+    }
+
+    // Payment successful
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: {
+            status: 'COMPLETED',
+            responseMessage: payResult.message,
+            completedAt: new Date(),
+            finalConfirmExpiry: null
+        }
+    });
+
+    // Release account
+    await accountPool.markAccountUsed(selectedAccount.id);
+
+    // Track activity for user engagement metrics
+    if (operation.userId) {
+        await trackOperationComplete(
+            operation.userId,
+            operationId,
+            'RENEW', // Use RENEW type for statistics
+            operation.amount,
+            { type: 'installment', cardNumber: cardNumber.slice(0, 4) + '****' }
+        );
+    }
+
+    // Create notification
+    if (operation.userId) {
+        await createNotification({
+            userId: operation.userId,
+            title: 'تم دفع القسط',
+            message: `تم دفع قسط الكارت ${cardNumber.slice(0, 4)}**** بنجاح`,
+            type: 'success',
+            link: '/dashboard/history'
+        });
+    }
+
+    console.log(`✅ [HTTP] Installment payment completed`);
 }
 
 /**

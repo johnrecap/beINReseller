@@ -3353,6 +3353,11 @@ export class HttpClientService {
             // Step 4: Analyze response page
             const $load = cheerio.load(loadRes.data);
 
+            // DEBUG: Dump a snippet of the form area to see what's there
+            const formContent = $load('#aspnetForm, form').first().html()?.slice(0, 1500) || '';
+            console.log(`[HTTP] DEBUG: Form snippet (first 1500 chars):`);
+            console.log(formContent.replace(/\s+/g, ' ').slice(0, 500));
+
             // DEBUG: Check for any alert/error labels
             const lblMsg = $load('[id*="lblMsg"], [id*="Label"], .error, .alert, .warning').first().text().trim();
             if (lblMsg) {

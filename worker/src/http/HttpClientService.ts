@@ -3355,10 +3355,15 @@ export class HttpClientService {
 
             // Check for Contract/Package keywords
             const pageText = $load('body').text();
-            if (pageText.includes('Contract')) console.log('[HTTP] DEBUG: Page contains "Contract"');
-            if (pageText.includes('Confirm')) console.log('[HTTP] DEBUG: Page contains "Confirm"');
-            if (pageText.includes('Package')) console.log('[HTTP] DEBUG: Page contains "Package"');
-            if (pageText.includes('Pay')) console.log('[HTTP] DEBUG: Page contains "Pay"');
+            const hasContractKeyword = pageText.includes('Contract');
+            const hasConfirmKeyword = pageText.includes('Confirm');
+            const hasPackageKeyword = pageText.includes('Package');
+            const hasPayKeyword = pageText.includes('Pay');
+            const hasPremiumKeyword = pageText.includes('Premium');
+            const hasInstallmentKeyword = pageText.includes('Installment');
+            const hasDealerPriceKeyword = pageText.includes('Dealer Price');
+
+            console.log(`[HTTP] DEBUG: Text check - Contract:${hasContractKeyword}, Confirm:${hasConfirmKeyword}, Package:${hasPackageKeyword}, Pay:${hasPayKeyword}, Premium:${hasPremiumKeyword}, Installment:${hasInstallmentKeyword}, DealerPrice:${hasDealerPriceKeyword}`);
 
             // Check if "Confirm Serial Number" field appeared OR if Contract Info is already visible
             // Try multiple selectors for confirm serial field
@@ -3367,15 +3372,23 @@ export class HttpClientService {
                 confirmSerialField = $load('input[id*="tbSerial2"], input[name*="Serial2"], input[id*="Serial2"]');
             }
 
-            const contractInfoSection = $load('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"], .ContractInfo, td:contains("Contract Information")');
-            const payInstallmentBtn = $load('[id*="btnPayInstallment"], input[value*="Pay Installment"], input[value*="Pay"]');
-            const packageSection = $load('[id*="Package"], td:contains("Package")');
+            const contractInfoSection = $load('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"], .ContractInfo');
+            const payInstallmentBtn = $load('[id*="btnPayInstallment"], input[value*="Pay Installment"]');
+            const packageSection = $load('[id*="Package"], [id*="package"]');
 
-            console.log(`[HTTP] DEBUG: confirmSerialField=${confirmSerialField.length}, contractInfo=${contractInfoSection.length}, payBtn=${payInstallmentBtn.length}, package=${packageSection.length}`);
+            console.log(`[HTTP] DEBUG: Selector check - confirmSerial=${confirmSerialField.length}, contractInfo=${contractInfoSection.length}, payBtn=${payInstallmentBtn.length}, package=${packageSection.length}`);
 
-            // If Contract Info is already visible (or Pay button exists or package is shown), skip confirm step
+            // ENHANCED: If page text contains installment-related keywords, try to parse directly
+            // This handles cases where CSS selectors don't match but data is present
+            if (hasPremiumKeyword || hasInstallmentKeyword || hasDealerPriceKeyword ||
+                (hasPackageKeyword && hasPayKeyword)) {
+                console.log('[HTTP] ✅ Installment keywords detected in page, parsing directly...');
+                return this.parseInstallmentDetails($load, cardNumber);
+            }
+
+            // Fallback: check CSS selectors
             if (contractInfoSection.length > 0 || payInstallmentBtn.length > 0 || packageSection.length > 0) {
-                console.log('[HTTP] ✅ Contract info/package already visible, parsing directly...');
+                console.log('[HTTP] ✅ Contract info/package visible via selectors, parsing directly...');
                 return this.parseInstallmentDetails($load, cardNumber);
             }
 

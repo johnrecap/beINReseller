@@ -11,7 +11,7 @@ import { OperationStatus } from '@prisma/client'
 export const GET = withCustomerAuth(async (request: NextRequest, customer: CustomerTokenPayload) => {
     try {
         // Get all non-completed, non-cancelled operations for this customer
-        const activeStatuses: OperationStatus[] = ['PENDING', 'PROCESSING', 'WAITING_PAYMENT', 'WAITING_RENEWAL']
+        const activeStatuses: OperationStatus[] = ['PENDING', 'PROCESSING', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING']
 
         const operations = await prisma.operation.findMany({
             where: {

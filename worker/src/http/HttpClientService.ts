@@ -3283,15 +3283,32 @@ export class HttpClientService {
             const ciscoValue = ciscoOption.attr('value') || 'CISCO';
             console.log(`[HTTP] CISCO dropdown value: "${ciscoValue}"`);
 
-            // Get Load Another button value
-            const loadAnotherBtnValue = this.extractButtonValue(pageRes.data, 'btnLoad2', 'Load Another');
+            // Get Load button value - on installment page it's btnSmtLoad1, not btnLoad2
+            // Try multiple possible button IDs
+            let loadBtnId = 'ctl00$ContentPlaceHolder1$btnSmtLoad1';
+            let loadBtnValue = this.extractButtonValue(pageRes.data, 'btnSmtLoad1', '');
 
-            // Step 3: POST - Select CISCO and enter card number, click Load Another
+            if (!loadBtnValue) {
+                // Try alternate button IDs
+                loadBtnValue = this.extractButtonValue(pageRes.data, 'btnLoad', '');
+                if (loadBtnValue) {
+                    loadBtnId = 'ctl00$ContentPlaceHolder1$btnLoad';
+                }
+            }
+
+            if (!loadBtnValue) {
+                loadBtnValue = 'Load';
+                console.log('[HTTP] Using default Load button value');
+            } else {
+                console.log(`[HTTP] Found Load button: ${loadBtnId} = "${loadBtnValue}"`);
+            }
+
+            // Step 3: POST - Select CISCO and enter card number, click Load
             const loadFormData: Record<string, string> = {
                 ...this.currentViewState,
                 [dropdownId]: ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,
-                'ctl00$ContentPlaceHolder1$btnLoad2': loadAnotherBtnValue
+                [loadBtnId]: loadBtnValue
             };
 
             console.log('[HTTP] POST - Load card number...');
@@ -3337,8 +3354,8 @@ export class HttpClientService {
                 };
             }
 
-            // Get Load button value
-            const loadBtnValue = this.extractButtonValue(loadRes.data, 'btnLoad', 'Load');
+            // Get Load button value for confirm step
+            const confirmBtnValue = this.extractButtonValue(loadRes.data, 'btnLoad', 'Load');
 
             // POST - Confirm serial and load details
             const confirmFormData: Record<string, string> = {
@@ -3346,7 +3363,7 @@ export class HttpClientService {
                 [dropdownId]: ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,
                 'ctl00$ContentPlaceHolder1$tbSerial2': cardNumber,
-                'ctl00$ContentPlaceHolder1$btnLoad': loadBtnValue
+                'ctl00$ContentPlaceHolder1$btnLoad': confirmBtnValue
             };
 
             console.log('[HTTP] POST - Confirm serial and load details...');

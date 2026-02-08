@@ -3316,10 +3316,20 @@ export class HttpClientService {
             // Step 4: Enter confirm serial and click Load
             const $load = cheerio.load(loadRes.data);
 
-            // Check if "Confirm Serial Number" field appeared
+            // Check if "Confirm Serial Number" field appeared OR if Contract Info is already visible
             const confirmSerialField = $load('input[name="ctl00$ContentPlaceHolder1$tbSerial2"]');
+            const contractInfoSection = $load('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"], .ContractInfo');
+            const payInstallmentBtn = $load('[id*="btnPayInstallment"], input[value*="Pay Installment"]');
+
+            // If Contract Info is already visible (or Pay button exists), skip confirm step
+            if (contractInfoSection.length > 0 || payInstallmentBtn.length > 0) {
+                console.log('[HTTP] ✅ Contract info already visible, parsing directly...');
+                return this.parseInstallmentDetails($load, cardNumber);
+            }
+
             if (confirmSerialField.length === 0) {
-                console.log('[HTTP] ⚠️ Confirm serial field not found - card may not have installments');
+                // No confirm field AND no contract info - card may not have installments
+                console.log('[HTTP] ⚠️ Confirm serial field and contract info not found - card may not have installments');
                 return {
                     success: true,
                     hasInstallment: false,
@@ -3360,104 +3370,170 @@ export class HttpClientService {
 
             // Step 5: Extract installment details
             const $details = cheerio.load(detailsRes.data);
-
-            // Check if contract information section exists
-            const contractSection = $details('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"]');
-            if (contractSection.length === 0) {
-                console.log('[HTTP] ⚠️ Contract info section not found');
-                return {
-                    success: true,
-                    hasInstallment: false,
-                    error: 'لا توجد أقساط لهذا الكارت'
-                };
-            }
-
-            // Extract package info
-            const packageText = $details('[id*="lblPackage"], [id*="Package"]').text().trim() ||
-                $details('td:contains("Package")').next('td').text().trim();
-
-            // Extract months to pay dropdown
-            const monthsToPay = $details('select[id*="ddlMonths"], [id*="Months"] option:selected').text().trim() ||
-                $details('[id*="lblMonths"]').text().trim() || 'Pay for 1 Part';
-
-            // Extract installment amounts from table
-            const installmentTable = $details('table[id*="PackageRun"], table:contains("Installment")');
-            let installment1 = 0;
-            let installment2 = 0;
-
-            installmentTable.find('tr').each((_, row) => {
-                const cells = $details(row).find('td');
-                if (cells.length >= 2) {
-                    const text = cells.first().text().trim();
-                    const value = parseFloat(cells.last().text().replace(/[^0-9.]/g, '')) || 0;
-                    if (text.includes('Installment 1') || text.includes('1')) {
-                        installment1 = value;
-                    } else if (text.includes('Installment 2') || text.includes('2')) {
-                        installment2 = value;
-                    }
-                }
-            });
-
-            // Extract contract dates
-            const contractStartDate = $details('[id*="lblStartDate"], [id*="StartDate"]').text().trim() ||
-                $details('td:contains("Contract Start")').next('td').text().trim();
-            const contractExpiryDate = $details('[id*="lblExpiryDate"], [id*="ExpiryDate"]').text().trim() ||
-                $details('td:contains("Contract Expiry")').next('td').text().trim();
-
-            // Extract prices
-            const invoicePriceText = $details('[id*="lblInvoicePrice"], [id*="InvoicePrice"]').text().trim() ||
-                $details('td:contains("Invoice Price")').next('td').text().trim();
-            const dealerPriceText = $details('[id*="lblDealerPrice"], [id*="DealerPrice"]').text().trim() ||
-                $details('td:contains("Dealer Price")').next('td').text().trim();
-
-            const invoicePrice = parseFloat(invoicePriceText.replace(/[^0-9.]/g, '')) || 0;
-            const dealerPrice = parseFloat(dealerPriceText.replace(/[^0-9.]/g, '')) || 0;
-
-            // Extract subscriber info
-            const subscriber = {
-                name: $details('[id*="txtName"], input[id*="Name"]').val()?.toString() ||
-                    $details('[id*="lblName"]').text().trim() || '',
-                email: $details('[id*="txtEmail"], input[id*="Email"]').val()?.toString() || '',
-                mobile: $details('[id*="txtMobile"], input[id*="Mobile"]').val()?.toString() || '',
-                city: $details('[id*="txtCity"], input[id*="City"]').val()?.toString() || '',
-                country: $details('[id*="ddlCountry"] option:selected').text().trim() || '',
-                homeTel: $details('[id*="txtHomeTel"], input[id*="HomeTel"]').val()?.toString() || '',
-                workTel: $details('[id*="txtWorkTel"], input[id*="WorkTel"]').val()?.toString() || '',
-                fax: $details('[id*="txtFax"], input[id*="Fax"]').val()?.toString() || '',
-                stbModel: $details('[id*="txtSTB"], input[id*="STB"]').val()?.toString() || '',
-                address: $details('[id*="txtAddress"], input[id*="Address"]').val()?.toString() || '',
-                remarks: $details('[id*="txtRemarks"], textarea[id*="Remarks"]').val()?.toString() || ''
-            };
-
-            // Extract dealer balance from page header
-            const pageText = $details('body').text();
-            const balanceMatch = pageText.match(/Balance\s*(?:is\s*)?\$?\s*(\d+(?:\.\d{2})?)\s*USD/i) ||
-                pageText.match(/(\d+(?:\.\d{2})?)\s*USD/);
-            const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1]) : undefined;
-
-            console.log(`[HTTP] ✅ Installment loaded: ${packageText}, Dealer Price: ${dealerPrice} USD`);
-
-            return {
-                success: true,
-                hasInstallment: true,
-                installment: {
-                    package: packageText || 'Premium Monthly Installment 2 Parts',
-                    monthsToPay,
-                    installment1,
-                    installment2,
-                    contractStartDate,
-                    contractExpiryDate,
-                    invoicePrice,
-                    dealerPrice
-                },
-                subscriber,
-                dealerBalance
-            };
+            return this.parseInstallmentDetails($details, cardNumber);
 
         } catch (error: any) {
             console.error('[HTTP] Load installment error:', error.message);
             return { success: false, hasInstallment: false, error: `Load installment failed: ${error.message}` };
         }
+    }
+
+    /**
+     * Parse installment details from loaded HTML
+     * Used by loadInstallment after the page is loaded
+     * 
+     * @param $ - Cheerio instance with loaded HTML
+     * @param cardNumber - Card number for logging
+     * @returns Installment details
+     */
+    private parseInstallmentDetails($: cheerio.CheerioAPI, cardNumber: string): import('./types').LoadInstallmentResult {
+        // Check if contract information section exists
+        const contractSection = $('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"], div:contains("Contract Information")');
+        const payBtn = $('[id*="btnPayInstallment"], input[value*="Pay Installment"]');
+
+        // Also check for Package row or any contract data
+        const packageRow = $('td:contains("Package")');
+        const hasData = contractSection.length > 0 || payBtn.length > 0 || packageRow.length > 0;
+
+        if (!hasData) {
+            console.log('[HTTP] ⚠️ No installment data found on page');
+            return {
+                success: true,
+                hasInstallment: false,
+                error: 'لا توجد أقساط لهذا الكارت'
+            };
+        }
+
+        // Extract package info - look for the actual package name
+        let packageText = $('[id*="lblPackage"]').text().trim();
+        if (!packageText) {
+            // Try finding in table cells
+            $('td').each((_, cell) => {
+                const text = $(cell).text().trim();
+                if (text.includes('Premium') || text.includes('Monthly') || text.includes('Installment')) {
+                    packageText = text;
+                    return false; // break
+                }
+            });
+        }
+        if (!packageText) {
+            packageText = 'Premium Monthly Installment';
+        }
+
+        // Extract months to pay dropdown
+        const monthsSelect = $('select[id*="ddlMonths"]');
+        let monthsToPay = 'Pay for 1 Part';
+        if (monthsSelect.length > 0) {
+            monthsToPay = monthsSelect.find('option:selected').text().trim() || monthsToPay;
+        }
+
+        // Extract installment amounts from table
+        let installment1 = 0;
+        let installment2 = 0;
+
+        // Look for table with installment headers
+        $('table').each((_, table) => {
+            const $table = $(table);
+            const headerText = $table.text();
+            if (headerText.includes('Installment 1') || headerText.includes('Installment 2')) {
+                $table.find('tr').each((_, row) => {
+                    const cells = $(row).find('td');
+                    cells.each((i, cell) => {
+                        const text = $(cell).text().trim();
+                        const value = parseFloat(text.replace(/[^0-9.]/g, '')) || 0;
+                        if (value > 0 && i > 0) {
+                            if (installment1 === 0) {
+                                installment1 = value;
+                            } else if (installment2 === 0) {
+                                installment2 = value;
+                            }
+                        }
+                    });
+                });
+            }
+        });
+
+        // Extract contract dates
+        let contractStartDate = $('[id*="lblStartDate"], [id*="ContractStartDate"]').text().trim();
+        if (!contractStartDate) {
+            $('td').each((i, cell) => {
+                const text = $(cell).text().trim();
+                if (text.includes('Contract Start') || text.includes('Start Date')) {
+                    contractStartDate = $(cell).next('td').text().trim();
+                    return false;
+                }
+            });
+        }
+
+        let contractExpiryDate = $('[id*="lblExpiryDate"], [id*="ContractExpiryDate"]').text().trim();
+        if (!contractExpiryDate) {
+            $('td').each((i, cell) => {
+                const text = $(cell).text().trim();
+                if (text.includes('Contract Expiry') || text.includes('Expiry Date')) {
+                    contractExpiryDate = $(cell).next('td').text().trim();
+                    return false;
+                }
+            });
+        }
+
+        // Extract prices
+        let invoicePrice = 0;
+        let dealerPrice = 0;
+
+        $('td').each((i, cell) => {
+            const text = $(cell).text().trim();
+            const nextText = $(cell).next('td').text().trim();
+            const value = parseFloat(nextText.replace(/[^0-9.]/g, '')) || 0;
+
+            if (text.includes('Invoice Price')) {
+                invoicePrice = value;
+            } else if (text.includes('Dealer Price')) {
+                dealerPrice = value;
+            }
+        });
+
+        // Extract subscriber info from input fields
+        const subscriber = {
+            name: $('input[id*="txtName"], input[id*="Name"]').val()?.toString() ||
+                $('[id*="lblName"]').text().trim() || '',
+            email: $('input[id*="txtEmail"], input[id*="Email"]').val()?.toString() || '',
+            mobile: $('input[id*="txtMobile"], input[id*="Mobile"]').val()?.toString() || '',
+            city: $('input[id*="txtCity"], input[id*="City"]').val()?.toString() || '',
+            country: $('select[id*="ddlCountry"] option:selected').text().trim() ||
+                $('input[id*="Country"]').val()?.toString() || '',
+            homeTel: $('input[id*="txtHomeTel"], input[id*="HomeTel"]').val()?.toString() || '',
+            workTel: $('input[id*="txtWorkTel"], input[id*="WorkTel"]').val()?.toString() || '',
+            fax: $('input[id*="txtFax"], input[id*="Fax"]').val()?.toString() || '',
+            stbModel: $('input[id*="txtSTB"], input[id*="STB"]').val()?.toString() || '',
+            address: $('input[id*="txtAddress"], textarea[id*="Address"]').val()?.toString() || '',
+            remarks: $('textarea[id*="txtRemarks"], textarea[id*="Remarks"]').val()?.toString() || ''
+        };
+
+        // Extract dealer balance from page header
+        const pageText = $('body').text();
+        const balanceMatch = pageText.match(/Balance\s*(?:is\s*)?\$?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)\s*USD/i) ||
+            pageText.match(/(\d+(?:,\d{3})*(?:\.\d{2})?)\s*USD/);
+        const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : undefined;
+
+        console.log(`[HTTP] ✅ Installment loaded: ${packageText}, Dealer Price: ${dealerPrice} USD`);
+        console.log(`[HTTP]    Subscriber: ${subscriber.name}, Mobile: ${subscriber.mobile}`);
+
+        return {
+            success: true,
+            hasInstallment: true,
+            installment: {
+                package: packageText,
+                monthsToPay,
+                installment1,
+                installment2,
+                contractStartDate,
+                contractExpiryDate,
+                invoicePrice,
+                dealerPrice
+            },
+            subscriber,
+            dealerBalance
+        };
     }
 
     /**

@@ -131,5 +131,28 @@ module.exports = {
             error_file: './logs/keepalive-error.log',
             out_file: './logs/keepalive-out.log',
         },
+        // Customer Operations Worker - For mobile app customers
+        // Processes customer-operations queue (isolated from reseller operations)
+        {
+            name: 'bein-customer',
+            script: 'dist/customer-index.js',
+            cwd: __dirname,
+            instances: 1,
+            exec_mode: 'fork',
+            max_memory_restart: '350M',
+            merge_logs: true,
+            time: true,
+            watch: false,
+            autorestart: true,
+            max_restarts: 10,
+            restart_delay: 5000,
+            env: {
+                ...COMMON_ENV,
+                WORKER_ID: 'customer-1',
+                WORKER_CONCURRENCY: '4',  // Lower concurrency for customers
+            },
+            error_file: './logs/customer-error.log',
+            out_file: './logs/customer-out.log',
+        },
     ],
 }

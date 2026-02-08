@@ -102,11 +102,11 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
             }
         })
 
-        // Update operation status
+        // Update operation with payment amount (keep status as AWAITING_FINAL_CONFIRM)
+        // Status will change to COMPLETING after Stripe webhook confirms payment
         await prisma.operation.update({
             where: { id: operationId },
             data: {
-                status: 'AWAITING_PAYMENT',
                 amount: customerPrice
             }
         })

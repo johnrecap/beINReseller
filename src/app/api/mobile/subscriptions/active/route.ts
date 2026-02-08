@@ -25,8 +25,6 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
                 type: true,
                 status: true,
                 amount: true,
-                packageName: true,
-                packageCode: true,
                 createdAt: true,
                 responseMessage: true,
             }

@@ -3333,14 +3333,49 @@ export class HttpClientService {
             // Step 4: Enter confirm serial and click Load
             const $load = cheerio.load(loadRes.data);
 
-            // Check if "Confirm Serial Number" field appeared OR if Contract Info is already visible
-            const confirmSerialField = $load('input[name="ctl00$ContentPlaceHolder1$tbSerial2"]');
-            const contractInfoSection = $load('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"], .ContractInfo');
-            const payInstallmentBtn = $load('[id*="btnPayInstallment"], input[value*="Pay Installment"]');
+            // DEBUG: Log what elements are found on the page
+            const allInputs = $load('input[type="text"]');
+            console.log(`[HTTP] DEBUG: Found ${allInputs.length} text inputs on page`);
+            allInputs.each((i, el) => {
+                const name = $load(el).attr('name') || '';
+                const id = $load(el).attr('id') || '';
+                if (name.includes('Serial') || id.includes('Serial')) {
+                    console.log(`[HTTP] DEBUG: Input found - name="${name}" id="${id}"`);
+                }
+            });
 
-            // If Contract Info is already visible (or Pay button exists), skip confirm step
-            if (contractInfoSection.length > 0 || payInstallmentBtn.length > 0) {
-                console.log('[HTTP] ✅ Contract info already visible, parsing directly...');
+            // Check for any buttons
+            const allButtons = $load('input[type="submit"]');
+            console.log(`[HTTP] DEBUG: Found ${allButtons.length} submit buttons`);
+            allButtons.each((i, el) => {
+                const name = $load(el).attr('name') || '';
+                const value = $load(el).attr('value') || '';
+                console.log(`[HTTP] DEBUG: Button - name="${name}" value="${value}"`);
+            });
+
+            // Check for Contract/Package keywords
+            const pageText = $load('body').text();
+            if (pageText.includes('Contract')) console.log('[HTTP] DEBUG: Page contains "Contract"');
+            if (pageText.includes('Confirm')) console.log('[HTTP] DEBUG: Page contains "Confirm"');
+            if (pageText.includes('Package')) console.log('[HTTP] DEBUG: Page contains "Package"');
+            if (pageText.includes('Pay')) console.log('[HTTP] DEBUG: Page contains "Pay"');
+
+            // Check if "Confirm Serial Number" field appeared OR if Contract Info is already visible
+            // Try multiple selectors for confirm serial field
+            let confirmSerialField = $load('input[name="ctl00$ContentPlaceHolder1$tbSerial2"]');
+            if (confirmSerialField.length === 0) {
+                confirmSerialField = $load('input[id*="tbSerial2"], input[name*="Serial2"], input[id*="Serial2"]');
+            }
+
+            const contractInfoSection = $load('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"], .ContractInfo, td:contains("Contract Information")');
+            const payInstallmentBtn = $load('[id*="btnPayInstallment"], input[value*="Pay Installment"], input[value*="Pay"]');
+            const packageSection = $load('[id*="Package"], td:contains("Package")');
+
+            console.log(`[HTTP] DEBUG: confirmSerialField=${confirmSerialField.length}, contractInfo=${contractInfoSection.length}, payBtn=${payInstallmentBtn.length}, package=${packageSection.length}`);
+
+            // If Contract Info is already visible (or Pay button exists or package is shown), skip confirm step
+            if (contractInfoSection.length > 0 || payInstallmentBtn.length > 0 || packageSection.length > 0) {
+                console.log('[HTTP] ✅ Contract info/package already visible, parsing directly...');
                 return this.parseInstallmentDetails($load, cardNumber);
             }
 

@@ -3321,8 +3321,12 @@ export class HttpClientService {
             };
 
             // DEBUG: Log form data being sent
-            console.log(`[HTTP] DEBUG: POST form data keys: ${Object.keys(loadFormData).filter(k => !k.includes('VIEWSTATE')).join(', ')}`);
+            const viewStateKeys = Object.keys(this.currentViewState || {});
+            console.log(`[HTTP] DEBUG: ViewState fields count: ${viewStateKeys.length}`);
+            console.log(`[HTTP] DEBUG: ViewState includes __VIEWSTATE: ${viewStateKeys.includes('__VIEWSTATE')}`);
+            console.log(`[HTTP] DEBUG: POST form data keys (non-viewstate): ${Object.keys(loadFormData).filter(k => !k.includes('VIEWSTATE') && !k.includes('GENERATOR')).join(', ')}`);
             console.log(`[HTTP] DEBUG: Sending card=${cardNumber.slice(0, 4)}****, dropdown=${ciscoValue}, button=${loadBtnId}`);
+
 
             console.log('[HTTP] POST - Load card number...');
             const loadRes = await this.axios.post(

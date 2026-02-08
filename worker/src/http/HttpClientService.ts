@@ -3283,13 +3283,21 @@ export class HttpClientService {
             const ciscoValue = ciscoOption.attr('value') || 'CISCO';
             console.log(`[HTTP] CISCO dropdown value: "${ciscoValue}"`);
 
-            // Get Load button value - on installment page it's btnSmtLoad1, not btnLoad2
-            // Try multiple possible button IDs
+            // Get Load button value - try multiple button IDs
+            // Order: btnSmtLoad1 -> btnLoad1 -> btnLoad
             let loadBtnId = 'ctl00$ContentPlaceHolder1$btnSmtLoad1';
             let loadBtnValue = this.extractButtonValue(pageRes.data, 'btnSmtLoad1', '');
 
             if (!loadBtnValue) {
-                // Try alternate button IDs
+                // Try btnLoad1
+                loadBtnValue = this.extractButtonValue(pageRes.data, 'btnLoad1', '');
+                if (loadBtnValue) {
+                    loadBtnId = 'ctl00$ContentPlaceHolder1$btnLoad1';
+                }
+            }
+
+            if (!loadBtnValue) {
+                // Try btnLoad
                 loadBtnValue = this.extractButtonValue(pageRes.data, 'btnLoad', '');
                 if (loadBtnValue) {
                     loadBtnId = 'ctl00$ContentPlaceHolder1$btnLoad';
@@ -3298,7 +3306,8 @@ export class HttpClientService {
 
             if (!loadBtnValue) {
                 loadBtnValue = 'Load';
-                console.log('[HTTP] Using default Load button value');
+                loadBtnId = 'ctl00$ContentPlaceHolder1$btnLoad';
+                console.log('[HTTP] Using default Load button');
             } else {
                 console.log(`[HTTP] Found Load button: ${loadBtnId} = "${loadBtnValue}"`);
             }
@@ -3310,6 +3319,10 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,
                 [loadBtnId]: loadBtnValue
             };
+
+            // DEBUG: Log form data being sent
+            console.log(`[HTTP] DEBUG: POST form data keys: ${Object.keys(loadFormData).filter(k => !k.includes('VIEWSTATE')).join(', ')}`);
+            console.log(`[HTTP] DEBUG: Sending card=${cardNumber.slice(0, 4)}****, dropdown=${ciscoValue}, button=${loadBtnId}`);
 
             console.log('[HTTP] POST - Load card number...');
             const loadRes = await this.axios.post(
@@ -3330,8 +3343,14 @@ export class HttpClientService {
             // Update ViewState
             this.currentViewState = this.extractHiddenFields(loadRes.data);
 
-            // Step 4: Enter confirm serial and click Load
+            // Step 4: Analyze response page
             const $load = cheerio.load(loadRes.data);
+
+            // DEBUG: Check for any alert/error labels
+            const lblMsg = $load('[id*="lblMsg"], [id*="Label"], .error, .alert, .warning').first().text().trim();
+            if (lblMsg) {
+                console.log(`[HTTP] DEBUG: Message on page: "${lblMsg.slice(0, 100)}"`);
+            }
 
             // DEBUG: Log what elements are found on the page
             const allInputs = $load('input[type="text"]');

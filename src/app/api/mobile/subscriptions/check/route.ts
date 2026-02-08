@@ -52,10 +52,10 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
             }
         })
 
-        // Queue the card check job
+        // Queue the card check job (START_RENEWAL triggers card check + package loading)
         await addCustomerOperationJob({
             operationId: operation.id,
-            type: 'RENEW',
+            type: 'START_RENEWAL',
             cardNumber: cleanedCard,
             customerId: customer.customerId
         })

@@ -3,14 +3,32 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { getCustomerFromRequest } from '@/lib/customer-auth'
 
 /**
- * Helper to get authenticated user from session OR mobile token
+ * Helper to get authenticated user from session, mobile token, OR customer token
+ * Returns an object with either userId or customerId for ownership checks
  */
-async function getAuthUser(request: NextRequest) {
+async function getAuthUser(request: NextRequest): Promise<{ userId?: string; customerId?: string } | null> {
+    // Try web session first (reseller panel)
     const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
+    if (session?.user?.id) {
+        return { userId: session.user.id }
+    }
+
+    // Try mobile token (reseller mobile app)
+    const mobileUser = getMobileUserFromRequest(request)
+    if (mobileUser?.id) {
+        return { userId: mobileUser.id }
+    }
+
+    // Try customer token (customer mobile app)
+    const customer = getCustomerFromRequest(request)
+    if (customer?.customerId) {
+        return { customerId: customer.customerId }
+    }
+
+    return null
 }
 
 export async function POST(
@@ -18,9 +36,9 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Check authentication (supports both web session and mobile token)
+        // Check authentication (supports web session, mobile token, and customer token)
         const authUser = await getAuthUser(request)
-        if (!authUser?.id) {
+        if (!authUser) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
@@ -42,8 +60,9 @@ export async function POST(
         }
 
         // Check ownership (support both reseller userId and mobile app customerId)
-        const isOwner = operation.userId === authUser.id ||
-            (operation.customerId && authUser.customerId === operation.customerId)
+        const isOwner =
+            (authUser.userId && operation.userId === authUser.userId) ||
+            (authUser.customerId && operation.customerId === authUser.customerId)
         if (!isOwner) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
@@ -94,6 +113,9 @@ export async function POST(
         if (existingRefund) {
             console.log(`ℹ️ Operation ${id} already has refund from prior failure - marking as cancelled only`)
 
+            // Extract for TypeScript type narrowing
+            const resellerUserId = authUser.userId
+
             await prisma.$transaction(async (tx) => {
                 // Update operation status only
                 await tx.operation.update({
@@ -104,15 +126,17 @@ export async function POST(
                     },
                 })
 
-                // Log activity
-                await tx.activityLog.create({
-                    data: {
-                        userId: authUser.id,
-                        action: 'OPERATION_CANCELLED',
-                        details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}**** (استرداد سابق)`,
-                        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-                    },
-                })
+                // Log activity (only for reseller users, not customer app)
+                if (resellerUserId) {
+                    await tx.activityLog.create({
+                        data: {
+                            userId: resellerUserId,
+                            action: 'OPERATION_CANCELLED',
+                            details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}**** (استرداد سابق)`,
+                            ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                        },
+                    })
+                }
             })
 
             return NextResponse.json({
@@ -124,6 +148,9 @@ export async function POST(
         }
 
         // Normal case: Cancel operation and refund in transaction
+        // Extract for TypeScript type narrowing
+        const resellerUserId = authUser.userId
+
         await prisma.$transaction(async (tx) => {
             // Update operation status
             await tx.operation.update({
@@ -176,15 +203,17 @@ export async function POST(
                 })
             }
 
-            // Log activity
-            await tx.activityLog.create({
-                data: {
-                    userId: authUser.id,
-                    action: 'OPERATION_CANCELLED',
-                    details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}****`,
-                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-                },
-            })
+            // Log activity (only for reseller users, not customer app)
+            if (resellerUserId) {
+                await tx.activityLog.create({
+                    data: {
+                        userId: resellerUserId,
+                        action: 'OPERATION_CANCELLED',
+                        details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}****`,
+                        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                    },
+                })
+            }
         })
 
         return NextResponse.json({

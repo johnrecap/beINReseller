@@ -3313,8 +3313,11 @@ export class HttpClientService {
             }
 
             // Step 3: POST - Select CISCO and enter card number, click Load
+            // Some ASP.NET pages need __EVENTTARGET to trigger button click
             const loadFormData: Record<string, string> = {
                 ...this.currentViewState,
+                '__EVENTTARGET': '',  // Empty for regular button click
+                '__EVENTARGUMENT': '',
                 [dropdownId]: ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,
                 [loadBtnId]: loadBtnValue
@@ -3322,8 +3325,8 @@ export class HttpClientService {
 
             // DEBUG: Log form data being sent
             const viewStateKeys = Object.keys(this.currentViewState || {});
-            console.log(`[HTTP] DEBUG: ViewState fields count: ${viewStateKeys.length}`);
-            console.log(`[HTTP] DEBUG: ViewState includes __VIEWSTATE: ${viewStateKeys.includes('__VIEWSTATE')}`);
+            console.log(`[HTTP] DEBUG: ViewState fields: ${viewStateKeys.join(', ')}`);
+            console.log(`[HTTP] DEBUG: ViewState __VIEWSTATE length: ${(this.currentViewState?.__VIEWSTATE || '').length}`);
             console.log(`[HTTP] DEBUG: POST form data keys (non-viewstate): ${Object.keys(loadFormData).filter(k => !k.includes('VIEWSTATE') && !k.includes('GENERATOR')).join(', ')}`);
             console.log(`[HTTP] DEBUG: Sending card=${cardNumber.slice(0, 4)}****, dropdown=${ciscoValue}, button=${loadBtnId}`);
 

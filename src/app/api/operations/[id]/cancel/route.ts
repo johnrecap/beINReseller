@@ -41,8 +41,10 @@ export async function POST(
             )
         }
 
-        // Check ownership
-        if (operation.userId !== authUser.id) {
+        // Check ownership (support both reseller userId and mobile app customerId)
+        const isOwner = operation.userId === authUser.id ||
+            (operation.customerId && authUser.customerId === operation.customerId)
+        if (!isOwner) {
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 403 }
@@ -148,6 +150,28 @@ export async function POST(
                         balanceAfter: user.balance,
                         operationId: operation.id,
                         notes: 'استرداد مبلغ عملية ملغاة',
+                    },
+                })
+            }
+
+            // Refund customer wallet (for mobile app operations)
+            if (operation.customerId && operation.amount > 0) {
+                const customer = await tx.customer.update({
+                    where: { id: operation.customerId },
+                    data: { walletBalance: { increment: operation.amount } },
+                })
+
+                // Create wallet transaction for refund
+                await tx.walletTransaction.create({
+                    data: {
+                        customerId: operation.customerId,
+                        type: 'CREDIT',
+                        amount: operation.amount,
+                        balanceBefore: customer.walletBalance - operation.amount,
+                        balanceAfter: customer.walletBalance,
+                        description: 'استرداد مبلغ عملية ملغاة',
+                        referenceType: 'REFUND',
+                        referenceId: operation.id,
                     },
                 })
             }

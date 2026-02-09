@@ -290,11 +290,13 @@ export class HttpClientService {
         const eventValidation = $('#__EVENTVALIDATION').val() as string || '';
         const eventTarget = $('#__EVENTTARGET').val() as string || '';
         const eventArgument = $('#__EVENTARGUMENT').val() as string || '';
+        const lastFocus = $('#__LASTFOCUS').val() as string || '';
 
         const fields: HiddenFields = {
             __VIEWSTATE: viewState,
             __VIEWSTATEGENERATOR: viewStateGen,
-            __EVENTVALIDATION: eventValidation
+            __EVENTVALIDATION: eventValidation,
+            __LASTFOCUS: lastFocus  // Required for some ASP.NET postbacks
         };
 
         if (eventTarget) fields.__EVENTTARGET = eventTarget;

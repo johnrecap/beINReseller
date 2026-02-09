@@ -8,6 +8,7 @@ export interface HiddenFields {
     __EVENTVALIDATION: string;
     __EVENTTARGET?: string;
     __EVENTARGUMENT?: string;
+    __LASTFOCUS?: string;
 }
 
 export interface BeINHttpConfig {

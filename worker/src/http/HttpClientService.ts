@@ -3352,16 +3352,18 @@ export class HttpClientService {
             console.log(`[HTTP] DEBUG: All form keys: ${Object.keys(loadFormData).join(', ')}`);
             console.log(`[HTTP] DEBUG: Sending dropdown=${ciscoValue}, button=${loadBtnId}`);
 
-            // DEBUG: Log the ACTUAL serialized form string (first 500 chars to see tbSerial1 value)
+            // DEBUG: Log the ACTUAL serialized form string
             const formDataObj = this.buildFormData(loadFormData);
             const serializedForm = formDataObj.toString();
             const tbSerialPart = serializedForm.match(/tbSerial1=[^&]*/)?.[0] || 'NOT FOUND';
             console.log(`[HTTP] STEP 5: Serialized tbSerial1: "${tbSerialPart}"`);
+            console.log(`[HTTP] STEP 5b: Full form (first 300 chars): "${serializedForm.slice(0, 300)}..."`);
+            console.log(`[HTTP] STEP 5c: Form length: ${serializedForm.length} chars`);
 
             console.log('[HTTP] STEP 6: POST - Sending form to beIN...');
             const loadRes = await this.axios.post(
                 installmentUrl,
-                this.buildFormData(loadFormData),
+                serializedForm,  // Use the serialized string directly
                 {
                     headers: this.buildPostHeaders(installmentUrl)
                 }

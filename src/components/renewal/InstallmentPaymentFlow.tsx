@@ -257,44 +257,57 @@ export function InstallmentPaymentFlow() {
         <div className="max-w-2xl mx-auto space-y-6">
             {/* Input Step */}
             {step === 'input' && (
-                <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 text-[#00A651]" />
-                            {inst.title || 'تسديد الأقساط الشهرية'}
-                        </CardTitle>
-                        <CardDescription>
-                            {inst.description || 'أدخل رقم كارت beIN للتحقق من الأقساط المستحقة'}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Label htmlFor="installmentCard">{inst.cardLabel || 'رقم الكارت'}</Label>
-                            <Input
-                                id="installmentCard"
-                                type="text"
-                                value={cardNumber}
-                                onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                                placeholder="7517663273"
-                                className="mt-2 text-left font-mono text-lg tracking-wider"
-                                dir="ltr"
-                            />
-                            {cardNumber && cardNumber.length < 10 && (
-                                <p className="text-xs text-red-500 mt-1">
-                                    {inst.cardError || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل'}
-                                </p>
-                            )}
+                <div className="relative">
+                    {/* Coming Soon Overlay */}
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm rounded-lg border border-border/50">
+                        <div className="bg-card border border-border p-6 rounded-xl shadow-lg text-center transform hover:scale-105 transition-transform duration-200">
+                            <div className="mx-auto bg-primary/10 w-12 h-12 rounded-full flex items-center justify-center mb-3">
+                                <Clock className="w-6 h-6 text-primary animate-pulse" />
+                            </div>
+                            <h3 className="text-lg font-bold mb-1">Coming Soon</h3>
+                            <p className="text-sm text-muted-foreground font-medium">This feature is under development.</p>
                         </div>
-                        <Button
-                            onClick={handleStart}
-                            disabled={cardNumber.length < 10}
-                            className="w-full bg-[#00A651] hover:bg-[#008f45]"
-                        >
-                            <CreditCard className="h-4 w-4 ml-2" />
-                            {inst.loadButton || 'تحميل بيانات القسط'}
-                        </Button>
-                    </CardContent>
-                </Card>
+                    </div>
+
+                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)] pointer-events-none select-none opacity-50 grayscale-[0.5]">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <DollarSign className="h-5 w-5 text-[#00A651]" />
+                                {inst.title || 'تسديد الأقساط الشهرية'}
+                            </CardTitle>
+                            <CardDescription>
+                                {inst.description || 'أدخل رقم كارت beIN للتحقق من الأقساط المستحقة'}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label htmlFor="installmentCard">{inst.cardLabel || 'رقم الكارت'}</Label>
+                                <Input
+                                    id="installmentCard"
+                                    type="text"
+                                    value={cardNumber}
+                                    onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                                    placeholder="7517663273"
+                                    className="mt-2 text-left font-mono text-lg tracking-wider"
+                                    dir="ltr"
+                                />
+                                {cardNumber && cardNumber.length < 10 && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                        {inst.cardError || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل'}
+                                    </p>
+                                )}
+                            </div>
+                            <Button
+                                onClick={handleStart}
+                                disabled={cardNumber.length < 10}
+                                className="w-full bg-[#00A651] hover:bg-[#008f45]"
+                            >
+                                <CreditCard className="h-4 w-4 ml-2" />
+                                {inst.loadButton || 'تحميل بيانات القسط'}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
             )}
 
             {/* Loading Step */}

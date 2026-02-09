@@ -3366,10 +3366,15 @@ export class HttpClientService {
             // Step 4: Analyze response page
             const $load = cheerio.load(loadRes.data);
 
-            // DEBUG: Dump a snippet of the form area to see what's there
-            const formContent = $load('#aspnetForm, form').first().html()?.slice(0, 1500) || '';
-            console.log(`[HTTP] DEBUG: Form snippet (first 1500 chars):`);
-            console.log(formContent.replace(/\s+/g, ' ').slice(0, 500));
+            // DEBUG: Dump the ContentPlaceHolder area to see what's there
+            const contentArea = $load('#ContentPlaceHolder1_PaymentZone, [id*="ContentPlaceHolder1"]').first().text().trim().slice(0, 300);
+            console.log(`[HTTP] DEBUG: ContentPlaceHolder content: "${contentArea.replace(/\s+/g, ' ')}"`);
+
+            // DEBUG: Check for ASP.NET validation spans (often contain error messages)
+            const validationSpans = $load('span[id*="Validator"], span[style*="color:Red"], span[style*="color:red"], .validation-error').map((_, el) => $load(el).text().trim()).get();
+            if (validationSpans.length > 0) {
+                console.log(`[HTTP] DEBUG: Validation messages: ${validationSpans.join(', ')}`);
+            }
 
             // DEBUG: Check for any alert/error labels
             const lblMsg = $load('[id*="lblMsg"], [id*="Label"], .error, .alert, .warning').first().text().trim();

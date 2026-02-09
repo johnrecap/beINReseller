@@ -3386,6 +3386,21 @@ export class HttpClientService {
                 console.log(`[HTTP] DEBUG: Button - name="${name}" value="${value}"`);
             });
 
+            // Check for "Load Another" button which indicates card is already loaded
+            const loadAnotherBtn = $load('input[value*="Load Another"], input[value*="Another"]');
+            if (loadAnotherBtn.length > 0) {
+                console.log('[HTTP] ✅ "Load Another" button found - card data is loaded!');
+                return this.parseInstallmentDetails($load, cardNumber);
+            }
+
+            // Check for specific beIN installment page elements from screenshot analysis
+            const installmentTable = $load('.InstallmentTable, table.InstallmentTable, [class*="InstallmentTable"]');
+            const paymentZone = $load('#ContentPlaceHolder1_PaymentZone, [id*="PaymentZone"]');
+            const packagesRow = $load('#ContentPlaceHolder1_PackagesRow, [id*="PackagesRow"]');
+            const inputsZone = $load('#ContentPlaceHolder1_InputsZone, [id*="InputsZone"]');
+
+            console.log(`[HTTP] DEBUG: beIN elements - InstallmentTable:${installmentTable.length}, PaymentZone:${paymentZone.length}, PackagesRow:${packagesRow.length}, InputsZone:${inputsZone.length}`);
+
             // Check for Contract/Package keywords
             const pageText = $load('body').text();
             const hasContractKeyword = pageText.includes('Contract');
@@ -3395,8 +3410,15 @@ export class HttpClientService {
             const hasPremiumKeyword = pageText.includes('Premium');
             const hasInstallmentKeyword = pageText.includes('Installment');
             const hasDealerPriceKeyword = pageText.includes('Dealer Price');
+            const hasLoadAnotherKeyword = pageText.includes('Load Another');
 
-            console.log(`[HTTP] DEBUG: Text check - Contract:${hasContractKeyword}, Confirm:${hasConfirmKeyword}, Package:${hasPackageKeyword}, Pay:${hasPayKeyword}, Premium:${hasPremiumKeyword}, Installment:${hasInstallmentKeyword}, DealerPrice:${hasDealerPriceKeyword}`);
+            console.log(`[HTTP] DEBUG: Text check - Contract:${hasContractKeyword}, Confirm:${hasConfirmKeyword}, Package:${hasPackageKeyword}, Pay:${hasPayKeyword}, Premium:${hasPremiumKeyword}, DealerPrice:${hasDealerPriceKeyword}, LoadAnother:${hasLoadAnotherKeyword}`);
+
+            // If key beIN elements are found, parse directly
+            if (installmentTable.length > 0 || paymentZone.length > 0 || packagesRow.length > 0) {
+                console.log('[HTTP] ✅ beIN installment elements found, parsing directly...');
+                return this.parseInstallmentDetails($load, cardNumber);
+            }
 
             // Check if "Confirm Serial Number" field appeared OR if Contract Info is already visible
             // Try multiple selectors for confirm serial field
@@ -3413,11 +3435,12 @@ export class HttpClientService {
 
             // ENHANCED: If page text contains installment-related keywords, try to parse directly
             // This handles cases where CSS selectors don't match but data is present
-            if (hasPremiumKeyword || hasInstallmentKeyword || hasDealerPriceKeyword ||
-                (hasPackageKeyword && hasPayKeyword)) {
+            if (hasDealerPriceKeyword || hasLoadAnotherKeyword ||
+                (hasPremiumKeyword && hasPackageKeyword)) {
                 console.log('[HTTP] ✅ Installment keywords detected in page, parsing directly...');
                 return this.parseInstallmentDetails($load, cardNumber);
             }
+
 
             // Fallback: check CSS selectors
             if (contractInfoSection.length > 0 || payInstallmentBtn.length > 0 || packageSection.length > 0) {

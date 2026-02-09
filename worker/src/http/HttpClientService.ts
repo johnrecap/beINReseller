@@ -3336,7 +3336,9 @@ export class HttpClientService {
                 [loadBtnId]: loadBtnValue
             };
 
-            // DEBUG: Log form data being sent
+            // DEBUG: Log EXACT form data being sent
+            console.log(`[HTTP] DEBUG: EXACT card number in form: "${loadFormData['ctl00$ContentPlaceHolder1$tbSerial1']}"`);
+            console.log(`[HTTP] DEBUG: Hidden tbSerial1 value (if any): "${allHiddenFields['ctl00$ContentPlaceHolder1$tbSerial1'] || 'not in hidden fields'}"`);
             const viewStateKeys = Object.keys(this.currentViewState || {});
             console.log(`[HTTP] DEBUG: ViewState fields: ${viewStateKeys.join(', ')}`);
             console.log(`[HTTP] DEBUG: ViewState __VIEWSTATE length: ${(this.currentViewState?.__VIEWSTATE || '').length}`);

@@ -3352,6 +3352,11 @@ export class HttpClientService {
             console.log(`[HTTP] DEBUG: POST form data keys (non-viewstate): ${Object.keys(loadFormData).filter(k => !k.includes('VIEWSTATE') && !k.includes('GENERATOR')).join(', ')}`);
             console.log(`[HTTP] DEBUG: Sending card=${cardNumber.slice(0, 4)}****, dropdown=${ciscoValue}, button=${loadBtnId}`);
 
+            // DEBUG: Log the ACTUAL serialized form string (first 500 chars to see tbSerial1 value)
+            const formDataObj = this.buildFormData(loadFormData);
+            const serializedForm = formDataObj.toString();
+            const tbSerialPart = serializedForm.match(/tbSerial1=[^&]*/)?.[0] || 'NOT FOUND';
+            console.log(`[HTTP] DEBUG: tbSerial1 in serialized form: "${tbSerialPart}"`);
 
             console.log('[HTTP] POST - Load card number...');
             const loadRes = await this.axios.post(

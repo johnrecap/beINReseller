@@ -3326,12 +3326,12 @@ export class HttpClientService {
             });
             console.log(`[HTTP] DEBUG: Found ${Object.keys(allHiddenFields).length} hidden fields on page`);
 
-            // For CISCO cards: beIN auto-enters the first digit, and last digit shouldn't be sent
-            // So for a 10-digit card like "7504620837", we send "50462083" (middle 8 digits)
+            // For CISCO cards: the last digit shouldn't be sent
+            // So for a 10-digit card like "7504620837", we send "750462083" (9 digits - remove last)
             const formattedCardNumber = cardNumber.length === 10
-                ? cardNumber.slice(1, -1)  // Remove first and last digit
+                ? cardNumber.slice(0, -1)  // Remove only the last digit
                 : cardNumber;
-            console.log(`[HTTP] DEBUG: Card formatting - Original: ${cardNumber.length} digits, Formatted: ${formattedCardNumber.length} digits`);
+            console.log(`[HTTP] DEBUG: Card formatting - Original: ${cardNumber.length} digits, Formatted: ${formattedCardNumber.length} digits (value: ${formattedCardNumber})`);
 
             // Build form data with ALL hidden fields plus our inputs
             const loadFormData: Record<string, string> = {

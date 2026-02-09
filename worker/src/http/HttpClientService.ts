@@ -3250,6 +3250,8 @@ export class HttpClientService {
      * @returns Installment details or error
      */
     async loadInstallment(cardNumber: string): Promise<import('./types').LoadInstallmentResult> {
+        console.log(`[HTTP] ====== INSTALLMENT DEBUG START ======`);
+        console.log(`[HTTP] STEP 1: Card received in function: "${cardNumber}" (length: ${cardNumber.length})`);
         console.log(`[HTTP] Loading installment for card: ${cardNumber.slice(0, 4)}****`);
 
         try {
@@ -3324,14 +3326,14 @@ export class HttpClientService {
                     allHiddenFields[name] = value;
                 }
             });
-            console.log(`[HTTP] DEBUG: Found ${Object.keys(allHiddenFields).length} hidden fields on page`);
+            console.log(`[HTTP] STEP 2: Found ${Object.keys(allHiddenFields).length} hidden fields on page`);
 
             // For CISCO cards: the last digit shouldn't be sent
             // So for a 10-digit card like "7504620837", we send "750462083" (9 digits - remove last)
             const formattedCardNumber = cardNumber.length === 10
                 ? cardNumber.slice(0, -1)  // Remove only the last digit
                 : cardNumber;
-            console.log(`[HTTP] DEBUG: Card formatting - Original: ${cardNumber.length} digits, Formatted: ${formattedCardNumber.length} digits (value: ${formattedCardNumber})`);
+            console.log(`[HTTP] STEP 3: Card formatting - Original: "${cardNumber}" (${cardNumber.length} digits) -> Formatted: "${formattedCardNumber}" (${formattedCardNumber.length} digits)`);
 
             // Build form data with ALL hidden fields plus our inputs
             const loadFormData: Record<string, string> = {
@@ -3342,23 +3344,21 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCardNumber,
                 [loadBtnId]: loadBtnValue
             };
+            console.log(`[HTTP] STEP 4: Form data built with tbSerial1 = "${loadFormData['ctl00$ContentPlaceHolder1$tbSerial1']}"`);
 
             // DEBUG: Log EXACT form data being sent
-            console.log(`[HTTP] DEBUG: EXACT card number in form: "${loadFormData['ctl00$ContentPlaceHolder1$tbSerial1']}"`);
             console.log(`[HTTP] DEBUG: Hidden tbSerial1 value (if any): "${allHiddenFields['ctl00$ContentPlaceHolder1$tbSerial1'] || 'not in hidden fields'}"`);
-            const viewStateKeys = Object.keys(this.currentViewState || {});
-            console.log(`[HTTP] DEBUG: ViewState fields: ${viewStateKeys.join(', ')}`);
             console.log(`[HTTP] DEBUG: ViewState __VIEWSTATE length: ${(this.currentViewState?.__VIEWSTATE || '').length}`);
-            console.log(`[HTTP] DEBUG: POST form data keys (non-viewstate): ${Object.keys(loadFormData).filter(k => !k.includes('VIEWSTATE') && !k.includes('GENERATOR')).join(', ')}`);
-            console.log(`[HTTP] DEBUG: Sending card=${cardNumber.slice(0, 4)}****, dropdown=${ciscoValue}, button=${loadBtnId}`);
+            console.log(`[HTTP] DEBUG: All form keys: ${Object.keys(loadFormData).join(', ')}`);
+            console.log(`[HTTP] DEBUG: Sending dropdown=${ciscoValue}, button=${loadBtnId}`);
 
             // DEBUG: Log the ACTUAL serialized form string (first 500 chars to see tbSerial1 value)
             const formDataObj = this.buildFormData(loadFormData);
             const serializedForm = formDataObj.toString();
             const tbSerialPart = serializedForm.match(/tbSerial1=[^&]*/)?.[0] || 'NOT FOUND';
-            console.log(`[HTTP] DEBUG: tbSerial1 in serialized form: "${tbSerialPart}"`);
+            console.log(`[HTTP] STEP 5: Serialized tbSerial1: "${tbSerialPart}"`);
 
-            console.log('[HTTP] POST - Load card number...');
+            console.log('[HTTP] STEP 6: POST - Sending form to beIN...');
             const loadRes = await this.axios.post(
                 installmentUrl,
                 this.buildFormData(loadFormData),

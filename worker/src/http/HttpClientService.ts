@@ -3315,9 +3315,20 @@ export class HttpClientService {
             }
 
             // Step 3: POST - Select CISCO and enter card number, click Load
-            // Some ASP.NET pages need __EVENTTARGET to trigger button click
+            // Extract ALL hidden fields from the page (not just standard ASP.NET ones)
+            const allHiddenFields: Record<string, string> = {};
+            $('input[type="hidden"]').each((_, el) => {
+                const name = $(el).attr('name');
+                const value = $(el).val() as string || '';
+                if (name) {
+                    allHiddenFields[name] = value;
+                }
+            });
+            console.log(`[HTTP] DEBUG: Found ${Object.keys(allHiddenFields).length} hidden fields on page`);
+
+            // Build form data with ALL hidden fields plus our inputs
             const loadFormData: Record<string, string> = {
-                ...this.currentViewState,
+                ...allHiddenFields,  // Include ALL hidden fields from page
                 '__EVENTTARGET': '',  // Empty for regular button click
                 '__EVENTARGUMENT': '',
                 [dropdownId]: ciscoValue,

@@ -3613,6 +3613,26 @@ export class HttpClientService {
 
         console.log(`[HTTP] parseInstallmentDetails: contractSection=${contractSection.length}, payBtn=${payBtn.length}, paymentZone=${paymentZone.length}, packagesRow=${packagesRow.length}, loadAnother=${loadAnotherBtn.length}, packageRow=${packageRowFound}`);
 
+        // ====== DEBUG: Dump HTML sample to see what worker actually received ======
+        const htmlSample = $.html().slice(0, 3000);
+        console.log(`[HTTP] PARSE: === HTML DUMP (first 3000 chars) ===`);
+        console.log(htmlSample);
+        console.log(`[HTTP] PARSE: === END HTML DUMP ===`);
+
+        // ====== DEBUG: Log ALL input elements with their IDs and values ======
+        console.log('[HTTP] PARSE: === ALL INPUTS ON PAGE ===');
+        $('input, textarea, select').each((i, el) => {
+            const id = $(el).attr('id') || '';
+            const name = $(el).attr('name') || '';
+            const type = $(el).attr('type') || $(el).prop('tagName')?.toLowerCase() || '';
+            const valFromVal = $(el).val()?.toString()?.trim() || '';
+            const valFromAttr = $(el).attr('value')?.trim() || '';
+            if (id || name) {
+                console.log(`[HTTP] PARSE:   [${type}] id="${id}" name="${name}" val()="${valFromVal.slice(0, 40)}" attr="${valFromAttr.slice(0, 40)}"`);
+            }
+        });
+        console.log('[HTTP] PARSE: === END ALL INPUTS ===');
+
         if (!hasData) {
             console.log('[HTTP] ⚠️ No installment data found on page');
             return {
@@ -3622,10 +3642,47 @@ export class HttpClientService {
             };
         }
 
+        // Helper: extract value from input - tries .val() first, then .attr('value')
+        const getInputVal = (selector: string): string => {
+            const el = $(selector).first();
+            if (el.length === 0) return '';
+            return el.val()?.toString()?.trim() || el.attr('value')?.trim() || '';
+        };
+
+        // Helper: extract value by finding label text (FieldTitle, span, td) and getting the next input
+        const getByFieldTitle = (labelText: string): string => {
+            let result = '';
+            $('span, td, label').each((_, el) => {
+                const text = $(el).text().trim();
+                if (text.includes(labelText)) {
+                    // Try: next sibling input
+                    const nextInput = $(el).next('input, textarea, select').first();
+                    if (nextInput.length > 0) {
+                        result = nextInput.val()?.toString()?.trim() || nextInput.attr('value')?.trim() || '';
+                        if (result) return false;
+                    }
+                    // Try: parent's next td with input
+                    const parentTd = $(el).closest('td');
+                    if (parentTd.length > 0) {
+                        const nextTd = parentTd.next('td');
+                        const input = nextTd.find('input, textarea, select').first();
+                        result = input.val()?.toString()?.trim() || input.attr('value')?.trim() || nextTd.text().trim();
+                        if (result) return false;
+                    }
+                    // Try: sibling within same parent
+                    const siblingInput = $(el).parent().find('input, textarea, select').first();
+                    if (siblingInput.length > 0) {
+                        result = siblingInput.val()?.toString()?.trim() || siblingInput.attr('value')?.trim() || '';
+                        if (result) return false;
+                    }
+                }
+            });
+            return result;
+        };
+
         // ====== EXTRACT PACKAGE ======
         let packageText = $('[id*="lblPackage"]').text().trim();
         if (!packageText) {
-            // Look in the PackagesRow area first
             const packagesRowText = $('#ContentPlaceHolder1_PackagesRow, [id*="PackagesRow"]').text().trim();
             if (packagesRowText) {
                 const match = packagesRowText.match(/(Premium.*?(?:Parts|Installment)[^]*?\))/i);
@@ -3633,20 +3690,19 @@ export class HttpClientService {
             }
         }
         if (!packageText) {
-            // Try finding in table cells - look for the cell AFTER "Package:" label
             $('td').each((_, cell) => {
                 const text = $(cell).text().trim();
                 if (text === 'Package:' || text === 'Package') {
                     const nextText = $(cell).next('td').text().trim();
                     if (nextText) { packageText = nextText; return false; }
                 }
-                // Also try cells that contain the full package name
                 if (text.includes('Premium') && text.includes('Installment')) {
                     packageText = text;
                     return false;
                 }
             });
         }
+        if (!packageText) packageText = getByFieldTitle('Package');
         if (!packageText) packageText = 'Premium Monthly Installment';
         console.log(`[HTTP] PARSE: Package = "${packageText}"`);
 
@@ -3671,11 +3727,8 @@ export class HttpClientService {
                 const allValues: number[] = [];
                 $table.find('td').each((_, cell) => {
                     const cellText = $(cell).text().trim();
-                    // Skip empty cells or currency symbols, but DO NOT skip IRD/IEC since they are adjacent to values
                     if (cellText === '' || cellText.includes('USD')) return;
-
                     const val = parseFloat(cellText.replace(/[^0-9.]/g, ''));
-                    // Only push if it's a valid number > 0
                     if (!isNaN(val) && val > 0) {
                         allValues.push(val);
                     }
@@ -3685,33 +3738,37 @@ export class HttpClientService {
                 if (allValues.length >= 2) installment2 = allValues[1];
             }
         });
+
+        // Strategy 2: Try input fields for installment values
+        if (!installment1) {
+            const inst1Val = getInputVal('[id*="txtInstallment1"], [id*="Installment1"], [name*="Installment1"]');
+            if (inst1Val) installment1 = parseFloat(inst1Val.replace(/[^0-9.]/g, '')) || 0;
+        }
+        if (!installment2) {
+            const inst2Val = getInputVal('[id*="txtInstallment2"], [id*="Installment2"], [name*="Installment2"]');
+            if (inst2Val) installment2 = parseFloat(inst2Val.replace(/[^0-9.]/g, '')) || 0;
+        }
         console.log(`[HTTP] PARSE: Installment1 = ${installment1}, Installment2 = ${installment2}`);
 
         // ====== EXTRACT CONTRACT DATES ======
-        // Strategy 1: Use exact beIN element IDs (from page HTML inspection)
-        let contractStartDate = $('input#ContentPlaceHolder1_txtContractStart, input[name*="txtContractStart"]').val()?.toString()?.trim() || '';
-        let contractExpiryDate = $('input#ContentPlaceHolder1_txtContractExpiry, input[name*="txtContractExpiry"]').val()?.toString()?.trim() || '';
+        let contractStartDate = getInputVal('input[id*="txtContractStart"], input[name*="txtContractStart"], input[id*="ContractStart"]');
+        let contractExpiryDate = getInputVal('input[id*="txtContractExpiry"], input[name*="txtContractExpiry"], input[id*="ContractExpiry"]');
 
-        // Strategy 2: Look for label elements
-        if (!contractStartDate) {
-            contractStartDate = $('[id*="lblStartDate"], [id*="lblContractStart"]').text().trim();
-        }
-        if (!contractExpiryDate) {
-            contractExpiryDate = $('[id*="lblExpiryDate"], [id*="lblContractExpiry"]').text().trim();
-        }
+        // Strategy 2: FieldTitle-based
+        if (!contractStartDate) contractStartDate = getByFieldTitle('Contract Start');
+        if (!contractExpiryDate) contractExpiryDate = getByFieldTitle('Contract Expiry');
 
-        // Strategy 3: Look for td label + next td/input value
+        // Strategy 3: Look for td label + next td/input value (using .attr('value'))
         if (!contractStartDate || !contractExpiryDate) {
             $('td').each((_, cell) => {
                 const text = $(cell).text().trim();
                 if (!contractStartDate && (text.includes('Contract Start') || text === 'Contract Start Date:')) {
-                    // Check next td for text or input value
                     const nextTd = $(cell).next('td');
-                    contractStartDate = nextTd.find('input').val()?.toString()?.trim() || nextTd.text().trim();
+                    contractStartDate = nextTd.find('input').first().attr('value')?.trim() || nextTd.find('input').val()?.toString()?.trim() || nextTd.text().trim();
                 }
                 if (!contractExpiryDate && (text.includes('Contract Expiry') || text === 'Contract Expiry Date:' || text.includes('Expiry Date'))) {
                     const nextTd = $(cell).next('td');
-                    contractExpiryDate = nextTd.find('input').val()?.toString()?.trim() || nextTd.text().trim();
+                    contractExpiryDate = nextTd.find('input').first().attr('value')?.trim() || nextTd.find('input').val()?.toString()?.trim() || nextTd.text().trim();
                 }
             });
         }
@@ -3719,8 +3776,8 @@ export class HttpClientService {
         // Strategy 4: Extract dates from any input fields matching date pattern
         if (!contractStartDate || !contractExpiryDate) {
             const dateInputs: string[] = [];
-            $('input[type="text"]').each((_, el) => {
-                const val = $(el).val()?.toString()?.trim() || '';
+            $('input').each((_, el) => {
+                const val = $(el).val()?.toString()?.trim() || $(el).attr('value')?.trim() || '';
                 if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) {
                     dateInputs.push(val);
                 }
@@ -3735,19 +3792,29 @@ export class HttpClientService {
         let invoicePrice = 0;
         let dealerPrice = 0;
 
-        // Strategy 1: Use exact beIN element IDs (from page HTML inspection)
-        const invoiceInput = $('input#ContentPlaceHolder1_txtInvoicePrice, input[name*="txtInvoicePrice"]').val()?.toString()?.trim();
-        const dealerInput = $('input#ContentPlaceHolder1_txtDealerPrice, input[name*="txtDealerPrice"]').val()?.toString()?.trim();
-        console.log(`[HTTP] PARSE: Invoice input raw = "${invoiceInput}", Dealer input raw = "${dealerInput}"`);
-        if (invoiceInput) invoicePrice = parseFloat(invoiceInput.replace(/[^0-9.]/g, '')) || 0;
-        if (dealerInput) dealerPrice = parseFloat(dealerInput.replace(/[^0-9.]/g, '')) || 0;
+        // Strategy 1: Use getInputVal helper (tries .val() AND .attr('value'))
+        const invoiceRaw = getInputVal('input[id*="txtInvoicePrice"], input[id*="InvoicePrice"], input[name*="txtInvoicePrice"]');
+        const dealerRaw = getInputVal('input[id*="txtDealerPrice"], input[id*="DealerPrice"], input[name*="txtDealerPrice"]');
+        console.log(`[HTTP] PARSE: Invoice input raw = "${invoiceRaw}", Dealer input raw = "${dealerRaw}"`);
+        if (invoiceRaw) invoicePrice = parseFloat(invoiceRaw.replace(/[^0-9.]/g, '')) || 0;
+        if (dealerRaw) dealerPrice = parseFloat(dealerRaw.replace(/[^0-9.]/g, '')) || 0;
 
-        // Strategy 2: Look for td label + next td/input with value
+        // Strategy 2: FieldTitle-based
+        if (!invoicePrice) {
+            const val = getByFieldTitle('Invoice Price');
+            if (val) invoicePrice = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+        }
+        if (!dealerPrice) {
+            const val = getByFieldTitle('Dealer Price');
+            if (val) dealerPrice = parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+        }
+
+        // Strategy 3: Look for td label + next td/input with value
         if (!invoicePrice || !dealerPrice) {
             $('td').each((_, cell) => {
                 const text = $(cell).text().trim();
                 const nextTd = $(cell).next('td');
-                const nextInputVal = nextTd.find('input').val()?.toString()?.trim() || '';
+                const nextInputVal = nextTd.find('input').first().attr('value')?.trim() || nextTd.find('input').val()?.toString()?.trim() || '';
                 const nextText = nextTd.text().trim();
                 const valStr = nextInputVal || nextText;
                 const value = parseFloat(valStr.replace(/[^0-9.]/g, '')) || 0;
@@ -3763,32 +3830,33 @@ export class HttpClientService {
 
         // ====== EXTRACT SUBSCRIBER INFO ======
         const subscriber = {
-            name: $('input[id*="txtCustomerName"], input[id*="txtName"], input[name*="txtCustomerName"]').val()?.toString()?.trim() ||
-                $('[id*="lblName"], [id*="lblSubscriber"]').text().trim() || '',
-            email: $('input[id*="txtCustomerEmail"], input[id*="txtEmail"], input[name*="txtCustomerEmail"]').val()?.toString()?.trim() || '',
-            mobile: $('input[id*="txtMobile"]').val()?.toString()?.trim() || '',
-            city: $('input[id*="txtCity"]').val()?.toString()?.trim() || '',
+            name: getInputVal('[id*="txtCustomerName"], [id*="txtName"], [name*="txtCustomerName"]') ||
+                $('[id*="lblName"], [id*="lblSubscriber"]').text().trim() ||
+                getByFieldTitle('Subscriber Name') || getByFieldTitle('Customer Name') || '',
+            email: getInputVal('[id*="txtCustomerEmail"], [id*="txtEmail"], [name*="txtCustomerEmail"]') ||
+                getByFieldTitle('Email') || '',
+            mobile: getInputVal('[id*="txtMobile"], [name*="txtMobile"]') ||
+                getByFieldTitle('Mobile') || '',
+            city: getInputVal('[id*="txtCity"], [name*="txtCity"]') ||
+                getByFieldTitle('City') || '',
             country: $('select[id*="lstCountry"] option:selected, select[id*="ddlCountry"] option:selected').text().trim() ||
-                $('input[id*="txtCountry"]').val()?.toString()?.trim() || '',
-            homeTel: $('input[id*="txtHomeTel"]').val()?.toString()?.trim() || '',
-            workTel: $('input[id*="txtWorkTel"]').val()?.toString()?.trim() || '',
-            fax: $('input[id*="txtFax"]').val()?.toString()?.trim() || '',
-            stbModel: $('input[id*="txtSTB"]').val()?.toString()?.trim() || '',
-            address: $('input[id*="txtAddress"], textarea[id*="txtAddress"]').val()?.toString()?.trim() || '',
-            remarks: $('textarea[id*="txtRemarks"]').val()?.toString()?.trim() || ''
+                getInputVal('[id*="txtCountry"]') ||
+                getByFieldTitle('Country') || '',
+            homeTel: getInputVal('[id*="txtHomeTel"], [name*="txtHomeTel"]') ||
+                getByFieldTitle('Home Tel') || '',
+            workTel: getInputVal('[id*="txtWorkTel"], [name*="txtWorkTel"]') ||
+                getByFieldTitle('Work Tel') || '',
+            fax: getInputVal('[id*="txtFax"], [name*="txtFax"]') ||
+                getByFieldTitle('Fax') || '',
+            stbModel: getInputVal('[id*="txtSTB"], [id*="txtSTBModel"], [name*="txtSTB"]') ||
+                getByFieldTitle('STB Model') || getByFieldTitle('STB') || '',
+            address: getInputVal('[id*="txtAddress"], textarea[id*="txtAddress"], [name*="txtAddress"]') ||
+                getByFieldTitle('Address') || '',
+            remarks: getInputVal('textarea[id*="txtRemarks"], [id*="txtRemarks"], [name*="txtRemarks"]') ||
+                getByFieldTitle('Remarks') || ''
         };
-        console.log(`[HTTP] PARSE: Subscriber = "${subscriber.name}", Mobile = "${subscriber.mobile}", City = "${subscriber.city}"`);
-
-        // DEBUG: Log all input/select/textarea elements and their values
-        console.log('[HTTP] PARSE: === DEBUG ALL FORM ELEMENTS ===');
-        $('input[type="text"], textarea, select').each((i, el) => {
-            const id = $(el).attr('id') || '';
-            const name = $(el).attr('name') || '';
-            const val = $(el).val()?.toString()?.trim() || '';
-            if (id.includes('ContentPlaceHolder') && val) {
-                console.log(`[HTTP] PARSE:   ${id} = "${val.slice(0, 50)}"`);
-            }
-        });
+        console.log(`[HTTP] PARSE: Subscriber = "${subscriber.name}", Email = "${subscriber.email}", Mobile = "${subscriber.mobile}"`);
+        console.log(`[HTTP] PARSE: City = "${subscriber.city}", Country = "${subscriber.country}", STB = "${subscriber.stbModel}"`);
 
         // ====== EXTRACT DEALER BALANCE ======
         const pageText = $('body').text();

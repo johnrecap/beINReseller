@@ -3395,13 +3395,15 @@ export class HttpClientService {
             }
             console.log(`[HTTP] CISCO Load button: ${ciscoLoadBtnId} = "${ciscoLoadBtnValue}"`);
 
-            // POST 2: Enter card number in the CISCO-specific form and click Load
+            // POST 2: Enter card number in BOTH serial fields and click Load
+            // CISCO form has tbSerial1 AND tbSerial2 — both required by ASP.NET validators
             const loadFormData: Record<string, string> = {
                 ...ciscoHiddenFields,
                 '__EVENTTARGET': '',
                 '__EVENTARGUMENT': '',
                 [dropdownId]: ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCardNumber,
+                'ctl00$ContentPlaceHolder1$tbSerial2': formattedCardNumber,
                 [ciscoLoadBtnId]: ciscoLoadBtnValue
             };
 
@@ -3466,9 +3468,16 @@ export class HttpClientService {
             // Check for "Load Another" button which indicates card is already loaded
             const loadAnotherBtn = $load('input[value*="Load Another"], input[value*="Another"]');
             if (loadAnotherBtn.length > 0) {
-                console.log('[HTTP] ✅ "Load Another" button found - card data is loaded!');
-                this.lastInstallmentPageHtml = loadRes.data;
-                return this.parseInstallmentDetails($load, cardNumber);
+                // Only trust "Load Another" if NO validation errors are present
+                const activeValidationErrors = validationSpans.filter(s => s.length > 0);
+                if (activeValidationErrors.length > 0) {
+                    console.log(`[HTTP] ⚠️ "Load Another" found BUT ${activeValidationErrors.length} validation errors present - data NOT loaded`);
+                    console.log(`[HTTP] ⚠️ Validation errors: ${activeValidationErrors.join(', ')}`);
+                } else {
+                    console.log('[HTTP] ✅ "Load Another" button found - card data is loaded!');
+                    this.lastInstallmentPageHtml = loadRes.data;
+                    return this.parseInstallmentDetails($load, cardNumber);
+                }
             }
 
             // Check for specific beIN installment page elements from screenshot analysis
@@ -3686,9 +3695,9 @@ export class HttpClientService {
         console.log(`[HTTP] PARSE: Installment1 = ${installment1}, Installment2 = ${installment2}`);
 
         // ====== EXTRACT CONTRACT DATES ======
-        // Strategy 1: Look for input fields with date values
-        let contractStartDate = $('input[id*="txtContractStartDate"], input[id*="StartDate"]').val()?.toString()?.trim() || '';
-        let contractExpiryDate = $('input[id*="txtContractExpiryDate"], input[id*="ExpiryDate"], input[id*="txtExpiry"]').val()?.toString()?.trim() || '';
+        // Strategy 1: Use exact beIN element IDs (from page HTML inspection)
+        let contractStartDate = $('input#ContentPlaceHolder1_txtContractStart, input[name*="txtContractStart"]').val()?.toString()?.trim() || '';
+        let contractExpiryDate = $('input#ContentPlaceHolder1_txtContractExpiry, input[name*="txtContractExpiry"]').val()?.toString()?.trim() || '';
 
         // Strategy 2: Look for label elements
         if (!contractStartDate) {
@@ -3733,9 +3742,10 @@ export class HttpClientService {
         let invoicePrice = 0;
         let dealerPrice = 0;
 
-        // Strategy 1: Look for input fields with price values
-        const invoiceInput = $('input[id*="txtInvoice"], input[id*="InvoicePrice"]').val()?.toString()?.trim();
-        const dealerInput = $('input[id*="txtDealer"], input[id*="DealerPrice"]').val()?.toString()?.trim();
+        // Strategy 1: Use exact beIN element IDs (from page HTML inspection)
+        const invoiceInput = $('input#ContentPlaceHolder1_txtInvoicePrice, input[name*="txtInvoicePrice"]').val()?.toString()?.trim();
+        const dealerInput = $('input#ContentPlaceHolder1_txtDealerPrice, input[name*="txtDealerPrice"]').val()?.toString()?.trim();
+        console.log(`[HTTP] PARSE: Invoice input raw = "${invoiceInput}", Dealer input raw = "${dealerInput}"`);
         if (invoiceInput) invoicePrice = parseFloat(invoiceInput.replace(/[^0-9.]/g, '')) || 0;
         if (dealerInput) dealerPrice = parseFloat(dealerInput.replace(/[^0-9.]/g, '')) || 0;
 

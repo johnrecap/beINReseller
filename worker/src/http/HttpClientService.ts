@@ -3463,12 +3463,21 @@ export class HttpClientService {
                 console.log(`[HTTP] DEBUG: Button - name="${name}" value="${value}"`);
             });
 
-            // Check for "Load Another" button which indicates card is already loaded
+            // Check for "Load Another" button — a previous card was loaded on this account
+            // Do NOT short-circuit here! The page has "Load Another" but NO detail data.
+            // Instead, check for actual detail data (InstallmentTable, PaymentZone, etc.)
+            // If no data found, fall through to the confirm step (tbSerial2 + btnLoad2)
             const loadAnotherBtn = $load('input[value*="Load Another"], input[value*="Another"]');
             if (loadAnotherBtn.length > 0) {
-                console.log('[HTTP] ✅ "Load Another" button found - card data is loaded!');
-                this.lastInstallmentPageHtml = loadRes.data;
-                return this.parseInstallmentDetails($load, cardNumber);
+                console.log('[HTTP] ⚠️ "Load Another" button found — checking if detail data exists...');
+                // Check if actual installment detail data is present
+                const hasDetailData = $load('[id*="ContractInfo"], [id*="PaymentZone"], [id*="InputsZone"], [id*="PackagesRow"], [id*="txtCustomerName"], [id*="txtContractStart"], [id*="txtDealerPrice"]').length > 0;
+                if (hasDetailData) {
+                    console.log('[HTTP] ✅ Detail data found alongside Load Another — parsing...');
+                    this.lastInstallmentPageHtml = loadRes.data;
+                    return this.parseInstallmentDetails($load, cardNumber);
+                }
+                console.log('[HTTP] ⚠️ No detail data found — falling through to confirm step...');
             }
 
             // Check for specific beIN installment page elements from screenshot analysis
@@ -3514,7 +3523,8 @@ export class HttpClientService {
 
             // ENHANCED: If page text contains installment-related keywords, try to parse directly
             // This handles cases where CSS selectors don't match but data is present
-            if (hasDealerPriceKeyword || hasLoadAnotherKeyword ||
+            // NOTE: Do NOT use hasLoadAnotherKeyword here — it doesn't mean data exists!
+            if (hasDealerPriceKeyword ||
                 (hasPremiumKeyword && hasPackageKeyword)) {
                 console.log('[HTTP] ✅ Installment keywords detected in page, parsing directly...');
                 this.lastInstallmentPageHtml = loadRes.data;
@@ -3539,8 +3549,14 @@ export class HttpClientService {
                 };
             }
 
-            // Get Load button value for confirm step
-            const confirmBtnValue = this.extractButtonValue(loadRes.data, 'btnLoad', 'Load');
+            // Get Load button value for confirm step — try btnLoad2 first (actual beIN button), then btnLoad
+            let confirmBtnName = 'ctl00$ContentPlaceHolder1$btnLoad2';
+            let confirmBtnValue = this.extractButtonValue(loadRes.data, 'btnLoad2', 'Load');
+            if (!confirmBtnValue) {
+                confirmBtnName = 'ctl00$ContentPlaceHolder1$btnLoad';
+                confirmBtnValue = this.extractButtonValue(loadRes.data, 'btnLoad', 'Load');
+            }
+            console.log(`[HTTP] Confirm button: ${confirmBtnName} = "${confirmBtnValue}"`);
 
             // POST - Confirm serial and load details
             const confirmFormData: Record<string, string> = {
@@ -3548,7 +3564,7 @@ export class HttpClientService {
                 [dropdownId]: ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCardNumber,
                 'ctl00$ContentPlaceHolder1$tbSerial2': formattedCardNumber,
-                'ctl00$ContentPlaceHolder1$btnLoad': confirmBtnValue
+                [confirmBtnName]: confirmBtnValue || 'Load'
             };
 
             console.log('[HTTP] POST - Confirm serial and load details...');

@@ -117,7 +117,7 @@ export default function SettingsForm() {
             <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                 <div className="bg-blue-50/50 dark:bg-blue-900/20 p-4 border-b border-blue-100 dark:border-blue-800 flex items-center gap-2">
                     <Code className="w-5 h-5 text-blue-600" />
-                    <h3 className="font-bold text-foreground">{t.admin.settings.sections.features || 'التحكم بالميزات'}</h3>
+                    <h3 className="font-bold text-foreground">{(t.admin.settings.sections as any).features || 'التحكم بالميزات'}</h3>
                 </div>
                 <div className="p-6 space-y-6">
                     <div className="flex items-center gap-3 p-4 bg-secondary rounded-lg">

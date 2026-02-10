@@ -47,6 +47,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 status: true,
                 cardNumber: true,
                 amount: true,
+                responseData: true, // CRITICAL: Need this to get the actual price
                 finalConfirmExpiry: true,
             }
         })
@@ -91,13 +92,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             )
         }
 
-        // Check user balance
+        // Get dealer price from responseData
+        const responseData = operation.responseData ? JSON.parse(operation.responseData as string) : null
+        const dealerPrice = responseData?.installment?.dealerPrice || 0
+
+        if (dealerPrice <= 0) {
+            return NextResponse.json(
+                { error: 'سعر القسط غير صالح' },
+                { status: 400 }
+            )
+        }
+
+        // Check user balance against dealerPrice
         const user = await prisma.user.findUnique({
             where: { id: authUser.id },
             select: { balance: true }
         })
 
-        if (!user || user.balance < (operation.amount || 0)) {
+        if (!user || user.balance < dealerPrice) {
             return NextResponse.json(
                 { error: 'رصيد غير كافي' },
                 { status: 400 }
@@ -108,15 +120,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         await prisma.user.update({
             where: { id: authUser.id },
             data: {
-                balance: { decrement: operation.amount || 0 }
+                balance: { decrement: dealerPrice }
             }
         })
 
-        // Update operation status
+        // Update operation status + set amount NOW (after payment)
         await prisma.operation.update({
             where: { id: operationId },
             data: {
-                status: 'COMPLETING'
+                status: 'COMPLETING',
+                amount: dealerPrice // Set amount only AFTER deduction so refund is correct
             }
         })
 
@@ -127,7 +140,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 type: 'CONFIRM_INSTALLMENT',
                 cardNumber: operation.cardNumber,
                 userId: authUser.id,
-                amount: operation.amount || 0,
+                amount: dealerPrice, // Pass the actual price
             })
         } catch (queueError) {
             console.error('Failed to add confirm job to queue:', queueError)
@@ -136,7 +149,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             await prisma.user.update({
                 where: { id: authUser.id },
                 data: {
-                    balance: { increment: operation.amount || 0 }
+                    balance: { increment: dealerPrice }
                 }
             })
 

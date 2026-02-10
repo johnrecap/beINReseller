@@ -2235,7 +2235,7 @@ async function handleStartInstallmentHttp(
                 isInstallment: true // Flag to identify installment operations
             }),
             stbNumber: installmentResult.subscriber?.stbModel || null,
-            amount: installmentResult.installment?.dealerPrice || 0,
+            amount: 0, // CRITICAL: Set to 0 initially. Only set full amount AFTER user pays in confirm-installment API, to prevent free money refunds on timeout.
             finalConfirmExpiry: confirmExpiry,
             lastHeartbeat: now,
             heartbeatExpiry: heartbeatExpiry

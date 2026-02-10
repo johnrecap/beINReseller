@@ -46,6 +46,7 @@ export class HttpClientService {
     // Current page state
     private currentViewState: HiddenFields | null = null;
     private currentStbNumber: string | null = null;
+    private lastInstallmentPageHtml: string | null = null;  // Stored by loadInstallment for payInstallment
 
     // Session tracking for persistent login
     private lastLoginTime: Date | null = null;
@@ -1162,7 +1163,7 @@ export class HttpClientService {
      * Extracts STB number for later use
      */
     async checkCard(cardNumber: string): Promise<CheckCardResult> {
-        console.log(`[HTTP] Checking card: ${cardNumber.slice(0, 4)}****`);
+        console.log(`[HTTP] Checking card: ${cardNumber}`);
 
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
@@ -1304,7 +1305,7 @@ export class HttpClientService {
      */
     async startRenewalWithCheck(cardNumber: string): Promise<LoadPackagesResult> {
         console.log(`[HTTP] ========== START RENEWAL WITH CHECK ==========`);
-        console.log(`[HTTP] Card: ${cardNumber.slice(0, 4)}****`);
+        console.log(`[HTTP] Card: ${cardNumber}`);
 
         try {
             // Step 1: Go to Check page first (like Playwright does)
@@ -1357,7 +1358,7 @@ export class HttpClientService {
      * Load available packages from SellPackages page
      */
     async loadPackages(cardNumber: string): Promise<LoadPackagesResult> {
-        console.log(`[HTTP] Loading packages for card: ${cardNumber.slice(0, 4)}****`);
+        console.log(`[HTTP] Loading packages for card: ${cardNumber}`);
 
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
@@ -2410,7 +2411,7 @@ export class HttpClientService {
      * @returns Card status without triggering activation
      */
     async checkCardForSignal(cardNumber: string): Promise<CheckCardForSignalResult> {
-        console.log(`[HTTP] Checking card for signal: ${cardNumber.slice(0, 4)}****`);
+        console.log(`[HTTP] Checking card for signal: ${cardNumber}`);
 
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
@@ -2745,7 +2746,7 @@ export class HttpClientService {
      * @returns Activation result
      */
     async activateSignalOnly(cardNumber: string): Promise<SignalRefreshResult> {
-        console.log(`[HTTP] Activating signal for card: ${cardNumber.slice(0, 4)}****`);
+        console.log(`[HTTP] Activating signal for card: ${cardNumber}`);
 
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
@@ -2938,7 +2939,7 @@ export class HttpClientService {
      * @returns Signal refresh result with card status and activation result
      */
     async activateSignal(cardNumber: string): Promise<SignalRefreshResult> {
-        console.log(`[HTTP] Activating signal for card: ${cardNumber.slice(0, 4)}****`);
+        console.log(`[HTTP] Activating signal for card: ${cardNumber}`);
 
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
@@ -3252,7 +3253,7 @@ export class HttpClientService {
     async loadInstallment(cardNumber: string): Promise<import('./types').LoadInstallmentResult> {
         console.log(`[HTTP] ====== INSTALLMENT DEBUG START ======`);
         console.log(`[HTTP] STEP 1: Card received in function: "${cardNumber}" (length: ${cardNumber.length})`);
-        console.log(`[HTTP] Loading installment for card: ${cardNumber.slice(0, 4)}****`);
+        console.log(`[HTTP] Loading installment for card: ${cardNumber}`);
 
         try {
             const installmentUrl = this.buildFullUrl(this.config.installmentUrl);
@@ -3316,8 +3317,7 @@ export class HttpClientService {
                 console.log(`[HTTP] Found Load button: ${loadBtnId} = "${loadBtnValue}"`);
             }
 
-            // Step 3: POST - Select CISCO and enter card number, click Load
-            // Extract ALL hidden fields from the page (not just standard ASP.NET ones)
+            // Extract ALL hidden fields from the page
             const allHiddenFields: Record<string, string> = {};
             $('input[type="hidden"]').each((_, el) => {
                 const name = $(el).attr('name');
@@ -3326,44 +3326,89 @@ export class HttpClientService {
                     allHiddenFields[name] = value;
                 }
             });
-            console.log(`[HTTP] STEP 2: Found ${Object.keys(allHiddenFields).length} hidden fields on page`);
+            console.log(`[HTTP] Found ${Object.keys(allHiddenFields).length} hidden fields on page`);
 
             // For CISCO cards: the last digit shouldn't be sent
             // So for a 10-digit card like "7504620837", we send "750462083" (9 digits - remove last)
             const formattedCardNumber = cardNumber.length === 10
                 ? cardNumber.slice(0, -1)  // Remove only the last digit
                 : cardNumber;
-            console.log(`[HTTP] STEP 3: Card formatting - Original: "${cardNumber}" (${cardNumber.length} digits) -> Formatted: "${formattedCardNumber}" (${formattedCardNumber.length} digits)`);
+            console.log(`[HTTP] Card formatting: "${cardNumber}" (${cardNumber.length} digits) -> "${formattedCardNumber}" (${formattedCardNumber.length} digits)`);
 
-            // Build form data with ALL hidden fields plus our inputs
+            // ====== TWO-STEP CISCO POSTBACK ======
+            // ASP.NET requires a postback when changing the dropdown to load CISCO-specific form.
+            // Without this, the server sees the serial field as empty → "Invalid Serial Number!"
+
+            // POST 1: Select CISCO via __doPostBack (triggers dropdown change postback)
+            const selectFormData: Record<string, string> = {
+                ...allHiddenFields,
+                '__EVENTTARGET': dropdownId,   // Trigger postback on dropdown change
+                '__EVENTARGUMENT': '',
+                [dropdownId]: ciscoValue
+            };
+
+            console.log(`[HTTP] POST 1: Selecting CISCO via __doPostBack (${dropdownId}=${ciscoValue})...`);
+            const selectRes = await this.axios.post(
+                installmentUrl,
+                this.buildFormData(selectFormData),
+                {
+                    headers: this.buildPostHeaders(installmentUrl)
+                }
+            );
+
+            // Check for session expiry after dropdown selection
+            const selectExpiry = this.checkForSessionExpiry(selectRes.data);
+            if (selectExpiry) {
+                this.invalidateSession();
+                return { success: false, hasInstallment: false, error: selectExpiry };
+            }
+
+            // Extract new hidden fields from the CISCO-specific page
+            const $cisco = cheerio.load(selectRes.data);
+            const ciscoHiddenFields: Record<string, string> = {};
+            $cisco('input[type="hidden"]').each((_, el) => {
+                const name = $cisco(el).attr('name');
+                const value = $cisco(el).val() as string || '';
+                if (name) {
+                    ciscoHiddenFields[name] = value;
+                }
+            });
+            this.currentViewState = this.extractHiddenFields(selectRes.data);
+            console.log(`[HTTP] POST 1 done: Got ${Object.keys(ciscoHiddenFields).length} hidden fields from CISCO page`);
+
+            // Re-detect Load button from the CISCO-specific page (may have different buttons)
+            let ciscoLoadBtnId = 'ctl00$ContentPlaceHolder1$btnSmtLoad1';
+            let ciscoLoadBtnValue = this.extractButtonValue(selectRes.data, 'btnSmtLoad1', '');
+
+            if (!ciscoLoadBtnValue) {
+                ciscoLoadBtnValue = this.extractButtonValue(selectRes.data, 'btnLoad1', '');
+                if (ciscoLoadBtnValue) ciscoLoadBtnId = 'ctl00$ContentPlaceHolder1$btnLoad1';
+            }
+            if (!ciscoLoadBtnValue) {
+                ciscoLoadBtnValue = this.extractButtonValue(selectRes.data, 'btnLoad', '');
+                if (ciscoLoadBtnValue) ciscoLoadBtnId = 'ctl00$ContentPlaceHolder1$btnLoad';
+            }
+            if (!ciscoLoadBtnValue) {
+                // Fallback to original button values
+                ciscoLoadBtnId = loadBtnId;
+                ciscoLoadBtnValue = loadBtnValue;
+            }
+            console.log(`[HTTP] CISCO Load button: ${ciscoLoadBtnId} = "${ciscoLoadBtnValue}"`);
+
+            // POST 2: Enter card number in the CISCO-specific form and click Load
             const loadFormData: Record<string, string> = {
-                ...allHiddenFields,  // Include ALL hidden fields from page
-                '__EVENTTARGET': '',  // Empty for regular button click
+                ...ciscoHiddenFields,
+                '__EVENTTARGET': '',
                 '__EVENTARGUMENT': '',
                 [dropdownId]: ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCardNumber,
-                [loadBtnId]: loadBtnValue
+                [ciscoLoadBtnId]: ciscoLoadBtnValue
             };
-            console.log(`[HTTP] STEP 4: Form data built with tbSerial1 = "${loadFormData['ctl00$ContentPlaceHolder1$tbSerial1']}"`);
 
-            // DEBUG: Log EXACT form data being sent
-            console.log(`[HTTP] DEBUG: Hidden tbSerial1 value (if any): "${allHiddenFields['ctl00$ContentPlaceHolder1$tbSerial1'] || 'not in hidden fields'}"`);
-            console.log(`[HTTP] DEBUG: ViewState __VIEWSTATE length: ${(this.currentViewState?.__VIEWSTATE || '').length}`);
-            console.log(`[HTTP] DEBUG: All form keys: ${Object.keys(loadFormData).join(', ')}`);
-            console.log(`[HTTP] DEBUG: Sending dropdown=${ciscoValue}, button=${loadBtnId}`);
-
-            // DEBUG: Log the ACTUAL serialized form string
-            const formDataObj = this.buildFormData(loadFormData);
-            const serializedForm = formDataObj.toString();
-            const tbSerialPart = serializedForm.match(/tbSerial1=[^&]*/)?.[0] || 'NOT FOUND';
-            console.log(`[HTTP] STEP 5: Serialized tbSerial1: "${tbSerialPart}"`);
-            console.log(`[HTTP] STEP 5b: Full form (first 300 chars): "${serializedForm.slice(0, 300)}..."`);
-            console.log(`[HTTP] STEP 5c: Form length: ${serializedForm.length} chars`);
-
-            console.log('[HTTP] STEP 6: POST - Sending form to beIN...');
+            console.log(`[HTTP] POST 2: Entering card ${formattedCardNumber} and clicking Load...`);
             const loadRes = await this.axios.post(
                 installmentUrl,
-                serializedForm,  // Use the serialized string directly
+                this.buildFormData(loadFormData),
                 {
                     headers: this.buildPostHeaders(installmentUrl)
                 }
@@ -3422,6 +3467,7 @@ export class HttpClientService {
             const loadAnotherBtn = $load('input[value*="Load Another"], input[value*="Another"]');
             if (loadAnotherBtn.length > 0) {
                 console.log('[HTTP] ✅ "Load Another" button found - card data is loaded!');
+                this.lastInstallmentPageHtml = loadRes.data;
                 return this.parseInstallmentDetails($load, cardNumber);
             }
 
@@ -3449,6 +3495,7 @@ export class HttpClientService {
             // If key beIN elements are found, parse directly
             if (installmentTable.length > 0 || paymentZone.length > 0 || packagesRow.length > 0) {
                 console.log('[HTTP] ✅ beIN installment elements found, parsing directly...');
+                this.lastInstallmentPageHtml = loadRes.data;
                 return this.parseInstallmentDetails($load, cardNumber);
             }
 
@@ -3470,6 +3517,7 @@ export class HttpClientService {
             if (hasDealerPriceKeyword || hasLoadAnotherKeyword ||
                 (hasPremiumKeyword && hasPackageKeyword)) {
                 console.log('[HTTP] ✅ Installment keywords detected in page, parsing directly...');
+                this.lastInstallmentPageHtml = loadRes.data;
                 return this.parseInstallmentDetails($load, cardNumber);
             }
 
@@ -3477,6 +3525,7 @@ export class HttpClientService {
             // Fallback: check CSS selectors
             if (contractInfoSection.length > 0 || payInstallmentBtn.length > 0 || packageSection.length > 0) {
                 console.log('[HTTP] ✅ Contract info/package visible via selectors, parsing directly...');
+                this.lastInstallmentPageHtml = loadRes.data;
                 return this.parseInstallmentDetails($load, cardNumber);
             }
 
@@ -3497,8 +3546,8 @@ export class HttpClientService {
             const confirmFormData: Record<string, string> = {
                 ...this.currentViewState,
                 [dropdownId]: ciscoValue,
-                'ctl00$ContentPlaceHolder1$tbSerial1': cardNumber,
-                'ctl00$ContentPlaceHolder1$tbSerial2': cardNumber,
+                'ctl00$ContentPlaceHolder1$tbSerial1': formattedCardNumber,
+                'ctl00$ContentPlaceHolder1$tbSerial2': formattedCardNumber,
                 'ctl00$ContentPlaceHolder1$btnLoad': confirmBtnValue
             };
 
@@ -3520,6 +3569,7 @@ export class HttpClientService {
 
             // Update ViewState for later payment
             this.currentViewState = this.extractHiddenFields(detailsRes.data);
+            this.lastInstallmentPageHtml = detailsRes.data;
 
             // Step 5: Extract installment details
             const $details = cheerio.load(detailsRes.data);
@@ -3711,25 +3761,15 @@ export class HttpClientService {
             const balanceBefore = await this.getCurrentBalance();
             console.log(`[HTTP] Balance before payment: $${balanceBefore}`);
 
-            // Get Pay Installment button value
-            // First, we need to re-fetch the page to get fresh ViewState
-            const pageRes = await this.axios.get(installmentUrl, {
-                headers: { 'Referer': installmentUrl }
-            });
-
-            // Check for session expiry
-            const sessionExpiry = this.checkForSessionExpiry(pageRes.data);
-            if (sessionExpiry) {
-                this.invalidateSession();
-                return { success: false, message: sessionExpiry };
+            // Extract Pay Installment button value from stored page HTML
+            // IMPORTANT: Do NOT re-fetch the page - that would lose the loaded card/contract context!
+            let payBtnValue = 'Pay Installment';  // Default fallback
+            if (this.lastInstallmentPageHtml) {
+                payBtnValue = this.extractButtonValue(this.lastInstallmentPageHtml, 'btnPayInstallment', 'Pay Installment');
+                console.log(`[HTTP] Pay button value from stored page: "${payBtnValue}"`);
+            } else {
+                console.log(`[HTTP] ⚠️ No stored page HTML, using default button value: "${payBtnValue}"`);
             }
-
-            // Update ViewState
-            this.currentViewState = this.extractHiddenFields(pageRes.data);
-
-            // Extract button value
-            const payBtnValue = this.extractButtonValue(pageRes.data, 'btnPayInstallment', 'Pay Installment');
-            console.log(`[HTTP] Pay button value: "${payBtnValue}"`);
 
             // POST - Click Pay Installment button
             const payFormData: Record<string, string> = {

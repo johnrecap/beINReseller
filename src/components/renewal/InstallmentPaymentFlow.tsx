@@ -257,269 +257,269 @@ export function InstallmentPaymentFlow() {
         <div className="max-w-2xl mx-auto space-y-6">
             {/* Input Step */}
             {step === 'input' && (
-                <div className="relative">
-                    {/* Coming Soon Overlay */}
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm rounded-lg border border-border/50">
-                        <div className="bg-card border border-border p-6 rounded-xl shadow-lg text-center transform hover:scale-105 transition-transform duration-200">
-                            <div className="mx-auto bg-primary/10 w-12 h-12 rounded-full flex items-center justify-center mb-3">
-                                <Clock className="w-6 h-6 text-primary animate-pulse" />
-                            </div>
-                            <h3 className="text-lg font-bold mb-1">Coming Soon</h3>
-                            <p className="text-sm text-muted-foreground font-medium">This feature is under development.</p>
+                <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <DollarSign className="h-5 w-5 text-[#00A651]" />
+                            {inst.title || 'تسديد الأقساط الشهرية'}
+                        </CardTitle>
+                        <CardDescription>
+                            {inst.description || 'أدخل رقم كارت beIN للتحقق من الأقساط المستحقة'}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <Label htmlFor="installmentCard">{inst.cardLabel || 'رقم الكارت'}</Label>
+                            <Input
+                                id="installmentCard"
+                                type="text"
+                                value={cardNumber}
+                                onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                                placeholder="7517663273"
+                                className="mt-2 text-left font-mono text-lg tracking-wider"
+                                dir="ltr"
+                            />
+                            {cardNumber && cardNumber.length < 10 && (
+                                <p className="text-xs text-red-500 mt-1">
+                                    {inst.cardError || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل'}
+                                </p>
+                            )}
                         </div>
-                    </div>
+                        <Button
+                            onClick={handleStart}
+                            disabled={cardNumber.length < 10}
+                            className="w-full bg-[#00A651] hover:bg-[#008f45]"
+                        >
+                            <CreditCard className="h-4 w-4 ml-2" />
+                            {inst.loadButton || 'تحميل بيانات القسط'}
+                        </Button>
+                    </CardContent>
+                </Card>
+            )
+            }
 
-                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)] pointer-events-none select-none opacity-50 grayscale-[0.5]">
+            {/* Loading Step */}
+            {
+                step === 'loading' && (
+                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
+                        <CardContent className="py-12 text-center">
+                            <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold mb-2">
+                                {inst.loadingTitle || 'جاري المعالجة...'}
+                            </h3>
+                            <p className="text-muted-foreground">
+                                {inst.loadingDescription || 'يتم الاتصال بـ beIN واستخراج بيانات القسط'}
+                            </p>
+                        </CardContent>
+                    </Card>
+                )
+            }
+
+            {/* Details Step - Show installment info with timer */}
+            {
+                step === 'details' && installment && (
+                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <DollarSign className="h-5 w-5 text-[#00A651]" />
-                                {inst.title || 'تسديد الأقساط الشهرية'}
+                            <CardTitle className="flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                    <Package className="h-5 w-5 text-[#00A651]" />
+                                    {inst.detailsTitle || 'تفاصيل القسط'}
+                                </span>
+                                {/* Timer */}
+                                <span className={`flex items-center gap-1 text-sm font-medium ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-orange-500'
+                                    }`}>
+                                    <Clock className="h-4 w-4" />
+                                    {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                                </span>
                             </CardTitle>
-                            <CardDescription>
-                                {inst.description || 'أدخل رقم كارت beIN للتحقق من الأقساط المستحقة'}
-                            </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <Label htmlFor="installmentCard">{inst.cardLabel || 'رقم الكارت'}</Label>
-                                <Input
-                                    id="installmentCard"
-                                    type="text"
-                                    value={cardNumber}
-                                    onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                                    placeholder="7517663273"
-                                    className="mt-2 text-left font-mono text-lg tracking-wider"
-                                    dir="ltr"
-                                />
-                                {cardNumber && cardNumber.length < 10 && (
-                                    <p className="text-xs text-red-500 mt-1">
-                                        {inst.cardError || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل'}
-                                    </p>
-                                )}
+                        <CardContent className="space-y-6">
+                            {/* Package Info */}
+                            <div className="bg-gradient-to-r from-[#00A651]/10 to-[#008f45]/10 border border-[#00A651]/30 rounded-xl p-4 space-y-3">
+                                <div className="text-lg font-bold text-[#00A651]">
+                                    {installment.package}
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="text-muted-foreground">{inst.monthsToPay || 'الأقساط المستحقة:'}</span>
+                                        <span className="font-medium mr-2">{installment.monthsToPay}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-muted-foreground">{inst.installment1 || 'قسط 1:'}</span>
+                                        <span className="font-medium mr-2">{installment.installment1} USD</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-muted-foreground">{inst.startDate || 'بداية العقد:'}</span>
+                                        <span className="font-medium mr-2">{installment.contractStartDate}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-muted-foreground">{inst.expiryDate || 'نهاية العقد:'}</span>
+                                        <span className="font-medium mr-2">{installment.contractExpiryDate}</span>
+                                    </div>
+                                </div>
                             </div>
-                            <Button
-                                onClick={handleStart}
-                                disabled={cardNumber.length < 10}
-                                className="w-full bg-[#00A651] hover:bg-[#008f45]"
-                            >
-                                <CreditCard className="h-4 w-4 ml-2" />
-                                {inst.loadButton || 'تحميل بيانات القسط'}
+
+                            {/* Subscriber Info (if available) */}
+                            {subscriber && subscriber.name && (
+                                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                                    <div className="flex items-center gap-2 text-sm font-medium mb-2">
+                                        <User className="h-4 w-4" />
+                                        {inst.subscriberInfo || 'معلومات المشترك'}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                        {subscriber.name && (
+                                            <div>
+                                                <span className="text-muted-foreground">{inst.name || 'الاسم:'}</span>
+                                                <span className="mr-2">{subscriber.name}</span>
+                                            </div>
+                                        )}
+                                        {subscriber.mobile && (
+                                            <div>
+                                                <span className="text-muted-foreground">{inst.mobile || 'الجوال:'}</span>
+                                                <span className="mr-2">{subscriber.mobile}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Price Summary */}
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-4 space-y-3">
+                                <div className="text-center">
+                                    <h3 className="text-lg font-bold text-amber-800 dark:text-amber-200 mb-1">
+                                        ⚠️ {inst.confirmTitle || 'تأكيد الدفع'}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        {inst.confirmMessage || 'سيتم خصم المبلغ من رصيدك'}
+                                    </p>
+                                </div>
+                                <div className="flex justify-between items-center bg-white dark:bg-gray-800 rounded-lg p-3">
+                                    <span className="font-medium">{inst.dealerPrice || 'المبلغ المطلوب:'}</span>
+                                    <span className="text-2xl font-bold text-[#00A651]">
+                                        {installment.dealerPrice} USD
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">{inst.yourBalance || 'رصيدك:'}</span>
+                                    <span className={balance >= installment.dealerPrice ? 'text-green-600' : 'text-red-600'}>
+                                        {balance} USD
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Balance Warning */}
+                            {balance < installment.dealerPrice && (
+                                <div className="flex items-center gap-2 text-red-500 text-sm">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    {inst.insufficientBalance || 'رصيد غير كافي'}
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-3">
+                                <Button
+                                    onClick={handleConfirm}
+                                    disabled={isConfirmLoading || balance < installment.dealerPrice}
+                                    className="flex-1 bg-[#00A651] hover:bg-[#008f45]"
+                                >
+                                    {isConfirmLoading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                                    ) : (
+                                        <CheckCircle className="h-4 w-4 ml-2" />
+                                    )}
+                                    {inst.payNow || 'ادفع الآن'}
+                                </Button>
+                                <Button
+                                    onClick={() => handleCancel(false)}
+                                    variant="outline"
+                                    disabled={isConfirmLoading}
+                                    className="flex-1"
+                                >
+                                    {inst.cancel || 'إلغاء'}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )
+            }
+
+            {/* Confirming Step */}
+            {
+                step === 'confirming' && (
+                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
+                        <CardContent className="py-12 text-center">
+                            <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold mb-2">
+                                {inst.confirmingTitle || 'جاري تأكيد الدفع...'}
+                            </h3>
+                            <p className="text-muted-foreground">
+                                {inst.confirmingDescription || 'يتم إتمام عملية الدفع على beIN'}
+                            </p>
+                        </CardContent>
+                    </Card>
+                )
+            }
+
+            {/* Success Step */}
+            {
+                step === 'success' && (
+                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
+                        <CardContent className="py-12 text-center">
+                            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-bold text-green-600 dark:text-green-400 mb-2">
+                                {inst.successTitle || 'تم الدفع بنجاح!'}
+                            </h3>
+                            <p className="text-muted-foreground mb-6">
+                                {resultMessage || inst.successMessage || 'تم دفع القسط بنجاح'}
+                            </p>
+                            <Button onClick={handleReset} variant="outline">
+                                {inst.newOperation || 'عملية جديدة'}
                             </Button>
                         </CardContent>
                     </Card>
-                </div>
-            )}
-
-            {/* Loading Step */}
-            {step === 'loading' && (
-                <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
-                    <CardContent className="py-12 text-center">
-                        <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">
-                            {inst.loadingTitle || 'جاري المعالجة...'}
-                        </h3>
-                        <p className="text-muted-foreground">
-                            {inst.loadingDescription || 'يتم الاتصال بـ beIN واستخراج بيانات القسط'}
-                        </p>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Details Step - Show installment info with timer */}
-            {step === 'details' && installment && (
-                <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
-                    <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                            <span className="flex items-center gap-2">
-                                <Package className="h-5 w-5 text-[#00A651]" />
-                                {inst.detailsTitle || 'تفاصيل القسط'}
-                            </span>
-                            {/* Timer */}
-                            <span className={`flex items-center gap-1 text-sm font-medium ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-orange-500'
-                                }`}>
-                                <Clock className="h-4 w-4" />
-                                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-                            </span>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {/* Package Info */}
-                        <div className="bg-gradient-to-r from-[#00A651]/10 to-[#008f45]/10 border border-[#00A651]/30 rounded-xl p-4 space-y-3">
-                            <div className="text-lg font-bold text-[#00A651]">
-                                {installment.package}
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <span className="text-muted-foreground">{inst.monthsToPay || 'الأقساط المستحقة:'}</span>
-                                    <span className="font-medium mr-2">{installment.monthsToPay}</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground">{inst.installment1 || 'قسط 1:'}</span>
-                                    <span className="font-medium mr-2">{installment.installment1} USD</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground">{inst.startDate || 'بداية العقد:'}</span>
-                                    <span className="font-medium mr-2">{installment.contractStartDate}</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted-foreground">{inst.expiryDate || 'نهاية العقد:'}</span>
-                                    <span className="font-medium mr-2">{installment.contractExpiryDate}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Subscriber Info (if available) */}
-                        {subscriber && subscriber.name && (
-                            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium mb-2">
-                                    <User className="h-4 w-4" />
-                                    {inst.subscriberInfo || 'معلومات المشترك'}
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                    {subscriber.name && (
-                                        <div>
-                                            <span className="text-muted-foreground">{inst.name || 'الاسم:'}</span>
-                                            <span className="mr-2">{subscriber.name}</span>
-                                        </div>
-                                    )}
-                                    {subscriber.mobile && (
-                                        <div>
-                                            <span className="text-muted-foreground">{inst.mobile || 'الجوال:'}</span>
-                                            <span className="mr-2">{subscriber.mobile}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Price Summary */}
-                        <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-4 space-y-3">
-                            <div className="text-center">
-                                <h3 className="text-lg font-bold text-amber-800 dark:text-amber-200 mb-1">
-                                    ⚠️ {inst.confirmTitle || 'تأكيد الدفع'}
-                                </h3>
-                                <p className="text-sm text-muted-foreground">
-                                    {inst.confirmMessage || 'سيتم خصم المبلغ من رصيدك'}
-                                </p>
-                            </div>
-                            <div className="flex justify-between items-center bg-white dark:bg-gray-800 rounded-lg p-3">
-                                <span className="font-medium">{inst.dealerPrice || 'المبلغ المطلوب:'}</span>
-                                <span className="text-2xl font-bold text-[#00A651]">
-                                    {installment.dealerPrice} USD
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">{inst.yourBalance || 'رصيدك:'}</span>
-                                <span className={balance >= installment.dealerPrice ? 'text-green-600' : 'text-red-600'}>
-                                    {balance} USD
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Balance Warning */}
-                        {balance < installment.dealerPrice && (
-                            <div className="flex items-center gap-2 text-red-500 text-sm">
-                                <AlertTriangle className="h-4 w-4" />
-                                {inst.insufficientBalance || 'رصيد غير كافي'}
-                            </div>
-                        )}
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-3">
-                            <Button
-                                onClick={handleConfirm}
-                                disabled={isConfirmLoading || balance < installment.dealerPrice}
-                                className="flex-1 bg-[#00A651] hover:bg-[#008f45]"
-                            >
-                                {isConfirmLoading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                ) : (
-                                    <CheckCircle className="h-4 w-4 ml-2" />
-                                )}
-                                {inst.payNow || 'ادفع الآن'}
-                            </Button>
-                            <Button
-                                onClick={() => handleCancel(false)}
-                                variant="outline"
-                                disabled={isConfirmLoading}
-                                className="flex-1"
-                            >
-                                {inst.cancel || 'إلغاء'}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Confirming Step */}
-            {step === 'confirming' && (
-                <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
-                    <CardContent className="py-12 text-center">
-                        <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">
-                            {inst.confirmingTitle || 'جاري تأكيد الدفع...'}
-                        </h3>
-                        <p className="text-muted-foreground">
-                            {inst.confirmingDescription || 'يتم إتمام عملية الدفع على beIN'}
-                        </p>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Success Step */}
-            {step === 'success' && (
-                <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
-                    <CardContent className="py-12 text-center">
-                        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-bold text-green-600 dark:text-green-400 mb-2">
-                            {inst.successTitle || 'تم الدفع بنجاح!'}
-                        </h3>
-                        <p className="text-muted-foreground mb-6">
-                            {resultMessage || inst.successMessage || 'تم دفع القسط بنجاح'}
-                        </p>
-                        <Button onClick={handleReset} variant="outline">
-                            {inst.newOperation || 'عملية جديدة'}
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
+                )
+            }
 
             {/* No Installment Step */}
-            {step === 'no-installment' && (
-                <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
-                    <CardContent className="py-12 text-center">
-                        <CreditCard className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">
-                            {inst.noInstallmentTitle || 'لا توجد أقساط'}
-                        </h3>
-                        <p className="text-muted-foreground mb-6">
-                            {resultMessage || inst.noInstallmentMessage || 'لا توجد أقساط مستحقة لهذا الكارت'}
-                        </p>
-                        <Button onClick={handleReset} variant="outline">
-                            {inst.tryAnother || 'جرب كارت آخر'}
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
+            {
+                step === 'no-installment' && (
+                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
+                        <CardContent className="py-12 text-center">
+                            <CreditCard className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold mb-2">
+                                {inst.noInstallmentTitle || 'لا توجد أقساط'}
+                            </h3>
+                            <p className="text-muted-foreground mb-6">
+                                {resultMessage || inst.noInstallmentMessage || 'لا توجد أقساط مستحقة لهذا الكارت'}
+                            </p>
+                            <Button onClick={handleReset} variant="outline">
+                                {inst.tryAnother || 'جرب كارت آخر'}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )
+            }
 
             {/* Error Step */}
-            {step === 'error' && (
-                <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
-                    <CardContent className="py-12 text-center">
-                        <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">
-                            {inst.errorTitle || 'فشلت العملية'}
-                        </h3>
-                        <p className="text-muted-foreground mb-6">
-                            {error}
-                        </p>
-                        <Button onClick={handleReset} variant="outline">
-                            {inst.tryAgain || 'حاول مرة أخرى'}
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
-        </div>
+            {
+                step === 'error' && (
+                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
+                        <CardContent className="py-12 text-center">
+                            <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">
+                                {inst.errorTitle || 'فشلت العملية'}
+                            </h3>
+                            <p className="text-muted-foreground mb-6">
+                                {error}
+                            </p>
+                            <Button onClick={handleReset} variant="outline">
+                                {inst.tryAgain || 'حاول مرة أخرى'}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )
+            }
+        </div >
     )
 }
 

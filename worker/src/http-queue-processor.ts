@@ -1575,8 +1575,8 @@ async function handleSignalRefreshHttp(
                 userId: op.userId,
                 title: 'تم تجديد الإشارة بنجاح',
                 message: signalResult.activated
-                    ? `تم تجديد الإشارة للكارت ${cardNumber.slice(0, 4)}****`
-                    : `تم فحص الكارت ${cardNumber.slice(0, 4)}****`,
+                    ? `تم تجديد الإشارة للكارت ${cardNumber}`
+                    : `تم فحص الكارت ${cardNumber}`,
                 type: 'info'
             });
         }
@@ -1897,7 +1897,7 @@ async function handleSignalActivateHttp(
                 userId: operation.userId,
                 title: activateResult.activated ? 'تم تفعيل الإشارة' : 'لم يتم التفعيل',
                 message: activateResult.activated
-                    ? `تم تفعيل الإشارة للكارت ${targetCardNumber.slice(0, 4)}****`
+                    ? `تم تفعيل الإشارة للكارت ${targetCardNumber}`
                     : activateResult.error || 'حدث خطأ في التفعيل',
                 type: activateResult.activated ? 'success' : 'warning'
             });
@@ -2007,7 +2007,7 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
 
     const testCardNumber = recentOp?.cardNumber || '0000000000';
 
-    console.log(`[HTTP] Fetching balance using card: ${testCardNumber.slice(0, 4)}****`);
+    console.log(`[HTTP] Fetching balance using card: ${testCardNumber}`);
 
     // Fetch dealer balance
     const balanceResult = await client.fetchDealerBalance(testCardNumber);
@@ -2194,7 +2194,7 @@ async function handleStartInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Step 2: Load installment details
-    console.log(`[HTTP] Loading installment for card ${cardNumber.slice(0, 4)}****`);
+    console.log(`[HTTP] Loading installment for card ${cardNumber}`);
 
     const installmentResult = await client.loadInstallment(cardNumber);
 
@@ -2276,6 +2276,54 @@ async function handleConfirmInstallmentHttp(
 
     // Get HTTP client
     const client = await getHttpClient(selectedAccount);
+    await client.reloadConfig();
+
+    // Ensure session is active — re-login if expired
+    if (!client.isSessionActive()) {
+        console.log(`[HTTP] ⚠️ Session expired for installment confirm, re-logging in...`);
+
+        // Try to get session from cache first
+        const cachedSession = await getSessionFromCache(selectedAccount.id);
+        if (cachedSession) {
+            await client.importSession(cachedSession);
+            client.markSessionValidFromCache(cachedSession.expiresAt);
+            console.log(`[HTTP] ✅ Got session from cache`);
+        } else {
+            // Fresh login
+            const loginResult = await client.login(
+                selectedAccount.username,
+                selectedAccount.password,
+                selectedAccount.totpSecret || undefined
+            );
+            if (!loginResult.success) {
+                throw new Error(loginResult.error || 'Login failed for installment confirm');
+            }
+            // Save session to cache
+            try {
+                const sessionData = await client.exportSession();
+                const sessionTimeout = client.getSessionTimeout();
+                await saveSessionToCache(selectedAccount.id, sessionData, sessionTimeout);
+            } catch (saveError) {
+                console.error('[HTTP] Failed to save session to cache:', saveError);
+            }
+        }
+    }
+
+    await checkIfCancelled(operationId);
+
+    // Re-load installment to ensure card is loaded and ViewState is fresh
+    console.log(`[HTTP] Re-loading installment for card ${cardNumber} before payment...`);
+    const loadResult = await client.loadInstallment(cardNumber);
+
+    if (!loadResult.success || !loadResult.hasInstallment) {
+        // If reload fails, refund user
+        if (operation.userId && operation.amount) {
+            await refundUser(operationId, operation.userId, operation.amount, loadResult.error || 'Failed to re-load installment');
+        }
+        throw new Error(loadResult.error || 'Failed to re-load installment before payment');
+    }
+
+    await checkIfCancelled(operationId);
 
     // Execute payment
     console.log(`[HTTP] Executing installment payment...`);
@@ -2310,7 +2358,7 @@ async function handleConfirmInstallmentHttp(
             operationId,
             'RENEW', // Use RENEW type for statistics
             operation.amount,
-            { type: 'installment', cardNumber: cardNumber.slice(0, 4) + '****' }
+            { type: 'installment', cardNumber }
         );
     }
 
@@ -2319,7 +2367,7 @@ async function handleConfirmInstallmentHttp(
         await createNotification({
             userId: operation.userId,
             title: 'تم دفع القسط',
-            message: `تم دفع قسط الكارت ${cardNumber.slice(0, 4)}**** بنجاح`,
+            message: `تم دفع قسط الكارت ${cardNumber} بنجاح`,
             type: 'success',
             link: '/dashboard/history'
         });

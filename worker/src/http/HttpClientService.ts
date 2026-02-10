@@ -3622,112 +3622,161 @@ export class HttpClientService {
             };
         }
 
-        // Extract package info - look for the actual package name
+        // ====== EXTRACT PACKAGE ======
         let packageText = $('[id*="lblPackage"]').text().trim();
         if (!packageText) {
-            // Try finding in table cells
+            // Look in the PackagesRow area first
+            const packagesRowText = $('#ContentPlaceHolder1_PackagesRow, [id*="PackagesRow"]').text().trim();
+            if (packagesRowText) {
+                const match = packagesRowText.match(/(Premium.*?(?:Parts|Installment)[^]*?\))/i);
+                if (match) packageText = match[1].trim();
+            }
+        }
+        if (!packageText) {
+            // Try finding in table cells - look for the cell AFTER "Package:" label
             $('td').each((_, cell) => {
                 const text = $(cell).text().trim();
-                if (text.includes('Premium') || text.includes('Monthly') || text.includes('Installment')) {
+                if (text === 'Package:' || text === 'Package') {
+                    const nextText = $(cell).next('td').text().trim();
+                    if (nextText) { packageText = nextText; return false; }
+                }
+                // Also try cells that contain the full package name
+                if (text.includes('Premium') && text.includes('Installment')) {
                     packageText = text;
-                    return false; // break
+                    return false;
                 }
             });
         }
-        if (!packageText) {
-            packageText = 'Premium Monthly Installment';
-        }
+        if (!packageText) packageText = 'Premium Monthly Installment';
+        console.log(`[HTTP] PARSE: Package = "${packageText}"`);
 
-        // Extract months to pay dropdown
-        const monthsSelect = $('select[id*="ddlMonths"]');
+        // ====== EXTRACT MONTHS TO PAY ======
+        const monthsSelect = $('select[id*="ddlMonths"], select[id*="Months"]');
         let monthsToPay = 'Pay for 1 Part';
         if (monthsSelect.length > 0) {
             monthsToPay = monthsSelect.find('option:selected').text().trim() || monthsToPay;
         }
+        console.log(`[HTTP] PARSE: Months to pay = "${monthsToPay}"`);
 
-        // Extract installment amounts from table
+        // ====== EXTRACT INSTALLMENT AMOUNTS ======
         let installment1 = 0;
         let installment2 = 0;
 
-        // Look for table with installment headers
+        // Strategy 1: Look for table with Installment headers
         $('table').each((_, table) => {
             const $table = $(table);
-            const headerText = $table.text();
-            if (headerText.includes('Installment 1') || headerText.includes('Installment 2')) {
-                $table.find('tr').each((_, row) => {
-                    const cells = $(row).find('td');
-                    cells.each((i, cell) => {
-                        const text = $(cell).text().trim();
-                        const value = parseFloat(text.replace(/[^0-9.]/g, '')) || 0;
-                        if (value > 0 && i > 0) {
-                            if (installment1 === 0) {
-                                installment1 = value;
-                            } else if (installment2 === 0) {
-                                installment2 = value;
-                            }
-                        }
-                    });
+            const tableText = $table.text();
+            if (tableText.includes('Installment 1') || tableText.includes('Installment 2')) {
+                console.log(`[HTTP] PARSE: Found installment table`);
+                const allValues: number[] = [];
+                $table.find('td').each((_, cell) => {
+                    const cellText = $(cell).text().trim();
+                    // Skip header cells
+                    if (cellText.includes('Installment') || cellText === '' || cellText.includes('USD') || cellText.includes('IRD') || cellText.includes('IEC')) return;
+                    const val = parseFloat(cellText.replace(/[^0-9.]/g, ''));
+                    if (!isNaN(val) && val > 0) {
+                        allValues.push(val);
+                    }
                 });
+                console.log(`[HTTP] PARSE: Installment table values: ${JSON.stringify(allValues)}`);
+                if (allValues.length >= 1) installment1 = allValues[0];
+                if (allValues.length >= 2) installment2 = allValues[1];
             }
         });
+        console.log(`[HTTP] PARSE: Installment1 = ${installment1}, Installment2 = ${installment2}`);
 
-        // Extract contract dates
-        let contractStartDate = $('[id*="lblStartDate"], [id*="ContractStartDate"]').text().trim();
+        // ====== EXTRACT CONTRACT DATES ======
+        // Strategy 1: Look for input fields with date values
+        let contractStartDate = $('input[id*="txtContractStartDate"], input[id*="StartDate"]').val()?.toString()?.trim() || '';
+        let contractExpiryDate = $('input[id*="txtContractExpiryDate"], input[id*="ExpiryDate"], input[id*="txtExpiry"]').val()?.toString()?.trim() || '';
+
+        // Strategy 2: Look for label elements
         if (!contractStartDate) {
-            $('td').each((i, cell) => {
-                const text = $(cell).text().trim();
-                if (text.includes('Contract Start') || text.includes('Start Date')) {
-                    contractStartDate = $(cell).next('td').text().trim();
-                    return false;
-                }
-            });
+            contractStartDate = $('[id*="lblStartDate"], [id*="lblContractStart"]').text().trim();
         }
-
-        let contractExpiryDate = $('[id*="lblExpiryDate"], [id*="ContractExpiryDate"]').text().trim();
         if (!contractExpiryDate) {
-            $('td').each((i, cell) => {
+            contractExpiryDate = $('[id*="lblExpiryDate"], [id*="lblContractExpiry"]').text().trim();
+        }
+
+        // Strategy 3: Look for td label + next td/input value
+        if (!contractStartDate || !contractExpiryDate) {
+            $('td').each((_, cell) => {
                 const text = $(cell).text().trim();
-                if (text.includes('Contract Expiry') || text.includes('Expiry Date')) {
-                    contractExpiryDate = $(cell).next('td').text().trim();
-                    return false;
+                if (!contractStartDate && (text.includes('Contract Start') || text === 'Contract Start Date:')) {
+                    // Check next td for text or input value
+                    const nextTd = $(cell).next('td');
+                    contractStartDate = nextTd.find('input').val()?.toString()?.trim() || nextTd.text().trim();
+                }
+                if (!contractExpiryDate && (text.includes('Contract Expiry') || text === 'Contract Expiry Date:' || text.includes('Expiry Date'))) {
+                    const nextTd = $(cell).next('td');
+                    contractExpiryDate = nextTd.find('input').val()?.toString()?.trim() || nextTd.text().trim();
                 }
             });
         }
 
-        // Extract prices
+        // Strategy 4: Extract dates from any input fields matching date pattern
+        if (!contractStartDate || !contractExpiryDate) {
+            const dateInputs: string[] = [];
+            $('input[type="text"]').each((_, el) => {
+                const val = $(el).val()?.toString()?.trim() || '';
+                if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) {
+                    dateInputs.push(val);
+                }
+            });
+            console.log(`[HTTP] PARSE: Date inputs found: ${JSON.stringify(dateInputs)}`);
+            if (!contractStartDate && dateInputs.length >= 1) contractStartDate = dateInputs[0];
+            if (!contractExpiryDate && dateInputs.length >= 2) contractExpiryDate = dateInputs[1];
+        }
+        console.log(`[HTTP] PARSE: Start Date = "${contractStartDate}", Expiry Date = "${contractExpiryDate}"`);
+
+        // ====== EXTRACT PRICES ======
         let invoicePrice = 0;
         let dealerPrice = 0;
 
-        $('td').each((i, cell) => {
-            const text = $(cell).text().trim();
-            const nextText = $(cell).next('td').text().trim();
-            const value = parseFloat(nextText.replace(/[^0-9.]/g, '')) || 0;
+        // Strategy 1: Look for input fields with price values
+        const invoiceInput = $('input[id*="txtInvoice"], input[id*="InvoicePrice"]').val()?.toString()?.trim();
+        const dealerInput = $('input[id*="txtDealer"], input[id*="DealerPrice"]').val()?.toString()?.trim();
+        if (invoiceInput) invoicePrice = parseFloat(invoiceInput.replace(/[^0-9.]/g, '')) || 0;
+        if (dealerInput) dealerPrice = parseFloat(dealerInput.replace(/[^0-9.]/g, '')) || 0;
 
-            if (text.includes('Invoice Price')) {
-                invoicePrice = value;
-            } else if (text.includes('Dealer Price')) {
-                dealerPrice = value;
-            }
-        });
+        // Strategy 2: Look for td label + next td/input with value
+        if (!invoicePrice || !dealerPrice) {
+            $('td').each((_, cell) => {
+                const text = $(cell).text().trim();
+                const nextTd = $(cell).next('td');
+                const nextInputVal = nextTd.find('input').val()?.toString()?.trim() || '';
+                const nextText = nextTd.text().trim();
+                const valStr = nextInputVal || nextText;
+                const value = parseFloat(valStr.replace(/[^0-9.]/g, '')) || 0;
 
-        // Extract subscriber info from input fields
+                if (text.includes('Invoice Price') && value > 0) {
+                    invoicePrice = value;
+                } else if (text.includes('Dealer Price') && value > 0) {
+                    dealerPrice = value;
+                }
+            });
+        }
+        console.log(`[HTTP] PARSE: Invoice Price = ${invoicePrice}, Dealer Price = ${dealerPrice}`);
+
+        // ====== EXTRACT SUBSCRIBER INFO ======
         const subscriber = {
-            name: $('input[id*="txtName"], input[id*="Name"]').val()?.toString() ||
-                $('[id*="lblName"]').text().trim() || '',
-            email: $('input[id*="txtEmail"], input[id*="Email"]').val()?.toString() || '',
-            mobile: $('input[id*="txtMobile"], input[id*="Mobile"]').val()?.toString() || '',
-            city: $('input[id*="txtCity"], input[id*="City"]').val()?.toString() || '',
+            name: $('input[id*="txtName"], input[id*="txtSubscriberName"]').val()?.toString()?.trim() ||
+                $('[id*="lblName"], [id*="lblSubscriber"]').text().trim() || '',
+            email: $('input[id*="txtEmail"], input[id*="txtSubscriberEmail"]').val()?.toString()?.trim() || '',
+            mobile: $('input[id*="txtMobile"]').val()?.toString()?.trim() || '',
+            city: $('input[id*="txtCity"]').val()?.toString()?.trim() || '',
             country: $('select[id*="ddlCountry"] option:selected').text().trim() ||
-                $('input[id*="Country"]').val()?.toString() || '',
-            homeTel: $('input[id*="txtHomeTel"], input[id*="HomeTel"]').val()?.toString() || '',
-            workTel: $('input[id*="txtWorkTel"], input[id*="WorkTel"]').val()?.toString() || '',
-            fax: $('input[id*="txtFax"], input[id*="Fax"]').val()?.toString() || '',
-            stbModel: $('input[id*="txtSTB"], input[id*="STB"]').val()?.toString() || '',
-            address: $('input[id*="txtAddress"], textarea[id*="Address"]').val()?.toString() || '',
-            remarks: $('textarea[id*="txtRemarks"], textarea[id*="Remarks"]').val()?.toString() || ''
+                $('input[id*="txtCountry"]').val()?.toString()?.trim() || '',
+            homeTel: $('input[id*="txtHomeTel"]').val()?.toString()?.trim() || '',
+            workTel: $('input[id*="txtWorkTel"]').val()?.toString()?.trim() || '',
+            fax: $('input[id*="txtFax"]').val()?.toString()?.trim() || '',
+            stbModel: $('input[id*="txtSTB"]').val()?.toString()?.trim() || '',
+            address: $('input[id*="txtAddress"], textarea[id*="txtAddress"]').val()?.toString()?.trim() || '',
+            remarks: $('textarea[id*="txtRemarks"]').val()?.toString()?.trim() || ''
         };
+        console.log(`[HTTP] PARSE: Subscriber = "${subscriber.name}", Mobile = "${subscriber.mobile}", City = "${subscriber.city}"`);
 
-        // Extract dealer balance from page header
+        // ====== EXTRACT DEALER BALANCE ======
         const pageText = $('body').text();
         const balanceMatch = pageText.match(/Balance\s*(?:is\s*)?\$?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)\s*USD/i) ||
             pageText.match(/(\d+(?:,\d{3})*(?:\.\d{2})?)\s*USD/);

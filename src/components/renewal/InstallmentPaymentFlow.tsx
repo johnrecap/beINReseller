@@ -315,7 +315,7 @@ export function InstallmentPaymentFlow() {
                 )
             }
 
-            {/* Details Step - Show installment info with timer */}
+            {/* Details Step - Show installment info with timer (beIN-style table) */}
             {
                 step === 'details' && installment && (
                     <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
@@ -333,57 +333,133 @@ export function InstallmentPaymentFlow() {
                                 </span>
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-6">
-                            {/* Package Info */}
-                            <div className="bg-gradient-to-r from-[#00A651]/10 to-[#008f45]/10 border border-[#00A651]/30 rounded-xl p-4 space-y-3">
-                                <div className="text-lg font-bold text-[#00A651]">
-                                    {installment.package}
+                        <CardContent className="space-y-4">
+                            {/* beIN-style Contract Information Table */}
+                            <div className="border border-[var(--color-border-default)] rounded-lg overflow-hidden">
+                                {/* Table Header */}
+                                <div className="bg-[#00A651]/10 border-b border-[var(--color-border-default)] px-4 py-2">
+                                    <span className="font-bold text-[#00A651] text-sm">Contract Information</span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="text-muted-foreground">{inst.monthsToPay || 'الأقساط المستحقة:'}</span>
-                                        <span className="font-medium mr-2">{installment.monthsToPay}</span>
+
+                                {/* Package Row */}
+                                <div className="grid grid-cols-[140px_1fr] border-b border-[var(--color-border-default)]">
+                                    <div className="px-3 py-2 bg-muted/30 text-sm font-medium text-muted-foreground border-l border-[var(--color-border-default)]">
+                                        Package:
                                     </div>
-                                    <div>
-                                        <span className="text-muted-foreground">{inst.installment1 || 'قسط 1:'}</span>
-                                        <span className="font-medium mr-2">{installment.installment1} USD</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">{inst.startDate || 'بداية العقد:'}</span>
-                                        <span className="font-medium mr-2">{installment.contractStartDate}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">{inst.expiryDate || 'نهاية العقد:'}</span>
-                                        <span className="font-medium mr-2">{installment.contractExpiryDate}</span>
+                                    <div className="px-3 py-2 text-sm font-bold" dir="ltr">
+                                        {installment.package}
                                     </div>
                                 </div>
+
+                                {/* Months To Pay Row */}
+                                <div className="grid grid-cols-[140px_1fr] border-b border-[var(--color-border-default)]">
+                                    <div className="px-3 py-2 bg-muted/30 text-sm font-medium text-muted-foreground border-l border-[var(--color-border-default)]">
+                                        Months To Pay:
+                                    </div>
+                                    <div className="px-3 py-2 text-sm" dir="ltr">
+                                        {installment.monthsToPay}
+                                    </div>
+                                </div>
+
+                                {/* Installment Amounts Table */}
+                                {(installment.installment1 > 0 || installment.installment2 > 0) && (
+                                    <div className="border-b border-[var(--color-border-default)]">
+                                        <table className="w-full text-sm" dir="ltr">
+                                            <thead>
+                                                <tr className="bg-muted/20">
+                                                    <th className="px-3 py-1.5 text-left font-medium text-muted-foreground border-b border-l border-[var(--color-border-default)]"></th>
+                                                    <th className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-l border-[var(--color-border-default)]">Installment 1</th>
+                                                    <th className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-[var(--color-border-default)]">Installment 2</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td className="px-3 py-1.5 bg-muted/30 font-medium text-muted-foreground border-l border-[var(--color-border-default)]">USD</td>
+                                                    <td className="px-3 py-1.5 text-center font-bold border-l border-[var(--color-border-default)]">{installment.installment1}</td>
+                                                    <td className="px-3 py-1.5 text-center font-bold">{installment.installment2}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {/* Dates & Prices Row */}
+                                <div className="grid grid-cols-2 border-b border-[var(--color-border-default)]" dir="ltr">
+                                    {/* Left side - Dates */}
+                                    <div className="border-l border-[var(--color-border-default)]">
+                                        <div className="grid grid-cols-[auto_1fr] border-b border-[var(--color-border-default)]">
+                                            <div className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground whitespace-nowrap">Contract Start Date:</div>
+                                            <div className="px-3 py-1.5 text-xs font-mono">{installment.contractStartDate || '-'}</div>
+                                        </div>
+                                        <div className="grid grid-cols-[auto_1fr]">
+                                            <div className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground whitespace-nowrap">Contract Expiry Date:</div>
+                                            <div className="px-3 py-1.5 text-xs font-mono">{installment.contractExpiryDate || '-'}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right side - Prices */}
+                                    <div>
+                                        <div className="grid grid-cols-[auto_1fr] border-b border-[var(--color-border-default)]">
+                                            <div className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground whitespace-nowrap">Invoice Price (USD):</div>
+                                            <div className="px-3 py-1.5 text-xs font-bold">{installment.invoicePrice}</div>
+                                        </div>
+                                        <div className="grid grid-cols-[auto_1fr]">
+                                            <div className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground whitespace-nowrap">Dealer Price (USD):</div>
+                                            <div className="px-3 py-1.5 text-xs font-bold text-[#00A651]">{installment.dealerPrice}</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Subscriber Info */}
+                                {subscriber && subscriber.name && (
+                                    <div className="border-b border-[var(--color-border-default)]">
+                                        <div className="bg-muted/20 px-3 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1 border-b border-[var(--color-border-default)]">
+                                            <User className="h-3 w-3" />
+                                            Subscriber
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-0 text-xs" dir="ltr">
+                                            {subscriber.name && (
+                                                <div className="grid grid-cols-[80px_1fr] border-b border-l border-[var(--color-border-default)]">
+                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">Name:</div>
+                                                    <div className="px-2 py-1">{subscriber.name}</div>
+                                                </div>
+                                            )}
+                                            {subscriber.email && (
+                                                <div className="grid grid-cols-[80px_1fr] border-b border-[var(--color-border-default)]">
+                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">Email:</div>
+                                                    <div className="px-2 py-1">{subscriber.email}</div>
+                                                </div>
+                                            )}
+                                            {subscriber.mobile && (
+                                                <div className="grid grid-cols-[80px_1fr] border-b border-l border-[var(--color-border-default)]">
+                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">Mobile:</div>
+                                                    <div className="px-2 py-1 font-mono">{subscriber.mobile}</div>
+                                                </div>
+                                            )}
+                                            {subscriber.city && (
+                                                <div className="grid grid-cols-[80px_1fr] border-b border-[var(--color-border-default)]">
+                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">City:</div>
+                                                    <div className="px-2 py-1">{subscriber.city}</div>
+                                                </div>
+                                            )}
+                                            {subscriber.country && (
+                                                <div className="grid grid-cols-[80px_1fr] border-b border-l border-[var(--color-border-default)]">
+                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">Country:</div>
+                                                    <div className="px-2 py-1">{subscriber.country}</div>
+                                                </div>
+                                            )}
+                                            {subscriber.stbModel && (
+                                                <div className="grid grid-cols-[80px_1fr] border-b border-[var(--color-border-default)]">
+                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">STB Model:</div>
+                                                    <div className="px-2 py-1 font-mono">{subscriber.stbModel}</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Subscriber Info (if available) */}
-                            {subscriber && subscriber.name && (
-                                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                                    <div className="flex items-center gap-2 text-sm font-medium mb-2">
-                                        <User className="h-4 w-4" />
-                                        {inst.subscriberInfo || 'معلومات المشترك'}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                        {subscriber.name && (
-                                            <div>
-                                                <span className="text-muted-foreground">{inst.name || 'الاسم:'}</span>
-                                                <span className="mr-2">{subscriber.name}</span>
-                                            </div>
-                                        )}
-                                        {subscriber.mobile && (
-                                            <div>
-                                                <span className="text-muted-foreground">{inst.mobile || 'الجوال:'}</span>
-                                                <span className="mr-2">{subscriber.mobile}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Price Summary */}
+                            {/* Payment Confirmation */}
                             <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-4 space-y-3">
                                 <div className="text-center">
                                     <h3 className="text-lg font-bold text-amber-800 dark:text-amber-200 mb-1">
@@ -396,13 +472,13 @@ export function InstallmentPaymentFlow() {
                                 <div className="flex justify-between items-center bg-white dark:bg-gray-800 rounded-lg p-3">
                                     <span className="font-medium">{inst.dealerPrice || 'المبلغ المطلوب:'}</span>
                                     <span className="text-2xl font-bold text-[#00A651]">
-                                        {installment.dealerPrice} USD
+                                        USD {installment.dealerPrice}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center text-sm">
                                     <span className="text-muted-foreground">{inst.yourBalance || 'رصيدك:'}</span>
                                     <span className={balance >= installment.dealerPrice ? 'text-green-600' : 'text-red-600'}>
-                                        {balance} USD
+                                        USD {balance}
                                     </span>
                                 </div>
                             </div>

@@ -3590,13 +3590,28 @@ export class HttpClientService {
      * @returns Installment details
      */
     private parseInstallmentDetails($: cheerio.CheerioAPI, cardNumber: string): import('./types').LoadInstallmentResult {
-        // Check if contract information section exists
-        const contractSection = $('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"], div:contains("Contract Information")');
+        // Check if contract information section exists using multiple strategies
+        const contractSection = $('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"]');
         const payBtn = $('[id*="btnPayInstallment"], input[value*="Pay Installment"]');
+        const paymentZone = $('#ContentPlaceHolder1_PaymentZone, [id*="PaymentZone"]');
+        const packagesRow = $('#ContentPlaceHolder1_PackagesRow, [id*="PackagesRow"]');
+        const loadAnotherBtn = $('input[value*="Load Another"]');
 
-        // Also check for Package row or any contract data
-        const packageRow = $('td:contains("Package")');
-        const hasData = contractSection.length > 0 || payBtn.length > 0 || packageRow.length > 0;
+        // Also check for Package row or any contract data via text content
+        let packageRowFound = false;
+        $('td').each((_, cell) => {
+            const text = $(cell).text().trim();
+            if (text.includes('Package') || text.includes('Contract Information') || text.includes('Dealer Price')) {
+                packageRowFound = true;
+                return false;
+            }
+        });
+
+        const hasData = contractSection.length > 0 || payBtn.length > 0 ||
+            paymentZone.length > 0 || packagesRow.length > 0 ||
+            loadAnotherBtn.length > 0 || packageRowFound;
+
+        console.log(`[HTTP] parseInstallmentDetails: contractSection=${contractSection.length}, payBtn=${payBtn.length}, paymentZone=${paymentZone.length}, packagesRow=${packagesRow.length}, loadAnother=${loadAnotherBtn.length}, packageRow=${packageRowFound}`);
 
         if (!hasData) {
             console.log('[HTTP] ⚠️ No installment data found on page');

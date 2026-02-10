@@ -3464,20 +3464,11 @@ export class HttpClientService {
             });
 
             // Check for "Load Another" button — a previous card was loaded on this account
-            // Do NOT short-circuit here! The page has "Load Another" but NO detail data.
-            // Instead, check for actual detail data (InstallmentTable, PaymentZone, etc.)
-            // If no data found, fall through to the confirm step (tbSerial2 + btnLoad2)
+            // The page has "Load Another" but NO detail data (just card entry form).
+            // Always fall through to the confirm step (tbSerial2 + btnLoad2)
             const loadAnotherBtn = $load('input[value*="Load Another"], input[value*="Another"]');
             if (loadAnotherBtn.length > 0) {
-                console.log('[HTTP] ⚠️ "Load Another" button found — checking if detail data exists...');
-                // Check if actual installment detail data is present
-                const hasDetailData = $load('[id*="ContractInfo"], [id*="PaymentZone"], [id*="InputsZone"], [id*="PackagesRow"], [id*="txtCustomerName"], [id*="txtContractStart"], [id*="txtDealerPrice"]').length > 0;
-                if (hasDetailData) {
-                    console.log('[HTTP] ✅ Detail data found alongside Load Another — parsing...');
-                    this.lastInstallmentPageHtml = loadRes.data;
-                    return this.parseInstallmentDetails($load, cardNumber);
-                }
-                console.log('[HTTP] ⚠️ No detail data found — falling through to confirm step...');
+                console.log('[HTTP] ⚠️ "Load Another" button found — will fall through to confirm step (tbSerial2 + btnLoad2)');
             }
 
             // Check for specific beIN installment page elements from screenshot analysis

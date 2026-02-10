@@ -3395,15 +3395,13 @@ export class HttpClientService {
             }
             console.log(`[HTTP] CISCO Load button: ${ciscoLoadBtnId} = "${ciscoLoadBtnValue}"`);
 
-            // POST 2: Enter card number in BOTH serial fields and click Load
-            // CISCO form has tbSerial1 AND tbSerial2 — both required by ASP.NET validators
+            // POST 2: Enter card number in the CISCO-specific form and click Load
             const loadFormData: Record<string, string> = {
                 ...ciscoHiddenFields,
                 '__EVENTTARGET': '',
                 '__EVENTARGUMENT': '',
                 [dropdownId]: ciscoValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCardNumber,
-                'ctl00$ContentPlaceHolder1$tbSerial2': formattedCardNumber,
                 [ciscoLoadBtnId]: ciscoLoadBtnValue
             };
 
@@ -3430,8 +3428,8 @@ export class HttpClientService {
             const $load = cheerio.load(loadRes.data);
 
             // DEBUG: Dump the ContentPlaceHolder area to see what's there
-            const contentArea = $load('#ContentPlaceHolder1_PaymentZone, [id*="ContentPlaceHolder1"]').first().text().trim().slice(0, 300);
-            console.log(`[HTTP] DEBUG: ContentPlaceHolder content: "${contentArea.replace(/\s+/g, ' ')}"`);
+            const contentArea = $load('#ContentPlaceHolder1_PaymentZone, [id*="ContentPlaceHolder1"]').first().html()?.trim().slice(0, 1000) || '';
+            console.log(`[HTTP] DEBUG: ContentPlaceHolder raw HTML (first 1000 chars): "${contentArea.replace(/\s+/g, ' ')}"`);
 
             // DEBUG: Check for ASP.NET validation spans (often contain error messages)
             const validationSpans = $load('span[id*="Validator"], span[style*="color:Red"], span[style*="color:red"], .validation-error').map((_, el) => $load(el).text().trim()).get();
@@ -3468,16 +3466,9 @@ export class HttpClientService {
             // Check for "Load Another" button which indicates card is already loaded
             const loadAnotherBtn = $load('input[value*="Load Another"], input[value*="Another"]');
             if (loadAnotherBtn.length > 0) {
-                // Only trust "Load Another" if NO validation errors are present
-                const activeValidationErrors = validationSpans.filter(s => s.length > 0);
-                if (activeValidationErrors.length > 0) {
-                    console.log(`[HTTP] ⚠️ "Load Another" found BUT ${activeValidationErrors.length} validation errors present - data NOT loaded`);
-                    console.log(`[HTTP] ⚠️ Validation errors: ${activeValidationErrors.join(', ')}`);
-                } else {
-                    console.log('[HTTP] ✅ "Load Another" button found - card data is loaded!');
-                    this.lastInstallmentPageHtml = loadRes.data;
-                    return this.parseInstallmentDetails($load, cardNumber);
-                }
+                console.log('[HTTP] ✅ "Load Another" button found - card data is loaded!');
+                this.lastInstallmentPageHtml = loadRes.data;
+                return this.parseInstallmentDetails($load, cardNumber);
             }
 
             // Check for specific beIN installment page elements from screenshot analysis
@@ -3672,7 +3663,7 @@ export class HttpClientService {
         let installment2 = 0;
 
         // Strategy 1: Look for table with Installment headers
-        $('table').each((_, table) => {
+        $('table.InstallmentTable, table').each((_, table) => {
             const $table = $(table);
             const tableText = $table.text();
             if (tableText.includes('Installment 1') || tableText.includes('Installment 2')) {
@@ -3680,9 +3671,11 @@ export class HttpClientService {
                 const allValues: number[] = [];
                 $table.find('td').each((_, cell) => {
                     const cellText = $(cell).text().trim();
-                    // Skip header cells
-                    if (cellText.includes('Installment') || cellText === '' || cellText.includes('USD') || cellText.includes('IRD') || cellText.includes('IEC')) return;
+                    // Skip empty cells or currency symbols, but DO NOT skip IRD/IEC since they are adjacent to values
+                    if (cellText === '' || cellText.includes('USD')) return;
+
                     const val = parseFloat(cellText.replace(/[^0-9.]/g, ''));
+                    // Only push if it's a valid number > 0
                     if (!isNaN(val) && val > 0) {
                         allValues.push(val);
                     }

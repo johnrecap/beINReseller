@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { useBalance } from '@/hooks/useBalance'
-import { Loader2, CreditCard, CheckCircle, XCircle, Clock, AlertTriangle, DollarSign, Package, User } from 'lucide-react'
+import { Loader2, CreditCard, CheckCircle, XCircle, Clock, AlertTriangle, DollarSign, Package, User, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,6 +38,176 @@ interface SubscriberInfo {
 
 type FlowStep = 'input' | 'loading' | 'details' | 'confirming' | 'success' | 'error' | 'no-installment'
 
+// Installment Confirm Dialog - Modal matching FinalConfirmDialog design from Active Operations page
+function InstallmentConfirmDialog({
+    installment,
+    cardNumber,
+    balance,
+    confirmExpiry,
+    onConfirm,
+    onClose,
+    onExpire,
+    isLoading,
+    t
+}: {
+    installment: InstallmentInfo
+    cardNumber: string
+    balance: number
+    confirmExpiry: string
+    onConfirm: () => void
+    onClose: () => void
+    onExpire: () => void
+    isLoading: boolean
+    t: any
+}) {
+    const inst = t.installment || {}
+    const [timeLeft, setTimeLeft] = useState<number>(0)
+    const [showWarning, setShowWarning] = useState(false)
+    const hasWarned = useRef(false)
+    const hasExpired = useRef(false)
+    const WARNING_THRESHOLD = 10
+
+    useEffect(() => {
+        if (!confirmExpiry) return
+
+        hasWarned.current = false
+        hasExpired.current = false
+
+        const updateTimer = () => {
+            const expiry = new Date(confirmExpiry).getTime()
+            const now = Date.now()
+            const diff = Math.max(0, Math.floor((expiry - now) / 1000))
+            setTimeLeft(diff)
+
+            if (diff <= WARNING_THRESHOLD && diff > 0 && !hasWarned.current) {
+                hasWarned.current = true
+                setShowWarning(true)
+            }
+
+            if (diff <= 0 && !hasExpired.current) {
+                hasExpired.current = true
+                onExpire()
+            }
+        }
+
+        updateTimer()
+        const interval = setInterval(updateTimer, 1000)
+        return () => {
+            clearInterval(interval)
+            setShowWarning(false)
+        }
+    }, [confirmExpiry, onExpire])
+
+    const isWarning = timeLeft <= WARNING_THRESHOLD && timeLeft > 0
+    const insufficientBalance = balance < installment.dealerPrice
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" dir="rtl">
+            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 text-white">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md">
+                            <ShieldCheck className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold">{inst.confirmTitle || 'تأكيد الدفع النهائي'}</h2>
+                            <p className="text-orange-100 text-sm">{inst.confirmMessage || 'هذه الخطوة الأخيرة قبل إتمام الشراء'}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                    {/* Info */}
+                    <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border">
+                        <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">{inst.packageLabel || 'الباقة'}:</span>
+                            <span className="font-bold text-foreground">{installment.package || inst.notSpecified || 'غير محدد'}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">{inst.priceLabel || 'السعر'}:</span>
+                            <span className="font-bold text-[#00A651]">USD {installment.dealerPrice}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">{inst.stbLabel || 'رقم الريسيفر'}:</span>
+                            <span className="font-mono text-sm">{installment.monthsToPay || '-'}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-border pt-2 mt-2">
+                            <span className="text-muted-foreground">{inst.cardLabel || 'رقم الكارت'}:</span>
+                            <span className="font-mono text-sm bg-muted px-2 py-0.5 rounded">{cardNumber}</span>
+                        </div>
+                    </div>
+
+                    {/* Balance */}
+                    <div className="flex justify-between items-center text-sm px-1">
+                        <span className="text-muted-foreground">{inst.yourBalance || 'رصيدك'}:</span>
+                        <span className={insufficientBalance ? 'text-red-600 font-bold' : 'text-green-600 font-bold'}>
+                            USD {balance}
+                        </span>
+                    </div>
+
+                    {/* Insufficient Balance Warning */}
+                    {insufficientBalance && (
+                        <div className="flex items-center justify-center gap-2 p-3 bg-red-500/10 rounded-xl border border-red-500/30">
+                            <AlertTriangle className="w-5 h-5 text-red-500" />
+                            <span className="text-sm font-bold text-red-500">{inst.insufficientBalance || 'رصيد غير كافي'}</span>
+                        </div>
+                    )}
+
+                    {/* Timer */}
+                    {timeLeft > 0 && (
+                        <div className={`flex items-center justify-center gap-2 py-2 ${isWarning ? 'text-[#ED1C24] animate-pulse font-bold' : 'text-[#F59E0B]'}`}>
+                            <Clock className="w-5 h-5" />
+                            <span className="text-lg font-mono">
+                                {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Expiry Warning */}
+                    {showWarning && (
+                        <div className="flex items-center justify-center gap-2 p-3 bg-[#ED1C24]/10 rounded-xl border border-[#ED1C24]/30 animate-pulse">
+                            <AlertTriangle className="w-5 h-5 text-[#ED1C24]" />
+                            <span className="text-sm font-bold text-[#ED1C24]">
+                                {inst.expiryWarning || '⚠️ سينتهي الوقت خلال 10 ثواني!'}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            onClick={onClose}
+                            disabled={isLoading}
+                            className="flex-1 px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors disabled:opacity-50"
+                        >
+                            {inst.cancel || 'إلغاء'}
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            disabled={isLoading || insufficientBalance}
+                            className="flex-1 px-4 py-3 bg-[#00A651] hover:bg-[#008f45] text-white rounded-xl font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    {inst.confirming || 'جاري التأكيد...'}
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    {inst.payNow || 'تأكيد الدفع'}
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 /**
  * InstallmentPaymentFlow - Flow for paying monthly installments
  * Step 1: Enter card number -> Load installment details
@@ -59,9 +229,10 @@ export function InstallmentPaymentFlow() {
     const [confirmExpiry, setConfirmExpiry] = useState<string | null>(null)
     const [timeLeft, setTimeLeft] = useState<number>(60)
     const [isConfirmLoading, setIsConfirmLoading] = useState(false)
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false)
     const hasWarned = useRef(false)
 
-    // Countdown timer for confirmation
+    // Countdown timer for details header display only (auto-cancel handled inside dialog)
     useEffect(() => {
         if (!confirmExpiry || step !== 'details') return
 
@@ -70,17 +241,6 @@ export function InstallmentPaymentFlow() {
             const now = Date.now()
             const diff = Math.max(0, Math.floor((expiryTime - now) / 1000))
             setTimeLeft(diff)
-
-            // Warning at 10 seconds
-            if (diff <= 10 && diff > 0 && !hasWarned.current) {
-                hasWarned.current = true
-                toast.warning(inst.expiryWarning || '⚠️ سينتهي الوقت خلال 10 ثواني!')
-            }
-
-            // Auto-cancel when expired
-            if (diff <= 0) {
-                handleCancel(true)
-            }
         }
 
         updateTimer()
@@ -255,11 +415,26 @@ export function InstallmentPaymentFlow() {
         setError(null)
         setResultMessage(null)
         setConfirmExpiry(null)
+        setShowConfirmDialog(false)
         hasWarned.current = false
     }
 
     return (
         <div className="max-w-2xl mx-auto space-y-6">
+            {/* Installment Confirm Dialog */}
+            {showConfirmDialog && installment && confirmExpiry && (
+                <InstallmentConfirmDialog
+                    installment={installment}
+                    cardNumber={cardNumber}
+                    balance={balance}
+                    confirmExpiry={confirmExpiry}
+                    onConfirm={handleConfirm}
+                    onClose={() => setShowConfirmDialog(false)}
+                    onExpire={() => handleCancel(true)}
+                    isLoading={isConfirmLoading}
+                    t={t}
+                />
+            )}
             {/* Input Step */}
             {step === 'input' && (
                 <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
@@ -469,59 +644,15 @@ export function InstallmentPaymentFlow() {
                                 </table>
                             </div>
 
-                            {/* Payment Confirmation */}
-                            <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-4 space-y-3">
-                                <div className="text-center">
-                                    <h3 className="text-lg font-bold text-amber-800 dark:text-amber-200 mb-1">
-                                        ⚠️ {inst.confirmTitle || 'تأكيد الدفع'}
-                                    </h3>
-                                    <p className="text-sm text-muted-foreground">
-                                        {inst.confirmMessage || 'سيتم خصم المبلغ من رصيدك'}
-                                    </p>
-                                </div>
-                                <div className="flex justify-between items-center bg-white dark:bg-gray-800 rounded-lg p-3">
-                                    <span className="font-medium">{inst.dealerPrice || 'المبلغ المطلوب:'}</span>
-                                    <span className="text-2xl font-bold text-[#00A651]">
-                                        USD {installment.dealerPrice}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground">{inst.yourBalance || 'رصيدك:'}</span>
-                                    <span className={balance >= installment.dealerPrice ? 'text-green-600' : 'text-red-600'}>
-                                        USD {balance}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Balance Warning */}
-                            {balance < installment.dealerPrice && (
-                                <div className="flex items-center gap-2 text-red-500 text-sm">
-                                    <AlertTriangle className="h-4 w-4" />
-                                    {inst.insufficientBalance || 'رصيد غير كافي'}
-                                </div>
-                            )}
-
-                            {/* Action Buttons */}
-                            <div className="flex gap-3">
+                            {/* Continue to Pay Button */}
+                            <div className="pt-2">
                                 <Button
-                                    onClick={handleConfirm}
-                                    disabled={isConfirmLoading || balance < installment.dealerPrice}
-                                    className="flex-1 bg-[#00A651] hover:bg-[#008f45]"
+                                    onClick={() => setShowConfirmDialog(true)}
+                                    disabled={timeLeft <= 0}
+                                    className="w-full bg-[#00A651] hover:bg-[#008f45] text-white py-3 text-base font-bold"
                                 >
-                                    {isConfirmLoading ? (
-                                        <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                    ) : (
-                                        <CheckCircle className="h-4 w-4 ml-2" />
-                                    )}
-                                    {inst.payNow || 'ادفع الآن'}
-                                </Button>
-                                <Button
-                                    onClick={() => handleCancel(false)}
-                                    variant="outline"
-                                    disabled={isConfirmLoading}
-                                    className="flex-1"
-                                >
-                                    {inst.cancel || 'إلغاء'}
+                                    <CheckCircle className="h-5 w-5 ml-2" />
+                                    {inst.continueToPayment || 'متابعة للدفع'}
                                 </Button>
                             </div>
                         </CardContent>

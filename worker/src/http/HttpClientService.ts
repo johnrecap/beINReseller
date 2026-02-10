@@ -3763,12 +3763,12 @@ export class HttpClientService {
 
         // ====== EXTRACT SUBSCRIBER INFO ======
         const subscriber = {
-            name: $('input[id*="txtName"], input[id*="txtSubscriberName"]').val()?.toString()?.trim() ||
+            name: $('input[id*="txtCustomerName"], input[id*="txtName"], input[name*="txtCustomerName"]').val()?.toString()?.trim() ||
                 $('[id*="lblName"], [id*="lblSubscriber"]').text().trim() || '',
-            email: $('input[id*="txtEmail"], input[id*="txtSubscriberEmail"]').val()?.toString()?.trim() || '',
+            email: $('input[id*="txtCustomerEmail"], input[id*="txtEmail"], input[name*="txtCustomerEmail"]').val()?.toString()?.trim() || '',
             mobile: $('input[id*="txtMobile"]').val()?.toString()?.trim() || '',
             city: $('input[id*="txtCity"]').val()?.toString()?.trim() || '',
-            country: $('select[id*="ddlCountry"] option:selected').text().trim() ||
+            country: $('select[id*="lstCountry"] option:selected, select[id*="ddlCountry"] option:selected').text().trim() ||
                 $('input[id*="txtCountry"]').val()?.toString()?.trim() || '',
             homeTel: $('input[id*="txtHomeTel"]').val()?.toString()?.trim() || '',
             workTel: $('input[id*="txtWorkTel"]').val()?.toString()?.trim() || '',
@@ -3778,6 +3778,17 @@ export class HttpClientService {
             remarks: $('textarea[id*="txtRemarks"]').val()?.toString()?.trim() || ''
         };
         console.log(`[HTTP] PARSE: Subscriber = "${subscriber.name}", Mobile = "${subscriber.mobile}", City = "${subscriber.city}"`);
+
+        // DEBUG: Log all input/select/textarea elements and their values
+        console.log('[HTTP] PARSE: === DEBUG ALL FORM ELEMENTS ===');
+        $('input[type="text"], textarea, select').each((i, el) => {
+            const id = $(el).attr('id') || '';
+            const name = $(el).attr('name') || '';
+            const val = $(el).val()?.toString()?.trim() || '';
+            if (id.includes('ContentPlaceHolder') && val) {
+                console.log(`[HTTP] PARSE:   ${id} = "${val.slice(0, 50)}"`);
+            }
+        });
 
         // ====== EXTRACT DEALER BALANCE ======
         const pageText = $('body').text();

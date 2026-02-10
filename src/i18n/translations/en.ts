@@ -533,6 +533,7 @@ export const en = {
                 checkBalancePrice: 'Check Balance Price',
                 signalRefreshPrice: 'Signal Refresh Price',
                 maintenanceMode: 'Enable Maintenance Mode (Stop Operations)',
+                installmentDevMode: 'Installment Section Dev Mode (Blur)',
                 maintenanceMsg: 'Maintenance Message',
                 maintenancePlaceholder: 'System is under maintenance...',
                 notificationMsg: 'Notification Message (Shown in Dashboard)',

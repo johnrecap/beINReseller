@@ -417,6 +417,7 @@ export const ar = {
                 checkBalancePrice: 'سعر الاستعلام عن الرصيد',
                 signalRefreshPrice: 'سعر تحديث الإشارة',
                 maintenanceMode: 'تفعيل وضع الصيانة (إيقاف العمليات)',
+                installmentDevMode: 'وضع التطوير لقسم الأقساط (إخفاء بتأثير الضبابية)',
                 maintenanceMsg: 'رسالة الصيانة',
                 maintenancePlaceholder: 'النظام تحت الصيانة حالياً...',
                 notificationMsg: 'رسالة تنبيه (تظهر في لوحة التحكم)',

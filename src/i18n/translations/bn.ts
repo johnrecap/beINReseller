@@ -533,6 +533,7 @@ export const bn = {
                 checkBalancePrice: 'ব্যালেন্স চেক মূল্য',
                 signalRefreshPrice: 'সিগন্যাল রিফ্রেশ মূল্য',
                 maintenanceMode: 'মেইনটেনেন্স মোড সক্ষম করুন (অপারেশন বন্ধ)',
+                installmentDevMode: 'ইনস্টলমেন্ট সেকশন ডেভ মোড (ঝাপসা)',
                 maintenanceMsg: 'মেইনটেনেন্স বার্তা',
                 maintenancePlaceholder: 'সিস্টেম বর্তমানে রক্ষণাবেক্ষণের অধীনে...',
                 notificationMsg: 'নোটিফিকেশন বার্তা (ড্যাশবোর্ডে প্রদর্শিত)',

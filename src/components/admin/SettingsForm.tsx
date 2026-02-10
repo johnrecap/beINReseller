@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, Loader2, AlertTriangle, Bell } from 'lucide-react'
+import { Save, Loader2, AlertTriangle, Bell, Code } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
 
@@ -36,6 +36,12 @@ export default function SettingsForm() {
             data['maintenance_mode'] = 'false'
         } else {
             data['maintenance_mode'] = 'true'
+        }
+
+        if (!formData.get('installment_dev_mode')) {
+            data['installment_dev_mode'] = 'false'
+        } else {
+            data['installment_dev_mode'] = 'true'
         }
 
         try {
@@ -103,6 +109,28 @@ export default function SettingsForm() {
                             className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground"
                             placeholder={t.admin.settings.fields.notificationPlaceholder}
                         />
+                    </div>
+                </div>
+            </div>
+
+            {/* Feature Toggles */}
+            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+                <div className="bg-blue-50/50 dark:bg-blue-900/20 p-4 border-b border-blue-100 dark:border-blue-800 flex items-center gap-2">
+                    <Code className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-bold text-foreground">{t.admin.settings.sections.features || 'التحكم بالميزات'}</h3>
+                </div>
+                <div className="p-6 space-y-6">
+                    <div className="flex items-center gap-3 p-4 bg-secondary rounded-lg">
+                        <input
+                            name="installment_dev_mode"
+                            type="checkbox"
+                            id="installment_dev_mode"
+                            defaultChecked={settings.installment_dev_mode === 'true'}
+                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor="installment_dev_mode" className="font-medium text-foreground cursor-pointer select-none">
+                            {(t.admin.settings.fields as any).installmentDevMode || 'وضع التطوير لقسم الأقساط (إخفاء بتأثير الضبابية)'}
+                        </label>
                     </div>
                 </div>
             </div>

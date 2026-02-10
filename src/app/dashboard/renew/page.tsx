@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { useBalance } from '@/hooks/useBalance'
 import { useMaintenance } from '@/hooks/useMaintenance'
 import { useOperationHeartbeat } from '@/hooks/useOperationHeartbeat'
-import { Loader2, CheckCircle, XCircle, AlertCircle, CreditCard, Package, Lock, Sparkles, ShieldCheck, Clock, AlertTriangle } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, AlertCircle, CreditCard, Package, Lock, Sparkles, ShieldCheck, Clock, AlertTriangle, Code } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -183,7 +183,7 @@ export default function RenewWizardPage() {
     const { t } = useTranslation()
     const searchParams = useSearchParams()
     const { balance, refetch: refetchBalance } = useBalance()
-    const { isMaintenanceMode, maintenanceMessage, isLoading: isMaintenanceLoading } = useMaintenance()
+    const { isMaintenanceMode, maintenanceMessage, isLoading: isMaintenanceLoading, isInstallmentDevMode } = useMaintenance()
 
     // State
     const [renewalMode, setRenewalMode] = useState<RenewalMode>('package-renewal')
@@ -593,7 +593,18 @@ export default function RenewWizardPage() {
 
             {/* Installment Payment Mode */}
             {renewalMode === 'installment' && (
-                <InstallmentPaymentFlow />
+                <div className="relative">
+                    {isInstallmentDevMode && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-md rounded-xl border border-border">
+                            <Code className="w-12 h-12 text-blue-500 mb-3" />
+                            <p className="text-lg font-bold text-foreground">قيد التطوير</p>
+                            <p className="text-sm text-muted-foreground">هذه الميزة قيد التطوير حالياً</p>
+                        </div>
+                    )}
+                    <div className={isInstallmentDevMode ? 'pointer-events-none select-none opacity-50 blur-sm' : ''}>
+                        <InstallmentPaymentFlow />
+                    </div>
+                </div>
             )}
 
             {/* Package Renewal Mode (existing wizard) */}

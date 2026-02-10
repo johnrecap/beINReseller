@@ -132,7 +132,7 @@ export async function POST(
                         data: {
                             userId: resellerUserId,
                             action: 'OPERATION_CANCELLED',
-                            details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}**** (استرداد سابق)`,
+                            details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber} (استرداد سابق)`,
                             ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                         },
                     })
@@ -209,7 +209,7 @@ export async function POST(
                     data: {
                         userId: resellerUserId,
                         action: 'OPERATION_CANCELLED',
-                        details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber.slice(-4)}****`,
+                        details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber}`,
                         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                     },
                 })

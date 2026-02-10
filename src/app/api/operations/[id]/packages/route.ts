@@ -113,7 +113,7 @@ export async function GET(
                 success: true,
                 status: 'AWAITING_FINAL_CONFIRM',
                 message: 'في انتظار التأكيد النهائي',
-                cardNumber: `****${operation.cardNumber.slice(-4)}`,
+                cardNumber: operation.cardNumber,
                 stbNumber: operation.stbNumber,
                 selectedPackage: operation.selectedPackage,
                 finalConfirmExpiry: operation.finalConfirmExpiry,
@@ -132,7 +132,7 @@ export async function GET(
         return NextResponse.json({
             success: true,
             status: 'AWAITING_PACKAGE',
-            cardNumber: `****${operation.cardNumber.slice(-4)}`,
+            cardNumber: operation.cardNumber,
             stbNumber: operation.stbNumber,
             packages: operation.availablePackages || [],
             message: 'اختر الباقة المناسبة',

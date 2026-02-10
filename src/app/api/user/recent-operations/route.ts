@@ -36,13 +36,7 @@ export async function GET(request: NextRequest) {
             }
         })
 
-        // Mask card numbers for security (show only last 4 digits)
-        const maskedOperations = operations.map(op => ({
-            ...op,
-            cardNumber: `****${op.cardNumber.slice(-4)}`
-        }))
-
-        return NextResponse.json({ operations: maskedOperations })
+        return NextResponse.json({ operations })
     } catch (error) {
         console.error('Recent operations API error:', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

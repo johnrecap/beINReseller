@@ -79,17 +79,11 @@ export async function GET(request: NextRequest) {
             successRate = Math.round((completedOps / totalFinished) * 100)
         }
 
-        // Mask card number in lastOperation
-        const maskedLastOperation = lastOperation ? {
-            ...lastOperation,
-            cardNumber: `****${lastOperation.cardNumber.slice(-4)}`
-        } : null
-
         return NextResponse.json({
             balance: user?.balance || 0,
             lowBalanceAlert: user?.lowBalanceAlert || 50,
             todayOperations,
-            lastOperation: maskedLastOperation,
+            lastOperation,
             successRate
         })
     } catch (error) {

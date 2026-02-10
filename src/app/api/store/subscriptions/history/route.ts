@@ -14,29 +14,29 @@ export async function GET(request: NextRequest) {
     try {
         // 1. Get authenticated customer
         const customer = getStoreCustomerFromRequest(request)
-        
+
         if (!customer) {
             return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
         }
-        
+
         // 2. Parse query params
         const { searchParams } = new URL(request.url)
         const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
         const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20')))
         const status = searchParams.get('status') // Optional filter
-        
+
         // 3. Build where clause
         const where: Record<string, unknown> = {
             customerId: customer.id,
         }
-        
+
         if (status) {
             where.status = status
         }
-        
+
         // 4. Get total count
         const total = await prisma.storeSubscription.count({ where })
-        
+
         // 5. Get subscriptions
         const subscriptions = await prisma.storeSubscription.findMany({
             where,
@@ -57,11 +57,11 @@ export async function GET(request: NextRequest) {
                 createdAt: true,
             }
         })
-        
-        // 6. Transform response (mask card numbers)
+
+        // 6. Transform response
         const result = subscriptions.map(sub => ({
             id: sub.id,
-            cardNumber: `****${sub.cardNumber.slice(-4)}`,
+            cardNumber: sub.cardNumber,
             status: sub.status,
             packageName: sub.packageName,
             currency: sub.currency,
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
             failedAt: sub.failedAt?.toISOString(),
             createdAt: sub.createdAt.toISOString(),
         }))
-        
+
         return successResponse({
             subscriptions: result,
             pagination: {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
                 totalPages: Math.ceil(total / limit),
             }
         })
-        
+
     } catch (error) {
         return handleApiError(error)
     }

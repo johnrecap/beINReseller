@@ -213,7 +213,7 @@ export default function OperationsTable({
                                 </td>
                                 <td className="px-6 py-4 font-mono text-sm text-foreground">
                                     <span className="bg-muted px-2 py-1 rounded text-xs tracking-wider">
-                                        ****{op.cardNumber.slice(-4)}
+                                        {op.cardNumber}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-sm font-bold text-foreground dir-ltr text-right">
@@ -271,7 +271,7 @@ export default function OperationsTable({
                         <div className="flex justify-between items-start mb-3">
                             <div className="flex flex-col">
                                 <span className="font-mono text-sm font-medium text-foreground bg-muted/50 px-2 py-0.5 rounded w-fit mb-1">
-                                    ****{op.cardNumber.slice(-4)}
+                                    {op.cardNumber}
                                 </span>
                                 <span className="text-xs text-muted-foreground dir-ltr text-right w-fit">
                                     {format(new Date(op.createdAt), 'HH:mm dd/MM/yyyy', { locale: getDateLocale() })}

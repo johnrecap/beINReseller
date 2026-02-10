@@ -384,7 +384,7 @@ export default function CustomerDetailPage() {
                                                 {op.type === 'RENEW' ? 'تجديد' : op.type === 'SIGNAL_REFRESH' ? 'تجديد إشارة' : op.type}
                                             </p>
                                             <p className="text-sm text-muted-foreground">
-                                                {op.cardNumber.slice(0, 4)}****{op.cardNumber.slice(-2)} • {formatDate(op.createdAt)}
+                                                {op.cardNumber} • {formatDate(op.createdAt)}
                                             </p>
                                         </div>
                                         <span className={`px-2 py-1 rounded text-xs font-medium ${op.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :

@@ -26,13 +26,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
         // 1. Get authenticated customer
         const customer = getStoreCustomerFromRequest(request)
-        
+
         if (!customer) {
             return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
         }
-        
+
         const { id } = await params
-        
+
         // 2. Get subscription with operation data
         const subscription = await prisma.storeSubscription.findUnique({
             where: { id },
@@ -52,22 +52,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 }
             }
         })
-        
+
         if (!subscription) {
             return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
         }
-        
+
         // 3. Check ownership
         if (subscription.customerId !== customer.id) {
             return errorResponse('غير مصرح بالوصول لهذا الاشتراك', 403, 'FORBIDDEN')
         }
-        
+
         // 4. Sync status from operation if needed
         const operation = subscription.operation
         if (operation) {
             // Update subscription status based on operation status
             let newStatus = subscription.status
-            
+
             switch (operation.status) {
                 case 'AWAITING_PACKAGE':
                     if (subscription.status === 'PENDING') {
@@ -93,27 +93,27 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                     newStatus = 'FAILED'
                     break
             }
-            
+
             if (newStatus !== subscription.status) {
                 await prisma.storeSubscription.update({
                     where: { id: subscription.id },
-                    data: { 
+                    data: {
                         status: newStatus,
                         ...(newStatus === 'COMPLETED' && { completedAt: new Date() }),
-                        ...(newStatus === 'FAILED' && { 
+                        ...(newStatus === 'FAILED' && {
                             failedAt: new Date(),
-                            resultMessage: operation.error || operation.responseMessage 
+                            resultMessage: operation.error || operation.responseMessage
                         }),
                     }
                 })
                 subscription.status = newStatus
             }
         }
-        
+
         // 5. Build response based on status
         const response: Record<string, unknown> = {
             id: subscription.id,
-            cardNumber: `****${subscription.cardNumber.slice(-4)}`,
+            cardNumber: subscription.cardNumber,
             status: subscription.status,
             currency: subscription.currency,
             price: subscription.price,
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             createdAt: subscription.createdAt.toISOString(),
             updatedAt: subscription.updatedAt.toISOString(),
         }
-        
+
         // Add status-specific data
         switch (subscription.status) {
             case 'AWAITING_PACKAGE':
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                     response.stbNumber = operation.stbNumber
                 }
                 break
-                
+
             case 'AWAITING_CAPTCHA':
                 // Include captcha info
                 if (operation?.captchaImage) {
@@ -145,20 +145,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                     }
                 }
                 break
-                
+
             case 'COMPLETED':
                 response.completedAt = subscription.completedAt?.toISOString()
                 response.resultMessage = operation?.responseMessage || 'تم التجديد بنجاح'
                 break
-                
+
             case 'FAILED':
                 response.failedAt = subscription.failedAt?.toISOString()
                 response.error = subscription.resultMessage || operation?.error || 'فشلت العملية'
                 break
         }
-        
+
         return successResponse({ subscription: response })
-        
+
     } catch (error) {
         return handleApiError(error)
     }

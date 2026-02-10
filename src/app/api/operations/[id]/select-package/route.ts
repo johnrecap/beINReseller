@@ -150,7 +150,7 @@ export async function POST(
                     amount: -price,
                     balanceAfter: updatedUser.balance,
                     operationId: operation.id,
-                    notes: `تجديد ${selectedPackage.name} للكارت ****${operation.cardNumber.slice(-4)}`,
+                    notes: `تجديد ${selectedPackage.name} للكارت ${operation.cardNumber}`,
                 },
             })
 

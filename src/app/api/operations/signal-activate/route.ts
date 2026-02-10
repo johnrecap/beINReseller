@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
             data: {
                 userId: authUser.id,
                 action: 'SIGNAL_ACTIVATE_STARTED',
-                details: `تفعيل إشارة للكارت ****${cardNumber.slice(-4)}`,
+                details: `تفعيل إشارة للكارت ${cardNumber}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
             },
         })

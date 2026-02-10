@@ -30,16 +30,15 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
             }
         })
 
-        // Mask card numbers for security
-        const maskedOperations = operations.map(op => ({
+        const formattedOperations = operations.map(op => ({
             ...op,
-            cardNumber: `${op.cardNumber.slice(0, 4)}****${op.cardNumber.slice(-4)}`,
+            cardNumber: op.cardNumber,
             createdAt: op.createdAt.toISOString(),
         }))
 
         return NextResponse.json({
             success: true,
-            operations: maskedOperations,
+            operations: formattedOperations,
             count: operations.length
         })
 

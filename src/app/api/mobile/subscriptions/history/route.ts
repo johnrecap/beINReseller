@@ -59,15 +59,9 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         const totalPages = Math.ceil(total / limit)
 
-        // Mask card numbers for privacy
-        const maskedOperations = operations.map(op => ({
-            ...op,
-            cardNumber: op.cardNumber.slice(0, 4) + '****' + op.cardNumber.slice(-2)
-        }))
-
         return NextResponse.json({
             success: true,
-            operations: maskedOperations,
+            operations,
             pagination: {
                 page,
                 limit,

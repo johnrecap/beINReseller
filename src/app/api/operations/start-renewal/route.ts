@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: authUser.id,
                     action: 'RENEWAL_STARTED',
-                    details: `بدء تجديد للكارت ****${cardNumber.slice(-4)}`,
+                    details: `بدء تجديد للكارت ${cardNumber}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },
             }),
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: authUser.id,
                     actionType: 'RENEWAL_STARTED',
-                    details: { cardNumber: cardNumber.slice(-4), operationId: operation.id },
+                    details: { cardNumber: cardNumber, operationId: operation.id },
                     // If user has a manager, you might want to link it here, 
                     // but we need to fetch manager info first. 
                     // For now, we rely on the DB relation user.managerLink to join data later.

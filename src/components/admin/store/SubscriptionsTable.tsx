@@ -82,19 +82,19 @@ export function SubscriptionsTable({ subscriptions: initialSubscriptions }: Subs
     const [selectedSub, setSelectedSub] = useState<Subscription | null>(null)
 
     const filteredSubs = subscriptions.filter(sub => {
-        const matchesSearch = 
+        const matchesSearch =
             sub.cardNumber.includes(search) ||
             sub.customer.name.toLowerCase().includes(search.toLowerCase()) ||
             sub.customer.email.toLowerCase().includes(search.toLowerCase())
-        
+
         const matchesStatus = !statusFilter || sub.status === statusFilter
 
         return matchesSearch && matchesStatus
     })
 
     const statuses = [
-        'PENDING', 'AWAITING_PACKAGE', 'AWAITING_PAYMENT', 'PAID', 
-        'PROCESSING', 'AWAITING_CAPTCHA', 'COMPLETING', 'COMPLETED', 
+        'PENDING', 'AWAITING_PACKAGE', 'AWAITING_PAYMENT', 'PAID',
+        'PROCESSING', 'AWAITING_CAPTCHA', 'COMPLETING', 'COMPLETED',
         'FAILED', 'REFUNDED', 'CANCELLED'
     ]
 
@@ -154,7 +154,7 @@ export function SubscriptionsTable({ subscriptions: initialSubscriptions }: Subs
                                     filteredSubs.map((sub) => (
                                         <TableRow key={sub.id}>
                                             <TableCell className="font-mono">
-                                                {sub.cardNumber.slice(0, 4)}****{sub.cardNumber.slice(-4)}
+                                                {sub.cardNumber}
                                             </TableCell>
                                             <TableCell>
                                                 <div>

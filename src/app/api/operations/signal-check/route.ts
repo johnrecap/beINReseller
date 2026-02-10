@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
             data: {
                 userId: authUser.id,
                 action: 'SIGNAL_CHECK_STARTED',
-                details: `فحص كارت ****${cardNumber.slice(-4)}`,
+                details: `فحص كارت ${cardNumber}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
             },
         })

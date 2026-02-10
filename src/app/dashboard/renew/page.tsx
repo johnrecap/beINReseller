@@ -914,7 +914,7 @@ export default function RenewWizardPage() {
                                     )}
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">{(t.renew as any)?.finalConfirm?.cardNumber || 'رقم الكارت:'}</span>
-                                        <span className="font-mono text-sm" dir="ltr">****{cardNumber.slice(-4)}</span>
+                                        <span className="font-mono text-sm" dir="ltr">{cardNumber}</span>
                                     </div>
                                 </div>
 

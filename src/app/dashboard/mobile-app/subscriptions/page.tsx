@@ -109,8 +109,7 @@ export default function MobileAppSubscriptionsPage() {
     }
 
     const maskCardNumber = (cardNumber: string) => {
-        if (cardNumber.length <= 6) return cardNumber
-        return `${cardNumber.slice(0, 4)}****${cardNumber.slice(-2)}`
+        return cardNumber
     }
 
     const getStatusIcon = (s: string) => {

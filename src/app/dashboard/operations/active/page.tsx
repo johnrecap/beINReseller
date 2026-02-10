@@ -235,7 +235,7 @@ function FinalConfirmDialog({
                         )}
                         <div className="flex justify-between items-center border-t border-border pt-2 mt-2">
                             <span className="text-muted-foreground">{t.activeOperations?.dialogs?.cardNumber || 'Card Number'}:</span>
-                            <span className="font-mono text-sm bg-muted px-2 py-0.5 rounded">****{operation.cardNumber.slice(-4)}</span>
+                            <span className="font-mono text-sm bg-muted px-2 py-0.5 rounded">{operation.cardNumber}</span>
                         </div>
                     </div>
 
@@ -534,7 +534,7 @@ export default function ActiveOperationsPage() {
                                                     >
                                                         <td className="px-6 py-4">
                                                             <div className="flex flex-col">
-                                                                <span className="font-mono font-medium text-foreground text-lg">**** {op.cardNumber.slice(-4)}</span>
+                                                                <span className="font-mono font-medium text-foreground text-lg">{op.cardNumber}</span>
                                                                 <span className="text-xs text-muted-foreground">ID: {op.id.slice(0, 8)}</span>
                                                             </div>
                                                         </td>
@@ -580,7 +580,7 @@ export default function ActiveOperationsPage() {
                                                                         onClick={() => handleCancel(op.id)}
                                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-lg text-xs font-medium hover:bg-[#ED1C24]/20 transition-colors"
                                                                     >
-                                                                    <XCircle className="w-3.5 h-3.5" />
+                                                                        <XCircle className="w-3.5 h-3.5" />
                                                                         {t.activeOperations?.actions?.cancel || 'Cancel'}
                                                                     </button>
                                                                 )}
@@ -609,7 +609,7 @@ export default function ActiveOperationsPage() {
                                             >
                                                 <div className="flex justify-between items-start mb-3">
                                                     <div>
-                                                        <span className="font-mono font-bold text-lg text-foreground">**** {op.cardNumber.slice(-4)}</span>
+                                                        <span className="font-mono font-bold text-lg text-foreground">{op.cardNumber}</span>
                                                         <div className="text-xs text-muted-foreground mt-0.5">{getElapsedTime(op.createdAt)}</div>
                                                     </div>
                                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium ${statusConfig.color}`}>

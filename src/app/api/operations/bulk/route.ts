@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
                         amount: -pricePerOperation,
                         balanceAfter: user.balance - (operations.length * pricePerOperation),
                         operationId: operation.id,
-                        notes: `خصم عملية جملة - ${cardNumber.slice(-4)}****`,
+                        notes: `خصم عملية جملة - ${cardNumber}`,
                     },
                 })
             }

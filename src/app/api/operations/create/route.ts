@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: user.id,
                     action: 'OPERATION_CREATED',
-                    details: `إنشاء عملية ${type} للكارت ${cardNumber.slice(-4)}****`,
+                    details: `إنشاء عملية ${type} للكارت ${cardNumber}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },
             })

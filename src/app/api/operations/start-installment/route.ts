@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: authUser.id,
                     action: 'INSTALLMENT_STARTED',
-                    details: `بدء تسديد قسط للكارت ****${cardNumber.slice(-4)}`,
+                    details: `بدء تسديد قسط للكارت ${cardNumber}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },
             }),
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: authUser.id,
                     actionType: 'INSTALLMENT_STARTED',
-                    details: { cardNumber: cardNumber.slice(-4), operationId: operation.id },
+                    details: { cardNumber: cardNumber, operationId: operation.id },
                 }
             })
         ])

@@ -26,57 +26,57 @@ export async function POST(request: NextRequest) {
     try {
         // 1. Get authenticated customer
         const customer = getStoreCustomerFromRequest(request)
-        
+
         if (!customer) {
             return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
         }
-        
+
         // 2. Validate input
         const body = await request.json()
         const result = startSchema.safeParse(body)
-        
+
         if (!result.success) {
             return validationErrorResponse(result.error)
         }
-        
+
         const { cardNumber } = result.data
-        
+
         // 3. Check for existing pending subscription for this card
         const existingSubscription = await prisma.storeSubscription.findFirst({
             where: {
                 customerId: customer.id,
                 cardNumber,
-                status: { 
-                    in: ['PENDING', 'AWAITING_PACKAGE', 'AWAITING_PAYMENT', 'PAID', 'PROCESSING', 'AWAITING_CAPTCHA', 'COMPLETING'] 
+                status: {
+                    in: ['PENDING', 'AWAITING_PACKAGE', 'AWAITING_PAYMENT', 'PAID', 'PROCESSING', 'AWAITING_CAPTCHA', 'COMPLETING']
                 },
             },
         })
-        
+
         if (existingSubscription) {
             // Auto-cancel if older than 10 minutes
             const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
-            
+
             if (existingSubscription.createdAt < tenMinutesAgo) {
                 // Cancel the old subscription
                 await prisma.storeSubscription.update({
                     where: { id: existingSubscription.id },
-                    data: { 
+                    data: {
                         status: 'CANCELLED',
                         resultMessage: 'تم الإلغاء تلقائياً بسبب انتهاء المهلة'
                     }
                 })
-                
+
                 // Also cancel the operation if exists
                 if (existingSubscription.operationId) {
                     await prisma.operation.update({
                         where: { id: existingSubscription.operationId },
-                        data: { 
+                        data: {
                             status: 'CANCELLED',
                             responseMessage: 'تم الإلغاء تلقائياً بسبب انتهاء المهلة'
                         }
-                    }).catch(() => {}) // Ignore if operation doesn't exist
+                    }).catch(() => { }) // Ignore if operation doesn't exist
                 }
-                
+
                 console.log(`[Store] Auto-cancelled expired subscription ${existingSubscription.id}`)
             } else {
                 return errorResponse(
@@ -86,18 +86,18 @@ export async function POST(request: NextRequest) {
                 )
             }
         }
-        
+
         // 4. Get markup percentage from settings
         const markupPercent = await getMarkupPercentage()
-        
+
         // 5. Get full customer data
         const fullCustomer = await prisma.customer.findUnique({
             where: { id: customer.id },
             select: { country: true, storeCredit: true }
         })
-        
+
         const currency = fullCustomer?.country === 'EG' ? 'EGP' : 'SAR'
-        
+
         // 6. Create Operation (using existing reseller system)
         const operation = await prisma.operation.create({
             data: {
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
                 status: 'PENDING',
             },
         })
-        
+
         // 7. Create StoreSubscription
         const subscription = await prisma.storeSubscription.create({
             data: {
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
                 createdAt: true,
             }
         })
-        
+
         // 8. Add job to queue to fetch packages from beIN
         try {
             await addOperationJob({
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
             })
         } catch (queueError) {
             console.error('Failed to add job to queue:', queueError)
-            
+
             // Update statuses to FAILED
             await prisma.$transaction([
                 prisma.operation.update({
@@ -151,15 +151,15 @@ export async function POST(request: NextRequest) {
                     data: { status: 'FAILED', resultMessage: 'فشل في إضافة العملية للطابور' }
                 })
             ])
-            
+
             return errorResponse('فشل في بدء العملية، حاول مرة أخرى', 500, 'QUEUE_ERROR')
         }
-        
+
         // 9. Return subscription info
         return successResponse({
             subscription: {
                 id: subscription.id,
-                cardNumber: `****${cardNumber.slice(-4)}`,
+                cardNumber: cardNumber,
                 status: subscription.status,
                 currency: subscription.currency,
                 storeCredit: fullCustomer?.storeCredit || 0,
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
             },
             message: 'جاري جلب الباقات المتاحة...',
         }, 'تم بدء العملية بنجاح', 201)
-        
+
     } catch (error) {
         return handleApiError(error)
     }

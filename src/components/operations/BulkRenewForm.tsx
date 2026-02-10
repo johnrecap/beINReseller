@@ -191,7 +191,7 @@ export default function BulkRenewForm() {
                             <p className="font-bold mb-2">⚠️ {t.forms.blockedCardsWarning}</p>
                             <ul className="list-disc list-inside">
                                 {blockedCards.map(card => (
-                                    <li key={card} className="font-mono">****{card.slice(-4)}</li>
+                                    <li key={card} className="font-mono">{card}</li>
                                 ))}
                             </ul>
                         </div>
@@ -240,7 +240,7 @@ export default function BulkRenewForm() {
                                     {result.status === 'error' && (
                                         <XCircle className="w-5 h-5 text-red-500" />
                                     )}
-                                    <span className="font-mono">****{result.cardNumber.slice(-4)}</span>
+                                    <span className="font-mono">{result.cardNumber}</span>
                                 </div>
                                 <span className="text-sm text-muted-foreground">
                                     {result.status === 'pending' && t.resultDisplay.status.PENDING}

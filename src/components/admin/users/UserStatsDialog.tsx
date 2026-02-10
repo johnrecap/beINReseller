@@ -121,10 +121,10 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
     const [opTotal, setOpTotal] = useState(0)
     const [correcting, setCorrecting] = useState<string | null>(null)
     const [correctionSuccess, setCorrectionSuccess] = useState<string | null>(null)
-    
+
     // Correction dialog state
     const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false)
-    const [selectedAlert, setSelectedAlert] = useState<{type: string; operationId?: string} | null>(null)
+    const [selectedAlert, setSelectedAlert] = useState<{ type: string; operationId?: string } | null>(null)
     const [correctionType, setCorrectionType] = useState<'INITIALIZE_BALANCE' | 'BALANCE_MISMATCH' | 'ADD_MISSING'>('BALANCE_MISMATCH')
     const [correctionNotes, setCorrectionNotes] = useState('')
 
@@ -146,7 +146,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
             const result = await res.json()
 
             if (!res.ok) {
-                            setError(result.error || t.common?.error || 'Error')
+                setError(result.error || t.common?.error || 'Error')
                 return
             }
 
@@ -296,7 +296,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                         <div className="space-y-6">
                             {/* Financial Summary Cards */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
                                     <div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-2">
                                         <ArrowUpCircle className="w-5 h-5" />
                                         <span className="text-sm font-medium">{t.userStats?.deposits || 'Deposits'}</span>
@@ -430,7 +430,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                     <td className="px-3 py-2">
                                                         {data.financials.discrepancy > 0 ? '+' : ''}${data.financials.discrepancy.toFixed(2)}
                                                         <span className="text-xs ms-1">
-                                                            ({data.financials.discrepancy > 0 
+                                                            ({data.financials.discrepancy > 0
                                                                 ? (t.userStats?.audit?.needsCorrection || 'يحتاج تصحيح')
                                                                 : (t.userStats?.correction?.deficit || 'نقص')})
                                                         </span>
@@ -499,7 +499,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             <Wrench className="w-5 h-5 text-amber-500" />
                                             {t.userStats?.correction?.dialogTitle || 'تصحيح الرصيد'}
                                         </h3>
-                                        
+
                                         {/* Balance Summary */}
                                         <div className="bg-secondary/50 rounded-lg p-4 mb-4 space-y-2 text-sm">
                                             <div className="flex justify-between">
@@ -515,7 +515,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 <span className={`font-bold ${data.financials.discrepancy > 0 ? 'text-amber-600' : 'text-red-600'}`}>
                                                     {data.financials.discrepancy > 0 ? '+' : ''}${data.financials.discrepancy.toFixed(2)}
                                                     <span className="text-xs ms-1">
-                                                        ({data.financials.discrepancy > 0 
+                                                        ({data.financials.discrepancy > 0
                                                             ? (t.userStats?.correction?.excess || 'زيادة')
                                                             : (t.userStats?.correction?.deficit || 'نقص')})
                                                     </span>
@@ -526,15 +526,14 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         {/* Correction Options */}
                                         <div className="space-y-3 mb-4">
                                             <p className="text-sm font-medium">{t.userStats?.correction?.chooseMethod || 'اختر طريقة التصحيح'}:</p>
-                                            
+
                                             {data.financials.discrepancy > 0 ? (
                                                 <>
                                                     {/* Option 1: Add as Initial Balance */}
-                                                    <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                                        correctionType === 'INITIALIZE_BALANCE' 
-                                                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' 
+                                                    <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${correctionType === 'INITIALIZE_BALANCE'
+                                                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                                                             : 'border-border hover:bg-secondary/50'
-                                                    }`}>
+                                                        }`}>
                                                         <input
                                                             type="radio"
                                                             name="correctionType"
@@ -551,11 +550,10 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                     </label>
 
                                                     {/* Option 2: Deduct Excess (Default) */}
-                                                    <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                                        correctionType === 'BALANCE_MISMATCH' 
-                                                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20' 
+                                                    <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${correctionType === 'BALANCE_MISMATCH'
+                                                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
                                                             : 'border-border hover:bg-secondary/50'
-                                                    }`}>
+                                                        }`}>
                                                         <input
                                                             type="radio"
                                                             name="correctionType"
@@ -573,11 +571,10 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 </>
                                             ) : (
                                                 /* Negative discrepancy - Add Missing */
-                                                <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                                    correctionType === 'ADD_MISSING' 
-                                                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20' 
+                                                <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${correctionType === 'ADD_MISSING'
+                                                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                                                         : 'border-border hover:bg-secondary/50'
-                                                }`}>
+                                                    }`}>
                                                     <input
                                                         type="radio"
                                                         name="correctionType"
@@ -791,7 +788,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                                 {op.type === 'RENEW' ? t.userStats?.table?.renew || 'Renewal' : op.type}
                                                             </td>
                                                             <td className="px-4 py-2 text-sm font-mono">
-                                                                ****{op.cardNumber.slice(-4)}
+                                                                {op.cardNumber}
                                                             </td>
                                                             <td className="px-4 py-2 font-bold">
                                                                 ${op.amount.toLocaleString()}

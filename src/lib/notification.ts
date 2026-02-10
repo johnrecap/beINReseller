@@ -46,7 +46,7 @@ export async function notifyOperationCompleted(
     cardNumber: string,
     success: boolean
 ) {
-    const maskedCard = cardNumber.slice(0, 4) + '****' + cardNumber.slice(-4)
+    const maskedCard = cardNumber
 
     if (success) {
         await createNotification({

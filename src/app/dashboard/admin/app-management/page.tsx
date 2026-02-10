@@ -10,11 +10,11 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import PageHeader from '@/components/shared/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { 
-    Package, 
-    ShoppingCart, 
-    Users, 
-    CreditCard, 
+import {
+    Package,
+    ShoppingCart,
+    Users,
+    CreditCard,
     TrendingUp,
     DollarSign,
     Clock,
@@ -98,18 +98,18 @@ async function getStoreStats() {
     }
 }
 
-function StatCard({ 
-    title, 
-    value, 
-    icon: Icon, 
-    description, 
-    href 
-}: { 
+function StatCard({
+    title,
+    value,
+    icon: Icon,
+    description,
+    href
+}: {
     title: string
     value: string | number
     icon: React.ElementType
     description?: string
-    href?: string 
+    href?: string
 }) {
     const content = (
         <Card className="hover:shadow-md transition-shadow">
@@ -238,8 +238,8 @@ async function DashboardContent() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="text-lg">Recent Orders</CardTitle>
-                        <Link 
-                            href="/dashboard/admin/app-management/orders" 
+                        <Link
+                            href="/dashboard/admin/app-management/orders"
                             className="text-sm text-primary hover:underline"
                         >
                             View All
@@ -271,8 +271,8 @@ async function DashboardContent() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="text-lg">Recent Subscriptions</CardTitle>
-                        <Link 
-                            href="/dashboard/admin/app-management/subscriptions" 
+                        <Link
+                            href="/dashboard/admin/app-management/subscriptions"
                             className="text-sm text-primary hover:underline"
                         >
                             View All
@@ -287,7 +287,7 @@ async function DashboardContent() {
                                     <div key={sub.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                                         <div>
                                             <p className="font-medium text-sm font-mono">
-                                                {sub.cardNumber.slice(0, 4)}****{sub.cardNumber.slice(-4)}
+                                                {sub.cardNumber}
                                             </p>
                                             <p className="text-xs text-muted-foreground">{sub.customer.name}</p>
                                         </div>
@@ -308,7 +308,7 @@ async function DashboardContent() {
 
 export default async function AppManagementPage() {
     const session = await auth()
-    
+
     if (!session?.user || session.user.role !== 'ADMIN') {
         redirect('/dashboard')
     }
@@ -320,7 +320,7 @@ export default async function AppManagementPage() {
                 title="App Management"
                 subtitle="Manage the Desh Store mobile app - products, orders, customers, and subscriptions"
             />
-            
+
             <Suspense fallback={
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {[...Array(4)].map((_, i) => (

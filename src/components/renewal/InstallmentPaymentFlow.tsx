@@ -28,7 +28,12 @@ interface SubscriberInfo {
     mobile: string
     city: string
     country: string
+    homeTel: string
+    workTel: string
+    fax: string
     stbModel: string
+    address: string
+    remarks: string
 }
 
 type FlowStep = 'input' | 'loading' | 'details' | 'confirming' | 'success' | 'error' | 'no-installment'
@@ -361,22 +366,35 @@ export function InstallmentPaymentFlow() {
                                     </div>
                                 </div>
 
-                                {/* Installment Amounts Table */}
+                                {/* Installment Amounts Table - beIN style with IRD/IEC rows */}
                                 {(installment.installment1 > 0 || installment.installment2 > 0) && (
                                     <div className="border-b border-[var(--color-border-default)]">
                                         <table className="w-full text-sm" dir="ltr">
                                             <thead>
                                                 <tr className="bg-muted/20">
-                                                    <th className="px-3 py-1.5 text-left font-medium text-muted-foreground border-b border-l border-[var(--color-border-default)]"></th>
-                                                    <th className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-l border-[var(--color-border-default)]">Installment 1</th>
+                                                    <th className="px-3 py-1.5 text-left font-medium text-muted-foreground border-b border-r border-[var(--color-border-default)] w-20"></th>
+                                                    <th className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-r border-[var(--color-border-default)]">Installment 1</th>
                                                     <th className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-[var(--color-border-default)]">Installment 2</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
+                                                <tr className="border-b border-[var(--color-border-default)]">
+                                                    <td className="px-3 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)]">IRD</td>
+                                                    <td className="px-3 py-1.5 text-center border-r border-[var(--color-border-default)]">
+                                                        <span className="bg-[#0E4D4A] text-white px-2 py-0.5 rounded text-xs font-bold">{installment.installment1}</span>
+                                                    </td>
+                                                    <td className="px-3 py-1.5 text-center">
+                                                        <span className="bg-[#0E4D4A] text-white px-2 py-0.5 rounded text-xs font-bold">{installment.installment1}</span>
+                                                    </td>
+                                                </tr>
                                                 <tr>
-                                                    <td className="px-3 py-1.5 bg-muted/30 font-medium text-muted-foreground border-l border-[var(--color-border-default)]">USD</td>
-                                                    <td className="px-3 py-1.5 text-center font-bold border-l border-[var(--color-border-default)]">{installment.installment1}</td>
-                                                    <td className="px-3 py-1.5 text-center font-bold">{installment.installment2}</td>
+                                                    <td className="px-3 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)]">IEC</td>
+                                                    <td className="px-3 py-1.5 text-center border-r border-[var(--color-border-default)]">
+                                                        <span className="bg-[#0E4D4A] text-white px-2 py-0.5 rounded text-xs font-bold">{installment.installment2}</span>
+                                                    </td>
+                                                    <td className="px-3 py-1.5 text-center">
+                                                        <span className="bg-[#0E4D4A] text-white px-2 py-0.5 rounded text-xs font-bold">{installment.installment2}</span>
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -410,51 +428,62 @@ export function InstallmentPaymentFlow() {
                                     </div>
                                 </div>
 
-                                {/* Subscriber Info */}
+                                {/* Subscriber Info - beIN form style */}
                                 {subscriber && subscriber.name && (
                                     <div className="border-b border-[var(--color-border-default)]">
                                         <div className="bg-muted/20 px-3 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1 border-b border-[var(--color-border-default)]">
                                             <User className="h-3 w-3" />
-                                            Subscriber
+                                            Subscriber Information
                                         </div>
-                                        <div className="grid grid-cols-2 gap-0 text-xs" dir="ltr">
-                                            {subscriber.name && (
-                                                <div className="grid grid-cols-[80px_1fr] border-b border-l border-[var(--color-border-default)]">
-                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">Name:</div>
-                                                    <div className="px-2 py-1">{subscriber.name}</div>
-                                                </div>
-                                            )}
-                                            {subscriber.email && (
-                                                <div className="grid grid-cols-[80px_1fr] border-b border-[var(--color-border-default)]">
-                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">Email:</div>
-                                                    <div className="px-2 py-1">{subscriber.email}</div>
-                                                </div>
-                                            )}
-                                            {subscriber.mobile && (
-                                                <div className="grid grid-cols-[80px_1fr] border-b border-l border-[var(--color-border-default)]">
-                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">Mobile:</div>
-                                                    <div className="px-2 py-1 font-mono">{subscriber.mobile}</div>
-                                                </div>
-                                            )}
-                                            {subscriber.city && (
-                                                <div className="grid grid-cols-[80px_1fr] border-b border-[var(--color-border-default)]">
-                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">City:</div>
-                                                    <div className="px-2 py-1">{subscriber.city}</div>
-                                                </div>
-                                            )}
-                                            {subscriber.country && (
-                                                <div className="grid grid-cols-[80px_1fr] border-b border-l border-[var(--color-border-default)]">
-                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">Country:</div>
-                                                    <div className="px-2 py-1">{subscriber.country}</div>
-                                                </div>
-                                            )}
-                                            {subscriber.stbModel && (
-                                                <div className="grid grid-cols-[80px_1fr] border-b border-[var(--color-border-default)]">
-                                                    <div className="px-2 py-1 bg-muted/30 font-medium text-muted-foreground">STB Model:</div>
-                                                    <div className="px-2 py-1 font-mono">{subscriber.stbModel}</div>
-                                                </div>
-                                            )}
-                                        </div>
+                                        <table className="w-full text-xs" dir="ltr">
+                                            <tbody>
+                                                {/* Row 1: Subscriber Name (full width) */}
+                                                <tr className="border-b border-[var(--color-border-default)]">
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground w-[110px] border-r border-[var(--color-border-default)] whitespace-nowrap">Subscriber Name:</td>
+                                                    <td className="px-2 py-1.5" colSpan={3}>{subscriber.name}</td>
+                                                </tr>
+                                                {/* Row 2: Subscriber Email (full width) */}
+                                                {subscriber.email && (
+                                                    <tr className="border-b border-[var(--color-border-default)]">
+                                                        <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Subscriber Email:</td>
+                                                        <td className="px-2 py-1.5" colSpan={3}>{subscriber.email}</td>
+                                                    </tr>
+                                                )}
+                                                {/* Row 3: Mobile | City | Country */}
+                                                <tr className="border-b border-[var(--color-border-default)]">
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Mobile:</td>
+                                                    <td className="px-2 py-1.5 font-mono border-r border-[var(--color-border-default)]">{subscriber.mobile || '-'}</td>
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">City:</td>
+                                                    <td className="px-2 py-1.5">{subscriber.city || '-'}</td>
+                                                </tr>
+                                                {/* Row 4: Country */}
+                                                <tr className="border-b border-[var(--color-border-default)]">
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Country:</td>
+                                                    <td className="px-2 py-1.5" colSpan={3}>{subscriber.country || '-'}</td>
+                                                </tr>
+                                                {/* Row 5: Home Tel | Work Tel | Fax */}
+                                                <tr className="border-b border-[var(--color-border-default)]">
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Home Tel:</td>
+                                                    <td className="px-2 py-1.5 font-mono border-r border-[var(--color-border-default)]">{subscriber.homeTel || '-'}</td>
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Work Tel:</td>
+                                                    <td className="px-2 py-1.5 font-mono">{subscriber.workTel || '-'}</td>
+                                                </tr>
+                                                {/* Row 6: Fax | STB Model */}
+                                                <tr className="border-b border-[var(--color-border-default)]">
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Fax:</td>
+                                                    <td className="px-2 py-1.5 font-mono border-r border-[var(--color-border-default)]">{subscriber.fax || '-'}</td>
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">STB Model:</td>
+                                                    <td className="px-2 py-1.5 font-mono">{subscriber.stbModel || '-'}</td>
+                                                </tr>
+                                                {/* Row 7: Address | Remarks */}
+                                                <tr>
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap align-top">Address:</td>
+                                                    <td className="px-2 py-1.5 border-r border-[var(--color-border-default)] align-top">{subscriber.address || '-'}</td>
+                                                    <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap align-top">Remarks:</td>
+                                                    <td className="px-2 py-1.5 align-top">{subscriber.remarks || '-'}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
                                 )}
                             </div>

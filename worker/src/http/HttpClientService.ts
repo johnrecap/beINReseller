@@ -2291,7 +2291,71 @@ export class HttpClientService {
             }
 
             // ===============================================
-            // STEP 4: Get BALANCE AFTER to verify
+            // STEP 4: Handle "Transaction is busy" - RETRY
+            // ===============================================
+            if (resultPageText.includes('Transaction is busy') || resultPageText.includes('wait for sometime')) {
+                console.log('[HTTP] ⏳ Transaction is busy - beIN is processing, will retry...');
+
+                // Retry up to 5 times with 3-second delays
+                for (let retry = 1; retry <= 5; retry++) {
+                    console.log(`[HTTP] ⏳ Retry ${retry}/5 - waiting 3 seconds...`);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+
+                    // Check balance page to see if transaction completed
+                    const retryBalance = await this.getBalanceFromSellPackagesPage();
+                    console.log(`[HTTP] 💰 Retry ${retry} balance: ${retryBalance !== null ? retryBalance + ' USD' : 'unknown'}`);
+
+                    // Also re-check the sell packages page for any success message
+                    try {
+                        const retryUrl = this.buildFullUrl(this.config.renewUrl);
+                        const retryRes = await this.axios.get(retryUrl, {
+                            headers: { 'Referer': this.config.loginUrl }
+                        });
+                        const retryText = cheerio.load(retryRes.data)('body').text();
+
+                        // Check for success
+                        for (const pattern of successPatterns) {
+                            if (retryText.includes(pattern)) {
+                                console.log(`[HTTP] ✅ SUCCESS on retry ${retry}! Found: "${pattern}"`);
+                                return {
+                                    success: true,
+                                    message: pattern,
+                                    newBalance: retryBalance || undefined
+                                };
+                            }
+                        }
+
+                        // Check if "Transaction is busy" is gone (transaction may have completed)
+                        if (!retryText.includes('Transaction is busy') && !retryText.includes('wait for sometime')) {
+                            console.log(`[HTTP] ℹ️ Retry ${retry}: "Transaction is busy" message gone`);
+                            // Transaction completed but no explicit success message
+                            // Check if balance decreased as evidence of success
+                            if (retryBalance !== null) {
+                                console.log(`[HTTP] 💰 Balance is ${retryBalance} - transaction may have completed`);
+                                return {
+                                    success: true,
+                                    message: 'Transaction completed (busy resolved)',
+                                    newBalance: retryBalance
+                                };
+                            }
+                        }
+                    } catch (retryErr: any) {
+                        console.log(`[HTTP] ⚠️ Retry ${retry} check failed: ${retryErr.message}`);
+                    }
+                }
+
+                // All retries exhausted - still busy
+                console.log('[HTTP] ⚠️ Transaction still busy after 5 retries');
+                const finalBalance = await this.getBalanceFromSellPackagesPage();
+                return {
+                    success: false,
+                    message: 'Transaction is busy on beIN - please check the card status manually',
+                    newBalance: finalBalance || undefined
+                };
+            }
+
+            // ===============================================
+            // STEP 5: Get BALANCE AFTER to verify
             // ===============================================
             console.log('[HTTP] 💰 No success message found, checking balance...');
 

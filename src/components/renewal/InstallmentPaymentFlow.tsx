@@ -556,35 +556,15 @@ export function InstallmentPaymentFlow() {
                                         </td>
                                     </tr>
 
-                                    {/* Installment Amounts sub-table */}
+                                    {/* Installment Amount */}
                                     <tr className="border-b border-[#ddd]">
-                                        <td colSpan={4} className="p-0">
-                                            <table className="w-full text-sm border-collapse">
-                                                <thead>
-                                                    <tr style={{ background: 'linear-gradient(135deg, #602D92 0%, #7B3FA8 100%)' }}>
-                                                        <th className="px-3 py-2 text-center font-bold text-white text-xs border-r border-[#7B3FA8]/50">
-                                                            Installment 1
-                                                        </th>
-                                                        <th className="px-3 py-2 text-center font-bold text-white text-xs">
-                                                            Installment 2
-                                                        </th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr className="border-b border-[#ddd]">
-                                                        <td className="px-3 py-2 text-center border-r border-[#ddd] bg-white">
-                                                            <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
-                                                                {installment.installment1}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-center bg-white">
-                                                            <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
-                                                                {installment.installment2}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
+                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
+                                            Installment Amount:
+                                        </td>
+                                        <td className="px-4 py-2.5" colSpan={3}>
+                                            <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
+                                                {installment.installment1}
+                                            </span>
                                         </td>
                                     </tr>
 

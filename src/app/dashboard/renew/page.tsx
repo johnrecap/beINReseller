@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { useBalance } from '@/hooks/useBalance'
 import { useMaintenance } from '@/hooks/useMaintenance'
@@ -181,6 +182,8 @@ function FinalConfirmTimer({
 
 export default function RenewWizardPage() {
     const { t } = useTranslation()
+    const { data: session } = useSession()
+    const isAdmin = session?.user?.role === 'ADMIN'
     const searchParams = useSearchParams()
     const { balance, refetch: refetchBalance } = useBalance()
     const { isMaintenanceMode, maintenanceMessage, isLoading: isMaintenanceLoading, isInstallmentDevMode } = useMaintenance()
@@ -544,8 +547,8 @@ export default function RenewWizardPage() {
 
     return (
         <div className="container max-w-full mx-auto py-8 px-[var(--space-lg)] md:overflow-x-auto">
-            {/* Maintenance Mode Overlay - blocks interaction when enabled */}
-            {!isMaintenanceLoading && isMaintenanceMode && (
+            {/* Maintenance Mode Overlay - blocks interaction when enabled (admin bypasses) */}
+            {!isMaintenanceLoading && isMaintenanceMode && !isAdmin && (
                 <MaintenanceOverlay message={maintenanceMessage} />
             )}
 

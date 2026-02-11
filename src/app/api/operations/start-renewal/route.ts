@@ -53,6 +53,22 @@ export async function POST(request: NextRequest) {
             )
         }
 
+        // 2.5 Check maintenance mode - block non-admin users
+        if (authUser.role !== 'ADMIN') {
+            const maintenanceSetting = await prisma.setting.findUnique({
+                where: { key: 'maintenance_mode' }
+            })
+            if (maintenanceSetting?.value === 'true') {
+                const msgSetting = await prisma.setting.findUnique({
+                    where: { key: 'maintenance_message' }
+                })
+                return NextResponse.json(
+                    { error: msgSetting?.value || 'النظام تحت الصيانة يرجى المحاولة لاحقاً' },
+                    { status: 503 }
+                )
+            }
+        }
+
         // 3. Check rate limit
         const { allowed, result: rateLimitResult } = await withRateLimit(
             `operations:${authUser.id}`,

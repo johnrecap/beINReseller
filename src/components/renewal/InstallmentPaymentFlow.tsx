@@ -536,7 +536,7 @@ export function InstallmentPaymentFlow() {
                                 <tbody>
                                     {/* Package Row */}
                                     <tr className="border-b border-border">
-                                        <td className="px-4 py-2.5 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border w-[140px]">
+                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border w-[140px]">
                                             Package:
                                         </td>
                                         <td className="px-4 py-2.5 text-white font-medium" colSpan={3}>
@@ -546,7 +546,7 @@ export function InstallmentPaymentFlow() {
 
                                     {/* Months To Pay Row */}
                                     <tr className="border-b border-border">
-                                        <td className="px-4 py-2.5 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
                                             Months To Pay:
                                         </td>
                                         <td className="px-4 py-2.5" colSpan={3}>
@@ -573,7 +573,7 @@ export function InstallmentPaymentFlow() {
                                                 </thead>
                                                 <tbody>
                                                     <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 font-semibold text-[#94a3b8] text-xs border-r border-border">IRD</td>
+                                                        <td className="px-3 py-2 bg-[#141720] font-semibold text-[#94a3b8] text-xs border-r border-border">IRD</td>
                                                         <td className="px-3 py-2 text-center border-r border-border">
                                                             <span className="inline-block min-w-[60px]">
                                                                 <span className="text-white text-xs font-medium">{installment.installment1}</span>
@@ -590,7 +590,7 @@ export function InstallmentPaymentFlow() {
                                                         </td>
                                                     </tr>
                                                     <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 font-semibold text-[#94a3b8] text-xs border-r border-border">IEC</td>
+                                                        <td className="px-3 py-2 bg-[#141720] font-semibold text-[#94a3b8] text-xs border-r border-border">IEC</td>
                                                         <td className="px-3 py-2 text-center border-r border-border">
                                                             <span className="inline-block min-w-[60px]">
                                                                 <span className="text-white text-xs font-medium">{installment.installment2}</span>
@@ -613,13 +613,13 @@ export function InstallmentPaymentFlow() {
 
                                     {/* Dates & Prices — horizontal layout matching beIN */}
                                     <tr className="border-b border-border">
-                                        <td className="px-4 py-2.5 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
                                             Contract Start Date:
                                         </td>
                                         <td className="px-4 py-2.5 text-white text-xs font-mono border-r border-border">
                                             {installment.contractStartDate || '-'}
                                         </td>
-                                        <td className="px-4 py-2.5 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
                                             Invoice Price (USD):
                                         </td>
                                         <td className="px-4 py-2.5 text-white text-xs font-bold">
@@ -627,13 +627,13 @@ export function InstallmentPaymentFlow() {
                                         </td>
                                     </tr>
                                     <tr className="border-b border-border">
-                                        <td className="px-4 py-2.5 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
                                             Contract Expiry Date:
                                         </td>
                                         <td className="px-4 py-2.5 text-white text-xs font-mono border-r border-border">
                                             {installment.contractExpiryDate || '-'}
                                         </td>
-                                        <td className="px-4 py-2.5 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
                                             Dealer Price (USD):
                                         </td>
                                         <td className="px-4 py-2.5 text-xs font-bold text-[#00A651]">
@@ -656,13 +656,13 @@ export function InstallmentPaymentFlow() {
                                                 <tbody>
                                                     {/* Name | Email */}
                                                     <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border w-[120px]">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border w-[120px]">
                                                             Subscriber Name:
                                                         </td>
                                                         <td className="px-3 py-2 text-white border-r border-border">
                                                             {subscriber?.name || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border w-[120px]">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border w-[120px]">
                                                             Subscriber Email:
                                                         </td>
                                                         <td className="px-3 py-2 text-white">
@@ -671,13 +671,13 @@ export function InstallmentPaymentFlow() {
                                                     </tr>
                                                     {/* Mobile | City */}
                                                     <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
                                                             Mobile:
                                                         </td>
                                                         <td className="px-3 py-2 text-white font-mono border-r border-border">
                                                             {subscriber?.mobile || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
                                                             City:
                                                         </td>
                                                         <td className="px-3 py-2 text-white">
@@ -686,7 +686,7 @@ export function InstallmentPaymentFlow() {
                                                     </tr>
                                                     {/* Country */}
                                                     <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
                                                             Country:
                                                         </td>
                                                         <td className="px-3 py-2 text-white" colSpan={3}>
@@ -695,13 +695,13 @@ export function InstallmentPaymentFlow() {
                                                     </tr>
                                                     {/* Home Tel | Work Tel */}
                                                     <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
                                                             Home Tel:
                                                         </td>
                                                         <td className="px-3 py-2 text-white font-mono border-r border-border">
                                                             {subscriber?.homeTel || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
                                                             Work Tel:
                                                         </td>
                                                         <td className="px-3 py-2 text-white font-mono">
@@ -710,13 +710,13 @@ export function InstallmentPaymentFlow() {
                                                     </tr>
                                                     {/* Fax | STB Model */}
                                                     <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
                                                             Fax:
                                                         </td>
                                                         <td className="px-3 py-2 text-white font-mono border-r border-border">
                                                             {subscriber?.fax || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
                                                             STB Model:
                                                         </td>
                                                         <td className="px-3 py-2 text-white font-mono">
@@ -725,13 +725,13 @@ export function InstallmentPaymentFlow() {
                                                     </tr>
                                                     {/* Address | Remarks */}
                                                     <tr>
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border align-top">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border align-top">
                                                             Address:
                                                         </td>
                                                         <td className="px-3 py-2 text-white border-r border-border align-top">
                                                             {subscriber?.address || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#1a1d26]/50 text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border align-top">
+                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border align-top">
                                                             Remarks:
                                                         </td>
                                                         <td className="px-3 py-2 text-white align-top">

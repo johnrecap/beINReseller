@@ -207,6 +207,7 @@ model Transaction {
   operation Operation? @relation("OperationTransactions", fields: [operationId], references: [id])
 
   @@index([userId, createdAt])
+  @@index([operationId, type])
   @@map("transactions")
 }
 

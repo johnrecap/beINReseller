@@ -205,6 +205,7 @@ export default function RenewWizardPage() {
     const [showConfirmation, setShowConfirmation] = useState(false)  // Show price confirmation dialog
     const [showExpiryWarning, setShowExpiryWarning] = useState(false)  // Show warning before auto-cancel
     const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
+    const [progressMessage, setProgressMessage] = useState<string | null>(null)  // Live progress from worker
 
     // Set dynamic page title
     useEffect(() => {
@@ -282,7 +283,10 @@ export default function RenewWizardPage() {
                 setFinalConfirmExpiry(data.finalConfirmExpiry || null)
                 setStep('awaiting-final-confirm')
             } else if (data.status === 'PENDING' || data.status === 'PROCESSING' || data.status === 'COMPLETING') {
-                // Still processing, continue polling
+                // Still processing, update progress message and continue polling
+                if (data.responseMessage) {
+                    setProgressMessage(data.responseMessage)
+                }
                 setTimeout(pollStatus, 2000)
             }
         } catch (error) {
@@ -664,7 +668,7 @@ export default function RenewWizardPage() {
                         <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
                             <CardContent className="py-12 text-center">
                                 <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.processing?.title || 'جاري المعالجة...'}</h3>
+                                <h3 className="text-xl font-semibold mb-2">{progressMessage || (t.renew as any)?.processing?.title || 'جاري المعالجة...'}</h3>
                                 <p className="text-muted-foreground">{(t.renew as any)?.processing?.description || 'يتم الاتصال بـ beIN واستخراج الباقات المتاحة'}</p>
                             </CardContent>
                         </Card>
@@ -888,7 +892,7 @@ export default function RenewWizardPage() {
                         <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
                             <CardContent className="py-12 text-center">
                                 <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">{(t.renew as any)?.completing?.title || 'جاري إتمام الشراء...'}</h3>
+                                <h3 className="text-xl font-semibold mb-2">{progressMessage || (t.renew as any)?.completing?.title || 'جاري إتمام الشراء...'}</h3>
                                 <p className="text-muted-foreground">{(t.renew as any)?.completing?.warning || 'لا تغلق الصفحة'}</p>
                             </CardContent>
                         </Card>

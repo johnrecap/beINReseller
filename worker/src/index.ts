@@ -25,6 +25,7 @@ import { Worker } from 'bullmq'
 import { processOperationHttp, closeAllHttpClients } from './http-queue-processor'
 import { initializePoolManager, AccountPoolManager } from './pool'
 import { getRedisConnection, closeRedisConnection } from './lib/redis'
+import { prisma } from './lib/prisma'
 
 // Validate environment
 const requiredEnvVars = ['DATABASE_URL', 'REDIS_URL']
@@ -82,8 +83,32 @@ async function main() {
         console.log(`[${WORKER_ID}] Job ${job.id} completed successfully`)
     })
 
-    worker.on('failed', (job, err) => {
+    worker.on('failed', async (job, err) => {
         console.error(`[${WORKER_ID}] Job ${job?.id} failed:`, err.message)
+
+        // Create admin notification for failed jobs
+        if (job?.data?.operationId) {
+            try {
+                const admins = await prisma.user.findMany({
+                    where: { role: 'ADMIN' },
+                    select: { id: true }
+                })
+
+                for (const admin of admins) {
+                    await prisma.notification.create({
+                        data: {
+                            userId: admin.id,
+                            title: '⚠️ عملية فاشلة',
+                            message: `فشلت العملية ${job.data.operationId}: ${err.message}`.slice(0, 500),
+                            type: 'warning',
+                            link: `/dashboard/operations`
+                        }
+                    })
+                }
+            } catch (notifError) {
+                console.error(`[${WORKER_ID}] Failed to create admin notification:`, notifError)
+            }
+        }
     })
 
     worker.on('error', (err) => {

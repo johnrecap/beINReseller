@@ -4,6 +4,8 @@ import prisma from '@/lib/prisma'
 import { operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { getCustomerFromRequest } from '@/lib/customer-auth'
+import { refundUser, refundCustomer } from '@/lib/refund'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 /**
  * Helper to get authenticated user from session, mobile token, OR customer token
@@ -42,6 +44,19 @@ export async function POST(
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
+            )
+        }
+
+        // Rate limit check
+        const rateLimitKey = authUser.userId || authUser.customerId || 'unknown'
+        const { allowed, result: rateLimitResult } = await withRateLimit(
+            `financial:${rateLimitKey}`,
+            RATE_LIMITS.financial
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تم تجاوز الحد المسموح من الطلبات' },
+                { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
 
@@ -87,6 +102,16 @@ export async function POST(
             }
         })
 
+        // Also check customer wallet refund
+        const existingCustomerRefund = operation.customerId ? await prisma.walletTransaction.findFirst({
+            where: {
+                referenceId: id,
+                referenceType: 'REFUND'
+            }
+        }) : null
+
+        const hasExistingRefund = existingRefund || existingCustomerRefund
+
         // ===== CRITICAL: Remove jobs from Redis Queue FIRST =====
         try {
             const jobStates: ('waiting' | 'active' | 'delayed' | 'paused')[] = ['waiting', 'active', 'delayed', 'paused']
@@ -110,7 +135,7 @@ export async function POST(
         }
 
         // If refund already exists (from prior failure), just mark as cancelled without double refund
-        if (existingRefund) {
+        if (hasExistingRefund) {
             console.log(`ℹ️ Operation ${id} already has refund from prior failure - marking as cancelled only`)
 
             // Extract for TypeScript type narrowing
@@ -147,12 +172,11 @@ export async function POST(
             })
         }
 
-        // Normal case: Cancel operation and refund in transaction
-        // Extract for TypeScript type narrowing
+        // Normal case: Update status first, then refund atomically
         const resellerUserId = authUser.userId
 
+        // Step 1: Mark as cancelled + log activity
         await prisma.$transaction(async (tx) => {
-            // Update operation status
             await tx.operation.update({
                 where: { id },
                 data: {
@@ -161,49 +185,6 @@ export async function POST(
                 },
             })
 
-            // Refund user balance (only if userId exists - admin panel operations)
-            if (operation.userId) {
-                const user = await tx.user.update({
-                    where: { id: operation.userId },
-                    data: { balance: { increment: operation.amount } },
-                })
-
-                // Create refund transaction
-                await tx.transaction.create({
-                    data: {
-                        userId: operation.userId,
-                        type: 'REFUND',
-                        amount: operation.amount,
-                        balanceAfter: user.balance,
-                        operationId: operation.id,
-                        notes: 'استرداد مبلغ عملية ملغاة',
-                    },
-                })
-            }
-
-            // Refund customer wallet (for mobile app operations)
-            if (operation.customerId && operation.amount > 0) {
-                const customer = await tx.customer.update({
-                    where: { id: operation.customerId },
-                    data: { walletBalance: { increment: operation.amount } },
-                })
-
-                // Create wallet transaction for refund
-                await tx.walletTransaction.create({
-                    data: {
-                        customerId: operation.customerId,
-                        type: 'CREDIT',
-                        amount: operation.amount,
-                        balanceBefore: customer.walletBalance - operation.amount,
-                        balanceAfter: customer.walletBalance,
-                        description: 'استرداد مبلغ عملية ملغاة',
-                        referenceType: 'REFUND',
-                        referenceId: operation.id,
-                    },
-                })
-            }
-
-            // Log activity (only for reseller users, not customer app)
             if (resellerUserId) {
                 await tx.activityLog.create({
                     data: {
@@ -216,10 +197,23 @@ export async function POST(
             }
         })
 
+        // Step 2: Atomic refund (has built-in duplicate protection)
+        let refundedAmount = 0
+
+        if (operation.userId && operation.amount > 0) {
+            const refunded = await refundUser(operation.id, operation.userId, operation.amount, 'إلغاء المستخدم')
+            if (refunded) refundedAmount = operation.amount
+        }
+
+        if (operation.customerId && operation.amount > 0) {
+            const refunded = await refundCustomer(operation.id, operation.customerId, operation.amount, 'إلغاء المستخدم')
+            if (refunded) refundedAmount = operation.amount
+        }
+
         return NextResponse.json({
             success: true,
-            message: 'تم إلغاء العملية واسترداد المبلغ',
-            refunded: operation.amount,
+            message: refundedAmount > 0 ? 'تم إلغاء العملية واسترداد المبلغ' : 'تم إلغاء العملية',
+            refunded: refundedAmount,
         })
 
     } catch (error) {

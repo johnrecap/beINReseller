@@ -6,7 +6,7 @@ import { useTranslation } from '@/hooks/useTranslation'
 interface TransactionStatsProps {
     stats: {
         totalDeposits: number
-        totalWithdrawals: number
+        totalDeductions: number
         currentBalance: number
     }
 }
@@ -38,7 +38,7 @@ export default function TransactionStats({ stats }: TransactionStatsProps) {
                 <div className="relative z-10">
                     <p className="text-sm font-medium text-muted-foreground mb-2">{t.transactions?.totalExpenses}</p>
                     <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold text-[#ED1C24]">{stats.totalWithdrawals.toLocaleString()}</span>
+                        <span className="text-3xl font-bold text-[#ED1C24]">{stats.totalDeductions.toLocaleString()}</span>
                         <span className="text-xs text-muted-foreground">{t.transactions?.currency}</span>
                     </div>
                 </div>

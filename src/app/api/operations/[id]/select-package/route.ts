@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { addOperationJob } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 // Validation schema
 const selectPackageSchema = z.object({
@@ -46,6 +47,18 @@ export async function POST(
             return NextResponse.json(
                 { error: 'غير مصرح' },
                 { status: 401 }
+            )
+        }
+
+        // Rate limit check
+        const { allowed, result: rateLimitResult } = await withRateLimit(
+            `financial:${authUser.id}`,
+            RATE_LIMITS.financial
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                { error: 'تم تجاوز الحد المسموح من الطلبات' },
+                { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
 
@@ -114,50 +127,29 @@ export async function POST(
                 throw new Error('USER_NOT_FOUND')
             }
 
-            // Check balance (use package price from beIN)
+            // Check balance (don't deduct yet — deduction at CONFIRM_PURCHASE)
             const price = selectedPackage.price
             if (user.balance < price) {
                 throw new Error('INSUFFICIENT_BALANCE')
             }
 
-            // Deduct balance
-            const updatedUser = await tx.user.update({
-                where: { id: user.id },
-                data: { balance: { decrement: price } },
-            })
-
-            // Double-check balance didn't go negative
-            if (updatedUser.balance < 0) {
-                throw new Error('INSUFFICIENT_BALANCE')
-            }
-
-            // Update operation
+            // Update operation (amount=0 until confirm-purchase deducts)
             const updatedOperation = await tx.operation.update({
                 where: { id: operation.id },
                 data: {
                     status: 'COMPLETING',
-                    amount: price,
+                    amount: 0,
                     selectedPackage: JSON.parse(JSON.stringify(selectedPackage)),
                     promoCode: promoCode || null,
                 },
             })
 
-            // Create transaction record
-            await tx.transaction.create({
-                data: {
-                    userId: user.id,
-                    type: 'OPERATION_DEDUCT',
-                    amount: -price,
-                    balanceAfter: updatedUser.balance,
-                    operationId: operation.id,
-                    notes: `تجديد ${selectedPackage.name} للكارت ${operation.cardNumber}`,
-                },
-            })
+            // No transaction record yet — created at confirm-purchase
 
             return {
                 operation: updatedOperation,
                 selectedPackage,
-                newBalance: updatedUser.balance,
+                newBalance: user.balance,
             }
         })
 
@@ -169,7 +161,7 @@ export async function POST(
                 cardNumber: result.operation.cardNumber,
                 promoCode,
                 userId: authUser.id,
-                amount: result.selectedPackage.price,
+                amount: 0,  // No money deducted yet — deduction at confirm-purchase
             })
         } catch (queueError) {
             console.error('Failed to add complete job to queue:', queueError)

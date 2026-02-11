@@ -9,7 +9,7 @@ import { prisma } from '../lib/prisma'
 import { getRedisConnection } from '../lib/redis'
 import { PoolConfig, AccountHealth, PoolStatus, BeinAccount } from './types'
 import { checkRateLimit, recordRequest } from './rate-limiter'
-import { lockAccount, unlockAccount, isAccountLocked } from './account-locking'
+import { lockAccount, unlockAccount, isAccountLocked, extendLock } from './account-locking'
 
 const COUNTER_KEY = 'bein:pool:counter'
 const COOLDOWN_PREFIX = 'bein:account:cooldown:'
@@ -356,6 +356,14 @@ export class AccountPoolManager {
      */
     async releaseLock(accountId: string): Promise<void> {
         await unlockAccount(this.redis, accountId, this.workerId)
+    }
+
+    /**
+     * Extend the lock TTL (heartbeat keep-alive)
+     * Call this periodically during long operations to prevent expiry
+     */
+    async renewLock(accountId: string): Promise<boolean> {
+        return extendLock(this.redis, accountId, this.workerId)
     }
 
     /**

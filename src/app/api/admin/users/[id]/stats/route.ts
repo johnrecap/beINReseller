@@ -90,6 +90,21 @@ export async function GET(
         const discrepancy = actualBalance - expectedBalance
         const isBalanceValid = Math.abs(discrepancy) < 0.01
 
+        // Calculate completedSpent (deductions only for COMPLETED operations)
+        const completedOps = await prisma.operation.findMany({
+            where: { userId, status: 'COMPLETED' },
+            select: { id: true }
+        })
+        const completedOpIds = new Set(completedOps.map(op => op.id))
+        let completedSpent = 0
+        for (const tx of transactions) {
+            if (tx.type === 'OPERATION_DEDUCT' && tx.operationId && completedOpIds.has(tx.operationId)) {
+                completedSpent += Math.abs(tx.amount)
+            }
+        }
+        // netSpent = totalDeductions - totalRefunds (what the user actually lost)
+        const netSpent = totalDeductions - totalRefunds
+
         // 4. Get corrected operation IDs to exclude them from alerts
         const correctedOperations = await prisma.operation.findMany({
             where: { userId, corrected: true },
@@ -134,9 +149,17 @@ export async function GET(
             }
         })
 
+        // Detect Phantom Refunds (refund exists but operation amount = 0)
+        const phantomRefunds: { operationId: string; refundAmount: number }[] = []
+
         for (const op of operationsWithRefunds) {
             const totalRefundForOp = op.transactions.reduce((sum, t) => sum + t.amount, 0)
-            if (totalRefundForOp > op.amount) {
+            if (op.amount === 0 && totalRefundForOp > 0) {
+                phantomRefunds.push({
+                    operationId: op.id,
+                    refundAmount: totalRefundForOp
+                })
+            } else if (totalRefundForOp > op.amount) {
                 overRefunds.push({
                     operationId: op.id,
                     refundAmount: totalRefundForOp,
@@ -172,6 +195,22 @@ export async function GET(
                 severity: 'high',
                 operationId: or.operationId
             })
+        }
+
+        for (const pr of phantomRefunds) {
+            alerts.push({
+                type: 'PHANTOM_REFUND',
+                message: `استرداد وهمي: تم استرداد ${pr.refundAmount} لعملية بدون خصم مسبق`,
+                severity: 'high',
+                operationId: pr.operationId
+            })
+        }
+
+        // Build refund anomaly summary
+        const refundSummary = {
+            doubleRefunds: doubleRefunds.length,
+            phantomRefunds: phantomRefunds.length,
+            overRefunds: overRefunds.length,
         }
 
         // 7. Get operation stats
@@ -271,9 +310,12 @@ export async function GET(
                 actualBalance,
                 discrepancy,
                 isBalanceValid,
+                completedSpent,
+                netSpent,
             },
             operations: opStats,
             alerts,
+            refundSummary,
             recentTransactions,
             recentOperations,
             pagination: {

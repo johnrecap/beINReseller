@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Parallel queries for efficiency
-        const [transactions, total, userStats, deposits, withdrawals] = await Promise.all([
+        const [transactions, total, userStats, deposits, deductions, refunds] = await Promise.all([
             // 1. Get paginated transactions
             prisma.transaction.findMany({
                 where,
@@ -59,14 +59,19 @@ export async function GET(request: NextRequest) {
                 where: { id: authUser.id },
                 select: { balance: true }
             }),
-            // 4. Get total deposits (positive amounts)
+            // 4. Get total deposits (DEPOSIT type)
             prisma.transaction.aggregate({
-                where: { ...where, amount: { gt: 0 } },
+                where: { ...where, type: 'DEPOSIT' },
                 _sum: { amount: true }
             }),
-            // 5. Get total withdrawals (negative amounts)
+            // 5. Get total deductions (OPERATION_DEDUCT type)
             prisma.transaction.aggregate({
-                where: { ...where, amount: { lt: 0 } },
+                where: { ...where, type: 'OPERATION_DEDUCT' },
+                _sum: { amount: true }
+            }),
+            // 6. Get total refunds (REFUND type)
+            prisma.transaction.aggregate({
+                where: { ...where, type: 'REFUND' },
                 _sum: { amount: true }
             }),
         ])
@@ -80,7 +85,8 @@ export async function GET(request: NextRequest) {
             stats: {
                 currentBalance: userStats?.balance || 0,
                 totalDeposits: deposits._sum.amount || 0,
-                totalWithdrawals: Math.abs(withdrawals._sum.amount || 0), // Return positive value for display
+                totalDeductions: Math.abs(deductions._sum.amount || 0),
+                totalRefunds: refunds._sum.amount || 0,
             }
         })
 

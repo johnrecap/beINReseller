@@ -61,6 +61,9 @@ export const RATE_LIMITS = {
 
     /** Password change: 3 per hour */
     passwordChange: { limit: 3, windowSeconds: 60 * 60 },
+
+    /** Financial operations (select-package, confirm, cancel): 5 per minute */
+    financial: { limit: 5, windowSeconds: 60 },
 } as const
 
 /**

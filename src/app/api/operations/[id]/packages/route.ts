@@ -80,6 +80,7 @@ export async function GET(
                 success: true,
                 status: operation.status,
                 message: 'جاري تحميل الباقات...',
+                responseMessage: operation.responseMessage,
             })
         }
 
@@ -96,6 +97,7 @@ export async function GET(
                 success: true,
                 status: 'COMPLETING',
                 message: 'جاري إتمام الشراء...',
+                responseMessage: operation.responseMessage,
             })
         }
 

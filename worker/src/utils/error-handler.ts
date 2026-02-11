@@ -39,55 +39,66 @@ export function classifyError(error: any): OperationError {
 import { createNotification } from './notification'
 
 export async function refundUser(operationId: string, userId: string, amount: number, reason: string): Promise<boolean> {
-    // ===== CRITICAL: Check for existing refund to prevent double refund =====
-    const existingRefund = await prisma.transaction.findFirst({
-        where: {
-            operationId,
-            type: 'REFUND'
-        }
-    })
-
-    if (existingRefund) {
-        console.log(`⚠️ Refund already exists for operation ${operationId}, skipping to prevent double refund`)
+    // Guard: skip if no money to refund
+    if (!amount || amount <= 0) {
+        console.log(`⚠️ Skipping refund for operation ${operationId}: amount is ${amount}`)
         return false
     }
 
-    await prisma.$transaction(async (tx: any) => {
-        // Update user balance
-        const user = await tx.user.update({
-            where: { id: userId },
-            data: {
-                balance: { increment: amount }
+    try {
+        await prisma.$transaction(async (tx: any) => {
+            // Check INSIDE transaction for atomicity (prevents race condition)
+            const existingRefund = await tx.transaction.findFirst({
+                where: {
+                    operationId,
+                    type: 'REFUND'
+                }
+            })
+
+            if (existingRefund) {
+                console.log(`⚠️ Refund already exists for operation ${operationId}, skipping to prevent double refund`)
+                throw new Error('REFUND_EXISTS')
             }
+
+            // Update user balance
+            const user = await tx.user.update({
+                where: { id: userId },
+                data: {
+                    balance: { increment: amount }
+                }
+            })
+
+            // Create refund transaction
+            await tx.transaction.create({
+                data: {
+                    userId,
+                    operationId,
+                    type: 'REFUND',
+                    amount: amount,
+                    balanceAfter: user.balance,
+                    notes: `استرداد تلقائي: ${reason}`
+                }
+            })
+
+            // Create notification within transaction
+            await tx.notification.create({
+                data: {
+                    userId,
+                    title: 'استرداد مبلغ',
+                    message: `تم استرداد مبلغ ${amount} ر.س. السبب: ${reason}`,
+                    type: 'info',
+                    link: '/dashboard/transactions'
+                }
+            })
+
+            console.log(`💰 Refunded ${amount} to user ${userId} for operation ${operationId}`)
         })
 
-        // Create refund transaction
-        await tx.transaction.create({
-            data: {
-                userId,
-                operationId,
-                type: 'REFUND',
-                amount: amount,
-                balanceAfter: user.balance,
-                notes: `استرداد تلقائي: ${reason}`
-            }
-        })
-
-        // Create notification within transaction
-        await tx.notification.create({
-            data: {
-                userId,
-                title: 'استرداد مبلغ',
-                message: `تم استرداد مبلغ ${amount} ر.س. السبب: ${reason}`,
-                type: 'info',
-                link: '/dashboard/transactions'
-            }
-        })
-
-        console.log(`💰 Refunded ${amount} to user ${userId} for operation ${operationId}`)
-    })
-
-    return true
+        return true
+    } catch (error: any) {
+        if (error.message === 'REFUND_EXISTS') return false
+        throw error
+    }
 }
 
 export async function markOperationFailed(

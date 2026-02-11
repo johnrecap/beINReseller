@@ -27,7 +27,7 @@ const typeColors: Record<string, string> = {
 
 export default function TransactionsTable() {
     const { t, language } = useTranslation()
-    
+
     const getTypeLabel = (type: string): string => {
         const labels: Record<string, string> = {
             DEPOSIT: t.transactions?.typeDeposit || 'Deposit',
@@ -38,9 +38,9 @@ export default function TransactionsTable() {
         }
         return labels[type] || type
     }
-    
+
     const [transactions, setTransactions] = useState<Transaction[]>([])
-    const [stats, setStats] = useState({ totalDeposits: 0, totalWithdrawals: 0, currentBalance: 0 })
+    const [stats, setStats] = useState({ totalDeposits: 0, totalDeductions: 0, currentBalance: 0 })
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)

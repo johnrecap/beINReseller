@@ -59,6 +59,26 @@ class OperationCancelledError extends Error {
 // Map to store HTTP clients per account (session persistence)
 const httpClients = new Map<string, HttpClientService>();
 
+// TTL tracking for httpClients eviction
+const clientLastUsed = new Map<string, number>();
+const CLIENT_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+// Cleanup stale clients every 10 minutes
+setInterval(() => {
+    const now = Date.now();
+    let evicted = 0;
+    for (const [cacheKey, lastUsed] of clientLastUsed.entries()) {
+        if (now - lastUsed > CLIENT_TTL_MS) {
+            httpClients.delete(cacheKey);
+            clientLastUsed.delete(cacheKey);
+            evicted++;
+        }
+    }
+    if (evicted > 0) {
+        console.log(`🧹 Evicted ${evicted} stale HTTP client(s). Active: ${httpClients.size}`);
+    }
+}, 10 * 60 * 1000);
+
 // Worker ID for login locking (unique per process)
 const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
 
@@ -72,6 +92,7 @@ const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
 async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
     // Include proxy in cache key to separate clients per proxy
     const cacheKey = account.proxyId ? `${account.id}:${account.proxyId}` : account.id;
+    clientLastUsed.set(cacheKey, Date.now());
     let client = httpClients.get(cacheKey);
     let isNewClient = false;
 
@@ -311,6 +332,20 @@ function validateSessionAge(savedAt: string, flowType: keyof typeof SESSION_TIME
 }
 
 /**
+ * Update the progress message shown to the user during processing
+ */
+async function updateProgress(operationId: string, message: string): Promise<void> {
+    try {
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: { responseMessage: message }
+        });
+    } catch {
+        // Non-critical - don't let progress updates break the flow
+    }
+}
+
+/**
  * Main processor for HTTP-based operations
  */
 export async function processOperationHttp(
@@ -319,6 +354,24 @@ export async function processOperationHttp(
 ): Promise<void> {
     const { operationId, type, cardNumber, promoCode, userId, amount, accountId } = job.data;
     let selectedAccountId: string | null = null;
+
+    // Lock heartbeat: renew every 60s to prevent TTL expiry during long operations
+    let lockHeartbeat: ReturnType<typeof setInterval> | null = null;
+    if (type !== 'CHECK_ACCOUNT_BALANCE') {
+        lockHeartbeat = setInterval(async () => {
+            try {
+                const op = await prisma.operation.findUnique({
+                    where: { id: operationId },
+                    select: { beinAccountId: true }
+                });
+                if (op?.beinAccountId) {
+                    await accountPool.renewLock(op.beinAccountId);
+                }
+            } catch {
+                // Non-critical — next heartbeat will retry
+            }
+        }, 60_000);
+    }
 
     console.log(`📥 [HTTP] Processing ${operationId}: ${type}`);
 
@@ -372,24 +425,22 @@ export async function processOperationHttp(
 
         console.error(`❌ [HTTP] Operation ${operationId} failed:`, error.message);
 
-        // Fetch userId/amount if not in job
-        let opUserId = userId;
-        let opAmount = amount;
-        if (!opUserId || !opAmount) {
-            const op = await prisma.operation.findUnique({
-                where: { id: operationId },
-                select: { userId: true, amount: true, beinAccountId: true }
-            });
-            opUserId = op?.userId || undefined;
-            opAmount = op?.amount || undefined;
-            selectedAccountId = op?.beinAccountId || null;
-        }
+        // ALWAYS read from DB - job data amount may be stale (deferred payment)
+        const op = await prisma.operation.findUnique({
+            where: { id: operationId },
+            select: { userId: true, amount: true, beinAccountId: true }
+        });
+        const opUserId = op?.userId || userId;
+        const opAmount = op?.amount || 0;
+        selectedAccountId = op?.beinAccountId || null;
 
-        // Mark failed and refund
-        if (opUserId && opAmount) {
+        // Mark failed and refund (only if money was actually deducted)
+        if (opUserId && opAmount && opAmount > 0) {
             await refundUser(operationId, opUserId, opAmount, error.message);
         }
         await markOperationFailed(operationId, { type: 'UNKNOWN', message: error.message, recoverable: false }, 1);
+    } finally {
+        if (lockHeartbeat) clearInterval(lockHeartbeat);
     }
 }
 
@@ -418,7 +469,7 @@ async function handleStartRenewalHttp(
     // Mark as PROCESSING
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING' }
+        data: { status: 'PROCESSING', responseMessage: 'جاري البحث عن حساب متاح...' }
     });
 
     // Get next available account with queue-based retry
@@ -454,6 +505,7 @@ async function handleStartRenewalHttp(
     await checkIfCancelled(operationId);
 
     // Step 1: Login (with Redis session caching and login locking)
+    await updateProgress(operationId, 'جاري تسجيل الدخول...');
     let needsFreshLogin = true;
 
     // Check if we already have a valid session from Redis cache
@@ -581,6 +633,7 @@ async function handleStartRenewalHttp(
     // ============================================
 
     // Step 2: Check card (extract STB) - with caching
+    await updateProgress(operationId, 'جاري التحقق من الكارت...');
     let stbNumber: string | undefined;
 
     // Check BOTH package cache and STB cache for cached STB
@@ -618,6 +671,7 @@ async function handleStartRenewalHttp(
 
     // Step 3: Load packages - ALWAYS call this to get correct ViewState
     // Even if packages are cached, we need fresh ViewState for completePurchase
+    await updateProgress(operationId, 'جاري تحميل الباقات...');
     console.log(`📦 [HTTP] Loading packages...`);
     const packagesResult = await withSessionRetry(
         client,
@@ -761,7 +815,7 @@ async function handleCompletePurchaseHttp(
 
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'COMPLETING' }
+        data: { status: 'COMPLETING', responseMessage: 'جاري إتمام عملية الشراء...' }
     });
 
     // Track which accounts we've tried
@@ -905,6 +959,7 @@ async function attemptPurchaseWithAccount(
 
         // For non-original account or if session restore failed, need fresh login + loadPackages
         if (!isOriginalAccount || !client.isSessionActive()) {
+            await updateProgress(operationId, 'جاري تسجيل الدخول...');
             console.log(`[HTTP] 🔑 New account - need fresh login and package load`);
 
             // Perform login
@@ -1172,7 +1227,7 @@ async function handleConfirmPurchaseHttp(
     }
 
     if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-        if (operation.userId && operation.amount) {
+        if (operation.userId && operation.amount && operation.amount > 0) {
             await refundUser(operationId, operation.userId, operation.amount, 'انتهت مهلة التأكيد');
         }
         await markOperationFailed(operationId, { type: 'TIMEOUT', message: 'انتهت مهلة التأكيد', recoverable: false }, 1);
@@ -1181,7 +1236,7 @@ async function handleConfirmPurchaseHttp(
 
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'COMPLETING' }
+        data: { status: 'COMPLETING', responseMessage: 'جاري تأكيد عملية الشراء...' }
     });
 
     const account = await prisma.beinAccount.findUnique({
@@ -1228,6 +1283,7 @@ async function handleConfirmPurchaseHttp(
         throw new Error('No session data available - cannot confirm purchase');
     }
 
+    await updateProgress(operationId, 'جاري إرسال التأكيد النهائي...');
     const result = await client.confirmPurchase();
 
     const selectedPackage = operation.selectedPackage as { name: string } | null;
@@ -1273,7 +1329,7 @@ async function handleConfirmPurchaseHttp(
 
         console.log(`✅ [HTTP] Purchase confirmed for ${operationId}`);
     } else {
-        if (operation.userId && operation.amount) {
+        if (operation.userId && operation.amount && operation.amount > 0) {
             await refundUser(operationId, operation.userId, operation.amount, result.message);
         }
         await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1);
@@ -1325,39 +1381,9 @@ async function handleCancelConfirmHttp(
         }
     }
 
-    // Refund with double-refund protection
-    if (operation.userId && operation.amount) {
-        const existingRefund = await prisma.transaction.findFirst({
-            where: { operationId, type: 'REFUND' }
-        });
-
-        if (!existingRefund && operation.userId) {
-            await prisma.$transaction(async (tx) => {
-                const user = await tx.user.findUnique({
-                    where: { id: operation.userId! },
-                    select: { balance: true }
-                });
-
-                if (user) {
-                    const newBalance = user.balance + operation.amount!;
-                    await tx.user.update({
-                        where: { id: operation.userId! },
-                        data: { balance: newBalance }
-                    });
-                    await tx.transaction.create({
-                        data: {
-                            userId: operation.userId!,
-                            type: 'REFUND',
-                            amount: operation.amount!,
-                            balanceAfter: newBalance,
-                            operationId,
-                            notes: 'استرداد - إلغاء المستخدم'
-                        }
-                    });
-                    console.log(`💰 [HTTP] Refunded ${operation.amount} to user`);
-                }
-            });
-        }
+    // Refund (only if money was actually deducted)
+    if (operation.userId && operation.amount && operation.amount > 0) {
+        await refundUser(operationId, operation.userId, operation.amount, 'إلغاء المستخدم');
     }
 
     await prisma.operation.update({
@@ -1374,7 +1400,7 @@ async function handleCancelConfirmHttp(
         await createNotification({
             userId: operation.userId,
             title: 'تم إلغاء العملية',
-            message: 'تم إلغاء عملية الشراء واسترداد المبلغ',
+            message: operation.amount && operation.amount > 0 ? 'تم إلغاء عملية الشراء واسترداد المبلغ' : 'تم إلغاء عملية الشراء',
             type: 'info',
             link: '/dashboard/history'
         });
@@ -1402,7 +1428,7 @@ async function handleSignalRefreshHttp(
     // Update status
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING' }
+        data: { status: 'PROCESSING', responseMessage: 'جاري البحث عن حساب متاح...' }
     });
 
     // Acquire account using queue-based system (with wait if busy)
@@ -1433,6 +1459,7 @@ async function handleSignalRefreshHttp(
 
     try {
         // Step 1: Login with session caching (like other handlers)
+        await updateProgress(operationId, 'جاري تسجيل الدخول...');
         let needsFreshLogin = true;
 
         // Check if we already have a valid session from Redis cache
@@ -1541,6 +1568,7 @@ async function handleSignalRefreshHttp(
         await checkIfCancelled(operationId);
 
         // Step 2: Activate signal
+        await updateProgress(operationId, 'جاري تجديد الإشارة...');
         const signalResult = await httpClient.activateSignal(cardNumber);
 
         if (!signalResult.success) {
@@ -1609,7 +1637,7 @@ async function handleSignalCheckHttp(
     // Update status
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING' }
+        data: { status: 'PROCESSING', responseMessage: 'جاري البحث عن حساب متاح...' }
     });
 
     // Acquire account using queue-based system (with wait if busy)
@@ -1838,7 +1866,7 @@ async function handleSignalActivateHttp(
     // Update status
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING' }
+        data: { status: 'PROCESSING', responseMessage: 'جاري تفعيل الإشارة...' }
     });
 
     // Get account
@@ -2058,7 +2086,7 @@ async function handleStartInstallmentHttp(
     // Mark as PROCESSING
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING' }
+        data: { status: 'PROCESSING', responseMessage: 'جاري البحث عن حساب متاح...' }
     });
 
     // Get next available account with queue-based retry
@@ -2091,6 +2119,7 @@ async function handleStartInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Step 1: Login (with session caching)
+    await updateProgress(operationId, 'جاري تسجيل الدخول...');
     let needsFreshLogin = !client.isSessionActive();
 
     if (needsFreshLogin) {
@@ -2194,6 +2223,7 @@ async function handleStartInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Step 2: Load installment details
+    await updateProgress(operationId, 'جاري تحميل بيانات التقسيط...');
     console.log(`[HTTP] Loading installment for card ${cardNumber}`);
 
     const installmentResult = await client.loadInstallment(cardNumber);
@@ -2312,6 +2342,7 @@ async function handleConfirmInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Re-load installment to ensure card is loaded and ViewState is fresh
+    await updateProgress(operationId, 'جاري تحميل بيانات القسط...');
     console.log(`[HTTP] Re-loading installment for card ${cardNumber} before payment...`);
     const loadResult = await client.loadInstallment(cardNumber);
 
@@ -2326,6 +2357,7 @@ async function handleConfirmInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Execute payment
+    await updateProgress(operationId, 'جاري تنفيذ الدفع...');
     console.log(`[HTTP] Executing installment payment...`);
     const payResult = await client.payInstallment();
 

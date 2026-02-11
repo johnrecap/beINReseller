@@ -52,6 +52,8 @@ interface StatsData {
         actualBalance: number
         discrepancy: number
         isBalanceValid: boolean
+        completedSpent: number
+        netSpent: number
     }
     operations: {
         total: number
@@ -67,6 +69,11 @@ interface StatsData {
         severity: 'high' | 'medium' | 'low'
         operationId?: string
     }[]
+    refundSummary: {
+        doubleRefunds: number
+        phantomRefunds: number
+        overRefunds: number
+    }
     recentTransactions: Transaction[]
     recentOperations: Operation[]
     pagination: {
@@ -450,6 +457,34 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                 </div>
                             </div>
 
+                            {/* Net Spending Card */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
+                                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-2">
+                                        <TrendingUp className="w-5 h-5" />
+                                        <span className="text-sm font-medium">صافي الإنفاق</span>
+                                    </div>
+                                    <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                                        ${data.financials.netSpent.toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                                        الخصومات - الاستردادات
+                                    </p>
+                                </div>
+                                <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-xl p-4 border border-cyan-200 dark:border-cyan-800">
+                                    <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 mb-2">
+                                        <DollarSign className="w-5 h-5" />
+                                        <span className="text-sm font-medium">إنفاق العمليات الناجحة</span>
+                                    </div>
+                                    <p className="text-2xl font-bold text-cyan-700 dark:text-cyan-300">
+                                        ${data.financials.completedSpent.toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
+                                        خصومات العمليات المكتملة فقط
+                                    </p>
+                                </div>
+                            </div>
+
                             {/* Alerts */}
                             {data.alerts.length > 0 && (
                                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
@@ -486,6 +521,39 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 </button>
                                             </div>
                                         ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Refund Anomaly Summary */}
+                            {data.refundSummary && (data.refundSummary.doubleRefunds > 0 || data.refundSummary.phantomRefunds > 0 || data.refundSummary.overRefunds > 0) && (
+                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+                                    <h3 className="font-bold text-amber-700 dark:text-amber-400 mb-3 flex items-center gap-2">
+                                        <AlertTriangle className="w-5 h-5" />
+                                        ملخص مشاكل الاسترداد
+                                    </h3>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className={`rounded-lg p-3 text-center border ${data.refundSummary.doubleRefunds > 0 ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700' : 'bg-secondary/50 border-border'}`}>
+                                            <p className={`text-2xl font-bold ${data.refundSummary.doubleRefunds > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+                                                {data.refundSummary.doubleRefunds}
+                                            </p>
+                                            <p className="text-xs font-medium mt-1">استرداد مزدوج</p>
+                                            <p className="text-[10px] text-muted-foreground">نفس العملية 2+ مرة</p>
+                                        </div>
+                                        <div className={`rounded-lg p-3 text-center border ${data.refundSummary.phantomRefunds > 0 ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700' : 'bg-secondary/50 border-border'}`}>
+                                            <p className={`text-2xl font-bold ${data.refundSummary.phantomRefunds > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground'}`}>
+                                                {data.refundSummary.phantomRefunds}
+                                            </p>
+                                            <p className="text-xs font-medium mt-1">استرداد وهمي</p>
+                                            <p className="text-[10px] text-muted-foreground">بدون خصم مسبق</p>
+                                        </div>
+                                        <div className={`rounded-lg p-3 text-center border ${data.refundSummary.overRefunds > 0 ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700' : 'bg-secondary/50 border-border'}`}>
+                                            <p className={`text-2xl font-bold ${data.refundSummary.overRefunds > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+                                                {data.refundSummary.overRefunds}
+                                            </p>
+                                            <p className="text-xs font-medium mt-1">استرداد زائد</p>
+                                            <p className="text-[10px] text-muted-foreground">أكثر من المخصوم</p>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -531,8 +599,8 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 <>
                                                     {/* Option 1: Add as Initial Balance */}
                                                     <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${correctionType === 'INITIALIZE_BALANCE'
-                                                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                                            : 'border-border hover:bg-secondary/50'
+                                                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                                        : 'border-border hover:bg-secondary/50'
                                                         }`}>
                                                         <input
                                                             type="radio"
@@ -551,8 +619,8 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
 
                                                     {/* Option 2: Deduct Excess (Default) */}
                                                     <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${correctionType === 'BALANCE_MISMATCH'
-                                                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                                                            : 'border-border hover:bg-secondary/50'
+                                                        ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                                                        : 'border-border hover:bg-secondary/50'
                                                         }`}>
                                                         <input
                                                             type="radio"
@@ -572,8 +640,8 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             ) : (
                                                 /* Negative discrepancy - Add Missing */
                                                 <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${correctionType === 'ADD_MISSING'
-                                                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                                                        : 'border-border hover:bg-secondary/50'
+                                                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                                                    : 'border-border hover:bg-secondary/50'
                                                     }`}>
                                                     <input
                                                         type="radio"

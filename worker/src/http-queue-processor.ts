@@ -10,7 +10,7 @@
 import { Job } from 'bullmq';
 import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage } from './http';
-import { AccountPoolManager, AccountQueueManager, getQueueManager } from './pool';
+import { AccountPoolManager, AccountQueueManager, getQueueManager, forceUnlockAccount } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
@@ -1414,6 +1414,18 @@ async function handleCancelConfirmHttp(
 
     if (operation.beinAccountId) {
         await accountPool.markAccountUsed(operation.beinAccountId);
+        // Force-unlock: markAccountUsed uses unlockAccount which checks worker ID ownership,
+        // but cancels often run on a different worker than the one that locked the account.
+        // Force-unlock guarantees the lock is released after cancellation.
+        try {
+            const redis = (accountPool as any).redis;
+            if (redis) {
+                await forceUnlockAccount(redis, operation.beinAccountId);
+                console.log(`🔓 [HTTP] Force-unlocked account ${operation.beinAccountId} after cancel`);
+            }
+        } catch (e: any) {
+            console.log(`⚠️ [HTTP] Failed to force-unlock: ${e.message}`);
+        }
     }
 
     console.log(`✅ [HTTP] Operation ${operationId} cancelled and refunded`);

@@ -530,34 +530,34 @@ export function InstallmentPaymentFlow() {
                             </div>
                         </div>
 
-                        {/* Main Table — matches beIN CustInfo table */}
-                        <div className="border border-border rounded-b-xl overflow-hidden bg-[#1a1d26]" dir="ltr">
+                        {/* Main Table — matches original beIN Sport table */}
+                        <div className="border border-[#ccc] rounded-b-xl overflow-hidden bg-white" dir="ltr">
                             <table className="w-full text-sm border-collapse">
                                 <tbody>
                                     {/* Package Row */}
-                                    <tr className="border-b border-border">
-                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border w-[140px]">
+                                    <tr className="border-b border-[#ddd]">
+                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd] w-[140px]">
                                             Package:
                                         </td>
-                                        <td className="px-4 py-2.5 text-white font-medium" colSpan={3}>
+                                        <td className="px-4 py-2.5 text-[#333] font-medium" colSpan={3}>
                                             {installment.package}
                                         </td>
                                     </tr>
 
                                     {/* Months To Pay Row */}
-                                    <tr className="border-b border-border">
-                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                    <tr className="border-b border-[#ddd]">
+                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             Months To Pay:
                                         </td>
                                         <td className="px-4 py-2.5" colSpan={3}>
-                                            <span className="bg-[#0F1218] text-white border border-border px-3 py-1 rounded text-xs font-medium">
+                                            <span className="bg-[#e8e8e8] text-[#333] border border-[#ccc] px-3 py-1 rounded text-xs font-medium">
                                                 {installment.monthsToPay}
                                             </span>
                                         </td>
                                     </tr>
 
                                     {/* Installment Amounts - IRD/IEC sub-table (beIN InstallmentTable style) */}
-                                    <tr className="border-b border-border">
+                                    <tr className="border-b border-[#ddd]">
                                         <td colSpan={4} className="p-0">
                                             <table className="w-full text-sm border-collapse">
                                                 <thead>
@@ -572,38 +572,38 @@ export function InstallmentPaymentFlow() {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#141720] font-semibold text-[#94a3b8] text-xs border-r border-border">IRD</td>
-                                                        <td className="px-3 py-2 text-center border-r border-border">
+                                                    <tr className="border-b border-[#ddd]">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] font-semibold text-[#333] text-xs border-r border-[#ddd]">IRD</td>
+                                                        <td className="px-3 py-2 text-center border-r border-[#ddd] bg-white">
                                                             <span className="inline-block min-w-[60px]">
-                                                                <span className="text-white text-xs font-medium">{installment.installment1}</span>
+                                                                <span className="text-[#333] text-xs font-medium">{installment.installment1}</span>
                                                                 <div className="w-full h-[2px] my-1" style={{ backgroundColor: '#602D92' }}></div>
                                                                 <span className="inline-block text-white text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#964DA7' }}>
                                                                     {installment.installment1}
                                                                 </span>
                                                             </span>
                                                         </td>
-                                                        <td className="px-3 py-2 text-center">
-                                                            <span className="text-white text-xs font-medium">{installment.installment1}</span>
+                                                        <td className="px-3 py-2 text-center bg-white">
+                                                            <span className="text-[#333] text-xs font-medium">{installment.installment1}</span>
                                                             <br />
-                                                            <span className="text-red-400 text-xs font-bold">{installment.installment1}</span>
+                                                            <span className="text-red-500 text-xs font-bold">{installment.installment1}</span>
                                                         </td>
                                                     </tr>
-                                                    <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#141720] font-semibold text-[#94a3b8] text-xs border-r border-border">IEC</td>
-                                                        <td className="px-3 py-2 text-center border-r border-border">
+                                                    <tr className="border-b border-[#ddd]">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] font-semibold text-[#333] text-xs border-r border-[#ddd]">IEC</td>
+                                                        <td className="px-3 py-2 text-center border-r border-[#ddd] bg-white">
                                                             <span className="inline-block min-w-[60px]">
-                                                                <span className="text-white text-xs font-medium">{installment.installment2}</span>
+                                                                <span className="text-[#333] text-xs font-medium">{installment.installment2}</span>
                                                                 <div className="w-full h-[2px] my-1" style={{ backgroundColor: '#602D92' }}></div>
                                                                 <span className="inline-block text-white text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#964DA7' }}>
                                                                     {installment.installment2}
                                                                 </span>
                                                             </span>
                                                         </td>
-                                                        <td className="px-3 py-2 text-center">
-                                                            <span className="text-white text-xs font-medium">{installment.installment2}</span>
+                                                        <td className="px-3 py-2 text-center bg-white">
+                                                            <span className="text-[#333] text-xs font-medium">{installment.installment2}</span>
                                                             <br />
-                                                            <span className="text-red-400 text-xs font-bold">{installment.installment2}</span>
+                                                            <span className="text-red-500 text-xs font-bold">{installment.installment2}</span>
                                                         </td>
                                                     </tr>
                                                 </tbody>
@@ -612,28 +612,28 @@ export function InstallmentPaymentFlow() {
                                     </tr>
 
                                     {/* Dates & Prices — horizontal layout matching beIN */}
-                                    <tr className="border-b border-border">
-                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                    <tr className="border-b border-[#ddd]">
+                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             Contract Start Date:
                                         </td>
-                                        <td className="px-4 py-2.5 text-white text-xs font-mono border-r border-border">
+                                        <td className="px-4 py-2.5 text-[#333] text-xs font-mono border-r border-[#ddd]">
                                             {installment.contractStartDate || '-'}
                                         </td>
-                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             Invoice Price (USD):
                                         </td>
-                                        <td className="px-4 py-2.5 text-white text-xs font-bold">
+                                        <td className="px-4 py-2.5 text-[#333] text-xs font-bold">
                                             {installment.invoicePrice}
                                         </td>
                                     </tr>
-                                    <tr className="border-b border-border">
-                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                    <tr className="border-b border-[#ddd]">
+                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             Contract Expiry Date:
                                         </td>
-                                        <td className="px-4 py-2.5 text-white text-xs font-mono border-r border-border">
+                                        <td className="px-4 py-2.5 text-[#333] text-xs font-mono border-r border-[#ddd]">
                                             {installment.contractExpiryDate || '-'}
                                         </td>
-                                        <td className="px-4 py-2.5 bg-[#141720] text-[#94a3b8] font-semibold text-xs whitespace-nowrap border-r border-border">
+                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             Dealer Price (USD):
                                         </td>
                                         <td className="px-4 py-2.5 text-xs font-bold text-[#00A651]">
@@ -646,7 +646,7 @@ export function InstallmentPaymentFlow() {
                                         <td colSpan={4} className="p-0">
                                             {/* Section Header */}
                                             <div
-                                                className="px-4 py-2 text-xs font-bold text-white/90 flex items-center gap-2 border-b border-border"
+                                                className="px-4 py-2 text-xs font-bold text-white/90 flex items-center gap-2 border-b border-[#ddd]"
                                                 style={{ background: 'linear-gradient(135deg, #602D92 0%, #7B3FA8 100%)' }}
                                             >
                                                 <User className="h-3.5 w-3.5" />
@@ -655,86 +655,86 @@ export function InstallmentPaymentFlow() {
                                             <table className="w-full text-xs border-collapse">
                                                 <tbody>
                                                     {/* Name | Email */}
-                                                    <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border w-[120px]">
+                                                    <tr className="border-b border-[#ddd]">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] w-[120px]">
                                                             Subscriber Name:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white border-r border-border">
+                                                        <td className="px-3 py-2 text-[#333] border-r border-[#ddd]">
                                                             {subscriber?.name || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border w-[120px]">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] w-[120px]">
                                                             Subscriber Email:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white">
+                                                        <td className="px-3 py-2 text-[#333]">
                                                             {subscriber?.email || '-'}
                                                         </td>
                                                     </tr>
                                                     {/* Mobile | City */}
-                                                    <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                    <tr className="border-b border-[#ddd]">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             Mobile:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white font-mono border-r border-border">
+                                                        <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.mobile || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             City:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white">
+                                                        <td className="px-3 py-2 text-[#333]">
                                                             {subscriber?.city || '-'}
                                                         </td>
                                                     </tr>
                                                     {/* Country */}
-                                                    <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                    <tr className="border-b border-[#ddd]">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             Country:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white" colSpan={3}>
+                                                        <td className="px-3 py-2 text-[#333]" colSpan={3}>
                                                             {subscriber?.country || '-'}
                                                         </td>
                                                     </tr>
                                                     {/* Home Tel | Work Tel */}
-                                                    <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                    <tr className="border-b border-[#ddd]">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             Home Tel:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white font-mono border-r border-border">
+                                                        <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.homeTel || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             Work Tel:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white font-mono">
+                                                        <td className="px-3 py-2 text-[#333] font-mono">
                                                             {subscriber?.workTel || '-'}
                                                         </td>
                                                     </tr>
                                                     {/* Fax | STB Model */}
-                                                    <tr className="border-b border-border">
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                    <tr className="border-b border-[#ddd]">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             Fax:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white font-mono border-r border-border">
+                                                        <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.fax || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             STB Model:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white font-mono">
+                                                        <td className="px-3 py-2 text-[#333] font-mono">
                                                             {subscriber?.stbModel || '-'}
                                                         </td>
                                                     </tr>
                                                     {/* Address | Remarks */}
                                                     <tr>
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border align-top">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] align-top">
                                                             Address:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white border-r border-border align-top">
+                                                        <td className="px-3 py-2 text-[#333] border-r border-[#ddd] align-top">
                                                             {subscriber?.address || '-'}
                                                         </td>
-                                                        <td className="px-3 py-2 bg-[#141720] text-[#94a3b8] font-semibold whitespace-nowrap border-r border-border align-top">
+                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] align-top">
                                                             Remarks:
                                                         </td>
-                                                        <td className="px-3 py-2 text-white align-top">
+                                                        <td className="px-3 py-2 text-[#333] align-top">
                                                             {subscriber?.remarks || '-'}
                                                         </td>
                                                     </tr>

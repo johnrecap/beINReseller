@@ -1222,11 +1222,10 @@ async function handleConfirmPurchaseHttp(
         throw new Error('Operation or account not found');
     }
 
-    // Guard: If already completing/completed, skip silently (race condition with duplicate jobs)
-    // CRITICAL: Do NOT throw here — throwing triggers the catch block which refunds money
-    // even though the purchase was already completed successfully
-    if (operation.status === 'COMPLETING' || operation.status === 'COMPLETED') {
-        console.log(`⏭️ [HTTP] Operation ${operationId} already ${operation.status}, skipping duplicate CONFIRM_PURCHASE`);
+    // Guard: If already completed, skip silently (race condition with duplicate jobs)
+    // NOTE: COMPLETING is valid — the confirm-purchase API sets it BEFORE adding this job
+    if (operation.status === 'COMPLETED') {
+        console.log(`⏭️ [HTTP] Operation ${operationId} already COMPLETED, skipping duplicate CONFIRM_PURCHASE`);
         return;
     }
 
@@ -1236,7 +1235,8 @@ async function handleConfirmPurchaseHttp(
         return;
     }
 
-    if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
+    // Valid states: AWAITING_FINAL_CONFIRM (legacy) or COMPLETING (set by confirm-purchase API)
+    if (operation.status !== 'AWAITING_FINAL_CONFIRM' && operation.status !== 'COMPLETING') {
         throw new Error(`Invalid status: ${operation.status}`);
     }
 

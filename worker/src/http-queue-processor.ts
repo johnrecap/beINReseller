@@ -1361,7 +1361,13 @@ async function handleCancelConfirmHttp(
         throw new Error('Operation not found');
     }
 
-    if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
+    // Guard: Skip if already cancelled (duplicate job from race condition)
+    if (operation.status === 'CANCELLED') {
+        console.log(`⏭️ [HTTP] Operation ${operationId} already cancelled, skipping duplicate job`);
+        return;
+    }
+
+    if (operation.status !== 'AWAITING_FINAL_CONFIRM' && operation.status !== 'COMPLETING') {
         throw new Error(`Invalid status: ${operation.status}`);
     }
 

@@ -65,7 +65,7 @@ export async function POST(
             )
         }
 
-        // Check status
+        // Check status - only allow cancel from AWAITING_FINAL_CONFIRM
         if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
             return NextResponse.json(
                 { error: 'العملية ليست في مرحلة التأكيد النهائي' },
@@ -73,7 +73,24 @@ export async function POST(
             )
         }
 
-        // 3. Add CANCEL_CONFIRM job to queue
+        // 3. CRITICAL: Atomically change status to prevent duplicate cancel jobs
+        // Uses updateMany with status filter - if two cancel calls arrive simultaneously,
+        // only the first one matches AWAITING_FINAL_CONFIRM and succeeds (count=1).
+        // The second call finds status=COMPLETING and gets count=0 → rejected.
+        const updated = await prisma.operation.updateMany({
+            where: { id, status: 'AWAITING_FINAL_CONFIRM' },
+            data: { status: 'COMPLETING', responseMessage: 'جاري إلغاء العملية...' }
+        })
+
+        if (updated.count === 0) {
+            // Another cancel request already changed the status
+            return NextResponse.json(
+                { error: 'العملية قيد الإلغاء بالفعل' },
+                { status: 409 }
+            )
+        }
+
+        // 4. Add CANCEL_CONFIRM job to queue (only one will ever reach here)
         await addOperationJob({
             operationId: id,
             type: 'CANCEL_CONFIRM',
@@ -82,7 +99,7 @@ export async function POST(
             amount: operation.amount,
         })
 
-        // 4. Return success
+        // 5. Return success
         return NextResponse.json({
             success: true,
             operationId: id,

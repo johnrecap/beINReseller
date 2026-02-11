@@ -106,6 +106,20 @@ export async function POST(
             )
         }
 
+        // 3. CRITICAL: Atomically change status to prevent duplicate confirm jobs
+        // Must run BEFORE money deduction to prevent double-charging
+        const confirmGuard = await prisma.operation.updateMany({
+            where: { id, status: 'AWAITING_FINAL_CONFIRM' },
+            data: { status: 'COMPLETING', responseMessage: 'جاري تأكيد الدفع...' }
+        })
+
+        if (confirmGuard.count === 0) {
+            return NextResponse.json(
+                { error: 'العملية قيد التأكيد بالفعل' },
+                { status: 409 }
+            )
+        }
+
         // Deduct balance NOW — only if not already deducted (deployment safety)
         let finalAmount = dealerPrice
         if (operation.amount === 0) {
@@ -153,7 +167,7 @@ export async function POST(
             finalAmount = operation.amount
         }
 
-        // 3. Add CONFIRM_PURCHASE job to queue
+        // 4. Add CONFIRM_PURCHASE job to queue (only one will ever reach here)
         await addOperationJob({
             operationId: id,
             type: 'CONFIRM_PURCHASE',

@@ -498,165 +498,267 @@ export function InstallmentPaymentFlow() {
             {/* Details Step - Show installment info with timer (beIN-style table) */}
             {
                 step === 'details' && installment && (
-                    <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
-                        <CardHeader>
-                            <CardTitle className="flex items-center justify-between">
-                                <span className="flex items-center gap-2">
-                                    <Package className="h-5 w-5 text-[#00A651]" />
-                                    {inst.detailsTitle || 'تفاصيل القسط'}
-                                </span>
+                    <div className="space-y-4">
+                        {/* beIN-style Purple Header Bar — "Contract Information" + Timer + Pay Button */}
+                        <div
+                            className="flex items-center justify-between rounded-t-xl px-5 py-3"
+                            style={{ background: 'linear-gradient(135deg, #602D92 0%, #7B3FA8 50%, #964DA7 100%)' }}
+                        >
+                            <span className="text-white font-bold text-base tracking-wide flex items-center gap-2">
+                                <Package className="h-5 w-5" />
+                                Contract Information
+                            </span>
+                            <div className="flex items-center gap-3">
                                 {/* Timer */}
-                                <span className={`flex items-center gap-1 text-sm font-medium ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-orange-500'
+                                <span className={`flex items-center gap-1 text-sm font-mono font-bold px-3 py-1 rounded-full ${timeLeft <= 10
+                                    ? 'bg-red-500/20 text-red-300 animate-pulse'
+                                    : 'bg-white/15 text-white/90'
                                     }`}>
-                                    <Clock className="h-4 w-4" />
+                                    <Clock className="h-3.5 w-3.5" />
                                     {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
                                 </span>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {/* beIN-style Contract Information - Full LTR Table */}
-                            <div className="border border-[var(--color-border-default)] rounded-lg overflow-hidden" dir="ltr">
-                                {/* Table Header */}
-                                <div className="bg-[#00A651]/10 border-b border-[var(--color-border-default)] px-4 py-2 text-right">
-                                    <span className="font-bold text-[#00A651] text-sm">Contract Information</span>
-                                </div>
-
-                                <table className="w-full text-sm border-collapse">
-                                    <tbody>
-                                        {/* Package Row */}
-                                        <tr className="border-b border-[var(--color-border-default)]">
-                                            <td className="px-3 py-2 font-bold" colSpan={3}>{installment.package}</td>
-                                            <td className="px-3 py-2 bg-muted/30 text-sm font-medium text-muted-foreground text-right border-l border-[var(--color-border-default)] w-[130px]">:Package</td>
-                                        </tr>
-
-                                        {/* Months To Pay Row */}
-                                        <tr className="border-b border-[var(--color-border-default)]">
-                                            <td className="px-3 py-2" colSpan={3}>{installment.monthsToPay}</td>
-                                            <td className="px-3 py-2 bg-muted/30 text-sm font-medium text-muted-foreground text-right border-l border-[var(--color-border-default)]">:Months To Pay</td>
-                                        </tr>
-
-                                        {/* Installment Amounts - IRD/IEC sub-table */}
-                                        <tr className="border-b border-[var(--color-border-default)]">
-                                            <td colSpan={4} className="p-0">
-                                                <table className="w-full text-sm border-collapse">
-                                                    <thead>
-                                                        <tr className="bg-muted/20">
-                                                            <th className="px-3 py-1.5 text-left font-medium text-muted-foreground border-b border-r border-[var(--color-border-default)] w-20"></th>
-                                                            <th className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-r border-[var(--color-border-default)]">Installment 1</th>
-                                                            <th className="px-3 py-1.5 text-center font-medium text-muted-foreground border-b border-[var(--color-border-default)]">Installment 2</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <tr className="border-b border-[var(--color-border-default)]">
-                                                            <td className="px-3 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)]">IRD</td>
-                                                            <td className="px-3 py-1.5 text-center border-r border-[var(--color-border-default)]">
-                                                                <span className="bg-[#0E4D4A] text-white px-2 py-0.5 rounded text-xs font-bold">{installment.installment1}</span>
-                                                            </td>
-                                                            <td className="px-3 py-1.5 text-center">
-                                                                <span className="bg-[#0E4D4A] text-white px-2 py-0.5 rounded text-xs font-bold">{installment.installment1}</span>
-                                                            </td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="px-3 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)]">IEC</td>
-                                                            <td className="px-3 py-1.5 text-center border-r border-[var(--color-border-default)]">
-                                                                <span className="bg-[#0E4D4A] text-white px-2 py-0.5 rounded text-xs font-bold">{installment.installment2}</span>
-                                                            </td>
-                                                            <td className="px-3 py-1.5 text-center">
-                                                                <span className="bg-[#0E4D4A] text-white px-2 py-0.5 rounded text-xs font-bold">{installment.installment2}</span>
-                                                            </td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </td>
-                                        </tr>
-
-                                        {/* Dates & Prices Row */}
-                                        <tr className="border-b border-[var(--color-border-default)]">
-                                            <td className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground whitespace-nowrap border-r border-[var(--color-border-default)]">Contract Start Date:</td>
-                                            <td className="px-3 py-1.5 text-xs font-mono border-r border-[var(--color-border-default)]">{installment.contractStartDate || '-'}</td>
-                                            <td className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground whitespace-nowrap border-r border-[var(--color-border-default)]">Invoice Price (USD):</td>
-                                            <td className="px-3 py-1.5 text-xs font-bold">{installment.invoicePrice}</td>
-                                        </tr>
-                                        <tr className="border-b border-[var(--color-border-default)]">
-                                            <td className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground whitespace-nowrap border-r border-[var(--color-border-default)]">Contract Expiry Date:</td>
-                                            <td className="px-3 py-1.5 text-xs font-mono border-r border-[var(--color-border-default)]">{installment.contractExpiryDate || '-'}</td>
-                                            <td className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground whitespace-nowrap border-r border-[var(--color-border-default)]">Dealer Price (USD):</td>
-                                            <td className="px-3 py-1.5 text-xs font-bold text-[#00A651]">{installment.dealerPrice}</td>
-                                        </tr>
-
-                                        {/* Subscriber Info Section */}
-                                        <tr className="border-b border-[var(--color-border-default)]">
-                                            <td colSpan={4} className="p-0">
-                                                <div className="bg-muted/20 px-3 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1 border-b border-[var(--color-border-default)]">
-                                                    <User className="h-3 w-3" />
-                                                    Subscriber Information
-                                                </div>
-                                                <table className="w-full text-xs border-collapse">
-                                                    <tbody>
-                                                        {/* Subscriber Name */}
-                                                        <tr className="border-b border-[var(--color-border-default)]">
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground w-[120px] border-r border-[var(--color-border-default)] whitespace-nowrap">Subscriber Name:</td>
-                                                            <td className="px-2 py-1.5" colSpan={3}>{subscriber?.name || '-'}</td>
-                                                        </tr>
-                                                        {/* Subscriber Email */}
-                                                        <tr className="border-b border-[var(--color-border-default)]">
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Subscriber Email:</td>
-                                                            <td className="px-2 py-1.5" colSpan={3}>{subscriber?.email || '-'}</td>
-                                                        </tr>
-                                                        {/* Mobile | City */}
-                                                        <tr className="border-b border-[var(--color-border-default)]">
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Mobile:</td>
-                                                            <td className="px-2 py-1.5 font-mono border-r border-[var(--color-border-default)]">{subscriber?.mobile || '-'}</td>
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">City:</td>
-                                                            <td className="px-2 py-1.5">{subscriber?.city || '-'}</td>
-                                                        </tr>
-                                                        {/* Country */}
-                                                        <tr className="border-b border-[var(--color-border-default)]">
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Country:</td>
-                                                            <td className="px-2 py-1.5" colSpan={3}>{subscriber?.country || '-'}</td>
-                                                        </tr>
-                                                        {/* Home Tel | Work Tel */}
-                                                        <tr className="border-b border-[var(--color-border-default)]">
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Home Tel:</td>
-                                                            <td className="px-2 py-1.5 font-mono border-r border-[var(--color-border-default)]">{subscriber?.homeTel || '-'}</td>
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Work Tel:</td>
-                                                            <td className="px-2 py-1.5 font-mono">{subscriber?.workTel || '-'}</td>
-                                                        </tr>
-                                                        {/* Fax | STB Model */}
-                                                        <tr className="border-b border-[var(--color-border-default)]">
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">Fax:</td>
-                                                            <td className="px-2 py-1.5 font-mono border-r border-[var(--color-border-default)]">{subscriber?.fax || '-'}</td>
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap">STB Model:</td>
-                                                            <td className="px-2 py-1.5 font-mono">{subscriber?.stbModel || '-'}</td>
-                                                        </tr>
-                                                        {/* Address | Remarks */}
-                                                        <tr>
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap align-top">Address:</td>
-                                                            <td className="px-2 py-1.5 border-r border-[var(--color-border-default)] align-top">{subscriber?.address || '-'}</td>
-                                                            <td className="px-2 py-1.5 bg-muted/30 font-medium text-muted-foreground border-r border-[var(--color-border-default)] whitespace-nowrap align-top">Remarks:</td>
-                                                            <td className="px-2 py-1.5 align-top">{subscriber?.remarks || '-'}</td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Continue to Pay Button */}
-                            <div className="pt-2">
+                                {/* Pay Installment Button */}
                                 <Button
                                     onClick={() => setShowConfirmDialog(true)}
                                     disabled={timeLeft <= 0}
-                                    className="w-full bg-[#00A651] hover:bg-[#008f45] text-white py-3 text-base font-bold"
+                                    size="sm"
+                                    className="bg-white/20 hover:bg-white/30 text-white border border-white/30 font-bold text-xs px-4 py-1.5 rounded-lg transition-all disabled:opacity-40"
                                 >
-                                    <CheckCircle className="h-5 w-5 ml-2" />
-                                    {inst.continueToPayment || 'متابعة للدفع'}
+                                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                                    {inst.continueToPayment || 'Pay Installment'}
                                 </Button>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+
+                        {/* Main Table — matches beIN CustInfo table */}
+                        <div className="border border-[#1e3a3a] rounded-b-xl overflow-hidden bg-[#0a1a1a]" dir="ltr">
+                            <table className="w-full text-sm border-collapse">
+                                <tbody>
+                                    {/* Package Row */}
+                                    <tr className="border-b border-[#1e3a3a]">
+                                        <td className="px-4 py-2.5 bg-[#0d2222] text-[#a0b4b4] font-semibold text-xs whitespace-nowrap border-r border-[#1e3a3a] w-[140px]">
+                                            Package:
+                                        </td>
+                                        <td className="px-4 py-2.5 text-white font-medium" colSpan={3}>
+                                            {installment.package}
+                                        </td>
+                                    </tr>
+
+                                    {/* Months To Pay Row */}
+                                    <tr className="border-b border-[#1e3a3a]">
+                                        <td className="px-4 py-2.5 bg-[#0d2222] text-[#a0b4b4] font-semibold text-xs whitespace-nowrap border-r border-[#1e3a3a]">
+                                            Months To Pay:
+                                        </td>
+                                        <td className="px-4 py-2.5" colSpan={3}>
+                                            <span className="bg-[#1a2f2f] text-white border border-[#2a4a4a] px-3 py-1 rounded text-xs font-medium">
+                                                {installment.monthsToPay}
+                                            </span>
+                                        </td>
+                                    </tr>
+
+                                    {/* Installment Amounts - IRD/IEC sub-table (beIN InstallmentTable style) */}
+                                    <tr className="border-b border-[#1e3a3a]">
+                                        <td colSpan={4} className="p-0">
+                                            <table className="w-full text-sm border-collapse">
+                                                <thead>
+                                                    <tr style={{ background: 'linear-gradient(135deg, #602D92 0%, #7B3FA8 100%)' }}>
+                                                        <th className="px-3 py-2 text-left font-bold text-white/80 text-xs border-r border-[#7B3FA8]/50 w-20"></th>
+                                                        <th className="px-3 py-2 text-center font-bold text-white text-xs border-r border-[#7B3FA8]/50">
+                                                            Installment 1
+                                                        </th>
+                                                        <th className="px-3 py-2 text-center font-bold text-white text-xs">
+                                                            Installment 2
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr className="border-b border-[#1e3a3a]">
+                                                        <td className="px-3 py-2 bg-[#0d2222] font-semibold text-[#a0b4b4] text-xs border-r border-[#1e3a3a]">IRD</td>
+                                                        <td className="px-3 py-2 text-center border-r border-[#1e3a3a]">
+                                                            <span className="inline-block min-w-[60px]">
+                                                                <span className="text-white text-xs font-medium">{installment.installment1}</span>
+                                                                <div className="w-full h-[2px] my-1" style={{ backgroundColor: '#602D92' }}></div>
+                                                                <span className="inline-block text-white text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#964DA7' }}>
+                                                                    {installment.installment1}
+                                                                </span>
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center">
+                                                            <span className="text-white text-xs font-medium">{installment.installment1}</span>
+                                                            <br />
+                                                            <span className="text-red-400 text-xs font-bold">{installment.installment1}</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr className="border-b border-[#1e3a3a]">
+                                                        <td className="px-3 py-2 bg-[#0d2222] font-semibold text-[#a0b4b4] text-xs border-r border-[#1e3a3a]">IEC</td>
+                                                        <td className="px-3 py-2 text-center border-r border-[#1e3a3a]">
+                                                            <span className="inline-block min-w-[60px]">
+                                                                <span className="text-white text-xs font-medium">{installment.installment2}</span>
+                                                                <div className="w-full h-[2px] my-1" style={{ backgroundColor: '#602D92' }}></div>
+                                                                <span className="inline-block text-white text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#964DA7' }}>
+                                                                    {installment.installment2}
+                                                                </span>
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center">
+                                                            <span className="text-white text-xs font-medium">{installment.installment2}</span>
+                                                            <br />
+                                                            <span className="text-red-400 text-xs font-bold">{installment.installment2}</span>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+
+                                    {/* Dates & Prices — horizontal layout matching beIN */}
+                                    <tr className="border-b border-[#1e3a3a]">
+                                        <td className="px-4 py-2.5 bg-[#0d2222] text-[#a0b4b4] font-semibold text-xs whitespace-nowrap border-r border-[#1e3a3a]">
+                                            Contract Start Date:
+                                        </td>
+                                        <td className="px-4 py-2.5 text-white text-xs font-mono border-r border-[#1e3a3a]">
+                                            {installment.contractStartDate || '-'}
+                                        </td>
+                                        <td className="px-4 py-2.5 bg-[#0d2222] text-[#a0b4b4] font-semibold text-xs whitespace-nowrap border-r border-[#1e3a3a]">
+                                            Invoice Price (USD):
+                                        </td>
+                                        <td className="px-4 py-2.5 text-white text-xs font-bold">
+                                            {installment.invoicePrice}
+                                        </td>
+                                    </tr>
+                                    <tr className="border-b border-[#1e3a3a]">
+                                        <td className="px-4 py-2.5 bg-[#0d2222] text-[#a0b4b4] font-semibold text-xs whitespace-nowrap border-r border-[#1e3a3a]">
+                                            Contract Expiry Date:
+                                        </td>
+                                        <td className="px-4 py-2.5 text-white text-xs font-mono border-r border-[#1e3a3a]">
+                                            {installment.contractExpiryDate || '-'}
+                                        </td>
+                                        <td className="px-4 py-2.5 bg-[#0d2222] text-[#a0b4b4] font-semibold text-xs whitespace-nowrap border-r border-[#1e3a3a]">
+                                            Dealer Price (USD):
+                                        </td>
+                                        <td className="px-4 py-2.5 text-xs font-bold text-[#00A651]">
+                                            {installment.dealerPrice}
+                                        </td>
+                                    </tr>
+
+                                    {/* Subscriber Information Section */}
+                                    <tr>
+                                        <td colSpan={4} className="p-0">
+                                            {/* Section Header */}
+                                            <div
+                                                className="px-4 py-2 text-xs font-bold text-white/90 flex items-center gap-2 border-b border-[#1e3a3a]"
+                                                style={{ background: 'linear-gradient(135deg, #602D92 0%, #7B3FA8 100%)' }}
+                                            >
+                                                <User className="h-3.5 w-3.5" />
+                                                Subscriber Information
+                                            </div>
+                                            <table className="w-full text-xs border-collapse">
+                                                <tbody>
+                                                    {/* Name | Email */}
+                                                    <tr className="border-b border-[#1e3a3a]">
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a] w-[120px]">
+                                                            Subscriber Name:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white border-r border-[#1e3a3a]">
+                                                            {subscriber?.name || '-'}
+                                                        </td>
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a] w-[120px]">
+                                                            Subscriber Email:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white">
+                                                            {subscriber?.email || '-'}
+                                                        </td>
+                                                    </tr>
+                                                    {/* Mobile | City */}
+                                                    <tr className="border-b border-[#1e3a3a]">
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a]">
+                                                            Mobile:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white font-mono border-r border-[#1e3a3a]">
+                                                            {subscriber?.mobile || '-'}
+                                                        </td>
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a]">
+                                                            City:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white">
+                                                            {subscriber?.city || '-'}
+                                                        </td>
+                                                    </tr>
+                                                    {/* Country */}
+                                                    <tr className="border-b border-[#1e3a3a]">
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a]">
+                                                            Country:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white" colSpan={3}>
+                                                            {subscriber?.country || '-'}
+                                                        </td>
+                                                    </tr>
+                                                    {/* Home Tel | Work Tel */}
+                                                    <tr className="border-b border-[#1e3a3a]">
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a]">
+                                                            Home Tel:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white font-mono border-r border-[#1e3a3a]">
+                                                            {subscriber?.homeTel || '-'}
+                                                        </td>
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a]">
+                                                            Work Tel:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white font-mono">
+                                                            {subscriber?.workTel || '-'}
+                                                        </td>
+                                                    </tr>
+                                                    {/* Fax | STB Model */}
+                                                    <tr className="border-b border-[#1e3a3a]">
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a]">
+                                                            Fax:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white font-mono border-r border-[#1e3a3a]">
+                                                            {subscriber?.fax || '-'}
+                                                        </td>
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a]">
+                                                            STB Model:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white font-mono">
+                                                            {subscriber?.stbModel || '-'}
+                                                        </td>
+                                                    </tr>
+                                                    {/* Address | Remarks */}
+                                                    <tr>
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a] align-top">
+                                                            Address:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white border-r border-[#1e3a3a] align-top">
+                                                            {subscriber?.address || '-'}
+                                                        </td>
+                                                        <td className="px-3 py-2 bg-[#0d2222] text-[#a0b4b4] font-semibold whitespace-nowrap border-r border-[#1e3a3a] align-top">
+                                                            Remarks:
+                                                        </td>
+                                                        <td className="px-3 py-2 text-white align-top">
+                                                            {subscriber?.remarks || '-'}
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Bottom Pay Button (mobile-friendly) */}
+                        <div className="pt-1">
+                            <Button
+                                onClick={() => setShowConfirmDialog(true)}
+                                disabled={timeLeft <= 0}
+                                className="w-full py-3 text-base font-bold text-white rounded-xl transition-all shadow-lg"
+                                style={{ background: 'linear-gradient(135deg, #602D92 0%, #964DA7 100%)' }}
+                            >
+                                <CheckCircle className="h-5 w-5 ml-2" />
+                                {inst.continueToPayment || 'متابعة للدفع'}
+                            </Button>
+                        </div>
+                    </div>
                 )
             }
 

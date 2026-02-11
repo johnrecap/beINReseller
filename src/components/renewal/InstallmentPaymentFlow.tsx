@@ -575,35 +575,27 @@ export function InstallmentPaymentFlow() {
                                                     <tr className="border-b border-[#ddd]">
                                                         <td className="px-3 py-2 bg-[#f0f0f0] font-semibold text-[#333] text-xs border-r border-[#ddd]">IRD</td>
                                                         <td className="px-3 py-2 text-center border-r border-[#ddd] bg-white">
-                                                            <span className="inline-block min-w-[60px]">
-                                                                <span className="text-[#333] text-xs font-medium">{installment.installment1}</span>
-                                                                <div className="w-full h-[2px] my-1" style={{ backgroundColor: '#602D92' }}></div>
-                                                                <span className="inline-block text-white text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#964DA7' }}>
-                                                                    {installment.installment1}
-                                                                </span>
+                                                            <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
+                                                                {installment.installment1}
                                                             </span>
                                                         </td>
                                                         <td className="px-3 py-2 text-center bg-white">
-                                                            <span className="text-[#333] text-xs font-medium">{installment.installment1}</span>
-                                                            <br />
-                                                            <span className="text-red-500 text-xs font-bold">{installment.installment1}</span>
+                                                            <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
+                                                                {installment.installment1}
+                                                            </span>
                                                         </td>
                                                     </tr>
                                                     <tr className="border-b border-[#ddd]">
                                                         <td className="px-3 py-2 bg-[#f0f0f0] font-semibold text-[#333] text-xs border-r border-[#ddd]">IEC</td>
                                                         <td className="px-3 py-2 text-center border-r border-[#ddd] bg-white">
-                                                            <span className="inline-block min-w-[60px]">
-                                                                <span className="text-[#333] text-xs font-medium">{installment.installment2}</span>
-                                                                <div className="w-full h-[2px] my-1" style={{ backgroundColor: '#602D92' }}></div>
-                                                                <span className="inline-block text-white text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#964DA7' }}>
-                                                                    {installment.installment2}
-                                                                </span>
+                                                            <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
+                                                                {installment.installment2}
                                                             </span>
                                                         </td>
                                                         <td className="px-3 py-2 text-center bg-white">
-                                                            <span className="text-[#333] text-xs font-medium">{installment.installment2}</span>
-                                                            <br />
-                                                            <span className="text-red-500 text-xs font-bold">{installment.installment2}</span>
+                                                            <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
+                                                                {installment.installment2}
+                                                            </span>
                                                         </td>
                                                     </tr>
                                                 </tbody>

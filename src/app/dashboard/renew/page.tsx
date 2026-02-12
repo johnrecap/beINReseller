@@ -405,7 +405,7 @@ export default function RenewWizardPage() {
                         }
                     )
                 } else {
-                    toast.error(data.error || t.common?.error || 'Error')
+                    toast.error(data.error || 'Error')
                 }
                 return
             }
@@ -915,7 +915,7 @@ export default function RenewWizardPage() {
                                 <div className="bg-muted/50 rounded-xl p-4 space-y-3">
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">{'Package:'}</span>
-                                        <span className="font-bold text-foreground">{selectedPackageInfo?.name || t.operations?.notSpecified || 'Not specified'}</span>
+                                        <span className="font-bold text-foreground">{selectedPackageInfo?.name || 'Not specified'}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">{'Price:'}</span>

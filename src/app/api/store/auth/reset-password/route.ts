@@ -13,8 +13,8 @@ import { successResponse, errorResponse, handleApiError, validationErrorResponse
 
 // Validation schema
 const resetPasswordSchema = z.object({
-    token: z.string().min(1, 'رمز إعادة التعيين مطلوب'),
-    password: z.string().min(8, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'),
+    token: z.string().min(1, 'Reset token is required'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
 export async function POST(request: NextRequest) {
@@ -37,12 +37,12 @@ export async function POST(request: NextRequest) {
         })
         
         if (!customer) {
-            return errorResponse('رمز إعادة التعيين غير صالح', 400, 'INVALID_TOKEN')
+            return errorResponse('Invalid reset token', 400, 'INVALID_TOKEN')
         }
         
         // Check if token is expired
         if (customer.resetExpires && customer.resetExpires < new Date()) {
-            return errorResponse('انتهت صلاحية رمز إعادة التعيين. يرجى طلب رمز جديد.', 400, 'TOKEN_EXPIRED')
+            return errorResponse('Reset token has expired. Please request a new one.', 400, 'TOKEN_EXPIRED')
         }
         
         // Hash new password
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         return successResponse(
             null, 
             customer.preferredLang === 'ar'
-                ? 'تم تغيير كلمة المرور بنجاح'
+                ? 'Password changed successfully'
                 : 'Password changed successfully'
         )
         

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
         const tokenCustomer = getStoreCustomerFromRequest(request)
         
         if (!tokenCustomer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         // Get fresh customer data from database
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
         })
         
         if (!customer) {
-            return errorResponse('المستخدم غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('User not found', 404, 'NOT_FOUND')
         }
         
         return successResponse({
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
  * Update customer profile
  */
 const updateProfileSchema = z.object({
-    name: z.string().min(2, 'الاسم يجب أن يكون حرفين على الأقل').optional(),
+    name: z.string().min(2, 'Name must be at least 2 characters').optional(),
     nameAr: z.string().optional(),
     phone: z.string().optional(),
     country: z.enum(['SA', 'EG']).optional(),
@@ -94,7 +94,7 @@ export async function PUT(request: NextRequest) {
         const tokenCustomer = getStoreCustomerFromRequest(request)
         
         if (!tokenCustomer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const body = await request.json()
@@ -134,7 +134,7 @@ export async function PUT(request: NextRequest) {
         return successResponse({
             token,
             customer,
-        }, 'تم تحديث الملف الشخصي بنجاح')
+        }, 'Profile updated successfully')
         
     } catch (error) {
         return handleApiError(error)
@@ -146,8 +146,8 @@ export async function PUT(request: NextRequest) {
  * Change password
  */
 const changePasswordSchema = z.object({
-    currentPassword: z.string().min(1, 'كلمة المرور الحالية مطلوبة'),
-    newPassword: z.string().min(8, 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل'),
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
 })
 
 export async function PATCH(request: NextRequest) {
@@ -156,7 +156,7 @@ export async function PATCH(request: NextRequest) {
         const tokenCustomer = getStoreCustomerFromRequest(request)
         
         if (!tokenCustomer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const body = await request.json()
@@ -175,13 +175,13 @@ export async function PATCH(request: NextRequest) {
         })
         
         if (!customer) {
-            return errorResponse('المستخدم غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('User not found', 404, 'NOT_FOUND')
         }
         
         // Verify current password
         const isValidPassword = await bcrypt.compare(currentPassword, customer.passwordHash)
         if (!isValidPassword) {
-            return errorResponse('كلمة المرور الحالية غير صحيحة', 400, 'INVALID_PASSWORD')
+            return errorResponse('Current password is incorrect', 400, 'INVALID_PASSWORD')
         }
         
         // Hash new password
@@ -193,7 +193,7 @@ export async function PATCH(request: NextRequest) {
             data: { passwordHash }
         })
         
-        return successResponse(null, 'تم تغيير كلمة المرور بنجاح')
+        return successResponse(null, 'Password changed successfully')
         
     } catch (error) {
         return handleApiError(error)

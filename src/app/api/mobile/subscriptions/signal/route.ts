@@ -24,7 +24,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Validate card number
         if (!cardNumber) {
             return NextResponse.json(
-                { success: false, error: 'رقم الكارت مطلوب' },
+                { success: false, error: 'Card number is required' },
                 { status: 400 }
             )
         }
@@ -33,7 +33,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!isValidCardNumber(cleanedCard)) {
             return NextResponse.json(
-                { success: false, error: 'رقم الكارت غير صالح (10-12 رقم)' },
+                { success: false, error: 'Invalid card number (10-12 digits)' },
                 { status: 400 }
             )
         }
@@ -53,7 +53,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
             if (!customerData) {
                 return NextResponse.json(
-                    { success: false, error: 'الحساب غير موجود' },
+                    { success: false, error: 'Account not found' },
                     { status: 404 }
                 )
             }
@@ -64,7 +64,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
                 return NextResponse.json(
                     {
                         success: false,
-                        error: 'الرصيد غير كافي',
+                        error: 'Insufficient balance',
                         code: 'INSUFFICIENT_BALANCE',
                         required: signalPrice,
                         available: totalAvailable
@@ -95,7 +95,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
                         amount: signalPrice,
                         balanceBefore,
                         balanceAfter: balanceBefore - walletDeduction,
-                        description: 'تجديد الإشارة',
+                        description: 'Signal refresh',
                         referenceType: 'SIGNAL'
                     }
                 })
@@ -125,14 +125,14 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         return NextResponse.json({
             success: true,
             operationId: operation.id,
-            message: 'جاري تجديد الإشارة',
+            message: 'Refreshing signal',
             deducted: signalPrice
         })
 
     } catch (error) {
         console.error('Signal refresh error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في تجديد الإشارة' },
+            { success: false, error: 'Error refreshing signal' },
             { status: 500 }
         )
     }

@@ -17,12 +17,12 @@ interface RouteParams {
 
 // Validation schema for update
 const updateAddressSchema = z.object({
-    name: z.string().min(2, 'الاسم يجب أن يكون حرفين على الأقل').optional(),
-    phone: z.string().min(9, 'رقم الهاتف غير صالح').optional(),
+    name: z.string().min(2, 'Name must be at least 2 characters').optional(),
+    phone: z.string().min(9, 'Invalid phone number').optional(),
     country: z.enum(['SA', 'EG']).optional(),
-    city: z.string().min(2, 'المدينة مطلوبة').optional(),
+    city: z.string().min(2, 'City is required').optional(),
     district: z.string().optional().nullable(),
-    street: z.string().min(2, 'الشارع مطلوب').optional(),
+    street: z.string().min(2, 'Street is required').optional(),
     building: z.string().optional().nullable(),
     floor: z.string().optional().nullable(),
     apartment: z.string().optional().nullable(),
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!address) {
-            return errorResponse('العنوان غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Address not found', 404, 'NOT_FOUND')
         }
         
         return successResponse({ address })
@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -98,7 +98,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!existingAddress) {
-            return errorResponse('العنوان غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Address not found', 404, 'NOT_FOUND')
         }
         
         const data = result.data
@@ -134,7 +134,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             }
         })
         
-        return successResponse({ address }, 'تم تحديث العنوان بنجاح')
+        return successResponse({ address }, 'Address updated successfully')
         
     } catch (error) {
         return handleApiError(error)
@@ -146,7 +146,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -160,7 +160,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!existingAddress) {
-            return errorResponse('العنوان غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Address not found', 404, 'NOT_FOUND')
         }
         
         // Delete address
@@ -183,7 +183,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             }
         }
         
-        return successResponse(null, 'تم حذف العنوان بنجاح')
+        return successResponse(null, 'Address deleted successfully')
         
     } catch (error) {
         return handleApiError(error)

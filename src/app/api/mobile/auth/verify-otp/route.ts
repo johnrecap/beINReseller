@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
         if (!email || !otp) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني ورمز التحقق مطلوبان' },
+                { success: false, error: 'Email and verification code are required' },
                 { status: 400 }
             )
         }
@@ -33,14 +33,14 @@ export async function POST(request: NextRequest) {
 
         if (!customer) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
 
         if (customer.isVerified) {
             return NextResponse.json(
-                { success: false, error: 'الحساب مفعل بالفعل' },
+                { success: false, error: 'Account is already verified' },
                 { status: 400 }
             )
         }
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         // Check OTP
         if (customer.verifyToken !== otp) {
             return NextResponse.json(
-                { success: false, error: 'رمز التحقق غير صحيح' },
+                { success: false, error: 'Invalid verification code' },
                 { status: 400 }
             )
         }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         // Check OTP expiry
         if (isOTPExpired(customer.verifyExpires)) {
             return NextResponse.json(
-                { success: false, error: 'رمز التحقق منتهي الصلاحية' },
+                { success: false, error: 'Verification code expired' },
                 { status: 400 }
             )
         }
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'تم تفعيل الحساب بنجاح',
+            message: 'Account verified successfully',
             customer: {
                 id: updatedCustomer.id,
                 email: updatedCustomer.email,
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Verify OTP error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في التحقق' },
+            { success: false, error: 'Verification error' },
             { status: 500 }
         )
     }

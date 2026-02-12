@@ -44,14 +44,14 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!address) {
             return NextResponse.json(
-                { success: false, error: 'العنوان غير موجود' },
+                { success: false, error: 'Address not found' },
                 { status: 404 }
             )
         }
 
         if (address.customerId !== customer.customerId) {
             return NextResponse.json(
-                { success: false, error: 'غير مصرح' },
+                { success: false, error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -64,7 +64,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Get address error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب العنوان' },
+            { success: false, error: 'Error fetching address' },
             { status: 500 }
         )
     }
@@ -85,14 +85,14 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!existingAddress) {
             return NextResponse.json(
-                { success: false, error: 'العنوان غير موجود' },
+                { success: false, error: 'Address not found' },
                 { status: 404 }
             )
         }
 
         if (existingAddress.customerId !== customer.customerId) {
             return NextResponse.json(
-                { success: false, error: 'غير مصرح' },
+                { success: false, error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -130,14 +130,14 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         return NextResponse.json({
             success: true,
-            message: 'تم تحديث العنوان',
+            message: 'Address updated',
             address
         })
 
     } catch (error) {
         console.error('Update address error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في تحديث العنوان' },
+            { success: false, error: 'Error updating address' },
             { status: 500 }
         )
     }
@@ -157,14 +157,14 @@ export const DELETE = withCustomerAuth(async (request: NextRequest, customer: Cu
 
         if (!address) {
             return NextResponse.json(
-                { success: false, error: 'العنوان غير موجود' },
+                { success: false, error: 'Address not found' },
                 { status: 404 }
             )
         }
 
         if (address.customerId !== customer.customerId) {
             return NextResponse.json(
-                { success: false, error: 'غير مصرح' },
+                { success: false, error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -176,7 +176,7 @@ export const DELETE = withCustomerAuth(async (request: NextRequest, customer: Cu
 
         if (orderCount > 0) {
             return NextResponse.json(
-                { success: false, error: 'لا يمكن حذف عنوان مرتبط بطلبات' },
+                { success: false, error: 'Cannot delete address linked to orders' },
                 { status: 400 }
             )
         }
@@ -201,13 +201,13 @@ export const DELETE = withCustomerAuth(async (request: NextRequest, customer: Cu
 
         return NextResponse.json({
             success: true,
-            message: 'تم حذف العنوان'
+            message: 'Address deleted'
         })
 
     } catch (error) {
         console.error('Delete address error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في حذف العنوان' },
+            { success: false, error: 'Error deleting address' },
             { status: 500 }
         )
     }

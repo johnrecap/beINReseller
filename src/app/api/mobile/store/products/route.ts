@@ -112,7 +112,7 @@ export const GET = withOptionalCustomerAuth(async (request: NextRequest, custome
     } catch (error) {
         console.error('Get products error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب المنتجات' },
+            { success: false, error: 'Error fetching products' },
             { status: 500 }
         )
     }

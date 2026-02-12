@@ -12,12 +12,12 @@ import { getStoreCustomerFromRequest } from '@/lib/store-auth'
 
 // Validation schema
 const addressSchema = z.object({
-    name: z.string().min(2, 'الاسم يجب أن يكون حرفين على الأقل'),
-    phone: z.string().min(9, 'رقم الهاتف غير صالح'),
+    name: z.string().min(2, 'Name must be at least 2 characters'),
+    phone: z.string().min(9, 'Invalid phone number'),
     country: z.enum(['SA', 'EG']),
-    city: z.string().min(2, 'المدينة مطلوبة'),
+    city: z.string().min(2, 'City is required'),
     district: z.string().optional(),
-    street: z.string().min(2, 'الشارع مطلوب'),
+    street: z.string().min(2, 'Street is required'),
     building: z.string().optional(),
     floor: z.string().optional(),
     apartment: z.string().optional(),
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const addresses = await prisma.customerAddress.findMany({
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const body = await request.json()
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
             }
         })
         
-        return successResponse({ address }, 'تم إضافة العنوان بنجاح', 201)
+        return successResponse({ address }, 'Address added successfully', 201)
         
     } catch (error) {
         return handleApiError(error)

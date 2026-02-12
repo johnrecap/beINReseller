@@ -11,12 +11,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         Credentials({
             name: "credentials",
             credentials: {
-                username: { label: "اسم المستخدم", type: "text" },
-                password: { label: "كلمة المرور", type: "password" },
+                username: { label: "Username", type: "text" },
+                password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
                 if (!credentials?.username || !credentials?.password) {
-                    throw new Error("الرجاء إدخال اسم المستخدم وكلمة المرور")
+                    throw new Error("Please enter username and password")
                 }
 
                 const username = credentials.username as string
@@ -33,18 +33,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 })
 
                 if (!user || !user.passwordHash) {
-                    throw new Error("اسم المستخدم أو كلمة المرور غير صحيحة")
+                    throw new Error("Invalid username or password")
                 }
 
                 // Check if user is active
                 if (!user.isActive) {
-                    throw new Error("الحساب معطل، تواصل مع الإدارة")
+                    throw new Error("Account is disabled, contact administration")
                 }
 
                 // Verify password
                 const isValidPassword = await bcrypt.compare(password, user.passwordHash)
                 if (!isValidPassword) {
-                    throw new Error("اسم المستخدم أو كلمة المرور غير صحيحة")
+                    throw new Error("Invalid username or password")
                 }
 
                 // Track login activity (updates lastLoginAt, increments loginCount, logs activity)

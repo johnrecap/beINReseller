@@ -237,7 +237,7 @@ export async function requireCustomerAuth(request: NextRequest): Promise<AuthRes
 
     if (!customer) {
         return {
-            error: 'غير مصرح - يرجى تسجيل الدخول',
+            error: 'Unauthorized - please login',
             status: 401
         }
     }
@@ -305,16 +305,16 @@ export function isValidEmail(email: string): boolean {
  */
 export function isValidPassword(password: string): { valid: boolean; message?: string } {
     if (password.length < 8) {
-        return { valid: false, message: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' }
+        return { valid: false, message: 'Password must be at least 8 characters' }
     }
     if (!/[A-Z]/.test(password)) {
-        return { valid: false, message: 'كلمة المرور يجب أن تحتوي على حرف كبير' }
+        return { valid: false, message: 'Password must contain an uppercase letter' }
     }
     if (!/[a-z]/.test(password)) {
-        return { valid: false, message: 'كلمة المرور يجب أن تحتوي على حرف صغير' }
+        return { valid: false, message: 'Password must contain a lowercase letter' }
     }
     if (!/[0-9]/.test(password)) {
-        return { valid: false, message: 'كلمة المرور يجب أن تحتوي على رقم' }
+        return { valid: false, message: 'Password must contain a number' }
     }
     return { valid: true }
 }

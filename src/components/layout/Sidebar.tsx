@@ -107,10 +107,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     // Mobile App Management links - Admin only
     const mobileAppLinks = [
-        { href: '/dashboard/mobile-app/customers', label: t.sidebar.mobileCustomers || 'العملاء', icon: UserCircle },
-        { href: '/dashboard/mobile-app/transactions', label: t.sidebar.mobileTransactions || 'المعاملات', icon: CreditCard },
-        { href: '/dashboard/mobile-app/operations', label: t.sidebar.mobileOperations || 'العمليات', icon: Activity },
-        { href: '/dashboard/mobile-app/settings', label: t.sidebar.mobileSettings || 'الإعدادات', icon: Settings },
+        { href: '/dashboard/mobile-app/customers', label: t.sidebar.mobileCustomers || 'Customers', icon: UserCircle },
+        { href: '/dashboard/mobile-app/transactions', label: t.sidebar.mobileTransactions || 'Transactions', icon: CreditCard },
+        { href: '/dashboard/mobile-app/operations', label: t.sidebar.mobileOperations || 'Operations', icon: Activity },
+        { href: '/dashboard/mobile-app/settings', label: t.sidebar.mobileSettings || 'Settings', icon: Settings },
     ]
 
     const handleLogout = async () => {
@@ -332,7 +332,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             <div>
                                 <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 flex items-center gap-2">
                                     <Smartphone className="h-3 w-3" />
-                                    {t.sidebar.mobileApp || 'التطبيق المحمول'}
+                                    {t.sidebar.mobileApp || 'Mobile App'}
                                 </h4>
                                 <div className="space-y-1">
                                     {mobileAppLinks.map((link) => {

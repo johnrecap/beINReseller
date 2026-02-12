@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!product) {
-            return errorResponse('المنتج غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Product not found', 404, 'NOT_FOUND')
         }
         
         // Transform product to include appropriate price based on country

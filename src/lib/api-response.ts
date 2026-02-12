@@ -52,7 +52,7 @@ export function validationErrorResponse(error: ZodError): NextResponse {
 
     return NextResponse.json(
         {
-            error: 'بيانات غير صالحة',
+            error: 'Invalid data',
             code: 'VALIDATION_ERROR',
             details,
         },
@@ -74,23 +74,23 @@ export function handleApiError(error: unknown): NextResponse {
         // Don't expose internal errors in production
         const message = process.env.NODE_ENV === 'development'
             ? error.message
-            : 'حدث خطأ في الخادم'
+            : 'Server error occurred'
 
         return errorResponse(message, 500, 'INTERNAL_ERROR')
     }
 
-    return errorResponse('حدث خطأ غير معروف', 500, 'UNKNOWN_ERROR')
+    return errorResponse('Unknown error occurred', 500, 'UNKNOWN_ERROR')
 }
 
 /**
  * Common error messages
  */
 export const ERROR_MESSAGES = {
-    UNAUTHORIZED: 'غير مصرح',
-    FORBIDDEN: 'ليس لديك صلاحية',
-    NOT_FOUND: 'غير موجود',
-    VALIDATION: 'بيانات غير صالحة',
-    SERVER_ERROR: 'حدث خطأ في الخادم',
-    RATE_LIMITED: 'تجاوزت الحد المسموح',
-    INSUFFICIENT_BALANCE: 'رصيد غير كافي',
+    UNAUTHORIZED: 'Unauthorized',
+    FORBIDDEN: 'Access denied',
+    NOT_FOUND: 'Not found',
+    VALIDATION: 'Invalid data',
+    SERVER_ERROR: 'Server error occurred',
+    RATE_LIMITED: 'Rate limit exceeded',
+    INSUFFICIENT_BALANCE: 'Insufficient balance',
 }

@@ -13,10 +13,10 @@ export const OPERATION_PRICES = {
 
 // Duration Options for Renew Form
 export const DURATION_OPTIONS = [
-    { value: '1_month', label: 'شهر واحد', price: OPERATION_PRICES.RENEW_1_MONTH },
-    { value: '3_months', label: '3 شهور', price: OPERATION_PRICES.RENEW_3_MONTHS },
-    { value: '6_months', label: '6 شهور', price: OPERATION_PRICES.RENEW_6_MONTHS },
-    { value: '1_year', label: 'سنة كاملة', price: OPERATION_PRICES.RENEW_1_YEAR },
+    { value: '1_month', label: '1 Month', price: OPERATION_PRICES.RENEW_1_MONTH },
+    { value: '3_months', label: '3 Months', price: OPERATION_PRICES.RENEW_3_MONTHS },
+    { value: '6_months', label: '6 Months', price: OPERATION_PRICES.RENEW_6_MONTHS },
+    { value: '1_year', label: '1 Year', price: OPERATION_PRICES.RENEW_1_YEAR },
 ] as const
 
 // Operation Types
@@ -63,17 +63,17 @@ export function getOperationPrice(type: string, duration?: string): number {
 
 // Operation Type Labels (Arabic)
 export const OPERATION_TYPE_LABELS: Record<string, string> = {
-    RENEW: 'تجديد اشتراك',
-    CHECK_BALANCE: 'استعلام رصيد',
-    SIGNAL_REFRESH: 'تنشيط إشارة',
+    RENEW: 'Subscription Renewal',
+    CHECK_BALANCE: 'Balance Inquiry',
+    SIGNAL_REFRESH: 'Signal Refresh',
 }
 
 // Operation Status Labels (Arabic)
 export const OPERATION_STATUS_LABELS: Record<string, string> = {
-    PENDING: 'قيد الانتظار',
-    PROCESSING: 'جاري التنفيذ',
-    AWAITING_CAPTCHA: 'في انتظار التحقق',
-    COMPLETED: 'مكتمل',
-    FAILED: 'فشل',
-    CANCELLED: 'ملغي',
+    PENDING: 'Pending',
+    PROCESSING: 'Processing',
+    AWAITING_CAPTCHA: 'Awaiting Captcha',
+    COMPLETED: 'Completed',
+    FAILED: 'Failed',
+    CANCELLED: 'Cancelled',
 }

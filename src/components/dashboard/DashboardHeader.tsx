@@ -34,7 +34,7 @@ export default function DashboardHeader({ username, role }: DashboardHeaderProps
             <div>
                 <h2 className="flex items-center gap-2 text-[var(--color-text-primary)]">
                     <span className="text-[16px] text-[var(--color-text-secondary)]">
-                        {t.dashboard.welcome}،
+                        {t.dashboard.welcome},
                     </span>
                     <span className="text-[16px] font-semibold text-white">
                         {username}

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
 
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
 
         const { id } = await params
@@ -54,12 +54,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!subscription) {
-            return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Subscription not found', 404, 'NOT_FOUND')
         }
 
         // 3. Check ownership
         if (subscription.customerId !== customer.id) {
-            return errorResponse('غير مصرح بالوصول لهذا الاشتراك', 403, 'FORBIDDEN')
+            return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
 
         // 4. Sync status from operation if needed
@@ -148,12 +148,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
             case 'COMPLETED':
                 response.completedAt = subscription.completedAt?.toISOString()
-                response.resultMessage = operation?.responseMessage || 'تم التجديد بنجاح'
+                response.resultMessage = operation?.responseMessage || 'Renewal completed successfully'
                 break
 
             case 'FAILED':
                 response.failedAt = subscription.failedAt?.toISOString()
-                response.error = subscription.resultMessage || operation?.error || 'فشلت العملية'
+                response.error = subscription.resultMessage || operation?.error || 'Operation failed'
                 break
         }
 

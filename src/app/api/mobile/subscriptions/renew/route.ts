@@ -30,14 +30,14 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!operationId || !selectedPackage) {
             return NextResponse.json(
-                { success: false, error: 'معرف العملية والباقة مطلوبان' },
+                { success: false, error: 'Operation ID and package are required' },
                 { status: 400 }
             )
         }
 
         if (!selectedPackage.price || selectedPackage.price <= 0) {
             return NextResponse.json(
-                { success: false, error: 'سعر الباقة غير صالح' },
+                { success: false, error: 'Invalid package price' },
                 { status: 400 }
             )
         }
@@ -49,21 +49,21 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!operation) {
             return NextResponse.json(
-                { success: false, error: 'العملية غير موجودة' },
+                { success: false, error: 'Operation not found' },
                 { status: 404 }
             )
         }
 
         if (operation.customerId !== customer.customerId) {
             return NextResponse.json(
-                { success: false, error: 'غير مصرح' },
+                { success: false, error: 'Unauthorized' },
                 { status: 403 }
             )
         }
 
         if (operation.status !== 'AWAITING_PACKAGE') {
             return NextResponse.json(
-                { success: false, error: 'العملية ليست في حالة انتظار اختيار الباقة' },
+                { success: false, error: 'Operation is not awaiting package selection' },
                 { status: 400 }
             )
         }
@@ -76,7 +76,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!customerData) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
@@ -88,7 +88,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
             return NextResponse.json(
                 {
                     success: false,
-                    error: 'الرصيد غير كافي',
+                    error: 'Insufficient balance',
                     code: 'INSUFFICIENT_BALANCE',
                     required: price,
                     available: totalAvailable
@@ -122,7 +122,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
                     amount: price,
                     balanceBefore,
                     balanceAfter: balanceBefore - walletDeduction,
-                    description: `تجديد اشتراك - ${selectedPackage.packageName}`,
+                    description: `Subscription renewal - ${selectedPackage.packageName}`,
                     referenceType: 'RENEWAL',
                     referenceId: operationId
                 }
@@ -152,7 +152,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         return NextResponse.json({
             success: true,
-            message: 'جاري تجديد الاشتراك',
+            message: 'Renewing subscription',
             operationId,
             deducted: price
         })
@@ -160,7 +160,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
     } catch (error) {
         console.error('Renew subscription error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في تجديد الاشتراك' },
+            { success: false, error: 'Error renewing subscription' },
             { status: 500 }
         )
     }

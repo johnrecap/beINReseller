@@ -27,7 +27,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Validate card number
         if (!cardNumber) {
             return NextResponse.json(
-                { success: false, error: 'رقم الكارت مطلوب' },
+                { success: false, error: 'Card number is required' },
                 { status: 400 }
             )
         }
@@ -36,7 +36,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!isValidCardNumber(cleanedCard)) {
             return NextResponse.json(
-                { success: false, error: 'رقم الكارت غير صالح (10-12 رقم)' },
+                { success: false, error: 'Invalid card number (10-12 digits)' },
                 { status: 400 }
             )
         }
@@ -63,13 +63,13 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         return NextResponse.json({
             success: true,
             operationId: operation.id,
-            message: 'جاري التحقق من الكارت'
+            message: 'Checking card'
         })
 
     } catch (error) {
         console.error('Check card error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في التحقق من الكارت' },
+            { success: false, error: 'Error checking card' },
             { status: 500 }
         )
     }

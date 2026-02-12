@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -36,19 +36,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!subscription) {
-            return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Subscription not found', 404, 'NOT_FOUND')
         }
         
         // 3. Check ownership
         if (subscription.customerId !== customer.id) {
-            return errorResponse('غير مصرح بالوصول لهذا الاشتراك', 403, 'FORBIDDEN')
+            return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
         
         // 4. Check if cancellable
         const cancellableStatuses = ['PENDING', 'AWAITING_PACKAGE', 'AWAITING_PAYMENT']
         if (!cancellableStatuses.includes(subscription.status)) {
             return errorResponse(
-                'لا يمكن إلغاء هذا الاشتراك. الحالة الحالية: ' + subscription.status,
+                'Cannot cancel this subscription. Current status: ' + subscription.status,
                 400,
                 'CANNOT_CANCEL'
             )
@@ -86,8 +86,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             status: 'CANCELLED',
             creditRefunded: creditToRefund,
             message: creditToRefund > 0 
-                ? `تم إلغاء الاشتراك وإرجاع ${creditToRefund} ${subscription.currency} لرصيدك`
-                : 'تم إلغاء الاشتراك',
+                ? `Subscription cancelled and ${creditToRefund} ${subscription.currency} refunded to your balance`
+                : 'Subscription cancelled',
         })
         
     } catch (error) {

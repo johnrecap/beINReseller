@@ -270,7 +270,7 @@ export function InstallmentPaymentFlow() {
                 } else if (data.status === 'COMPLETED') {
                     clearInterval(pollInterval)
                     // Check if no installment found
-                    if (data.message?.includes('لا توجد أقساط')) {
+                    if (data.message?.includes('No installments') || data.message?.includes('لا توجد أقساط')) {
                         setResultMessage(data.message)
                         setStep('no-installment')
                     } else {

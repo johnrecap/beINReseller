@@ -16,7 +16,7 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!currentPassword || !newPassword) {
             return NextResponse.json(
-                { success: false, error: 'كلمة المرور الحالية والجديدة مطلوبان' },
+                { success: false, error: 'Current and new passwords are required' },
                 { status: 400 }
             )
         }
@@ -38,7 +38,7 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!customerData) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
@@ -47,7 +47,7 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
         const isValid = await bcrypt.compare(currentPassword, customerData.passwordHash)
         if (!isValid) {
             return NextResponse.json(
-                { success: false, error: 'كلمة المرور الحالية غير صحيحة' },
+                { success: false, error: 'Current password is incorrect' },
                 { status: 400 }
             )
         }
@@ -56,7 +56,7 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
         const isSame = await bcrypt.compare(newPassword, customerData.passwordHash)
         if (isSame) {
             return NextResponse.json(
-                { success: false, error: 'كلمة المرور الجديدة يجب أن تختلف عن الحالية' },
+                { success: false, error: 'New password must differ from current' },
                 { status: 400 }
             )
         }
@@ -71,13 +71,13 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         return NextResponse.json({
             success: true,
-            message: 'تم تغيير كلمة المرور بنجاح'
+            message: 'Password changed successfully'
         })
 
     } catch (error) {
         console.error('Change password error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في تغيير كلمة المرور' },
+            { success: false, error: 'Error changing password' },
             { status: 500 }
         )
     }

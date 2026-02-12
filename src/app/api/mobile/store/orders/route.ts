@@ -34,14 +34,14 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Validate input
         if (!items || !Array.isArray(items) || items.length === 0) {
             return NextResponse.json(
-                { success: false, error: 'يجب تحديد منتج واحد على الأقل' },
+                { success: false, error: 'At least one product must be selected' },
                 { status: 400 }
             )
         }
 
         if (!shipping || !shipping.name || !shipping.phone || !shipping.city || !shipping.address) {
             return NextResponse.json(
-                { success: false, error: 'معلومات الشحن مطلوبة' },
+                { success: false, error: 'Shipping information is required' },
                 { status: 400 }
             )
         }
@@ -61,7 +61,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (products.length !== productIds.length) {
             return NextResponse.json(
-                { success: false, error: 'بعض المنتجات غير متوفرة' },
+                { success: false, error: 'Some products are unavailable' },
                 { status: 400 }
             )
         }
@@ -79,7 +79,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
                 return NextResponse.json(
                     {
                         success: false,
-                        error: `الكمية المطلوبة من "${product.nameAr}" غير متوفرة`,
+                        error: `Requested quantity for "${product.nameAr}" is unavailable`,
                         code: 'OUT_OF_STOCK',
                         productId: product.id
                     },
@@ -108,7 +108,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!customerData) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
@@ -119,7 +119,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
             return NextResponse.json(
                 {
                     success: false,
-                    error: 'الرصيد غير كافي',
+                    error: 'Insufficient balance',
                     code: 'INSUFFICIENT_BALANCE',
                     required: total,
                     available: totalAvailable
@@ -157,7 +157,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
                     amount: total,
                     balanceBefore,
                     balanceAfter: balanceBefore - walletDeduction,
-                    description: `طلب #${orderNumber}`,
+                    description: `Order #${orderNumber}`,
                     referenceType: 'ORDER'
                 }
             })
@@ -210,7 +210,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
                 where: {
                     customerId: customer.customerId,
                     referenceType: 'ORDER',
-                    description: `طلب #${orderNumber}`
+                    description: `Order #${orderNumber}`
                 },
                 data: { referenceId: newOrder.id }
             })
@@ -220,7 +220,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         return NextResponse.json({
             success: true,
-            message: 'تم إنشاء الطلب بنجاح',
+            message: 'Order created successfully',
             order: {
                 id: order.id,
                 orderNumber: order.orderNumber,
@@ -234,7 +234,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
     } catch (error) {
         console.error('Create order error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في إنشاء الطلب' },
+            { success: false, error: 'Error creating order' },
             { status: 500 }
         )
     }
@@ -295,7 +295,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Get orders error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب الطلبات' },
+            { success: false, error: 'Error fetching orders' },
             { status: 500 }
         )
     }

@@ -22,7 +22,7 @@ export async function POST(
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         // 2. Find subscription
@@ -37,12 +37,12 @@ export async function POST(
         })
         
         if (!subscription) {
-            return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Subscription not found', 404, 'NOT_FOUND')
         }
         
         // 3. Verify ownership
         if (subscription.customerId !== customer.id) {
-            return errorResponse('غير مصرح بالوصول', 403, 'FORBIDDEN')
+            return errorResponse('Unauthorized access', 403, 'FORBIDDEN')
         }
         
         // 4. Update heartbeat on the operation if exists

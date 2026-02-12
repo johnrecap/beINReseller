@@ -49,7 +49,7 @@ export async function handleFailedSubscription(
             data: {
                 status: 'FAILED',
                 failedAt: new Date(),
-                resultMessage: errorMessage || 'فشلت العملية',
+                resultMessage: errorMessage || 'Operation failed',
             }
         }),
         // Add store credit
@@ -87,7 +87,7 @@ export async function syncSubscriptionStatus(operationId: string): Promise<void>
                 data: {
                     status: 'COMPLETED',
                     completedAt: new Date(),
-                    resultMessage: operation.responseMessage || 'تم التجديد بنجاح',
+                    resultMessage: operation.responseMessage || 'Renewal completed successfully',
                 }
             })
             break
@@ -97,7 +97,7 @@ export async function syncSubscriptionStatus(operationId: string): Promise<void>
         case 'EXPIRED':
             await handleFailedSubscription(
                 subscription.id,
-                operation.error || operation.responseMessage || 'فشلت العملية'
+                operation.error || operation.responseMessage || 'Operation failed'
             )
             break
             

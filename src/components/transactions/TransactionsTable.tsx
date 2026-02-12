@@ -280,7 +280,7 @@ export default function TransactionsTable() {
                             <button
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 disabled={page <= 1}
-                                title={t.pagination?.previous || 'السابق'}
+                                title={t.pagination?.previous || 'Previous'}
                                 className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 <ChevronRight className="w-4 h-4" />
@@ -292,7 +292,7 @@ export default function TransactionsTable() {
                             <button
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 disabled={page >= totalPages}
-                                title={t.pagination?.next || 'التالي'}
+                                title={t.pagination?.next || 'Next'}
                                 className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 <ChevronLeft className="w-4 h-4" />

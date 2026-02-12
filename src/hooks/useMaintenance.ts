@@ -27,7 +27,7 @@ export function useMaintenance(): MaintenanceStatus {
 
             const data = await res.json()
             setIsMaintenanceMode(data.maintenance_mode === true || data.maintenance_mode === 'true')
-            setMaintenanceMessage(data.maintenance_message || 'النظام تحت الصيانة يرجى المحاولة لاحقاً')
+            setMaintenanceMessage(data.maintenance_message || 'System is under maintenance, please try again later')
             setIsInstallmentDevMode(data.installment_dev_mode === true || data.installment_dev_mode === 'true')
         } catch (error) {
             console.error('Failed to check maintenance status:', error)

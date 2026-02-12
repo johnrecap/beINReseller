@@ -39,21 +39,21 @@ export async function POST(request: NextRequest) {
 
         if (!email || !name || !password) {
             return NextResponse.json(
-                { success: false, error: 'جميع الحقول مطلوبة' },
+                { success: false, error: 'All fields are required' },
                 { status: 400, headers: corsHeaders }
             )
         }
 
         if (!isValidEmail(email)) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني غير صالح' },
+                { success: false, error: 'Invalid email' },
                 { status: 400, headers: corsHeaders }
             )
         }
 
         if (!isValidName(name)) {
             return NextResponse.json(
-                { success: false, error: 'الاسم يجب أن يكون على الأقل حرفين' },
+                { success: false, error: 'Name must be at least 2 characters' },
                 { status: 400, headers: corsHeaders }
             )
         }
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
         if (existingCustomer) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني مستخدم بالفعل' },
+                { success: false, error: 'Email is already in use' },
                 { status: 409, headers: corsHeaders }
             )
         }
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'تم إنشاء الحساب بنجاح',
+            message: 'Account created successfully',
             customer: {
                 id: customer.id,
                 email: customer.email,
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Register error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في إنشاء الحساب' },
+            { success: false, error: 'Error creating account' },
             { status: 500, headers: corsHeaders }
         )
     }

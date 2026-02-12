@@ -32,14 +32,14 @@ export async function POST(request: NextRequest) {
 
         if (!email || !password) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني وكلمة المرور مطلوبان' },
+                { success: false, error: 'Email and password are required' },
                 { status: 400, headers: corsHeaders }
             )
         }
 
         if (!isValidEmail(email)) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني غير صالح' },
+                { success: false, error: 'Invalid email' },
                 { status: 400, headers: corsHeaders }
             )
         }
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
         if (!customer) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' },
+                { success: false, error: 'Invalid email or password' },
                 { status: 401, headers: corsHeaders }
             )
         }
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         const isValidPass = await bcrypt.compare(password, customer.passwordHash)
         if (!isValidPass) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' },
+                { success: false, error: 'Invalid email or password' },
                 { status: 401, headers: corsHeaders }
             )
         }
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         // Check if verified
         if (!customer.isVerified) {
             return NextResponse.json(
-                { success: false, error: 'يرجى تفعيل حسابك أولاً', code: 'NOT_VERIFIED' },
+                { success: false, error: 'Please verify your account first', code: 'NOT_VERIFIED' },
                 { status: 403, headers: corsHeaders }
             )
         }
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         // Check if active
         if (!customer.isActive) {
             return NextResponse.json(
-                { success: false, error: 'الحساب معطل', code: 'ACCOUNT_DISABLED' },
+                { success: false, error: 'Account disabled', code: 'ACCOUNT_DISABLED' },
                 { status: 403, headers: corsHeaders }
             )
         }
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'تم تسجيل الدخول بنجاح',
+            message: 'Login successful',
             customer: {
                 id: updatedCustomer.id,
                 email: updatedCustomer.email,
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Login error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في تسجيل الدخول' },
+            { success: false, error: 'Login error' },
             { status: 500, headers: corsHeaders }
         )
     }

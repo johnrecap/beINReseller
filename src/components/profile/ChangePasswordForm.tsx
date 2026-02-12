@@ -21,7 +21,7 @@ export default function ChangePasswordForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (newPassword !== confirmPassword) {
-            setError(t.profile.passwordMismatch || 'كلمة المرور غير متطابقة')
+            setError(t.profile.passwordMismatch || 'Passwords do not match')
             return
         }
 
@@ -131,7 +131,7 @@ export default function ChangePasswordForm() {
                         </button>
                     </div>
                     {newPassword !== confirmPassword && confirmPassword && (
-                        <p className="text-xs text-[#ED1C24] mt-1">{t.profile.passwordMismatch || 'كلمة المرور غير متطابقة'}</p>
+                        <p className="text-xs text-[#ED1C24] mt-1">{t.profile.passwordMismatch || 'Passwords do not match'}</p>
                     )}
                 </div>
 

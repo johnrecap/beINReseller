@@ -41,7 +41,7 @@ export async function GET() {
     } catch (error) {
         console.error('Get categories error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب الفئات' },
+            { success: false, error: 'Error fetching categories' },
             { status: 500 }
         )
     }

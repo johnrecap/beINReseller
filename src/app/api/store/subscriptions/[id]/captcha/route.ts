@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -44,23 +44,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!subscription) {
-            return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Subscription not found', 404, 'NOT_FOUND')
         }
         
         // 3. Check ownership
         if (subscription.customerId !== customer.id) {
-            return errorResponse('غير مصرح بالوصول لهذا الاشتراك', 403, 'FORBIDDEN')
+            return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
         
         // 4. Check status
         if (subscription.status !== 'AWAITING_CAPTCHA' && subscription.operation?.status !== 'AWAITING_CAPTCHA') {
-            return errorResponse('الاشتراك لا يتطلب رمز تحقق حالياً', 400, 'CAPTCHA_NOT_REQUIRED')
+            return errorResponse('Subscription does not require captcha currently', 400, 'CAPTCHA_NOT_REQUIRED')
         }
         
         // 5. Get captcha from operation
         const operation = subscription.operation
         if (!operation?.captchaImage) {
-            return errorResponse('صورة رمز التحقق غير متوفرة', 404, 'NO_CAPTCHA')
+            return errorResponse('Captcha image not available', 404, 'NO_CAPTCHA')
         }
         
         // 6. Calculate expiry time
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  * POST - Submits the captcha solution
  */
 const submitCaptchaSchema = z.object({
-    solution: z.string().min(1, 'رمز التحقق مطلوب'),
+    solution: z.string().min(1, 'Captcha solution is required'),
 })
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -119,17 +119,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!subscription) {
-            return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Subscription not found', 404, 'NOT_FOUND')
         }
         
         // 4. Check ownership
         if (subscription.customerId !== customer.id) {
-            return errorResponse('غير مصرح بالوصول لهذا الاشتراك', 403, 'FORBIDDEN')
+            return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
         
         // 5. Check status
         if (subscription.operation?.status !== 'AWAITING_CAPTCHA') {
-            return errorResponse('الاشتراك لا يتطلب رمز تحقق حالياً', 400, 'CAPTCHA_NOT_REQUIRED')
+            return errorResponse('Subscription does not require captcha currently', 400, 'CAPTCHA_NOT_REQUIRED')
         }
         
         // 6. Update operation with captcha solution
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         return successResponse({
             subscriptionId: subscription.id,
             status: 'COMPLETING',
-            message: 'تم إرسال رمز التحقق. جاري إتمام العملية...',
+            message: 'Captcha submitted. Processing operation...',
         })
         
     } catch (error) {

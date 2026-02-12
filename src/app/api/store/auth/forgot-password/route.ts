@@ -13,7 +13,7 @@ import { generateResetToken, getResetTokenExpiry } from '@/lib/store-auth'
 
 // Validation schema
 const forgotPasswordSchema = z.object({
-    email: z.string().email('البريد الإلكتروني غير صالح'),
+    email: z.string().email('Invalid email address'),
 })
 
 export async function POST(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         })
         
         // Always return success to prevent email enumeration
-        const successMessage = 'إذا كان البريد الإلكتروني مسجلاً، ستصلك رسالة لإعادة تعيين كلمة المرور'
+        const successMessage = 'If the email is registered, you will receive a password reset message'
         
         if (!customer) {
             return successResponse(null, successMessage)

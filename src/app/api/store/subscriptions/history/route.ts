@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
         const customer = getStoreCustomerFromRequest(request)
 
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
 
         // 2. Parse query params

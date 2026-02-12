@@ -23,14 +23,14 @@ export async function POST(request: NextRequest) {
 
         if (!email || !otp || !newPassword) {
             return NextResponse.json(
-                { success: false, error: 'جميع الحقول مطلوبة' },
+                { success: false, error: 'All fields are required' },
                 { status: 400 }
             )
         }
 
         if (!isValidEmail(email)) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني غير صالح' },
+                { success: false, error: 'Invalid email' },
                 { status: 400 }
             )
         }
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
         if (!customer) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         // Check reset token
         if (!customer.resetToken || customer.resetToken !== otp) {
             return NextResponse.json(
-                { success: false, error: 'رمز إعادة التعيين غير صحيح' },
+                { success: false, error: 'Invalid reset code' },
                 { status: 400 }
             )
         }
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         // Check OTP expiry
         if (isOTPExpired(customer.resetExpires)) {
             return NextResponse.json(
-                { success: false, error: 'رمز إعادة التعيين منتهي الصلاحية' },
+                { success: false, error: 'Reset code expired' },
                 { status: 400 }
             )
         }
@@ -85,13 +85,13 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'تم تغيير كلمة المرور بنجاح'
+            message: 'Password changed successfully'
         })
 
     } catch (error) {
         console.error('Reset password error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في تغيير كلمة المرور' },
+            { success: false, error: 'Error changing password' },
             { status: 500 }
         )
     }

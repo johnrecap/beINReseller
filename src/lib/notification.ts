@@ -51,16 +51,16 @@ export async function notifyOperationCompleted(
     if (success) {
         await createNotification({
             userId,
-            title: 'تمت العملية بنجاح',
-            message: `تم تنفيذ عملية ${getOperationTypeLabel(operationType)} للكارت ${maskedCard}`,
+            title: 'Operation completed successfully',
+            message: `Operation ${getOperationTypeLabel(operationType)} completed for card ${maskedCard}`,
             type: 'success',
             link: '/dashboard/history',
         })
     } else {
         await createNotification({
             userId,
-            title: 'فشلت العملية',
-            message: `فشل تنفيذ عملية ${getOperationTypeLabel(operationType)} للكارت ${maskedCard}. تم استرداد المبلغ.`,
+            title: 'Operation failed',
+            message: `Operation ${getOperationTypeLabel(operationType)} failed for card ${maskedCard}. Amount has been refunded.`,
             type: 'error',
             link: '/dashboard/history',
         })
@@ -77,8 +77,8 @@ export async function notifyBalanceAdded(
 ) {
     await createNotification({
         userId,
-        title: 'تم إضافة رصيد',
-        message: `تم إضافة ${amount.toFixed(2)} ر.س لحسابك. رصيدك الحالي: ${newBalance.toFixed(2)} ر.س`,
+        title: 'Balance added',
+        message: `${amount.toFixed(2)} added to your account. Current balance: ${newBalance.toFixed(2)}`,
         type: 'success',
         link: '/dashboard/transactions',
     })
@@ -94,8 +94,8 @@ export async function notifyLowBalance(
 ) {
     await createNotification({
         userId,
-        title: 'تنبيه: رصيد منخفض',
-        message: `رصيدك الحالي (${currentBalance.toFixed(2)} ر.س) أقل من الحد المنبه (${threshold.toFixed(2)} ر.س). قم بشحن رصيدك.`,
+        title: 'Alert: Low balance',
+        message: `Your current balance (${currentBalance.toFixed(2)}) is below the alert threshold (${threshold.toFixed(2)}). Please top up.`,
         type: 'warning',
         link: '/dashboard',
     })
@@ -132,9 +132,9 @@ export async function markAllAsRead(userId: string) {
 
 function getOperationTypeLabel(type: string): string {
     const labels: Record<string, string> = {
-        RENEW: 'تجديد',
-        CHECK_BALANCE: 'استعلام رصيد',
-        SIGNAL_REFRESH: 'تحديث إشارة',
+        RENEW: 'Renewal',
+        CHECK_BALANCE: 'Balance Inquiry',
+        SIGNAL_REFRESH: 'Signal Refresh',
     }
     return labels[type] || type
 }

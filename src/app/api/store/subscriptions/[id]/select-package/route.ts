@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -75,28 +75,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!subscription) {
-            return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Subscription not found', 404, 'NOT_FOUND')
         }
         
         // 4. Check ownership
         if (subscription.customerId !== customer.id) {
-            return errorResponse('غير مصرح بالوصول لهذا الاشتراك', 403, 'FORBIDDEN')
+            return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
         
         // 5. Check status
         if (subscription.status !== 'AWAITING_PACKAGE') {
-            return errorResponse('الاشتراك ليس في مرحلة اختيار الباقة', 400, 'INVALID_STATUS')
+            return errorResponse('Subscription is not in package selection stage', 400, 'INVALID_STATUS')
         }
         
         // 6. Validate package selection
         const packages = subscription.operation?.availablePackages as AvailablePackage[] | null
         if (!packages || !Array.isArray(packages)) {
-            return errorResponse('لا توجد باقات متاحة', 400, 'NO_PACKAGES')
+            return errorResponse('No packages available', 400, 'NO_PACKAGES')
         }
         
         const selectedPackage = packages.find(p => p.index === packageIndex)
         if (!selectedPackage) {
-            return errorResponse('الباقة المختارة غير موجودة', 400, 'PACKAGE_NOT_FOUND')
+            return errorResponse('Selected package not found', 400, 'PACKAGE_NOT_FOUND')
         }
         
         // 7. Calculate prices
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // 9. Get Stripe configuration
         const stripeSecretKey = await getStripeSecretKey()
         if (!stripeSecretKey && amountToPay > 0) {
-            return errorResponse('نظام الدفع غير مفعل حالياً', 500, 'STRIPE_NOT_CONFIGURED')
+            return errorResponse('Payment system is not currently active', 500, 'STRIPE_NOT_CONFIGURED')
         }
         
         const country = (subscription.customer?.country as 'SA' | 'EG') || 'SA'
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 price: customerPrice,
                 creditUsed,
                 amountToPay: 0,
-                message: 'تم استخدام رصيدك لتغطية كامل المبلغ. جاري إتمام العملية...',
+                message: 'Your balance was used to cover the full amount. Processing operation...',
             })
         }
         
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             amountToPay,
             currency: currencyConfig.code,
             clientSecret,
-            message: 'يرجى إتمام الدفع لإكمال العملية',
+            message: 'Please complete payment to finish the operation',
         })
         
     } catch (error) {

@@ -125,7 +125,7 @@ export const ACTION_LABELS: Record<string, { ar: string; en: string }> = {
     OPERATION_START: { ar: 'بدء عملية', en: 'Operation Started' },
     OPERATION_COMPLETE: { ar: 'اكتمال عملية', en: 'Operation Completed' },
     OPERATION_FAIL: { ar: 'فشل عملية', en: 'Operation Failed' },
-    OPERATION_CANCEL: { ar: 'إلغاء عملية', en: 'Operation Cancelled' },
+    OPERATION_CANCEL: { ar: 'Cancel عملية', en: 'Operation Cancelled' },
     
     // Balance
     BALANCE_ADD: { ar: 'إضافة رصيد', en: 'Balance Added' },
@@ -187,7 +187,7 @@ export function formatDaysSinceActivity(days: number | null, locale: 'ar' | 'en'
         return locale === 'ar' ? 'أمس' : 'Yesterday'
     }
     if (locale === 'ar') {
-        return `منذ ${days} يوم`
+        return `${days} days ago`
     }
     return `${days} days ago`
 }

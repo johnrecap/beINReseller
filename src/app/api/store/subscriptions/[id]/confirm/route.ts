@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -42,23 +42,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!subscription) {
-            return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Subscription not found', 404, 'NOT_FOUND')
         }
         
         // 3. Check ownership
         if (subscription.customerId !== customer.id) {
-            return errorResponse('غير مصرح بالوصول لهذا الاشتراك', 403, 'FORBIDDEN')
+            return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
         
         // 4. Check status
         if (subscription.operation?.status !== 'AWAITING_FINAL_CONFIRM') {
-            return errorResponse('الاشتراك لا يتطلب تأكيد نهائي حالياً', 400, 'CONFIRM_NOT_REQUIRED')
+            return errorResponse('Subscription does not require final confirmation', 400, 'CONFIRM_NOT_REQUIRED')
         }
         
         // 5. Check if expired
         const operation = subscription.operation
         if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-            return errorResponse('انتهت مهلة التأكيد - يرجى بدء عملية جديدة', 400, 'CONFIRM_EXPIRED')
+            return errorResponse('Confirmation expired - please start a new operation', 400, 'CONFIRM_EXPIRED')
         }
         
         // 6. Add CONFIRM_PURCHASE job to queue
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         return successResponse({
             subscriptionId: subscription.id,
             status: 'COMPLETING',
-            message: 'جاري تأكيد الدفع النهائي...',
+            message: 'Confirming final payment...',
         })
         
     } catch (error) {

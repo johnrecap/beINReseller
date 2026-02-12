@@ -60,11 +60,11 @@ export async function GET(request: NextRequest) {
 
 function getDurationLabel(months: number, lang: string): string {
     if (lang === 'ar') {
-        if (months === 1) return 'شهر واحد'
-        if (months === 3) return '3 أشهر'
-        if (months === 6) return '6 أشهر'
-        if (months === 12) return 'سنة كاملة'
-        return `${months} شهر`
+        if (months === 1) return '1 Month'
+        if (months === 3) return '3 Months'
+        if (months === 6) return '6 Months'
+        if (months === 12) return '1 Year'
+        return `${months} Months`
     }
     
     if (months === 1) return '1 Month'

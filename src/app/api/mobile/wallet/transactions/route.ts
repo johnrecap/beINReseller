@@ -74,7 +74,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Get transactions error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب سجل العمليات' },
+            { success: false, error: 'Error fetching operation history' },
             { status: 500 }
         )
     }

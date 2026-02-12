@@ -20,7 +20,7 @@ interface RouteParams {
 
 // Validation schema
 const confirmPaymentSchema = z.object({
-    paymentIntentId: z.string().min(1, 'معرف الدفع مطلوب'),
+    paymentIntentId: z.string().min(1, 'Payment intent ID is required'),
 })
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const customer = getStoreCustomerFromRequest(request)
         
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
         
         const { id } = await params
@@ -59,23 +59,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
         
         if (!subscription) {
-            return errorResponse('الاشتراك غير موجود', 404, 'NOT_FOUND')
+            return errorResponse('Subscription not found', 404, 'NOT_FOUND')
         }
         
         // 4. Check ownership
         if (subscription.customerId !== customer.id) {
-            return errorResponse('غير مصرح بالوصول لهذا الاشتراك', 403, 'FORBIDDEN')
+            return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
         
         // 5. Check status
         if (subscription.status !== 'AWAITING_PAYMENT') {
-            return errorResponse('الاشتراك ليس في انتظار الدفع', 400, 'INVALID_STATUS')
+            return errorResponse('Subscription is not awaiting payment', 400, 'INVALID_STATUS')
         }
         
         // 6. Verify payment with Stripe
         const stripeSecretKey = await getStripeSecretKey()
         if (!stripeSecretKey) {
-            return errorResponse('نظام الدفع غير مفعل', 500, 'STRIPE_NOT_CONFIGURED')
+            return errorResponse('Payment system not configured', 500, 'STRIPE_NOT_CONFIGURED')
         }
         
         const stripe = new Stripe(stripeSecretKey)
@@ -84,18 +84,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         try {
             paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
         } catch {
-            return errorResponse('معرف الدفع غير صحيح', 400, 'INVALID_PAYMENT_INTENT')
+            return errorResponse('Invalid payment intent ID', 400, 'INVALID_PAYMENT_INTENT')
         }
         
         // 7. Verify payment belongs to this subscription
         if (paymentIntent.metadata.subscriptionId !== subscription.id) {
-            return errorResponse('الدفع لا يخص هذا الاشتراك', 400, 'PAYMENT_MISMATCH')
+            return errorResponse('Payment does not match this subscription', 400, 'PAYMENT_MISMATCH')
         }
         
         // 8. Check payment status
         if (paymentIntent.status !== 'succeeded') {
             return errorResponse(
-                `حالة الدفع: ${paymentIntent.status}. يرجى إعادة المحاولة.`,
+                `Payment status: ${paymentIntent.status}. Please try again.`,
                 400,
                 'PAYMENT_NOT_SUCCEEDED'
             )
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         return successResponse({
             subscriptionId: subscription.id,
             status: 'PAID',
-            message: 'تم تأكيد الدفع بنجاح. جاري إتمام العملية...',
+            message: 'Payment confirmed successfully. Processing operation...',
         })
         
     } catch (error) {

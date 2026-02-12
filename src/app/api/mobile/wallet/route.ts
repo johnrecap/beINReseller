@@ -23,7 +23,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!customerData) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
@@ -44,7 +44,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Get wallet error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب الرصيد' },
+            { success: false, error: 'Error fetching balance' },
             { status: 500 }
         )
     }

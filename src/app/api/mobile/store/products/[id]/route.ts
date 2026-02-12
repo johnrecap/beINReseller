@@ -17,7 +17,7 @@ export const GET = withOptionalCustomerAuth(async (request: NextRequest, custome
 
         if (!productId) {
             return NextResponse.json(
-                { success: false, error: 'معرف المنتج مطلوب' },
+                { success: false, error: 'Product ID is required' },
                 { status: 400 }
             )
         }
@@ -55,7 +55,7 @@ export const GET = withOptionalCustomerAuth(async (request: NextRequest, custome
 
         if (!product || !product.isActive) {
             return NextResponse.json(
-                { success: false, error: 'المنتج غير موجود' },
+                { success: false, error: 'Product not found' },
                 { status: 404 }
             )
         }
@@ -83,7 +83,7 @@ export const GET = withOptionalCustomerAuth(async (request: NextRequest, custome
     } catch (error) {
         console.error('Get product error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب المنتج' },
+            { success: false, error: 'Error fetching product' },
             { status: 500 }
         )
     }

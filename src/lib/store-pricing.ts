@@ -76,7 +76,7 @@ export const CURRENCY_CONFIG = {
     SA: {
         code: 'SAR',
         stripeCode: 'sar',
-        symbol: 'ر.س',
+        symbol: 'SAR',
         name: 'Saudi Riyal',
         // Stripe uses smallest unit - SAR uses halalas (1 SAR = 100 halalas)
         multiplier: 100,
@@ -84,7 +84,7 @@ export const CURRENCY_CONFIG = {
     EG: {
         code: 'EGP',
         stripeCode: 'egp',
-        symbol: 'ج.م',
+        symbol: 'EGP',
         name: 'Egyptian Pound',
         // Stripe uses smallest unit - EGP uses piasters (1 EGP = 100 piasters)
         multiplier: 100,

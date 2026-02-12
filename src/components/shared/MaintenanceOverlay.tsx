@@ -14,7 +14,7 @@ interface MaintenanceOverlayProps {
 export default function MaintenanceOverlay({ message }: MaintenanceOverlayProps) {
     const { t } = useTranslation()
 
-    const defaultMessage = (t.maintenance as { message?: string })?.message || 'النظام تحت الصيانة يرجى المحاولة لاحقاً'
+    const defaultMessage = (t.maintenance as { message?: string })?.message || 'System is under maintenance, please try again later'
 
     return (
         <div
@@ -29,7 +29,7 @@ export default function MaintenanceOverlay({ message }: MaintenanceOverlayProps)
                         <AlertTriangle className="w-8 h-8 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold text-white">
-                        {(t.maintenance as { title?: string })?.title || 'النظام تحت الصيانة'}
+                        {(t.maintenance as { title?: string })?.title || 'System is under maintenance'}
                     </h2>
                 </div>
 

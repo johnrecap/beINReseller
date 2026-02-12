@@ -58,7 +58,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Get addresses error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب العناوين' },
+            { success: false, error: 'Error fetching addresses' },
             { status: 500 }
         )
     }
@@ -74,7 +74,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Validate required fields
         if (!body.name || !body.phone || !body.city || !body.street) {
             return NextResponse.json(
-                { success: false, error: 'الاسم، رقم الهاتف، المدينة، والشارع مطلوبة' },
+                { success: false, error: 'Name, phone, city, and street are required' },
                 { status: 400 }
             )
         }
@@ -112,14 +112,14 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         return NextResponse.json({
             success: true,
-            message: 'تم إضافة العنوان',
+            message: 'Address added',
             address
         })
 
     } catch (error) {
         console.error('Add address error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في إضافة العنوان' },
+            { success: false, error: 'Error adding address' },
             { status: 500 }
         )
     }

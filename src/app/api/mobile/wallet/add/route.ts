@@ -40,7 +40,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Validate amount
         if (!amount || typeof amount !== 'number' || amount <= 0) {
             return NextResponse.json(
-                { success: false, error: 'المبلغ غير صالح' },
+                { success: false, error: 'Invalid amount' },
                 { status: 400 }
             )
         }
@@ -56,14 +56,14 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (amount < minTopup) {
             return NextResponse.json(
-                { success: false, error: `الحد الأدنى للشحن ${minTopup}` },
+                { success: false, error: `Minimum top-up amount is ${minTopup}` },
                 { status: 400 }
             )
         }
 
         if (amount > maxTopup) {
             return NextResponse.json(
-                { success: false, error: `الحد الأقصى للشحن ${maxTopup}` },
+                { success: false, error: `Maximum top-up amount is ${maxTopup}` },
                 { status: 400 }
             )
         }
@@ -82,7 +82,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!customerData) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
@@ -90,7 +90,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Check max balance
         if (customerData.walletBalance + amount > maxBalance) {
             return NextResponse.json(
-                { success: false, error: `الحد الأقصى للرصيد ${maxBalance}` },
+                { success: false, error: `Maximum balance is ${maxBalance}` },
                 { status: 400 }
             )
         }
@@ -144,7 +144,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
     } catch (error) {
         console.error('Wallet add error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في إنشاء عملية الدفع' },
+            { success: false, error: 'Error creating payment operation' },
             { status: 500 }
         )
     }

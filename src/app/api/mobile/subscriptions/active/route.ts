@@ -45,7 +45,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Error fetching active operations:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ أثناء جلب العمليات' },
+            { success: false, error: 'Error fetching operations' },
             { status: 500 }
         )
     }

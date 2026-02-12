@@ -58,7 +58,7 @@ export async function refundUser(
                     type: 'REFUND',
                     amount,
                     balanceAfter: user.balance,
-                    notes: `استرداد: ${reason}`
+                    notes: `Refund: ${reason}`
                 }
             })
 
@@ -66,8 +66,8 @@ export async function refundUser(
             await tx.notification.create({
                 data: {
                     userId,
-                    title: 'استرداد مبلغ',
-                    message: `تم استرداد مبلغ ${amount} ر.س. السبب: ${reason}`,
+                    title: 'Amount refunded',
+                    message: `Amount ${amount} refunded. Reason: ${reason}`,
                     type: 'info',
                     link: '/dashboard/transactions'
                 }
@@ -129,7 +129,7 @@ export async function refundCustomer(
                     amount,
                     balanceBefore: customer.walletBalance - amount,
                     balanceAfter: customer.walletBalance,
-                    description: `استرداد: ${reason}`,
+                    description: `Refund: ${reason}`,
                     referenceType: 'REFUND',
                     referenceId: operationId,
                 }

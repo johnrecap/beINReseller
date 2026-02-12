@@ -24,24 +24,24 @@ interface Banner {
 }
 
 const animationTypes = [
-    { value: 'gradient', label: 'تدرج لوني', labelEn: 'Gradient' },
-    { value: 'typing', label: 'كتابة آلية', labelEn: 'Typing' },
-    { value: 'glow', label: 'توهج', labelEn: 'Glow' },
-    { value: 'slide', label: 'انزلاق', labelEn: 'Slide' },
-    { value: 'marquee', label: 'متحرك', labelEn: 'Marquee' },
-    { value: 'none', label: 'بدون حركة', labelEn: 'None' }
+    { value: 'gradient', label: 'Gradient', labelEn: 'Gradient' },
+    { value: 'typing', label: 'Typing', labelEn: 'Typing' },
+    { value: 'glow', label: 'Glow', labelEn: 'Glow' },
+    { value: 'slide', label: 'Slide', labelEn: 'Slide' },
+    { value: 'marquee', label: 'Marquee', labelEn: 'Marquee' },
+    { value: 'none', label: 'None', labelEn: 'None' }
 ]
 
 const textSizes = [
-    { value: 'small', label: 'صغير', labelEn: 'Small' },
-    { value: 'medium', label: 'متوسط', labelEn: 'Medium' },
-    { value: 'large', label: 'كبير', labelEn: 'Large' }
+    { value: 'small', label: 'Small', labelEn: 'Small' },
+    { value: 'medium', label: 'Medium', labelEn: 'Medium' },
+    { value: 'large', label: 'Large', labelEn: 'Large' }
 ]
 
 const positions = [
-    { value: 'top', label: 'أعلى', labelEn: 'Top' },
-    { value: 'bottom', label: 'أسفل', labelEn: 'Bottom' },
-    { value: 'floating', label: 'عائم', labelEn: 'Floating' }
+    { value: 'top', label: 'Top', labelEn: 'Top' },
+    { value: 'bottom', label: 'Bottom', labelEn: 'Bottom' },
+    { value: 'floating', label: 'Floating', labelEn: 'Floating' }
 ]
 
 const presetGradients = [
@@ -85,7 +85,7 @@ export default function AnnouncementSettings() {
             }
         } catch (error) {
             console.error('Failed to fetch banners:', error)
-            toast.error('فشل في تحميل الإعلانات')
+            toast.error('Failed to load announcements')
         } finally {
             setLoading(false)
         }
@@ -123,7 +123,7 @@ export default function AnnouncementSettings() {
     // Save banner
     const handleSave = async () => {
         if (!message.trim()) {
-            toast.error('الرجاء إدخال نص الإعلان')
+            toast.error('Please enter announcement text')
             return
         }
 
@@ -141,10 +141,10 @@ export default function AnnouncementSettings() {
                 endDate: endDate || null
             }
 
-            const url = editingId 
+            const url = editingId
                 ? `/api/admin/announcement/${editingId}`
                 : '/api/admin/announcement'
-            
+
             const res = await fetch(url, {
                 method: editingId ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -154,16 +154,16 @@ export default function AnnouncementSettings() {
             const data = await res.json()
 
             if (data.success) {
-                toast.success(editingId ? 'تم تحديث الإعلان' : 'تم إنشاء الإعلان')
+                toast.success(editingId ? 'Announcement updated' : 'Announcement created')
                 fetchBanners()
                 setShowForm(false)
                 resetForm()
             } else {
-                toast.error(data.error || 'فشل في حفظ الإعلان')
+                toast.error(data.error || 'Failed to save announcement')
             }
         } catch (error) {
             console.error('Failed to save banner:', error)
-            toast.error('فشل في حفظ الإعلان')
+            toast.error('Failed to save announcement')
         } finally {
             setSaving(false)
         }
@@ -177,18 +177,18 @@ export default function AnnouncementSettings() {
             })
             const data = await res.json()
             if (data.success) {
-                toast.success('تم تحديث حالة الإعلان')
+                toast.success('Announcement status updated')
                 fetchBanners()
             }
         } catch (error) {
             console.error('Failed to toggle banner:', error)
-            toast.error('فشل في تحديث الحالة')
+            toast.error('Failed to update status')
         }
     }
 
     // Delete banner
     const handleDelete = async (id: string) => {
-        if (!confirm('هل أنت متأكد من حذف هذا الإعلان؟')) return
+        if (!confirm('Are you sure you want to delete this announcement?')) return
 
         try {
             const res = await fetch(`/api/admin/announcement/${id}`, {
@@ -196,12 +196,12 @@ export default function AnnouncementSettings() {
             })
             const data = await res.json()
             if (data.success) {
-                toast.success('تم حذف الإعلان')
+                toast.success('Announcement deleted')
                 fetchBanners()
             }
         } catch (error) {
             console.error('Failed to delete banner:', error)
-            toast.error('فشل في حذف الإعلان')
+            toast.error('Failed to delete announcement')
         }
     }
 
@@ -225,7 +225,7 @@ export default function AnnouncementSettings() {
                     className="gap-2"
                 >
                     <Plus className="w-4 h-4" />
-                    إعلان جديد
+                    New Announcement
                 </Button>
             </div>
 
@@ -234,30 +234,30 @@ export default function AnnouncementSettings() {
                 <Card className="border-primary/20">
                     <CardHeader>
                         <CardTitle className="text-lg">
-                            {editingId ? 'تعديل الإعلان' : 'إنشاء إعلان جديد'}
+                            {editingId ? 'Edit Announcement' : 'Create New Announcement'}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         {/* Message */}
                         <div>
-                            <label className="block text-sm font-medium mb-2">نص الإعلان</label>
+                            <label className="block text-sm font-medium mb-2">Announcement Text</label>
                             <textarea
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                                 className="w-full p-3 bg-secondary border border-border rounded-lg resize-none"
                                 rows={3}
                                 maxLength={500}
-                                placeholder="اكتب نص الإعلان هنا..."
+                                placeholder="Enter announcement text here..."
                                 dir="auto"
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                                {message.length}/500 حرف
+                                {message.length}/500 chars
                             </p>
                         </div>
 
                         {/* Animation Type */}
                         <div>
-                            <label className="block text-sm font-medium mb-2">نوع الحركة</label>
+                            <label className="block text-sm font-medium mb-2">Animation Type</label>
                             <div className="grid grid-cols-3 gap-2">
                                 {animationTypes.map((type) => (
                                     <button
@@ -278,7 +278,7 @@ export default function AnnouncementSettings() {
 
                         {/* Preset Gradients */}
                         <div>
-                            <label className="block text-sm font-medium mb-2">ألوان التدرج</label>
+                            <label className="block text-sm font-medium mb-2">Gradient Colors</label>
                             <div className="flex gap-2 flex-wrap">
                                 {presetGradients.map((preset) => (
                                     <button
@@ -304,7 +304,7 @@ export default function AnnouncementSettings() {
 
                         {/* Text Size */}
                         <div>
-                            <label className="block text-sm font-medium mb-2">حجم النص</label>
+                            <label className="block text-sm font-medium mb-2">Text Size</label>
                             <div className="flex gap-2">
                                 {textSizes.map((size) => (
                                     <button
@@ -325,7 +325,7 @@ export default function AnnouncementSettings() {
 
                         {/* Position */}
                         <div>
-                            <label className="block text-sm font-medium mb-2">الموضع</label>
+                            <label className="block text-sm font-medium mb-2">Position</label>
                             <div className="flex gap-2">
                                 {positions.map((pos) => (
                                     <button
@@ -351,21 +351,21 @@ export default function AnnouncementSettings() {
                                     checked={isActive}
                                     onCheckedChange={setIsActive}
                                 />
-                                <label className="text-sm">نشط</label>
+                                <label className="text-sm">Active</label>
                             </div>
                             <div className="flex items-center gap-3">
                                 <Switch
                                     checked={isDismissable}
                                     onCheckedChange={setIsDismissable}
                                 />
-                                <label className="text-sm">قابل للإغلاق</label>
+                                <label className="text-sm">Dismissible</label>
                             </div>
                         </div>
 
                         {/* Dates */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">تاريخ البدء (اختياري)</label>
+                                <label className="block text-sm font-medium mb-2">Start Date (optional)</label>
                                 <input
                                     type="date"
                                     value={startDate}
@@ -374,7 +374,7 @@ export default function AnnouncementSettings() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">تاريخ الانتهاء (اختياري)</label>
+                                <label className="block text-sm font-medium mb-2">End Date (optional)</label>
                                 <input
                                     type="date"
                                     value={endDate}
@@ -388,7 +388,7 @@ export default function AnnouncementSettings() {
                         <div>
                             <label className="block text-sm font-medium mb-2 flex items-center gap-2">
                                 <Eye className="w-4 h-4" />
-                                معاينة
+                                Preview
                             </label>
                             <div className="p-4 bg-black/60 rounded-lg border border-border">
                                 <p
@@ -399,7 +399,7 @@ export default function AnnouncementSettings() {
                                         textSize === 'large' && 'text-lg'
                                     )}
                                     style={{
-                                        background: animationType === 'gradient' 
+                                        background: animationType === 'gradient'
                                             ? `linear-gradient(90deg, ${colors.join(', ')})`
                                             : 'none',
                                         backgroundSize: '300% 100%',
@@ -411,7 +411,7 @@ export default function AnnouncementSettings() {
                                         textShadow: animationType === 'glow' ? `0 0 20px ${colors[0]}` : 'none'
                                     }}
                                 >
-                                    {message || 'نص الإعلان سيظهر هنا...'}
+                                    {message || 'Announcement text will appear here...'}
                                 </p>
                             </div>
                         </div>
@@ -428,7 +428,7 @@ export default function AnnouncementSettings() {
                                 ) : (
                                     <Save className="w-4 h-4" />
                                 )}
-                                حفظ
+                                Save
                             </Button>
                             <Button
                                 variant="outline"
@@ -437,7 +437,7 @@ export default function AnnouncementSettings() {
                                     resetForm()
                                 }}
                             >
-                                إلغاء
+                                Cancel
                             </Button>
                         </div>
                     </CardContent>
@@ -447,12 +447,12 @@ export default function AnnouncementSettings() {
             {/* Banners List */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-lg">الإعلانات الحالية</CardTitle>
+                    <CardTitle className="text-lg">Current Announcements</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {banners.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                            لا توجد إعلانات حالياً
+                            No announcements yet
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -461,8 +461,8 @@ export default function AnnouncementSettings() {
                                     key={banner.id}
                                     className={cn(
                                         "p-4 rounded-lg border transition-all",
-                                        banner.isActive 
-                                            ? "border-green-500/50 bg-green-500/5" 
+                                        banner.isActive
+                                            ? "border-green-500/50 bg-green-500/5"
                                             : "border-border"
                                     )}
                                 >
@@ -483,7 +483,7 @@ export default function AnnouncementSettings() {
                                                 </span>
                                                 {banner.isActive && (
                                                     <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-500">
-                                                        نشط
+                                                        Active
                                                     </span>
                                                 )}
                                             </div>
@@ -493,7 +493,7 @@ export default function AnnouncementSettings() {
                                                 variant="ghost"
                                                 size="sm"
                                                 onClick={() => handleToggle(banner.id)}
-                                                title={banner.isActive ? 'إيقاف' : 'تفعيل'}
+                                                title={banner.isActive ? 'Disable' : 'Enable'}
                                             >
                                                 <Power className={cn(
                                                     "w-4 h-4",
@@ -505,7 +505,7 @@ export default function AnnouncementSettings() {
                                                 size="sm"
                                                 onClick={() => handleEdit(banner)}
                                             >
-                                                تعديل
+                                                Edit
                                             </Button>
                                             <Button
                                                 variant="ghost"

@@ -17,7 +17,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!orderId) {
             return NextResponse.json(
-                { success: false, error: 'معرف الطلب مطلوب' },
+                { success: false, error: 'Order ID is required' },
                 { status: 400 }
             )
         }
@@ -40,7 +40,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!order) {
             return NextResponse.json(
-                { success: false, error: 'الطلب غير موجود' },
+                { success: false, error: 'Order not found' },
                 { status: 404 }
             )
         }
@@ -48,7 +48,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
         // Verify ownership
         if (order.customerId !== customer.customerId) {
             return NextResponse.json(
-                { success: false, error: 'غير مصرح' },
+                { success: false, error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -85,7 +85,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Get order error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب الطلب' },
+            { success: false, error: 'Error fetching order' },
             { status: 500 }
         )
     }

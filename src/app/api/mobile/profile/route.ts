@@ -42,7 +42,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!customerData) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
@@ -61,7 +61,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Get profile error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب الملف الشخصي' },
+            { success: false, error: 'Error fetching profile' },
             { status: 500 }
         )
     }
@@ -81,7 +81,7 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
         if (name !== undefined) {
             if (!isValidName(name)) {
                 return NextResponse.json(
-                    { success: false, error: 'الاسم يجب أن يكون على الأقل حرفين' },
+                    { success: false, error: 'Name must be at least 2 characters' },
                     { status: 400 }
                 )
             }
@@ -99,7 +99,7 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
         if (preferredLang !== undefined) {
             if (!['ar', 'en'].includes(preferredLang)) {
                 return NextResponse.json(
-                    { success: false, error: 'اللغة غير مدعومة' },
+                    { success: false, error: 'Language not supported' },
                     { status: 400 }
                 )
             }
@@ -108,7 +108,7 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (Object.keys(updateData).length === 0) {
             return NextResponse.json(
-                { success: false, error: 'لا توجد بيانات للتحديث' },
+                { success: false, error: 'No data to update' },
                 { status: 400 }
             )
         }
@@ -127,14 +127,14 @@ export const PUT = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         return NextResponse.json({
             success: true,
-            message: 'تم تحديث الملف الشخصي',
+            message: 'Profile updated',
             profile: updatedCustomer
         })
 
     } catch (error) {
         console.error('Update profile error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في تحديث الملف الشخصي' },
+            { success: false, error: 'Error updating profile' },
             { status: 500 }
         )
     }

@@ -17,9 +17,9 @@ import { getMarkupPercentage } from '@/lib/store-pricing'
 // Validation schema
 const startSchema = z.object({
     cardNumber: z.string()
-        .min(10, 'رقم الكارت يجب أن يكون 10 أرقام على الأقل')
-        .max(16, 'رقم الكارت يجب أن يكون 16 رقم كحد أقصى')
-        .regex(/^\d+$/, 'رقم الكارت يجب أن يحتوي على أرقام فقط'),
+        .min(10, 'Card number must be at least 10 digits')
+        .max(16, 'Card number must be at most 16 digits')
+        .regex(/^\d+$/, 'Card number must contain only digits'),
 })
 
 export async function POST(request: NextRequest) {
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         const customer = getStoreCustomerFromRequest(request)
 
         if (!customer) {
-            return errorResponse('غير مصرح', 401, 'UNAUTHORIZED')
+            return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
         }
 
         // 2. Validate input
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
                     where: { id: existingSubscription.id },
                     data: {
                         status: 'CANCELLED',
-                        resultMessage: 'تم الإلغاء تلقائياً بسبب انتهاء المهلة'
+                        resultMessage: 'Automatically cancelled due to timeout'
                     }
                 })
 
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
                         where: { id: existingSubscription.operationId },
                         data: {
                             status: 'CANCELLED',
-                            responseMessage: 'تم الإلغاء تلقائياً بسبب انتهاء المهلة'
+                            responseMessage: 'Automatically cancelled due to timeout'
                         }
                     }).catch(() => { }) // Ignore if operation doesn't exist
                 }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
                 console.log(`[Store] Auto-cancelled expired subscription ${existingSubscription.id}`)
             } else {
                 return errorResponse(
-                    'هناك عملية جارية لهذا الكارت',
+                    'There is an active operation for this card',
                     400,
                     'SUBSCRIPTION_IN_PROGRESS'
                 )
@@ -144,15 +144,15 @@ export async function POST(request: NextRequest) {
             await prisma.$transaction([
                 prisma.operation.update({
                     where: { id: operation.id },
-                    data: { status: 'FAILED', responseMessage: 'فشل في إضافة العملية للطابور' }
+                    data: { status: 'FAILED', responseMessage: 'Failed to add operation to queue' }
                 }),
                 prisma.storeSubscription.update({
                     where: { id: subscription.id },
-                    data: { status: 'FAILED', resultMessage: 'فشل في إضافة العملية للطابور' }
+                    data: { status: 'FAILED', resultMessage: 'Failed to add operation to queue' }
                 })
             ])
 
-            return errorResponse('فشل في بدء العملية، حاول مرة أخرى', 500, 'QUEUE_ERROR')
+            return errorResponse('Failed to start operation, please try again', 500, 'QUEUE_ERROR')
         }
 
         // 9. Return subscription info
@@ -165,8 +165,8 @@ export async function POST(request: NextRequest) {
                 storeCredit: fullCustomer?.storeCredit || 0,
                 createdAt: subscription.createdAt.toISOString(),
             },
-            message: 'جاري جلب الباقات المتاحة...',
-        }, 'تم بدء العملية بنجاح', 201)
+            message: 'Fetching available packages...',
+        }, 'Operation started successfully', 201)
 
     } catch (error) {
         return handleApiError(error)

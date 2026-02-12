@@ -14,9 +14,9 @@ import { generateVerificationToken, getVerifyTokenExpiry, generateStoreToken } f
 
 // Validation schema
 const registerSchema = z.object({
-    email: z.string().email('البريد الإلكتروني غير صالح'),
-    password: z.string().min(8, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'),
-    name: z.string().min(2, 'الاسم يجب أن يكون حرفين على الأقل'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    name: z.string().min(2, 'Name must be at least 2 characters'),
     nameAr: z.string().optional(),
     phone: z.string().optional(),
     country: z.enum(['SA', 'EG']).default('SA'),
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         })
         
         if (existingCustomer) {
-            return errorResponse('البريد الإلكتروني مسجل مسبقاً', 400, 'EMAIL_EXISTS')
+            return errorResponse('Email already registered', 400, 'EMAIL_EXISTS')
         }
         
         // Hash password
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
         return successResponse(
             { token, customer },
             preferredLang === 'ar' 
-                ? 'تم إنشاء الحساب بنجاح'
+                ? 'Account created successfully'
                 : 'Account created successfully',
             201
         )

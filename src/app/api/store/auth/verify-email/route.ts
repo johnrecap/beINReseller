@@ -13,7 +13,7 @@ import { generateStoreToken } from '@/lib/store-auth'
 
 // Validation schema
 const verifySchema = z.object({
-    token: z.string().min(1, 'رمز التحقق مطلوب'),
+    token: z.string().min(1, 'Verification code is required'),
 })
 
 export async function POST(request: NextRequest) {
@@ -37,12 +37,12 @@ export async function POST(request: NextRequest) {
         })
         
         if (!customer) {
-            return errorResponse('رمز التحقق غير صالح أو مستخدم مسبقاً', 400, 'INVALID_TOKEN')
+            return errorResponse('Verification code is invalid or already used', 400, 'INVALID_TOKEN')
         }
         
         // Check if token is expired
         if (customer.verifyExpires && customer.verifyExpires < new Date()) {
-            return errorResponse('انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.', 400, 'TOKEN_EXPIRED')
+            return errorResponse('Verification code expired. Please request a new one.', 400, 'TOKEN_EXPIRED')
         }
         
         // Verify the email
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
                 preferredLang: customer.preferredLang,
             }
         }, customer.preferredLang === 'ar' 
-            ? 'تم تأكيد البريد الإلكتروني بنجاح'
+            ? 'Email verified successfully'
             : 'Email verified successfully')
         
     } catch (error) {
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
         const token = searchParams.get('token')
         
         if (!token) {
-            return errorResponse('رمز التحقق مطلوب', 400, 'TOKEN_REQUIRED')
+            return errorResponse('Verification code is required', 400, 'TOKEN_REQUIRED')
         }
         
         // Find customer with this verification token
@@ -106,12 +106,12 @@ export async function GET(request: NextRequest) {
         })
         
         if (!customer) {
-            return errorResponse('رمز التحقق غير صالح', 400, 'INVALID_TOKEN')
+            return errorResponse('Invalid verification code', 400, 'INVALID_TOKEN')
         }
         
         // Check if token is expired
         if (customer.verifyExpires && customer.verifyExpires < new Date()) {
-            return errorResponse('انتهت صلاحية رمز التحقق', 400, 'TOKEN_EXPIRED')
+            return errorResponse('Verification code expired', 400, 'TOKEN_EXPIRED')
         }
         
         // Verify the email
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
             }
         })
         
-        return successResponse(null, 'تم تأكيد البريد الإلكتروني بنجاح')
+        return successResponse(null, 'Email verified successfully')
         
     } catch (error) {
         return handleApiError(error)

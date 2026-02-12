@@ -13,19 +13,19 @@ export function formatCardNumber(cardNumber: string): string {
 
 export const cardNumberSchema = z
     .string()
-    .min(10, 'رقم الكارت قصير جداً')
-    .max(14, 'رقم الكارت طويل جداً')
-    .refine(validateCardNumber, 'رقم كارت غير صالح')
+    .min(10, 'Card number is too short')
+    .max(14, 'Card number is too long')
+    .refine(validateCardNumber, 'Invalid card number')
 
 export const loginSchema = z.object({
-    username: z.string().min(3, 'اسم المستخدم قصير جداً'),
-    password: z.string().min(6, 'كلمة المرور قصيرة جداً'),
+    username: z.string().min(3, 'Username is too short'),
+    password: z.string().min(6, 'Password is too short'),
 })
 
 export const createUserSchema = z.object({
-    username: z.string().min(3, 'اسم المستخدم قصير جداً'),
-    email: z.string().email('البريد الإلكتروني غير صالح'),
-    password: z.string().min(6, 'كلمة المرور قصيرة جداً'),
+    username: z.string().min(3, 'Username is too short'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(6, 'Password is too short'),
     role: z.enum(['ADMIN', 'MANAGER', 'USER']).default('USER'),
 })
 
@@ -36,35 +36,35 @@ export const operationSchema = z.object({
 })
 
 export const balanceSchema = z.object({
-    amount: z.number().positive('المبلغ يجب أن يكون أكبر من صفر'),
+    amount: z.number().positive('Amount must be greater than zero'),
     notes: z.string().optional(),
 })
 
 export const updateUserSchema = z.object({
-    email: z.string().email('البريد الإلكتروني غير صالح').optional(),
+    email: z.string().email('Invalid email address').optional(),
     isActive: z.boolean().optional(),
 })
 
 export const changePasswordSchema = z.object({
-    currentPassword: z.string().min(6, 'كلمة المرور الحالية قصيرة جداً'),
-    newPassword: z.string().min(6, 'كلمة المرور الجديدة قصيرة جداً'),
-    confirmPassword: z.string().min(6, 'تأكيد كلمة المرور قصير جداً'),
+    currentPassword: z.string().min(6, 'Current password is too short'),
+    newPassword: z.string().min(6, 'New password is too short'),
+    confirmPassword: z.string().min(6, 'Confirm password is too short'),
 }).refine((data) => data.newPassword === data.confirmPassword, {
-    message: 'كلمة المرور غير متطابقة',
+    message: 'Passwords do not match',
     path: ['confirmPassword'],
 })
 
 export const updateSettingsSchema = z.object({
-    key: z.string().min(1, 'المفتاح مطلوب'),
+    key: z.string().min(1, 'Key is required'),
     value: z.string(),
 })
 
 export const beinConfigSchema = z.object({
-    bein_username: z.string().email('البريد الإلكتروني غير صالح').optional(),
+    bein_username: z.string().email('Invalid email address').optional(),
     bein_password: z.string().optional(),
     bein_totp_secret: z.string().optional(),
     captcha_2captcha_key: z.string().optional(),
     captcha_enabled: z.enum(['true', 'false']).optional(),
-    bein_login_url: z.string().url('رابط غير صالح').optional(),
+    bein_login_url: z.string().url('Invalid URL').optional(),
 })
 

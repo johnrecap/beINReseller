@@ -107,11 +107,11 @@ export async function requireRoleAPI(requiredRole: RoleLevel) {
     const session = await auth()
 
     if (!session?.user?.id) {
-        return { error: 'غير مصرح', status: 401 }
+        return { error: 'Unauthorized', status: 401 }
     }
 
     if (!hasRole(session.user.role, requiredRole)) {
-        return { error: 'صلاحيات غير كافية', status: 403 }
+        return { error: 'Insufficient permissions', status: 403 }
     }
 
     return { user: session.user }
@@ -185,11 +185,11 @@ export async function requirePermissionAPI(permission: Permission) {
     const session = await auth()
 
     if (!session?.user?.id) {
-        return { error: 'غير مصرح', status: 401 }
+        return { error: 'Unauthorized', status: 401 }
     }
 
     if (!roleHasPermission(session.user.role, permission)) {
-        return { error: 'صلاحيات غير كافية', status: 403 }
+        return { error: 'Insufficient permissions', status: 403 }
     }
 
     return { user: session.user }
@@ -202,11 +202,11 @@ export async function requireAnyPermissionAPI(permissions: Permission[]) {
     const session = await auth()
 
     if (!session?.user?.id) {
-        return { error: 'غير مصرح', status: 401 }
+        return { error: 'Unauthorized', status: 401 }
     }
 
     if (!roleHasAnyPermission(session.user.role, permissions)) {
-        return { error: 'صلاحيات غير كافية', status: 403 }
+        return { error: 'Insufficient permissions', status: 403 }
     }
 
     return { user: session.user }
@@ -282,7 +282,7 @@ export async function requireAuthAPI(request: NextRequest) {
     const user = await getAuthenticatedUser(request)
     
     if (!user) {
-        return { error: 'غير مصرح', status: 401 }
+        return { error: 'Unauthorized', status: 401 }
     }
     
     return { user }
@@ -299,11 +299,11 @@ export async function requireRoleAPIWithMobile(request: NextRequest, requiredRol
     const user = await getAuthenticatedUser(request)
     
     if (!user) {
-        return { error: 'غير مصرح', status: 401 }
+        return { error: 'Unauthorized', status: 401 }
     }
     
     if (!hasRole(user.role, requiredRole)) {
-        return { error: 'صلاحيات غير كافية', status: 403 }
+        return { error: 'Insufficient permissions', status: 403 }
     }
     
     return { user }
@@ -320,11 +320,11 @@ export async function requirePermissionAPIWithMobile(request: NextRequest, permi
     const user = await getAuthenticatedUser(request)
     
     if (!user) {
-        return { error: 'غير مصرح', status: 401 }
+        return { error: 'Unauthorized', status: 401 }
     }
     
     if (!roleHasPermission(user.role, permission)) {
-        return { error: 'صلاحيات غير كافية', status: 403 }
+        return { error: 'Insufficient permissions', status: 403 }
     }
     
     return { user }
@@ -341,11 +341,11 @@ export async function requireAnyPermissionAPIWithMobile(request: NextRequest, pe
     const user = await getAuthenticatedUser(request)
     
     if (!user) {
-        return { error: 'غير مصرح', status: 401 }
+        return { error: 'Unauthorized', status: 401 }
     }
     
     if (!roleHasAnyPermission(user.role, permissions)) {
-        return { error: 'صلاحيات غير كافية', status: 403 }
+        return { error: 'Insufficient permissions', status: 403 }
     }
     
     return { user }

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
         if (!refreshToken) {
             return NextResponse.json(
-                { success: false, error: 'رمز التحديث مطلوب' },
+                { success: false, error: 'Refresh token is required' },
                 { status: 400 }
             )
         }
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         const payload = verifyRefreshToken(refreshToken)
         if (!payload) {
             return NextResponse.json(
-                { success: false, error: 'رمز التحديث غير صالح أو منتهي', code: 'INVALID_REFRESH' },
+                { success: false, error: 'Invalid or expired refresh token', code: 'INVALID_REFRESH' },
                 { status: 401 }
             )
         }
@@ -41,14 +41,14 @@ export async function POST(request: NextRequest) {
 
         if (!customer) {
             return NextResponse.json(
-                { success: false, error: 'الحساب غير موجود' },
+                { success: false, error: 'Account not found' },
                 { status: 404 }
             )
         }
 
         if (!customer.isActive) {
             return NextResponse.json(
-                { success: false, error: 'الحساب معطل' },
+                { success: false, error: 'Account disabled' },
                 { status: 403 }
             )
         }
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Refresh token error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في تحديث الرمز' },
+            { success: false, error: 'Error refreshing token' },
             { status: 500 }
         )
     }

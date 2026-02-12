@@ -35,7 +35,7 @@ import { trackLogin } from '@/lib/services/activityTracker'
  * Error Response (401):
  * {
  *   "success": false,
- *   "error": "اسم المستخدم أو كلمة المرور غير صحيحة"
+ *   "error": "Invalid username or password"
  * }
  */
 export async function POST(request: NextRequest) {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: 'الرجاء إدخال اسم المستخدم وكلمة المرور'
+                    error: 'Please enter username and password'
                 },
                 { status: 400 }
             )
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: 'اسم المستخدم أو كلمة المرور غير صحيحة'
+                    error: 'Invalid username or password'
                 },
                 { status: 401 }
             )
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: 'الحساب معطل، تواصل مع الإدارة'
+                    error: 'Account disabled, contact administration'
                 },
                 { status: 401 }
             )
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: 'اسم المستخدم أو كلمة المرور غير صحيحة'
+                    error: 'Invalid username or password'
                 },
                 { status: 401 }
             )
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             {
                 success: false,
-                error: 'حدث خطأ أثناء تسجيل الدخول'
+                error: 'Error during login'
             },
             { status: 500 }
         )

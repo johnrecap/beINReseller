@@ -136,7 +136,7 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
                 amount,
                 balanceBefore,
                 balanceAfter,
-                description: `شحن رصيد - Stripe`,
+                description: `Balance top-up - Stripe`,
                 referenceType: 'PAYMENT',
                 referenceId: paymentIntent.id,
                 stripePaymentIntentId: paymentIntent.id

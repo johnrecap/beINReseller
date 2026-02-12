@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         const { country, city } = body
         
         if (!country || !city) {
-            return errorResponse('الدولة والمدينة مطلوبتان', 400, 'MISSING_PARAMS')
+            return errorResponse('Country and city are required', 400, 'MISSING_PARAMS')
         }
         
         const region = await prisma.shippingRegion.findFirst({
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
             })
             
             if (!fallback) {
-                return errorResponse('منطقة الشحن غير متوفرة', 404, 'REGION_NOT_FOUND')
+                return errorResponse('Shipping region not available', 404, 'REGION_NOT_FOUND')
             }
             
             return successResponse({

@@ -178,8 +178,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 ? 'Order cancelled and refund initiated. It may take 5-10 business days to reflect in your account.'
                 : 'Order cancelled successfully.',
             messageAr: refunded
-                ? 'تم إلغاء الطلب وبدء عملية الاسترداد. قد يستغرق الأمر 5-10 أيام عمل للظهور في حسابك.'
-                : 'تم إلغاء الطلب بنجاح.',
+                ? 'Order cancelled and refund initiated. It may take 5-10 business days to appear in your account.'
+                : 'Order cancelled successfully.',
             data: {
                 order: {
                     id: updatedOrder.id,

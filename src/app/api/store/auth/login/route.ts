@@ -14,8 +14,8 @@ import { generateStoreToken } from '@/lib/store-auth'
 
 // Validation schema
 const loginSchema = z.object({
-    email: z.string().email('البريد الإلكتروني غير صالح'),
-    password: z.string().min(1, 'كلمة المرور مطلوبة'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(1, 'Password is required'),
 })
 
 export async function POST(request: NextRequest) {
@@ -36,24 +36,24 @@ export async function POST(request: NextRequest) {
         })
         
         if (!customer) {
-            return errorResponse('البريد الإلكتروني أو كلمة المرور غير صحيحة', 401, 'INVALID_CREDENTIALS')
+            return errorResponse('Invalid email or password', 401, 'INVALID_CREDENTIALS')
         }
         
         // Check if account is active
         if (!customer.isActive) {
-            return errorResponse('الحساب معطل. يرجى التواصل مع الدعم.', 403, 'ACCOUNT_DISABLED')
+            return errorResponse('Account disabled. Please contact support.', 403, 'ACCOUNT_DISABLED')
         }
         
         // Verify password
         const isValidPassword = await bcrypt.compare(password, customer.passwordHash)
         if (!isValidPassword) {
-            return errorResponse('البريد الإلكتروني أو كلمة المرور غير صحيحة', 401, 'INVALID_CREDENTIALS')
+            return errorResponse('Invalid email or password', 401, 'INVALID_CREDENTIALS')
         }
         
         // Check if email is verified
         if (!customer.isVerified) {
             return errorResponse(
-                'يرجى تأكيد بريدك الإلكتروني أولاً', 
+                'Please verify your email first', 
                 403, 
                 'EMAIL_NOT_VERIFIED'
             )

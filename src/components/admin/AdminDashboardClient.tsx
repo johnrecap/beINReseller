@@ -52,8 +52,8 @@ export default function AdminDashboardClient() {
 
     if (error) {
         // Better error handling:
-        const displayError = (error === 'UNAUTHORIZED' || error === 'غير مصرح') ? 'Unauthorized' :
-            (error === 'SERVER_ERROR' || error === 'حدث خطأ في الخادم') ? t.admin.dashboard.workerStatus.error : error
+        const displayError = (error === 'UNAUTHORIZED' || error === 'Unauthorized') ? 'Unauthorized' :
+            (error === 'SERVER_ERROR' || error === 'Server error occurred') ? t.admin.dashboard.workerStatus.error : error
 
         return (
             <div className="p-8 text-center">

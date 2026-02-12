@@ -21,14 +21,14 @@ export async function POST(request: NextRequest) {
 
         if (!email) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني مطلوب' },
+                { success: false, error: 'Email is required' },
                 { status: 400 }
             )
         }
 
         if (!isValidEmail(email)) {
             return NextResponse.json(
-                { success: false, error: 'البريد الإلكتروني غير صالح' },
+                { success: false, error: 'Invalid email' },
                 { status: 400 }
             )
         }
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         if (!customer) {
             return NextResponse.json({
                 success: true,
-                message: 'إذا كان البريد موجوداً، سيتم إرسال رمز إعادة التعيين'
+                message: 'If the email exists, a reset code will be sent'
             })
         }
 
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'تم إرسال رمز إعادة التعيين',
+            message: 'Reset code has been sent',
             // In development, return OTP for testing
             ...(process.env.NODE_ENV === 'development' && { otp })
         })
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Forgot password error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في إرسال رمز إعادة التعيين' },
+            { success: false, error: 'Error sending reset code' },
             { status: 500 }
         )
     }

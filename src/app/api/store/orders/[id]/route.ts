@@ -92,31 +92,31 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 status: 'PENDING',
                 date: order.createdAt,
                 label: 'Order Placed',
-                labelAr: 'تم إنشاء الطلب',
+                labelAr: 'Order Created',
             },
             {
                 status: 'PAID',
                 date: order.paidAt,
                 label: 'Payment Received',
-                labelAr: 'تم استلام الدفع',
+                labelAr: 'Payment Received',
             },
             {
                 status: 'PROCESSING',
                 date: order.processedAt,
                 label: 'Processing',
-                labelAr: 'قيد التجهيز',
+                labelAr: 'Processing',
             },
             {
                 status: 'SHIPPED',
                 date: order.shippedAt,
                 label: 'Shipped',
-                labelAr: 'تم الشحن',
+                labelAr: 'Shipped',
             },
             {
                 status: 'DELIVERED',
                 date: order.deliveredAt,
                 label: 'Delivered',
-                labelAr: 'تم التسليم',
+                labelAr: 'Delivered',
             },
         ]
 
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 status: 'CANCELLED',
                 date: order.cancelledAt,
                 label: 'Cancelled',
-                labelAr: 'ملغى',
+                labelAr: 'Cancelled',
             })
         }
 

@@ -21,7 +21,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!operationId) {
             return NextResponse.json(
-                { success: false, error: 'معرف العملية مطلوب' },
+                { success: false, error: 'Operation ID is required' },
                 { status: 400 }
             )
         }
@@ -33,7 +33,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
 
         if (!operation) {
             return NextResponse.json(
-                { success: false, error: 'العملية غير موجودة' },
+                { success: false, error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -41,7 +41,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Verify ownership
         if (operation.customerId !== customer.customerId) {
             return NextResponse.json(
-                { success: false, error: 'غير مصرح' },
+                { success: false, error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -49,7 +49,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Check operation is awaiting payment
         if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
             return NextResponse.json(
-                { success: false, error: `العملية ليست في حالة انتظار التأكيد (${operation.status})` },
+                { success: false, error: `Operation is not awaiting confirmation (${operation.status})` },
                 { status: 400 }
             )
         }
@@ -58,7 +58,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         const selectedPackage = operation.selectedPackage as { name: string; price: number } | null
         if (!selectedPackage || !selectedPackage.price) {
             return NextResponse.json(
-                { success: false, error: 'لا توجد باقة محددة' },
+                { success: false, error: 'No package selected' },
                 { status: 400 }
             )
         }
@@ -80,7 +80,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         const stripeSecretKey = await getStripeSecretKey()
         if (!stripeSecretKey) {
             return NextResponse.json(
-                { success: false, error: 'نظام الدفع غير متاح حالياً' },
+                { success: false, error: 'Payment system is currently unavailable' },
                 { status: 500 }
             )
         }
@@ -139,7 +139,7 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
     } catch (error) {
         console.error('Create payment intent error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في إنشاء طلب الدفع' },
+            { success: false, error: 'Error creating payment request' },
             { status: 500 }
         )
     }

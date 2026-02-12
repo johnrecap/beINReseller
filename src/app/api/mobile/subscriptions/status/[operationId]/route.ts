@@ -23,7 +23,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!operationId) {
             return NextResponse.json(
-                { success: false, error: 'معرف العملية مطلوب' },
+                { success: false, error: 'Operation ID is required' },
                 { status: 400 }
             )
         }
@@ -35,7 +35,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         if (!operation) {
             return NextResponse.json(
-                { success: false, error: 'العملية غير موجودة' },
+                { success: false, error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -43,7 +43,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
         // Verify ownership
         if (operation.customerId !== customer.customerId) {
             return NextResponse.json(
-                { success: false, error: 'غير مصرح' },
+                { success: false, error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -68,7 +68,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
 
         // Include error message if failed
         if (operation.status === 'FAILED') {
-            response.error = operation.responseMessage || operation.error || 'حدث خطأ'
+            response.error = operation.responseMessage || operation.error || 'An error occurred'
         }
 
         // Include result if completed
@@ -82,7 +82,7 @@ export const GET = withCustomerAuth(async (request: NextRequest, customer: Custo
     } catch (error) {
         console.error('Get operation status error:', error)
         return NextResponse.json(
-            { success: false, error: 'حدث خطأ في جلب حالة العملية' },
+            { success: false, error: 'Error fetching operation status' },
             { status: 500 }
         )
     }

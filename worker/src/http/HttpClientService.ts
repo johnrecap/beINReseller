@@ -2369,7 +2369,7 @@ export class HttpClientService {
             console.log('[HTTP] ⚠️ No success confirmation found');
             return {
                 success: false,
-                message: 'لم يتم العثور على تأكيد النجاح من beIN',
+                message: 'No success confirmation found from beIN',
                 newBalance: balanceAfter || undefined
             };
 
@@ -2962,7 +2962,7 @@ export class HttpClientService {
                 return {
                     success: true,
                     activated: true,
-                    message: 'تم تفعيل الإشارة بنجاح',
+                    message: 'Signal activated successfully',
                     cardStatus: {
                         isPremium: false,
                         smartCardSerial: cardNumber,
@@ -2977,7 +2977,7 @@ export class HttpClientService {
                 return {
                     success: true,
                     activated: false,
-                    error: activateError || 'لم يتم التفعيل - حاول مرة أخرى',
+                    error: activateError || 'Activation failed - try again',
                     cardStatus: {
                         isPremium: false,
                         smartCardSerial: cardNumber,
@@ -3600,7 +3600,7 @@ export class HttpClientService {
                 return {
                     success: true,
                     hasInstallment: false,
-                    error: 'لا توجد أقساط لهذا الكارت'
+                    error: 'No installments found for this card'
                 };
             }
 
@@ -3709,7 +3709,7 @@ export class HttpClientService {
             return {
                 success: true,
                 hasInstallment: false,
-                error: 'لا توجد أقساط لهذا الكارت'
+                error: 'No installments found for this card'
             };
         }
 
@@ -4024,7 +4024,7 @@ export class HttpClientService {
                 console.log('[HTTP] ✅ Installment payment successful');
                 return {
                     success: true,
-                    message: 'تم دفع القسط بنجاح',
+                    message: 'Installment payment successful',
                     newBalance: balanceAfter || undefined
                 };
             } else if (payError) {
@@ -4034,7 +4034,7 @@ export class HttpClientService {
                 console.log('[HTTP] ⚠️ Payment status unclear - balance did not change');
                 return {
                     success: false,
-                    message: 'لم يتم تأكيد الدفع - يرجى التحقق من الرصيد'
+                    message: 'Payment not confirmed - please check balance'
                 };
             }
 

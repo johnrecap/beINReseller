@@ -308,45 +308,39 @@ export class SessionKeepAliveService {
         const ttl = await getSessionTTL(accountId);
         const ttlMinutes = ttl > 0 ? Math.floor(ttl / 60) : 0;
 
-        // If session has > 5 minutes left and we're not doing a forced refresh
-        if (ttl > 5 * 60) {
-            console.log(`[KeepAlive] ${username}: Session healthy (${ttlMinutes} min remaining)`);
-            // Refresh the session expiry (updates both internal expiresAt AND Redis TTL)
-            await refreshSessionExpiry(accountId, 15 * 60 * 1000);  // 15 min in ms
-            return {
-                accountId,
-                username,
-                status: 'extended',
-                durationMs: Date.now() - startTime
-            };
-        }
-
-        // 3. Session expiring soon or expired - need to validate/refresh
-        console.log(`[KeepAlive] ${username}: Session ${ttl > 0 ? 'expiring soon' : 'expired'}, validating...`);
-
+        // 3. Always validate with beIN server to keep the REAL session alive
+        // Previously we skipped validation when TTL > 5 min, but that only extended
+        // Redis TTL without touching the beIN server. The beIN server has its own
+        // session timeout (~20 min) that expires independently of Redis.
         const client = await getHttpClient(account);
         await client.reloadConfig();
 
-        // 4. Try to validate session on beIN server
-        const sessionValid = await client.validateSession();
+        if (ttl > 0) {
+            // Session exists in Redis - validate it's still alive on beIN
+            console.log(`[KeepAlive] ${username}: Redis TTL ${ttlMinutes} min, validating on beIN server...`);
+            const sessionValid = await client.validateSession();
 
-        if (sessionValid) {
-            // Session still valid on beIN - save and extend TTL
-            const sessionData = await client.exportSession();
-            // FIX: Update timestamps before saving (exportSession returns OLD expiresAt)
-            const now = Date.now();
-            sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
-            sessionData.loginTimestamp = now;
-            await saveSessionToCache(accountId, sessionData, 16);
-            console.log(`[KeepAlive] ${username}: Session validated and extended`);
-            return {
-                accountId,
-                username,
-                status: 'refreshed',
-                durationMs: Date.now() - startTime
-            };
+            if (sessionValid) {
+                // Session is truly alive on beIN - extend Redis TTL
+                const sessionData = await client.exportSession();
+                const now = Date.now();
+                sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+                sessionData.loginTimestamp = now;
+                await saveSessionToCache(accountId, sessionData, 16);
+                console.log(`[KeepAlive] ${username}: Session validated on beIN and extended`);
+                return {
+                    accountId,
+                    username,
+                    status: 'refreshed',
+                    durationMs: Date.now() - startTime
+                };
+            }
+
+            // Session expired on beIN despite Redis having it - fall through to login
+            console.log(`[KeepAlive] ${username}: Session expired on beIN server (Redis had ${ttlMinutes} min left)`);
+        } else {
+            console.log(`[KeepAlive] ${username}: No session in Redis, need login...`);
         }
-
         // 5. Session expired on beIN - need full login
         console.log(`[KeepAlive] ${username}: Session expired on beIN, performing login...`);
 

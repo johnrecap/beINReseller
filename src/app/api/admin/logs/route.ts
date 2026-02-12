@@ -28,7 +28,13 @@ export async function GET(request: NextRequest) {
         }
 
         if (action) {
-            where.action = action
+            // Support comma-separated action values for grouped filters
+            const actions = action.split(',').map(a => a.trim()).filter(Boolean)
+            if (actions.length === 1) {
+                where.action = actions[0]
+            } else if (actions.length > 1) {
+                where.action = { in: actions }
+            }
         }
 
         if (userId) {

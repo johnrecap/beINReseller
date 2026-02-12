@@ -1,10 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, User, ArrowRight, ArrowLeft, Clock } from 'lucide-react'
+import { Search, User, ArrowRight, ArrowLeft, Clock, ChevronDown, ChevronUp, LogIn, ShieldX, LogOut, RefreshCw, Radio, Zap, CreditCard, Plus, Layers, Play, CheckCircle, XCircle, Ban, HeartOff, DollarSign, ArrowDownLeft, ArrowRightLeft, Wallet, UserPlus, UserMinus, KeyRound, Settings, Wrench, UserCog, Activity, Shield, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import { useTranslation } from '@/hooks/useTranslation'
+import { getActionInfo, formatLogDetails, categoryStyles, outcomeStyles, filterGroups, type ActionCategory } from '@/lib/activityLogHelpers'
+
+// Map icon name strings to Lucide components
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    LogIn, ShieldX, LogOut, RefreshCw, Search: Search, Radio, Zap, CreditCard, Plus, Layers, Play,
+    CheckCircle, XCircle, Ban, Clock, HeartOff, DollarSign, ArrowDownLeft, ArrowRightLeft, Wallet,
+    UserPlus, UserMinus, KeyRound, Settings, Wrench, UserCog, Activity, Shield, Users
+}
 
 interface Log {
     id: string
@@ -25,6 +33,7 @@ export default function LogsTable() {
     const [search, setSearch] = useState('')
     const [actionFilter, setActionFilter] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
+    const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
     const localeMap = {
         ar: ar,
@@ -67,13 +76,18 @@ export default function LogsTable() {
         fetchLogs()
     }, [fetchLogs])
 
-    const getActionBadge = (action: string) => {
-        if (action.includes('LOGIN')) return <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-medium">{t.admin.logs.table.actions.login}</span>
-        if (action.includes('CREATE')) return <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">{t.admin.logs.table.actions.create}</span>
-        if (action.includes('UPDATE')) return <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs font-medium">{t.admin.logs.table.actions.update}</span>
-        if (action.includes('DELETE')) return <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-medium">{t.admin.logs.table.actions.delete}</span>
-        if (action.includes('BALANCE')) return <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-xs font-medium">{t.admin.logs.table.actions.balance}</span>
-        return <span className="px-2 py-1 bg-muted text-muted-foreground rounded-full text-xs font-medium">{action}</span>
+    // Category icon component
+    const getCategoryIcon = (category: ActionCategory) => {
+        const categoryIconMap: Record<ActionCategory, React.ComponentType<{ className?: string }>> = {
+            auth: Shield,
+            operations: Activity,
+            balance: DollarSign,
+            admin: Wrench,
+            manager: Users,
+            user: User,
+            system: Activity
+        }
+        return categoryIconMap[category]
     }
 
     return (
@@ -93,15 +107,17 @@ export default function LogsTable() {
                 <div>
                     <select
                         value={actionFilter}
-                        onChange={(e) => setActionFilter(e.target.value)}
-                        className="w-full sm:w-48 px-4 py-2 border border-border rounded-lg focus:outline-none focus:border-blue-500 bg-background text-foreground"
+                        onChange={(e) => { setActionFilter(e.target.value); setPage(1) }}
+                        className="w-full sm:w-56 px-4 py-2 border border-border rounded-lg focus:outline-none focus:border-blue-500 bg-background text-foreground"
                     >
                         <option value="">{t.admin.logs.filters.allOperations}</option>
-                        <option value="LOGIN">{t.admin.logs.filters.login}</option>
-                        <option value="ADMIN_UPDATE_SETTINGS">{t.admin.logs.filters.updateSettings}</option>
-                        <option value="ADMIN_ADD_BALANCE">{t.admin.logs.filters.addBalance}</option>
-                        <option value="ADMIN_CREATE_USER">{t.admin.logs.filters.createUser}</option>
-                        <option value="ADMIN_RESET_PASSWORD">{t.admin.logs.filters.resetPassword}</option>
+                        {filterGroups.map(group => (
+                            <optgroup key={group.label} label={`── ${group.label} ──`}>
+                                {group.options.map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </optgroup>
+                        ))}
                     </select>
                 </div>
             </div>
@@ -133,33 +149,106 @@ export default function LogsTable() {
                                     <td colSpan={5} className="p-8 text-center text-muted-foreground">{t.admin.logs.table.noLogs}</td>
                                 </tr>
                             ) : (
-                                logs.map((log) => (
-                                    <tr key={log.id} className="hover:bg-secondary transition-colors">
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <User className="w-4 h-4 text-muted-foreground" />
-                                                <span className="font-medium text-foreground">{log.username}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {getActionBadge(log.action)}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <p className="text-sm text-muted-foreground max-w-xs truncate" title={JSON.stringify(log.details)}>
-                                                {typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}
-                                            </p>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className="font-mono text-xs text-muted-foreground">{log.ipAddress}</span>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-muted-foreground">
-                                            <div className="flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm', { locale: currentLocale })}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                logs.map((log) => {
+                                    const info = getActionInfo(log.action)
+                                    const catStyle = categoryStyles[info.category]
+                                    const outStyle = outcomeStyles[info.outcome]
+                                    const formattedDetails = formatLogDetails(log.details, log.action)
+                                    const isExpanded = expandedRow === log.id
+                                    const IconComponent = iconMap[info.icon] || Activity
+                                    const CategoryIcon = getCategoryIcon(info.category)
+
+                                    return (
+                                        <>
+                                            <tr
+                                                key={log.id}
+                                                className="hover:bg-secondary/50 transition-colors cursor-pointer"
+                                                onClick={() => setExpandedRow(isExpanded ? null : log.id)}
+                                            >
+                                                {/* User */}
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                        <span className="font-medium text-foreground">{log.username}</span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Action — Category badge + label + outcome */}
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        {/* Category badge */}
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${catStyle.bg} ${catStyle.text}`}>
+                                                                <CategoryIcon className="w-3 h-3" />
+                                                                {catStyle.label}
+                                                            </span>
+                                                        </div>
+                                                        {/* Action label with outcome icon */}
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={`text-sm font-medium ${outStyle.color}`}>
+                                                                {outStyle.icon}
+                                                            </span>
+                                                            <IconComponent className={`w-3.5 h-3.5 ${catStyle.text}`} />
+                                                            <span className="text-sm text-foreground font-medium">
+                                                                {info.label}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Details — formatted */}
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-1">
+                                                        <p className="text-sm text-muted-foreground max-w-xs truncate" title={formattedDetails}>
+                                                            {formattedDetails}
+                                                        </p>
+                                                        {formattedDetails !== '—' && (
+                                                            isExpanded
+                                                                ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                                                : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                                        )}
+                                                    </div>
+                                                </td>
+
+                                                {/* IP */}
+                                                <td className="px-4 py-3">
+                                                    <span className="font-mono text-xs text-muted-foreground">{log.ipAddress || '—'}</span>
+                                                </td>
+
+                                                {/* Time */}
+                                                <td className="px-4 py-3 text-xs text-muted-foreground">
+                                                    <div className="flex items-center gap-1">
+                                                        <Clock className="w-3 h-3" />
+                                                        {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm', { locale: currentLocale })}
+                                                    </div>
+                                                </td>
+                                            </tr>
+
+                                            {/* Expanded details row */}
+                                            {isExpanded && (
+                                                <tr key={`${log.id}-expanded`} className="bg-secondary/30">
+                                                    <td colSpan={5} className="px-6 py-3">
+                                                        <div className="text-xs">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <span className="text-muted-foreground font-medium">Raw Action:</span>
+                                                                <code className="px-2 py-0.5 bg-muted rounded text-foreground font-mono">{log.action}</code>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-muted-foreground font-medium">Full Details:</span>
+                                                                <pre className="mt-1 p-3 bg-muted rounded-lg text-foreground font-mono text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
+                                                                    {typeof log.details === 'string'
+                                                                        ? (() => { try { return JSON.stringify(JSON.parse(log.details), null, 2) } catch { return log.details } })()
+                                                                        : JSON.stringify(log.details, null, 2)
+                                                                    }
+                                                                </pre>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </>
+                                    )
+                                })
                             )}
                         </tbody>
                     </table>

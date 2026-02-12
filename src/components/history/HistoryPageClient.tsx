@@ -80,7 +80,7 @@ export default function HistoryPageClient() {
                         <Clock className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">سجل العمليات</h1>
+                        <h1 className="text-2xl font-bold text-foreground">Operations History</h1>
                         <p className="text-muted-foreground text-sm font-medium">View all past operations</p>
                     </div>
                 </div>

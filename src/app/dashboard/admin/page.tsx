@@ -16,7 +16,7 @@ export default async function AdminDashboardPage() {
     }
 
     return (
-        <Suspense fallback={<div>جاري التحميل...</div>}>
+        <Suspense fallback={<div>Loading...</div>}>
             <AdminDashboardClient />
         </Suspense>
     )

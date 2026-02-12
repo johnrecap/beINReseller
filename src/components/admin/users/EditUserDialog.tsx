@@ -54,7 +54,7 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center p-4 border-b border-gray-100">
                     <h3 className="font-bold text-foreground">{t.admin.users.dialogs.editTitle}: {user.username}</h3>
-                    <button onClick={onClose} title="إغلاق" className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
+                    <button onClick={onClose} title={t.admin?.users?.actions?.cancel || 'Close'} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -68,7 +68,7 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
                             type="email"
                             defaultValue={user.email}
                             required
-                            placeholder="البريد الإلكتروني"
+                            placeholder={t.admin?.users?.dialogs?.email || 'Email'}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm text-right dir-ltr"
                         />
                     </div>

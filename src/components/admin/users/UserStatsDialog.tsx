@@ -363,22 +363,22 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                             <div className="bg-secondary/30 rounded-xl p-4 border border-border">
                                 <h3 className="font-bold text-foreground mb-3 flex items-center gap-2">
                                     <DollarSign className="w-5 h-5" />
-                                    {t.userStats?.audit?.title || 'تفاصيل حساب الرصيد'}
+                                    {t.userStats?.audit?.title || 'Balance Calculation Details'}
                                 </h3>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead className="bg-secondary text-xs">
                                             <tr>
-                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.type || 'النوع'}</th>
-                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.direction || 'الاتجاه'}</th>
-                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.total || 'المجموع'}</th>
+                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.type || 'Type'}</th>
+                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.direction || 'Direction'}</th>
+                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.total || 'Total'}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border">
                                             <tr className="hover:bg-secondary/50">
                                                 <td className="px-3 py-2 flex items-center gap-2">
                                                     <ArrowUpCircle className="w-4 h-4 text-green-500" />
-                                                    {t.userStats?.deposits || 'الإيداعات'}
+                                                    {t.userStats?.deposits || 'Deposits'}
                                                 </td>
                                                 <td className="px-3 py-2 text-green-600">+</td>
                                                 <td className="px-3 py-2 font-medium text-green-600">+${data.financials.totalDeposits.toLocaleString()}</td>
@@ -386,7 +386,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             <tr className="hover:bg-secondary/50">
                                                 <td className="px-3 py-2 flex items-center gap-2">
                                                     <TrendingDown className="w-4 h-4 text-orange-500" />
-                                                    {t.userStats?.audit?.operations || 'العمليات'}
+                                                    {t.userStats?.audit?.operations || 'Operations'}
                                                 </td>
                                                 <td className="px-3 py-2 text-orange-600">-</td>
                                                 <td className="px-3 py-2 font-medium text-orange-600">-${data.financials.totalDeductions.toLocaleString()}</td>
@@ -394,7 +394,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             <tr className="hover:bg-secondary/50">
                                                 <td className="px-3 py-2 flex items-center gap-2">
                                                     <RefreshCw className="w-4 h-4 text-blue-500" />
-                                                    {t.userStats?.refunds || 'الاستردادات'}
+                                                    {t.userStats?.refunds || 'Refunds'}
                                                 </td>
                                                 <td className="px-3 py-2 text-blue-600">+</td>
                                                 <td className="px-3 py-2 font-medium text-blue-600">+${data.financials.totalRefunds.toLocaleString()}</td>
@@ -402,7 +402,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             <tr className="hover:bg-secondary/50">
                                                 <td className="px-3 py-2 flex items-center gap-2">
                                                     <ArrowDownCircle className="w-4 h-4 text-red-500" />
-                                                    {t.userStats?.audit?.withdrawals || 'السحوبات'}
+                                                    {t.userStats?.audit?.withdrawals || 'Withdrawals'}
                                                 </td>
                                                 <td className="px-3 py-2 text-red-600">-</td>
                                                 <td className="px-3 py-2 font-medium text-red-600">-${data.financials.totalWithdrawals.toLocaleString()}</td>
@@ -410,7 +410,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                             <tr className="hover:bg-secondary/50">
                                                 <td className="px-3 py-2 flex items-center gap-2">
                                                     <Wrench className="w-4 h-4 text-purple-500" />
-                                                    {t.userStats?.audit?.corrections || 'التصحيحات'}
+                                                    {t.userStats?.audit?.corrections || 'Corrections'}
                                                 </td>
                                                 <td className="px-3 py-2 text-purple-600">±</td>
                                                 <td className={`px-3 py-2 font-medium ${data.financials.totalCorrections >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -418,12 +418,12 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 </td>
                                             </tr>
                                             <tr className="bg-secondary/70 font-bold">
-                                                <td className="px-3 py-2">{t.userStats?.audit?.expected || 'الرصيد المتوقع'}</td>
+                                                <td className="px-3 py-2">{t.userStats?.audit?.expected || 'Expected Balance'}</td>
                                                 <td className="px-3 py-2">=</td>
                                                 <td className="px-3 py-2">${data.financials.expectedBalance.toLocaleString()}</td>
                                             </tr>
                                             <tr className="bg-secondary/70 font-bold">
-                                                <td className="px-3 py-2">{t.userStats?.audit?.actual || 'الرصيد الفعلي'}</td>
+                                                <td className="px-3 py-2">{t.userStats?.audit?.actual || 'Actual Balance'}</td>
                                                 <td className="px-3 py-2"></td>
                                                 <td className="px-3 py-2">${data.financials.actualBalance.toLocaleString()}</td>
                                             </tr>
@@ -431,15 +431,15 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 <tr className={`font-bold ${data.financials.discrepancy > 0 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>
                                                     <td className="px-3 py-2 flex items-center gap-2">
                                                         <AlertTriangle className="w-4 h-4" />
-                                                        {t.userStats?.correction?.difference || 'الفرق'}
+                                                        {t.userStats?.correction?.difference || 'Difference'}
                                                     </td>
                                                     <td className="px-3 py-2"></td>
                                                     <td className="px-3 py-2">
                                                         {data.financials.discrepancy > 0 ? '+' : ''}${data.financials.discrepancy.toFixed(2)}
                                                         <span className="text-xs ms-1">
                                                             ({data.financials.discrepancy > 0
-                                                                ? (t.userStats?.audit?.needsCorrection || 'يحتاج تصحيح')
-                                                                : (t.userStats?.correction?.deficit || 'نقص')})
+                                                                ? (t.userStats?.audit?.needsCorrection)
+                                                                : (t.userStats?.correction?.deficit)})
                                                         </span>
                                                     </td>
                                                 </tr>
@@ -448,7 +448,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 <tr className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-bold">
                                                     <td className="px-3 py-2 flex items-center gap-2" colSpan={3}>
                                                         <CheckCircle className="w-4 h-4" />
-                                                        {t.userStats?.audit?.balanced || 'الرصيد متطابق'}
+                                                        {t.userStats?.audit?.balanced}
                                                     </td>
                                                 </tr>
                                             )}
@@ -462,25 +462,25 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                 <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
                                     <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-2">
                                         <TrendingUp className="w-5 h-5" />
-                                        <span className="text-sm font-medium">صافي الإنفاق</span>
+                                        <span className="text-sm font-medium">{t.userStats?.netSpending?.title}</span>
                                     </div>
                                     <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
                                         ${data.financials.netSpent.toLocaleString()}
                                     </p>
                                     <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                                        الخصومات - الاستردادات
+                                        {t.userStats?.netSpending?.subtitle}
                                     </p>
                                 </div>
                                 <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-xl p-4 border border-cyan-200 dark:border-cyan-800">
                                     <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 mb-2">
                                         <DollarSign className="w-5 h-5" />
-                                        <span className="text-sm font-medium">إنفاق العمليات الناجحة</span>
+                                        <span className="text-sm font-medium">{t.userStats?.netSpending?.completedTitle}</span>
                                     </div>
                                     <p className="text-2xl font-bold text-cyan-700 dark:text-cyan-300">
                                         ${data.financials.completedSpent.toLocaleString()}
                                     </p>
                                     <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
-                                        خصومات العمليات المكتملة فقط
+                                        {t.userStats?.netSpending?.completedSubtitle}
                                     </p>
                                 </div>
                             </div>
@@ -490,7 +490,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
                                     <h3 className="font-bold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
                                         <AlertTriangle className="w-5 h-5" />
-                                        {t.userStats?.alerts?.title || 'Alerts'} ({data.alerts.length})
+                                        {t.userStats?.alerts?.title} ({data.alerts.length})
                                     </h3>
                                     <div className="space-y-2">
                                         {data.alerts.map((alert, idx) => (
@@ -503,19 +503,19 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                     onClick={() => handleCorrect(alert.type, alert.operationId)}
                                                     disabled={correcting === `${alert.type}-${alert.operationId || 'none'}`}
                                                     className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-xs font-medium transition-colors"
-                                                    title={t.userStats?.alerts?.correct || 'Correct'}
+                                                    title={t.userStats?.alerts?.correct}
                                                 >
                                                     {correcting === `${alert.type}-${alert.operationId || 'none'}` ? (
                                                         <Loader2 className="w-3 h-3 animate-spin" />
                                                     ) : correctionSuccess === `${alert.type}-${alert.operationId || 'none'}` ? (
                                                         <>
                                                             <CheckCircle className="w-3 h-3" />
-                                                            {t.userStats?.alerts?.done || 'Done'}
+                                                            {t.userStats?.alerts?.done}
                                                         </>
                                                     ) : (
                                                         <>
                                                             <Wrench className="w-3 h-3" />
-                                                            {t.userStats?.alerts?.correct || 'Correct'}
+                                                            {t.userStats?.alerts?.correct}
                                                         </>
                                                     )}
                                                 </button>
@@ -530,29 +530,29 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
                                     <h3 className="font-bold text-amber-700 dark:text-amber-400 mb-3 flex items-center gap-2">
                                         <AlertTriangle className="w-5 h-5" />
-                                        ملخص مشاكل الاسترداد
+                                        {t.userStats?.refundSummary?.title}
                                     </h3>
                                     <div className="grid grid-cols-3 gap-3">
                                         <div className={`rounded-lg p-3 text-center border ${data.refundSummary.doubleRefunds > 0 ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700' : 'bg-secondary/50 border-border'}`}>
                                             <p className={`text-2xl font-bold ${data.refundSummary.doubleRefunds > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
                                                 {data.refundSummary.doubleRefunds}
                                             </p>
-                                            <p className="text-xs font-medium mt-1">استرداد مزدوج</p>
-                                            <p className="text-[10px] text-muted-foreground">نفس العملية 2+ مرة</p>
+                                            <p className="text-xs font-medium mt-1">{t.userStats?.refundSummary?.doubleRefund}</p>
+                                            <p className="text-[10px] text-muted-foreground">{t.userStats?.refundSummary?.doubleRefundDesc}</p>
                                         </div>
                                         <div className={`rounded-lg p-3 text-center border ${data.refundSummary.phantomRefunds > 0 ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700' : 'bg-secondary/50 border-border'}`}>
                                             <p className={`text-2xl font-bold ${data.refundSummary.phantomRefunds > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-muted-foreground'}`}>
                                                 {data.refundSummary.phantomRefunds}
                                             </p>
-                                            <p className="text-xs font-medium mt-1">استرداد وهمي</p>
-                                            <p className="text-[10px] text-muted-foreground">بدون خصم مسبق</p>
+                                            <p className="text-xs font-medium mt-1">{t.userStats?.refundSummary?.phantomRefund}</p>
+                                            <p className="text-[10px] text-muted-foreground">{t.userStats?.refundSummary?.phantomRefundDesc}</p>
                                         </div>
                                         <div className={`rounded-lg p-3 text-center border ${data.refundSummary.overRefunds > 0 ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700' : 'bg-secondary/50 border-border'}`}>
                                             <p className={`text-2xl font-bold ${data.refundSummary.overRefunds > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
                                                 {data.refundSummary.overRefunds}
                                             </p>
-                                            <p className="text-xs font-medium mt-1">استرداد زائد</p>
-                                            <p className="text-[10px] text-muted-foreground">أكثر من المخصوم</p>
+                                            <p className="text-xs font-medium mt-1">{t.userStats?.refundSummary?.overRefund}</p>
+                                            <p className="text-[10px] text-muted-foreground">{t.userStats?.refundSummary?.overRefundDesc}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -565,27 +565,27 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                     <div className="relative bg-card rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
                                         <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                                             <Wrench className="w-5 h-5 text-amber-500" />
-                                            {t.userStats?.correction?.dialogTitle || 'تصحيح الرصيد'}
+                                            {t.userStats?.correction?.dialogTitle}
                                         </h3>
 
                                         {/* Balance Summary */}
                                         <div className="bg-secondary/50 rounded-lg p-4 mb-4 space-y-2 text-sm">
                                             <div className="flex justify-between">
-                                                <span className="text-muted-foreground">{t.userStats?.correction?.currentBalance || 'الرصيد الحالي'}:</span>
+                                                <span className="text-muted-foreground">{t.userStats?.correction?.currentBalance}:</span>
                                                 <span className="font-bold">${data.financials.actualBalance.toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-muted-foreground">{t.userStats?.correction?.expectedBalance || 'الرصيد المتوقع'}:</span>
+                                                <span className="text-muted-foreground">{t.userStats?.correction?.expectedBalance}:</span>
                                                 <span className="font-bold">${data.financials.expectedBalance.toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between border-t border-border pt-2">
-                                                <span className="text-muted-foreground">{t.userStats?.correction?.difference || 'الفرق'}:</span>
+                                                <span className="text-muted-foreground">{t.userStats?.correction?.difference}:</span>
                                                 <span className={`font-bold ${data.financials.discrepancy > 0 ? 'text-amber-600' : 'text-red-600'}`}>
                                                     {data.financials.discrepancy > 0 ? '+' : ''}${data.financials.discrepancy.toFixed(2)}
                                                     <span className="text-xs ms-1">
                                                         ({data.financials.discrepancy > 0
-                                                            ? (t.userStats?.correction?.excess || 'زيادة')
-                                                            : (t.userStats?.correction?.deficit || 'نقص')})
+                                                            ? (t.userStats?.correction?.excess)
+                                                            : (t.userStats?.correction?.deficit)})
                                                     </span>
                                                 </span>
                                             </div>
@@ -593,7 +593,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
 
                                         {/* Correction Options */}
                                         <div className="space-y-3 mb-4">
-                                            <p className="text-sm font-medium">{t.userStats?.correction?.chooseMethod || 'اختر طريقة التصحيح'}:</p>
+                                            <p className="text-sm font-medium">{t.userStats?.correction?.chooseMethod || 'Choose correction method'}:</p>
 
                                             {data.financials.discrepancy > 0 ? (
                                                 <>
@@ -610,9 +610,9 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                             className="mt-1"
                                                         />
                                                         <div>
-                                                            <p className="font-medium">{t.userStats?.correction?.addInitial || 'إضافة كرصيد مبدئي'}</p>
+                                                            <p className="font-medium">{t.userStats?.correction?.addInitial || 'Add as Initial Balance'}</p>
                                                             <p className="text-xs text-muted-foreground">
-                                                                {t.userStats?.correction?.addInitialDesc || 'يسجل المبلغ كإيداع مبدئي في سجل المعاملات'}
+                                                                {t.userStats?.correction?.addInitialDesc || 'Records the amount as an initial deposit in transactions'}
                                                             </p>
                                                         </div>
                                                     </label>
@@ -630,9 +630,9 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                             className="mt-1"
                                                         />
                                                         <div>
-                                                            <p className="font-medium">{t.userStats?.correction?.deductExcess || 'خصم الرصيد الزائد'}</p>
+                                                            <p className="font-medium">{t.userStats?.correction?.deductExcess || 'Deduct Excess Balance'}</p>
                                                             <p className="text-xs text-muted-foreground">
-                                                                {t.userStats?.correction?.deductExcessDesc || 'يخصم الفرق من رصيد المستخدم'}
+                                                                {t.userStats?.correction?.deductExcessDesc || 'Deducts the difference from user balance'}
                                                             </p>
                                                         </div>
                                                     </label>
@@ -651,9 +651,9 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                         className="mt-1"
                                                     />
                                                     <div>
-                                                        <p className="font-medium">{t.userStats?.correction?.addMissing || 'إضافة المبلغ الناقص'}</p>
+                                                        <p className="font-medium">{t.userStats?.correction?.addMissing || 'Add Missing Amount'}</p>
                                                         <p className="text-xs text-muted-foreground">
-                                                            {t.userStats?.correction?.addMissingDesc || 'يضيف المبلغ الناقص إلى رصيد المستخدم'}
+                                                            {t.userStats?.correction?.addMissingDesc || 'Adds the missing amount to user balance'}
                                                         </p>
                                                     </div>
                                                 </label>
@@ -663,13 +663,13 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         {/* Notes Input */}
                                         <div className="mb-4">
                                             <label className="block text-sm font-medium mb-2">
-                                                {t.userStats?.correction?.notes || 'ملاحظات'} ({t.common?.optional || 'اختياري'})
+                                                {t.userStats?.correction?.notes || 'Notes'} ({t.common?.optional || 'Optional'})
                                             </label>
                                             <input
                                                 type="text"
                                                 value={correctionNotes}
                                                 onChange={(e) => setCorrectionNotes(e.target.value)}
-                                                placeholder={t.userStats?.correction?.notesPlaceholder || 'سبب التصحيح...'}
+                                                placeholder={t.userStats?.correction?.notesPlaceholder || 'Reason for correction...'}
                                                 className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                             />
                                         </div>
@@ -678,7 +678,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                         {correctionType === 'BALANCE_MISMATCH' && data.financials.discrepancy > data.financials.actualBalance && (
                                             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4 text-sm text-amber-700 dark:text-amber-400">
                                                 <AlertTriangle className="w-4 h-4 inline-block me-1" />
-                                                {t.userStats?.correction?.willSetToZero || 'سيتم تصفير الرصيد لأن الفرق أكبر من الرصيد الحالي'}
+                                                {t.userStats?.correction?.willSetToZero || 'Balance will be set to zero because the difference exceeds current balance'}
                                             </div>
                                         )}
 
@@ -688,7 +688,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 onClick={() => setCorrectionDialogOpen(false)}
                                                 className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
                                             >
-                                                {t.common?.cancel || 'إلغاء'}
+                                                {t.common?.cancel || 'Cancel'}
                                             </button>
                                             <button
                                                 onClick={handleCorrectionDialogSubmit}
@@ -700,7 +700,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                 ) : (
                                                     <CheckCircle className="w-4 h-4" />
                                                 )}
-                                                {t.userStats?.correction?.confirm || 'تأكيد التصحيح'}
+                                                {t.userStats?.correction?.confirm || 'Confirm Correction'}
                                             </button>
                                         </div>
                                     </div>

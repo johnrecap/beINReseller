@@ -23,8 +23,8 @@ export default async function AnnouncementsPage() {
                     <Megaphone className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">الإعلانات</h1>
-                    <p className="text-muted-foreground text-sm">إدارة شريط الإعلانات في لوحة التحكم</p>
+                    <h1 className="text-2xl font-bold text-foreground">Announcements</h1>
+                    <p className="text-muted-foreground text-sm">Manage dashboard announcement banners</p>
                 </div>
             </div>
 

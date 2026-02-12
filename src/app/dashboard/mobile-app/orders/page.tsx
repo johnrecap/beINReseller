@@ -1,19 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
     ShoppingCart,
     Eye,
     ChevronLeft,
     ChevronRight,
     Package,
-    Truck,
-    CheckCircle,
-    XCircle,
-    Clock
+    Truck
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -38,18 +34,19 @@ interface Pagination {
 }
 
 const ORDER_STATUSES = [
-    { value: 'all', label: 'الكل' },
-    { value: 'PENDING', label: 'في الانتظار' },
-    { value: 'PROCESSING', label: 'قيد المعالجة' },
-    { value: 'SHIPPED', label: 'تم الشحن' },
-    { value: 'DELIVERED', label: 'تم التوصيل' },
-    { value: 'CANCELLED', label: 'ملغي' }
+    { value: 'all', label: 'All' },
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'PROCESSING', label: 'Processing' },
+    { value: 'SHIPPED', label: 'Shipped' },
+    { value: 'DELIVERED', label: 'Delivered' },
+    { value: 'CANCELLED', label: 'Cancelled' }
 ]
 
 export default function MobileAppOrdersPage() {
     const [orders, setOrders] = useState<Order[]>([])
     const [loading, setLoading] = useState(true)
     const [status, setStatus] = useState('all')
+    const [refreshKey, setRefreshKey] = useState(0)
     const [pagination, setPagination] = useState<Pagination>({
         page: 1,
         limit: 20,
@@ -57,30 +54,29 @@ export default function MobileAppOrdersPage() {
         totalPages: 0
     })
 
-    const fetchOrders = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams()
-            params.append('page', pagination.page.toString())
-            params.append('limit', pagination.limit.toString())
-            if (status !== 'all') params.append('status', status)
-
-            const res = await fetch(`/api/admin/mobile-app/orders?${params}`)
-            const data = await res.json()
-
-            if (data.success) {
-                setOrders(data.orders)
-                setPagination(prev => ({ ...prev, ...data.pagination }))
-            }
-        } catch (error) {
-            console.error('Failed to fetch orders:', error)
-        }
-        setLoading(false)
-    }, [pagination.page, pagination.limit, status])
-
     useEffect(() => {
+        const fetchOrders = async () => {
+            setLoading(true)
+            try {
+                const params = new URLSearchParams()
+                params.append('page', pagination.page.toString())
+                params.append('limit', pagination.limit.toString())
+                if (status !== 'all') params.append('status', status)
+
+                const res = await fetch(`/api/admin/mobile-app/orders?${params}`)
+                const data = await res.json()
+
+                if (data.success) {
+                    setOrders(data.orders)
+                    setPagination(prev => ({ ...prev, ...data.pagination }))
+                }
+            } catch (error) {
+                console.error('Failed to fetch orders:', error)
+            }
+            setLoading(false)
+        }
         fetchOrders()
-    }, [fetchOrders])
+    }, [pagination.page, pagination.limit, status, refreshKey])
 
     const updateOrderStatus = async (orderId: string, newStatus: string) => {
         try {
@@ -90,7 +86,7 @@ export default function MobileAppOrdersPage() {
                 body: JSON.stringify({ status: newStatus })
             })
             if (res.ok) {
-                fetchOrders()
+                setRefreshKey(k => k + 1)
             }
         } catch (error) {
             console.error('Failed to update order:', error)
@@ -98,7 +94,7 @@ export default function MobileAppOrdersPage() {
     }
 
     const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('ar-SA', {
+        return new Date(dateStr).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric'
@@ -106,7 +102,7 @@ export default function MobileAppOrdersPage() {
     }
 
     const formatCurrency = (amount: number, curr: string) => {
-        return new Intl.NumberFormat('ar-SA', {
+        return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: curr
         }).format(amount)
@@ -123,16 +119,7 @@ export default function MobileAppOrdersPage() {
         return styles[s] || 'bg-gray-100 text-gray-800'
     }
 
-    const getStatusLabel = (s: string) => {
-        const labels: Record<string, string> = {
-            PENDING: 'في الانتظار',
-            PROCESSING: 'قيد المعالجة',
-            SHIPPED: 'تم الشحن',
-            DELIVERED: 'تم التوصيل',
-            CANCELLED: 'ملغي'
-        }
-        return labels[s] || s
-    }
+
 
     return (
         <div className="space-y-6">
@@ -142,8 +129,8 @@ export default function MobileAppOrdersPage() {
                     <ShoppingCart className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold">الطلبات</h1>
-                    <p className="text-muted-foreground">إدارة طلبات المتجر</p>
+                    <h1 className="text-2xl font-bold">Orders</h1>
+                    <p className="text-muted-foreground">Manage store orders</p>
                 </div>
             </div>
 
@@ -183,9 +170,9 @@ export default function MobileAppOrdersPage() {
             {/* Orders Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle>قائمة الطلبات</CardTitle>
+                    <CardTitle>Orders List</CardTitle>
                     <CardDescription>
-                        عرض {orders.length} من {pagination.total} طلب
+                        Showing {orders.length} of {pagination.total} orders
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -195,21 +182,21 @@ export default function MobileAppOrdersPage() {
                         </div>
                     ) : orders.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                            لا توجد طلبات
+                            No orders found
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b">
-                                        <th className="text-right py-3 px-4">رقم الطلب</th>
-                                        <th className="text-right py-3 px-4">العميل</th>
-                                        <th className="text-right py-3 px-4">المنتجات</th>
-                                        <th className="text-right py-3 px-4">المبلغ</th>
-                                        <th className="text-right py-3 px-4">الحالة</th>
-                                        <th className="text-right py-3 px-4">رقم التتبع</th>
-                                        <th className="text-right py-3 px-4">التاريخ</th>
-                                        <th className="text-center py-3 px-4">إجراءات</th>
+                                        <th className="text-right py-3 px-4">Order #</th>
+                                        <th className="text-right py-3 px-4">Customer</th>
+                                        <th className="text-right py-3 px-4">Products</th>
+                                        <th className="text-right py-3 px-4">Amount</th>
+                                        <th className="text-right py-3 px-4">Status</th>
+                                        <th className="text-right py-3 px-4">Tracking #</th>
+                                        <th className="text-right py-3 px-4">Date</th>
+                                        <th className="text-center py-3 px-4">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -224,7 +211,7 @@ export default function MobileAppOrdersPage() {
                                             <td className="py-3 px-4">
                                                 <span className="inline-flex items-center gap-1">
                                                     <Package className="h-4 w-4 text-muted-foreground" />
-                                                    {order.itemCount} منتج
+                                                    {order.itemCount} items
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4">
@@ -274,7 +261,7 @@ export default function MobileAppOrdersPage() {
                     {pagination.totalPages > 1 && (
                         <div className="flex items-center justify-between mt-4 pt-4 border-t">
                             <p className="text-sm text-muted-foreground">
-                                صفحة {pagination.page} من {pagination.totalPages}
+                                Page {pagination.page} of {pagination.totalPages}
                             </p>
                             <div className="flex gap-2">
                                 <Button

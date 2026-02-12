@@ -218,7 +218,7 @@ export default function OperationsTable({
                                 </td>
                                 <td className="px-6 py-4 text-sm font-bold text-foreground dir-ltr text-right">
                                     {op.amount > 0 ? (
-                                        <span className="text-white">{op.amount.toFixed(2)} دولار</span>
+                                        <span className="text-white">{op.amount.toFixed(2)} USD</span>
                                     ) : (
                                         <span className="text-muted-foreground">-</span>
                                     )}
@@ -326,13 +326,13 @@ export default function OperationsTable({
             {totalPages > 1 && (
                 <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
                     <p className="text-sm text-muted-foreground hidden sm:block">
-                        {t.pagination?.page || 'عرض'} {(page - 1) * 10 + 1}-{Math.min(page * 10, operations.length + (page - 1) * 10)} {t.pagination?.of || 'من'} {totalPages * 10}
+                        {t.pagination?.page || 'Showing'} {(page - 1) * 10 + 1}-{Math.min(page * 10, operations.length + (page - 1) * 10)} {t.pagination?.of || 'of'} {totalPages * 10}
                     </p>
                     <div className="flex gap-2 w-full sm:w-auto justify-between sm:justify-start">
                         <button
                             onClick={() => onPageChange(page - 1)}
                             disabled={page <= 1}
-                            aria-label="الصفحة السابقة"
+                            aria-label="Previous page"
                             className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             <ChevronRight className="w-4 h-4" />
@@ -344,7 +344,7 @@ export default function OperationsTable({
                         <button
                             onClick={() => onPageChange(page + 1)}
                             disabled={page >= totalPages}
-                            aria-label="الصفحة التالية"
+                            aria-label="Next page"
                             className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             <ChevronLeft className="w-4 h-4" />

@@ -24,12 +24,12 @@ export default async function AdminLogsPage() {
                     <ShieldAlert className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">سجلات النشاط</h1>
-                    <p className="text-muted-foreground text-sm">تتبع جميع العمليات والإجراءات في النظام</p>
+                    <h1 className="text-2xl font-bold text-foreground">Activity Logs</h1>
+                    <p className="text-muted-foreground text-sm">Track all operations and actions in the system</p>
                 </div>
             </div>
 
-            <Suspense fallback={<div>جاري التحميل...</div>}>
+            <Suspense fallback={<div>Loading...</div>}>
                 <LogsTable />
             </Suspense>
         </div>

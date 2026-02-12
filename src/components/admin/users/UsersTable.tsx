@@ -64,7 +64,7 @@ export default function UsersTable() {
     const [search, setSearch] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [counts, setCounts] = useState<TabCounts>({ distributors: 0, users: 0 })
-    
+
     // Filter users by specific distributor
     const [filterManagerId, setFilterManagerId] = useState<string | null>(null)
     const [filterManagerName, setFilterManagerName] = useState<string | null>(null)
@@ -116,12 +116,12 @@ export default function UsersTable() {
         setLoading(true)
         try {
             let url = `/api/admin/users?page=${page}&limit=10&search=${debouncedSearch}&roleFilter=${activeTab}`
-            
+
             // Add managerId filter for users tab
             if (activeTab === 'users' && filterManagerId) {
                 url += `&managerId=${filterManagerId}`
             }
-            
+
             const res = await fetch(url)
             const data = await res.json()
             if (res.ok) {
@@ -203,8 +203,8 @@ export default function UsersTable() {
 
     // Render distributor row
     const renderDistributorRow = (distributor: Distributor) => (
-        <tr 
-            key={distributor.id} 
+        <tr
+            key={distributor.id}
             className="hover:bg-secondary transition-colors group cursor-pointer"
             onClick={() => handleDistributorClick(distributor)}
         >
@@ -212,11 +212,10 @@ export default function UsersTable() {
                 <div>
                     <p className="font-semibold text-foreground">{distributor.username}</p>
                     <p className="text-xs text-muted-foreground dir-ltr text-right">{distributor.email}</p>
-                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        distributor.role === 'ADMIN' 
+                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${distributor.role === 'ADMIN'
                             ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
                             : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                    }`}>
+                        }`}>
                         {distributor.role === 'ADMIN' ? (t.admin?.users?.roles?.admin || 'Admin') : (t.admin?.users?.roles?.manager || 'Manager')}
                     </span>
                 </div>
@@ -308,11 +307,10 @@ export default function UsersTable() {
                 {user.creatorUsername ? (
                     <div>
                         <p className="font-medium text-foreground">{user.creatorUsername}</p>
-                        <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            user.creatorRole === 'ADMIN' 
+                        <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${user.creatorRole === 'ADMIN'
                                 ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
                                 : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                        }`}>
+                            }`}>
                             {user.creatorRole === 'ADMIN' ? (t.admin?.users?.roles?.admin || 'Admin') : (t.admin?.users?.roles?.manager || 'Manager')}
                         </span>
                     </div>
@@ -332,15 +330,14 @@ export default function UsersTable() {
                         {user.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
                         {user.isActive ? t.admin.users.table.active : t.admin.users.table.inactive}
                     </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                        user.hasProxyLinked
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.hasProxyLinked
                             ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                    }`}>
+                        }`}>
                         <Link2 className="w-3 h-3" />
-                        {user.hasProxyLinked 
-                            ? (t.admin?.users?.table?.proxyLinked || 'تم ربط البروكسي')
-                            : (t.admin?.users?.table?.noProxy || 'بدون بروكسي')
+                        {user.hasProxyLinked
+                            ? (t.admin?.users?.table?.proxyLinked || 'Proxy Linked')
+                            : (t.admin?.users?.table?.noProxy || 'No Proxy')
                         }
                     </span>
                 </div>
@@ -422,19 +419,19 @@ export default function UsersTable() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <TabsList className="bg-muted/50">
                         <TabsTrigger value="distributors" className="gap-2">
-                            {t.admin?.users?.tabs?.distributors || 'الموزعين'}
+                            {t.admin?.users?.tabs?.distributors || 'Distributors'}
                             <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
                                 {counts.distributors}
                             </span>
                         </TabsTrigger>
                         <TabsTrigger value="users" className="gap-2">
-                            {t.admin?.users?.tabs?.users || 'المستخدمين'}
+                            {t.admin?.users?.tabs?.users || 'Users'}
                             <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
                                 {counts.users}
                             </span>
                         </TabsTrigger>
                     </TabsList>
-                    
+
                     {/* Header Actions */}
                     <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-64">
@@ -453,9 +450,9 @@ export default function UsersTable() {
                         >
                             <Plus className="w-5 h-5" />
                             <span>
-                                {activeTab === 'distributors' 
-                                    ? (t.admin?.users?.actions?.addDistributor || 'إضافة موزع')
-                                    : (t.admin?.users?.actions?.addUser || 'إضافة مستخدم')
+                                {activeTab === 'distributors'
+                                    ? (t.admin?.users?.actions?.addDistributor || 'Add New Distributor')
+                                    : (t.admin?.users?.actions?.addUser || 'Add New User')
                                 }
                             </span>
                         </button>
@@ -465,10 +462,10 @@ export default function UsersTable() {
                 {/* Filter badge for users tab */}
                 {activeTab === 'users' && filterManagerId && (
                     <div className="flex items-center gap-2 mt-4">
-                        <span className="text-sm text-muted-foreground">{t.admin?.users?.filters?.filterByDistributor || 'تصفية حسب الموزع'}:</span>
+                        <span className="text-sm text-muted-foreground">{t.admin?.users?.filters?.filterByDistributor || 'Filter by Distributor'}:</span>
                         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
                             {filterManagerName}
-                            <button 
+                            <button
                                 onClick={clearManagerFilter}
                                 className="p-0.5 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-full transition-colors"
                             >
@@ -488,7 +485,7 @@ export default function UsersTable() {
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</th>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.managedUsersCount || 'عدد المستخدمين'}</th>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.managedUsersCount || 'Users Count'}</th>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</th>
                                     </tr>
@@ -498,7 +495,7 @@ export default function UsersTable() {
                                         renderLoadingSkeleton(6)
                                     ) : distributors.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="p-8 text-center text-muted-foreground">{t.admin?.users?.table?.noDistributors || 'لا يوجد موزعين'}</td>
+                                            <td colSpan={6} className="p-8 text-center text-muted-foreground">{t.admin?.users?.table?.noDistributors || 'No distributors found'}</td>
                                         </tr>
                                     ) : (
                                         distributors.map(renderDistributorRow)
@@ -544,7 +541,7 @@ export default function UsersTable() {
                                 <thead className="bg-secondary border-b border-border">
                                     <tr>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.manager || 'الموزع'}</th>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.manager || 'Distributor'}</th>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</th>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</th>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.activity}</th>

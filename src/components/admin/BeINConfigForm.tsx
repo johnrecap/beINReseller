@@ -78,17 +78,17 @@ export default function BeINConfigForm() {
             ]
         },
         {
-            title: t.admin.config.sections.poolSettings || 'إعدادات توزيع الحسابات',
+            title: t.admin.config.sections.poolSettings || 'Account Pool Settings',
             icon: '🔀',
             fields: [
-                { key: 'pool_max_requests_per_account', label: t.admin.config.fields.maxRequestsPerAccount || 'الحد الأقصى للطلبات لكل حساب', type: 'number', placeholder: '5', hint: t.admin.config.hints?.maxRequestsPerAccount || 'عدد الطلبات المسموحة لكل حساب في النافذة الزمنية' },
-                { key: 'pool_rate_limit_window_seconds', label: t.admin.config.fields.rateLimitWindow || 'نافذة Rate Limit (ثانية)', type: 'number', placeholder: '300', hint: t.admin.config.hints?.rateLimitWindow || '300 = 5 دقائق' },
-                { key: 'pool_cooldown_after_failures', label: t.admin.config.fields.cooldownAfterFailures || 'عدد الفشل قبل Cooldown', type: 'number', placeholder: '3' },
-                { key: 'pool_cooldown_duration_seconds', label: t.admin.config.fields.cooldownDuration || 'مدة Cooldown (ثانية)', type: 'number', placeholder: '600', hint: t.admin.config.hints?.cooldownDuration || '600 = 10 دقائق' },
-                { key: 'pool_min_delay_ms', label: t.admin.config.fields.minDelay || 'الحد الأدنى للتأخير (مللي ثانية)', type: 'number', placeholder: '2000' },
-                { key: 'pool_max_delay_ms', label: t.admin.config.fields.maxDelay || 'الحد الأقصى للتأخير (مللي ثانية)', type: 'number', placeholder: '5000' },
-                { key: 'pool_max_consecutive_failures', label: t.admin.config.fields.maxConsecutiveFailures || 'الحد الأقصى للفشل المتتالي', type: 'number', placeholder: '5' },
-                { key: 'pool_auto_disable_on_error', label: t.admin.config.fields.autoDisable || 'تعطيل الحساب تلقائياً عند الفشل المتكرر', type: 'checkbox' },
+                { key: 'pool_max_requests_per_account', label: t.admin.config.fields.maxRequestsPerAccount || 'Max requests per account', type: 'number', placeholder: '5', hint: t.admin.config.hints?.maxRequestsPerAccount || 'Allowed requests per account within the time window' },
+                { key: 'pool_rate_limit_window_seconds', label: t.admin.config.fields.rateLimitWindow || 'Rate Limit Window (seconds)', type: 'number', placeholder: '300', hint: t.admin.config.hints?.rateLimitWindow || '300 = 5 minutes' },
+                { key: 'pool_cooldown_after_failures', label: t.admin.config.fields.cooldownAfterFailures || 'Failures before cooldown', type: 'number', placeholder: '3' },
+                { key: 'pool_cooldown_duration_seconds', label: t.admin.config.fields.cooldownDuration || 'Cooldown duration (seconds)', type: 'number', placeholder: '600', hint: t.admin.config.hints?.cooldownDuration || '600 = 10 minutes' },
+                { key: 'pool_min_delay_ms', label: t.admin.config.fields.minDelay || 'Min delay (ms)', type: 'number', placeholder: '2000' },
+                { key: 'pool_max_delay_ms', label: t.admin.config.fields.maxDelay || 'Max delay (ms)', type: 'number', placeholder: '5000' },
+                { key: 'pool_max_consecutive_failures', label: t.admin.config.fields.maxConsecutiveFailures || 'Max consecutive failures', type: 'number', placeholder: '5' },
+                { key: 'pool_auto_disable_on_error', label: t.admin.config.fields.autoDisable || 'Auto-disable account on repeated failures', type: 'checkbox' },
             ]
         },
         {
@@ -101,28 +101,28 @@ export default function BeINConfigForm() {
             ]
         },
         {
-            title: 'إعدادات تجديد الجلسات',
+            title: t.admin?.config?.sections?.sessionRenewal || 'Session Renewal Settings',
             icon: '🔥',
             fields: [
-                { 
-                    key: 'keepalive_interval_minutes', 
-                    label: 'فترة تجديد الجلسات (دقيقة)', 
-                    type: 'number', 
+                {
+                    key: 'keepalive_interval_minutes',
+                    label: t.admin?.config?.fields?.keepaliveInterval || 'Session renewal interval (minutes)',
+                    type: 'number',
                     placeholder: '19',
-                    hint: 'كم دقيقة بين كل تجديد للجلسات. القيمة الافتراضية 19 دقيقة. يجب أن تكون أقل من 25 دقيقة (مدة صلاحية الجلسة).'
+                    hint: t.admin?.config?.hints?.keepaliveInterval || 'Minutes between session renewals. Default is 19 min. Must be less than 25 min (session validity).'
                 },
             ]
         },
         {
-            title: t.admin.config.sections.userProxySettings || 'إعدادات حساسة للنظام',
+            title: t.admin.config.sections.userProxySettings || 'Sensitive System Settings',
             icon: '🔗',
             fields: [
-                { 
-                    key: 'user_proxy_limit', 
-                    label: t.admin.config.fields.userProxyLimit || 'حد التوزيع الداخلي للنظام', 
-                    type: 'number', 
+                {
+                    key: 'user_proxy_limit',
+                    label: t.admin.config.fields.userProxyLimit || 'Internal system distribution limit',
+                    type: 'number',
                     placeholder: '10',
-                    hint: t.admin.config.hints?.userProxyLimit || '⚠️ تحذير هام: لا تقم بتغيير هذا الرقم نهائياً إلا بعد التواصل مع الدعم الفني. تغيير هذه القيمة قد يؤثر على عمل النظام بشكل كامل.'
+                    hint: t.admin.config.hints?.userProxyLimit || '⚠️ Warning: Do not change this value unless instructed by support. Changing this may affect the entire system.'
                 },
             ]
         },

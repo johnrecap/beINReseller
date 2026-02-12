@@ -101,13 +101,13 @@ export default function MobileAppSettingsPage() {
                         <Settings className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold">إعدادات التطبيق</h1>
-                        <p className="text-muted-foreground">تكوين إعدادات تطبيق الموبايل</p>
+                        <h1 className="text-2xl font-bold">App Settings</h1>
+                        <p className="text-muted-foreground">Configure mobile app settings</p>
                     </div>
                 </div>
                 <Button onClick={saveSettings} disabled={saving}>
                     <Save className="h-4 w-4 ml-2" />
-                    {saving ? 'جاري الحفظ...' : saved ? 'تم الحفظ ✓' : 'حفظ الإعدادات'}
+                    {saving ? 'Saving...' : saved ? 'Saved ✓' : 'Save Settings'}
                 </Button>
             </div>
 
@@ -117,9 +117,9 @@ export default function MobileAppSettingsPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Power className="h-5 w-5" />
-                            حالة التطبيق
+                            App Status
                         </CardTitle>
-                        <CardDescription>التحكم في تشغيل وإيقاف التطبيق</CardDescription>
+                        <CardDescription>Control app enable/disable</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {/* App Enabled */}
@@ -127,9 +127,9 @@ export default function MobileAppSettingsPage() {
                             <div className="flex items-center gap-3">
                                 <Smartphone className={`h-5 w-5 ${settings.appEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
                                 <div>
-                                    <p className="font-medium">تفعيل التطبيق</p>
+                                    <p className="font-medium">Enable App</p>
                                     <p className="text-sm text-muted-foreground">
-                                        {settings.appEnabled ? 'التطبيق يعمل بشكل طبيعي' : 'التطبيق معطل'}
+                                        {settings.appEnabled ? 'App is running normally' : 'App is disabled'}
                                     </p>
                                 </div>
                             </div>
@@ -148,9 +148,9 @@ export default function MobileAppSettingsPage() {
                             <div className="flex items-center gap-3">
                                 <Wrench className={`h-5 w-5 ${settings.maintenanceMode ? 'text-yellow-500' : 'text-muted-foreground'}`} />
                                 <div>
-                                    <p className="font-medium">وضع الصيانة</p>
+                                    <p className="font-medium">Maintenance Mode</p>
                                     <p className="text-sm text-muted-foreground">
-                                        {settings.maintenanceMode ? 'التطبيق في وضع الصيانة' : 'التطبيق يعمل بشكل عادي'}
+                                        {settings.maintenanceMode ? 'App is in maintenance mode' : 'App is running normally'}
                                     </p>
                                 </div>
                             </div>
@@ -169,8 +169,8 @@ export default function MobileAppSettingsPage() {
                             <div className="flex items-center gap-3">
                                 <Info className="h-5 w-5 text-muted-foreground" />
                                 <div>
-                                    <p className="font-medium">إصدار التطبيق</p>
-                                    <p className="text-sm text-muted-foreground">الإصدار الحالي المطلوب</p>
+                                    <p className="font-medium">App Version</p>
+                                    <p className="text-sm text-muted-foreground">Required current version</p>
                                 </div>
                             </div>
                             <Input
@@ -188,15 +188,15 @@ export default function MobileAppSettingsPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Wallet className="h-5 w-5" />
-                            إعدادات المحفظة
+                            Wallet Settings
                         </CardTitle>
-                        <CardDescription>حدود شحن المحفظة</CardDescription>
+                        <CardDescription>Wallet top-up limits</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="text-sm font-medium mb-2 block">
-                                    الحد الأدنى للشحن
+                                    Minimum Top-up
                                 </label>
                                 <Input
                                     type="number"
@@ -207,7 +207,7 @@ export default function MobileAppSettingsPage() {
                             </div>
                             <div>
                                 <label className="text-sm font-medium mb-2 block">
-                                    الحد الأقصى للشحن
+                                    Maximum Top-up
                                 </label>
                                 <Input
                                     type="number"
@@ -221,7 +221,7 @@ export default function MobileAppSettingsPage() {
                         {settings.minWalletTopup > settings.maxWalletTopup && (
                             <div className="flex items-center gap-2 text-yellow-600 text-sm">
                                 <AlertTriangle className="h-4 w-4" />
-                                الحد الأدنى أكبر من الحد الأقصى
+                                Minimum is greater than maximum
                             </div>
                         )}
                     </CardContent>
@@ -232,14 +232,14 @@ export default function MobileAppSettingsPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Percent className="h-5 w-5" />
-                            إعدادات الاشتراكات
+                            Subscription Settings
                         </CardTitle>
-                        <CardDescription>نسبة الربح وأسعار الخدمات</CardDescription>
+                        <CardDescription>Profit margin and service prices</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div>
                             <label className="text-sm font-medium mb-2 block">
-                                نسبة الربح على الاشتراكات (%)
+                                Subscription Markup (%)
                             </label>
                             <div className="flex items-center gap-2">
                                 <Input
@@ -253,13 +253,13 @@ export default function MobileAppSettingsPage() {
                                 <span className="text-muted-foreground">%</span>
                             </div>
                             <p className="text-sm text-muted-foreground mt-1">
-                                سيتم إضافة هذه النسبة على أسعار beIN الأصلية
+                                This percentage will be added to beIN original prices
                             </p>
                         </div>
 
                         <div>
                             <label className="text-sm font-medium mb-2 block">
-                                سعر تجديد الإشارة
+                                Signal Refresh Price
                             </label>
                             <Input
                                 type="number"
@@ -268,7 +268,7 @@ export default function MobileAppSettingsPage() {
                                 min={0}
                             />
                             <p className="text-sm text-muted-foreground mt-1">
-                                {settings.signalRefreshPrice === 0 ? 'مجاني' : `${settings.signalRefreshPrice} SAR/EGP`}
+                                {settings.signalRefreshPrice === 0 ? 'Free' : `${settings.signalRefreshPrice} SAR/EGP`}
                             </p>
                         </div>
                     </CardContent>
@@ -279,15 +279,15 @@ export default function MobileAppSettingsPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Settings className="h-5 w-5" />
-                            إعدادات الشحن
+                            Shipping Settings
                         </CardTitle>
-                        <CardDescription>تكاليف الشحن حسب البلد</CardDescription>
+                        <CardDescription>Shipping costs per country</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                                    🇸🇦 السعودية (SAR)
+                                    🇸🇦 Saudi Arabia (SAR)
                                 </label>
                                 <Input
                                     type="number"
@@ -298,7 +298,7 @@ export default function MobileAppSettingsPage() {
                             </div>
                             <div>
                                 <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                                    🇪🇬 مصر (EGP)
+                                    🇪🇬 Egypt (EGP)
                                 </label>
                                 <Input
                                     type="number"

@@ -24,12 +24,12 @@ export default async function AdminUsersPage() {
                     <Users className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">إدارة المستخدمين</h1>
-                    <p className="text-muted-foreground text-sm">عرض وإدارة حسابات الموزعين والمستخدمين</p>
+                    <h1 className="text-2xl font-bold text-foreground">User Management</h1>
+                    <p className="text-muted-foreground text-sm">View and manage distributor and user accounts</p>
                 </div>
             </div>
 
-            <Suspense fallback={<div>جاري التحميل...</div>}>
+            <Suspense fallback={<div>Loading...</div>}>
                 <UsersTable />
             </Suspense>
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,19 +37,19 @@ interface Pagination {
 }
 
 const OPERATION_STATUSES = [
-    { value: 'all', label: 'الكل' },
-    { value: 'PENDING', label: 'في الانتظار' },
-    { value: 'PROCESSING', label: 'قيد المعالجة' },
-    { value: 'AWAITING_PACKAGE', label: 'بانتظار الباقة' },
-    { value: 'COMPLETED', label: 'مكتمل' },
-    { value: 'FAILED', label: 'فاشل' }
+    { value: 'all', label: 'All' },
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'PROCESSING', label: 'Processing' },
+    { value: 'AWAITING_PACKAGE', label: 'Awaiting Package' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'FAILED', label: 'Failed' }
 ]
 
 const OPERATION_TYPES = [
-    { value: 'all', label: 'الكل' },
-    { value: 'RENEW', label: 'تجديد' },
-    { value: 'SIGNAL_REFRESH', label: 'تجديد إشارة' },
-    { value: 'CHECK_BALANCE', label: 'فحص الرصيد' }
+    { value: 'all', label: 'All' },
+    { value: 'RENEW', label: 'Renew' },
+    { value: 'SIGNAL_REFRESH', label: 'Signal Refresh' },
+    { value: 'CHECK_BALANCE', label: 'Check Balance' }
 ]
 
 export default function MobileAppSubscriptionsPage() {
@@ -64,34 +64,33 @@ export default function MobileAppSubscriptionsPage() {
         totalPages: 0
     })
 
-    const fetchOperations = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams()
-            params.append('page', pagination.page.toString())
-            params.append('limit', pagination.limit.toString())
-            if (status !== 'all') params.append('status', status)
-            if (type !== 'all') params.append('type', type)
+    useEffect(() => {
+        const fetchOperations = async () => {
+            setLoading(true)
+            try {
+                const params = new URLSearchParams()
+                params.append('page', pagination.page.toString())
+                params.append('limit', pagination.limit.toString())
+                if (status !== 'all') params.append('status', status)
+                if (type !== 'all') params.append('type', type)
 
-            const res = await fetch(`/api/admin/mobile-app/subscriptions?${params}`)
-            const data = await res.json()
+                const res = await fetch(`/api/admin/mobile-app/subscriptions?${params}`)
+                const data = await res.json()
 
-            if (data.success) {
-                setOperations(data.operations)
-                setPagination(prev => ({ ...prev, ...data.pagination }))
+                if (data.success) {
+                    setOperations(data.operations)
+                    setPagination(prev => ({ ...prev, ...data.pagination }))
+                }
+            } catch (error) {
+                console.error('Failed to fetch operations:', error)
             }
-        } catch (error) {
-            console.error('Failed to fetch operations:', error)
+            setLoading(false)
         }
-        setLoading(false)
+        fetchOperations()
     }, [pagination.page, pagination.limit, status, type])
 
-    useEffect(() => {
-        fetchOperations()
-    }, [fetchOperations])
-
     const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('ar-SA', {
+        return new Date(dateStr).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -102,7 +101,7 @@ export default function MobileAppSubscriptionsPage() {
 
     const formatCurrency = (amount: number | null, curr: string) => {
         if (amount === null) return '-'
-        return new Intl.NumberFormat('ar-SA', {
+        return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: curr
         }).format(amount)
@@ -148,8 +147,8 @@ export default function MobileAppSubscriptionsPage() {
                     <RefreshCw className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold">الاشتراكات</h1>
-                    <p className="text-muted-foreground">عمليات التجديد وتجديد الإشارة</p>
+                    <h1 className="text-2xl font-bold">Subscriptions</h1>
+                    <p className="text-muted-foreground">Renewal and signal refresh operations</p>
                 </div>
             </div>
 
@@ -206,9 +205,9 @@ export default function MobileAppSubscriptionsPage() {
             {/* Operations Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle>سجل العمليات</CardTitle>
+                    <CardTitle>Operations History</CardTitle>
                     <CardDescription>
-                        عرض {operations.length} من {pagination.total} عملية
+                        Showing {operations.length} of {pagination.total} operations
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -218,20 +217,20 @@ export default function MobileAppSubscriptionsPage() {
                         </div>
                     ) : operations.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                            لا توجد عمليات
+                            No operations found
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b">
-                                        <th className="text-right py-3 px-4">التاريخ</th>
-                                        <th className="text-right py-3 px-4">العميل</th>
-                                        <th className="text-right py-3 px-4">النوع</th>
-                                        <th className="text-right py-3 px-4">رقم الكارت</th>
-                                        <th className="text-right py-3 px-4">المبلغ</th>
-                                        <th className="text-right py-3 px-4">الحالة</th>
-                                        <th className="text-center py-3 px-4">إجراءات</th>
+                                        <th className="text-right py-3 px-4">Date</th>
+                                        <th className="text-right py-3 px-4">Customer</th>
+                                        <th className="text-right py-3 px-4">Type</th>
+                                        <th className="text-right py-3 px-4">Card Number</th>
+                                        <th className="text-right py-3 px-4">Amount</th>
+                                        <th className="text-right py-3 px-4">Status</th>
+                                        <th className="text-center py-3 px-4">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -283,7 +282,7 @@ export default function MobileAppSubscriptionsPage() {
                     {pagination.totalPages > 1 && (
                         <div className="flex items-center justify-between mt-4 pt-4 border-t">
                             <p className="text-sm text-muted-foreground">
-                                صفحة {pagination.page} من {pagination.totalPages}
+                                Page {pagination.page} of {pagination.totalPages}
                             </p>
                             <div className="flex gap-2">
                                 <Button

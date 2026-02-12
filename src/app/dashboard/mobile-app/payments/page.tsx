@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,8 +12,7 @@ import {
     XCircle,
     Clock,
     ChevronLeft,
-    ChevronRight,
-    Filter
+    ChevronRight
 } from 'lucide-react'
 
 interface Payment {
@@ -48,37 +47,36 @@ export default function MobileAppPaymentsPage() {
         totalPages: 0
     })
 
-    const fetchPayments = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams()
-            params.append('page', pagination.page.toString())
-            params.append('limit', pagination.limit.toString())
-            if (status !== 'all') params.append('status', status)
-            if (dateFrom) params.append('dateFrom', dateFrom)
-            if (dateTo) params.append('dateTo', dateTo)
+    useEffect(() => {
+        const fetchPayments = async () => {
+            setLoading(true)
+            try {
+                const params = new URLSearchParams()
+                params.append('page', pagination.page.toString())
+                params.append('limit', pagination.limit.toString())
+                if (status !== 'all') params.append('status', status)
+                if (dateFrom) params.append('dateFrom', dateFrom)
+                if (dateTo) params.append('dateTo', dateTo)
 
-            const res = await fetch(`/api/admin/mobile-app/payments?${params}`)
-            const data = await res.json()
+                const res = await fetch(`/api/admin/mobile-app/payments?${params}`)
+                const data = await res.json()
 
-            if (data.success) {
-                setPayments(data.payments)
-                setPagination(prev => ({ ...prev, ...data.pagination }))
+                if (data.success) {
+                    setPayments(data.payments)
+                    setPagination(prev => ({ ...prev, ...data.pagination }))
+                }
+            } catch (error) {
+                console.error('Failed to fetch payments:', error)
             }
-        } catch (error) {
-            console.error('Failed to fetch payments:', error)
+            setLoading(false)
         }
-        setLoading(false)
+        fetchPayments()
     }, [pagination.page, pagination.limit, status, dateFrom, dateTo])
 
-    useEffect(() => {
-        fetchPayments()
-    }, [fetchPayments])
-
     const exportToCSV = () => {
-        const headers = ['التاريخ', 'العميل', 'البريد', 'المبلغ', 'العملة', 'الحالة', 'Stripe ID']
+        const headers = ['Date', 'Customer', 'Email', 'Amount', 'Currency', 'Status', 'Stripe ID']
         const rows = payments.map(p => [
-            new Date(p.createdAt).toLocaleDateString('ar-SA'),
+            new Date(p.createdAt).toLocaleDateString('en-US'),
             p.customerName,
             p.customerEmail,
             p.amount.toString(),
@@ -97,7 +95,7 @@ export default function MobileAppPaymentsPage() {
     }
 
     const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('ar-SA', {
+        return new Date(dateStr).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -107,7 +105,7 @@ export default function MobileAppPaymentsPage() {
     }
 
     const formatCurrency = (amount: number, curr: string) => {
-        return new Intl.NumberFormat('ar-SA', {
+        return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: curr
         }).format(amount)
@@ -140,13 +138,13 @@ export default function MobileAppPaymentsPage() {
                         <CreditCard className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold">المدفوعات</h1>
-                        <p className="text-muted-foreground">مدفوعات شحن المحفظة عبر Stripe</p>
+                        <h1 className="text-2xl font-bold">Payments</h1>
+                        <p className="text-muted-foreground">Wallet top-up payments via Stripe</p>
                     </div>
                 </div>
                 <Button onClick={exportToCSV} variant="outline">
                     <Download className="h-4 w-4 ml-2" />
-                    تصدير CSV
+                    Export CSV
                 </Button>
             </div>
 
@@ -163,9 +161,9 @@ export default function MobileAppPaymentsPage() {
                                     size="sm"
                                     onClick={() => setStatus(s)}
                                 >
-                                    {s === 'all' ? 'الكل' :
-                                        s === 'succeeded' ? 'ناجح' :
-                                            s === 'pending' ? 'معلق' : 'فاشل'}
+                                    {s === 'all' ? 'All' :
+                                        s === 'succeeded' ? 'Succeeded' :
+                                            s === 'pending' ? 'Pending' : 'Failed'}
                                 </Button>
                             ))}
                         </div>
@@ -194,9 +192,9 @@ export default function MobileAppPaymentsPage() {
             {/* Payments Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle>سجل المدفوعات</CardTitle>
+                    <CardTitle>Payment History</CardTitle>
                     <CardDescription>
-                        عرض {payments.length} من {pagination.total} دفعة
+                        Showing {payments.length} of {pagination.total} payments
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -206,17 +204,17 @@ export default function MobileAppPaymentsPage() {
                         </div>
                     ) : payments.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                            لا توجد مدفوعات
+                            No payments found
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b">
-                                        <th className="text-right py-3 px-4">التاريخ</th>
-                                        <th className="text-right py-3 px-4">العميل</th>
-                                        <th className="text-right py-3 px-4">المبلغ</th>
-                                        <th className="text-right py-3 px-4">الحالة</th>
+                                        <th className="text-right py-3 px-4">Date</th>
+                                        <th className="text-right py-3 px-4">Customer</th>
+                                        <th className="text-right py-3 px-4">Amount</th>
+                                        <th className="text-right py-3 px-4">Status</th>
                                         <th className="text-right py-3 px-4">Stripe ID</th>
                                     </tr>
                                 </thead>
@@ -240,8 +238,8 @@ export default function MobileAppPaymentsPage() {
                                             <td className="py-3 px-4">
                                                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(payment.status)}`}>
                                                     {getStatusIcon(payment.status)}
-                                                    {payment.status === 'succeeded' ? 'ناجح' :
-                                                        payment.status === 'pending' ? 'معلق' : 'فاشل'}
+                                                    {payment.status === 'succeeded' ? 'Succeeded' :
+                                                        payment.status === 'pending' ? 'Pending' : 'Failed'}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4 text-sm font-mono text-muted-foreground">
@@ -258,7 +256,7 @@ export default function MobileAppPaymentsPage() {
                     {pagination.totalPages > 1 && (
                         <div className="flex items-center justify-between mt-4 pt-4 border-t">
                             <p className="text-sm text-muted-foreground">
-                                صفحة {pagination.page} من {pagination.totalPages}
+                                Page {pagination.page} of {pagination.totalPages}
                             </p>
                             <div className="flex gap-2">
                                 <Button

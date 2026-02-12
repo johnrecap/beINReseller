@@ -109,7 +109,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#00A651] hover:bg-[#008f45] text-white rounded-xl font-bold shadow-lg shadow-green-500/20 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
                     >
                         <Search className="w-4 h-4" />
-                        {t.common.search || 'بحث'}
+                        {t.common.search || 'Search'}
                     </button>
                     <button
                         type="button"

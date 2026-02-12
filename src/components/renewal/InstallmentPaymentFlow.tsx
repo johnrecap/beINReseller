@@ -111,8 +111,8 @@ function InstallmentConfirmDialog({
                             <ShieldCheck className="w-8 h-8" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">{inst.confirmTitle || 'تأكيد الدفع النهائي'}</h2>
-                            <p className="text-orange-100 text-sm">{inst.confirmMessage || 'هذه الخطوة الأخيرة قبل إتمام الشراء'}</p>
+                            <h2 className="text-xl font-bold">{inst.confirmTitle}</h2>
+                            <p className="text-orange-100 text-sm">{inst.confirmMessage}</p>
                         </div>
                     </div>
                 </div>
@@ -122,26 +122,26 @@ function InstallmentConfirmDialog({
                     {/* Info */}
                     <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border">
                         <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">{inst.packageLabel || 'الباقة'}:</span>
-                            <span className="font-bold text-foreground">{installment.package || inst.notSpecified || 'غير محدد'}</span>
+                            <span className="text-muted-foreground">{inst.packageLabel}:</span>
+                            <span className="font-bold text-foreground">{installment.package || inst.notSpecified}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">{inst.priceLabel || 'السعر'}:</span>
+                            <span className="text-muted-foreground">{inst.priceLabel}:</span>
                             <span className="font-bold text-[#00A651]">USD {installment.dealerPrice}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">{inst.stbLabel || 'رقم الريسيفر'}:</span>
+                            <span className="text-muted-foreground">{inst.stbLabel}:</span>
                             <span className="font-mono text-sm">{installment.monthsToPay || '-'}</span>
                         </div>
                         <div className="flex justify-between items-center border-t border-border pt-2 mt-2">
-                            <span className="text-muted-foreground">{inst.cardLabel || 'رقم الكارت'}:</span>
+                            <span className="text-muted-foreground">{inst.cardLabel}:</span>
                             <span className="font-mono text-sm bg-muted px-2 py-0.5 rounded">{cardNumber}</span>
                         </div>
                     </div>
 
                     {/* Balance */}
                     <div className="flex justify-between items-center text-sm px-1">
-                        <span className="text-muted-foreground">{inst.yourBalance || 'رصيدك'}:</span>
+                        <span className="text-muted-foreground">{inst.yourBalance}:</span>
                         <span className={insufficientBalance ? 'text-red-600 font-bold' : 'text-green-600 font-bold'}>
                             USD {balance}
                         </span>
@@ -151,7 +151,7 @@ function InstallmentConfirmDialog({
                     {insufficientBalance && (
                         <div className="flex items-center justify-center gap-2 p-3 bg-red-500/10 rounded-xl border border-red-500/30">
                             <AlertTriangle className="w-5 h-5 text-red-500" />
-                            <span className="text-sm font-bold text-red-500">{inst.insufficientBalance || 'رصيد غير كافي'}</span>
+                            <span className="text-sm font-bold text-red-500">{inst.insufficientBalance}</span>
                         </div>
                     )}
 
@@ -170,7 +170,7 @@ function InstallmentConfirmDialog({
                         <div className="flex items-center justify-center gap-2 p-3 bg-[#ED1C24]/10 rounded-xl border border-[#ED1C24]/30 animate-pulse">
                             <AlertTriangle className="w-5 h-5 text-[#ED1C24]" />
                             <span className="text-sm font-bold text-[#ED1C24]">
-                                {inst.expiryWarning || '⚠️ سينتهي الوقت خلال 10 ثواني!'}
+                                {inst.expiryWarning}
                             </span>
                         </div>
                     )}
@@ -182,7 +182,7 @@ function InstallmentConfirmDialog({
                             disabled={isLoading}
                             className="flex-1 px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors disabled:opacity-50"
                         >
-                            {inst.cancel || 'إلغاء'}
+                            {inst.cancel}
                         </button>
                         <button
                             onClick={onConfirm}
@@ -192,12 +192,12 @@ function InstallmentConfirmDialog({
                             {isLoading ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    {inst.confirming || 'جاري التأكيد...'}
+                                    {inst.confirming}
                                 </>
                             ) : (
                                 <>
                                     <CheckCircle className="w-4 h-4" />
-                                    {inst.payNow || 'تأكيد الدفع'}
+                                    {inst.payNow}
                                 </>
                             )}
                         </button>
@@ -274,13 +274,13 @@ export function InstallmentPaymentFlow() {
                         setResultMessage(data.message)
                         setStep('no-installment')
                     } else {
-                        setResultMessage(data.message || inst.success || 'تم دفع القسط بنجاح')
+                        setResultMessage(data.message || inst.success)
                         setStep('success')
                         refetchBalance()
                     }
                 } else if (data.status === 'FAILED') {
                     clearInterval(pollInterval)
-                    setError(data.message || inst.failed || 'فشلت العملية')
+                    setError(data.message || inst.failed)
                     setStep('error')
                 }
             } catch (err) {
@@ -303,12 +303,12 @@ export function InstallmentPaymentFlow() {
 
                 if (data.status === 'COMPLETED') {
                     clearInterval(pollInterval)
-                    setResultMessage(data.message || inst.success || 'تم دفع القسط بنجاح')
+                    setResultMessage(data.message || inst.success)
                     setStep('success')
                     refetchBalance()
                 } else if (data.status === 'FAILED') {
                     clearInterval(pollInterval)
-                    setError(data.message || inst.failed || 'فشلت العملية')
+                    setError(data.message || inst.failed)
                     setStep('error')
                     refetchBalance()
                 }
@@ -324,7 +324,7 @@ export function InstallmentPaymentFlow() {
     // Start loading installment
     const handleStart = async () => {
         if (cardNumber.length < 10) {
-            toast.error(inst.cardError || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل')
+            toast.error(inst.cardError)
             return
         }
 
@@ -342,9 +342,9 @@ export function InstallmentPaymentFlow() {
 
             if (!res.ok) {
                 if (data.operationId) {
-                    toast.error(inst.existingOperation || 'هناك عملية جارية لهذا الكارت', {
+                    toast.error(inst.existingOperation, {
                         action: {
-                            label: inst.goToOperations || 'للعمليات',
+                            label: inst.goToOperations,
                             onClick: () => {
                                 window.location.href = '/dashboard/operations/active'
                             }
@@ -353,11 +353,11 @@ export function InstallmentPaymentFlow() {
                     setStep('input')
                     return
                 }
-                throw new Error(data.error || inst.startFailed || 'فشل في بدء العملية')
+                throw new Error(data.error || inst.startFailed)
             }
 
             setOperationId(data.operationId)
-            toast.success(inst.loadingInstallment || 'جاري تحميل بيانات القسط...')
+            toast.success(inst.loadingInstallment)
         } catch (err: any) {
             setError(err.message)
             setStep('error')
@@ -370,7 +370,7 @@ export function InstallmentPaymentFlow() {
 
         // Check balance
         if (installment && balance < installment.dealerPrice) {
-            toast.error(inst.insufficientBalance || 'رصيد غير كافي')
+            toast.error(inst.insufficientBalance)
             return
         }
 
@@ -384,11 +384,11 @@ export function InstallmentPaymentFlow() {
             const data = await res.json()
 
             if (!res.ok) {
-                throw new Error(data.error || inst.confirmFailed || 'فشل في تأكيد الدفع')
+                throw new Error(data.error || inst.confirmFailed)
             }
 
             setStep('confirming')
-            toast.success(inst.processingPayment || 'جاري إتمام الدفع...')
+            toast.success(inst.processingPayment)
         } catch (err: any) {
             toast.error(err.message)
         } finally {
@@ -400,8 +400,8 @@ export function InstallmentPaymentFlow() {
     const handleCancel = async (isAutoCancel = false) => {
         setStep('error')
         setError(isAutoCancel
-            ? (inst.expiredCancel || 'تم إلغاء العملية لانتهاء المهلة')
-            : (inst.manualCancel || 'تم إلغاء العملية')
+            ? (inst.expiredCancel)
+            : (inst.manualCancel)
         )
     }
 
@@ -441,15 +441,15 @@ export function InstallmentPaymentFlow() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <DollarSign className="h-5 w-5 text-[#00A651]" />
-                            {inst.title || 'تسديد الأقساط الشهرية'}
+                            {inst.title}
                         </CardTitle>
                         <CardDescription>
-                            {inst.description || 'أدخل رقم كارت beIN للتحقق من الأقساط المستحقة'}
+                            {inst.description}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div>
-                            <Label htmlFor="installmentCard">{inst.cardLabel || 'رقم الكارت'}</Label>
+                            <Label htmlFor="installmentCard">{inst.cardLabel}</Label>
                             <Input
                                 id="installmentCard"
                                 type="text"
@@ -461,7 +461,7 @@ export function InstallmentPaymentFlow() {
                             />
                             {cardNumber && cardNumber.length < 10 && (
                                 <p className="text-xs text-red-500 mt-1">
-                                    {inst.cardError || 'رقم الكارت يجب أن يكون 10 أرقام على الأقل'}
+                                    {inst.cardError}
                                 </p>
                             )}
                         </div>
@@ -471,7 +471,7 @@ export function InstallmentPaymentFlow() {
                             className="w-full bg-[#00A651] hover:bg-[#008f45]"
                         >
                             <CreditCard className="h-4 w-4 ml-2" />
-                            {inst.loadButton || 'تحميل بيانات القسط'}
+                            {inst.loadButton}
                         </Button>
                     </CardContent>
                 </Card>
@@ -485,10 +485,10 @@ export function InstallmentPaymentFlow() {
                         <CardContent className="py-12 text-center">
                             <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
                             <h3 className="text-xl font-semibold mb-2">
-                                {inst.loadingTitle || 'جاري المعالجة...'}
+                                {inst.loadingTitle}
                             </h3>
                             <p className="text-muted-foreground">
-                                {inst.loadingDescription || 'يتم الاتصال بـ beIN واستخراج بيانات القسط'}
+                                {inst.loadingDescription}
                             </p>
                         </CardContent>
                     </Card>
@@ -506,7 +506,7 @@ export function InstallmentPaymentFlow() {
                         >
                             <span className="text-white font-bold text-base tracking-wide flex items-center gap-2">
                                 <Package className="h-5 w-5" />
-                                Contract Information
+                                {inst.contractInfo}
                             </span>
                             <div className="flex items-center gap-3">
                                 {/* Timer */}
@@ -525,7 +525,7 @@ export function InstallmentPaymentFlow() {
                                     className="bg-white/20 hover:bg-white/30 text-white border border-white/30 font-bold text-xs px-4 py-1.5 rounded-lg transition-all disabled:opacity-40"
                                 >
                                     <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
-                                    {inst.continueToPayment || 'Pay Installment'}
+                                    {inst.payInstallment}
                                 </Button>
                             </div>
                         </div>
@@ -537,7 +537,7 @@ export function InstallmentPaymentFlow() {
                                     {/* Package Row */}
                                     <tr className="border-b border-[#ddd]">
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd] w-[140px]">
-                                            Package:
+                                            {inst.packageLabel}:
                                         </td>
                                         <td className="px-4 py-2.5 text-[#333] font-medium" colSpan={3}>
                                             {installment.package}
@@ -547,7 +547,7 @@ export function InstallmentPaymentFlow() {
                                     {/* Months To Pay Row */}
                                     <tr className="border-b border-[#ddd]">
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
-                                            Months To Pay:
+                                            {inst.monthsToPay}:
                                         </td>
                                         <td className="px-4 py-2.5" colSpan={3}>
                                             <span className="bg-[#e8e8e8] text-[#333] border border-[#ccc] px-3 py-1 rounded text-xs font-medium">
@@ -559,7 +559,7 @@ export function InstallmentPaymentFlow() {
                                     {/* Installment Amount */}
                                     <tr className="border-b border-[#ddd]">
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
-                                            Installment Amount:
+                                            {inst.installmentAmount}:
                                         </td>
                                         <td className="px-4 py-2.5" colSpan={3}>
                                             <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
@@ -571,13 +571,13 @@ export function InstallmentPaymentFlow() {
                                     {/* Dates & Prices — horizontal layout matching beIN */}
                                     <tr className="border-b border-[#ddd]">
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
-                                            Contract Start Date:
+                                            {inst.contractStartDate}:
                                         </td>
                                         <td className="px-4 py-2.5 text-[#333] text-xs font-mono border-r border-[#ddd]">
                                             {installment.contractStartDate || '-'}
                                         </td>
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
-                                            Invoice Price (USD):
+                                            {inst.invoicePrice}:
                                         </td>
                                         <td className="px-4 py-2.5 text-[#333] text-xs font-bold">
                                             {installment.invoicePrice}
@@ -585,13 +585,13 @@ export function InstallmentPaymentFlow() {
                                     </tr>
                                     <tr className="border-b border-[#ddd]">
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
-                                            Contract Expiry Date:
+                                            {inst.contractExpiryDate}:
                                         </td>
                                         <td className="px-4 py-2.5 text-[#333] text-xs font-mono border-r border-[#ddd]">
                                             {installment.contractExpiryDate || '-'}
                                         </td>
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
-                                            Dealer Price (USD):
+                                            {inst.dealerPrice}:
                                         </td>
                                         <td className="px-4 py-2.5 text-xs font-bold text-[#00A651]">
                                             {installment.dealerPrice}
@@ -607,20 +607,20 @@ export function InstallmentPaymentFlow() {
                                                 style={{ background: 'linear-gradient(135deg, #602D92 0%, #7B3FA8 100%)' }}
                                             >
                                                 <User className="h-3.5 w-3.5" />
-                                                Subscriber Information
+                                                {inst.subscriberInfo}
                                             </div>
                                             <table className="w-full text-xs border-collapse">
                                                 <tbody>
                                                     {/* Name | Email */}
                                                     <tr className="border-b border-[#ddd]">
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] w-[120px]">
-                                                            Subscriber Name:
+                                                            {inst.subscriberName}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333] border-r border-[#ddd]">
                                                             {subscriber?.name || '-'}
                                                         </td>
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] w-[120px]">
-                                                            Subscriber Email:
+                                                            {inst.subscriberEmail}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333]">
                                                             {subscriber?.email || '-'}
@@ -629,13 +629,13 @@ export function InstallmentPaymentFlow() {
                                                     {/* Mobile | City */}
                                                     <tr className="border-b border-[#ddd]">
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
-                                                            Mobile:
+                                                            {inst.mobile}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.mobile || '-'}
                                                         </td>
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
-                                                            City:
+                                                            {inst.city}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333]">
                                                             {subscriber?.city || '-'}
@@ -644,7 +644,7 @@ export function InstallmentPaymentFlow() {
                                                     {/* Country */}
                                                     <tr className="border-b border-[#ddd]">
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
-                                                            Country:
+                                                            {inst.country}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333]" colSpan={3}>
                                                             {subscriber?.country || '-'}
@@ -653,13 +653,13 @@ export function InstallmentPaymentFlow() {
                                                     {/* Home Tel | Work Tel */}
                                                     <tr className="border-b border-[#ddd]">
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
-                                                            Home Tel:
+                                                            {inst.homeTel}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.homeTel || '-'}
                                                         </td>
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
-                                                            Work Tel:
+                                                            {inst.workTel}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333] font-mono">
                                                             {subscriber?.workTel || '-'}
@@ -668,13 +668,13 @@ export function InstallmentPaymentFlow() {
                                                     {/* Fax | STB Model */}
                                                     <tr className="border-b border-[#ddd]">
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
-                                                            Fax:
+                                                            {inst.fax}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.fax || '-'}
                                                         </td>
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
-                                                            STB Model:
+                                                            {inst.stbModel}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333] font-mono">
                                                             {subscriber?.stbModel || '-'}
@@ -683,13 +683,13 @@ export function InstallmentPaymentFlow() {
                                                     {/* Address | Remarks */}
                                                     <tr>
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] align-top">
-                                                            Address:
+                                                            {inst.address}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333] border-r border-[#ddd] align-top">
                                                             {subscriber?.address || '-'}
                                                         </td>
                                                         <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] align-top">
-                                                            Remarks:
+                                                            {inst.remarks}:
                                                         </td>
                                                         <td className="px-3 py-2 text-[#333] align-top">
                                                             {subscriber?.remarks || '-'}
@@ -712,7 +712,7 @@ export function InstallmentPaymentFlow() {
                                 style={{ background: 'linear-gradient(135deg, #602D92 0%, #964DA7 100%)' }}
                             >
                                 <CheckCircle className="h-5 w-5 ml-2" />
-                                {inst.continueToPayment || 'متابعة للدفع'}
+                                {inst.continueToPayment}
                             </Button>
                         </div>
                     </div>
@@ -726,10 +726,10 @@ export function InstallmentPaymentFlow() {
                         <CardContent className="py-12 text-center">
                             <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
                             <h3 className="text-xl font-semibold mb-2">
-                                {inst.confirmingTitle || 'جاري تأكيد الدفع...'}
+                                {inst.confirmingTitle}
                             </h3>
                             <p className="text-muted-foreground">
-                                {inst.confirmingDescription || 'يتم إتمام عملية الدفع على beIN'}
+                                {inst.confirmingDescription}
                             </p>
                         </CardContent>
                     </Card>
@@ -743,13 +743,13 @@ export function InstallmentPaymentFlow() {
                         <CardContent className="py-12 text-center">
                             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
                             <h3 className="text-xl font-bold text-green-600 dark:text-green-400 mb-2">
-                                {inst.successTitle || 'تم الدفع بنجاح!'}
+                                {inst.successTitle}
                             </h3>
                             <p className="text-muted-foreground mb-6">
-                                {resultMessage || inst.successMessage || 'تم دفع القسط بنجاح'}
+                                {resultMessage || inst.successMessage}
                             </p>
                             <Button onClick={handleReset} variant="outline">
-                                {inst.newOperation || 'عملية جديدة'}
+                                {inst.newOperation}
                             </Button>
                         </CardContent>
                     </Card>
@@ -763,13 +763,13 @@ export function InstallmentPaymentFlow() {
                         <CardContent className="py-12 text-center">
                             <CreditCard className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                             <h3 className="text-xl font-semibold mb-2">
-                                {inst.noInstallmentTitle || 'لا توجد أقساط'}
+                                {inst.noInstallmentTitle}
                             </h3>
                             <p className="text-muted-foreground mb-6">
-                                {resultMessage || inst.noInstallmentMessage || 'لا توجد أقساط مستحقة لهذا الكارت'}
+                                {resultMessage || inst.noInstallmentMessage}
                             </p>
                             <Button onClick={handleReset} variant="outline">
-                                {inst.tryAnother || 'جرب كارت آخر'}
+                                {inst.tryAnother}
                             </Button>
                         </CardContent>
                     </Card>
@@ -783,13 +783,13 @@ export function InstallmentPaymentFlow() {
                         <CardContent className="py-12 text-center">
                             <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
                             <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">
-                                {inst.errorTitle || 'فشلت العملية'}
+                                {inst.errorTitle}
                             </h3>
                             <p className="text-muted-foreground mb-6">
                                 {error}
                             </p>
                             <Button onClick={handleReset} variant="outline">
-                                {inst.tryAgain || 'حاول مرة أخرى'}
+                                {inst.tryAgain}
                             </Button>
                         </CardContent>
                     </Card>

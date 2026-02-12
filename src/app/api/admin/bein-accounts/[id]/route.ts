@@ -46,7 +46,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!account) {
-            return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Account not found' }, { status: 404 })
         }
 
         // Calculate stats
@@ -109,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!existing) {
-            return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Account not found' }, { status: 404 })
         }
 
         // Build update data
@@ -180,7 +180,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!existing) {
-            return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Account not found' }, { status: 404 })
         }
 
         // Delete account (sessions will cascade delete)
@@ -201,7 +201,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({
             success: true,
-            message: 'تم حذف الحساب بنجاح'
+            message: 'Account deleted successfully'
         })
 
     } catch (error) {

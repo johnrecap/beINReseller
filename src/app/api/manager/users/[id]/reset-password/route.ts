@@ -24,7 +24,7 @@ export async function POST(
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -32,11 +32,11 @@ export async function POST(
         // Check if user exists
         const targetUser = await prisma.user.findUnique({ where: { id } })
         if (!targetUser) {
-            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         if (targetUser.deletedAt) {
-            return NextResponse.json({ error: 'لا يمكن تعديل كلمة مرور مستخدم محذوف' }, { status: 400 })
+            return NextResponse.json({ error: 'Cannot change password for a deleted user' }, { status: 400 })
         }
 
         // Check if this user belongs to this manager
@@ -48,7 +48,7 @@ export async function POST(
         })
 
         if (!managerUserLink) {
-            return NextResponse.json({ error: 'ليس لديك صلاحية تعديل كلمة مرور هذا المستخدم' }, { status: 403 })
+            return NextResponse.json({ error: 'You do not have permission to change this user\'s password' }, { status: 403 })
         }
 
         const body = await request.json()
@@ -81,12 +81,12 @@ export async function POST(
 
         return NextResponse.json({
             success: true,
-            message: 'تم إعادة تعيين كلمة المرور بنجاح',
+            message: 'Password reset successfully',
             newPassword: passwordToSet
         })
 
     } catch (error) {
         console.error('Manager reset password error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

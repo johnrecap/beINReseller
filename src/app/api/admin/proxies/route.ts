@@ -63,22 +63,22 @@ export async function POST(request: NextRequest) {
         const errors: string[] = []
 
         if (!host || typeof host !== 'string' || host.trim().length === 0) {
-            errors.push('عنوان IP مطلوب')
+            errors.push('IP address is required')
         }
 
         if (!port || typeof port !== 'number') {
-            errors.push('رقم المنفذ مطلوب')
+            errors.push('Port number is required')
         } else if (port < 1 || port > 65535) {
-            errors.push('رقم المنفذ يجب أن يكون بين 1 و 65535')
+            errors.push('Port number must be between 1 and 65535')
         }
 
         if (!label || typeof label !== 'string' || label.trim().length < 3) {
-            errors.push('التسمية مطلوبة (3 أحرف على الأقل)')
+            errors.push('Label required (minimum 3 characters)')
         }
 
         // Username and password: both or none
         if ((username && !password) || (!username && password)) {
-            errors.push('يجب إدخال اسم المستخدم وكلمة المرور معاً أو تركهما فارغين')
+            errors.push('Username and password must both be provided or both be empty')
         }
 
         if (errors.length > 0) {
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
         if (existing) {
             return NextResponse.json(
-                { error: 'هذا البروكسي موجود بالفعل (نفس الـ IP والمنفذ)' },
+                { error: 'This proxy already exists (same IP and port)' },
                 { status: 400 }
             )
         }

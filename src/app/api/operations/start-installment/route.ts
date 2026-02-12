@@ -21,7 +21,7 @@ async function getAuthUser(request: NextRequest) {
 
 // Validation schema
 const startInstallmentSchema = z.object({
-    cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'رقم الكارت يجب أن يحتوي على أرقام فقط'),
+    cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'Card number must contain only digits'),
 })
 
 /**
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         // 2. Check permission - using SUBSCRIPTION_RENEW for now (can add specific permission later)
         if (!roleHasPermission(authUser.role, PERMISSIONS.SUBSCRIPTION_RENEW)) {
             return NextResponse.json(
-                { error: 'صلاحيات غير كافية' },
+                { error: 'Insufficient permissions' },
                 { status: 403 }
             )
         }
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح من الطلبات، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
         if (!validationResult.success) {
             return NextResponse.json(
-                { error: 'رقم الكارت غير صحيح', details: validationResult.error.flatten() },
+                { error: 'Invalid card number', details: validationResult.error.flatten() },
                 { status: 400 }
             )
         }
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
         if (existingOperation) {
             return NextResponse.json(
-                { error: 'هناك عملية جارية لهذا الكارت', operationId: existingOperation.id },
+                { error: 'There is an active operation for this card', operationId: existingOperation.id },
                 { status: 400 }
             )
         }
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: authUser.id,
                     action: 'INSTALLMENT_STARTED',
-                    details: `بدء تسديد قسط للكارت ${cardNumber}`,
+                    details: `Start installment payment for card ${cardNumber}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },
             }),
@@ -136,11 +136,11 @@ export async function POST(request: NextRequest) {
                 where: { id: operation.id },
                 data: {
                     status: 'FAILED',
-                    responseMessage: 'فشل في إضافة العملية للطابور'
+                    responseMessage: 'Failed to add operation to queue'
                 },
             })
             return NextResponse.json(
-                { error: 'فشل في بدء العملية، حاول مرة أخرى' },
+                { error: 'Failed to start operation, please try again' },
                 { status: 500 }
             )
         }
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             operationId: operation.id,
-            message: 'جاري تحميل بيانات القسط...',
+            message: 'Loading installment data...',
             operation: {
                 id: operation.id,
                 userId: operation.userId,
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Start installment error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

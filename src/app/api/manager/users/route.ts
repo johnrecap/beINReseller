@@ -6,9 +6,9 @@ import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 const createUserSchema = z.object({
-    username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
-    email: z.string().email('البريد الإلكتروني غير صالح'),
-    password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+    username: z.string().min(3, 'Username must be at least 3 characters'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
     balance: z.number().min(0).optional().default(0),
 })
 
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('List manager users error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
 
         if (!result.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { error: 'Invalid data', details: result.error.flatten() },
                 { status: 400 }
             )
         }
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
 
         if (existing) {
             return NextResponse.json(
-                { error: 'اسم المستخدم أو البريد الإلكتروني موجود بالفعل' },
+                { error: 'Username or email already exists' },
                 { status: 400 }
             )
         }
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
                             userId: user.id,
                             type: 'DEPOSIT',
                             amount: balance,
-                            notes: `رصيد أولي من المدير ${manager.username}`,
+                            notes: `Initial balance from manager ${manager.username}`,
                             balanceAfter: balance
                         }
                     })
@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
                             userId: manager.id,
                             type: 'WITHDRAW',
                             amount: balance,
-                            notes: `تحويل رصيد للمستخدم الجديد ${username}`,
+                            notes: `Balance transfer to new user ${username}`,
                             balanceAfter: updatedManager.balance
                         }
                     })
@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
             if (error instanceof Error && error.message.startsWith('INSUFFICIENT_BALANCE:')) {
                 const balance = error.message.split(':')[1]
                 return NextResponse.json(
-                    { error: `رصيدك غير كافي. رصيدك الحالي: $${balance}` },
+                    { error: `Insufficient balance. Your current balance: $${balance}` },
                     { status: 400 }
                 )
             }
@@ -248,6 +248,6 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Create manager user error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

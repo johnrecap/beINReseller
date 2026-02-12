@@ -16,8 +16,8 @@ async function getAuthUser(request: NextRequest) {
 }
 
 const changePasswordSchema = z.object({
-    currentPassword: z.string().min(1, 'كلمة المرور الحالية مطلوبة'),
-    newPassword: z.string().min(6, 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل'),
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(6, 'New password must be at least 6 characters'),
 })
 
 export async function POST(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         // Only ADMIN can change their own password
         if (authUser.role !== 'ADMIN') {
             return NextResponse.json(
-                { error: 'غير مصرح لك بتغيير كلمة المرور' },
+                { error: 'You are not allowed to change the password' },
                 { status: 403 }
             )
         }
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح من المحاولات، حاول مرة أخرى لاحقاً' },
+                { error: 'Too many attempts, please try again later' },
                 { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
         if (!result.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { error: 'Invalid data', details: result.error.flatten() },
                 { status: 400 }
             )
         }
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
         if (!user) {
             return NextResponse.json(
-                { error: 'المستخدم غير موجود' },
+                { error: 'User not found' },
                 { status: 404 }
             )
         }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
         if (!isValid) {
             return NextResponse.json(
-                { error: 'كلمة المرور الحالية غير صحيحة' },
+                { error: 'Current password is incorrect' },
                 { status: 400 }
             )
         }
@@ -99,20 +99,20 @@ export async function POST(request: NextRequest) {
             data: {
                 userId: user.id,
                 action: 'PASSWORD_CHANGED',
-                details: 'تم تغيير كلمة المرور بنجاح',
+                details: 'Password changed successfully',
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
             },
         })
 
         return NextResponse.json({
             success: true,
-            message: 'تم تغيير كلمة المرور بنجاح',
+            message: 'Password changed successfully',
         })
 
     } catch (error) {
         console.error('Change password error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

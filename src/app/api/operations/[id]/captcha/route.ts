@@ -23,7 +23,7 @@ export async function GET(
     try {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const { id } = await params
@@ -40,19 +40,19 @@ export async function GET(
         })
 
         if (!operation) {
-            return NextResponse.json({ error: 'العملية غير موجودة' }, { status: 404 })
+            return NextResponse.json({ error: 'Operation not found' }, { status: 404 })
         }
 
         if (operation.userId !== authUser.id) {
-            return NextResponse.json({ error: 'غير مصرح لك بالوصول لهذه العملية' }, { status: 403 })
+            return NextResponse.json({ error: 'Unauthorized access to this operation' }, { status: 403 })
         }
 
         if (operation.status !== 'AWAITING_CAPTCHA') {
-            return NextResponse.json({ error: 'رقم التحقق غير مطلوب لهذه العملية' }, { status: 400 })
+            return NextResponse.json({ error: 'Verification code not required for this operation' }, { status: 400 })
         }
 
         if (!operation.captchaImage) {
-            return NextResponse.json({ error: 'صورة التحقق غير متوفرة' }, { status: 404 })
+            return NextResponse.json({ error: 'CAPTCHA image not available' }, { status: 404 })
         }
 
         const expiryTime = operation.captchaExpiry ? new Date(operation.captchaExpiry).getTime() : 0
@@ -66,7 +66,7 @@ export async function GET(
 
     } catch (error) {
         console.error('Get CAPTCHA error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
@@ -81,7 +81,7 @@ export async function POST(
     try {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const { id } = await params
@@ -92,7 +92,7 @@ export async function POST(
         const captchaSolution = solution || captcha
 
         if (!captchaSolution || typeof captchaSolution !== 'string') {
-            return NextResponse.json({ error: 'رمز التحقق مطلوب' }, { status: 400 })
+            return NextResponse.json({ error: 'Verification code is required' }, { status: 400 })
         }
 
         const operation = await prisma.operation.findUnique({
@@ -101,15 +101,15 @@ export async function POST(
         })
 
         if (!operation) {
-            return NextResponse.json({ error: 'العملية غير موجودة' }, { status: 404 })
+            return NextResponse.json({ error: 'Operation not found' }, { status: 404 })
         }
 
         if (operation.userId !== authUser.id) {
-            return NextResponse.json({ error: 'غير مصرح لك بهذه العملية' }, { status: 403 })
+            return NextResponse.json({ error: 'Unauthorized for this operation' }, { status: 403 })
         }
 
         if (operation.status !== 'AWAITING_CAPTCHA') {
-            return NextResponse.json({ error: 'هذه العملية لا تنتظر رمز تحقق' }, { status: 400 })
+            return NextResponse.json({ error: 'This operation is not waiting for a verification code' }, { status: 400 })
         }
 
         // Update with solution
@@ -122,6 +122,6 @@ export async function POST(
 
     } catch (error) {
         console.error('Submit CAPTCHA error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

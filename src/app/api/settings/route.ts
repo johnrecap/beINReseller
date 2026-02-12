@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     try {
         const authUser = await getAuthUser(request)
         if (!authUser?.id || authUser.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const settings = await prisma.setting.findMany()
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('Get settings error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
@@ -45,7 +45,7 @@ export async function PUT(request: NextRequest) {
     try {
         const authUser = await getAuthUser(request)
         if (!authUser?.id || authUser.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         // Rate Limit
@@ -55,7 +55,7 @@ export async function PUT(request: NextRequest) {
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -97,10 +97,10 @@ export async function PUT(request: NextRequest) {
             }
         })
 
-        return NextResponse.json({ success: true, message: 'تم حفظ الإعدادات بنجاح' })
+        return NextResponse.json({ success: true, message: 'Settings saved successfully' })
 
     } catch (error) {
         console.error('Update settings error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

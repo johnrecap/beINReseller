@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
         if (!operation) {
             return NextResponse.json(
-                { error: 'العملية غير موجودة' },
+                { error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         // Check ownership (unless admin)
         if (operation.userId !== authUser.id && authUser.role !== 'ADMIN') {
             return NextResponse.json(
-                { error: 'غير مصرح بالوصول لهذه العملية' },
+                { error: 'Unauthorized access to this operation' },
                 { status: 403 }
             )
         }
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     } catch (error) {
         console.error('Get installment error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

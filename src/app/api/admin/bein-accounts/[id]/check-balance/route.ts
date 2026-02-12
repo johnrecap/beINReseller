@@ -43,13 +43,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!account) {
-            return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Account not found' }, { status: 404 })
         }
 
         // Check if account is active
         if (!account.isActive) {
             return NextResponse.json({ 
-                error: 'الحساب غير نشط - قم بتفعيله أولاً' 
+                error: 'Account inactive - please activate it first' 
             }, { status: 400 })
         }
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 const failedReason = job.failedReason || 'Unknown error'
                 return NextResponse.json({
                     success: false,
-                    error: `فشل في جلب الرصيد: ${failedReason}`
+                    error: `Failed to fetch balance: ${failedReason}`
                 }, { status: 500 })
             }
 
@@ -108,8 +108,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                     balance: updatedAccount?.dealerBalance ?? null,
                     updatedAt: updatedAccount?.balanceUpdatedAt?.toISOString() ?? null,
                     message: updatedAccount?.dealerBalance !== null && updatedAccount?.dealerBalance !== undefined
-                        ? `تم تحديث الرصيد: ${updatedAccount.dealerBalance} USD`
-                        : 'لم يتم العثور على الرصيد'
+                        ? `Balance updated: ${updatedAccount.dealerBalance} USD`
+                        : 'Balance not found'
                 })
             }
 
@@ -132,8 +132,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                         balance: finalAccount?.dealerBalance ?? null,
                         updatedAt: finalAccount?.balanceUpdatedAt?.toISOString() ?? null,
                         message: finalAccount?.dealerBalance !== null && finalAccount?.dealerBalance !== undefined
-                            ? `تم تحديث الرصيد: ${finalAccount.dealerBalance} USD`
-                            : 'لم يتم العثور على الرصيد'
+                            ? `Balance updated: ${finalAccount.dealerBalance} USD`
+                            : 'Balance not found'
                     })
                 }
             }
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // Timeout
         return NextResponse.json({
             success: false,
-            error: 'انتهت مهلة جلب الرصيد - حاول مرة أخرى'
+            error: 'Balance fetch timeout - please try again'
         }, { status: 504 })
 
     } catch (error) {

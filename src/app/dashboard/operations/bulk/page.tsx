@@ -17,10 +17,10 @@ export default async function BulkOperationsPage() {
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Link href="/dashboard/renew" className="hover:text-[#00A651]">
-                    التجديد التفاعلي
+                    Interactive Renewal
                 </Link>
                 <span>/</span>
-                <span className="text-foreground">عمليات الجملة</span>
+                <span className="text-foreground">Bulk Operations</span>
             </div>
 
             {/* Page Header */}
@@ -29,8 +29,8 @@ export default async function BulkOperationsPage() {
                     <Layers className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">عمليات الجملة</h1>
-                    <p className="text-muted-foreground text-sm">تجديد اشتراكات متعددة دفعة واحدة (حتى 10 كروت)</p>
+                    <h1 className="text-2xl font-bold text-foreground">Bulk Operations</h1>
+                    <p className="text-muted-foreground text-sm">Renew multiple subscriptions at once (up to 10 cards)</p>
                 </div>
             </div>
 
@@ -46,12 +46,12 @@ export default async function BulkOperationsPage() {
 
             {/* Info */}
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm">
-                <h3 className="font-bold mb-2">💡 تعليمات:</h3>
+                <h3 className="font-bold mb-2">💡 Instructions:</h3>
                 <ul className="list-disc list-inside space-y-1">
-                    <li>أدخل رقم كارت واحد في كل سطر</li>
-                    <li>الحد الأقصى 10 كروت في الطلب الواحد</li>
-                    <li>سيتم تطبيق نفس المدة على جميع الكروت</li>
-                    <li>الكروت التي لديها عمليات جارية سيتم تخطيها</li>
+                    <li>Enter one card number per line</li>
+                    <li>Maximum 10 cards per request</li>
+                    <li>Same duration will be applied to all cards</li>
+                    <li>Cards with active operations will be skipped</li>
                 </ul>
             </div>
         </div>

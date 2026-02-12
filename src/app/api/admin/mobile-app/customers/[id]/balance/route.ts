@@ -86,7 +86,7 @@ export async function POST(
                     amount,
                     balanceBefore,
                     balanceAfter,
-                    description: description || `تعديل إداري - ${type === 'credit' ? 'إضافة' : 'خصم'}`,
+                    description: description || `Admin adjustment - ${type === 'credit' ? 'Credit' : 'Debit'}`,
                     referenceType: 'ADMIN_ADJUSTMENT'
                 }
             })
@@ -94,7 +94,7 @@ export async function POST(
 
         return NextResponse.json({
             success: true,
-            message: `تم ${type === 'credit' ? 'إضافة' : 'خصم'} ${amount} بنجاح`,
+            message: `Successfully ${type === 'credit' ? 'credited' : 'debited'} ${amount}`,
             newBalance: balanceAfter
         })
 

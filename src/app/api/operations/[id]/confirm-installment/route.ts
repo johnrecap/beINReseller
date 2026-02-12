@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         if (!operation) {
             return NextResponse.json(
-                { error: 'العملية غير موجودة' },
+                { error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // Check ownership
         if (operation.userId !== authUser.id && authUser.role !== 'ADMIN') {
             return NextResponse.json(
-                { error: 'غير مصرح بالوصول لهذه العملية' },
+                { error: 'Unauthorized access to this operation' },
                 { status: 403 }
             )
         }
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // Verify status is awaiting confirmation
         if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
             return NextResponse.json(
-                { error: 'العملية ليست في حالة انتظار التأكيد' },
+                { error: 'Operation is not in awaiting confirmation state' },
                 { status: 400 }
             )
         }
@@ -82,12 +82,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 where: { id: operationId },
                 data: {
                     status: 'FAILED',
-                    responseMessage: 'انتهت مهلة التأكيد'
+                    responseMessage: 'Confirmation timeout'
                 }
             })
 
             return NextResponse.json(
-                { error: 'انتهت مهلة التأكيد' },
+                { error: 'Confirmation timeout' },
                 { status: 400 }
             )
         }
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         if (dealerPrice <= 0) {
             return NextResponse.json(
-                { error: 'سعر القسط غير صالح' },
+                { error: 'Invalid installment price' },
                 { status: 400 }
             )
         }
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         if (!user || user.balance < dealerPrice) {
             return NextResponse.json(
-                { error: 'رصيد غير كافي' },
+                { error: 'Insufficient balance' },
                 { status: 400 }
             )
         }
@@ -157,25 +157,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 where: { id: operationId },
                 data: {
                     status: 'FAILED',
-                    responseMessage: 'فشل في تأكيد الدفع'
+                    responseMessage: 'Failed to confirm payment'
                 }
             })
 
             return NextResponse.json(
-                { error: 'فشل في تأكيد الدفع، تم إرجاع المبلغ' },
+                { error: 'Failed to confirm payment, amount refunded' },
                 { status: 500 }
             )
         }
 
         return NextResponse.json({
             success: true,
-            message: 'جاري إتمام الدفع...'
+            message: 'Completing payment...'
         })
 
     } catch (error) {
         console.error('Confirm installment error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

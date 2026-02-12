@@ -156,26 +156,26 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('Analytics error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
 function getTypeLabel(type: string): string {
     const labels: Record<string, string> = {
-        RENEW: 'تجديد',
-        CHECK_BALANCE: 'استعلام رصيد',
-        SIGNAL_REFRESH: 'تحديث إشارة',
+        RENEW: 'Renewal',
+        CHECK_BALANCE: 'Balance Check',
+        SIGNAL_REFRESH: 'Signal Refresh',
     }
     return labels[type] || type
 }
 
 function getStatusLabel(status: string): string {
     const labels: Record<string, string> = {
-        PENDING: 'قيد الانتظار',
-        PROCESSING: 'جاري التنفيذ',
-        COMPLETED: 'مكتملة',
-        FAILED: 'فاشلة',
-        CANCELLED: 'ملغاة',
+        PENDING: 'Pending',
+        PROCESSING: 'In Progress',
+        COMPLETED: 'Completed',
+        FAILED: 'Failed',
+        CANCELLED: 'Cancelled',
     }
     return labels[status] || status
 }

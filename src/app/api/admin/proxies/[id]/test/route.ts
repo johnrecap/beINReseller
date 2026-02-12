@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!proxy) {
-            return NextResponse.json({ error: 'البروكسي غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Proxy not found' }, { status: 404 })
         }
 
         // Get proxy config from database (new schema)
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
             return NextResponse.json({
                 success: false,
-                error: `فشل الاتصال: ${errorMessage}`,
+                error: `Connection failed: ${errorMessage}`,
                 duration: Date.now() - start
             })
         }

@@ -42,7 +42,7 @@ export async function POST(
         const authUser = await getAuthUser(request)
         if (!authUser) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -55,7 +55,7 @@ export async function POST(
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تم تجاوز الحد المسموح من الطلبات' },
+                { error: 'Rate limit exceeded' },
                 { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
@@ -69,7 +69,7 @@ export async function POST(
 
         if (!operation) {
             return NextResponse.json(
-                { error: 'العملية غير موجودة' },
+                { error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -80,7 +80,7 @@ export async function POST(
             (authUser.customerId && operation.customerId === authUser.customerId)
         if (!isOwner) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -89,7 +89,7 @@ export async function POST(
         const nonCancellableStatuses = ['COMPLETED', 'CANCELLED']
         if (nonCancellableStatuses.includes(operation.status)) {
             return NextResponse.json(
-                { error: 'لا يمكن إلغاء عملية مكتملة أو ملغاة مسبقاً' },
+                { error: 'Cannot cancel a completed or previously cancelled operation' },
                 { status: 400 }
             )
         }
@@ -147,7 +147,7 @@ export async function POST(
                     where: { id },
                     data: {
                         status: 'CANCELLED',
-                        responseMessage: 'تم الإلغاء بواسطة المستخدم (تم استرداد المبلغ مسبقاً)',
+                        responseMessage: 'Cancelled by user (amount already refunded)',
                     },
                 })
 
@@ -157,7 +157,7 @@ export async function POST(
                         data: {
                             userId: resellerUserId,
                             action: 'OPERATION_CANCELLED',
-                            details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber} (استرداد سابق)`,
+                            details: `Cancel ${operation.type} operation for card ${operation.cardNumber} (previous refund)`,
                             ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                         },
                     })
@@ -166,7 +166,7 @@ export async function POST(
 
             return NextResponse.json({
                 success: true,
-                message: 'تم إلغاء العملية (المبلغ تم استرداده مسبقاً)',
+                message: 'Operation cancelled (amount already refunded)',
                 refunded: 0,
                 previouslyRefunded: true,
             })
@@ -181,7 +181,7 @@ export async function POST(
                 where: { id },
                 data: {
                     status: 'CANCELLED',
-                    responseMessage: 'تم الإلغاء بواسطة المستخدم',
+                    responseMessage: 'Cancelled by user',
                 },
             })
 
@@ -190,7 +190,7 @@ export async function POST(
                     data: {
                         userId: resellerUserId,
                         action: 'OPERATION_CANCELLED',
-                        details: `إلغاء عملية ${operation.type} للكارت ${operation.cardNumber}`,
+                        details: `Cancel ${operation.type} operation for card ${operation.cardNumber}`,
                         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                     },
                 })
@@ -201,25 +201,25 @@ export async function POST(
         let refundedAmount = 0
 
         if (operation.userId && operation.amount > 0) {
-            const refunded = await refundUser(operation.id, operation.userId, operation.amount, 'إلغاء المستخدم')
+            const refunded = await refundUser(operation.id, operation.userId, operation.amount, 'User cancellation')
             if (refunded) refundedAmount = operation.amount
         }
 
         if (operation.customerId && operation.amount > 0) {
-            const refunded = await refundCustomer(operation.id, operation.customerId, operation.amount, 'إلغاء المستخدم')
+            const refunded = await refundCustomer(operation.id, operation.customerId, operation.amount, 'User cancellation')
             if (refunded) refundedAmount = operation.amount
         }
 
         return NextResponse.json({
             success: true,
-            message: refundedAmount > 0 ? 'تم إلغاء العملية واسترداد المبلغ' : 'تم إلغاء العملية',
+            message: refundedAmount > 0 ? 'Operation cancelled and amount refunded' : 'Operation cancelled',
             refunded: refundedAmount,
         })
 
     } catch (error) {
         console.error('Cancel operation error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

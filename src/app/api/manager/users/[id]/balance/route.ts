@@ -6,7 +6,7 @@ import { createNotification } from '@/lib/notification'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
 const balanceSchema = z.object({
-    amount: z.number().refine(val => val !== 0, 'المبلغ يجب أن يكون أكبر أو أقل من صفر'),
+    amount: z.number().refine(val => val !== 0, 'Amount must be greater or less than zero'),
     notes: z.string().optional(),
 })
 
@@ -30,7 +30,7 @@ export async function PATCH(
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -38,11 +38,11 @@ export async function PATCH(
         // Check if user exists and belongs to this manager
         const targetUser = await prisma.user.findUnique({ where: { id } })
         if (!targetUser) {
-            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         if (targetUser.deletedAt) {
-            return NextResponse.json({ error: 'لا يمكن تعديل رصيد مستخدم محذوف' }, { status: 400 })
+            return NextResponse.json({ error: 'Cannot modify balance for a deleted user' }, { status: 400 })
         }
 
         // Check if this user belongs to this manager
@@ -54,7 +54,7 @@ export async function PATCH(
         })
 
         if (!managerUserLink) {
-            return NextResponse.json({ error: 'ليس لديك صلاحية تعديل رصيد هذا المستخدم' }, { status: 403 })
+            return NextResponse.json({ error: 'You do not have permission to modify this user\'s balance' }, { status: 403 })
         }
 
         const body = await request.json()
@@ -62,7 +62,7 @@ export async function PATCH(
 
         if (!result.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { error: 'Invalid data', details: result.error.flatten() },
                 { status: 400 }
             )
         }
@@ -117,7 +117,7 @@ export async function PATCH(
                         type: isDeposit ? 'DEPOSIT' : 'WITHDRAW',
                         amount: absAmount,
                         balanceAfter: updated.balance,
-                        notes: notes || (isDeposit ? 'إيداع رصيد من المدير' : 'سحب رصيد من المدير'),
+                        notes: notes || (isDeposit ? 'Balance deposit by manager' : 'Balance withdrawal by manager'),
                         adminId: manager.id
                     }
                 })
@@ -130,8 +130,8 @@ export async function PATCH(
                         amount: absAmount,
                         balanceAfter: updatedManager.balance,
                         notes: isDeposit 
-                            ? `تحويل رصيد للمستخدم: ${targetUser.username}`
-                            : `استرداد رصيد من المستخدم: ${targetUser.username}`,
+                            ? `Balance transfer to user: ${targetUser.username}`
+                            : `Balance refund from user: ${targetUser.username}`,
                     }
                 })
 
@@ -155,10 +155,10 @@ export async function PATCH(
                 // 8. Notify user
                 await createNotification({
                     userId: id,
-                    title: isDeposit ? 'تم إضافة رصيد' : 'تم سحب رصيد',
+                    title: isDeposit ? 'Balance added' : 'Balance withdrawn',
                     message: isDeposit 
-                        ? `تم إضافة $${absAmount.toFixed(2)} إلى رصيدك. الرصيد الحالي: $${updated.balance.toFixed(2)}`
-                        : `تم سحب $${absAmount.toFixed(2)} من رصيدك. الرصيد الحالي: $${updated.balance.toFixed(2)}`,
+                        ? `$${absAmount.toFixed(2)} added to your balance. Current balance: $${updated.balance.toFixed(2)}`
+                        : `$${absAmount.toFixed(2)} withdrawn from your balance. Current balance: $${updated.balance.toFixed(2)}`,
                     type: isDeposit ? 'success' : 'warning',
                     link: '/dashboard/transactions'
                 })
@@ -169,8 +169,8 @@ export async function PATCH(
             return NextResponse.json({
                 success: true,
                 message: isDeposit 
-                    ? `تم إيداع $${absAmount.toFixed(2)} بنجاح`
-                    : `تم سحب $${absAmount.toFixed(2)} بنجاح`,
+                    ? `$${absAmount.toFixed(2)} deposited successfully`
+                    : `$${absAmount.toFixed(2)} withdrawn successfully`,
                 newBalance: updatedUser.balance
             })
 
@@ -180,14 +180,14 @@ export async function PATCH(
                 if (error.message.startsWith('INSUFFICIENT_MANAGER_BALANCE:')) {
                     const balance = error.message.split(':')[1]
                     return NextResponse.json(
-                        { error: `رصيدك غير كافي. رصيدك الحالي: $${balance}` },
+                        { error: `Insufficient balance. Your current balance: $${balance}` },
                         { status: 400 }
                     )
                 }
                 if (error.message.startsWith('INSUFFICIENT_USER_BALANCE:')) {
                     const balance = error.message.split(':')[1]
                     return NextResponse.json(
-                        { error: `رصيد المستخدم غير كافي. رصيده الحالي: $${balance}` },
+                        { error: `Insufficient user balance. Current balance: $${balance}` },
                         { status: 400 }
                     )
                 }
@@ -197,6 +197,6 @@ export async function PATCH(
 
     } catch (error) {
         console.error('Manager balance update error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

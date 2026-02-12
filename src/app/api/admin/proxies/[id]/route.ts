@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!proxy) {
-            return NextResponse.json({ error: 'البروكسي غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Proxy not found' }, { status: 404 })
         }
 
         return NextResponse.json({
@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         const { host, port, username, password, label, isActive } = body
 
         if (!id) {
-            return NextResponse.json({ error: 'ID مطلوب' }, { status: 400 })
+            return NextResponse.json({ error: 'ID is required' }, { status: 400 })
         }
 
         // Check if proxy exists
@@ -86,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!existingProxy) {
-            return NextResponse.json({ error: 'البروكسي غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Proxy not found' }, { status: 404 })
         }
 
         // Build update data
@@ -104,7 +104,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         if (host !== undefined) {
             if (typeof host !== 'string' || host.trim().length === 0) {
-                errors.push('عنوان IP غير صالح')
+                errors.push('Invalid IP address')
             } else {
                 updateData.host = host.trim()
             }
@@ -112,7 +112,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         if (port !== undefined) {
             if (typeof port !== 'number' || port < 1 || port > 65535) {
-                errors.push('رقم المنفذ يجب أن يكون بين 1 و 65535')
+                errors.push('Port number must be between 1 and 65535')
             } else {
                 updateData.port = port
             }
@@ -120,7 +120,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         if (label !== undefined) {
             if (typeof label !== 'string' || label.trim().length < 3) {
-                errors.push('التسمية يجب أن تكون 3 أحرف على الأقل')
+                errors.push('Label must be at least 3 characters')
             } else {
                 updateData.label = label.trim()
             }
@@ -137,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
             // Both or none
             if ((newUsername && !newPassword) || (!newUsername && newPassword)) {
-                errors.push('يجب إدخال اسم المستخدم وكلمة المرور معاً أو تركهما فارغين')
+                errors.push('Username and password must both be provided or both be empty')
             } else {
                 updateData.username = newUsername?.trim() || null
                 updateData.password = newPassword || null
@@ -166,7 +166,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
             if (duplicate) {
                 return NextResponse.json(
-                    { error: 'هذا البروكسي موجود بالفعل (نفس الـ IP والمنفذ)' },
+                    { error: 'This proxy already exists (same IP and port)' },
                     { status: 400 }
                 )
             }
@@ -219,7 +219,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
         if (usage > 0) {
             return NextResponse.json(
-                { error: `لا يمكن حذف هذا البروكسي لأنه مستخدم بواسطة ${usage} حسابات` },
+                { error: `Cannot delete this proxy because it is used by ${usage} accounts` },
                 { status: 400 }
             )
         }
@@ -230,7 +230,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({
             success: true,
-            message: 'تم حذف البروكسي بنجاح'
+            message: 'Proxy deleted successfully'
         })
 
     } catch (error) {

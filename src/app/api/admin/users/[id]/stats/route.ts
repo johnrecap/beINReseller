@@ -5,11 +5,11 @@ import prisma from '@/lib/prisma'
 /**
  * GET /api/admin/users/[id]/stats
  * 
- * جلب إحصائيات المستخدم المالية والعمليات
- * - الملخص المالي (إيداعات/خصومات/استردادات)
- * - مقارنة الرصيد المتوقع vs الفعلي
- * - كشف المخالفات (استرداد مزدوج/زائد)
- * - آخر المعاملات والعمليات
+ * Fetch user financial and operations statistics
+ * - Financial summary (deposits/deductions/refunds)
+ * - Compare expected vs actual balance
+ * - Detect anomalies (duplicate/excess refunds)
+ * - Recent transactions and operations
  */
 export async function GET(
     request: NextRequest,
@@ -43,7 +43,7 @@ export async function GET(
         })
 
         if (!user) {
-            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         // 3. Get all transactions grouped by type
@@ -133,7 +133,7 @@ export async function GET(
         const operationsWithRefunds = await prisma.operation.findMany({
             where: {
                 userId,
-                corrected: false,  // استبعاد العمليات المصححة
+                corrected: false,  // Excluding corrected operations
                 transactions: {
                     some: { type: 'REFUND' }
                 }
@@ -174,7 +174,7 @@ export async function GET(
         if (!isBalanceValid) {
             alerts.push({
                 type: 'BALANCE_MISMATCH',
-                message: `رصيد غير متطابق: الفرق ${discrepancy.toFixed(2)} $`,
+                message: `Balance mismatch: difference ${discrepancy.toFixed(2)} $`,
                 severity: 'high'
             })
         }
@@ -182,7 +182,7 @@ export async function GET(
         for (const dr of doubleRefunds) {
             alerts.push({
                 type: 'DOUBLE_REFUND',
-                message: `استرداد مزدوج: العملية لها ${dr.count} استردادات`,
+                message: `Duplicate refund: operation has ${dr.count} refunds`,
                 severity: 'high',
                 operationId: dr.operationId
             })
@@ -191,7 +191,7 @@ export async function GET(
         for (const or of overRefunds) {
             alerts.push({
                 type: 'OVER_REFUND',
-                message: `استرداد زائد: تم استرداد ${or.refundAmount} من عملية قيمتها ${or.operationAmount}`,
+                message: `Excess refund: refunded ${or.refundAmount} from operation worth ${or.operationAmount}`,
                 severity: 'high',
                 operationId: or.operationId
             })
@@ -200,7 +200,7 @@ export async function GET(
         for (const pr of phantomRefunds) {
             alerts.push({
                 type: 'PHANTOM_REFUND',
-                message: `استرداد وهمي: تم استرداد ${pr.refundAmount} لعملية بدون خصم مسبق`,
+                message: `Ghost refund: refunded ${pr.refundAmount} for operation without prior deduction`,
                 severity: 'high',
                 operationId: pr.operationId
             })
@@ -336,6 +336,6 @@ export async function GET(
 
     } catch (error) {
         console.error('Get user stats error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

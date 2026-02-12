@@ -20,14 +20,14 @@ export async function POST(
     try {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const { id } = await params
         const { promoCode } = await request.json()
 
         if (!promoCode) {
-            return NextResponse.json({ error: 'الرجاء إدخال كود الخصم' }, { status: 400 })
+            return NextResponse.json({ error: 'Please enter a promo code' }, { status: 400 })
         }
 
         // Get operation
@@ -36,18 +36,18 @@ export async function POST(
         })
 
         if (!operation) {
-            return NextResponse.json({ error: 'العملية غير موجودة' }, { status: 404 })
+            return NextResponse.json({ error: 'Operation not found' }, { status: 404 })
         }
 
         // Check ownership
         if (operation.userId !== authUser.id) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
         }
 
         // Must be awaiting package selection
         if (operation.status !== 'AWAITING_PACKAGE') {
             return NextResponse.json(
-                { error: 'العملية ليست في مرحلة اختيار الباقة' },
+                { error: 'Operation is not in package selection stage' },
                 { status: 400 }
             )
         }
@@ -90,7 +90,7 @@ export async function POST(
                     if (data.promoApplied === true && Array.isArray(data.packages)) {
                         return NextResponse.json({
                             success: true,
-                            message: 'تم تطبيق كود الخصم',
+                            message: 'Promo code applied',
                             packages: data.packages,
                         })
                     }
@@ -102,11 +102,11 @@ export async function POST(
 
         return NextResponse.json({
             success: false,
-            error: 'انتهت مهلة الانتظار - حاول مرة أخرى',
+            error: 'Timeout - please try again',
         }, { status: 408 })
 
     } catch (error) {
         console.error('Apply promo error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

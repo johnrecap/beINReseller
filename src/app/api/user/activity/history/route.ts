@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Get activity history error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

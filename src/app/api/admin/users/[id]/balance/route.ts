@@ -6,7 +6,7 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { createNotification } from '@/lib/notification'
 
 const addBalanceSchema = z.object({
-    amount: z.number().min(1, 'المبلغ يجب أن يكون أكبر من 0'),
+    amount: z.number().min(1, 'Amount must be greater than 0'),
     notes: z.string().optional(),
 })
 
@@ -29,7 +29,7 @@ export async function PATCH(
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -39,7 +39,7 @@ export async function PATCH(
 
         if (!result.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { error: 'Invalid data', details: result.error.flatten() },
                 { status: 400 }
             )
         }
@@ -68,7 +68,7 @@ export async function PATCH(
                     type: 'DEPOSIT',
                     amount: amount,
                     balanceAfter: updatedUser.balance,
-                    notes: notes || 'شحن رصيد بواسطة الإدارة',
+                    notes: notes || 'Balance top-up by admin',
                     adminId: adminUser.id
                 }
             })
@@ -86,8 +86,8 @@ export async function PATCH(
             // 5. Notify User
             await createNotification({
                 userId: id,
-                title: 'تم إضافة رصيد',
-                message: `تم إضافة ${amount} إلى رصيدك. الرصيد الحالي: ${updatedUser.balance}`,
+                title: 'Balance added',
+                message: `Added ${amount} to your balance. Current balance: ${updatedUser.balance}`,
                 type: 'success',
                 link: '/dashboard/history'
             })
@@ -97,12 +97,12 @@ export async function PATCH(
 
         return NextResponse.json({
             success: true,
-            message: 'تم إضافة الرصيد بنجاح',
+            message: 'Balance added successfully',
             newBalance: user.balance
         })
 
     } catch (error) {
         console.error('Add balance error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

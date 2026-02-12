@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             users: users.map(u => ({
                 ...u,
-                deletedByUsername: u.deletedByUserId ? deletedByMap.get(u.deletedByUserId) || 'غير معروف' : null,
+                deletedByUsername: u.deletedByUserId ? deletedByMap.get(u.deletedByUserId) || 'Unknown' : null,
                 transactionCount: u._count.transactions,
                 operationCount: u._count.operations
             })),
@@ -67,6 +67,6 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('List deleted users error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

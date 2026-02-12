@@ -20,8 +20,8 @@ export default async function TransactionsPage() {
                         <Wallet className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">المعاملات المالية</h1>
-                        <p className="text-muted-foreground text-sm font-medium">سجل دفع حركات الرصيد (شراء، سحب، عمليات)</p>
+                        <h1 className="text-2xl font-bold text-foreground">Financial Transactions</h1>
+                        <p className="text-muted-foreground text-sm font-medium">Balance transaction history (purchases, withdrawals, operations)</p>
                     </div>
                 </div>
             </div>

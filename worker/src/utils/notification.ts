@@ -113,14 +113,14 @@ export async function notifyAdminLowBalance(
         // Build message
         const threshold = await getLowBalanceThreshold()
         const message = requiredBalance
-            ? `الحساب "${accountName}" - الرصيد الحالي: ${currentBalance} USD. المطلوب للعملية: ${requiredBalance} USD`
-            : `الحساب "${accountName}" - الرصيد الحالي: ${currentBalance} USD (أقل من ${threshold} USD)`
+            ? `Account "${accountName}" - Current balance: ${currentBalance} USD. Required for operation: ${requiredBalance} USD`
+            : `Account "${accountName}" - Current balance: ${currentBalance} USD (below ${threshold} USD)`
         
         // Create notification for each admin
         await prisma.notification.createMany({
             data: admins.map(admin => ({
                 userId: admin.id,
-                title: '⚠️ رصيد حساب beIN منخفض',
+                title: '⚠️ beIN account balance low',
                 message,
                 type: 'warning',
                 link: '/admin/bein-accounts'

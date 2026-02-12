@@ -11,7 +11,7 @@ export default async function ProfilePage() {
     await requireAuth()
 
     return (
-        <Suspense fallback={<div>جاري التحميل...</div>}>
+        <Suspense fallback={<div>Loading...</div>}>
             <ProfilePageClient />
         </Suspense>
     )

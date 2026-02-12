@@ -24,7 +24,7 @@ async function getAuthUser(request: NextRequest) {
 // Validation schema
 const signalActivateSchema = z.object({
     operationId: z.string().min(1, 'Operation ID is required'),
-    cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'رقم الكارت يجب أن يحتوي على أرقام فقط'),
+    cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'Card number must contain only digits'),
 })
 
 /**
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         // 2. Check permission - only users with SIGNAL_ACTIVATE can access
         if (!roleHasPermission(authUser.role, PERMISSIONS.SIGNAL_ACTIVATE)) {
             return NextResponse.json(
-                { error: 'صلاحيات غير كافية' },
+                { error: 'Insufficient permissions' },
                 { status: 403 }
             )
         }
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح من الطلبات، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
         if (!validationResult.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صحيحة', details: validationResult.error.flatten() },
+                { error: 'Invalid data', details: validationResult.error.flatten() },
                 { status: 400 }
             )
         }
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
         if (!operation) {
             return NextResponse.json(
-                { error: 'العملية غير موجودة' },
+                { error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         // Verify ownership
         if (operation.userId !== authUser.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
         if (!responseData?.awaitingActivate) {
             return NextResponse.json(
-                { error: 'العملية غير جاهزة للتفعيل' },
+                { error: 'Operation not ready for activation' },
                 { status: 400 }
             )
         }
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
             data: {
                 userId: authUser.id,
                 action: 'SIGNAL_ACTIVATE_STARTED',
-                details: `تفعيل إشارة للكارت ${cardNumber}`,
+                details: `Signal activation for card ${cardNumber}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
             },
         })
@@ -149,11 +149,11 @@ export async function POST(request: NextRequest) {
                 where: { id: operationId },
                 data: {
                     status: 'FAILED',
-                    responseMessage: 'فشل في إضافة العملية للطابور'
+                    responseMessage: 'Failed to add operation to queue'
                 },
             })
             return NextResponse.json(
-                { error: 'فشل في بدء التفعيل، حاول مرة أخرى' },
+                { error: 'Failed to start activation, please try again' },
                 { status: 500 }
             )
         }
@@ -162,13 +162,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             operationId,
-            message: 'جاري تفعيل الإشارة...',
+            message: 'Activating signal...',
         })
 
     } catch (error) {
         console.error('Signal activate error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

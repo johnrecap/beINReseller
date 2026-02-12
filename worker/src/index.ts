@@ -98,8 +98,8 @@ async function main() {
                     await prisma.notification.create({
                         data: {
                             userId: admin.id,
-                            title: '⚠️ عملية فاشلة',
-                            message: `فشلت العملية ${job.data.operationId}: ${err.message}`.slice(0, 500),
+                            title: '⚠️ Operation failed',
+                            message: `Operation failed ${job.data.operationId}: ${err.message}`.slice(0, 500),
                             type: 'warning',
                             link: `/dashboard/operations`
                         }

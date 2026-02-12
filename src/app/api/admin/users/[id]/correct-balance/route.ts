@@ -5,11 +5,11 @@ import prisma from '@/lib/prisma'
 /**
  * POST /api/admin/users/[id]/correct-balance
  * 
- * تصحيح رصيد المستخدم
- * - BALANCE_MISMATCH: تصحيح الفرق في الرصيد
- * - INITIALIZE_BALANCE: إضافة رصيد مبدئي كإيداع
- * - ADD_MISSING: إضافة المبلغ الناقص
- * - DOUBLE_REFUND / OVER_REFUND: تصحيح الاستردادات الزائدة
+ * Correct user balance
+ * - BALANCE_MISMATCH: Correct balance difference
+ * - INITIALIZE_BALANCE: Add initial balance as deposit
+ * - ADD_MISSING: Add the missing amount
+ * - DOUBLE_REFUND / OVER_REFUND: Correct excess refunds
  */
 export async function POST(
     request: NextRequest,
@@ -38,7 +38,7 @@ export async function POST(
         })
 
         if (!user) {
-            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         let correctionAmount = 0
@@ -91,11 +91,11 @@ export async function POST(
                 // User has more balance than expected - create DEPOSIT to record it
                 correctionAmount = discrepancy // Positive amount for DEPOSIT
                 transactionType = 'DEPOSIT'
-                correctionNotes = customNotes || 'رصيد مبدئي / Initial Balance'
+                correctionNotes = customNotes || 'Initial Balance'
             } else {
                 return NextResponse.json({
                     success: true,
-                    message: 'لا يوجد رصيد زائد لتسجيله كرصيد مبدئي',
+                    message: 'No excess balance to register as initial balance',
                     corrected: false
                 })
             }
@@ -108,11 +108,11 @@ export async function POST(
             if (discrepancy < -0.01) {
                 // User has less balance than expected - add the missing amount
                 correctionAmount = Math.abs(discrepancy) // Positive CORRECTION to add
-                correctionNotes = customNotes || `إضافة رصيد ناقص: $${Math.abs(discrepancy).toFixed(2)} / Adding missing balance`
+                correctionNotes = customNotes || `Adding missing balance: $${Math.abs(discrepancy).toFixed(2)}`
             } else {
                 return NextResponse.json({
                     success: true,
-                    message: 'لا يوجد رصيد ناقص لإضافته',
+                    message: 'No missing balance to add',
                     corrected: false
                 })
             }
@@ -134,13 +134,13 @@ export async function POST(
             })
 
             if (!operation) {
-                return NextResponse.json({ error: 'العملية غير موجودة' }, { status: 404 })
+                return NextResponse.json({ error: 'Operation not found' }, { status: 404 })
             }
 
             if (operation.corrected) {
                 return NextResponse.json({
                     success: true,
-                    message: 'تم تصحيح هذه العملية مسبقاً',
+                    message: 'This operation was previously corrected',
                     corrected: false,
                     alreadyCorrected: true
                 })
@@ -151,10 +151,10 @@ export async function POST(
             const excessRefund = totalRefunded - operation.amount
 
             if (excessRefund > 0) {
-                correctionAmount = -excessRefund // خصم الزيادة
+                correctionAmount = -excessRefund // Deduct excess
                 correctionNotes = type === 'DOUBLE_REFUND'
-                    ? `تصحيح استرداد مزدوج: تم استرداد ${operation.transactions.length} مرات بإجمالي $${totalRefunded} من عملية قيمتها $${operation.amount}`
-                    : `تصحيح استرداد زائد: تم استرداد $${totalRefunded} من عملية قيمتها $${operation.amount}`
+                    ? `Correct duplicate refund: refunded ${operation.transactions.length} times totaling $${totalRefunded} from operation worth $${operation.amount}`
+                    : `Correct excess refund: refunded $${totalRefunded} from operation worth $${operation.amount}`
                 operationToCorrect = operationId
             }
         }
@@ -164,23 +164,23 @@ export async function POST(
             const actualBalance = user.balance
             const discrepancy = actualBalance - expectedBalance
 
-            // فقط إذا الفرق موجب (زيادة) نقوم بالخصم
+            // Only deduct if difference is positive (excess)
             if (discrepancy > 0.01) {
                 // Prevent negative balance: only deduct up to current balance
                 const maxDeduction = Math.min(discrepancy, user.balance)
-                correctionAmount = -maxDeduction // خصم الزيادة
+                correctionAmount = -maxDeduction // Deduct excess
                 
                 if (maxDeduction < discrepancy) {
                     // Can't deduct full amount, balance will be $0
-                    correctionNotes = customNotes || `تصحيح رصيد زائد: الفرق كان $${discrepancy.toFixed(2)} (تم خصم $${maxDeduction.toFixed(2)} - الرصيد أصبح صفر)`
+                    correctionNotes = customNotes || `Correct excess balance: difference was $${discrepancy.toFixed(2)} (deducted $${maxDeduction.toFixed(2)} - balance is now zero)`
                 } else {
-                    correctionNotes = customNotes || `تصحيح رصيد زائد: الفرق كان $${discrepancy.toFixed(2)}`
+                    correctionNotes = customNotes || `Correct excess balance: difference was $${discrepancy.toFixed(2)}`
                 }
             } else if (discrepancy < -0.01) {
-                // الفرق سالب = المستخدم ناقص رصيد - now we inform the user to use ADD_MISSING instead
+                // Difference is negative = user has missing balance - now we inform the user to use ADD_MISSING instead
                 return NextResponse.json({
                     success: false,
-                    message: `الرصيد ناقص بـ $${Math.abs(discrepancy).toFixed(2)} - استخدم خيار "إضافة المبلغ الناقص"`,
+                    message: `Balance is short by $${Math.abs(discrepancy).toFixed(2)} - use the "Add Missing Amount" option`,
                     needsManualReview: true,
                     discrepancy,
                     suggestedAction: 'ADD_MISSING'
@@ -188,7 +188,7 @@ export async function POST(
             } else {
                 return NextResponse.json({
                     success: true,
-                    message: 'الرصيد متطابق، لا يوجد ما يحتاج تصحيح',
+                    message: 'Balance matches, nothing needs correction',
                     corrected: false
                 })
             }
@@ -198,7 +198,7 @@ export async function POST(
         if (Math.abs(correctionAmount) < 0.01) {
             return NextResponse.json({
                 success: true,
-                message: 'لا يوجد مبلغ للتصحيح',
+                message: 'No amount to correct',
                 corrected: false,
                 correctionAmount: 0
             })
@@ -238,7 +238,7 @@ export async function POST(
 
         return NextResponse.json({
             success: true,
-            message: 'تم التصحيح بنجاح',
+            message: 'Correction completed successfully',
             corrected: true,
             correctionAmount: Math.abs(correctionAmount),
             newBalance: result.user.balance,
@@ -247,6 +247,6 @@ export async function POST(
 
     } catch (error) {
         console.error('Correct balance error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في التصحيح' }, { status: 500 })
+        return NextResponse.json({ error: 'Correction error occurred' }, { status: 500 })
     }
 }

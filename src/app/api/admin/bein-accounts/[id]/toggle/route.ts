@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!account) {
-            return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Account not found' }, { status: 404 })
         }
 
         // Toggle status
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 username: updatedAccount.username,
                 isActive: updatedAccount.isActive
             },
-            message: updatedAccount.isActive ? 'تم تفعيل الحساب' : 'تم إيقاف الحساب'
+            message: updatedAccount.isActive ? 'Account activated' : 'Account deactivated'
         })
 
     } catch (error) {

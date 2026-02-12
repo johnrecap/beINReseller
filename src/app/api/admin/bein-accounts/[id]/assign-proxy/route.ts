@@ -25,7 +25,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!account) {
-            return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Account not found' }, { status: 404 })
         }
 
         // If proxyId is provided, validate it exists and is active
@@ -35,11 +35,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             })
 
             if (!proxy) {
-                return NextResponse.json({ error: 'البروكسي غير موجود' }, { status: 404 })
+                return NextResponse.json({ error: 'Proxy not found' }, { status: 404 })
             }
 
             if (!proxy.isActive) {
-                return NextResponse.json({ error: 'لا يمكن تعيين بروكسي معطل' }, { status: 400 })
+                return NextResponse.json({ error: 'Cannot assign a disabled proxy' }, { status: 400 })
             }
         }
 
@@ -60,11 +60,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             }
         })
 
-        const proxyLabel = updatedAccount.proxy?.label || 'بدون بروكسي'
+        const proxyLabel = updatedAccount.proxy?.label || 'No proxy'
 
         return NextResponse.json({
             success: true,
-            message: `تم تعيين "${proxyLabel}" للحساب ${account.username}`,
+            message: `"${proxyLabel}" assigned to account ${account.username}`,
             account: {
                 id: updatedAccount.id,
                 username: updatedAccount.username,

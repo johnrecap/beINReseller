@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         })
 
         if (!account) {
-            return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'Account not found' }, { status: 404 })
         }
 
         // Reset account in database
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({
             success: true,
-            message: 'تم إعادة تعيين الحساب بنجاح'
+            message: 'Account reset successfully'
         })
 
     } catch (error) {

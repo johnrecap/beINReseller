@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         // Validate required fields
         if (!username || !password) {
             return NextResponse.json(
-                { error: 'اسم المستخدم وكلمة المرور مطلوبان' },
+                { error: 'Username and password are required' },
                 { status: 400 }
             )
         }
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
 
         if (existing) {
             return NextResponse.json(
-                { error: 'اسم المستخدم موجود بالفعل' },
+                { error: 'Username already exists' },
                 { status: 400 }
             )
         }

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     try {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const { searchParams } = new URL(request.url)
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('Get notifications error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
@@ -70,7 +70,7 @@ export async function PUT(request: NextRequest) {
     try {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
-            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const body = await request.json()
@@ -78,18 +78,18 @@ export async function PUT(request: NextRequest) {
 
         if (markAll) {
             await markAllAsRead(authUser.id)
-            return NextResponse.json({ success: true, message: 'تم تحديد الكل كمقروء' })
+            return NextResponse.json({ success: true, message: 'All marked as read' })
         }
 
         if (notificationId) {
             await markAsRead(notificationId, authUser.id)
-            return NextResponse.json({ success: true, message: 'تم التحديد كمقروء' })
+            return NextResponse.json({ success: true, message: 'Marked as read' })
         }
 
-        return NextResponse.json({ error: 'معرف الإشعار مطلوب' }, { status: 400 })
+        return NextResponse.json({ error: 'Notification ID is required' }, { status: 400 })
 
     } catch (error) {
         console.error('Update notification error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

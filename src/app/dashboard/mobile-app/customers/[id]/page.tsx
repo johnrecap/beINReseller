@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -10,7 +10,7 @@ import {
     User,
     Mail,
     Phone,
-    MapPin,
+
     Wallet,
     Calendar,
     History,
@@ -69,7 +69,6 @@ interface Order {
 
 export default function CustomerDetailPage() {
     const params = useParams()
-    const router = useRouter()
     const customerId = params.id as string
 
     const [customer, setCustomer] = useState<Customer | null>(null)
@@ -85,25 +84,27 @@ export default function CustomerDetailPage() {
     const [adjustmentDescription, setAdjustmentDescription] = useState('')
     const [adjusting, setAdjusting] = useState(false)
 
-    const fetchCustomer = useCallback(async () => {
-        try {
-            const res = await fetch(`/api/admin/mobile-app/customers/${customerId}`)
-            const data = await res.json()
-            if (data.success) {
-                setCustomer(data.customer)
-                setTransactions(data.transactions || [])
-                setOperations(data.operations || [])
-                setOrders(data.orders || [])
-            }
-        } catch (error) {
-            console.error('Failed to fetch customer:', error)
-        }
-        setLoading(false)
-    }, [customerId])
+    const [refetchKey, setRefetchKey] = useState(0)
 
     useEffect(() => {
-        fetchCustomer()
-    }, [fetchCustomer])
+        let cancelled = false
+            ; (async () => {
+                try {
+                    const res = await fetch(`/api/admin/mobile-app/customers/${customerId}`)
+                    const data = await res.json()
+                    if (!cancelled && data.success) {
+                        setCustomer(data.customer)
+                        setTransactions(data.transactions || [])
+                        setOperations(data.operations || [])
+                        setOrders(data.orders || [])
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch customer:', error)
+                }
+                if (!cancelled) setLoading(false)
+            })()
+        return () => { cancelled = true }
+    }, [customerId, refetchKey])
 
     const handleBalanceAdjustment = async () => {
         const amount = parseFloat(adjustmentAmount)
@@ -117,14 +118,14 @@ export default function CustomerDetailPage() {
                 body: JSON.stringify({
                     type: adjustmentType,
                     amount,
-                    description: adjustmentDescription || `تعديل يدوي - ${adjustmentType === 'credit' ? 'إضافة' : 'خصم'}`
+                    description: adjustmentDescription || `Manual adjustment - ${adjustmentType === 'credit' ? 'credit' : 'debit'}`
                 })
             })
             const data = await res.json()
             if (data.success) {
                 setAdjustmentAmount('')
                 setAdjustmentDescription('')
-                fetchCustomer()
+                setRefetchKey(k => k + 1)
             }
         } catch (error) {
             console.error('Failed to adjust balance:', error)
@@ -161,9 +162,9 @@ export default function CustomerDetailPage() {
         return (
             <div className="text-center py-20">
                 <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">العميل غير موجود</p>
+                <p className="text-muted-foreground">Customer not found</p>
                 <Link href="/dashboard/mobile-app/customers">
-                    <Button className="mt-4">العودة للقائمة</Button>
+                    <Button className="mt-4">Back to list</Button>
                 </Link>
             </div>
         )
@@ -189,10 +190,10 @@ export default function CustomerDetailPage() {
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                         : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                         }`}>
-                        {customer.isActive ? 'نشط' : 'معطل'}
+                        {customer.isActive ? 'Active' : 'Disabled'}
                     </span>
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-muted">
-                        {customer.country === 'SA' ? '🇸🇦 السعودية' : '🇪🇬 مصر'}
+                        {customer.country === 'SA' ? '🇸🇦 Saudi Arabia' : '🇪🇬 Egypt'}
                     </span>
                 </div>
             </div>
@@ -204,7 +205,7 @@ export default function CustomerDetailPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <User className="h-5 w-5" />
-                            معلومات العميل
+                            Customer Information
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -220,11 +221,11 @@ export default function CustomerDetailPage() {
                         )}
                         <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <span>التسجيل: {formatDate(customer.createdAt)}</span>
+                            <span>Registered: {formatDate(customer.createdAt)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <History className="h-4 w-4 text-muted-foreground" />
-                            <span>عدد تسجيلات الدخول: {customer.loginCount}</span>
+                            <span>Login count: {customer.loginCount}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -234,26 +235,26 @@ export default function CustomerDetailPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Wallet className="h-5 w-5" />
-                            المحفظة
+                            Wallet
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-3">
                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">الرصيد</span>
+                                <span className="text-muted-foreground">Balance</span>
                                 <span className="text-xl font-bold text-green-600">
                                     {formatCurrency(customer.walletBalance, currency)}
                                 </span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">رصيد المتجر</span>
+                                <span className="text-muted-foreground">Store Balance</span>
                                 <span className="font-medium">
                                     {formatCurrency(customer.storeCredit, currency)}
                                 </span>
                             </div>
                             <div className="border-t pt-3">
                                 <div className="flex justify-between items-center">
-                                    <span className="font-medium">الإجمالي</span>
+                                    <span className="font-medium">Total</span>
                                     <span className="text-2xl font-bold">
                                         {formatCurrency(customer.walletBalance + customer.storeCredit, currency)}
                                     </span>
@@ -268,7 +269,7 @@ export default function CustomerDetailPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <CreditCard className="h-5 w-5" />
-                            تعديل الرصيد
+                            Adjust Balance
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -280,7 +281,7 @@ export default function CustomerDetailPage() {
                                 onClick={() => setAdjustmentType('credit')}
                             >
                                 <Plus className="h-4 w-4 ml-1" />
-                                إضافة
+                                Credit
                             </Button>
                             <Button
                                 variant={adjustmentType === 'debit' ? 'danger' : 'outline'}
@@ -289,17 +290,17 @@ export default function CustomerDetailPage() {
                                 onClick={() => setAdjustmentType('debit')}
                             >
                                 <Minus className="h-4 w-4 ml-1" />
-                                خصم
+                                Debit
                             </Button>
                         </div>
                         <Input
                             type="number"
-                            placeholder="المبلغ"
+                            placeholder="Amount"
                             value={adjustmentAmount}
                             onChange={(e) => setAdjustmentAmount(e.target.value)}
                         />
                         <Input
-                            placeholder="السبب (اختياري)"
+                            placeholder="Reason (optional)"
                             value={adjustmentDescription}
                             onChange={(e) => setAdjustmentDescription(e.target.value)}
                         />
@@ -308,7 +309,7 @@ export default function CustomerDetailPage() {
                             disabled={!adjustmentAmount || adjusting}
                             onClick={handleBalanceAdjustment}
                         >
-                            {adjusting ? 'جاري التعديل...' : 'تأكيد'}
+                            {adjusting ? 'Modifying...' : 'Confirm'}
                         </Button>
                     </CardContent>
                 </Card>
@@ -321,21 +322,21 @@ export default function CustomerDetailPage() {
                     onClick={() => setActiveTab('wallet')}
                 >
                     <Wallet className="h-4 w-4 ml-2" />
-                    المحفظة ({transactions.length})
+                    Wallet ({transactions.length})
                 </Button>
                 <Button
                     variant={activeTab === 'operations' ? 'primary' : 'ghost'}
                     onClick={() => setActiveTab('operations')}
                 >
                     <History className="h-4 w-4 ml-2" />
-                    العمليات ({operations.length})
+                    Operations ({operations.length})
                 </Button>
                 <Button
                     variant={activeTab === 'orders' ? 'primary' : 'ghost'}
                     onClick={() => setActiveTab('orders')}
                 >
                     <ShoppingCart className="h-4 w-4 ml-2" />
-                    الطلبات ({orders.length})
+                    Orders ({orders.length})
                 </Button>
             </div>
 
@@ -345,7 +346,7 @@ export default function CustomerDetailPage() {
                     {activeTab === 'wallet' && (
                         <div className="space-y-2">
                             {transactions.length === 0 ? (
-                                <p className="text-center text-muted-foreground py-8">لا توجد معاملات</p>
+                                <p className="text-center text-muted-foreground py-8">No transactions</p>
                             ) : (
                                 transactions.map((tx) => (
                                     <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border">
@@ -375,13 +376,13 @@ export default function CustomerDetailPage() {
                     {activeTab === 'operations' && (
                         <div className="space-y-2">
                             {operations.length === 0 ? (
-                                <p className="text-center text-muted-foreground py-8">لا توجد عمليات</p>
+                                <p className="text-center text-muted-foreground py-8">No operations</p>
                             ) : (
                                 operations.map((op) => (
                                     <div key={op.id} className="flex items-center justify-between p-3 rounded-lg border">
                                         <div>
                                             <p className="font-medium">
-                                                {op.type === 'RENEW' ? 'تجديد' : op.type === 'SIGNAL_REFRESH' ? 'تجديد إشارة' : op.type}
+                                                {op.type === 'RENEW' ? 'Renewal' : op.type === 'SIGNAL_REFRESH' ? 'Signal Refresh' : op.type}
                                             </p>
                                             <p className="text-sm text-muted-foreground">
                                                 {op.cardNumber} • {formatDate(op.createdAt)}
@@ -402,7 +403,7 @@ export default function CustomerDetailPage() {
                     {activeTab === 'orders' && (
                         <div className="space-y-2">
                             {orders.length === 0 ? (
-                                <p className="text-center text-muted-foreground py-8">لا توجد طلبات</p>
+                                <p className="text-center text-muted-foreground py-8">No orders</p>
                             ) : (
                                 orders.map((order) => (
                                     <div key={order.id} className="flex items-center justify-between p-3 rounded-lg border">

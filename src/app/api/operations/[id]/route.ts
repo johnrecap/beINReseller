@@ -21,7 +21,7 @@ export async function GET(
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -48,7 +48,7 @@ export async function GET(
 
         if (!operation) {
             return NextResponse.json(
-                { error: 'العملية غير موجودة' },
+                { error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -56,7 +56,7 @@ export async function GET(
         // Check ownership (user can only see their own operations)
         if (operation.userId !== authUser.id && authUser.role !== 'ADMIN') {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 403 }
             )
         }
@@ -69,7 +69,7 @@ export async function GET(
     } catch (error) {
         console.error('Get operation error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

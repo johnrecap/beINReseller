@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('Get beIN config error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
@@ -136,10 +136,10 @@ export async function PUT(request: NextRequest) {
             }
         })
 
-        return NextResponse.json({ success: true, message: 'تم حفظ إعدادات beIN بنجاح' })
+        return NextResponse.json({ success: true, message: 'beIN settings saved successfully' })
 
     } catch (error) {
         console.error('Update beIN config error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

@@ -31,10 +31,10 @@ async function getAuthUser(request: NextRequest) {
 /**
  * POST /api/operations/[id]/select-package
  * 
- * اختيار الباقة وإتمام الشراء
- * - يتحقق أن العملية في حالة AWAITING_PACKAGE
- * - يخصم الرصيد من المستخدم
- * - يرسل Job للـ Worker لإتمام الشراء
+ * Select package and complete purchase
+ * - Verifies operation is in AWAITING_PACKAGE state
+ * - Deducts balance from user
+ * - Sends job to Worker to complete purchase
  */
 export async function POST(
     request: NextRequest,
@@ -45,7 +45,7 @@ export async function POST(
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -57,7 +57,7 @@ export async function POST(
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تم تجاوز الحد المسموح من الطلبات' },
+                { error: 'Rate limit exceeded' },
                 { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
@@ -70,7 +70,7 @@ export async function POST(
 
         if (!validationResult.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: validationResult.error.flatten() },
+                { error: 'Invalid data', details: validationResult.error.flatten() },
                 { status: 400 }
             )
         }
@@ -176,7 +176,7 @@ export async function POST(
             selectedPackage: result.selectedPackage.name,
             amount: result.selectedPackage.price,
             newBalance: result.newBalance,
-            message: 'جاري إتمام الشراء...',
+            message: 'Completing purchase...',
         })
 
     } catch (error) {
@@ -184,13 +184,13 @@ export async function POST(
         console.error('Select package error:', errorMessage)
 
         const errorMap: Record<string, { message: string; status: number }> = {
-            'OPERATION_NOT_FOUND': { message: 'العملية غير موجودة', status: 404 },
-            'FORBIDDEN': { message: 'غير مصرح بالوصول لهذه العملية', status: 403 },
-            'INVALID_STATUS': { message: 'العملية ليست في مرحلة اختيار الباقة', status: 400 },
-            'NO_PACKAGES': { message: 'لا توجد باقات متاحة', status: 400 },
-            'PACKAGE_NOT_FOUND': { message: 'الباقة المختارة غير موجودة', status: 400 },
-            'USER_NOT_FOUND': { message: 'المستخدم غير موجود', status: 404 },
-            'INSUFFICIENT_BALANCE': { message: 'رصيد غير كافي', status: 400 },
+            'OPERATION_NOT_FOUND': { message: 'Operation not found', status: 404 },
+            'FORBIDDEN': { message: 'Unauthorized access to this operation', status: 403 },
+            'INVALID_STATUS': { message: 'Operation is not in package selection stage', status: 400 },
+            'NO_PACKAGES': { message: 'No packages available', status: 400 },
+            'PACKAGE_NOT_FOUND': { message: 'Selected package not found', status: 400 },
+            'USER_NOT_FOUND': { message: 'User not found', status: 404 },
+            'INSUFFICIENT_BALANCE': { message: 'Insufficient balance', status: 400 },
         }
 
         const errorInfo = errorMap[errorMessage]
@@ -202,7 +202,7 @@ export async function POST(
         }
 
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

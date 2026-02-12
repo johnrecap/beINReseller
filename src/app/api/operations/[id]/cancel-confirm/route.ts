@@ -16,10 +16,10 @@ async function getAuthUser(request: NextRequest) {
 /**
  * POST /api/operations/[id]/cancel-confirm
  * 
- * إلغاء التأكيد النهائي
- * - يتحقق أن العملية في حالة AWAITING_FINAL_CONFIRM
- * - يرسل Job للـ Worker لضغط زر Cancel في popup
- * - يتم إرجاع الرصيد للمستخدم
+ * Cancel final confirmation
+ * - Verifies operation is in AWAITING_FINAL_CONFIRM state
+ * - Sends job to Worker to press Cancel button in popup
+ * - Refunds balance to user
  */
 export async function POST(
     request: NextRequest,
@@ -30,7 +30,7 @@ export async function POST(
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -52,7 +52,7 @@ export async function POST(
 
         if (!operation) {
             return NextResponse.json(
-                { error: 'العملية غير موجودة' },
+                { error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -60,7 +60,7 @@ export async function POST(
         // Check ownership
         if (operation.userId !== authUser.id) {
             return NextResponse.json(
-                { error: 'غير مصرح بالوصول لهذه العملية' },
+                { error: 'Unauthorized access to this operation' },
                 { status: 403 }
             )
         }
@@ -68,7 +68,7 @@ export async function POST(
         // Check status - only allow cancel from AWAITING_FINAL_CONFIRM
         if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
             return NextResponse.json(
-                { error: 'العملية ليست في مرحلة التأكيد النهائي' },
+                { error: 'Operation is not in final confirmation stage' },
                 { status: 400 }
             )
         }
@@ -79,13 +79,13 @@ export async function POST(
         // The second call finds status=COMPLETING and gets count=0 → rejected.
         const updated = await prisma.operation.updateMany({
             where: { id, status: 'AWAITING_FINAL_CONFIRM' },
-            data: { status: 'COMPLETING', responseMessage: 'جاري إلغاء العملية...' }
+            data: { status: 'COMPLETING', responseMessage: 'Cancelling operation...' }
         })
 
         if (updated.count === 0) {
             // Another cancel request already changed the status
             return NextResponse.json(
-                { error: 'العملية قيد الإلغاء بالفعل' },
+                { error: 'Operation is already being cancelled' },
                 { status: 409 }
             )
         }
@@ -103,13 +103,13 @@ export async function POST(
         return NextResponse.json({
             success: true,
             operationId: id,
-            message: 'جاري إلغاء العملية...',
+            message: 'Cancelling operation...',
         })
 
     } catch (error) {
         console.error('Cancel confirm error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

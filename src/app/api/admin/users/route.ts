@@ -7,9 +7,9 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 
 const createUserSchema = z.object({
-    username: z.string().min(3, 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'),
-    email: z.string().email('البريد الإلكتروني غير صالح'),
-    password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+    username: z.string().min(3, 'Username must be at least 3 characters'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
     role: z.enum(['ADMIN', 'MANAGER', 'USER']).optional().default('USER'),
     balance: z.number().optional().default(0),
 })
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -252,7 +252,7 @@ export async function GET(request: NextRequest) {
         console.error('List users error:', error)
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error('Error details:', errorMessage)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم', details: errorMessage }, { status: 500 })
+        return NextResponse.json({ error: 'Server error', details: errorMessage }, { status: 500 })
     }
 }
 
@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
 
         if (!result.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { error: 'Invalid data', details: result.error.flatten() },
                 { status: 400 }
             )
         }
@@ -284,7 +284,7 @@ export async function POST(request: NextRequest) {
 
         if (existing) {
             return NextResponse.json(
-                { error: 'اسم المستخدم أو البريد الإلكتروني موجود بالفعل' },
+                { error: 'Username or email already exists' },
                 { status: 400 }
             )
         }
@@ -328,6 +328,6 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Create user error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

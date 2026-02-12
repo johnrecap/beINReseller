@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
 const profileSchema = z.object({
-    email: z.string().email('البريد الإلكتروني غير صالح').optional(),
+    email: z.string().email('Invalid email address').optional(),
 })
 
 /**
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
         if (!user) {
             return NextResponse.json(
-                { error: 'المستخدم غير موجود' },
+                { error: 'User not found' },
                 { status: 404 }
             )
         }
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Get profile error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }
@@ -73,7 +73,7 @@ export async function PATCH(request: NextRequest) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -81,7 +81,7 @@ export async function PATCH(request: NextRequest) {
         // Only ADMIN can change their own email
         if (authUser.role !== 'ADMIN') {
             return NextResponse.json(
-                { error: 'غير مصرح لك بتعديل الإيميل' },
+                { error: 'You are not allowed to modify the email' },
                 { status: 403 }
             )
         }
@@ -91,7 +91,7 @@ export async function PATCH(request: NextRequest) {
 
         if (!result.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { error: 'Invalid data', details: result.error.flatten() },
                 { status: 400 }
             )
         }
@@ -106,7 +106,7 @@ export async function PATCH(request: NextRequest) {
 
             if (existing && existing.id !== authUser.id) {
                 return NextResponse.json(
-                    { error: 'البريد الإلكتروني مستخدم بالفعل' },
+                    { error: 'Email already in use' },
                     { status: 400 }
                 )
             }
@@ -128,13 +128,13 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({
             success: true,
             user: updatedUser,
-            message: 'تم تحديث الملف الشخصي بنجاح'
+            message: 'Profile updated successfully'
         })
 
     } catch (error) {
         console.error('Update profile error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

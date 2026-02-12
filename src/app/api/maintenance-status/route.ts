@@ -19,7 +19,7 @@ export async function GET() {
 
         return NextResponse.json({
             maintenance_mode: maintenanceMode?.value === 'true',
-            maintenance_message: maintenanceMessage?.value || 'النظام تحت الصيانة يرجى المحاولة لاحقاً',
+            maintenance_message: maintenanceMessage?.value || 'System under maintenance, please try again later',
             installment_dev_mode: installmentDevMode?.value === 'true'
         })
 

@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Get inactive users error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

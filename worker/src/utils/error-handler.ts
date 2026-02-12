@@ -14,26 +14,26 @@ export function classifyError(error: any): OperationError {
     const message = error.message?.toLowerCase() || ''
 
     if (message.includes('login') || message.includes('credentials')) {
-        return { type: 'LOGIN_FAILED', message: 'فشل تسجيل الدخول - تحقق من بيانات الحساب', recoverable: false }
+        return { type: 'LOGIN_FAILED', message: 'Login failed - check account credentials', recoverable: false }
     }
 
     if (message.includes('captcha')) {
-        return { type: 'CAPTCHA_FAILED', message: 'فشل حل الكابتشا', recoverable: true }
+        return { type: 'CAPTCHA_FAILED', message: 'CAPTCHA solving failed', recoverable: true }
     }
 
     if (message.includes('timeout') || message.includes('navigation')) {
-        return { type: 'TIMEOUT', message: 'انتهت مهلة الاتصال', recoverable: true }
+        return { type: 'TIMEOUT', message: 'Connection timeout', recoverable: true }
     }
 
     if (message.includes('net::') || message.includes('network')) {
-        return { type: 'NETWORK', message: 'خطأ في الاتصال بالشبكة', recoverable: true }
+        return { type: 'NETWORK', message: 'Network connection error', recoverable: true }
     }
 
     if (message.includes('selector') || message.includes('element')) {
-        return { type: 'ELEMENT_NOT_FOUND', message: 'عنصر غير موجود - قد تكون الصفحة تغيرت', recoverable: false }
+        return { type: 'ELEMENT_NOT_FOUND', message: 'Element not found - page may have changed', recoverable: false }
     }
 
-    return { type: 'UNKNOWN', message: error.message || 'خطأ غير معروف', recoverable: true }
+    return { type: 'UNKNOWN', message: error.message || 'Unknown error', recoverable: true }
 }
 
 import { createNotification } from './notification'
@@ -76,7 +76,7 @@ export async function refundUser(operationId: string, userId: string, amount: nu
                     type: 'REFUND',
                     amount: amount,
                     balanceAfter: user.balance,
-                    notes: `استرداد تلقائي: ${reason}`
+                    notes: `Auto-refund: ${reason}`
                 }
             })
 
@@ -84,8 +84,8 @@ export async function refundUser(operationId: string, userId: string, amount: nu
             await tx.notification.create({
                 data: {
                     userId,
-                    title: 'استرداد مبلغ',
-                    message: `تم استرداد مبلغ ${amount} ر.س. السبب: ${reason}`,
+                    title: 'Amount refunded',
+                    message: `Amount refunded: ${amount} SAR. Reason: ${reason}`,
                     type: 'info',
                     link: '/dashboard/transactions'
                 }

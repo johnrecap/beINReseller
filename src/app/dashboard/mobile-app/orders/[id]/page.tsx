@@ -60,11 +60,11 @@ interface Order {
 }
 
 const ORDER_STATUSES = [
-    { value: 'PENDING', label: 'في الانتظار', color: 'yellow' },
-    { value: 'PROCESSING', label: 'قيد المعالجة', color: 'blue' },
-    { value: 'SHIPPED', label: 'تم الشحن', color: 'purple' },
-    { value: 'DELIVERED', label: 'تم التوصيل', color: 'green' },
-    { value: 'CANCELLED', label: 'ملغي', color: 'red' }
+    { value: 'PENDING', label: 'Pending', color: 'yellow' },
+    { value: 'PROCESSING', label: 'Processing', color: 'blue' },
+    { value: 'SHIPPED', label: 'Shipped', color: 'purple' },
+    { value: 'DELIVERED', label: 'Delivered', color: 'green' },
+    { value: 'CANCELLED', label: 'Cancelled', color: 'red' }
 ]
 
 export default function OrderDetailPage() {
@@ -141,9 +141,9 @@ export default function OrderDetailPage() {
         return (
             <div className="text-center py-20">
                 <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">الطلب غير موجود</p>
+                <p className="text-muted-foreground">Order not found</p>
                 <Link href="/dashboard/mobile-app/orders">
-                    <Button className="mt-4">العودة للقائمة</Button>
+                    <Button className="mt-4">Back to list</Button>
                 </Link>
             </div>
         )
@@ -182,7 +182,7 @@ export default function OrderDetailPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Package className="h-5 w-5" />
-                                المنتجات ({order.items.length})
+                                Products ({order.items.length})
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -206,7 +206,7 @@ export default function OrderDetailPage() {
                                         </div>
                                         <div className="text-left">
                                             <p className="font-bold">{formatCurrency(item.price, order.currency)}</p>
-                                            <p className="text-sm text-muted-foreground">الكمية: {item.quantity}</p>
+                                            <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -219,29 +219,29 @@ export default function OrderDetailPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Calendar className="h-5 w-5" />
-                                جدول الطلب
+                                Order Timeline
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center py-2 border-b">
-                                    <span>تاريخ الإنشاء</span>
+                                    <span>Creation Date</span>
                                     <span className="font-medium">{formatDate(order.createdAt)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2 border-b">
-                                    <span>تاريخ الدفع</span>
+                                    <span>Payment Date</span>
                                     <span className="font-medium">{formatDate(order.paidAt)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2 border-b">
-                                    <span>تاريخ المعالجة</span>
+                                    <span>Processing Date</span>
                                     <span className="font-medium">{formatDate(order.processedAt)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2 border-b">
-                                    <span>تاريخ الشحن</span>
+                                    <span>Shipping Date</span>
                                     <span className="font-medium">{formatDate(order.shippedAt)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2">
-                                    <span>تاريخ التوصيل</span>
+                                    <span>Delivery Date</span>
                                     <span className="font-medium">{formatDate(order.deliveredAt)}</span>
                                 </div>
                             </div>
@@ -256,26 +256,26 @@ export default function OrderDetailPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <CreditCard className="h-5 w-5" />
-                                ملخص الطلب
+                                Order Summary
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <div className="flex justify-between">
-                                <span>المجموع الفرعي</span>
+                                <span>Subtotal</span>
                                 <span>{formatCurrency(order.subtotal, order.currency)}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span>الشحن</span>
+                                <span>Shipping</span>
                                 <span>{formatCurrency(order.shippingCost, order.currency)}</span>
                             </div>
                             {order.discount > 0 && (
                                 <div className="flex justify-between text-green-600">
-                                    <span>الخصم</span>
+                                    <span>Discount</span>
                                     <span>-{formatCurrency(order.discount, order.currency)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between font-bold text-lg pt-3 border-t">
-                                <span>الإجمالي</span>
+                                <span>Total</span>
                                 <span>{formatCurrency(order.total, order.currency)}</span>
                             </div>
                         </CardContent>
@@ -286,7 +286,7 @@ export default function OrderDetailPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <User className="h-5 w-5" />
-                                العميل
+                                Customer
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -294,7 +294,7 @@ export default function OrderDetailPage() {
                             <p className="text-sm text-muted-foreground">{order.customer.email}</p>
                             <Link href={`/dashboard/mobile-app/customers/${order.customer.id}`}>
                                 <Button variant="ghost" className="p-0 h-auto mt-2">
-                                    عرض الملف الشخصي
+                                    View Profile
                                 </Button>
                             </Link>
                         </CardContent>
@@ -305,7 +305,7 @@ export default function OrderDetailPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <MapPin className="h-5 w-5" />
-                                عنوان الشحن
+                                Shipping Address
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2 text-sm">
@@ -317,7 +317,7 @@ export default function OrderDetailPage() {
                             <p>{order.shipping.address}</p>
                             <p>{order.shipping.city}, {order.shipping.country}</p>
                             {order.shipping.notes && (
-                                <p className="text-muted-foreground italic">ملاحظات: {order.shipping.notes}</p>
+                                <p className="text-muted-foreground italic">Notes: {order.shipping.notes}</p>
                             )}
                         </CardContent>
                     </Card>
@@ -327,12 +327,12 @@ export default function OrderDetailPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Truck className="h-5 w-5" />
-                                رقم التتبع
+                                Tracking Number
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <Input
-                                placeholder="أدخل رقم التتبع"
+                                placeholder="Enter Tracking Number"
                                 value={trackingNumber}
                                 onChange={(e) => setTrackingNumber(e.target.value)}
                             />
@@ -342,7 +342,7 @@ export default function OrderDetailPage() {
                                 onClick={() => updateOrder({ trackingNumber })}
                             >
                                 <Save className="h-4 w-4 ml-2" />
-                                {saving ? 'جاري الحفظ...' : 'حفظ'}
+                                {saving ? 'Saving...' : 'Save'}
                             </Button>
                         </CardContent>
                     </Card>

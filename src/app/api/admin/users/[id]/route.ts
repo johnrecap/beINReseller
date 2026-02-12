@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { z } from 'zod'
 
 const updateUserSchema = z.object({
-    email: z.string().email('البريد الإلكتروني غير صالح').optional(),
+    email: z.string().email('Invalid email address').optional(),
     isActive: z.boolean().optional(),
 })
 
@@ -35,14 +35,14 @@ export async function GET(
         })
 
         if (!user) {
-            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         return NextResponse.json({ user })
 
     } catch (error) {
         console.error('Get user error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
@@ -62,7 +62,7 @@ export async function PATCH(
 
         if (!result.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { error: 'Invalid data', details: result.error.flatten() },
                 { status: 400 }
             )
         }
@@ -76,7 +76,7 @@ export async function PATCH(
 
     } catch (error) {
         console.error('Update user error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
@@ -94,24 +94,24 @@ export async function DELETE(
 
         // Prevent deleting self
         if (user.id === id) {
-            return NextResponse.json({ error: 'لا يمكنك حذف حسابك الشخصي' }, { status: 400 })
+            return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 })
         }
 
         // Check if user exists and not already deleted
         const userToDelete = await prisma.user.findUnique({ where: { id } })
         if (!userToDelete) {
-            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         if (userToDelete.deletedAt) {
-            return NextResponse.json({ error: 'المستخدم محذوف بالفعل' }, { status: 400 })
+            return NextResponse.json({ error: 'User already deleted' }, { status: 400 })
         }
 
         // Prevent deleting last admin
         if (userToDelete.role === 'ADMIN') {
             const adminCount = await prisma.user.count({ where: { role: 'ADMIN', deletedAt: null } })
             if (adminCount <= 1) {
-                return NextResponse.json({ error: 'لا يمكن حذف آخر أدمن في النظام' }, { status: 400 })
+                return NextResponse.json({ error: 'Cannot delete the last admin in the system' }, { status: 400 })
             }
         }
 
@@ -136,10 +136,10 @@ export async function DELETE(
             }
         })
 
-        return NextResponse.json({ success: true, message: 'تم حذف المستخدم بنجاح' })
+        return NextResponse.json({ success: true, message: 'User deleted successfully' })
 
     } catch (error) {
         console.error('Delete user error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

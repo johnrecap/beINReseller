@@ -27,7 +27,7 @@ async function getAuthUser(request: NextRequest) {
 // Validation schema
 const createOperationSchema = z.object({
     type: z.enum(['RENEW', 'CHECK_BALANCE', 'SIGNAL_REFRESH']),
-    cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'رقم الكارت يجب أن يحتوي على أرقام فقط'),
+    cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'Card number must contain only digits'),
     duration: z.string().optional(),
 })
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         // 2. Check permission - only users with SUBSCRIPTION_RENEW can access
         if (!roleHasPermission(authUser.role, PERMISSIONS.SUBSCRIPTION_RENEW)) {
             return NextResponse.json(
-                { error: 'صلاحيات غير كافية' },
+                { error: 'Insufficient permissions' },
                 { status: 403 }
             )
         }
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح من الطلبات، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
         if (!validationResult.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: validationResult.error.flatten() },
+                { error: 'Invalid data', details: validationResult.error.flatten() },
                 { status: 400 }
             )
         }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         const price = await getOperationPriceFromDB(type, duration)
         if (price <= 0) {
             return NextResponse.json(
-                { error: 'نوع العملية غير صالح' },
+                { error: 'Invalid operation type' },
                 { status: 400 }
             )
         }
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
         if (!userExists) {
             return NextResponse.json(
-                { error: 'المستخدم غير موجود' },
+                { error: 'User not found' },
                 { status: 404 }
             )
         }
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
                     amount: -price,
                     balanceAfter: updatedUser.balance,
                     operationId: operation.id,
-                    notes: `خصم عملية ${type === 'RENEW' ? 'تجديد' : type === 'CHECK_BALANCE' ? 'استعلام' : 'تنشيط إشارة'}`,
+                    notes: `Operation deduction ${type === 'RENEW' ? 'renewal' : type === 'CHECK_BALANCE' ? 'balance check' : 'signal activation'}`,
                 },
             })
 
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: user.id,
                     action: 'OPERATION_CREATED',
-                    details: `إنشاء عملية ${type} للكارت ${cardNumber}`,
+                    details: `Created ${type} operation for card ${cardNumber}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },
             })
@@ -184,8 +184,8 @@ export async function POST(request: NextRequest) {
             // Send notification
             await createNotification({
                 userId: authUser.id,
-                title: 'تم استلام طلبك',
-                message: `جاري معالجة عملية ${type === 'RENEW' ? 'التجديد' : type === 'CHECK_BALANCE' ? 'الاستعلام' : 'تنشيط الإشارة'}`,
+                title: 'Request received',
+                message: `Processing ${type === 'RENEW' ? 'renewal' : type === 'CHECK_BALANCE' ? 'balance check' : 'signal activation'} operation`,
                 type: 'info',
                 link: '/dashboard/history'
             })
@@ -209,20 +209,20 @@ export async function POST(request: NextRequest) {
 
         if (errorMessage === 'INSUFFICIENT_BALANCE') {
             return NextResponse.json(
-                { error: 'رصيد غير كافي' },
+                { error: 'Insufficient balance' },
                 { status: 400 }
             )
         }
 
         if (errorMessage === 'DUPLICATE_OPERATION') {
             return NextResponse.json(
-                { error: 'هناك عملية جارية لهذا الكارت' },
+                { error: 'There is an active operation for this card' },
                 { status: 400 }
             )
         }
 
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

@@ -98,7 +98,7 @@ export class AccountQueueManager {
                         waitTimeMs: elapsedMs,
                         retriesAttempted,
                         timedOut: true,
-                        error: `انتهت مهلة الانتظار في الطابور (${Math.round(maxWaitMs / 1000)} ثانية)`
+                        error: `Queue wait timeout (${Math.round(maxWaitMs / 1000)} seconds)`
                     }
                 }
 

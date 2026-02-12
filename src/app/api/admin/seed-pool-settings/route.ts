@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
                         username: username.value,
                         password: password.value,
                         totpSecret: totpSecret?.value || null,
-                        label: 'الحساب الأصلي',
+                        label: 'Original account',
                         isActive: true,
                         priority: 10,
                     }

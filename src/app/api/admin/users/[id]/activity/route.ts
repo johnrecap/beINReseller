@@ -41,7 +41,7 @@ export async function GET(
         
         if (!user) {
             return NextResponse.json(
-                { error: 'المستخدم غير موجود' },
+                { error: 'User not found' },
                 { status: 404 }
             )
         }
@@ -55,7 +55,7 @@ export async function GET(
     } catch (error) {
         console.error('Get user activity error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

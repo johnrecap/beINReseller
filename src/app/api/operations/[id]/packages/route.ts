@@ -15,9 +15,9 @@ async function getAuthUser(request: NextRequest) {
 /**
  * GET /api/operations/[id]/packages
  * 
- * جلب الباقات المتاحة للعملية
- * - يتحقق أن العملية في حالة AWAITING_PACKAGE
- * - يُرجع الباقات المستخرجة من beIN
+ * Fetch available packages for operation
+ * - Verifies operation is in AWAITING_PACKAGE state
+ * - Returns packages extracted from beIN
  */
 export async function GET(
     request: NextRequest,
@@ -28,7 +28,7 @@ export async function GET(
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -53,7 +53,7 @@ export async function GET(
 
         if (!operation) {
             return NextResponse.json(
-                { error: 'العملية غير موجودة' },
+                { error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -61,7 +61,7 @@ export async function GET(
         // 3. Check ownership (user can only see their own operations)
         if (operation.userId !== authUser.id && authUser.role !== 'ADMIN') {
             return NextResponse.json(
-                { error: 'غير مصرح بالوصول لهذه العملية' },
+                { error: 'Unauthorized access to this operation' },
                 { status: 403 }
             )
         }
@@ -71,7 +71,7 @@ export async function GET(
             return NextResponse.json({
                 success: true,
                 status: 'AWAITING_CAPTCHA',
-                message: 'في انتظار حل الكابتشا',
+                message: 'Waiting for CAPTCHA solution',
             })
         }
 
@@ -79,7 +79,7 @@ export async function GET(
             return NextResponse.json({
                 success: true,
                 status: operation.status,
-                message: 'جاري تحميل الباقات...',
+                message: 'Loading packages...',
                 responseMessage: operation.responseMessage,
             })
         }
@@ -88,7 +88,7 @@ export async function GET(
             return NextResponse.json({
                 success: false,
                 status: 'FAILED',
-                message: operation.responseMessage || 'فشلت العملية',
+                message: operation.responseMessage || 'Operation failed',
             })
         }
 
@@ -96,7 +96,7 @@ export async function GET(
             return NextResponse.json({
                 success: true,
                 status: 'COMPLETING',
-                message: 'جاري إتمام الشراء...',
+                message: 'Completing purchase...',
                 responseMessage: operation.responseMessage,
             })
         }
@@ -105,7 +105,7 @@ export async function GET(
             return NextResponse.json({
                 success: true,
                 status: 'COMPLETED',
-                message: operation.responseMessage || 'تم التجديد بنجاح!',
+                message: operation.responseMessage || 'Renewal successful!',
             })
         }
 
@@ -114,7 +114,7 @@ export async function GET(
             return NextResponse.json({
                 success: true,
                 status: 'AWAITING_FINAL_CONFIRM',
-                message: 'في انتظار التأكيد النهائي',
+                message: 'Awaiting final confirmation',
                 cardNumber: operation.cardNumber,
                 stbNumber: operation.stbNumber,
                 selectedPackage: operation.selectedPackage,
@@ -126,7 +126,7 @@ export async function GET(
             return NextResponse.json({
                 success: false,
                 status: operation.status,
-                message: 'العملية ليست في مرحلة اختيار الباقة',
+                message: 'Operation is not in package selection stage',
             })
         }
 
@@ -137,13 +137,13 @@ export async function GET(
             cardNumber: operation.cardNumber,
             stbNumber: operation.stbNumber,
             packages: operation.availablePackages || [],
-            message: 'اختر الباقة المناسبة',
+            message: 'Choose the appropriate package',
         })
 
     } catch (error) {
         console.error('Get packages error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

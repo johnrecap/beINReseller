@@ -28,7 +28,7 @@ export async function PATCH(
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -36,11 +36,11 @@ export async function PATCH(
         // Check if user exists
         const targetUser = await prisma.user.findUnique({ where: { id } })
         if (!targetUser) {
-            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         if (targetUser.deletedAt) {
-            return NextResponse.json({ error: 'لا يمكن تعديل مستخدم محذوف' }, { status: 400 })
+            return NextResponse.json({ error: 'Cannot edit a deleted user' }, { status: 400 })
         }
 
         // Check if this user belongs to this manager
@@ -52,7 +52,7 @@ export async function PATCH(
         })
 
         if (!managerUserLink) {
-            return NextResponse.json({ error: 'ليس لديك صلاحية تعديل هذا المستخدم' }, { status: 403 })
+            return NextResponse.json({ error: 'You do not have permission to edit this user' }, { status: 403 })
         }
 
         const body = await request.json()
@@ -60,7 +60,7 @@ export async function PATCH(
 
         if (!result.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: result.error.flatten() },
+                { error: 'Invalid data', details: result.error.flatten() },
                 { status: 400 }
             )
         }
@@ -89,13 +89,13 @@ export async function PATCH(
 
         return NextResponse.json({
             success: true,
-            message: isActive ? 'تم تفعيل المستخدم بنجاح' : 'تم تعطيل المستخدم بنجاح',
+            message: isActive ? 'User activated successfully' : 'User deactivated successfully',
             isActive: updatedUser.isActive
         })
 
     } catch (error) {
         console.error('Manager toggle user active error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }
 
@@ -119,7 +119,7 @@ export async function DELETE(
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تجاوزت الحد المسموح، انتظر قليلاً' },
+                { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
@@ -127,11 +127,11 @@ export async function DELETE(
         // Check if user exists
         const userToDelete = await prisma.user.findUnique({ where: { id } })
         if (!userToDelete) {
-            return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
         }
 
         if (userToDelete.deletedAt) {
-            return NextResponse.json({ error: 'المستخدم محذوف بالفعل' }, { status: 400 })
+            return NextResponse.json({ error: 'User already deleted' }, { status: 400 })
         }
 
         // Check if this user belongs to this manager
@@ -143,7 +143,7 @@ export async function DELETE(
         })
 
         if (!managerUserLink) {
-            return NextResponse.json({ error: 'ليس لديك صلاحية حذف هذا المستخدم' }, { status: 403 })
+            return NextResponse.json({ error: 'You do not have permission to delete this user' }, { status: 403 })
         }
 
         const refundedBalance = userToDelete.balance
@@ -164,7 +164,7 @@ export async function DELETE(
                         userId: manager.id,
                         type: 'DEPOSIT',
                         amount: refundedBalance,
-                        notes: `استرداد رصيد من حذف المستخدم: ${userToDelete.username}`,
+                        notes: `Balance refund from user deletion: ${userToDelete.username}`,
                         balanceAfter: updatedManager.balance
                     }
                 })
@@ -175,7 +175,7 @@ export async function DELETE(
                         userId: userToDelete.id,
                         type: 'WITHDRAW',
                         amount: refundedBalance,
-                        notes: `خصم الرصيد بسبب حذف الحساب`,
+                        notes: `Balance deducted due to account deletion`,
                         balanceAfter: 0
                     }
                 })
@@ -212,12 +212,12 @@ export async function DELETE(
         return NextResponse.json({ 
             success: true, 
             message: refundedBalance > 0 
-                ? `تم حذف المستخدم بنجاح وإرجاع $${refundedBalance.toFixed(2)} لرصيدك`
-                : 'تم حذف المستخدم بنجاح'
+                ? `User deleted successfully and $${refundedBalance.toFixed(2)} refunded to your balance`
+                : 'User deleted successfully'
         })
 
     } catch (error) {
         console.error('Manager delete user error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

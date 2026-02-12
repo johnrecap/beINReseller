@@ -81,7 +81,7 @@ export const GET = withAuth(async (request: Request, session) => {
     } catch (error) {
         console.error('List operations error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         // Check permission - only users with SUBSCRIPTION_BULK can access
         if (!roleHasPermission(authUser.role, PERMISSIONS.SUBSCRIPTION_BULK)) {
             return NextResponse.json(
-                { error: 'صلاحيات غير كافية' },
+                { error: 'Insufficient permissions' },
                 { status: 403 }
             )
         }
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
         if (!validationResult.success) {
             return NextResponse.json(
-                { error: 'بيانات غير صالحة', details: validationResult.error.flatten() },
+                { error: 'Invalid data', details: validationResult.error.flatten() },
                 { status: 400 }
             )
         }
@@ -80,14 +80,14 @@ export async function POST(request: NextRequest) {
 
         if (!user) {
             return NextResponse.json(
-                { error: 'المستخدم غير موجود' },
+                { error: 'User not found' },
                 { status: 404 }
             )
         }
 
         if (user.balance < totalPrice) {
             return NextResponse.json({
-                error: 'رصيد غير كافي',
+                error: 'Insufficient balance',
                 required: totalPrice,
                 available: user.balance,
                 perCard: pricePerOperation,
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
         if (availableCards.length === 0) {
             return NextResponse.json({
-                error: 'جميع الكروت لديها عمليات جارية',
+                error: 'All cards have active operations',
                 blockedCards,
             }, { status: 400 })
         }
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
                         amount: -pricePerOperation,
                         balanceAfter: user.balance - (operations.length * pricePerOperation),
                         operationId: operation.id,
-                        notes: `خصم عملية جملة - ${cardNumber}`,
+                        notes: `Bulk operation deduction - ${cardNumber}`,
                     },
                 })
             }
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: user.id,
                     action: 'BULK_OPERATION_CREATED',
-                    details: `إنشاء ${operations.length} عملية جملة من نوع ${type}`,
+                    details: `Created ${operations.length} bulk operations of type ${type}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },
             })
@@ -189,8 +189,8 @@ export async function POST(request: NextRequest) {
         // Notify Success
         await createNotification({
             userId: user.id,
-            title: 'تم استلام طلب الجملة',
-            message: `جاري معالجة ${result.length} عملية`,
+            title: 'Bulk request received',
+            message: `Processing ${result.length} operations`,
             type: 'info',
             link: '/dashboard/history'
         })
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('Bulk operation error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

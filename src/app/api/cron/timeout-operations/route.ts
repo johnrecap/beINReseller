@@ -75,15 +75,15 @@ export async function GET(request: Request) {
         for (const operation of stuckOperations) {
             try {
                 // Determine timeout reason based on status
-                let timeoutMessage = 'انتهت مهلة العملية'
+                let timeoutMessage = 'Operation timeout'
                 if (operation.status === 'AWAITING_PACKAGE') {
-                    timeoutMessage = `انتهت مهلة اختيار الباقة (${AWAITING_PACKAGE_TIMEOUT} دقيقة)`
+                    timeoutMessage = `Package selection timeout (${AWAITING_PACKAGE_TIMEOUT} minutes)`
                 } else if (operation.status === 'COMPLETING') {
-                    timeoutMessage = 'انتهت مهلة إتمام الشراء'
+                    timeoutMessage = 'Purchase completion timeout'
                 } else if (operation.status === 'PROCESSING') {
-                    timeoutMessage = 'انتهت مهلة معالجة العملية'
+                    timeoutMessage = 'Operation processing timeout expired'
                 } else if (operation.status === 'AWAITING_FINAL_CONFIRM') {
-                    timeoutMessage = 'انتهت مهلة التأكيد النهائي (2 دقيقة)'
+                    timeoutMessage = 'Final confirmation timeout (2 minutes)'
                 }
 
                 // Only refund if amount > 0 (AWAITING_PACKAGE has amount=0)
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
                         data: {
                             status: 'FAILED',
                             responseMessage: shouldRefund
-                                ? `${timeoutMessage} - تم استرداد المبلغ تلقائياً`
+                                ? `${timeoutMessage} - amount auto-refunded`
                                 : timeoutMessage,
                         },
                     })
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
                                     amount: operation.amount,
                                     balanceAfter: user.balance,
                                     operationId: operation.id,
-                                    notes: `استرداد تلقائي - ${timeoutMessage}`,
+                                    notes: `Auto-refund - ${timeoutMessage}`,
                                 },
                             })
                         }
@@ -140,7 +140,7 @@ export async function GET(request: Request) {
                                 userId: operation.userId,
                                 action: 'OPERATION_TIMEOUT',
                                 details: shouldRefund
-                                    ? `${timeoutMessage} - تم استرداد ${operation.amount} ريال`
+                                    ? `${timeoutMessage} - ${operation.amount} SAR refunded`
                                     : timeoutMessage,
                                 ipAddress: 'cron-job',
                             },

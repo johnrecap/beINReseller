@@ -39,12 +39,12 @@ export async function POST(
 
         return NextResponse.json({
             success: true,
-            message: 'تم إعادة تعيين كلمة المرور بنجاح',
+            message: 'Password reset successfully',
             newPassword: passwordToSet
         })
 
     } catch (error) {
         console.error('Reset password error:', error)
-        return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
+        return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

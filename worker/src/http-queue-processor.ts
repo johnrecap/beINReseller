@@ -325,7 +325,7 @@ function validateSessionAge(savedAt: string, flowType: keyof typeof SESSION_TIME
 
     if (sessionAge > maxAgeMs) {
         console.error(`[HTTP] SESSION TOO OLD: ${ageMinutes} minutes (max: ${maxMinutes} minutes for ${flowType})`);
-        throw new Error(`انتهت صلاحية الجلسة (${ageMinutes} دقيقة). برجاء إعادة العملية.`);
+        throw new Error(`Session expired (${ageMinutes} minutes). Please retry the operation.`);
     }
 
     console.log(`[HTTP] Session age: ${ageMinutes} minutes (within ${maxMinutes} min limit for ${flowType})`);
@@ -469,7 +469,7 @@ async function handleStartRenewalHttp(
     // Mark as PROCESSING
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'جاري البحث عن حساب متاح...' }
+        data: { status: 'PROCESSING', responseMessage: 'Searching for available account...' }
     });
 
     // Get next available account with queue-based retry
@@ -479,9 +479,9 @@ async function handleStartRenewalHttp(
 
     if (!queueResult.account) {
         if (queueResult.timedOut) {
-            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
+            throw new Error('NO_AVAILABLE_ACCOUNTS: No available accounts - queue wait timeout');
         }
-        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: No available accounts');
     }
 
     const selectedAccount = queueResult.account;
@@ -505,7 +505,7 @@ async function handleStartRenewalHttp(
     await checkIfCancelled(operationId);
 
     // Step 1: Login (with Redis session caching and login locking)
-    await updateProgress(operationId, 'جاري تسجيل الدخول...');
+    await updateProgress(operationId, 'Logging in...');
     let needsFreshLogin = true;
 
     // Check if we already have a valid session from Redis cache
@@ -586,7 +586,7 @@ async function handleStartRenewalHttp(
                 if (!solution) {
                     // Release lock before throwing
                     await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                    throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                 }
             }
 
@@ -633,7 +633,7 @@ async function handleStartRenewalHttp(
     // ============================================
 
     // Step 2: Check card (extract STB) - with caching
-    await updateProgress(operationId, 'جاري التحقق من الكارت...');
+    await updateProgress(operationId, 'Checking card...');
     let stbNumber: string | undefined;
 
     // Check BOTH package cache and STB cache for cached STB
@@ -671,7 +671,7 @@ async function handleStartRenewalHttp(
 
     // Step 3: Load packages - ALWAYS call this to get correct ViewState
     // Even if packages are cached, we need fresh ViewState for completePurchase
-    await updateProgress(operationId, 'جاري تحميل الباقات...');
+    await updateProgress(operationId, 'Loading packages...');
     console.log(`📦 [HTTP] Loading packages...`);
     const packagesResult = await withSessionRetry(
         client,
@@ -815,7 +815,7 @@ async function handleCompletePurchaseHttp(
 
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'COMPLETING', responseMessage: 'جاري إتمام عملية الشراء...' }
+        data: { status: 'COMPLETING', responseMessage: 'Completing purchase...' }
     });
 
     // Track which accounts we've tried
@@ -868,8 +868,8 @@ async function handleCompletePurchaseHttp(
 
             // Final error message
             const finalError = attemptResult.isBalanceError
-                ? 'رصيد حساب beIN غير كافي. لا توجد حسابات أخرى متاحة برصيد كافٍ.'
-                : `فشلت العملية بعد تجربة ${triedAccountIds.length} حسابات. ${lastError}`;
+                ? 'beIN account balance insufficient. No other accounts available with sufficient balance.'
+                : `Operation failed after trying ${triedAccountIds.length} accounts. ${lastError}`;
 
             throw new Error(finalError);
         }
@@ -959,7 +959,7 @@ async function attemptPurchaseWithAccount(
 
         // For non-original account or if session restore failed, need fresh login + loadPackages
         if (!isOriginalAccount || !client.isSessionActive()) {
-            await updateProgress(operationId, 'جاري تسجيل الدخول...');
+            await updateProgress(operationId, 'Logging in...');
             console.log(`[HTTP] 🔑 New account - need fresh login and package load`);
 
             // Perform login
@@ -1134,7 +1134,7 @@ async function attemptPurchaseWithAccount(
             if (operation.userId) {
                 await createNotification({
                     userId: operation.userId,
-                    title: '⚠️ تأكيد الدفع مطلوب',
+                    title: '⚠️ Payment confirmation required',
                     message: `${selectedPackage.name} - ${selectedPackage.price} USD`,
                     type: 'warning',
                     link: '/dashboard/operations'
@@ -1242,15 +1242,15 @@ async function handleConfirmPurchaseHttp(
 
     if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
         if (operation.userId && operation.amount && operation.amount > 0) {
-            await refundUser(operationId, operation.userId, operation.amount, 'انتهت مهلة التأكيد');
+            await refundUser(operationId, operation.userId, operation.amount, 'Confirmation timeout');
         }
-        await markOperationFailed(operationId, { type: 'TIMEOUT', message: 'انتهت مهلة التأكيد', recoverable: false }, 1);
-        throw new Error('انتهت مهلة التأكيد');
+        await markOperationFailed(operationId, { type: 'TIMEOUT', message: 'Confirmation timeout', recoverable: false }, 1);
+        throw new Error('Confirmation timeout');
     }
 
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'COMPLETING', responseMessage: 'جاري تأكيد عملية الشراء...' }
+        data: { status: 'COMPLETING', responseMessage: 'Confirming purchase...' }
     });
 
     const account = await prisma.beinAccount.findUnique({
@@ -1286,7 +1286,7 @@ async function handleConfirmPurchaseHttp(
                 console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
             }
         } catch (parseError: any) {
-            if (parseError.message?.includes('انتهت صلاحية')) {
+            if (parseError.message?.includes('Session expired')) {
                 throw parseError; // Re-throw session expiry error
             }
             console.error('[HTTP] ⚠️ Failed to parse saved session for confirm:', parseError);
@@ -1297,7 +1297,7 @@ async function handleConfirmPurchaseHttp(
         throw new Error('No session data available - cannot confirm purchase');
     }
 
-    await updateProgress(operationId, 'جاري إرسال التأكيد النهائي...');
+    await updateProgress(operationId, 'Sending final confirmation...');
     const result = await client.confirmPurchase();
 
     const selectedPackage = operation.selectedPackage as { name: string } | null;
@@ -1334,8 +1334,8 @@ async function handleConfirmPurchaseHttp(
         if (operation.userId) {
             await createNotification({
                 userId: operation.userId,
-                title: 'تم التجديد بنجاح',
-                message: `${selectedPackage?.name || 'الباقة'} - ${result.message}`,
+                title: 'Renewal successful',
+                message: `${selectedPackage?.name || 'Package'} - ${result.message}`,
                 type: 'success',
                 link: '/dashboard/history'
             });
@@ -1403,14 +1403,14 @@ async function handleCancelConfirmHttp(
 
     // Refund (only if money was actually deducted)
     if (operation.userId && operation.amount && operation.amount > 0) {
-        await refundUser(operationId, operation.userId, operation.amount, 'إلغاء المستخدم');
+        await refundUser(operationId, operation.userId, operation.amount, 'User cancellation');
     }
 
     await prisma.operation.update({
         where: { id: operationId },
         data: {
             status: 'CANCELLED',
-            responseMessage: 'تم إلغاء العملية',
+            responseMessage: 'Operation cancelled',
             completedAt: new Date(),
             finalConfirmExpiry: null
         }
@@ -1419,8 +1419,8 @@ async function handleCancelConfirmHttp(
     if (operation.userId) {
         await createNotification({
             userId: operation.userId,
-            title: 'تم إلغاء العملية',
-            message: operation.amount && operation.amount > 0 ? 'تم إلغاء عملية الشراء واسترداد المبلغ' : 'تم إلغاء عملية الشراء',
+            title: 'Operation cancelled',
+            message: operation.amount && operation.amount > 0 ? 'Purchase cancelled and amount refunded' : 'Purchase cancelled',
             type: 'info',
             link: '/dashboard/history'
         });
@@ -1460,7 +1460,7 @@ async function handleSignalRefreshHttp(
     // Update status
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'جاري البحث عن حساب متاح...' }
+        data: { status: 'PROCESSING', responseMessage: 'Searching for available account...' }
     });
 
     // Acquire account using queue-based system (with wait if busy)
@@ -1469,9 +1469,9 @@ async function handleSignalRefreshHttp(
 
     if (!queueResult.account) {
         if (queueResult.timedOut) {
-            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
+            throw new Error('NO_AVAILABLE_ACCOUNTS: No available accounts - queue wait timeout');
         }
-        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: No available accounts');
     }
 
     const account = queueResult.account;
@@ -1491,7 +1491,7 @@ async function handleSignalRefreshHttp(
 
     try {
         // Step 1: Login with session caching (like other handlers)
-        await updateProgress(operationId, 'جاري تسجيل الدخول...');
+        await updateProgress(operationId, 'Logging in...');
         let needsFreshLogin = true;
 
         // Check if we already have a valid session from Redis cache
@@ -1559,7 +1559,7 @@ async function handleSignalRefreshHttp(
                     solution = await waitForCaptchaSolution(operationId);
                     if (!solution) {
                         await releaseLoginLock(account.id, WORKER_ID);
-                        throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                        throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                     }
                 }
 
@@ -1600,7 +1600,7 @@ async function handleSignalRefreshHttp(
         await checkIfCancelled(operationId);
 
         // Step 2: Activate signal
-        await updateProgress(operationId, 'جاري تجديد الإشارة...');
+        await updateProgress(operationId, 'Refreshing signal...');
         const signalResult = await httpClient.activateSignal(cardNumber);
 
         if (!signalResult.success) {
@@ -1633,10 +1633,10 @@ async function handleSignalRefreshHttp(
         if (op?.userId) {
             await createNotification({
                 userId: op.userId,
-                title: 'تم تجديد الإشارة بنجاح',
+                title: 'Signal renewal successful',
                 message: signalResult.activated
-                    ? `تم تجديد الإشارة للكارت ${cardNumber}`
-                    : `تم فحص الكارت ${cardNumber}`,
+                    ? `Signal renewed for card ${cardNumber}`
+                    : `Card checked ${cardNumber}`,
                 type: 'info'
             });
         }
@@ -1669,7 +1669,7 @@ async function handleSignalCheckHttp(
     // Update status
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'جاري البحث عن حساب متاح...' }
+        data: { status: 'PROCESSING', responseMessage: 'Searching for available account...' }
     });
 
     // Acquire account using queue-based system (with wait if busy)
@@ -1678,9 +1678,9 @@ async function handleSignalCheckHttp(
 
     if (!queueResult.account) {
         if (queueResult.timedOut) {
-            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
+            throw new Error('NO_AVAILABLE_ACCOUNTS: No available accounts - queue wait timeout');
         }
-        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: No available accounts');
     }
 
     const account = queueResult.account;
@@ -1764,7 +1764,7 @@ async function handleSignalCheckHttp(
                     solution = await waitForCaptchaSolution(operationId);
                     if (!solution) {
                         await releaseLoginLock(account.id, WORKER_ID);
-                        throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                        throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                     }
                 }
 
@@ -1898,7 +1898,7 @@ async function handleSignalActivateHttp(
     // Update status
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'جاري تفعيل الإشارة...' }
+        data: { status: 'PROCESSING', responseMessage: 'Activating signal...' }
     });
 
     // Get account
@@ -1939,8 +1939,8 @@ async function handleSignalActivateHttp(
                 status: 'COMPLETED',
                 completedAt: new Date(),
                 responseMessage: activateResult.activated
-                    ? 'تم تفعيل الإشارة بنجاح'
-                    : activateResult.message || 'لم يتم التفعيل',
+                    ? 'Signal activated successfully'
+                    : activateResult.message || 'Activation not completed',
                 responseData: JSON.stringify({
                     ...savedData,
                     cardStatus: activateResult.cardStatus,
@@ -1955,10 +1955,10 @@ async function handleSignalActivateHttp(
         if (operation.userId) {
             await createNotification({
                 userId: operation.userId,
-                title: activateResult.activated ? 'تم تفعيل الإشارة' : 'لم يتم التفعيل',
+                title: activateResult.activated ? 'Signal activated' : 'Activation not completed',
                 message: activateResult.activated
-                    ? `تم تفعيل الإشارة للكارت ${targetCardNumber}`
-                    : activateResult.error || 'حدث خطأ في التفعيل',
+                    ? `Signal activated for card ${targetCardNumber}`
+                    : activateResult.error || 'Error during activation',
                 type: activateResult.activated ? 'success' : 'warning'
             });
         }
@@ -2118,7 +2118,7 @@ async function handleStartInstallmentHttp(
     // Mark as PROCESSING
     await prisma.operation.update({
         where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'جاري البحث عن حساب متاح...' }
+        data: { status: 'PROCESSING', responseMessage: 'Searching for available account...' }
     });
 
     // Get next available account with queue-based retry
@@ -2127,9 +2127,9 @@ async function handleStartInstallmentHttp(
 
     if (!queueResult.account) {
         if (queueResult.timedOut) {
-            throw new Error('NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة - انتهت مهلة الانتظار في الطابور');
+            throw new Error('NO_AVAILABLE_ACCOUNTS: No available accounts - queue wait timeout');
         }
-        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: لا توجد حسابات متاحة');
+        throw new Error(queueResult.error || 'NO_AVAILABLE_ACCOUNTS: No available accounts');
     }
 
     const selectedAccount = queueResult.account;
@@ -2151,7 +2151,7 @@ async function handleStartInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Step 1: Login (with session caching)
-    await updateProgress(operationId, 'جاري تسجيل الدخول...');
+    await updateProgress(operationId, 'Logging in...');
     let needsFreshLogin = !client.isSessionActive();
 
     if (needsFreshLogin) {
@@ -2218,7 +2218,7 @@ async function handleStartInstallmentHttp(
                 solution = await waitForCaptchaSolution(operationId);
                 if (!solution) {
                     await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                    throw new Error('CAPTCHA_TIMEOUT: لم يتم إدخال كود التحقق');
+                    throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                 }
             }
 
@@ -2255,7 +2255,7 @@ async function handleStartInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Step 2: Load installment details
-    await updateProgress(operationId, 'جاري تحميل بيانات التقسيط...');
+    await updateProgress(operationId, 'Loading installment data...');
     console.log(`[HTTP] Loading installment for card ${cardNumber}`);
 
     const installmentResult = await client.loadInstallment(cardNumber);
@@ -2270,7 +2270,7 @@ async function handleStartInstallmentHttp(
             where: { id: operationId },
             data: {
                 status: 'COMPLETED',
-                responseMessage: 'لا توجد أقساط لهذا الكارت',
+                responseMessage: 'No installments found for this card',
                 completedAt: new Date()
             }
         });
@@ -2374,7 +2374,7 @@ async function handleConfirmInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Re-load installment to ensure card is loaded and ViewState is fresh
-    await updateProgress(operationId, 'جاري تحميل بيانات القسط...');
+    await updateProgress(operationId, 'Loading installment data...');
     console.log(`[HTTP] Re-loading installment for card ${cardNumber} before payment...`);
     const loadResult = await client.loadInstallment(cardNumber);
 
@@ -2389,7 +2389,7 @@ async function handleConfirmInstallmentHttp(
     await checkIfCancelled(operationId);
 
     // Execute payment
-    await updateProgress(operationId, 'جاري تنفيذ الدفع...');
+    await updateProgress(operationId, 'Processing payment...');
     console.log(`[HTTP] Executing installment payment...`);
     const payResult = await client.payInstallment();
 
@@ -2430,8 +2430,8 @@ async function handleConfirmInstallmentHttp(
     if (operation.userId) {
         await createNotification({
             userId: operation.userId,
-            title: 'تم دفع القسط',
-            message: `تم دفع قسط الكارت ${cardNumber} بنجاح`,
+            title: 'Installment paid',
+            message: `Installment paid for card ${cardNumber} successfully`,
             type: 'success',
             link: '/dashboard/history'
         });

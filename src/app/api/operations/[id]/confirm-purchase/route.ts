@@ -17,10 +17,10 @@ async function getAuthUser(request: NextRequest) {
 /**
  * POST /api/operations/[id]/confirm-purchase
  * 
- * تأكيد الدفع النهائي
- * - يتحقق أن العملية في حالة AWAITING_FINAL_CONFIRM
- * - يخصم الرصيد من المستخدم (deferred payment)
- * - يرسل Job للـ Worker لضغط زر Ok
+ * Confirm final payment
+ * - Verifies operation is in AWAITING_FINAL_CONFIRM state
+ * - Deducts balance from user (deferred payment)
+ * - Sends job to Worker to press OK button
  */
 export async function POST(
     request: NextRequest,
@@ -31,7 +31,7 @@ export async function POST(
         const authUser = await getAuthUser(request)
         if (!authUser?.id) {
             return NextResponse.json(
-                { error: 'غير مصرح' },
+                { error: 'Unauthorized' },
                 { status: 401 }
             )
         }
@@ -43,7 +43,7 @@ export async function POST(
         )
         if (!allowed) {
             return NextResponse.json(
-                { error: 'تم تجاوز الحد المسموح من الطلبات' },
+                { error: 'Rate limit exceeded' },
                 { status: 429, headers: rateLimitHeaders(rateLimitResult) }
             )
         }
@@ -66,7 +66,7 @@ export async function POST(
 
         if (!operation) {
             return NextResponse.json(
-                { error: 'العملية غير موجودة' },
+                { error: 'Operation not found' },
                 { status: 404 }
             )
         }
@@ -74,7 +74,7 @@ export async function POST(
         // Check ownership
         if (operation.userId !== authUser.id) {
             return NextResponse.json(
-                { error: 'غير مصرح بالوصول لهذه العملية' },
+                { error: 'Unauthorized access to this operation' },
                 { status: 403 }
             )
         }
@@ -82,7 +82,7 @@ export async function POST(
         // Check status
         if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
             return NextResponse.json(
-                { error: 'العملية ليست في مرحلة التأكيد النهائي' },
+                { error: 'Operation is not in final confirmation stage' },
                 { status: 400 }
             )
         }
@@ -90,7 +90,7 @@ export async function POST(
         // Check if expired
         if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
             return NextResponse.json(
-                { error: 'انتهت مهلة التأكيد - يرجى بدء عملية جديدة' },
+                { error: 'Confirmation timeout - please start a new operation' },
                 { status: 400 }
             )
         }
@@ -101,7 +101,7 @@ export async function POST(
 
         if (!dealerPrice || dealerPrice <= 0) {
             return NextResponse.json(
-                { error: 'سعر الباقة غير صالح' },
+                { error: 'Invalid package price' },
                 { status: 400 }
             )
         }
@@ -110,12 +110,12 @@ export async function POST(
         // Must run BEFORE money deduction to prevent double-charging
         const confirmGuard = await prisma.operation.updateMany({
             where: { id, status: 'AWAITING_FINAL_CONFIRM' },
-            data: { status: 'COMPLETING', responseMessage: 'جاري تأكيد الدفع...' }
+            data: { status: 'COMPLETING', responseMessage: 'Confirming payment...' }
         })
 
         if (confirmGuard.count === 0) {
             return NextResponse.json(
-                { error: 'العملية قيد التأكيد بالفعل' },
+                { error: 'Operation is already being confirmed' },
                 { status: 409 }
             )
         }
@@ -157,7 +157,7 @@ export async function POST(
                         amount: -dealerPrice,
                         balanceAfter: updatedUser.balance,
                         operationId: id,
-                        notes: `تجديد ${selectedPkg?.name || 'باقة'} للكارت ${operation.cardNumber}`,
+                        notes: `Renewal ${selectedPkg?.name || 'package'} for card ${operation.cardNumber}`,
                     }
                 })
             })
@@ -180,20 +180,20 @@ export async function POST(
         return NextResponse.json({
             success: true,
             operationId: id,
-            message: 'جاري تأكيد الدفع...',
+            message: 'Confirming payment...',
         })
 
     } catch (error) {
         const msg = error instanceof Error ? error.message : ''
         if (msg === 'INSUFFICIENT_BALANCE') {
             return NextResponse.json(
-                { error: 'رصيد غير كافي' },
+                { error: 'Insufficient balance' },
                 { status: 400 }
             )
         }
         console.error('Confirm purchase error:', error)
         return NextResponse.json(
-            { error: 'حدث خطأ في الخادم' },
+            { error: 'Server error' },
             { status: 500 }
         )
     }

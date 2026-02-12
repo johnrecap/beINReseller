@@ -104,13 +104,13 @@ export async function GET(request: Request) {
                 const shouldRefund = operation.amount > 0
 
                 // Determine expiry reason
-                let expiryReason = 'انتهت مهلة العملية - لم يتم استلام نبضة من المتصفح'
+                let expiryReason = 'Operation timeout - heartbeat not received from browser'
                 if (operation.status === 'AWAITING_PACKAGE') {
-                    expiryReason = 'انتهت مهلة اختيار الباقة - تم إغلاق المتصفح أو فقد الاتصال'
+                    expiryReason = 'Package selection timeout - browser closed or connection lost'
                 } else if (operation.status === 'AWAITING_FINAL_CONFIRM') {
-                    expiryReason = 'انتهت مهلة التأكيد النهائي - تم إغلاق المتصفح أو فقد الاتصال'
+                    expiryReason = 'Final confirmation timeout - browser closed or connection lost'
                 } else if (operation.status === 'AWAITING_CAPTCHA') {
-                    expiryReason = 'انتهت مهلة حل الكابتشا - تم إغلاق المتصفح أو فقد الاتصال'
+                    expiryReason = 'CAPTCHA timeout - browser closed or connection lost'
                 }
 
                 await prisma.$transaction(async (tx) => {
@@ -121,7 +121,7 @@ export async function GET(request: Request) {
                             status: 'EXPIRED',
                             error: expiryReason,
                             responseMessage: shouldRefund
-                                ? `${expiryReason} - تم استرداد المبلغ تلقائياً`
+                                ? `${expiryReason} - amount auto-refunded`
                                 : expiryReason,
                             completedAt: now
                         }
@@ -153,7 +153,7 @@ export async function GET(request: Request) {
                                     amount: operation.amount,
                                     balanceAfter: user.balance,
                                     operationId: operation.id,
-                                    notes: `استرداد تلقائي - ${expiryReason}`
+                                    notes: `Auto-refund - ${expiryReason}`
                                 }
                             })
 
@@ -167,10 +167,10 @@ export async function GET(request: Request) {
                         await tx.notification.create({
                             data: {
                                 userId: operation.userId,
-                                title: 'انتهت مهلة العملية',
+                                title: 'Operation timeout',
                                 message: shouldRefund
-                                    ? `تم إلغاء العملية تلقائياً واسترداد ${operation.amount} ريال. السبب: ${expiryReason}`
-                                    : `تم إلغاء العملية تلقائياً. السبب: ${expiryReason}`,
+                                    ? `Operation auto-cancelled and ${operation.amount} SAR refunded. Reason: ${expiryReason}`
+                                    : `Operation auto-cancelled. Reason: ${expiryReason}`,
                                 type: 'warning',
                                 link: `/dashboard/operations/${operation.id}`
                             }

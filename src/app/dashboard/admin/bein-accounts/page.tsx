@@ -404,7 +404,7 @@ export default function BeinAccountsPage() {
                                         className="h-4 w-4 rounded border-input"
                                     />
                                     <Label htmlFor="customerOnly" className="cursor-pointer">
-                                        للتطبيق فقط (Mobile App Only)
+                                        Mobile App Only
                                     </Label>
                                 </div>
                                 <DialogFooter>
@@ -681,7 +681,7 @@ export default function BeinAccountsPage() {
                                 className="h-4 w-4 rounded border-input"
                             />
                             <Label htmlFor="edit-customerOnly" className="cursor-pointer">
-                                للتطبيق فقط (Mobile App Only)
+                                Mobile App Only
                             </Label>
                         </div>
                         <DialogFooter>

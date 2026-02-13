@@ -339,6 +339,11 @@ export default function ActiveOperationsPage() {
         if (operation.status === 'AWAITING_CAPTCHA' || operation.status === 'AWAITING_PACKAGE') {
             router.push(`/dashboard/renew?operationId=${operation.id}`)
         } else if (operation.status === 'AWAITING_FINAL_CONFIRM') {
+            if (!operation.selectedPackage) {
+                // Installment operation — redirect to renew page (Installments tab handles it)
+                router.push('/dashboard/renew')
+                return
+            }
             setConfirmingOperation(operation)
         }
     }

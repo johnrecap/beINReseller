@@ -24,6 +24,7 @@ async function getAuthUser(request: NextRequest) {
 // Validation schema
 const startRenewalSchema = z.object({
     cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'Card number must contain only digits'),
+    smartcardType: z.enum(['CISCO', 'IRDETO']).default('CISCO').optional(),
 })
 
 /**
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const { cardNumber } = validationResult.data
+        const { cardNumber, smartcardType } = validationResult.data
 
         // 4. Check for duplicate pending/processing operations for this card
         const existingOperation = await prisma.operation.findFirst({
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest) {
                 type: 'START_RENEWAL',
                 cardNumber,
                 userId: authUser.id,
+                smartcardType: smartcardType || 'CISCO',
             })
         } catch (queueError) {
             console.error('Failed to add job to queue:', queueError)

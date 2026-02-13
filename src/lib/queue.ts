@@ -50,6 +50,7 @@ export async function addOperationJob(data: {
     userId?: string
     customerId?: string     // Store customer ID (for store app)
     amount?: number
+    smartcardType?: string  // 'CISCO' or 'IRDETO' (default: CISCO)
 }) {
     return operationsQueue.add('process-operation', data, {
         priority: 1,  // Higher priority for resellers

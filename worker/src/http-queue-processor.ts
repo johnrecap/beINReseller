@@ -46,6 +46,7 @@ interface OperationJobData {
     userId?: string;
     amount?: number;
     accountId?: string;  // For CHECK_ACCOUNT_BALANCE
+    smartcardType?: string;  // 'CISCO' or 'IRDETO' (default: CISCO)
 }
 
 // Custom error for cancelled operations
@@ -352,7 +353,7 @@ export async function processOperationHttp(
     job: Job<OperationJobData>,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    const { operationId, type, cardNumber, promoCode, userId, amount, accountId } = job.data;
+    const { operationId, type, cardNumber, promoCode, userId, amount, accountId, smartcardType } = job.data;
     let selectedAccountId: string | null = null;
 
     // Lock heartbeat: renew every 60s to prevent TTL expiry during long operations
@@ -388,7 +389,7 @@ export async function processOperationHttp(
                 }
                 return; // Exit early - no operation to update on success or failure
             case 'START_RENEWAL':
-                await handleStartRenewalHttp(operationId, cardNumber, accountPool);
+                await handleStartRenewalHttp(operationId, cardNumber, accountPool, smartcardType);
                 break;
             case 'COMPLETE_PURCHASE':
                 await handleCompletePurchaseHttp(operationId, promoCode, accountPool);
@@ -455,7 +456,8 @@ export async function processOperationHttp(
 async function handleStartRenewalHttp(
     operationId: string,
     cardNumber: string,
-    accountPool: AccountPoolManager
+    accountPool: AccountPoolManager,
+    smartcardType?: string
 ): Promise<void> {
     console.log(`🚀 [HTTP] Starting renewal for ${operationId}`);
 
@@ -673,10 +675,11 @@ async function handleStartRenewalHttp(
     // Even if packages are cached, we need fresh ViewState for completePurchase
     await updateProgress(operationId, 'Loading packages...');
     console.log(`📦 [HTTP] Loading packages...`);
+    console.log(`[HTTP] 📦 Using smartcard type: ${smartcardType || 'CISCO'}`);
     const packagesResult = await withSessionRetry(
         client,
         selectedAccount,
-        () => client.loadPackages(cardNumber),
+        () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
         'loadPackages'
     );
 
@@ -745,7 +748,8 @@ async function handleStartRenewalHttp(
             responseData: JSON.stringify({
                 sessionData: sessionData,
                 dealerBalance: packagesResult.dealerBalance,  // For balance validation
-                savedAt: new Date().toISOString()
+                savedAt: new Date().toISOString(),
+                smartcardType: smartcardType || 'CISCO'  // Persist for COMPLETE_PURCHASE retry
             })
         }
     });
@@ -957,6 +961,15 @@ async function attemptPurchaseWithAccount(
             }
         }
 
+        // Extract smartcardType from responseData (persisted during START_RENEWAL)
+        let savedSmartcardType = 'CISCO';
+        try {
+            if (operation.responseData) {
+                const savedData = JSON.parse(operation.responseData as string);
+                savedSmartcardType = savedData.smartcardType || 'CISCO';
+            }
+        } catch { /* ignore parse errors */ }
+
         // For non-original account or if session restore failed, need fresh login + loadPackages
         if (!isOriginalAccount || !client.isSessionActive()) {
             await updateProgress(operationId, 'Logging in...');
@@ -1022,12 +1035,12 @@ async function attemptPurchaseWithAccount(
                 };
             }
 
-            // Load packages with session retry
-            console.log(`[HTTP] 📦 Loading packages for new account...`);
+            // Load packages with session retry (use saved smartcard type)
+            console.log(`[HTTP] 📦 Loading packages for new account (smartcard: ${savedSmartcardType})...`);
             const packagesResult = await withSessionRetry(
                 client,
                 account,
-                () => client.loadPackages(operation.cardNumber),
+                () => client.loadPackages(operation.cardNumber, savedSmartcardType),
                 'loadPackages'
             );
 

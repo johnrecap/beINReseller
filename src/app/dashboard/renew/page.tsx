@@ -19,6 +19,7 @@ import { Zap } from 'lucide-react'
 
 // Renewal Mode Type
 type RenewalMode = 'signal-refresh' | 'package-renewal' | 'installment'
+type SmartcardType = 'CISCO' | 'IRDETO'
 type WizardStep = 'card-input' | 'processing' | 'captcha' | 'packages' | 'completing' | 'awaiting-final-confirm' | 'result'
 
 interface AvailablePackage {
@@ -186,6 +187,7 @@ export default function RenewWizardPage() {
 
     // State
     const [renewalMode, setRenewalMode] = useState<RenewalMode>('package-renewal')
+    const [smartcardType, setSmartcardType] = useState<SmartcardType>('CISCO')
     const [step, setStep] = useState<WizardStep>('card-input')
     const [cardNumber, setCardNumber] = useState('')
     const [operationId, setOperationId] = useState<string | null>(null)
@@ -380,7 +382,7 @@ export default function RenewWizardPage() {
             const res = await fetch('/api/operations/start-renewal', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cardNumber }),
+                body: JSON.stringify({ cardNumber, smartcardType }),
             })
             const data = await res.json()
 
@@ -520,6 +522,7 @@ export default function RenewWizardPage() {
     const handleReset = () => {
         setStep('card-input')
         setCardNumber('')
+        setSmartcardType('CISCO')  // Reset smartcard type
         setOperationId(null)
         setPackages([])
         setSelectedPackageIndex(null)
@@ -621,6 +624,33 @@ export default function RenewWizardPage() {
                                 <CardDescription>{'Enter the 10-16 digit beIN card number'}</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                {/* Smartcard Type Selection */}
+                                <div>
+                                    <Label htmlFor="smartcardType">{'Smartcard Type'}</Label>
+                                    <div className="flex gap-2 mt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSmartcardType('CISCO')}
+                                            className={`flex-1 px-4 py-3 rounded-xl font-medium text-sm transition-all border-2 ${smartcardType === 'CISCO'
+                                                    ? 'border-[#00A651] bg-[#00A651]/10 text-[#00A651] shadow-sm'
+                                                    : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[#00A651]/50'
+                                                }`}
+                                        >
+                                            Smartcard: CISCO
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSmartcardType('IRDETO')}
+                                            className={`flex-1 px-4 py-3 rounded-xl font-medium text-sm transition-all border-2 ${smartcardType === 'IRDETO'
+                                                    ? 'border-[#00A651] bg-[#00A651]/10 text-[#00A651] shadow-sm'
+                                                    : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[#00A651]/50'
+                                                }`}
+                                        >
+                                            Smartcard: Irdeto
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div>
                                     <Label htmlFor="cardNumber">{'Card Number'}</Label>
                                     <Input

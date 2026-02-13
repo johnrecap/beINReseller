@@ -1356,9 +1356,11 @@ export class HttpClientService {
 
     /**
      * Load available packages from SellPackages page
+     * @param cardNumber - The card number to load packages for
+     * @param smartcardType - 'CISCO' or 'IRDETO' (default: CISCO) - determines which dropdown option to select
      */
-    async loadPackages(cardNumber: string): Promise<LoadPackagesResult> {
-        console.log(`[HTTP] Loading packages for card: ${cardNumber}`);
+    async loadPackages(cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
+        console.log(`[HTTP] Loading packages for card: ${cardNumber} (smartcard type: ${smartcardType})`);
 
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
@@ -1387,12 +1389,12 @@ export class HttpClientService {
             this.currentViewState = this.extractHiddenFields(pageRes.data);
             let $ = cheerio.load(pageRes.data);
 
-            // Step 2: Select Item Type (CISCO dropdown)
+            // Step 2: Select Item Type (dropdown - CISCO or Irdeto)
             const ddlType = $('select[id*="ddlType"]');
-            let ciscoValue = '';
+            let selectedTypeValue = '';
 
             if (ddlType.length) {
-                // Find CISCO/Smartcard option value (with fallback to first option)
+                // Find the correct option based on smartcardType
                 let firstOptionValue = '';
                 ddlType.find('option').each((index, el) => {
                     const text = $(el).text();
@@ -1403,17 +1405,25 @@ export class HttpClientService {
                         firstOptionValue = value;
                     }
 
-                    // Prefer CISCO, Smartcard, or Humax
-                    if (text.includes('CISCO') || text.includes('Smartcard') || text.includes('Humax')) {
-                        ciscoValue = value;
-                        console.log(`[HTTP] Found device option: value="${value}" text="${text}"`);
+                    if (smartcardType === 'IRDETO') {
+                        // Look for Irdeto option
+                        if (text.includes('Irdeto') || text.includes('IRDETO') || text.includes('irdeto')) {
+                            selectedTypeValue = value;
+                            console.log(`[HTTP] Found Irdeto option: value="${value}" text="${text}"`);
+                        }
+                    } else {
+                        // Default: Look for CISCO, Smartcard, or Humax
+                        if (text.includes('CISCO') || text.includes('Smartcard') || text.includes('Humax')) {
+                            selectedTypeValue = value;
+                            console.log(`[HTTP] Found CISCO option: value="${value}" text="${text}"`);
+                        }
                     }
                 });
 
-                // Fallback to first option if CISCO not found
-                if (!ciscoValue && firstOptionValue) {
-                    ciscoValue = firstOptionValue;
-                    console.log(`[HTTP] CISCO not found, using fallback: value="${ciscoValue}"`);
+                // Fallback to first option if target not found
+                if (!selectedTypeValue && firstOptionValue) {
+                    selectedTypeValue = firstOptionValue;
+                    console.log(`[HTTP] ${smartcardType} not found in dropdown, using fallback: value="${selectedTypeValue}"`);
                 }
 
                 // DEBUG: Log all inputs in the SellPackages form to ensure we aren't missing anything
@@ -1429,16 +1439,16 @@ export class HttpClientService {
                     }
                 });
 
-                if (ciscoValue) {
-                    // POST to select CISCO
+                if (selectedTypeValue) {
+                    // POST to select the smartcard type
                     const selectFormData: Record<string, string> = {
                         ...this.currentViewState!,
                         '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$ddlType',
                         '__EVENTARGUMENT': '',
-                        'ctl00$ContentPlaceHolder1$ddlType': ciscoValue
+                        'ctl00$ContentPlaceHolder1$ddlType': selectedTypeValue
                     };
 
-                    console.log('[HTTP] POST select CISCO type...');
+                    console.log(`[HTTP] POST select ${smartcardType} type...`);
                     const selectRes = await this.axios.post(
                         renewUrl,
                         this.buildFormData(selectFormData),
@@ -1450,15 +1460,15 @@ export class HttpClientService {
                     this.currentViewState = this.extractHiddenFields(selectRes.data);
                     $ = cheerio.load(selectRes.data);
 
-                    // DEBUG: Verify CISCO selection was applied
+                    // DEBUG: Verify selection was applied
                     const selectedValue = $('select[id*="ddlType"]').val();
                     console.log(`[HTTP] Dropdown after POST: selected value = "${selectedValue}"`);
 
-                    // Check if tbSerial1 field appeared (it should be visible after CISCO selection)
+                    // Check if tbSerial1 field appeared (it should be visible after type selection)
                     const serial1Visible = $('input[id*="tbSerial1"]').length > 0;
-                    console.log(`[HTTP] tbSerial1 visible after CISCO: ${serial1Visible}`);
+                    console.log(`[HTTP] tbSerial1 visible after ${smartcardType}: ${serial1Visible}`);
 
-                    // DEBUG: Check what value tbSerial1 has by default (is '7' pre-filled?)
+                    // DEBUG: Check what value tbSerial1 has by default
                     const serial1DefaultValue = $('input[id*="tbSerial1"]').val() || '';
                     console.log(`[HTTP] tbSerial1 default value: "${serial1DefaultValue}"`);
                 }
@@ -1496,7 +1506,7 @@ export class HttpClientService {
                 ...this.currentViewState!,
                 '__EVENTTARGET': '',
                 '__EVENTARGUMENT': '',
-                'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
+                'ctl00$ContentPlaceHolder1$ddlType': selectedTypeValue,
                 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
                 // tbSerial2 is NOT included here - it appears AFTER first Load click
                 [loadBtnName]: loadBtnValue,
@@ -1614,7 +1624,7 @@ export class HttpClientService {
                 // Step 3b: Second POST - with both tbSerial1 and tbSerial2
                 const secondFormData: Record<string, string> = {
                     ...this.currentViewState!,
-                    'ctl00$ContentPlaceHolder1$ddlType': ciscoValue,
+                    'ctl00$ContentPlaceHolder1$ddlType': selectedTypeValue,
                     'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
                     'ctl00$ContentPlaceHolder1$tbSerial2': formattedCard,
                     [step2BtnName]: step2BtnValue,
@@ -3957,13 +3967,16 @@ export class HttpClientService {
     }
 
     /**
-     * Pay installment - clicks the Pay Installment button
+     * Pay installment - Two-step payment process:
+     * Step 1: Click "Pay Installment" button → beIN returns payment type popup
+     * Step 2: Select "Direct Payment (From Account)" radio → Click "Pay" button
+     * 
      * Must be called after loadInstallment()
      * 
      * @returns Payment result
      */
     async payInstallment(): Promise<import('./types').PayInstallmentResult> {
-        console.log('[HTTP] Paying installment...');
+        console.log('[HTTP] Paying installment (two-step flow)...');
 
         try {
             const installmentUrl = this.buildFullUrl(this.config.installmentUrl);
@@ -3978,8 +3991,8 @@ export class HttpClientService {
             const balanceBefore = await this.getCurrentBalance();
             console.log(`[HTTP] Balance before payment: $${balanceBefore}`);
 
-            // Extract Pay Installment button value from stored page HTML
-            // IMPORTANT: Do NOT re-fetch the page - that would lose the loaded card/contract context!
+            // ====== STEP 1: Click "Pay Installment" button ======
+            // This triggers the payment type popup on beIN
             let payBtnValue = 'Pay Installment';  // Default fallback
             if (this.lastInstallmentPageHtml) {
                 payBtnValue = this.extractButtonValue(this.lastInstallmentPageHtml, 'btnPayInstallment', 'Pay Installment');
@@ -3988,13 +4001,12 @@ export class HttpClientService {
                 console.log(`[HTTP] ⚠️ No stored page HTML, using default button value: "${payBtnValue}"`);
             }
 
-            // POST - Click Pay Installment button
             const payFormData: Record<string, string> = {
                 ...this.currentViewState,
                 'ctl00$ContentPlaceHolder1$btnPayInstallment': payBtnValue
             };
 
-            console.log('[HTTP] POST - Pay installment...');
+            console.log('[HTTP] POST Step 1 - Clicking Pay Installment button...');
             const payRes = await this.axios.post(
                 installmentUrl,
                 this.buildFormData(payFormData),
@@ -4003,39 +4015,210 @@ export class HttpClientService {
                 }
             );
 
-            // Check for errors in response
-            const payError = this.checkForErrors(payRes.data);
+            // Check for session expiry
+            const sessionExpiry = this.checkForSessionExpiry(payRes.data);
+            if (sessionExpiry) {
+                this.invalidateSession();
+                return { success: false, message: sessionExpiry };
+            }
 
-            // Check for success messages
-            const responseText = payRes.data.toLowerCase();
-            const hasSuccessMessage = responseText.includes('success') ||
-                responseText.includes('تم الدفع') ||
-                responseText.includes('payment completed') ||
-                responseText.includes('تمت العملية');
+            // ====== STEP 2: Handle "Please Select Type of Payment" popup ======
+            // Parse the response to find the payment type radio buttons
+            const $popup = cheerio.load(payRes.data);
 
-            // Verify balance changed
-            const balanceAfter = await this.getCurrentBalance();
-            console.log(`[HTTP] Balance after payment: $${balanceAfter}`);
+            // Look for radio buttons related to DirectPay
+            const radioInputs = $popup('input[type="radio"][name*="RdoDirectPay"], input[type="radio"][id*="RdoDirectPay"], input[type="radio"][name*="DirectPay"]');
 
-            const balanceDecreased = balanceBefore !== null && balanceAfter !== null &&
-                balanceAfter < balanceBefore;
+            console.log(`[HTTP] Step 1 response: Found ${radioInputs.length} payment type radio buttons`);
 
-            if (balanceDecreased || hasSuccessMessage) {
-                console.log('[HTTP] ✅ Installment payment successful');
-                return {
-                    success: true,
-                    message: 'Installment payment successful',
-                    newBalance: balanceAfter || undefined
+            // DEBUG: Log all radio inputs found
+            $popup('input[type="radio"]').each((i, el) => {
+                const name = $popup(el).attr('name') || '';
+                const id = $popup(el).attr('id') || '';
+                const value = $popup(el).attr('value') || '';
+                const labelFor = $popup(`label[for="${id}"]`).text().trim();
+                console.log(`[HTTP] Radio [${i}]: name="${name}" id="${id}" value="${value}" label="${labelFor}"`);
+            });
+
+            // DEBUG: Log all submit buttons
+            $popup('input[type="submit"]').each((i, el) => {
+                const name = $popup(el).attr('name') || '';
+                const id = $popup(el).attr('id') || '';
+                const value = $popup(el).attr('value') || '';
+                console.log(`[HTTP] Submit button [${i}]: name="${name}" id="${id}" value="${value}"`);
+            });
+
+            if (radioInputs.length > 0) {
+                // Popup detected — select Direct Payment and submit
+                console.log('[HTTP] ✅ Payment type popup detected — selecting Direct Payment...');
+
+                // Extract new ViewState from the popup page
+                const popupViewState = this.extractHiddenFields(payRes.data);
+
+                // Extract all hidden fields from the popup page
+                const popupHiddenFields: Record<string, string> = {};
+                $popup('input[type="hidden"]').each((_, el) => {
+                    const name = $popup(el).attr('name');
+                    const value = $popup(el).val() as string || '';
+                    if (name) {
+                        popupHiddenFields[name] = value;
+                    }
+                });
+
+                // Find the radio button name and "Direct Payment" value
+                // The first radio is typically "Direct Payment (From Account)"
+                let radioName = '';
+                let directPayValue = '';
+
+                radioInputs.each((i, el) => {
+                    const name = $popup(el).attr('name') || '';
+                    const id = $popup(el).attr('id') || '';
+                    const value = $popup(el).attr('value') || '';
+                    const labelText = $popup(`label[for="${id}"]`).text().trim().toLowerCase();
+
+                    if (!radioName) radioName = name;
+
+                    // Pick the "Direct Payment" option — check label text or default to first option
+                    if (labelText.includes('direct') || labelText.includes('from account') ||
+                        labelText.includes('حساب') || i === 0) {
+                        if (!directPayValue) {
+                            directPayValue = value;
+                            console.log(`[HTTP] Selected Direct Payment: name="${name}" value="${value}" label="${labelText}"`);
+                        }
+                    }
+                });
+
+                if (!radioName) {
+                    // Fallback: try common ASP.NET naming patterns
+                    radioName = 'ctl00$ContentPlaceHolder1$RdoDirectPay';
+                    directPayValue = 'ContentPlaceHolder1_RdoDirectPay';
+                    console.log(`[HTTP] ⚠️ Using fallback radio name: "${radioName}" value: "${directPayValue}"`);
+                }
+
+                // Find the Pay/Confirm button in the popup
+                let payBtnName = '';
+                let payBtnVal = '';
+
+                // Try multiple button patterns
+                const btnSelectors = [
+                    'input[id*="BtnPay"]',
+                    'input[name*="BtnPay"]',
+                    'input[value="Pay"]',
+                    'input[id*="btnPay"]',
+                    'input[name*="btnPay"]',
+                    'input[type="submit"]'
+                ];
+
+                for (const selector of btnSelectors) {
+                    const btn = $popup(selector).first();
+                    if (btn.length > 0) {
+                        payBtnName = btn.attr('name') || '';
+                        payBtnVal = btn.attr('value') || 'Pay';
+                        if (payBtnName) {
+                            console.log(`[HTTP] Found popup Pay button: name="${payBtnName}" value="${payBtnVal}" (selector: ${selector})`);
+                            break;
+                        }
+                    }
+                }
+
+                if (!payBtnName) {
+                    // Fallback
+                    payBtnName = 'ctl00$ContentPlaceHolder1$BtnPay';
+                    payBtnVal = 'Pay';
+                    console.log(`[HTTP] ⚠️ Using fallback Pay button: "${payBtnName}"`);
+                }
+
+                // Build the POST data for step 2
+                const confirmFormData: Record<string, string> = {
+                    ...popupHiddenFields,
+                    [radioName]: directPayValue,
+                    [payBtnName]: payBtnVal
                 };
-            } else if (payError) {
-                console.log(`[HTTP] ❌ Payment error: ${payError}`);
-                return { success: false, message: payError };
+
+                console.log('[HTTP] POST Step 2 - Submitting Direct Payment...');
+                const confirmRes = await this.axios.post(
+                    installmentUrl,
+                    this.buildFormData(confirmFormData),
+                    {
+                        headers: this.buildPostHeaders(installmentUrl)
+                    }
+                );
+
+                // Check for errors in the final response
+                const confirmError = this.checkForErrors(confirmRes.data);
+
+                // Check for success messages in the final response
+                const finalText = confirmRes.data.toLowerCase();
+                const hasSuccessMessage = finalText.includes('success') ||
+                    finalText.includes('تم الدفع') ||
+                    finalText.includes('payment completed') ||
+                    finalText.includes('تمت العملية');
+
+                // Verify balance changed
+                const balanceAfter = await this.getCurrentBalance();
+                console.log(`[HTTP] Balance after payment: $${balanceAfter}`);
+
+                const balanceDecreased = balanceBefore !== null && balanceAfter !== null &&
+                    balanceAfter < balanceBefore;
+
+                if (balanceDecreased || hasSuccessMessage) {
+                    console.log('[HTTP] ✅ Installment payment successful (Direct Payment)');
+                    return {
+                        success: true,
+                        message: 'Installment payment successful',
+                        newBalance: balanceAfter || undefined
+                    };
+                } else if (confirmError) {
+                    console.log(`[HTTP] ❌ Payment error after Direct Pay: ${confirmError}`);
+                    return { success: false, message: confirmError };
+                } else {
+                    // Log what we received for debugging
+                    const htmlSample = confirmRes.data.slice(0, 2000);
+                    console.log(`[HTTP] ⚠️ Payment status unclear after Direct Pay. Response sample:`);
+                    console.log(htmlSample);
+                    return {
+                        success: false,
+                        message: 'Payment not confirmed - please check balance'
+                    };
+                }
+
             } else {
-                console.log('[HTTP] ⚠️ Payment status unclear - balance did not change');
-                return {
-                    success: false,
-                    message: 'Payment not confirmed - please check balance'
-                };
+                // No popup detected — maybe payment went through directly
+                console.log('[HTTP] ℹ️ No payment type popup detected, checking response directly...');
+
+                const payError = this.checkForErrors(payRes.data);
+                const responseText = payRes.data.toLowerCase();
+                const hasSuccessMessage = responseText.includes('success') ||
+                    responseText.includes('تم الدفع') ||
+                    responseText.includes('payment completed') ||
+                    responseText.includes('تمت العملية');
+
+                const balanceAfter = await this.getCurrentBalance();
+                console.log(`[HTTP] Balance after payment: $${balanceAfter}`);
+
+                const balanceDecreased = balanceBefore !== null && balanceAfter !== null &&
+                    balanceAfter < balanceBefore;
+
+                if (balanceDecreased || hasSuccessMessage) {
+                    console.log('[HTTP] ✅ Installment payment successful (no popup)');
+                    return {
+                        success: true,
+                        message: 'Installment payment successful',
+                        newBalance: balanceAfter || undefined
+                    };
+                } else if (payError) {
+                    console.log(`[HTTP] ❌ Payment error: ${payError}`);
+                    return { success: false, message: payError };
+                } else {
+                    // Log what we received for debugging
+                    const htmlSample = payRes.data.slice(0, 2000);
+                    console.log(`[HTTP] ⚠️ Payment status unclear. Response sample:`);
+                    console.log(htmlSample);
+                    return {
+                        success: false,
+                        message: 'Payment not confirmed - please check balance'
+                    };
+                }
             }
 
         } catch (error: any) {

@@ -142,18 +142,31 @@ function OperationSkeleton() {
     )
 }
 
-// Final Confirmation Dialog Component (Unchanged logic, updated styles)
+interface InstallmentData {
+    package: string
+    monthsToPay: string
+    installment1: number
+    installment2: number
+    contractStartDate: string
+    contractExpiryDate: string
+    invoicePrice: number
+    dealerPrice: number
+}
+
+// Final Confirmation Dialog Component (supports both renewal and installment)
 function FinalConfirmDialog({
     operation,
     onConfirm,
     onCancel,
     isLoading,
+    installmentData,
     t
 }: {
     operation: Operation
     onConfirm: () => void
     onCancel: (isAutoCancel?: boolean) => void
     isLoading: boolean
+    installmentData?: InstallmentData | null
     t: ReturnType<typeof useTranslation>['t']
 }) {
     const [timeLeft, setTimeLeft] = useState<number>(0)
@@ -197,20 +210,25 @@ function FinalConfirmDialog({
     }, [operation.finalConfirmExpiry, onCancel])
 
     const packageInfo = operation.selectedPackage
+    const isInstallment = !!installmentData
     const isWarning = timeLeft <= WARNING_THRESHOLD && timeLeft > 0
+
+    // Display values: use installment data if available, otherwise package data
+    const displayName = isInstallment ? installmentData!.package : (packageInfo?.name || t.operations?.notSpecified || 'Not specified')
+    const displayPrice = isInstallment ? installmentData!.dealerPrice : (packageInfo?.price || operation.amount)
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" dir="rtl">
             <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 text-white">
+                <div className={`p-6 text-white ${isInstallment ? 'bg-gradient-to-r from-purple-600 to-purple-700' : 'bg-gradient-to-r from-orange-500 to-orange-600'}`}>
                     <div className="flex items-center gap-3">
                         <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md">
                             <ShieldCheck className="w-8 h-8" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">{t.activeOperations?.dialogs?.confirmPaymentTitle || 'Confirm Final Payment'}</h2>
-                            <p className="text-orange-100 text-sm">{t.activeOperations?.dialogs?.confirmPaymentDesc || 'This is the last step before completing the purchase'}</p>
+                            <h2 className="text-xl font-bold">{isInstallment ? (t.installment?.confirmTitle || 'Confirm Installment Payment') : (t.activeOperations?.dialogs?.confirmPaymentTitle || 'Confirm Final Payment')}</h2>
+                            <p className={`text-sm ${isInstallment ? 'text-purple-100' : 'text-orange-100'}`}>{isInstallment ? (t.installment?.confirmMessage || 'Confirm installment payment for this card') : (t.activeOperations?.dialogs?.confirmPaymentDesc || 'This is the last step before completing the purchase')}</p>
                         </div>
                     </div>
                 </div>
@@ -221,11 +239,11 @@ function FinalConfirmDialog({
                     <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border">
                         <div className="flex justify-between items-center">
                             <span className="text-muted-foreground">{t.activeOperations?.dialogs?.package || 'Package'}:</span>
-                            <span className="font-bold text-foreground">{packageInfo?.name || t.operations?.notSpecified || 'Not specified'}</span>
+                            <span className="font-bold text-foreground">{displayName}</span>
                         </div>
                         <div className="flex justify-between items-center">
                             <span className="text-muted-foreground">{t.activeOperations?.dialogs?.price || 'Price'}:</span>
-                            <span className="font-bold text-[#00A651]">{packageInfo?.price || operation.amount} USD</span>
+                            <span className="font-bold text-[#00A651]">{displayPrice} USD</span>
                         </div>
                         {operation.stbNumber && (
                             <div className="flex justify-between items-center">
@@ -302,6 +320,7 @@ export default function ActiveOperationsPage() {
     const [confirmingOperation, setConfirmingOperation] = useState<Operation | null>(null)
     const [isConfirmLoading, setIsConfirmLoading] = useState(false)
     const [activeFilters, setActiveFilters] = useState<OperationStatus[]>([])
+    const [installmentData, setInstallmentData] = useState<InstallmentData | null>(null)
 
     // Set dynamic page title
     useEffect(() => {
@@ -335,15 +354,27 @@ export default function ActiveOperationsPage() {
         return () => clearInterval(interval)
     }, [fetchOperations])
 
-    const handleContinue = (operation: Operation) => {
+    const handleContinue = async (operation: Operation) => {
         if (operation.status === 'AWAITING_CAPTCHA' || operation.status === 'AWAITING_PACKAGE') {
             router.push(`/dashboard/renew?operationId=${operation.id}`)
         } else if (operation.status === 'AWAITING_FINAL_CONFIRM') {
             if (!operation.selectedPackage) {
-                // Installment operation — redirect to renew page (Installments tab handles it)
-                router.push('/dashboard/renew')
+                // Installment operation — fetch installment details first
+                try {
+                    const res = await fetch(`/api/operations/${operation.id}/installment`)
+                    const data = await res.json()
+                    if (data.installment) {
+                        setInstallmentData(data.installment)
+                        setConfirmingOperation(operation)
+                    } else {
+                        alert(t.common?.error || 'Failed to load installment details')
+                    }
+                } catch {
+                    alert(t.common?.connectionError || 'Connection error')
+                }
                 return
             }
+            setInstallmentData(null)
             setConfirmingOperation(operation)
         }
     }
@@ -364,11 +395,16 @@ export default function ActiveOperationsPage() {
 
         setIsConfirmLoading(true)
         try {
-            const res = await fetch(`/api/operations/${confirmingOperation.id}/confirm-purchase`, { method: 'POST' })
+            // Use the correct endpoint based on operation type
+            const endpoint = installmentData
+                ? `/api/operations/${confirmingOperation.id}/confirm-installment`
+                : `/api/operations/${confirmingOperation.id}/confirm-purchase`
+            const res = await fetch(endpoint, { method: 'POST' })
             const data = await res.json()
 
             if (res.ok) {
                 setConfirmingOperation(null)
+                setInstallmentData(null)
                 fetchOperations()
             } else {
                 alert(data.error || t.activeOperations?.messages?.confirmFailed || 'Payment confirmation failed')
@@ -439,6 +475,7 @@ export default function ActiveOperationsPage() {
                     onConfirm={handleConfirmPurchase}
                     onCancel={handleCancelConfirm}
                     isLoading={isConfirmLoading}
+                    installmentData={installmentData}
                     t={t}
                 />
             )}

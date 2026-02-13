@@ -319,12 +319,6 @@ export default function ActiveOperationsPage() {
                     ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'].includes(op.status)
                 )
                 setOperations(activeOps)
-
-                // Auto-open dialog for AWAITING_FINAL_CONFIRM
-                const awaitingConfirm = activeOps.find((op: Operation) => op.status === 'AWAITING_FINAL_CONFIRM')
-                if (awaitingConfirm && !confirmingOperation) {
-                    setConfirmingOperation(awaitingConfirm)
-                }
             }
             setError(null)
         } catch {

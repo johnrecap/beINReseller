@@ -2094,6 +2094,14 @@ export class HttpClientService {
             this.currentViewState = this.extractHiddenFields(res.data);
             console.log('[HTTP] ✅ OK clicked, payment options page');
 
+            // IMPORTANT: Capture balance BEFORE payment from this page
+            // The OK response page shows "Your Current Credit Balance is X USD"
+            const balanceBeforeMatch = res.data.match(/Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i);
+            const balanceBefore = balanceBeforeMatch ? parseFloat(balanceBeforeMatch[1].replace(/,/g, '')) : null;
+            if (balanceBefore !== null) {
+                console.log(`[HTTP] 💰 Balance BEFORE payment: ${balanceBefore} USD`);
+            }
+
             // Check if payment options page appeared
             const $ = cheerio.load(res.data);
             const pageText = $('body').text();
@@ -2300,14 +2308,31 @@ export class HttpClientService {
                         // Check if "Transaction is busy" is gone (transaction may have completed)
                         if (!retryText.includes('Transaction is busy') && !retryText.includes('wait for sometime')) {
                             console.log(`[HTTP] ℹ️ Retry ${retry}: "Transaction is busy" message gone`);
-                            // Transaction completed but no explicit success message
-                            // Check if balance decreased as evidence of success
-                            if (retryBalance !== null) {
-                                console.log(`[HTTP] 💰 Balance is ${retryBalance} - transaction may have completed`);
+
+                            // CRITICAL FIX: Only return success if balance ACTUALLY decreased
+                            // Previously returned success just because balance was readable (false positive!)
+                            if (balanceBefore !== null && retryBalance !== null && retryBalance < balanceBefore) {
+                                const decrease = balanceBefore - retryBalance;
+                                console.log(`[HTTP] ✅ Balance decreased by $${decrease} (${balanceBefore} → ${retryBalance}) — transaction succeeded`);
                                 return {
                                     success: true,
-                                    message: 'Transaction completed (busy resolved)',
+                                    message: `Transaction completed (balance decreased by $${decrease})`,
                                     newBalance: retryBalance
+                                };
+                            } else if (balanceBefore !== null && retryBalance !== null && retryBalance >= balanceBefore) {
+                                console.log(`[HTTP] ❌ Balance did NOT decrease (${balanceBefore} → ${retryBalance}) — transaction failed on beIN`);
+                                return {
+                                    success: false,
+                                    message: `Transaction failed on beIN - balance unchanged ($${retryBalance})`,
+                                    newBalance: retryBalance
+                                };
+                            } else {
+                                // Can't determine balance — don't assume success
+                                console.log(`[HTTP] ⚠️ Cannot verify balance change — failing safe`);
+                                return {
+                                    success: false,
+                                    message: 'Transaction status unknown - could not verify balance change',
+                                    newBalance: retryBalance || undefined
                                 };
                             }
                         }

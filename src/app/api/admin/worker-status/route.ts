@@ -11,42 +11,14 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        // Get worker session status from BeinAccountSession table
-        // (The HTTP worker uses saveSessionToCache which writes to this table)
-        const validSessions = await prisma.beinAccountSession.findMany({
-            where: {
-                isValid: true,
-                expiresAt: { gt: new Date() }
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 10,
-            select: {
-                id: true,
-                createdAt: true,
-                expiresAt: true,
-                accountId: true
-            }
-        })
-
-        let sessionStatus = 'DISCONNECTED'
-        let sessionAge = 0
-
-        if (validSessions.length > 0) {
-            const latestSession = validSessions[0]
-            sessionAge = Math.floor((Date.now() - latestSession.createdAt.getTime()) / 1000 / 60) // minutes
-            sessionStatus = 'CONNECTED'
-        } else {
-            // Check if there are any sessions at all (expired ones)
-            const anySessions = await prisma.beinAccountSession.count()
-            if (anySessions > 0) {
-                sessionStatus = 'EXPIRED'
-            }
-        }
-
-        // Check Redis connection
+        // Check Redis connection AND get session count
+        // Worker saves sessions to Redis keys: bein:session:{accountId}
         let redisStatus = 'DISCONNECTED'
         let queuePending = 0
         let queueProcessing = 0
+        let sessionStatus = 'DISCONNECTED'
+        let sessionAge = 0
+        let activeSessions = 0
 
         try {
             const redis = new Redis(process.env.REDIS_URL || '', {
@@ -61,9 +33,30 @@ export async function GET(request: NextRequest) {
             queuePending = await redis.llen('bein:operations:pending').catch(() => 0)
             queueProcessing = await redis.llen('bein:operations:processing').catch(() => 0)
 
+            // Count active sessions in Redis (bein:session:* keys)
+            const sessionKeys = await redis.keys('bein:session:*').catch(() => [])
+            activeSessions = sessionKeys.length
+
+            if (activeSessions > 0) {
+                // Get the most recent session to check age
+                const firstSessionData = await redis.get(sessionKeys[0]).catch(() => null)
+                if (firstSessionData) {
+                    try {
+                        const sessionData = JSON.parse(firstSessionData)
+                        if (sessionData.loginTimestamp) {
+                            sessionAge = Math.floor((Date.now() - sessionData.loginTimestamp) / 1000 / 60)
+                        }
+                    } catch { /* ignore parse errors */ }
+                }
+                sessionStatus = 'CONNECTED'
+            } else {
+                sessionStatus = 'DISCONNECTED'
+            }
+
             await redis.quit()
         } catch {
             redisStatus = 'DISCONNECTED'
+            sessionStatus = 'DISCONNECTED'
         }
 
         // Get today's stats

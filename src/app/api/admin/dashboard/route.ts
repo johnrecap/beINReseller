@@ -141,18 +141,11 @@ export async function GET(request: NextRequest) {
                 include: { user: { select: { username: true } } }
             }),
 
-            // Daily stats for chart
-            prisma.$queryRaw<{ date: string; total: number; completed: number; failed: number }[]>`
-                SELECT 
-                    DATE("created_at") as date,
-                    COUNT(*)::int as total,
-                    SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END)::int as completed,
-                    SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END)::int as failed
-                FROM "operations"
-                WHERE "created_at" >= ${last7Days}
-                GROUP BY DATE("created_at")
-                ORDER BY date ASC
-            `.catch((err) => { console.error('Chart query error:', err); return [] })
+            // Daily stats for chart - use Prisma query instead of raw SQL  
+            prisma.operation.findMany({
+                where: { createdAt: { gte: last7Days } },
+                select: { status: true, createdAt: true }
+            })
         ])
 
         // Calculate success rate from last 7 days
@@ -174,19 +167,29 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Format chart data - ensure 7 days
+        // Format chart data - group operations by date in JS
+        // Build a map of date -> { total, completed, failed }
+        const dailyMap: Record<string, { total: number; completed: number; failed: number }> = {}
+        for (const op of dailyOperations) {
+            const dateKey = format(new Date(op.createdAt), 'yyyy-MM-dd')
+            if (!dailyMap[dateKey]) {
+                dailyMap[dateKey] = { total: 0, completed: 0, failed: 0 }
+            }
+            dailyMap[dateKey].total++
+            if (op.status === 'COMPLETED') dailyMap[dateKey].completed++
+            if (op.status === 'FAILED') dailyMap[dateKey].failed++
+        }
+
         const chartData = []
         for (let i = 0; i < 7; i++) {
             const date = subDays(today, 6 - i)
             const dateStr = format(date, 'yyyy-MM-dd')
-            const dayData = (dailyOperations as { date: string; total: number; completed: number; failed: number }[]).find(d =>
-                format(new Date(d.date), 'yyyy-MM-dd') === dateStr
-            )
+            const dayData = dailyMap[dateStr]
             chartData.push({
                 date: format(date, 'MM/dd'),
-                total: Number(dayData?.total ?? 0),
-                completed: Number(dayData?.completed ?? 0),
-                failed: Number(dayData?.failed ?? 0)
+                total: dayData?.total ?? 0,
+                completed: dayData?.completed ?? 0,
+                failed: dayData?.failed ?? 0
             })
         }
 

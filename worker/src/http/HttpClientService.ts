@@ -3808,8 +3808,13 @@ export class HttpClientService {
             if (tableText.includes('Installment 1') || tableText.includes('Installment 2')) {
                 console.log(`[HTTP] PARSE: Found installment table`);
                 const allValues: number[] = [];
+                // IMPORTANT: Only look at LEAF td cells (no nested td/table inside)
+                // Parent td cells would return concatenated text of all children (e.g. "180180" instead of "180")
                 $table.find('td').each((_, cell) => {
-                    const cellText = $(cell).text().trim();
+                    const $cell = $(cell);
+                    // Skip non-leaf cells that contain nested tables or td elements
+                    if ($cell.find('td').length > 0 || $cell.find('table').length > 0) return;
+                    const cellText = $cell.text().trim();
                     if (cellText === '' || cellText.includes('USD')) return;
                     const val = parseFloat(cellText.replace(/[^0-9.]/g, ''));
                     if (!isNaN(val) && val > 0) {

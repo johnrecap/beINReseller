@@ -379,9 +379,11 @@ export class HttpClientService {
                 const name = nameSpan.text().trim() || `Package ${index + 1}`;
 
                 // Extract price (look for USD pattern)
+                // NOTE: beIN formats prices with commas (e.g., "1,200 USD")
+                // so we must include commas in the digit capture group and strip them before parsing
                 const rowText = $row.text();
-                const priceMatch = rowText.match(/(\d+(?:\.\d{1,2})?)\s*USD/i);
-                const price = priceMatch ? parseFloat(priceMatch[1]) : 0;
+                const priceMatch = rowText.match(/([\d,]+(?:\.\d{1,2})?)\s*USD/i);
+                const price = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : 0;
 
                 if (price > 0) {
                     packages.push({

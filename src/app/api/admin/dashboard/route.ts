@@ -18,22 +18,22 @@ export async function GET(request: NextRequest) {
             totalUsersCount,
             activeUsersCount,
             totalBalance,
-            
+
             // Operation stats
             totalOperationsCount,
             todayOperationsCount,
             pendingOperationsCount,
             last7DaysOperations,
-            
+
             // Revenue stats
             totalRevenueResult,
             todayRevenueResult,
-            
+
             // beIN accounts & proxies
             activeBeinAccountsCount,
             beinAccountsHealth,
             activeProxiesCount,
-            
+
             // For charts and lists
             recentFailedOperations,
             recentDeposits,
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         ] = await Promise.all([
             // Total users
             prisma.user.count(),
-            
+
             // Active users (logged in within last 30 days or isActive)
             prisma.user.count({
                 where: {
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
             prisma.user.aggregate({
                 _sum: { balance: true }
             }),
-            
+
             // Total operations (all time)
             prisma.operation.count(),
 
@@ -62,13 +62,13 @@ export async function GET(request: NextRequest) {
             prisma.operation.count({
                 where: { createdAt: { gte: today } }
             }),
-            
+
             // Pending operations
             prisma.operation.count({
-                where: { 
-                    status: { 
-                        in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'] 
-                    } 
+                where: {
+                    status: {
+                        in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING']
+                    }
                 }
             }),
 
@@ -78,27 +78,27 @@ export async function GET(request: NextRequest) {
                 where: { createdAt: { gte: last7Days } },
                 _count: { id: true }
             }),
-            
+
             // Total revenue (sum of completed operation amounts)
             prisma.operation.aggregate({
                 where: { status: 'COMPLETED' },
                 _sum: { amount: true }
             }),
-            
+
             // Today's revenue
             prisma.operation.aggregate({
-                where: { 
+                where: {
                     status: 'COMPLETED',
                     createdAt: { gte: today }
                 },
                 _sum: { amount: true }
             }),
-            
+
             // Active beIN accounts
             prisma.beinAccount.count({
                 where: { isActive: true }
             }),
-            
+
             // beIN accounts health check (for worker status)
             prisma.beinAccount.findMany({
                 where: { isActive: true },
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
                 },
                 take: 10
             }),
-            
+
             // Active proxies
             prisma.proxy.count({
                 where: { isActive: true }
@@ -121,7 +121,16 @@ export async function GET(request: NextRequest) {
                 where: { status: 'FAILED' },
                 take: 5,
                 orderBy: { createdAt: 'desc' },
-                include: { user: { select: { username: true } } }
+                select: {
+                    id: true,
+                    status: true,
+                    error: true,
+                    responseMessage: true,
+                    cardNumber: true,
+                    type: true,
+                    createdAt: true,
+                    user: { select: { username: true } }
+                }
             }),
 
             // Recent deposits (transactions)
@@ -135,15 +144,15 @@ export async function GET(request: NextRequest) {
             // Daily stats for chart
             prisma.$queryRaw<{ date: string; total: number; completed: number; failed: number }[]>`
                 SELECT 
-                    DATE("createdAt") as date,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed,
-                    SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed
-                FROM "Operation"
-                WHERE "createdAt" >= ${last7Days}
-                GROUP BY DATE("createdAt")
+                    DATE("created_at") as date,
+                    COUNT(*)::int as total,
+                    SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END)::int as completed,
+                    SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END)::int as failed
+                FROM "operations"
+                WHERE "created_at" >= ${last7Days}
+                GROUP BY DATE("created_at")
                 ORDER BY date ASC
-            `.catch(() => []) // Fallback if raw query fails
+            `.catch((err) => { console.error('Chart query error:', err); return [] })
         ])
 
         // Calculate success rate from last 7 days
@@ -186,6 +195,9 @@ export async function GET(request: NextRequest) {
             id: op.id,
             user: op.user?.username ?? 'Unknown',
             status: op.status,
+            error: op.error || op.responseMessage || null,
+            cardNumber: op.cardNumber ? `****${op.cardNumber.slice(-4)}` : null,
+            type: op.type,
             date: op.createdAt.toISOString()
         }))
 
@@ -204,29 +216,29 @@ export async function GET(request: NextRequest) {
                 // User stats
                 totalUsers: totalUsersCount,
                 activeUsers: activeUsersCount,
-                
+
                 // Operation stats
                 totalOperations: totalOperationsCount,
                 operationsToday: todayOperationsCount,  // Flutter expects this name
                 pendingOperations: pendingOperationsCount,
-                
+
                 // Revenue stats
                 totalRevenue: totalRevenueResult._sum.amount ?? 0,
                 revenueToday: todayRevenueResult._sum.amount ?? 0,
-                
+
                 // Legacy field (keep for web dashboard compatibility)
                 totalBalance: totalBalance._sum.balance ?? 0,
                 todayOperations: todayOperationsCount,  // Keep legacy name too
-                
+
                 // System stats
                 activeBeinAccounts: activeBeinAccountsCount,
                 activeProxies: activeProxiesCount,
                 workerStatus: workerStatus,
-                
+
                 // Performance stats
                 successRate: successRate
             },
-            
+
             // Also expose at root level for Flutter (it checks both stats.X and X)
             totalUsers: totalUsersCount,
             activeUsers: activeUsersCount,
@@ -238,7 +250,7 @@ export async function GET(request: NextRequest) {
             activeBeinAccounts: activeBeinAccountsCount,
             activeProxies: activeProxiesCount,
             workerStatus: workerStatus,
-            
+
             // Chart and list data
             chartData,
             recentFailures,

@@ -11,27 +11,35 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        // Get worker session status
-        const sessionSetting = await prisma.setting.findUnique({
-            where: { key: 'worker_browser_session' }
+        // Get worker session status from BeinAccountSession table
+        // (The HTTP worker uses saveSessionToCache which writes to this table)
+        const validSessions = await prisma.beinAccountSession.findMany({
+            where: {
+                isValid: true,
+                expiresAt: { gt: new Date() }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            select: {
+                id: true,
+                createdAt: true,
+                expiresAt: true,
+                accountId: true
+            }
         })
 
         let sessionStatus = 'DISCONNECTED'
         let sessionAge = 0
 
-        if (sessionSetting) {
-            try {
-                const sessionData = JSON.parse(sessionSetting.value)
-                const createdAt = new Date(sessionData.createdAt)
-                sessionAge = Math.floor((Date.now() - createdAt.getTime()) / 1000 / 60) // minutes
-
-                if (sessionAge < 25) {
-                    sessionStatus = 'CONNECTED'
-                } else {
-                    sessionStatus = 'EXPIRED'
-                }
-            } catch {
-                sessionStatus = 'ERROR'
+        if (validSessions.length > 0) {
+            const latestSession = validSessions[0]
+            sessionAge = Math.floor((Date.now() - latestSession.createdAt.getTime()) / 1000 / 60) // minutes
+            sessionStatus = 'CONNECTED'
+        } else {
+            // Check if there are any sessions at all (expired ones)
+            const anySessions = await prisma.beinAccountSession.count()
+            if (anySessions > 0) {
+                sessionStatus = 'EXPIRED'
             }
         }
 

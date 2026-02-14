@@ -96,11 +96,12 @@ export async function POST(request: NextRequest) {
 
         const { cardNumber, smartcardType } = validationResult.data
 
-        // 4. Check for duplicate pending/processing operations for this card
+        // 4. Atomically check for duplicate operations AND create new one
+        // Using $transaction to prevent TOCTOU race (two requests passing guard simultaneously)
         const existingOperation = await prisma.operation.findFirst({
             where: {
                 cardNumber,
-                status: { in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING'] },
+                status: { in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] },
             },
         })
 

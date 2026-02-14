@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
             const existingOperation = await tx.operation.findFirst({
                 where: {
                     cardNumber,
-                    status: { in: ['PENDING', 'PROCESSING'] },
+                    status: { in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] },
                 },
             })
 

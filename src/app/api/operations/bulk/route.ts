@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         const existingOperations = await prisma.operation.findMany({
             where: {
                 cardNumber: { in: uniqueCardNumbers },
-                status: { in: ['PENDING', 'PROCESSING'] },
+                status: { in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] },
             },
             select: { cardNumber: true },
         })

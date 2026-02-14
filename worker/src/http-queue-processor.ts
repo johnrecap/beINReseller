@@ -503,8 +503,20 @@ async function handleStartRenewalHttp(
 
     // Check if we already have a valid session from Redis cache
     if (client.isSessionActive()) {
-        console.log(`[HTTP] ✅ Using cached session for ${selectedAccount.username}`);
-        needsFreshLogin = false;
+        // IMPORTANT: Validate session with beIN server before trusting Redis cache
+        // The keepalive may have missed this account, or beIN may have expired it early
+        console.log(`[HTTP] 🔍 Validating cached session for ${selectedAccount.username} on beIN server...`);
+        const sessionValid = await client.validateSession();
+
+        if (sessionValid) {
+            console.log(`[HTTP] ✅ Session validated on beIN — using cached session for ${selectedAccount.username}`);
+            needsFreshLogin = false;
+        } else {
+            console.log(`[HTTP] ⚠️ Session expired on beIN despite Redis cache — need fresh login`);
+            // Delete stale session from Redis so other workers don't use it
+            await deleteSessionFromCache(selectedAccount.id);
+            needsFreshLogin = true;
+        }
     }
 
     if (needsFreshLogin) {

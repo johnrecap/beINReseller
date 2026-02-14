@@ -3801,31 +3801,52 @@ export class HttpClientService {
         let installment1 = 0;
         let installment2 = 0;
 
-        // Strategy 1: Look for inner table with Installment 1/2 column headers
-        // The installment amounts are in a small sub-table with headers "Installment 1" | "Installment 2"
-        // We must be careful to read only leaf-level cells to avoid parent cells that concatenate child text
+        // Strategy 1: Look for the specific installment sub-table with "Installment 1"/"Installment 2" headers
+        // CRITICAL: Use "> tbody > tr" or "> tr" to get DIRECT rows only, not nested table rows
         $('table').each((_, table) => {
             if (installment1) return; // already found
             const $table = $(table);
-            // Check if this specific table has Installment headers in its DIRECT rows (not nested tables)
-            const headerRow = $table.find('tr').first();
-            const headerText = headerRow.text();
-            if (headerText.includes('Installment 1') || headerText.includes('Installment 2')) {
-                console.log(`[HTTP] PARSE: Found installment sub-table, header: "${headerText.trim()}"`);
-                // Get data rows (skip the header row)
-                const dataRows = $table.find('tr').slice(1);
-                const firstDataRow = dataRows.first();
-                if (firstDataRow.length > 0) {
-                    const cells = firstDataRow.find('td, th');
-                    console.log(`[HTTP] PARSE: First data row has ${cells.length} cells`);
-                    cells.each((i, cell) => {
-                        const cellText = $(cell).text().trim();
-                        console.log(`[HTTP] PARSE: Cell[${i}] = "${cellText}"`);
-                    });
-                    const cell1Text = cells.eq(0).text().trim();
-                    const cell2Text = cells.eq(1).text().trim();
-                    installment1 = parseFloat(cell1Text.replace(/[^0-9.]/g, '')) || 0;
-                    installment2 = parseFloat(cell2Text.replace(/[^0-9.]/g, '')) || 0;
+            const tableText = $table.text();
+            if (!tableText.includes('Installment 1') && !tableText.includes('Installment 2')) return;
+
+            // Dump the matched table HTML for debugging
+            const tableHtml = $.html(table);
+            console.log(`[HTTP] PARSE: === INSTALLMENT TABLE HTML (${tableHtml.length} chars) ===`);
+            console.log(tableHtml.slice(0, 2000));
+            console.log(`[HTTP] PARSE: === END INSTALLMENT TABLE HTML ===`);
+
+            // Get DIRECT child rows only (handles both <table><tr> and <table><tbody><tr>)
+            let directRows = $table.children('tbody').children('tr');
+            if (directRows.length === 0) {
+                directRows = $table.children('tr');
+            }
+            console.log(`[HTTP] PARSE: Table has ${directRows.length} direct rows`);
+
+            // Find header row and data rows
+            let headerIdx = -1;
+            directRows.each((i, row) => {
+                const rowText = $(row).text().trim();
+                console.log(`[HTTP] PARSE: Row[${i}] text = "${rowText.slice(0, 100)}"`);
+                if (rowText.includes('Installment 1') || rowText.includes('Installment 2')) {
+                    headerIdx = i;
+                }
+            });
+
+            if (headerIdx >= 0 && headerIdx + 1 < directRows.length) {
+                // First data row after the header
+                const dataRow = directRows.eq(headerIdx + 1);
+                // Get direct child cells only
+                const cells = dataRow.children('td, th');
+                console.log(`[HTTP] PARSE: Data row has ${cells.length} direct cells`);
+                cells.each((i, cell) => {
+                    const cellText = $(cell).text().trim();
+                    console.log(`[HTTP] PARSE: DataCell[${i}] = "${cellText}"`);
+                });
+                if (cells.length >= 2) {
+                    const v1 = parseFloat(cells.eq(0).text().trim().replace(/[^0-9.]/g, '')) || 0;
+                    const v2 = parseFloat(cells.eq(1).text().trim().replace(/[^0-9.]/g, '')) || 0;
+                    if (v1 > 0) installment1 = v1;
+                    if (v2 > 0) installment2 = v2;
                 }
             }
         });

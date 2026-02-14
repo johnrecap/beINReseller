@@ -1190,15 +1190,15 @@ export class HttpClientService {
                 return { success: false, error: 'Session expired - please login again' };
             }
 
-            // Extract ViewState
-            this.currentViewState = this.extractHiddenFields(checkPageRes.data);
+            // Extract ViewState locally (NOT this.currentViewState — safe for parallel execution)
+            const localViewState = this.extractHiddenFields(checkPageRes.data);
 
             // Get actual button value from HTML (ASP.NET may use 'Check', 'Check Now', etc.)
             const checkBtnValue = this.extractButtonValue(checkPageRes.data, 'btnCheck', 'Check');
 
             // Step 2: POST card number - FIXED: use tbSerial (not tbSerial1 or txtSerialNumber)
             const formData: Record<string, string> = {
-                ...this.currentViewState,
+                ...localViewState,
                 'ctl00$ContentPlaceHolder1$tbSerial': cardNumber,  // Log showed: "tbSerial" (no 1)
                 'ctl00$ContentPlaceHolder1$btnCheck': checkBtnValue
             };
@@ -1280,8 +1280,8 @@ export class HttpClientService {
                 console.log('[HTTP] ⚠️ STB not found in response');
             }
 
-            // Update ViewState for next request
-            this.currentViewState = this.extractHiddenFields(checkRes.data);
+            // NOTE: Not updating this.currentViewState here — checkCard runs in parallel
+            // with loadPackages, which manages its own ViewState chain.
 
             return {
                 success: true,

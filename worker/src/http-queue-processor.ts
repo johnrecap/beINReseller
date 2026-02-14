@@ -617,55 +617,67 @@ async function handleStartRenewalHttp(
     }
 
     // ============================================
-    // STB Cache: Skip checkCard if STB is already cached (saves ~2s)
-    // First operation for a card calls checkCard, subsequent ones use cache
+    // PARALLEL: Run checkCard + loadPackages simultaneously
+    // checkCard hits frmCheck.aspx, loadPackages hits frmSellPackages.aspx
+    // They use different pages so they can safely run in parallel (~4s saved)
     // ============================================
 
-    // Step 2: Check card (extract STB) - with caching
-    updateProgress(operationId, 'Checking card...');
+    updateProgress(operationId, 'Loading card info...');
     let stbNumber: string | undefined;
 
     // Check STB cache first
     const cachedPackageData = await getCachedPackages(cardNumber);
     const cachedStb = cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
 
+    let packagesResult: { success: boolean; packages: any[]; stbNumber?: string; dealerBalance?: number; error?: string };
+
     if (cachedStb) {
-        // STB is cached - skip check page entirely (saves ~2s)
-        console.log(`[HTTP] ⚡ STB CACHE HIT - Skipping checkCard (STB: ${cachedStb})`);
+        // STB is cached — only run loadPackages (skip checkCard entirely)
+        console.log(`[HTTP] ⚡ STB CACHE HIT (${cachedStb}) — running loadPackages only`);
         client.setSTBNumber(cachedStb);
         stbNumber = cachedStb;
-    } else {
-        // Need to call check page - with session retry
-        console.log(`🔍 [HTTP] Checking card...`);
-        const checkResult = await withSessionRetry(
+
+        console.log(`📦 [HTTP] Loading packages... (smartcard: ${smartcardType || 'CISCO'})`);
+        packagesResult = await withSessionRetry(
             client,
             selectedAccount,
-            () => client.checkCard(cardNumber),
-            'checkCard'
+            () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
+            'loadPackages'
         );
+    } else {
+        // No STB cache — run BOTH in parallel
+        console.log(`🔍📦 [HTTP] Running checkCard + loadPackages in PARALLEL...`);
+        const startTime = Date.now();
+
+        const [checkResult, pkgResult] = await Promise.all([
+            withSessionRetry(
+                client,
+                selectedAccount,
+                () => client.checkCard(cardNumber),
+                'checkCard'
+            ),
+            withSessionRetry(
+                client,
+                selectedAccount,
+                () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
+                'loadPackages'
+            )
+        ]);
+
+        console.log(`⚡ [HTTP] Parallel operations completed in ${Date.now() - startTime}ms`);
 
         if (!checkResult.success) {
-            throw new Error(checkResult.error || 'Card check failed');
+            console.log(`⚠️ [HTTP] checkCard failed: ${checkResult.error} (non-fatal, STB may not be available)`);
+        } else {
+            stbNumber = checkResult.stbNumber;
+            // Cache STB (fire-and-forget)
+            if (stbNumber) {
+                cacheSTB(cardNumber, stbNumber).catch(() => { });
+            }
         }
 
-        stbNumber = checkResult.stbNumber;
-
-        // Cache STB for future operations (fire-and-forget, 1 hour TTL)
-        if (stbNumber) {
-            cacheSTB(cardNumber, stbNumber).catch(() => { });
-        }
+        packagesResult = pkgResult;
     }
-
-    // Step 3: Load packages (always needed for ViewState)
-    updateProgress(operationId, 'Loading packages...');
-    console.log(`📦 [HTTP] Loading packages...`);
-    console.log(`[HTTP] 📦 Using smartcard type: ${smartcardType || 'CISCO'}`);
-    const packagesResult = await withSessionRetry(
-        client,
-        selectedAccount,
-        () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
-        'loadPackages'
-    );
 
     if (!packagesResult.success) {
         throw new Error(packagesResult.error || 'Failed to load packages');

@@ -556,19 +556,30 @@ export function InstallmentPaymentFlow() {
                                         </td>
                                     </tr>
 
-                                    {/* Installment Amount */}
+                                    {/* Installment Amounts Table — matching beIN grid */}
                                     <tr className="border-b border-[#ddd]">
-                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
+                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd] w-[140px] align-top">
                                             {inst.installmentAmount}:
                                         </td>
-                                        <td className="px-4 py-2.5" colSpan={3}>
-                                            <span className="inline-block text-white text-xs font-bold px-3 py-1 rounded" style={{ backgroundColor: '#964DA7' }}>
-                                                {installment.installment1}
-                                            </span>
+                                        <td className="p-0" colSpan={3}>
+                                            <table className="w-full text-xs border-collapse">
+                                                <thead>
+                                                    <tr className="bg-[#e8e8e8] border-b border-[#ddd]">
+                                                        <th className="px-4 py-1.5 text-[#333] font-semibold text-center border-r border-[#ddd]">Installment 1</th>
+                                                        <th className="px-4 py-1.5 text-[#333] font-semibold text-center">Installment 2</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td className="px-4 py-1.5 text-[#333] text-center border-r border-[#ddd] font-mono">{installment.installment1}</td>
+                                                        <td className="px-4 py-1.5 text-[#333] text-center font-mono">{installment.installment2}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
                                         </td>
                                     </tr>
 
-                                    {/* Dates & Prices — horizontal layout matching beIN */}
+                                    {/* Contract Dates & Prices — single row matching beIN */}
                                     <tr className="border-b border-[#ddd]">
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             {inst.contractStartDate}:
@@ -577,18 +588,18 @@ export function InstallmentPaymentFlow() {
                                             {installment.contractStartDate || '-'}
                                         </td>
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
-                                            {inst.invoicePrice}:
+                                            {inst.contractExpiryDate}:
                                         </td>
-                                        <td className="px-4 py-2.5 text-[#333] text-xs font-bold">
-                                            {installment.invoicePrice}
+                                        <td className="px-4 py-2.5 text-[#333] text-xs font-mono">
+                                            {installment.contractExpiryDate || '-'}
                                         </td>
                                     </tr>
                                     <tr className="border-b border-[#ddd]">
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
-                                            {inst.contractExpiryDate}:
+                                            {inst.invoicePrice}:
                                         </td>
-                                        <td className="px-4 py-2.5 text-[#333] text-xs font-mono border-r border-[#ddd]">
-                                            {installment.contractExpiryDate || '-'}
+                                        <td className="px-4 py-2.5 text-[#333] text-xs font-bold border-r border-[#ddd]">
+                                            {installment.invoicePrice}
                                         </td>
                                         <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             {inst.dealerPrice}:

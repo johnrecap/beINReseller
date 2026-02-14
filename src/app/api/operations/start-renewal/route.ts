@@ -121,8 +121,8 @@ export async function POST(request: NextRequest) {
                 cardNumber,
                 status: { in: ['CANCELLED'] },
                 createdAt: { gte: fiveMinutesAgo },
-                // Only block if it was auto-cancelled (no result = user didn't complete it)
-                result: null,
+                // Only block if it was auto-cancelled (no response = user didn't complete it)
+                responseMessage: null,
             },
             orderBy: { createdAt: 'desc' },
         })

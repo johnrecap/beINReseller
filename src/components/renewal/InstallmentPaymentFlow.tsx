@@ -130,7 +130,7 @@ function InstallmentConfirmDialog({
                             <span className="font-bold text-[#00A651]">USD {installment.dealerPrice}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">{inst.stbLabel}:</span>
+                            <span className="text-muted-foreground">{inst.monthsToPay}:</span>
                             <span className="font-mono text-sm">{installment.monthsToPay || '-'}</span>
                         </div>
                         <div className="flex justify-between items-center border-t border-border pt-2 mt-2">
@@ -375,6 +375,7 @@ export function InstallmentPaymentFlow() {
         }
 
         setIsConfirmLoading(true)
+        setShowConfirmDialog(false)
 
         try {
             const res = await fetch(`/api/operations/${operationId}/confirm-installment`, {
@@ -387,6 +388,7 @@ export function InstallmentPaymentFlow() {
                 throw new Error(data.error || inst.confirmFailed)
             }
 
+            setShowConfirmDialog(false)
             setStep('confirming')
             toast.success(inst.processingPayment)
         } catch (err: any) {

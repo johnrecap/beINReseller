@@ -1434,10 +1434,27 @@ export class HttpClientService {
                     console.log(`[HTTP] ${smartcardType} not found in dropdown, using fallback: value="${selectedTypeValue}"`);
                 }
 
-                // PERF: Skip type-select POST entirely — serial1 POST already includes ddlType value
-                // ASP.NET __EVENTVALIDATION from GET page includes all dropdown options
-                // This saves one full HTTP round-trip (~2s)
-                console.log(`[HTTP] ⚡ Using ddlType=${selectedTypeValue} directly (skipping type POST)`);
+                // POST to select the smartcard type (required — ASP.NET needs this server-side event)
+                if (selectedTypeValue) {
+                    const selectFormData: Record<string, string> = {
+                        ...this.currentViewState!,
+                        '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$ddlType',
+                        '__EVENTARGUMENT': '',
+                        'ctl00$ContentPlaceHolder1$ddlType': selectedTypeValue
+                    };
+
+                    console.log(`[HTTP] POST select ${smartcardType} type (ddlType=${selectedTypeValue})...`);
+                    const selectRes = await this.axios.post(
+                        renewUrl,
+                        this.buildFormData(selectFormData),
+                        {
+                            headers: this.buildPostHeaders(renewUrl)
+                        }
+                    );
+
+                    this.currentViewState = this.extractHiddenFields(selectRes.data);
+                    $ = cheerio.load(selectRes.data);
+                }
             }
 
 

@@ -3843,8 +3843,23 @@ export class HttpClientService {
                     console.log(`[HTTP] PARSE: DataCell[${i}] = "${cellText}"`);
                 });
                 if (cells.length >= 2) {
-                    const v1 = parseFloat(cells.eq(0).text().trim().replace(/[^0-9.]/g, '')) || 0;
-                    const v2 = parseFloat(cells.eq(1).text().trim().replace(/[^0-9.]/g, '')) || 0;
+                    // IMPORTANT: Each cell has stacked values like: 180<br><span>180</span>
+                    // Using .text() gives "180180" (concatenated). We need only the FIRST text node.
+                    const getFirstTextNode = (cell: any): string => {
+                        let firstText = '';
+                        $(cell).contents().each((_: number, node: any) => {
+                            if (node.type === 'text') {
+                                const t = $(node).text().trim();
+                                if (t && !firstText) firstText = t;
+                            }
+                        });
+                        return firstText;
+                    };
+                    const v1Text = getFirstTextNode(cells.eq(0));
+                    const v2Text = getFirstTextNode(cells.eq(1));
+                    console.log(`[HTTP] PARSE: First text node: cell0="${v1Text}", cell1="${v2Text}"`);
+                    const v1 = parseFloat(v1Text.replace(/[^0-9.]/g, '')) || 0;
+                    const v2 = parseFloat(v2Text.replace(/[^0-9.]/g, '')) || 0;
                     if (v1 > 0) installment1 = v1;
                     if (v2 > 0) installment2 = v2;
                 }

@@ -89,9 +89,11 @@ export class HttpClientService {
             jar: this.jar,  // Required for wrapper() when no proxy
             withCredentials: true,
             headers: HttpClientService.BROWSER_HEADERS,
-            timeout: 30000,
+            timeout: 15000,
             maxRedirects: 5,
-            validateStatus: (status: number) => status < 500
+            validateStatus: (status: number) => status < 500,
+            // Disable response decompression parsing overhead
+            decompress: true
         };
 
         // FIX: Proper cookie handling with proxy using createCookieAgent()
@@ -107,12 +109,16 @@ export class HttpClientService {
             if (proxyType === 'socks5') {
                 const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
                 axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, {
-                    cookies: { jar: this.jar }
+                    cookies: { jar: this.jar },
+                    keepAlive: true,       // Reuse TCP+TLS connections (~300ms saved per request)
+                    keepAliveMsecs: 30000, // Keep idle connections for 30s
                 });
             } else {
                 const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
                 axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, {
-                    cookies: { jar: this.jar }
+                    cookies: { jar: this.jar },
+                    keepAlive: true,
+                    keepAliveMsecs: 30000,
                 });
             }
 
@@ -1507,18 +1513,6 @@ export class HttpClientService {
                 console.log(`[HTTP] ScriptManager detected - page uses AJAX`);
             }
 
-            // DEBUG: Log the form data we're sending
-            console.log(`[HTTP] Form data for Load POST [${Object.keys(firstFormData).length} fields]:`);
-            for (const key of Object.keys(firstFormData)) {
-                const value = firstFormData[key];
-                // Show full value for small fields, truncated for large ViewState
-                const showValue = value.length > 50 ? value.substring(0, 20) + '...' + value.substring(value.length - 20) : value;
-                console.log(`  - ${key}: "${showValue}"`);
-            }
-
-            // Check cookies
-            const cookieString = await this.jar.getCookieString(renewUrl); // Fixed: this.jar
-            console.log(`[HTTP] Cookies for Load POST: ${cookieString}`);
 
             console.log('[HTTP] POST load packages (step 1: tbSerial1 only)...');
             let loadRes = await this.axios.post(
@@ -1531,15 +1525,6 @@ export class HttpClientService {
                 }
             );
 
-            // DEBUG: Log first 500 chars of response to see what we got
-            const responseHtml = loadRes.data as string;
-            console.log(`[HTTP] Response length: ${responseHtml.length} chars`);
-            // Capture any error labels immediately
-            const $temp = cheerio.load(responseHtml);
-            const errors = $temp('[id*="lblError"], .error, span[style*="red"]').text().trim();
-            if (errors) console.log(`[HTTP] Immediate Error Check: "${errors}"`);
-
-            console.log(`[HTTP] Response preview: ${responseHtml.slice(0, 300).replace(/\\s+/g, ' ')}...`);
 
             // Parse response and check for tbSerial2
             this.currentViewState = this.extractHiddenFields(loadRes.data);

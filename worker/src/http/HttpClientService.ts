@@ -3801,29 +3801,32 @@ export class HttpClientService {
         let installment1 = 0;
         let installment2 = 0;
 
-        // Strategy 1: Look for table with Installment headers
-        $('table.InstallmentTable, table').each((_, table) => {
+        // Strategy 1: Look for inner table with Installment 1/2 column headers
+        // The installment amounts are in a small sub-table with headers "Installment 1" | "Installment 2"
+        // We must be careful to read only leaf-level cells to avoid parent cells that concatenate child text
+        $('table').each((_, table) => {
+            if (installment1) return; // already found
             const $table = $(table);
-            const tableText = $table.text();
-            if (tableText.includes('Installment 1') || tableText.includes('Installment 2')) {
-                console.log(`[HTTP] PARSE: Found installment table`);
-                const allValues: number[] = [];
-                // IMPORTANT: Only look at LEAF td cells (no nested td/table inside)
-                // Parent td cells would return concatenated text of all children (e.g. "180180" instead of "180")
-                $table.find('td').each((_, cell) => {
-                    const $cell = $(cell);
-                    // Skip non-leaf cells that contain nested tables or td elements
-                    if ($cell.find('td').length > 0 || $cell.find('table').length > 0) return;
-                    const cellText = $cell.text().trim();
-                    if (cellText === '' || cellText.includes('USD')) return;
-                    const val = parseFloat(cellText.replace(/[^0-9.]/g, ''));
-                    if (!isNaN(val) && val > 0) {
-                        allValues.push(val);
-                    }
-                });
-                console.log(`[HTTP] PARSE: Installment table values: ${JSON.stringify(allValues)}`);
-                if (allValues.length >= 1) installment1 = allValues[0];
-                if (allValues.length >= 2) installment2 = allValues[1];
+            // Check if this specific table has Installment headers in its DIRECT rows (not nested tables)
+            const headerRow = $table.find('tr').first();
+            const headerText = headerRow.text();
+            if (headerText.includes('Installment 1') || headerText.includes('Installment 2')) {
+                console.log(`[HTTP] PARSE: Found installment sub-table, header: "${headerText.trim()}"`);
+                // Get data rows (skip the header row)
+                const dataRows = $table.find('tr').slice(1);
+                const firstDataRow = dataRows.first();
+                if (firstDataRow.length > 0) {
+                    const cells = firstDataRow.find('td, th');
+                    console.log(`[HTTP] PARSE: First data row has ${cells.length} cells`);
+                    cells.each((i, cell) => {
+                        const cellText = $(cell).text().trim();
+                        console.log(`[HTTP] PARSE: Cell[${i}] = "${cellText}"`);
+                    });
+                    const cell1Text = cells.eq(0).text().trim();
+                    const cell2Text = cells.eq(1).text().trim();
+                    installment1 = parseFloat(cell1Text.replace(/[^0-9.]/g, '')) || 0;
+                    installment2 = parseFloat(cell2Text.replace(/[^0-9.]/g, '')) || 0;
+                }
             }
         });
 

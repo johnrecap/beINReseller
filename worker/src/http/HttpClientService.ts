@@ -1429,16 +1429,11 @@ export class HttpClientService {
                 }
 
                 // PERF: Check if target type is already selected (avoid unnecessary POST ~1s)
-                const currentSelectedText = ddlType.find('option:selected').text();
                 const currentSelectedValue = String(ddlType.val() || '');
-                const isAlreadySelected = selectedTypeValue && (
-                    currentSelectedValue === selectedTypeValue ||
-                    (smartcardType !== 'IRDETO' && (currentSelectedText.includes('CISCO') || currentSelectedText.includes('Smartcard') || currentSelectedText.includes('Humax'))) ||
-                    (smartcardType === 'IRDETO' && (currentSelectedText.includes('Irdeto') || currentSelectedText.includes('IRDETO')))
-                );
+                const isAlreadySelected = selectedTypeValue && currentSelectedValue === selectedTypeValue;
 
                 if (isAlreadySelected) {
-                    console.log(`[HTTP] ⚡ ${smartcardType} already selected ("${currentSelectedText}") - skipping type POST`);
+                    console.log(`[HTTP] ⚡ ${smartcardType} already selected (value="${currentSelectedValue}") - skipping type POST`);
                 } else if (selectedTypeValue) {
                     // POST to select the smartcard type
                     const selectFormData: Record<string, string> = {

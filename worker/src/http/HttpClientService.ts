@@ -4073,7 +4073,7 @@ export class HttpClientService {
             const $popup = cheerio.load(payRes.data);
 
             // Look for radio buttons related to DirectPay
-            const radioInputs = $popup('input[type="radio"][name*="RdoDirectPay"], input[type="radio"][id*="RdoDirectPay"], input[type="radio"][name*="DirectPay"]');
+            const radioInputs = $popup('input[type="radio"][name*="Epay"], input[type="radio"][id*="RbdDirectPay"], input[type="radio"][id*="RbdDirectEPay"], input[type="radio"][name*="DirectPay"]');
 
             console.log(`[HTTP] Step 1 response: Found ${radioInputs.length} payment type radio buttons`);
 
@@ -4136,8 +4136,8 @@ export class HttpClientService {
 
                 if (!radioName) {
                     // Fallback: try common ASP.NET naming patterns
-                    radioName = 'ctl00$ContentPlaceHolder1$RdoDirectPay';
-                    directPayValue = 'ContentPlaceHolder1_RdoDirectPay';
+                    radioName = 'ctl00$ContentPlaceHolder1$Epay';
+                    directPayValue = 'RbdDirectPay';
                     console.log(`[HTTP] ⚠️ Using fallback radio name: "${radioName}" value: "${directPayValue}"`);
                 }
 

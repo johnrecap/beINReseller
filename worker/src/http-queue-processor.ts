@@ -617,14 +617,48 @@ async function handleStartRenewalHttp(
     }
 
     // ============================================
-    // PERF: Skip checkCard entirely - STB comes from loadPackages
-    // checkCard was 2 HTTP round-trips (~2s) just to extract STB,
-    // but loadPackages also returns STB (packagesResult.stbNumber)
+    // STB Cache: Skip checkCard if STB is already cached (saves ~2s)
+    // First operation for a card calls checkCard, subsequent ones use cache
     // ============================================
 
-    // Load packages directly (STB will be extracted from loadPackages response)
+    // Step 2: Check card (extract STB) - with caching
+    updateProgress(operationId, 'Checking card...');
+    let stbNumber: string | undefined;
+
+    // Check STB cache first
+    const cachedPackageData = await getCachedPackages(cardNumber);
+    const cachedStb = cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
+
+    if (cachedStb) {
+        // STB is cached - skip check page entirely (saves ~2s)
+        console.log(`[HTTP] ⚡ STB CACHE HIT - Skipping checkCard (STB: ${cachedStb})`);
+        client.setSTBNumber(cachedStb);
+        stbNumber = cachedStb;
+    } else {
+        // Need to call check page - with session retry
+        console.log(`🔍 [HTTP] Checking card...`);
+        const checkResult = await withSessionRetry(
+            client,
+            selectedAccount,
+            () => client.checkCard(cardNumber),
+            'checkCard'
+        );
+
+        if (!checkResult.success) {
+            throw new Error(checkResult.error || 'Card check failed');
+        }
+
+        stbNumber = checkResult.stbNumber;
+
+        // Cache STB for future operations (fire-and-forget, 1 hour TTL)
+        if (stbNumber) {
+            cacheSTB(cardNumber, stbNumber).catch(() => { });
+        }
+    }
+
+    // Step 3: Load packages (always needed for ViewState)
     updateProgress(operationId, 'Loading packages...');
-    console.log(`📦 [HTTP] Loading packages (skipping checkCard for speed)...`);
+    console.log(`📦 [HTTP] Loading packages...`);
     console.log(`[HTTP] 📦 Using smartcard type: ${smartcardType || 'CISCO'}`);
     const packagesResult = await withSessionRetry(
         client,
@@ -637,11 +671,11 @@ async function handleStartRenewalHttp(
         throw new Error(packagesResult.error || 'Failed to load packages');
     }
 
-    // Get STB from loadPackages result
-    const finalStbNumber = packagesResult.stbNumber || client.getSTBNumber();
+    // Use STB from checkCard (or cache), fallback to loadPackages
+    const finalStbNumber = stbNumber || packagesResult.stbNumber || client.getSTBNumber();
 
     // Cache STB for future operations (fire-and-forget)
-    if (finalStbNumber) {
+    if (finalStbNumber && !cachedStb) {
         cacheSTB(cardNumber, finalStbNumber).catch(() => { });
     }
 

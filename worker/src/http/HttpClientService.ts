@@ -1434,37 +1434,10 @@ export class HttpClientService {
                     console.log(`[HTTP] ${smartcardType} not found in dropdown, using fallback: value="${selectedTypeValue}"`);
                 }
 
-                // PERF: Check if target type is already selected (avoid unnecessary POST ~1s)
-                const currentSelectedValue = String(ddlType.val() || '');
-                const isAlreadySelected = selectedTypeValue && currentSelectedValue === selectedTypeValue;
-
-                if (isAlreadySelected) {
-                    console.log(`[HTTP] ⚡ ${smartcardType} already selected (value="${currentSelectedValue}") - skipping type POST`);
-                } else if (selectedTypeValue) {
-                    // POST to select the smartcard type
-                    const selectFormData: Record<string, string> = {
-                        ...this.currentViewState!,
-                        '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$ddlType',
-                        '__EVENTARGUMENT': '',
-                        'ctl00$ContentPlaceHolder1$ddlType': selectedTypeValue
-                    };
-
-                    console.log(`[HTTP] POST select ${smartcardType} type...`);
-                    const selectRes = await this.axios.post(
-                        renewUrl,
-                        this.buildFormData(selectFormData),
-                        {
-                            headers: this.buildPostHeaders(renewUrl)
-                        }
-                    );
-
-                    this.currentViewState = this.extractHiddenFields(selectRes.data);
-                    $ = cheerio.load(selectRes.data);
-
-                    // Verify selection was applied
-                    const selectedValue = $('select[id*="ddlType"]').val();
-                    console.log(`[HTTP] Dropdown after POST: selected value = "${selectedValue}"`);
-                }
+                // PERF: Skip type-select POST entirely — serial1 POST already includes ddlType value
+                // ASP.NET __EVENTVALIDATION from GET page includes all dropdown options
+                // This saves one full HTTP round-trip (~2s)
+                console.log(`[HTTP] ⚡ Using ddlType=${selectedTypeValue} directly (skipping type POST)`);
             }
 
 

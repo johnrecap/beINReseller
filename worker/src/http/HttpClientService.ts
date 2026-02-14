@@ -1428,20 +1428,18 @@ export class HttpClientService {
                     console.log(`[HTTP] ${smartcardType} not found in dropdown, using fallback: value="${selectedTypeValue}"`);
                 }
 
-                // DEBUG: Log all inputs in the SellPackages form to ensure we aren't missing anything
-                console.log(`[HTTP] SellPackages Form Inputs:`);
-                const formInputs = $('input, select, textarea');
-                formInputs.each((i, el) => {
-                    const name = $(el).attr('name');
-                    const id = $(el).attr('id');
-                    const val = $(el).val();
-                    const type = $(el).attr('type');
-                    if (name && name !== '__VIEWSTATE' && name !== '__EVENTVALIDATION') {
-                        console.log(`  - [${type}] name="${name}" id="${id}" value="${val}"`);
-                    }
-                });
+                // PERF: Check if target type is already selected (avoid unnecessary POST ~1s)
+                const currentSelectedText = ddlType.find('option:selected').text();
+                const currentSelectedValue = String(ddlType.val() || '');
+                const isAlreadySelected = selectedTypeValue && (
+                    currentSelectedValue === selectedTypeValue ||
+                    (smartcardType !== 'IRDETO' && (currentSelectedText.includes('CISCO') || currentSelectedText.includes('Smartcard') || currentSelectedText.includes('Humax'))) ||
+                    (smartcardType === 'IRDETO' && (currentSelectedText.includes('Irdeto') || currentSelectedText.includes('IRDETO')))
+                );
 
-                if (selectedTypeValue) {
+                if (isAlreadySelected) {
+                    console.log(`[HTTP] ⚡ ${smartcardType} already selected ("${currentSelectedText}") - skipping type POST`);
+                } else if (selectedTypeValue) {
                     // POST to select the smartcard type
                     const selectFormData: Record<string, string> = {
                         ...this.currentViewState!,
@@ -1462,17 +1460,9 @@ export class HttpClientService {
                     this.currentViewState = this.extractHiddenFields(selectRes.data);
                     $ = cheerio.load(selectRes.data);
 
-                    // DEBUG: Verify selection was applied
+                    // Verify selection was applied
                     const selectedValue = $('select[id*="ddlType"]').val();
                     console.log(`[HTTP] Dropdown after POST: selected value = "${selectedValue}"`);
-
-                    // Check if tbSerial1 field appeared (it should be visible after type selection)
-                    const serial1Visible = $('input[id*="tbSerial1"]').length > 0;
-                    console.log(`[HTTP] tbSerial1 visible after ${smartcardType}: ${serial1Visible}`);
-
-                    // DEBUG: Check what value tbSerial1 has by default
-                    const serial1DefaultValue = $('input[id*="tbSerial1"]').val() || '';
-                    console.log(`[HTTP] tbSerial1 default value: "${serial1DefaultValue}"`);
                 }
             }
 

@@ -123,8 +123,8 @@ export async function POST(request: NextRequest) {
             },
         })
 
-        // 6. Log activity
-        await prisma.$transaction([
+        // 6. Log activity (fire-and-forget — don't block response)
+        prisma.$transaction([
             prisma.activityLog.create({
                 data: {
                     userId: authUser.id,
@@ -138,12 +138,9 @@ export async function POST(request: NextRequest) {
                     userId: authUser.id,
                     actionType: 'RENEWAL_STARTED',
                     details: { cardNumber: cardNumber, operationId: operation.id },
-                    // If user has a manager, you might want to link it here, 
-                    // but we need to fetch manager info first. 
-                    // For now, we rely on the DB relation user.managerLink to join data later.
                 }
             })
-        ])
+        ]).catch(e => console.error('Activity log failed:', e))
 
         // 7. Add job to queue (start-renewal type)
         try {

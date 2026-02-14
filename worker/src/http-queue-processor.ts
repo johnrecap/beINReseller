@@ -334,16 +334,15 @@ function validateSessionAge(savedAt: string, flowType: keyof typeof SESSION_TIME
 
 /**
  * Update the progress message shown to the user during processing
+ * Fire-and-forget: non-blocking to avoid adding latency to the operation flow
  */
-async function updateProgress(operationId: string, message: string): Promise<void> {
-    try {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: { responseMessage: message }
-        });
-    } catch {
+function updateProgress(operationId: string, message: string): void {
+    prisma.operation.update({
+        where: { id: operationId },
+        data: { responseMessage: message }
+    }).catch(() => {
         // Non-critical - don't let progress updates break the flow
-    }
+    });
 }
 
 /**
@@ -491,20 +490,12 @@ async function handleStartRenewalHttp(
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
 
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { beinAccountId: selectedAccount.id }
-    });
+    // beinAccountId will be merged into the final AWAITING_PACKAGE update to save a DB round-trip
 
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
-    // Get HTTP client for this account
+    // Get HTTP client for this account (also reloads config if cache expired)
     const client = await getHttpClient(selectedAccount);
-
-    // Reload config in case settings changed
-    await client.reloadConfig();
-
-    await checkIfCancelled(operationId);
 
     // Step 1: Login (with Redis session caching and login locking)
     await updateProgress(operationId, 'Logging in...');
@@ -625,56 +616,15 @@ async function handleStartRenewalHttp(
         await releaseLoginLock(selectedAccount.id, WORKER_ID);
     }
 
-    await checkIfCancelled(operationId);
-
     // ============================================
-    // OPTIMIZATION 1: STB Cache - Skip checkCard if we have cached STB
-    // OPTIMIZATION 2: Session Retry - Auto re-login on session expiry
-    // NOTE: We MUST still call loadPackages() to get correct ViewState!
-    //       Package cache is only used for faster display, NOT to skip loadPackages
+    // PERF: Skip checkCard entirely - STB comes from loadPackages
+    // checkCard was 2 HTTP round-trips (~2s) just to extract STB,
+    // but loadPackages also returns STB (packagesResult.stbNumber)
     // ============================================
 
-    // Step 2: Check card (extract STB) - with caching
-    await updateProgress(operationId, 'Checking card...');
-    let stbNumber: string | undefined;
-
-    // Check BOTH package cache and STB cache for cached STB
-    const cachedPackageData = await getCachedPackages(cardNumber);
-    const cachedStb = cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
-
-    if (cachedStb) {
-        // STB is cached - skip check page entirely (saves ~600ms)
-        console.log(`[HTTP] ⚡ STB CACHE HIT - Skipping checkCard (STB: ${cachedStb})`);
-        client.setSTBNumber(cachedStb);
-        stbNumber = cachedStb;
-    } else {
-        // Need to call check page - with session retry
-        console.log(`🔍 [HTTP] Checking card...`);
-        const checkResult = await withSessionRetry(
-            client,
-            selectedAccount,
-            () => client.checkCard(cardNumber),
-            'checkCard'
-        );
-
-        if (!checkResult.success) {
-            throw new Error(checkResult.error || 'Card check failed');
-        }
-
-        stbNumber = checkResult.stbNumber;
-
-        // Cache STB for future operations (1 hour TTL)
-        if (stbNumber) {
-            await cacheSTB(cardNumber, stbNumber);
-        }
-    }
-
-    await checkIfCancelled(operationId);
-
-    // Step 3: Load packages - ALWAYS call this to get correct ViewState
-    // Even if packages are cached, we need fresh ViewState for completePurchase
-    await updateProgress(operationId, 'Loading packages...');
-    console.log(`📦 [HTTP] Loading packages...`);
+    // Load packages directly (STB will be extracted from loadPackages response)
+    updateProgress(operationId, 'Loading packages...');
+    console.log(`📦 [HTTP] Loading packages (skipping checkCard for speed)...`);
     console.log(`[HTTP] 📦 Using smartcard type: ${smartcardType || 'CISCO'}`);
     const packagesResult = await withSessionRetry(
         client,
@@ -687,19 +637,24 @@ async function handleStartRenewalHttp(
         throw new Error(packagesResult.error || 'Failed to load packages');
     }
 
-    // Use STB from check or from packagesResult
-    const finalStbNumber = stbNumber || packagesResult.stbNumber || client.getSTBNumber();
+    // Get STB from loadPackages result
+    const finalStbNumber = packagesResult.stbNumber || client.getSTBNumber();
 
-    // Update account's dealer balance (for admin display)
+    // Cache STB for future operations (fire-and-forget)
+    if (finalStbNumber) {
+        cacheSTB(cardNumber, finalStbNumber).catch(() => { });
+    }
+
+    // Update account's dealer balance (fire-and-forget — non-critical for user response)
     if (packagesResult.dealerBalance !== undefined) {
-        await prisma.beinAccount.update({
+        prisma.beinAccount.update({
             where: { id: selectedAccount.id },
             data: {
                 dealerBalance: packagesResult.dealerBalance,
                 balanceUpdatedAt: new Date()
             }
-        });
-        console.log(`[HTTP] 💰 Updated account balance: ${packagesResult.dealerBalance} USD`);
+        }).catch(() => { });
+        console.log(`[HTTP] 💰 Dealer balance: ${packagesResult.dealerBalance} USD (updating async)`);
     }
 
     // Convert to format expected by frontend
@@ -711,15 +666,13 @@ async function handleStartRenewalHttp(
         checkboxValue: pkg.checkboxValue,    // Add for Flutter compatibility
     }));
 
-    // ============================================
-    // OPTIMIZATION 4: Cache packages for future requests
-    // ============================================
-    await cachePackages(
+    // Cache packages for future requests (fire-and-forget)
+    cachePackages(
         cardNumber,
         packagesResult.packages,
         finalStbNumber || null,
         packagesResult.dealerBalance || null
-    );
+    ).catch(() => { });
 
     // CRITICAL: Export session data for cross-worker access
     // Different PM2 workers have separate memory, so we need to persist
@@ -736,6 +689,7 @@ async function handleStartRenewalHttp(
         where: { id: operationId },
         data: {
             status: 'AWAITING_PACKAGE',
+            beinAccountId: selectedAccount.id,  // Merged here instead of separate update
             stbNumber: finalStbNumber,
             availablePackages: packages,
             captchaImage: null,

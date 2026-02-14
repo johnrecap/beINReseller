@@ -206,6 +206,7 @@ export default function RenewWizardPage() {
     const [showConfirmation, setShowConfirmation] = useState(false)  // Show price confirmation dialog
     const [showExpiryWarning, setShowExpiryWarning] = useState(false)  // Show warning before auto-cancel
     const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
+    const pollStartTimeRef = useRef<number>(0)  // Track when polling started for adaptive intervals
 
     // Set dynamic page title
     useEffect(() => {
@@ -240,9 +241,17 @@ export default function RenewWizardPage() {
         }
     }, [searchParams, operationId])
 
-    // Poll for operation status
+    // Poll for operation status — adaptive intervals for fast response
     const pollStatus = useCallback(async () => {
         if (!operationId) return
+
+        // Adaptive interval: fast at start, slow down over time
+        const getNextInterval = () => {
+            const elapsed = Date.now() - pollStartTimeRef.current
+            if (elapsed < 5000) return 500    // First 5s: poll every 500ms
+            if (elapsed < 15000) return 1000  // 5-15s: poll every 1s
+            return 2000                        // After 15s: poll every 2s
+        }
 
         try {
             const res = await fetch(`/api/operations/${operationId}/packages`)
@@ -253,7 +262,7 @@ export default function RenewWizardPage() {
                 // (worker is still processing it)
                 if (captchaSubmitted) {
                     // User already submitted CAPTCHA, worker is processing it
-                    setTimeout(pollStatus, 2000)
+                    setTimeout(pollStatus, getNextInterval())
                     return
                 }
 
@@ -283,18 +292,18 @@ export default function RenewWizardPage() {
                 setFinalConfirmExpiry(data.finalConfirmExpiry || null)
                 setStep('awaiting-final-confirm')
             } else if (data.status === 'PENDING' || data.status === 'PROCESSING' || data.status === 'COMPLETING') {
-                setTimeout(pollStatus, 2000)
+                setTimeout(pollStatus, getNextInterval())
             }
         } catch (error) {
             console.error('Poll error:', error)
-            setTimeout(pollStatus, 3000)
+            setTimeout(pollStatus, 2000)
         }
     }, [operationId, refetchBalance, captchaSubmitted])
 
     useEffect(() => {
         if (step === 'processing' || step === 'completing') {
-            const timeoutId = setTimeout(pollStatus, 2000)
-            return () => clearTimeout(timeoutId)
+            // Poll immediately — no dead wait
+            pollStatus()
         }
     }, [step, pollStatus])
 
@@ -408,6 +417,7 @@ export default function RenewWizardPage() {
             }
 
             setOperationId(data.operationId)
+            pollStartTimeRef.current = Date.now()  // Start adaptive polling timer
             setStep('processing')
             toast.success('Starting operation...')
         } catch {
@@ -437,6 +447,7 @@ export default function RenewWizardPage() {
 
             setCaptchaSolution('')
             setCaptchaSubmitted(true)  // Mark that we submitted CAPTCHA
+            pollStartTimeRef.current = Date.now()  // Reset adaptive polling timer
             setStep('processing')
             toast.success('Loading packages...')
         } catch {
@@ -632,8 +643,8 @@ export default function RenewWizardPage() {
                                             type="button"
                                             onClick={() => setSmartcardType('CISCO')}
                                             className={`flex-1 px-4 py-3 rounded-xl font-medium text-sm transition-all border-2 ${smartcardType === 'CISCO'
-                                                    ? 'border-[#00A651] bg-[#00A651]/10 text-[#00A651] shadow-sm'
-                                                    : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[#00A651]/50'
+                                                ? 'border-[#00A651] bg-[#00A651]/10 text-[#00A651] shadow-sm'
+                                                : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[#00A651]/50'
                                                 }`}
                                         >
                                             Smartcard: CISCO
@@ -642,8 +653,8 @@ export default function RenewWizardPage() {
                                             type="button"
                                             onClick={() => setSmartcardType('IRDETO')}
                                             className={`flex-1 px-4 py-3 rounded-xl font-medium text-sm transition-all border-2 ${smartcardType === 'IRDETO'
-                                                    ? 'border-[#00A651] bg-[#00A651]/10 text-[#00A651] shadow-sm'
-                                                    : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[#00A651]/50'
+                                                ? 'border-[#00A651] bg-[#00A651]/10 text-[#00A651] shadow-sm'
+                                                : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[#00A651]/50'
                                                 }`}
                                         >
                                             Smartcard: Irdeto

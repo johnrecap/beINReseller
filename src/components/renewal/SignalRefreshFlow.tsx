@@ -49,19 +49,21 @@ export function SignalRefreshFlow() {
     const [pollTrigger, setPollTrigger] = useState(0) // Used to restart polling
     const [isDownloading, setIsDownloading] = useState(false)
     const captureRef = useRef<HTMLDivElement>(null)
+    const pollStartRef = useRef<number>(0)  // Track when polling started for adaptive intervals
 
-    // Poll for operation status
+    // Poll for operation status — adaptive intervals for fast response
     useEffect(() => {
         if (!operationId) return
 
-        const pollInterval = setInterval(async () => {
+        let cancelled = false
+
+        const poll = async () => {
+            if (cancelled) return
             try {
                 const res = await fetch(`/api/operations/${operationId}`)
                 const data = await res.json()
 
                 if (data.status === 'COMPLETED') {
-                    clearInterval(pollInterval)
-
                     // Parse responseData if it's a string
                     const responseData = typeof data.responseData === 'string'
                         ? JSON.parse(data.responseData)
@@ -93,17 +95,28 @@ export function SignalRefreshFlow() {
                     } else {
                         setStep('success')
                     }
+                    return  // Stop polling
                 } else if (data.status === 'FAILED') {
-                    clearInterval(pollInterval)
                     setError(data.responseMessage || sr.operationFailed || 'Operation failed')
                     setStep('error')
+                    return  // Stop polling
                 }
             } catch (err: unknown) {
                 console.error('Poll error:', err)
             }
-        }, 2000)
 
-        return () => clearInterval(pollInterval)
+            // Schedule next poll with adaptive interval
+            if (!cancelled) {
+                const elapsed = Date.now() - pollStartRef.current
+                const interval = elapsed < 5000 ? 500 : elapsed < 15000 ? 1000 : 2000
+                setTimeout(poll, interval)
+            }
+        }
+
+        // Poll immediately — no dead wait
+        poll()
+
+        return () => { cancelled = true }
     }, [operationId, pollTrigger]) // Include pollTrigger to restart polling
 
     // Step 1: Check card status
@@ -130,6 +143,7 @@ export function SignalRefreshFlow() {
             }
 
             setOperationId(data.operationId)
+            pollStartRef.current = Date.now()  // Start adaptive polling timer
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : (t.common?.error || 'An error occurred'))
             setStep('error')
@@ -163,6 +177,7 @@ export function SignalRefreshFlow() {
             }
 
             // Trigger polling restart
+            pollStartRef.current = Date.now()  // Reset adaptive polling timer
             setPollTrigger(prev => prev + 1)
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : (sr.activationError || 'Activation error'))
@@ -193,7 +208,7 @@ export function SignalRefreshFlow() {
             // Find the BeINExportTable inside the capturable area
             const captureElement = captureRef.current
             const tableElement = captureElement.querySelector('[data-export-table]') as HTMLElement
-            
+
             if (!tableElement) {
                 toast.error(sr.downloadFailed || 'Failed to download image')
                 return

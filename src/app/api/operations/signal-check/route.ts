@@ -106,15 +106,15 @@ export async function POST(request: NextRequest) {
             },
         })
 
-        // 6. Log activity
-        await prisma.activityLog.create({
+        // 6. Log activity (fire-and-forget — don't block response)
+        prisma.activityLog.create({
             data: {
                 userId: authUser.id,
                 action: 'SIGNAL_CHECK_STARTED',
                 details: `Check card ${cardNumber}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
             },
-        })
+        }).catch(e => console.error('Activity log failed:', e))
 
         // 7. Add job to queue with SIGNAL_CHECK type
         try {

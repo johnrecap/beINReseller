@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
 
         const { cardNumber, smartcardType } = validationResult.data
 
-        // 4. Atomically check for duplicate operations AND create new one
-        // Using $transaction to prevent TOCTOU race (two requests passing guard simultaneously)
+        // 4. Check for duplicate operations on the same card
+        // Check 1: Active operations (in-progress statuses)
         const existingOperation = await prisma.operation.findFirst({
             where: {
                 cardNumber,
@@ -108,6 +108,28 @@ export async function POST(request: NextRequest) {
         if (existingOperation) {
             return NextResponse.json(
                 { error: 'There is an active operation for this card', operationId: existingOperation.id },
+                { status: 400 }
+            )
+        }
+
+        // Check 2: Recently created operations (prevents rapid re-creation after auto-cancel)
+        // The heartbeat cron cancels operations after 15s, so without this check
+        // users could re-submit the same card immediately after navigating away
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+        const recentOperation = await prisma.operation.findFirst({
+            where: {
+                cardNumber,
+                status: { in: ['CANCELLED'] },
+                createdAt: { gte: fiveMinutesAgo },
+                // Only block if it was auto-cancelled (no result = user didn't complete it)
+                result: null,
+            },
+            orderBy: { createdAt: 'desc' },
+        })
+
+        if (recentOperation) {
+            return NextResponse.json(
+                { error: 'This card was recently used. Please wait a few minutes before trying again.', operationId: recentOperation.id },
                 { status: 400 }
             )
         }

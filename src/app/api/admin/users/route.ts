@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
         } else if (roleFilter === 'users') {
             // Only USER role
             where.role = 'USER'
-            
+
             // If managerId is provided, filter by creator or manager relationship
             if (managerId) {
                 where.OR = [
@@ -96,10 +96,12 @@ export async function GET(request: NextRequest) {
                         createdAt: true,
                         lastLoginAt: true,
                         // Count of managed users (via ManagerUser junction)
-                        _count: { 
-                            select: { 
-                                managedUsers: true
-                            } 
+                        _count: {
+                            select: {
+                                managedUsers: {
+                                    where: { user: { deletedAt: null } }
+                                }
+                            }
                         },
                     },
                     orderBy: { createdAt: 'desc' },

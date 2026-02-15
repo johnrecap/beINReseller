@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
         const search = searchParams.get('search') || ''
         const action = searchParams.get('action') || ''
         const userId = searchParams.get('userId') || ''
+        const dateFrom = searchParams.get('dateFrom') || ''
+        const dateTo = searchParams.get('dateTo') || ''
 
         const where: Prisma.ActivityLogWhereInput = {}
 
@@ -39,6 +41,20 @@ export async function GET(request: NextRequest) {
 
         if (userId) {
             where.userId = userId
+        }
+
+        // Date range filter
+        if (dateFrom || dateTo) {
+            where.createdAt = {}
+            if (dateFrom) {
+                where.createdAt.gte = new Date(dateFrom)
+            }
+            if (dateTo) {
+                // Set to end of day (23:59:59.999) so the entire day is included
+                const end = new Date(dateTo)
+                end.setHours(23, 59, 59, 999)
+                where.createdAt.lte = end
+            }
         }
 
         const [logs, total] = await Promise.all([

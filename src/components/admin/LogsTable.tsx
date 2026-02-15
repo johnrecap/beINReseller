@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Search, User, ArrowRight, ArrowLeft, Clock, ChevronDown, ChevronUp, LogIn, ShieldX, LogOut, RefreshCw, Radio, Zap, CreditCard, Plus, Layers, Play, CheckCircle, XCircle, Ban, HeartOff, DollarSign, ArrowDownLeft, ArrowRightLeft, Wallet, UserPlus, UserMinus, KeyRound, Settings, Wrench, UserCog, Activity, Shield, Users } from 'lucide-react'
-import { format } from 'date-fns'
+import { format as formatDate } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import { useTranslation } from '@/hooks/useTranslation'
 import { getActionInfo, formatLogDetails, categoryStyles, outcomeStyles, filterGroups, type ActionCategory } from '@/lib/activityLogHelpers'
+import DatePickerCalendar from '@/components/ui/DatePickerCalendar'
 
 // Map icon name strings to Lucide components
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -32,6 +33,7 @@ export default function LogsTable() {
     const [totalPages, setTotalPages] = useState(1)
     const [search, setSearch] = useState('')
     const [actionFilter, setActionFilter] = useState('')
+    const [dateFilter, setDateFilter] = useState<Date | null>(null)
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
@@ -59,6 +61,12 @@ export default function LogsTable() {
                 action: actionFilter
             })
 
+            if (dateFilter) {
+                const dateStr = formatDate(dateFilter, 'yyyy-MM-dd')
+                params.set('dateFrom', dateStr)
+                params.set('dateTo', dateStr)
+            }
+
             const res = await fetch(`/api/admin/logs?${params}`)
             const data = await res.json()
             if (res.ok) {
@@ -70,7 +78,7 @@ export default function LogsTable() {
         } finally {
             setLoading(false)
         }
-    }, [page, debouncedSearch, actionFilter])
+    }, [page, debouncedSearch, actionFilter, dateFilter])
 
     useEffect(() => {
         fetchLogs()
@@ -120,6 +128,11 @@ export default function LogsTable() {
                         ))}
                     </select>
                 </div>
+                <DatePickerCalendar
+                    selectedDate={dateFilter}
+                    onChange={(date) => { setDateFilter(date); setPage(1) }}
+                    placeholder="Filter by date"
+                />
             </div>
 
             {/* Logs List */}
@@ -219,7 +232,7 @@ export default function LogsTable() {
                                                 <td className="px-4 py-3 text-xs text-muted-foreground">
                                                     <div className="flex items-center gap-1">
                                                         <Clock className="w-3 h-3" />
-                                                        {format(new Date(log.createdAt), 'dd/MM/yyyy HH:mm', { locale: currentLocale })}
+                                                        {formatDate(new Date(log.createdAt), 'dd/MM/yyyy HH:mm', { locale: currentLocale })}
                                                     </div>
                                                 </td>
                                             </tr>

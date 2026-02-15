@@ -10,7 +10,7 @@
 import { Job } from 'bullmq';
 import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage } from './http';
-import { AccountPoolManager, AccountQueueManager, getQueueManager, forceUnlockAccount } from './pool';
+import { AccountPoolManager, AccountQueueManager, getQueueManager, forceUnlockAccount, lockAccount, unlockAccount } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
@@ -115,21 +115,30 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
         console.log(`[HTTP] Created client for ${account.username}${proxyConfig ? ` with proxy ${proxyConfig.host}:${proxyConfig.port}` : ' without proxy'}`);
     }
 
-    // OPTIMIZATION: Run session restore and config reload in parallel
-    try {
-        const [cachedSession, _] = await Promise.all([
-            getSessionFromCache(account.id),
-            isNewClient ? Promise.resolve() : client.reloadConfig()  // Only reload for existing clients
-        ]);
+    // Only restore session from Redis if client doesn't already have a valid session.
+    // Importing blindly creates a new CookieJar + axios instance, which destroys
+    // any in-flight request cookies on a shared client (concurrent job safety).
+    if (!client.isSessionActive()) {
+        try {
+            const [cachedSession, _] = await Promise.all([
+                getSessionFromCache(account.id),
+                isNewClient ? Promise.resolve() : client.reloadConfig()  // Only reload for existing clients
+            ]);
 
-        if (cachedSession) {
-            await client.importSession(cachedSession);
-            client.markSessionValidFromCache(cachedSession.expiresAt);
-            console.log(`[HTTP] 🔄 Restored session from Redis cache for ${account.username}`);
+            if (cachedSession) {
+                await client.importSession(cachedSession);
+                client.markSessionValidFromCache(cachedSession.expiresAt);
+                console.log(`[HTTP] 🔄 Restored session from Redis cache for ${account.username}`);
+            }
+        } catch (error) {
+            console.log(`[HTTP] ⚠️ Failed to restore cached session for ${account.username}, will login fresh`);
+            await deleteSessionFromCache(account.id);
         }
-    } catch (error) {
-        console.log(`[HTTP] ⚠️ Failed to restore cached session for ${account.username}, will login fresh`);
-        await deleteSessionFromCache(account.id);
+    } else {
+        // Still reload config for existing active clients
+        if (!isNewClient) {
+            try { await client.reloadConfig(); } catch { /* non-critical */ }
+        }
     }
 
     return client;
@@ -1284,95 +1293,123 @@ async function handleConfirmPurchaseHttp(
     });
     if (!account) throw new Error('Account not found');
 
-    const client = await getHttpClient(account);
+    // CONCURRENCY FIX: Acquire account lock before sending confirmation
+    // This prevents another job from using the same account concurrently
+    // and destroying our ViewState/cookies.
+    const redis = accountPool.getRedis();
+    const LOCK_WAIT_TIMEOUT = 30_000; // 30 seconds max wait
+    const LOCK_TTL = 60;              // Lock auto-expires after 60s (safety)
+    const lockStartTime = Date.now();
+    let lockAcquired = false;
 
-    // CRITICAL: Set STB number on client for confirmPurchase
-    if (operation.stbNumber) {
-        client.setSTBNumber(operation.stbNumber);
-        console.log(`[HTTP] 📺 STB number set on client: ${operation.stbNumber}`);
-    } else {
-        console.warn('[HTTP] ⚠️ No STB number found in operation!');
+    while (Date.now() - lockStartTime < LOCK_WAIT_TIMEOUT) {
+        lockAcquired = await lockAccount(redis, operation.beinAccountId, WORKER_ID, LOCK_TTL);
+        if (lockAcquired) break;
+        console.log(`[HTTP] ⏳ Account ${account.username} locked by another job, waiting...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1s
     }
 
-    // CRITICAL: Restore session from database (cross-worker support)
-    // Without this, the ViewState and cookies are missing and purchase fails silently!
-    if (operation.responseData) {
-        try {
-            const savedData = JSON.parse(operation.responseData as string);
-
-            // AUDIT FIX 4.2: Use helper function for session age validation
-            if (savedData.savedAt) {
-                validateSessionAge(savedData.savedAt, 'confirmPurchase');
-            }
-
-            if (savedData.sessionData) {
-                console.log(`[HTTP] 🔄 Restoring session for CONFIRM_PURCHASE (saved at ${savedData.savedAt})`);
-                await client.importSession(savedData.sessionData);
-                console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
-            }
-        } catch (parseError: any) {
-            if (parseError.message?.includes('Session expired')) {
-                throw parseError; // Re-throw session expiry error
-            }
-            console.error('[HTTP] ⚠️ Failed to parse saved session for confirm:', parseError);
-            throw new Error('Session restoration failed - cannot confirm purchase');
-        }
-    } else {
-        console.error('[HTTP] ❌ No saved session found - cannot confirm purchase');
-        throw new Error('No session data available - cannot confirm purchase');
+    if (!lockAcquired) {
+        throw new Error('Account busy - could not acquire lock within 30 seconds');
     }
 
-    await updateProgress(operationId, 'Sending final confirmation...');
-    const result = await client.confirmPurchase();
+    console.log(`[HTTP] 🔒 Account lock acquired for CONFIRM_PURCHASE: ${account.username}`);
 
-    const selectedPackage = operation.selectedPackage as { name: string } | null;
+    try {
+        const client = await getHttpClient(account);
 
-    if (result.success) {
-        // OPTIMIZATION: Invalidate package cache since packages changed after purchase
-        if (operation.cardNumber) {
-            await invalidatePackageCache(operation.cardNumber);
+        // CRITICAL: Set STB number on client for confirmPurchase
+        if (operation.stbNumber) {
+            client.setSTBNumber(operation.stbNumber);
+            console.log(`[HTTP] 📺 STB number set on client: ${operation.stbNumber}`);
+        } else {
+            console.warn('[HTTP] ⚠️ No STB number found in operation!');
         }
 
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                status: 'COMPLETED',
-                responseMessage: result.message,
-                completedAt: new Date(),
-                finalConfirmExpiry: null
+        // CRITICAL: Restore session from database (cross-worker support)
+        // Without this, the ViewState and cookies are missing and purchase fails silently!
+        if (operation.responseData) {
+            try {
+                const savedData = JSON.parse(operation.responseData as string);
+
+                // AUDIT FIX 4.2: Use helper function for session age validation
+                if (savedData.savedAt) {
+                    validateSessionAge(savedData.savedAt, 'confirmPurchase');
+                }
+
+                if (savedData.sessionData) {
+                    console.log(`[HTTP] 🔄 Restoring session for CONFIRM_PURCHASE (saved at ${savedData.savedAt})`);
+                    await client.importSession(savedData.sessionData);
+                    console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
+                }
+            } catch (parseError: any) {
+                if (parseError.message?.includes('Session expired')) {
+                    throw parseError; // Re-throw session expiry error
+                }
+                console.error('[HTTP] ⚠️ Failed to parse saved session for confirm:', parseError);
+                throw new Error('Session restoration failed - cannot confirm purchase');
             }
-        });
-
-        await accountPool.markAccountUsed(operation.beinAccountId);
-
-        // Track activity for user engagement metrics
-        if (operation.userId) {
-            await trackOperationComplete(
-                operation.userId,
-                operationId,
-                'RENEW',
-                operation.amount,
-                { packageName: selectedPackage?.name }
-            );
+        } else {
+            console.error('[HTTP] ❌ No saved session found - cannot confirm purchase');
+            throw new Error('No session data available - cannot confirm purchase');
         }
 
-        if (operation.userId) {
-            await createNotification({
-                userId: operation.userId,
-                title: 'Renewal successful',
-                message: `${selectedPackage?.name || 'Package'} - ${result.message}`,
-                type: 'success',
-                link: '/dashboard/history'
+        await updateProgress(operationId, 'Sending final confirmation...');
+        const result = await client.confirmPurchase();
+
+        const selectedPackage = operation.selectedPackage as { name: string } | null;
+
+        if (result.success) {
+            // OPTIMIZATION: Invalidate package cache since packages changed after purchase
+            if (operation.cardNumber) {
+                await invalidatePackageCache(operation.cardNumber);
+            }
+
+            await prisma.operation.update({
+                where: { id: operationId },
+                data: {
+                    status: 'COMPLETED',
+                    responseMessage: result.message,
+                    completedAt: new Date(),
+                    finalConfirmExpiry: null
+                }
             });
-        }
 
-        console.log(`✅ [HTTP] Purchase confirmed for ${operationId}`);
-    } else {
-        if (operation.userId && operation.amount && operation.amount > 0) {
-            await refundUser(operationId, operation.userId, operation.amount, result.message);
+            await accountPool.markAccountUsed(operation.beinAccountId);
+
+            // Track activity for user engagement metrics
+            if (operation.userId) {
+                await trackOperationComplete(
+                    operation.userId,
+                    operationId,
+                    'RENEW',
+                    operation.amount,
+                    { packageName: selectedPackage?.name }
+                );
+            }
+
+            if (operation.userId) {
+                await createNotification({
+                    userId: operation.userId,
+                    title: 'Renewal successful',
+                    message: `${selectedPackage?.name || 'Package'} - ${result.message}`,
+                    type: 'success',
+                    link: '/dashboard/history'
+                });
+            }
+
+            console.log(`✅ [HTTP] Purchase confirmed for ${operationId}`);
+        } else {
+            if (operation.userId && operation.amount && operation.amount > 0) {
+                await refundUser(operationId, operation.userId, operation.amount, result.message);
+            }
+            await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1);
+            throw new Error(result.message);
         }
-        await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1);
-        throw new Error(result.message);
+    } finally {
+        // ALWAYS release account lock
+        await unlockAccount(redis, operation.beinAccountId, WORKER_ID);
+        console.log(`[HTTP] 🔓 Account lock released after CONFIRM_PURCHASE: ${account.username}`);
     }
 }
 

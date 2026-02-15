@@ -84,15 +84,20 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
         console.log(`[KeepAlive] Created HTTP client for ${account.username}`);
     }
 
-    // Try to restore session from Redis cache
-    try {
-        const cachedSession = await getSessionFromCache(account.id);
-        if (cachedSession) {
-            await client.importSession(cachedSession);
-            client.markSessionValidFromCache();
+    // Try to restore session from Redis cache — but only if the client
+    // doesn't already have a valid active session. Importing blindly
+    // creates a new CookieJar + axios instance, which destroys any
+    // in-flight request cookies on a shared client.
+    if (!client.isSessionActive()) {
+        try {
+            const cachedSession = await getSessionFromCache(account.id);
+            if (cachedSession) {
+                await client.importSession(cachedSession);
+                client.markSessionValidFromCache(cachedSession.expiresAt);
+            }
+        } catch (error) {
+            console.log(`[KeepAlive] Could not restore cached session for ${account.username}`);
         }
-    } catch (error) {
-        console.log(`[KeepAlive] Could not restore cached session for ${account.username}`);
     }
 
     return client;

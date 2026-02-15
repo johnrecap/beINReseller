@@ -758,6 +758,8 @@ export class HttpClientService {
 
     /**
      * Reset session (clear cookies)
+     * CRITICAL: Must rebuild axios instance so the new jar is used by requests.
+     * Previously only replaced this.jar but the agent/wrapper still referenced the old jar.
      */
     resetSession(): void {
         this.jar = new CookieJar();
@@ -766,7 +768,47 @@ export class HttpClientService {
         this.lastLoginTime = null;
         this.sessionValid = false;
         this.sessionExpiresAt = null;
-        console.log('[HTTP] Session reset');
+
+        // Rebuild axios instance with the NEW jar
+        const axiosConfig: Record<string, unknown> = {
+            jar: this.jar,
+            withCredentials: true,
+            headers: HttpClientService.BROWSER_HEADERS,
+            timeout: 15000,
+            maxRedirects: 5,
+            validateStatus: (status: number) => status < 500,
+            decompress: true
+        };
+
+        if (this.proxyConfig) {
+            const proxyManager = getProxyManager();
+            const proxyUrl = proxyManager.buildProxyUrlFromConfig(this.proxyConfig);
+            const proxyType = this.proxyConfig.proxyType || 'socks5';
+
+            if (proxyType === 'socks5') {
+                const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
+                axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, {
+                    cookies: { jar: this.jar },
+                    keepAlive: true,
+                    keepAliveMsecs: 30000,
+                });
+            } else {
+                const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
+                axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, {
+                    cookies: { jar: this.jar },
+                    keepAlive: true,
+                    keepAliveMsecs: 30000,
+                });
+            }
+
+            axiosConfig.proxy = false;
+            this.axios = axios.create(axiosConfig);
+        } else {
+            this.axios = wrapper(axios.create(axiosConfig));
+        }
+
+        this.setupAxiosRetry();
+        console.log('[HTTP] Session reset (cookies cleared, axios rebuilt)');
     }
 
     /**
@@ -918,9 +960,13 @@ export class HttpClientService {
                 this.currentViewState = newViewState;
             }
 
-            // Refresh login timestamp
+            // Refresh login timestamp AND sessionExpiresAt
+            // Without updating sessionExpiresAt, isSessionActive() would still
+            // report the session as expired based on the old timestamp.
             this.lastLoginTime = new Date();
-            console.log('[HTTP] validateSession: Session is valid ✅');
+            const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
+            this.sessionExpiresAt = Date.now() + timeoutMs;
+            console.log('[HTTP] validateSession: Session is valid ✅ (expiry extended)');
             return true;
 
         } catch (error: any) {

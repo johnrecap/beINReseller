@@ -30,7 +30,7 @@ export async function GET(request: Request) {
         // Timeout settings (in minutes)
         const PROCESSING_TIMEOUT = 5        // 5 minutes for PROCESSING
         const AWAITING_PACKAGE_TIMEOUT = 15 // 15 minutes for AWAITING_PACKAGE (user must choose)
-        const COMPLETING_TIMEOUT = 5        // 5 minutes for COMPLETING
+        const COMPLETING_TIMEOUT = 2        // 2 minutes for COMPLETING (purchase takes <30s normally)
         // AWAITING_FINAL_CONFIRM uses finalConfirmExpiry field (2 minutes set by worker)
 
         const now = Date.now()

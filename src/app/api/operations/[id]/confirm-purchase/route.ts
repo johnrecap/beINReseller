@@ -168,15 +168,48 @@ export async function POST(
         }
 
         // 4. Add CONFIRM_PURCHASE job to queue (only one will ever reach here)
-        await addOperationJob({
-            operationId: id,
-            type: 'CONFIRM_PURCHASE',
-            cardNumber: operation.cardNumber,
-            userId: authUser.id,
-            amount: finalAmount,
-        })
+        try {
+            await addOperationJob({
+                operationId: id,
+                type: 'CONFIRM_PURCHASE',
+                cardNumber: operation.cardNumber,
+                userId: authUser.id,
+                amount: finalAmount,
+            })
+        } catch (jobError) {
+            // CRITICAL: Job creation failed AFTER money was deducted — refund immediately
+            console.error(`❌ addOperationJob failed for ${id}, refunding ${finalAmount}:`, jobError)
+            try {
+                await prisma.$transaction(async (tx) => {
+                    const updatedUser = await tx.user.update({
+                        where: { id: authUser.id },
+                        data: { balance: { increment: finalAmount } }
+                    })
+                    await tx.operation.update({
+                        where: { id },
+                        data: { status: 'FAILED', amount: 0, responseMessage: 'System error - amount refunded' }
+                    })
+                    await tx.transaction.create({
+                        data: {
+                            userId: authUser.id,
+                            type: 'REFUND',
+                            amount: finalAmount,
+                            balanceAfter: updatedUser.balance,
+                            operationId: id,
+                            notes: 'Auto-refund: job queue unavailable'
+                        }
+                    })
+                })
+            } catch (refundError) {
+                console.error(`❌ CRITICAL: Failed to refund ${id}:`, refundError)
+            }
+            return NextResponse.json(
+                { error: 'System error - amount refunded to your balance' },
+                { status: 500 }
+            )
+        }
 
-        // 4. Return success
+        // 5. Return success
         return NextResponse.json({
             success: true,
             operationId: id,
@@ -186,6 +219,14 @@ export async function POST(
     } catch (error) {
         const msg = error instanceof Error ? error.message : ''
         if (msg === 'INSUFFICIENT_BALANCE') {
+            // Revert status — money was NOT deducted ($transaction rolled back)
+            // but status was already changed to COMPLETING at line 113
+            try {
+                await prisma.operation.update({
+                    where: { id: (await params).id },
+                    data: { status: 'AWAITING_FINAL_CONFIRM', responseMessage: 'Insufficient balance - please top up' }
+                })
+            } catch { /* best effort */ }
             return NextResponse.json(
                 { error: 'Insufficient balance' },
                 { status: 400 }

@@ -154,7 +154,9 @@ export class SessionKeepAliveService {
     }
 
     /**
-     * Start the keep-alive service with periodic refresh
+     * Start the keep-alive service with periodic refresh.
+     * Uses recursive setTimeout (not setInterval) so the interval
+     * respects DB config changes between cycles.
      */
     start(): void {
         if (this.isRunning) {
@@ -163,18 +165,24 @@ export class SessionKeepAliveService {
         }
 
         this.isRunning = true;
-        console.log(`[KeepAlive] Starting periodic refresh (every ${this.refreshIntervalMs / 60000} minutes)`);
+        console.log(`[KeepAlive] Starting periodic refresh (initial: ${this.refreshIntervalMs / 60000} minutes)`);
 
-        this.intervalId = setInterval(async () => {
-            console.log('[KeepAlive] Starting scheduled refresh cycle...');
-            try {
-                await this.loadConfig(); // Reload config in case it changed
-                const result = await this.refreshAllSessions();
-                console.log(`[KeepAlive] Cycle complete: ${result.success}/${result.total} accounts refreshed`);
-            } catch (error) {
-                console.error('[KeepAlive] Refresh cycle error:', error);
-            }
-        }, this.refreshIntervalMs);
+        const scheduleNext = () => {
+            this.intervalId = setTimeout(async () => {
+                console.log('[KeepAlive] Starting scheduled refresh cycle...');
+                try {
+                    await this.loadConfig(); // Reload — interval may have changed
+                    const result = await this.refreshAllSessions();
+                    console.log(`[KeepAlive] Cycle complete: ${result.success}/${result.total} accounts refreshed (next in ${this.refreshIntervalMs / 60000} min)`);
+                } catch (error) {
+                    console.error('[KeepAlive] Refresh cycle error:', error);
+                }
+                // Schedule next with CURRENT interval (respects DB changes)
+                if (this.isRunning) scheduleNext();
+            }, this.refreshIntervalMs);
+        };
+
+        scheduleNext();
     }
 
     /**
@@ -182,7 +190,7 @@ export class SessionKeepAliveService {
      */
     stop(): void {
         if (this.intervalId) {
-            clearInterval(this.intervalId);
+            clearTimeout(this.intervalId);
             this.intervalId = null;
         }
         this.isRunning = false;

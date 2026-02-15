@@ -1153,7 +1153,7 @@ async function attemptPurchaseWithAccount(
                 where: { id: operationId },
                 data: {
                     status: 'AWAITING_FINAL_CONFIRM',
-                    finalConfirmExpiry: new Date(Date.now() + 120000),
+                    finalConfirmExpiry: new Date(Date.now() + 30000),  // 30 seconds
                     responseMessage: result.message,
                     lastHeartbeat: now,
                     heartbeatExpiry: heartbeatExpiry,

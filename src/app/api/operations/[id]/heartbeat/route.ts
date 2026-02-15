@@ -44,11 +44,11 @@ export async function POST(
     try {
         const { id } = await params
         const authUser = await getAuthUser(request)
-        
+
         if (!authUser?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
-        
+
         // Verify operation belongs to user and is in awaiting state
         const operation = await prisma.operation.findFirst({
             where: {
@@ -59,20 +59,38 @@ export async function POST(
             select: {
                 id: true,
                 status: true,
-                beinAccountId: true
+                beinAccountId: true,
+                finalConfirmExpiry: true
             }
         })
-        
+
         if (!operation) {
             return NextResponse.json(
                 { error: 'Operation not found or not in waiting state' },
                 { status: 404 }
             )
         }
-        
+
+        // Check hard deadline (e.g., 2 min for package selection, 30s for payment confirm)
+        if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+            // Auto-cancel: hard deadline passed
+            await prisma.operation.update({
+                where: { id },
+                data: {
+                    status: 'CANCELLED',
+                    responseMessage: 'Timed out - please try again',
+                    finalConfirmExpiry: null
+                }
+            })
+            return NextResponse.json(
+                { error: 'Operation timed out', expired: true },
+                { status: 410 }
+            )
+        }
+
         const now = new Date()
         const expiryTime = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000)
-        
+
         // Update heartbeat in database
         await prisma.operation.update({
             where: { id },
@@ -81,7 +99,7 @@ export async function POST(
                 heartbeatExpiry: expiryTime
             }
         })
-        
+
         // Also store in Redis for fast checking by cleanup job
         await redis.setex(
             `operation:heartbeat:${id}`,
@@ -92,14 +110,15 @@ export async function POST(
                 beinAccountId: operation.beinAccountId
             })
         )
-        
+
         return NextResponse.json({
             success: true,
             expiresAt: expiryTime.toISOString(),
+            deadlineAt: operation.finalConfirmExpiry?.toISOString() || null,
             ttlSeconds: HEARTBEAT_TTL_SECONDS,
             status: operation.status
         })
-        
+
     } catch (error) {
         console.error('[Heartbeat] Error:', error)
         return NextResponse.json(
@@ -119,11 +138,11 @@ export async function GET(
     try {
         const { id } = await params
         const authUser = await getAuthUser(request)
-        
+
         if (!authUser?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
-        
+
         const operation = await prisma.operation.findFirst({
             where: {
                 id,
@@ -136,16 +155,16 @@ export async function GET(
                 heartbeatExpiry: true
             }
         })
-        
+
         if (!operation) {
             return NextResponse.json({ error: 'Operation not found' }, { status: 404 })
         }
-        
+
         const now = new Date()
-        const isExpired = operation.heartbeatExpiry 
-            ? now > operation.heartbeatExpiry 
+        const isExpired = operation.heartbeatExpiry
+            ? now > operation.heartbeatExpiry
             : false
-        
+
         return NextResponse.json({
             operationId: operation.id,
             status: operation.status,
@@ -154,7 +173,7 @@ export async function GET(
             isExpired,
             requiresHeartbeat: HEARTBEAT_REQUIRED_STATUSES.includes(operation.status)
         })
-        
+
     } catch (error) {
         console.error('[Heartbeat] GET Error:', error)
         return NextResponse.json(

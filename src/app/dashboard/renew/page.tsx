@@ -277,6 +277,7 @@ export default function RenewWizardPage() {
                 // Packages ready
                 setPackages(data.packages || [])
                 setStbNumber(data.stbNumber)
+                setFinalConfirmExpiry(data.finalConfirmExpiry || null)
                 setStep('packages')
             } else if (data.status === 'COMPLETED') {
                 setResult({ success: true, message: data.message || 'Renewal successful!' })
@@ -373,7 +374,14 @@ export default function RenewWizardPage() {
 
     // Handle auto-cancel when timer expires
     const handleAutoExpire = useCallback(() => {
-        if (!isAutoCancelling && step === 'awaiting-final-confirm') {
+        if (isAutoCancelling) return
+
+        if (step === 'packages') {
+            // No money deducted during package selection — just show timeout
+            // Server-side heartbeat API already set status=CANCELLED
+            setResult({ success: false, message: 'Package selection timed out — please try again' })
+            setStep('result')
+        } else if (step === 'awaiting-final-confirm') {
             handleCancelConfirm(true)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -773,6 +781,15 @@ export default function RenewWizardPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
+                                {/* Package Selection Timer */}
+                                {finalConfirmExpiry && (
+                                    <FinalConfirmTimer
+                                        expiry={finalConfirmExpiry}
+                                        onWarning={handleExpiryWarning}
+                                        onExpire={handleAutoExpire}
+                                        warningThreshold={15}
+                                    />
+                                )}
                                 {packages.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">
                                         <AlertCircle className="h-8 w-8 mx-auto mb-2" />

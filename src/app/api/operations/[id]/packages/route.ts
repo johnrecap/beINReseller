@@ -137,6 +137,7 @@ export async function GET(
             cardNumber: operation.cardNumber,
             stbNumber: operation.stbNumber,
             packages: operation.availablePackages || [],
+            finalConfirmExpiry: operation.finalConfirmExpiry,
             message: 'Choose the appropriate package',
         })
 

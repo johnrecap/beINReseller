@@ -78,9 +78,9 @@ export function useOperationHeartbeat({
                 errorRef.current = null
                 failureCountRef.current = 0
                 isActiveRef.current = true
-            } else if (response.status === 404) {
-                // Operation not found or not in waiting state anymore
-                // This could mean it expired or completed
+            } else if (response.status === 404 || response.status === 410) {
+                // 404: Operation not found or not in waiting state
+                // 410: Server-side hard deadline expired (operation auto-cancelled)
                 isActiveRef.current = false
                 onExpired?.()
             } else {
@@ -128,7 +128,7 @@ export function useOperationHeartbeat({
             try {
                 const url = `/api/operations/${operationId}/heartbeat`
                 const data = JSON.stringify({ unloading: true })
-                
+
                 // Note: sendBeacon is fire-and-forget, we can't check the response
                 // But it's the most reliable way to send data during page unload
                 if (navigator.sendBeacon) {

@@ -762,6 +762,8 @@ async function handleStartRenewalHttp(
             captchaImage: null,
             captchaSolution: null,
             captchaExpiry: null,
+            // Hard deadline: 2 minutes to select a package, then auto-cancel
+            finalConfirmExpiry: new Date(now.getTime() + 120_000),  // 2 minutes
             // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
             lastHeartbeat: now,
             heartbeatExpiry: heartbeatExpiry,

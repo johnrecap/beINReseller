@@ -17,11 +17,11 @@ import { prisma } from './prisma';
 import { getRedisConnection } from './redis';
 import { HttpClientService } from '../http/HttpClientService';
 import { CaptchaSolver } from '../utils/captcha-solver';
-import { 
-    getSessionFromCache, 
-    saveSessionToCache, 
+import {
+    getSessionFromCache,
+    saveSessionToCache,
     getSessionTTL,
-    refreshSessionExpiry 
+    refreshSessionExpiry
 } from './session-cache';
 import { isAccountLocked } from '../pool/account-locking';
 import { checkAndNotifyLowBalance } from '../utils/notification';
@@ -234,7 +234,7 @@ export class SessionKeepAliveService {
                     failed++;
                 } else {
                     success++;
-                    
+
                     // Proactive balance monitoring: Check if account has low balance
                     // Uses stored balance from database (updated during package loading)
                     if (account.dealerBalance !== null) {
@@ -342,7 +342,11 @@ export class SessionKeepAliveService {
             console.log(`[KeepAlive] ${username}: No session in Redis, need login...`);
         }
         // 5. Session expired on beIN - need full login
-        console.log(`[KeepAlive] ${username}: Session expired on beIN, performing login...`);
+        // CRITICAL FIX: Clear old cookies before re-login!
+        // Without this, the old ASP.NET_SessionId persists and beIN recycles it
+        // with a shorter timeout, causing sessions to die every cycle.
+        client.resetSession();
+        console.log(`[KeepAlive] ${username}: Session expired on beIN, performing fresh login...`);
 
         const loginResult = await client.login(username, account.password, account.totpSecret || undefined);
 
@@ -362,52 +366,77 @@ export class SessionKeepAliveService {
                 };
             }
 
-            try {
-                const solver = new CaptchaSolver(apiKey);
-                const solution = await solver.solve(loginResult.captchaImage);
+            // CAPTCHA retry loop — up to 3 attempts
+            const MAX_CAPTCHA_RETRIES = 3;
+            let lastCaptchaError = '';
+            let currentCaptchaImage = loginResult.captchaImage;
 
-                const finalLogin = await client.submitLogin(
-                    username,
-                    account.password,
-                    account.totpSecret || undefined,
-                    solution
-                );
+            for (let attempt = 1; attempt <= MAX_CAPTCHA_RETRIES; attempt++) {
+                try {
+                    console.log(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt}/${MAX_CAPTCHA_RETRIES}...`);
+                    const solver = new CaptchaSolver(apiKey);
+                    const solution = await solver.solve(currentCaptchaImage);
 
-                if (finalLogin.success) {
-                    const sessionData = await client.exportSession();
-                    // FIX: Update timestamps before saving
-                    const now = Date.now();
-                    sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
-                    sessionData.loginTimestamp = now;
-                    await saveSessionToCache(accountId, sessionData, 16);
-                    console.log(`[KeepAlive] ${username}: Login successful (CAPTCHA solved)`);
-                    return {
-                        accountId,
+                    const finalLogin = await client.submitLogin(
                         username,
-                        status: 'logged_in',
-                        captchaSolved: true,
-                        durationMs: Date.now() - startTime
-                    };
-                } else {
-                    return {
-                        accountId,
-                        username,
-                        status: 'failed',
-                        error: finalLogin.error || 'Login failed after CAPTCHA',
-                        captchaSolved: true,
-                        durationMs: Date.now() - startTime
-                    };
+                        account.password,
+                        account.totpSecret || undefined,
+                        solution
+                    );
+
+                    if (finalLogin.success) {
+                        const sessionData = await client.exportSession();
+                        const now = Date.now();
+                        sessionData.expiresAt = now + (15 * 60 * 1000);
+                        sessionData.loginTimestamp = now;
+                        await saveSessionToCache(accountId, sessionData, 16);
+                        console.log(`[KeepAlive] ${username}: Login successful (CAPTCHA solved on attempt ${attempt})`);
+                        return {
+                            accountId,
+                            username,
+                            status: 'logged_in',
+                            captchaSolved: true,
+                            durationMs: Date.now() - startTime
+                        };
+                    } else if (finalLogin.requiresCaptcha && finalLogin.captchaImage) {
+                        // CAPTCHA was wrong — beIN gave us a new one to try
+                        console.log(`[KeepAlive] ${username}: CAPTCHA wrong on attempt ${attempt}, retrying...`);
+                        currentCaptchaImage = finalLogin.captchaImage;
+                        lastCaptchaError = finalLogin.error || 'CAPTCHA incorrect';
+                        continue;
+                    } else {
+                        // Non-CAPTCHA failure (e.g., wrong password, account locked)
+                        lastCaptchaError = finalLogin.error || 'Login failed after CAPTCHA';
+                        break;
+                    }
+                } catch (captchaError: any) {
+                    console.error(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt} error:`, captchaError.message);
+                    lastCaptchaError = captchaError.message;
+                    // On solve error, we need a fresh CAPTCHA — re-login to get one
+                    if (attempt < MAX_CAPTCHA_RETRIES) {
+                        try {
+                            client.resetSession();
+                            const retryLogin = await client.login(username, account.password, account.totpSecret || undefined);
+                            if (retryLogin.requiresCaptcha && retryLogin.captchaImage) {
+                                currentCaptchaImage = retryLogin.captchaImage;
+                                continue;
+                            }
+                        } catch { /* fall through to failure */ }
+                    }
+                    break;
                 }
-            } catch (captchaError: any) {
-                console.error(`[KeepAlive] ${username}: CAPTCHA solve failed:`, captchaError.message);
-                return {
-                    accountId,
-                    username,
-                    status: 'failed',
-                    error: `CAPTCHA solve failed: ${captchaError.message}`,
-                    durationMs: Date.now() - startTime
-                };
             }
+
+            // All CAPTCHA attempts exhausted
+            console.error(`[KeepAlive] ${username}: All ${MAX_CAPTCHA_RETRIES} CAPTCHA attempts failed`);
+            return {
+                accountId,
+                username,
+                status: 'failed',
+                error: `CAPTCHA failed after ${MAX_CAPTCHA_RETRIES} attempts: ${lastCaptchaError}`,
+                captchaSolved: false,
+                durationMs: Date.now() - startTime
+            };
         }
 
         // Login without CAPTCHA

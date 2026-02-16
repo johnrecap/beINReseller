@@ -8,7 +8,7 @@ const getRedisUrl = () => {
 }
 
 function buildOperationJobId(data: { operationId: string; type: string }) {
-    return `${data.type}:${data.operationId}`
+    return `${data.type}--${data.operationId}`
 }
 
 // ===== Reseller Operations Queue (Priority 1 - Higher) =====
@@ -73,7 +73,7 @@ export async function addCustomerOperationJob(data: {
 }) {
     return customerOperationsQueue.add('process-customer-operation', data, {
         priority: 2,  // Lower priority for customers
-        jobId: `customer:${buildOperationJobId(data)}`,
+        jobId: `customer--${buildOperationJobId(data)}`,
     })
 }
 

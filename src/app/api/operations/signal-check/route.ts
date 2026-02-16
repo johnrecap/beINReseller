@@ -26,6 +26,8 @@ const signalCheckSchema = z.object({
     cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'Card number must contain only digits'),
 })
 
+const ACTIVE_OPERATION_STATUSES = ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] as const
+
 /**
  * POST /api/operations/signal-check
  * 
@@ -79,12 +81,11 @@ export async function POST(request: NextRequest) {
 
         const { cardNumber } = validationResult.data
 
-        // 4. Check for duplicate pending/processing operations for this card
+        // 4. Check for any active operation on this card (prevents cross-flow conflicts)
         const existingOperation = await prisma.operation.findFirst({
             where: {
                 cardNumber,
-                type: 'SIGNAL_REFRESH',
-                status: { in: ['PENDING', 'PROCESSING'] },
+                status: { in: [...ACTIVE_OPERATION_STATUSES] },
             },
         })
 

@@ -78,8 +78,9 @@ export function useOperationHeartbeat({
                 errorRef.current = null
                 failureCountRef.current = 0
                 isActiveRef.current = true
-            } else if (response.status === 404 || response.status === 410) {
+            } else if (response.status === 404 || response.status === 409 || response.status === 410) {
                 // 404: Operation not found or not in waiting state
+                // 409: Operation state changed while heartbeat request was in flight
                 // 410: Server-side hard deadline expired (operation auto-cancelled)
                 isActiveRef.current = false
                 onExpired?.()

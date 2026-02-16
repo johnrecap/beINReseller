@@ -113,23 +113,41 @@ export async function GET(request: Request) {
                     expiryReason = 'CAPTCHA timeout - browser closed or connection lost'
                 }
 
-                await prisma.$transaction(async (tx) => {
-                    // 1. Update operation status to EXPIRED
-                    await tx.operation.update({
-                        where: { id: operation.id },
+                const result = await prisma.$transaction(async (tx) => {
+                    // 1. Transition to EXPIRED only if the operation is still in the expected stale waiting state.
+                    const expireGuard = await tx.operation.updateMany({
+                        where: {
+                            id: operation.id,
+                            status: operation.status,
+                            OR: [
+                                { heartbeatExpiry: { lt: now } },
+                                {
+                                    status: { in: [...HEARTBEAT_REQUIRED_STATUSES] },
+                                    lastHeartbeat: null,
+                                    createdAt: { lt: graceTime }
+                                }
+                            ]
+                        },
                         data: {
                             status: 'EXPIRED',
                             error: expiryReason,
                             responseMessage: shouldRefund
                                 ? `${expiryReason} - amount auto-refunded`
                                 : expiryReason,
-                            completedAt: now
+                            completedAt: now,
+                            finalConfirmExpiry: null,
+                            heartbeatExpiry: null,
                         }
                     })
 
+                    if (expireGuard.count === 0) {
+                        return { expired: false, refunded: false }
+                    }
+
+                    let refunded = false
+
                     // 2. Refund user balance only if amount > 0 AND no existing refund AND has userId (not store customer)
                     if (shouldRefund && operation.userId) {
-                        // Check for existing refund to prevent double refund
                         const existingRefund = await tx.transaction.findFirst({
                             where: {
                                 operationId: operation.id,
@@ -145,7 +163,6 @@ export async function GET(request: Request) {
                                 data: { balance: { increment: operation.amount } }
                             })
 
-                            // Create refund transaction
                             await tx.transaction.create({
                                 data: {
                                     userId: operation.userId,
@@ -157,7 +174,7 @@ export async function GET(request: Request) {
                                 }
                             })
 
-                            refundedCount++
+                            refunded = true
                             console.log(`[Cleanup Cron] Refunded ${operation.amount} to user ${operation.userId}`)
                         }
                     }
@@ -188,14 +205,25 @@ export async function GET(request: Request) {
                                     previousStatus: operation.status,
                                     lastHeartbeat: operation.lastHeartbeat?.toISOString() || null,
                                     heartbeatExpiry: operation.heartbeatExpiry?.toISOString() || null,
-                                    refunded: shouldRefund ? operation.amount : 0,
+                                    refunded: refunded ? operation.amount : 0,
                                     reason: expiryReason
                                 },
                                 ipAddress: 'cleanup-cron'
                             }
                         })
                     }
+
+                    return { expired: true, refunded }
                 })
+
+                if (!result.expired) {
+                    console.log(`[Cleanup Cron] Skip ${operation.id} - state changed while processing`)
+                    continue
+                }
+
+                if (result.refunded) {
+                    refundedCount++
+                }
 
                 // 5. Release beIN account lock in Redis (outside transaction)
                 if (operation.beinAccountId) {

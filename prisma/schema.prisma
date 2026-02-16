@@ -28,6 +28,7 @@ enum OperationStatus {
   AWAITING_PACKAGE // في انتظار اختيار الباقة (Wizard)
   AWAITING_FINAL_CONFIRM // في انتظار التأكيد النهائي قبل الدفع
   COMPLETING // جاري إتمام الشراء (Wizard)
+  REVIEW_REQUIRED // Requires manual verification after uncertain provider response
   COMPLETED // مكتمل
   FAILED // فشل
   CANCELLED // ملغى

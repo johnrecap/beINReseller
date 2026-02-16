@@ -11,6 +11,7 @@
  */
 
 import prisma from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 /**
  * Atomically refund a reseller user's balance.
@@ -31,6 +32,18 @@ export async function refundUser(
 
     try {
         await prisma.$transaction(async (tx) => {
+            const operation = await tx.operation.findUnique({
+                where: { id: operationId },
+                select: { status: true }
+            })
+
+            if (operation && (operation.status === 'COMPLETED' || operation.status === 'REVIEW_REQUIRED')) {
+                console.error(
+                    `[MONITOR] Refund blocked for operation ${operationId}: status=${operation.status}, reason=${reason}`
+                )
+                throw new Error('REFUND_BLOCKED_TERMINAL')
+            }
+
             // Check INSIDE transaction for atomicity (prevents race condition)
             const existingRefund = await tx.transaction.findFirst({
                 where: {
@@ -79,6 +92,8 @@ export async function refundUser(
         return true
     } catch (error: unknown) {
         if (error instanceof Error && error.message === 'REFUND_EXISTS') return false
+        if (error instanceof Error && error.message === 'REFUND_BLOCKED_TERMINAL') return false
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
         throw error
     }
 }
@@ -102,6 +117,18 @@ export async function refundCustomer(
 
     try {
         await prisma.$transaction(async (tx) => {
+            const operation = await tx.operation.findUnique({
+                where: { id: operationId },
+                select: { status: true }
+            })
+
+            if (operation && (operation.status === 'COMPLETED' || operation.status === 'REVIEW_REQUIRED')) {
+                console.error(
+                    `[MONITOR] Customer refund blocked for operation ${operationId}: status=${operation.status}, reason=${reason}`
+                )
+                throw new Error('REFUND_BLOCKED_TERMINAL')
+            }
+
             // Check for existing customer refund INSIDE transaction
             const existingRefund = await tx.walletTransaction.findFirst({
                 where: {
@@ -141,6 +168,8 @@ export async function refundCustomer(
         return true
     } catch (error: unknown) {
         if (error instanceof Error && error.message === 'REFUND_EXISTS') return false
+        if (error instanceof Error && error.message === 'REFUND_BLOCKED_TERMINAL') return false
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
         throw error
     }
 }

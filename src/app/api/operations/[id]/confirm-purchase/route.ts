@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { addOperationJob } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { Prisma } from '@prisma/client'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -125,6 +126,23 @@ export async function POST(
         if (operation.amount === 0) {
             // NEW flow: deferred payment — deduct at confirm time
             await prisma.$transaction(async (tx) => {
+                // Race guard: ensure operation is still confirmable before charging.
+                const operationGuard = await tx.operation.updateMany({
+                    where: {
+                        id,
+                        userId: authUser.id,
+                        status: 'COMPLETING',
+                        amount: 0,
+                    },
+                    data: {
+                        amount: dealerPrice
+                    }
+                })
+
+                if (operationGuard.count === 0) {
+                    throw new Error('OPERATION_NOT_CONFIRMABLE')
+                }
+
                 const user = await tx.user.findUnique({
                     where: { id: authUser.id },
                     select: { balance: true }
@@ -143,12 +161,6 @@ export async function POST(
                     throw new Error('INSUFFICIENT_BALANCE')
                 }
 
-                // Set operation amount (so refund paths have correct amount)
-                await tx.operation.update({
-                    where: { id },
-                    data: { amount: dealerPrice }
-                })
-
                 // Create deduction transaction record
                 await tx.transaction.create({
                     data: {
@@ -163,7 +175,7 @@ export async function POST(
             })
         } else {
             // OLD flow: money was already deducted at select-package (deployment transition)
-            console.log(`ℹ️ Operation ${id} already has amount ${operation.amount} — skipping deduction (old flow)`)
+            console.log(`Operation ${id} already has amount ${operation.amount} - skipping deduction (legacy flow)`)
             finalAmount = operation.amount
         }
 
@@ -217,6 +229,12 @@ export async function POST(
         })
 
     } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            return NextResponse.json(
+                { error: 'Operation is already being processed' },
+                { status: 409 }
+            )
+        }
         const msg = error instanceof Error ? error.message : ''
         if (msg === 'INSUFFICIENT_BALANCE') {
             // Revert status — money was NOT deducted ($transaction rolled back)
@@ -230,6 +248,12 @@ export async function POST(
             return NextResponse.json(
                 { error: 'Insufficient balance' },
                 { status: 400 }
+            )
+        }
+        if (msg === 'OPERATION_NOT_CONFIRMABLE') {
+            return NextResponse.json(
+                { error: 'Operation state changed. Please refresh and try again.' },
+                { status: 409 }
             )
         }
         console.error('Confirm purchase error:', error)

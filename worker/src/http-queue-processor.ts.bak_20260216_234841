@@ -57,26 +57,6 @@ class OperationCancelledError extends Error {
     }
 }
 
-const TERMINAL_STATUSES = new Set([
-    'COMPLETED',
-    'REVIEW_REQUIRED',
-    'CANCELLED',
-    'FAILED',
-    'EXPIRED'
-]);
-
-function isTerminalStatus(status: string | null | undefined): boolean {
-    return !!status && TERMINAL_STATUSES.has(status);
-}
-
-function isAmbiguousFailure(message: string | null | undefined): boolean {
-    if (!message) return false;
-    const normalized = message.toLowerCase();
-    return normalized.includes('transaction status unknown') ||
-        normalized.includes('status unknown') ||
-        normalized.includes('please check balance');
-}
-
 // Map to store HTTP clients per account (session persistence)
 const httpClients = new Map<string, HttpClientService>();
 
@@ -204,7 +184,7 @@ async function performReLogin(
             try {
                 const captchaSolver = new CaptchaSolver(captchaApiKey);
                 const solution = await captchaSolver.solve(loginResult.captchaImage);
-                console.log('[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]');
+                console.log(`[HTTP] ✅ CAPTCHA auto-solved: ${solution}`);
 
                 // Submit login with CAPTCHA solution
                 const loginWithCaptcha = await httpClient.submitLogin(
@@ -422,9 +402,6 @@ export async function processOperationHttp(
             case 'COMPLETE_PURCHASE':
                 await handleCompletePurchaseHttp(operationId, promoCode, accountPool);
                 break;
-            case 'APPLY_PROMO':
-                await handleApplyPromoHttp(operationId, cardNumber, promoCode, accountPool);
-                break;
             case 'CONFIRM_PURCHASE':
                 await handleConfirmPurchaseHttp(operationId, accountPool);
                 break;
@@ -460,12 +437,8 @@ export async function processOperationHttp(
         // ALWAYS read from DB - job data amount may be stale (deferred payment)
         const op = await prisma.operation.findUnique({
             where: { id: operationId },
-            select: { userId: true, amount: true, beinAccountId: true, status: true }
+            select: { userId: true, amount: true, beinAccountId: true }
         });
-        if (isTerminalStatus(op?.status)) {
-            console.log(`[HTTP] Skipping refund/failure update for terminal operation ${operationId} (${op?.status})`);
-            return;
-        }
         const opUserId = op?.userId || userId;
         const opAmount = op?.amount || 0;
         selectedAccountId = op?.beinAccountId || null;
@@ -597,7 +570,7 @@ async function handleStartRenewalHttp(
                     console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
                     const captchaSolver = new CaptchaSolver(captchaApiKey);
                     solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
+                    console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
                 } catch (autoSolveError: any) {
                     console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
                 }
@@ -815,143 +788,6 @@ async function handleStartRenewalHttp(
     }
 
     console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
-}
-
-/**
- * APPLY_PROMO - Apply a promo code and refresh package prices
- * 
- * Flow:
- * 1. Get the operation and its assigned beIN account
- * 2. Restore session from cache or re-login
- * 3. Call applyPromoCode() on HttpClientService
- * 4. Update operation with new packages in responseData (promoApplied: true)
- * 5. Keep status as AWAITING_PACKAGE so user can select a package
- */
-async function handleApplyPromoHttp(
-    operationId: string,
-    cardNumber: string,
-    promoCode: string | undefined,
-    accountPool: AccountPoolManager
-): Promise<void> {
-    console.log(`🎫 [HTTP] Applying promo code for ${operationId}`);
-
-    if (!promoCode) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'No promo code provided' })
-            }
-        });
-        return;
-    }
-
-    await checkIfCancelled(operationId);
-
-    // Get operation with account
-    const operation = await prisma.operation.findUnique({
-        where: { id: operationId },
-        select: {
-            id: true,
-            beinAccountId: true,
-            cardNumber: true,
-            status: true,
-        }
-    });
-
-    if (!operation || !operation.beinAccountId) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'Operation or account not found' })
-            }
-        });
-        return;
-    }
-
-    // Get account
-    const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId },
-        include: { proxy: true }
-    });
-
-    if (!account) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'beIN account not found' })
-            }
-        });
-        return;
-    }
-
-    const client = await getHttpClient(account);
-
-    // Ensure session is active
-    if (!client.isSessionActive()) {
-        console.log(`[HTTP] ⚠️ Session expired for promo apply, restoring...`);
-        const cachedSession = await getSessionFromCache(account.id);
-        if (cachedSession) {
-            await client.importSession(cachedSession);
-            client.markSessionValidFromCache(cachedSession.expiresAt);
-            console.log(`[HTTP] ✅ Session restored from cache for promo`);
-        } else {
-            // Fresh login needed
-            const loginResult = await client.login(
-                account.username,
-                account.password,
-                account.totpSecret || undefined
-            );
-            if (!loginResult.success) {
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        responseData: JSON.stringify({ promoApplied: false, error: 'Login failed for promo apply' })
-                    }
-                });
-                return;
-            }
-            // Save session to cache
-            try {
-                const sessionData = await client.exportSession();
-                const sessionTimeout = client.getSessionTimeout();
-                await saveSessionToCache(account.id, sessionData, sessionTimeout);
-            } catch (saveError) {
-                console.error('[HTTP] Failed to save session to cache:', saveError);
-            }
-        }
-    }
-
-    // Apply promo code
-    console.log(`[HTTP] 🎫 Applying promo code: ${promoCode}`);
-    const useCardNumber = cardNumber || operation.cardNumber;
-    const result = await client.applyPromoCode(promoCode, useCardNumber);
-
-    if (result.success && result.packages.length > 0) {
-        // Update operation with new discounted packages
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                availablePackages: JSON.parse(JSON.stringify(result.packages)),
-                responseData: JSON.stringify({
-                    promoApplied: true,
-                    packages: result.packages
-                })
-            }
-        });
-        console.log(`✅ [HTTP] Promo code applied, ${result.packages.length} packages updated`);
-    } else {
-        // Promo failed — update responseData with error
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({
-                    promoApplied: false,
-                    error: result.error || 'Failed to apply promo code'
-                })
-            }
-        });
-        console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
-    }
 }
 
 /**
@@ -1422,10 +1258,16 @@ async function handleConfirmPurchaseHttp(
         throw new Error('Operation or account not found');
     }
 
-    // Guard: skip if already terminal (race condition with duplicate jobs)
-    // NOTE: COMPLETING is valid - the confirm-purchase API sets it before adding this job.
-    if (isTerminalStatus(operation.status)) {
-        console.log(`⏭️ [HTTP] Operation ${operationId} already terminal (${operation.status}), skipping CONFIRM_PURCHASE`);
+    // Guard: If already completed, skip silently (race condition with duplicate jobs)
+    // NOTE: COMPLETING is valid — the confirm-purchase API sets it BEFORE adding this job
+    if (operation.status === 'COMPLETED') {
+        console.log(`⏭️ [HTTP] Operation ${operationId} already COMPLETED, skipping duplicate CONFIRM_PURCHASE`);
+        return;
+    }
+
+    // Guard: If cancelled, skip
+    if (operation.status === 'CANCELLED') {
+        console.log(`⏭️ [HTTP] Operation ${operationId} already cancelled, skipping CONFIRM_PURCHASE`);
         return;
     }
 
@@ -1515,7 +1357,7 @@ async function handleConfirmPurchaseHttp(
         }
 
         await updateProgress(operationId, 'Sending final confirmation...');
-        const result = await client.confirmPurchase(operation.amount ?? undefined);
+        const result = await client.confirmPurchase();
 
         const selectedPackage = operation.selectedPackage as { name: string } | null;
 
@@ -1525,11 +1367,8 @@ async function handleConfirmPurchaseHttp(
                 await invalidatePackageCache(operation.cardNumber);
             }
 
-            const completed = await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
-                },
+            await prisma.operation.update({
+                where: { id: operationId },
                 data: {
                     status: 'COMPLETED',
                     responseMessage: result.message,
@@ -1537,10 +1376,6 @@ async function handleConfirmPurchaseHttp(
                     finalConfirmExpiry: null
                 }
             });
-            if (completed.count === 0) {
-                console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId} due to terminal transition race`);
-                return;
-            }
 
             await accountPool.markAccountUsed(operation.beinAccountId);
 
@@ -1566,30 +1401,6 @@ async function handleConfirmPurchaseHttp(
             }
 
             console.log(`✅ [HTTP] Purchase confirmed for ${operationId}`);
-        } else if (isAmbiguousFailure(result.message)) {
-            const reviewRequired = await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
-                },
-                data: {
-                    status: 'REVIEW_REQUIRED',
-                    responseMessage: result.message,
-                    finalConfirmExpiry: null
-                }
-            });
-            if (reviewRequired.count === 0) {
-                console.warn(`[HTTP] CONFIRM_PURCHASE review update skipped for ${operationId} due to terminal transition race`);
-                return;
-            }
-
-            try {
-                await accountPool.markAccountUsed(operation.beinAccountId);
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${e.message}`);
-            }
-            console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED: ${result.message}`);
-            return;
         } else {
             if (operation.userId && operation.amount && operation.amount > 0) {
                 await refundUser(operationId, operation.userId, operation.amount, result.message);
@@ -1790,7 +1601,7 @@ async function handleSignalRefreshHttp(
                         console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
                         const captchaSolver = new CaptchaSolver(captchaApiKey);
                         solution = await captchaSolver.solve(loginResult.captchaImage);
-                        console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
+                        console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
                     } catch (autoSolveError: any) {
                         console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
                     }
@@ -1997,7 +1808,7 @@ async function handleSignalCheckHttp(
                         console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
                         const captchaSolver = new CaptchaSolver(captchaApiKey);
                         solution = await captchaSolver.solve(loginResult.captchaImage);
-                        console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
+                        console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
                     } catch (autoSolveError: any) {
                         console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
                     }
@@ -2446,7 +2257,7 @@ async function handleStartInstallmentHttp(
                     console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
                     const captchaSolver = new CaptchaSolver(captchaApiKey);
                     solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
+                    console.log(`✅ [HTTP] CAPTCHA auto-solved: ${solution}`);
                 } catch (autoSolveError: any) {
                     console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
                 }
@@ -2587,33 +2398,6 @@ async function handleConfirmInstallmentHttp(
         throw new Error('No beIN account assigned to this operation');
     }
 
-    if (isTerminalStatus(operation.status)) {
-        console.log(`⏭️ [HTTP] Operation ${operationId} already terminal (${operation.status}), skipping CONFIRM_INSTALLMENT`);
-        return;
-    }
-
-    const movedToCompleting = await prisma.operation.updateMany({
-        where: {
-            id: operationId,
-            status: { in: ['AWAITING_FINAL_CONFIRM', 'COMPLETING'] }
-        },
-        data: {
-            status: 'COMPLETING',
-            responseMessage: 'Confirming installment payment...'
-        }
-    });
-    if (movedToCompleting.count === 0) {
-        const current = await prisma.operation.findUnique({
-            where: { id: operationId },
-            select: { status: true }
-        });
-        if (isTerminalStatus(current?.status)) {
-            console.log(`[HTTP] Operation ${operationId} moved to terminal state (${current?.status}), skipping CONFIRM_INSTALLMENT`);
-            return;
-        }
-        throw new Error(`Invalid status for CONFIRM_INSTALLMENT: ${current?.status || operation.status}`);
-    }
-
     const selectedAccount = operation.beinAccount;
 
     // Get HTTP client
@@ -2659,11 +2443,11 @@ async function handleConfirmInstallmentHttp(
     const loadResult = await client.loadInstallment(cardNumber);
 
     if (!loadResult.success || !loadResult.hasInstallment) {
-        if (operation.userId && operation.amount && operation.amount > 0) {
+        // If reload fails, refund user
+        if (operation.userId && operation.amount) {
             await refundUser(operationId, operation.userId, operation.amount, loadResult.error || 'Failed to re-load installment');
         }
-        await markOperationFailed(operationId, { type: 'UNKNOWN', message: loadResult.error || 'Failed to re-load installment before payment', recoverable: false }, 1);
-        return;
+        throw new Error(loadResult.error || 'Failed to re-load installment before payment');
     }
 
     await checkIfCancelled(operationId);
@@ -2673,93 +2457,51 @@ async function handleConfirmInstallmentHttp(
     console.log(`[HTTP] Executing installment payment...`);
     const payResult = await client.payInstallment();
 
-    if (payResult.success) {
-        const completed = await prisma.operation.updateMany({
-            where: {
-                id: operationId,
-                status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
-            },
-            data: {
-                status: 'COMPLETED',
-                responseMessage: payResult.message,
-                completedAt: new Date(),
-                finalConfirmExpiry: null
-            }
+    if (!payResult.success) {
+        // Payment failed - refund user
+        if (operation.userId && operation.amount) {
+            await refundUser(operationId, operation.userId, operation.amount, payResult.message);
+        }
+        throw new Error(payResult.message);
+    }
+
+    // Payment successful
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: {
+            status: 'COMPLETED',
+            responseMessage: payResult.message,
+            completedAt: new Date(),
+            finalConfirmExpiry: null
+        }
+    });
+
+    // Release account
+    await accountPool.markAccountUsed(selectedAccount.id);
+
+    // Track activity for user engagement metrics
+    if (operation.userId) {
+        await trackOperationComplete(
+            operation.userId,
+            operationId,
+            'RENEW', // Use RENEW type for statistics
+            operation.amount,
+            { type: 'installment', cardNumber }
+        );
+    }
+
+    // Create notification
+    if (operation.userId) {
+        await createNotification({
+            userId: operation.userId,
+            title: 'Installment paid',
+            message: `Installment paid for card ${cardNumber} successfully`,
+            type: 'success',
+            link: '/dashboard/history'
         });
-        if (completed.count === 0) {
-            console.warn(`[HTTP] CONFIRM_INSTALLMENT completion skipped for ${operationId} due to terminal transition race`);
-            return;
-        }
-
-        try {
-            await accountPool.markAccountUsed(selectedAccount.id);
-        } catch (e: any) {
-            console.error(`[HTTP] Failed to mark account used after installment completion for ${operationId}: ${e.message}`);
-        }
-
-        if (operation.userId) {
-            try {
-                await trackOperationComplete(
-                    operation.userId,
-                    operationId,
-                    'RENEW',
-                    operation.amount,
-                    { type: 'installment', cardNumber }
-                );
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to track installment completion for ${operationId}: ${e.message}`);
-            }
-        }
-
-        if (operation.userId) {
-            try {
-                await createNotification({
-                    userId: operation.userId,
-                    title: 'Installment paid',
-                    message: `Installment paid for card ${cardNumber} successfully`,
-                    type: 'success',
-                    link: '/dashboard/history'
-                });
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to create installment notification for ${operationId}: ${e.message}`);
-            }
-        }
-
-        console.log(`✅ [HTTP] Installment payment completed`);
-        return;
     }
 
-    if (isAmbiguousFailure(payResult.message)) {
-        const reviewRequired = await prisma.operation.updateMany({
-            where: {
-                id: operationId,
-                status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
-            },
-            data: {
-                status: 'REVIEW_REQUIRED',
-                responseMessage: payResult.message,
-                finalConfirmExpiry: null
-            }
-        });
-        if (reviewRequired.count === 0) {
-            console.warn(`[HTTP] CONFIRM_INSTALLMENT review update skipped for ${operationId} due to terminal transition race`);
-            return;
-        }
-
-        try {
-            await accountPool.markAccountUsed(selectedAccount.id);
-        } catch (e: any) {
-            console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${e.message}`);
-        }
-        console.warn(`[HTTP] Installment payment for ${operationId} moved to REVIEW_REQUIRED: ${payResult.message}`);
-        return;
-    }
-
-    if (operation.userId && operation.amount && operation.amount > 0) {
-        await refundUser(operationId, operation.userId, operation.amount, payResult.message);
-    }
-    await markOperationFailed(operationId, { type: 'UNKNOWN', message: payResult.message, recoverable: false }, 1);
-    return;
+    console.log(`✅ [HTTP] Installment payment completed`);
 }
 
 /**

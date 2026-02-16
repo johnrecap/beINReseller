@@ -3727,6 +3727,26 @@ export class HttpClientService {
 
         console.log(`[HTTP] parseInstallmentDetails: contractSection=${contractSection.length}, payBtn=${payBtn.length}, paymentZone=${paymentZone.length}, packagesRow=${packagesRow.length}, loadAnother=${loadAnotherBtn.length}, packageRow=${packageRowFound}`);
 
+        // ====== DEBUG: Dump HTML sample to see what worker actually received ======
+        const htmlSample = $.html().slice(0, 3000);
+        console.log(`[HTTP] PARSE: === HTML DUMP (first 3000 chars) ===`);
+        console.log(htmlSample);
+        console.log(`[HTTP] PARSE: === END HTML DUMP ===`);
+
+        // ====== DEBUG: Log ALL input elements with their IDs and values ======
+        console.log('[HTTP] PARSE: === ALL INPUTS ON PAGE ===');
+        $('input, textarea, select').each((i, el) => {
+            const id = $(el).attr('id') || '';
+            const name = $(el).attr('name') || '';
+            const type = $(el).attr('type') || $(el).prop('tagName')?.toLowerCase() || '';
+            const valFromVal = $(el).val()?.toString()?.trim() || '';
+            const valFromAttr = $(el).attr('value')?.trim() || '';
+            if (id || name) {
+                console.log(`[HTTP] PARSE:   [${type}] id="${id}" name="${name}" val()="${valFromVal.slice(0, 40)}" attr="${valFromAttr.slice(0, 40)}"`);
+            }
+        });
+        console.log('[HTTP] PARSE: === END ALL INPUTS ===');
+
         if (!hasData) {
             console.log('[HTTP] ⚠️ No installment data found on page');
             return {
@@ -4034,7 +4054,6 @@ export class HttpClientService {
      */
     async payInstallment(): Promise<import('./types').PayInstallmentResult> {
         console.log('[HTTP] Paying installment (two-step flow)...');
-        let paySubmitted = false;
 
         try {
             const installmentUrl = this.buildFullUrl(this.config.installmentUrl);
@@ -4065,7 +4084,6 @@ export class HttpClientService {
             };
 
             console.log('[HTTP] POST Step 1 - Clicking Pay Installment button...');
-            paySubmitted = true;
             const payRes = await this.axios.post(
                 installmentUrl,
                 this.buildFormData(payFormData),
@@ -4220,24 +4238,12 @@ export class HttpClientService {
                 const balanceDecreased = balanceBefore !== null && balanceAfter !== null &&
                     balanceAfter < balanceBefore;
 
-                if (balanceDecreased && hasSuccessMessage) {
+                if (balanceDecreased || hasSuccessMessage) {
                     console.log('[HTTP] ✅ Installment payment successful (Direct Payment)');
                     return {
                         success: true,
                         message: 'Installment payment successful',
                         newBalance: balanceAfter || undefined
-                    };
-                } else if (balanceDecreased) {
-                    console.log('[HTTP] Installment payment successful by balance delta (Direct Payment)');
-                    return {
-                        success: true,
-                        message: 'Installment payment successful (balance verified)',
-                        newBalance: balanceAfter || undefined
-                    };
-                } else if (hasSuccessMessage) {
-                    return {
-                        success: false,
-                        message: 'Transaction status unknown - success text but balance unchanged'
                     };
                 } else if (confirmError) {
                     console.log(`[HTTP] ❌ Payment error after Direct Pay: ${confirmError}`);
@@ -4249,7 +4255,7 @@ export class HttpClientService {
                     console.log(htmlSample);
                     return {
                         success: false,
-                        message: 'Transaction status unknown - payment not confirmed, please check balance'
+                        message: 'Payment not confirmed - please check balance'
                     };
                 }
 
@@ -4270,24 +4276,12 @@ export class HttpClientService {
                 const balanceDecreased = balanceBefore !== null && balanceAfter !== null &&
                     balanceAfter < balanceBefore;
 
-                if (balanceDecreased && hasSuccessMessage) {
+                if (balanceDecreased || hasSuccessMessage) {
                     console.log('[HTTP] ✅ Installment payment successful (no popup)');
                     return {
                         success: true,
                         message: 'Installment payment successful',
                         newBalance: balanceAfter || undefined
-                    };
-                } else if (balanceDecreased) {
-                    console.log('[HTTP] Installment payment successful by balance delta (no popup)');
-                    return {
-                        success: true,
-                        message: 'Installment payment successful (balance verified)',
-                        newBalance: balanceAfter || undefined
-                    };
-                } else if (hasSuccessMessage) {
-                    return {
-                        success: false,
-                        message: 'Transaction status unknown - success text but balance unchanged'
                     };
                 } else if (payError) {
                     console.log(`[HTTP] ❌ Payment error: ${payError}`);
@@ -4299,19 +4293,13 @@ export class HttpClientService {
                     console.log(htmlSample);
                     return {
                         success: false,
-                        message: 'Transaction status unknown - payment not confirmed, please check balance'
+                        message: 'Payment not confirmed - please check balance'
                     };
                 }
             }
 
         } catch (error: any) {
             console.error('[HTTP] Pay installment error:', error.message);
-            if (paySubmitted) {
-                return {
-                    success: false,
-                    message: `Transaction status unknown - request submitted but confirmation failed: ${error.message}`
-                };
-            }
             return { success: false, message: `Payment failed: ${error.message}` };
         }
     }

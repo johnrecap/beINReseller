@@ -207,6 +207,7 @@ export default function RenewWizardPage() {
     const [showExpiryWarning, setShowExpiryWarning] = useState(false)  // Show warning before auto-cancel
     const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
     const pollStartTimeRef = useRef<number>(0)  // Track when polling started for adaptive intervals
+    const startRenewalInFlightRef = useRef(false)
 
     // Set dynamic page title
     useEffect(() => {
@@ -285,6 +286,12 @@ export default function RenewWizardPage() {
                 refetchBalance()
             } else if (data.status === 'FAILED') {
                 setResult({ success: false, message: data.message || 'Operation failed' })
+                setStep('result')
+            } else if (data.status === 'REVIEW_REQUIRED') {
+                setResult({
+                    success: false,
+                    message: data.message || 'Payment outcome is under review to prevent wrong charge/refund'
+                })
                 setStep('result')
             } else if (data.status === 'AWAITING_FINAL_CONFIRM') {
                 // Show final confirmation dialog
@@ -394,6 +401,11 @@ export default function RenewWizardPage() {
             return
         }
 
+        if (startRenewalInFlightRef.current) {
+            return
+        }
+        startRenewalInFlightRef.current = true
+
         setLoading(true)
         try {
             const res = await fetch('/api/operations/start-renewal', {
@@ -432,6 +444,7 @@ export default function RenewWizardPage() {
             toast.error('Connection error')
         } finally {
             setLoading(false)
+            startRenewalInFlightRef.current = false
         }
     }
 

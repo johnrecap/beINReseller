@@ -7,6 +7,10 @@ const getRedisUrl = () => {
     return 'redis://localhost:6379'
 }
 
+function buildOperationJobId(data: { operationId: string; type: string }) {
+    return `${data.type}:${data.operationId}`
+}
+
 // ===== Reseller Operations Queue (Priority 1 - Higher) =====
 export const operationsQueue = new Queue('operations', {
     connection: {
@@ -54,6 +58,7 @@ export async function addOperationJob(data: {
 }) {
     return operationsQueue.add('process-operation', data, {
         priority: 1,  // Higher priority for resellers
+        jobId: buildOperationJobId(data), // Idempotency: prevent duplicate jobs for same operation+type
     })
 }
 
@@ -68,6 +73,7 @@ export async function addCustomerOperationJob(data: {
 }) {
     return customerOperationsQueue.add('process-customer-operation', data, {
         priority: 2,  // Lower priority for customers
+        jobId: `customer:${buildOperationJobId(data)}`,
     })
 }
 

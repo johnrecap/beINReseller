@@ -73,15 +73,26 @@ export async function POST(
 
         // Check hard deadline (e.g., 2 min for package selection, 30s for payment confirm)
         if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-            // Auto-cancel: hard deadline passed
-            await prisma.operation.update({
-                where: { id },
+            // Auto-cancel with state guard (don't overwrite newer terminal states).
+            const timeoutUpdate = await prisma.operation.updateMany({
+                where: {
+                    id,
+                    userId: authUser.id,
+                    status: { in: HEARTBEAT_REQUIRED_STATUSES },
+                },
                 data: {
                     status: 'CANCELLED',
                     responseMessage: 'Timed out - please try again',
                     finalConfirmExpiry: null
                 }
             })
+
+            if (timeoutUpdate.count === 0) {
+                return NextResponse.json(
+                    { error: 'Operation state changed' },
+                    { status: 409 }
+                )
+            }
             return NextResponse.json(
                 { error: 'Operation timed out', expired: true },
                 { status: 410 }
@@ -92,13 +103,24 @@ export async function POST(
         const expiryTime = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000)
 
         // Update heartbeat in database
-        await prisma.operation.update({
-            where: { id },
+        const heartbeatUpdate = await prisma.operation.updateMany({
+            where: {
+                id,
+                userId: authUser.id,
+                status: { in: HEARTBEAT_REQUIRED_STATUSES },
+            },
             data: {
                 lastHeartbeat: now,
                 heartbeatExpiry: expiryTime
             }
         })
+
+        if (heartbeatUpdate.count === 0) {
+            return NextResponse.json(
+                { error: 'Operation not found or not in waiting state' },
+                { status: 404 }
+            )
+        }
 
         // Also store in Redis for fast checking by cleanup job
         await redis.setex(

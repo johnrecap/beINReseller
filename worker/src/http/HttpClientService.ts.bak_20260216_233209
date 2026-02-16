@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HttpClientService - Direct HTTP-based beIN automation
  * 
  * Replaces Playwright browser automation with fast HTTP requests.
@@ -319,9 +319,9 @@ export class HttpClientService {
 
         // ViewState length analysis for debugging
         // Login page typically has 500-700 chars, results page has 1500+ chars
-        const viewStateCategory = viewState.length < 800 ? '⚠️ SMALL (likely login page)' :
-            viewState.length < 1500 ? '📄 MEDIUM' :
-                '✅ LARGE (likely results page)';
+        const viewStateCategory = viewState.length < 800 ? 'âڑ ï¸ڈ SMALL (likely login page)' :
+            viewState.length < 1500 ? 'ًں“„ MEDIUM' :
+                'âœ… LARGE (likely results page)';
         console.log(`[HTTP] ViewState extracted: ${viewState.length} chars ${viewStateCategory}`);
 
         return fields;
@@ -478,9 +478,9 @@ export class HttpClientService {
      * This prevents false positives on valid pages like "Finance Module".
      * 
      * Detection Logic:
-     * 1. If page title contains valid logged-in patterns → NOT expired, return null
-     * 2. If page title contains login patterns → Check for login form → expired
-     * 3. If page title is unclear → Use conservative element detection
+     * 1. If page title contains valid logged-in patterns â†’ NOT expired, return null
+     * 2. If page title contains login patterns â†’ Check for login form â†’ expired
+     * 3. If page title is unclear â†’ Use conservative element detection
      * 
      * @param html - The HTML response to check
      * @returns Error message if session expired, null otherwise
@@ -494,7 +494,7 @@ export class HttpClientService {
         const pageTitle = $('title').text().trim();
         const pageTitleLower = pageTitle.toLowerCase();
 
-        console.log(`[HTTP] 🔍 Session check - Page title: "${pageTitle}"`);
+        console.log(`[HTTP] ًں”چ Session check - Page title: "${pageTitle}"`);
 
         // ============================================
         // STEP 1.5: Detect redirect pages ("Object moved")
@@ -504,7 +504,7 @@ export class HttpClientService {
             pageTitleLower.includes('redirect') ||
             pageTitleLower === '' ||
             html.includes('Object moved to')) {
-            console.log(`[HTTP] ⚠️ REDIRECT DETECTED - "${pageTitle}" indicates session expired`);
+            console.log(`[HTTP] âڑ ï¸ڈ REDIRECT DETECTED - "${pageTitle}" indicates session expired`);
             return 'Session Expired - Redirect detected (Object moved)';
         }
 
@@ -516,7 +516,7 @@ export class HttpClientService {
         const viewStateValue = viewStateMatch ? viewStateMatch[1] : '';
 
         if (viewStateValue.length < 100) {
-            console.log(`[HTTP] ⚠️ EMPTY VIEWSTATE - Length: ${viewStateValue.length} (session likely expired)`);
+            console.log(`[HTTP] âڑ ï¸ڈ EMPTY VIEWSTATE - Length: ${viewStateValue.length} (session likely expired)`);
             return 'Session Expired - No ViewState (invalid page)';
         }
 
@@ -546,7 +546,7 @@ export class HttpClientService {
         const isValidPageTitle = validPagePatterns.some(pattern => pageTitleLower.includes(pattern));
         const isLoginPageTitle = loginPagePatterns.some(pattern => pageTitleLower.includes(pattern));
 
-        console.log(`[HTTP] 🔍 Title analysis - Valid page: ${isValidPageTitle}, Login page: ${isLoginPageTitle}`);
+        console.log(`[HTTP] ًں”چ Title analysis - Valid page: ${isValidPageTitle}, Login page: ${isLoginPageTitle}`);
 
         // If title indicates a valid logged-in page (and NOT a login page)
         if (isValidPageTitle && !isLoginPageTitle) {
@@ -560,10 +560,10 @@ export class HttpClientService {
             const hasCaptchaText = bodyText.includes('Enter the following code');
             const hasLoginContentInBody = hasSignInText && hasCaptchaText;
 
-            console.log(`[HTTP] 🔍 Layer 2 (Secondary) - Login form: ${hasLoginFormInBody}, Sign In: ${hasSignInText}, CAPTCHA text: ${hasCaptchaText}`);
+            console.log(`[HTTP] ًں”چ Layer 2 (Secondary) - Login form: ${hasLoginFormInBody}, Sign In: ${hasSignInText}, CAPTCHA text: ${hasCaptchaText}`);
 
             if (hasLoginFormInBody || hasLoginContentInBody) {
-                console.log(`[HTTP] ⚠️ CACHED TITLE ISSUE - Valid title but login page content detected`);
+                console.log(`[HTTP] âڑ ï¸ڈ CACHED TITLE ISSUE - Valid title but login page content detected`);
                 return 'Session Expired - Login page with cached title';
             }
 
@@ -576,16 +576,16 @@ export class HttpClientService {
             const hasMessagesArea = $('[id*="MessagesArea"], [id*="Messages"]').length > 0;
             const hasExpectedContent = hasContentPlaceHolder || hasCheckElements || hasMessagesArea;
 
-            console.log(`[HTTP] 🔍 Layer 3 (Positive) - ContentPlaceHolder: ${hasContentPlaceHolder}, Check elements: ${hasCheckElements}, Messages: ${hasMessagesArea}`);
+            console.log(`[HTTP] ًں”چ Layer 3 (Positive) - ContentPlaceHolder: ${hasContentPlaceHolder}, Check elements: ${hasCheckElements}, Messages: ${hasMessagesArea}`);
 
             if (!hasExpectedContent) {
-                console.log(`[HTTP] ⚠️ NO EXPECTED CONTENT - Valid title but page appears empty/broken`);
+                console.log(`[HTTP] âڑ ï¸ڈ NO EXPECTED CONTENT - Valid title but page appears empty/broken`);
                 // Don't fail immediately - might be a valid but unexpected page structure
                 // Just log warning and continue
-                console.log(`[HTTP] ⚠️ Proceeding with caution - page may be incomplete`);
+                console.log(`[HTTP] âڑ ï¸ڈ Proceeding with caution - page may be incomplete`);
             }
 
-            console.log(`[HTTP] ✅ Valid page detected by title AND content - no session expiry`);
+            console.log(`[HTTP] âœ… Valid page detected by title AND content - no session expiry`);
             return null;
         }
 
@@ -598,10 +598,10 @@ export class HttpClientService {
             const hasLoginButton = $('input[id="Login1_LoginButton"]').length > 0;
             const hasLoginForm = hasLoginUsername || hasLoginButton;
 
-            console.log(`[HTTP] 🔍 Login page check - Username field: ${hasLoginUsername}, Login button: ${hasLoginButton}`);
+            console.log(`[HTTP] ًں”چ Login page check - Username field: ${hasLoginUsername}, Login button: ${hasLoginButton}`);
 
             if (hasLoginForm) {
-                console.log(`[HTTP] ⚠️ SESSION EXPIRED - Login page title + login form detected`);
+                console.log(`[HTTP] âڑ ï¸ڈ SESSION EXPIRED - Login page title + login form detected`);
                 return 'Session Expired - Redirected to Login Page';
             }
         }
@@ -617,17 +617,17 @@ export class HttpClientService {
         const hasLoginCaptcha = $('img[id="Login1_ImageVerificationDealer_Image"]').length > 0 &&
             $('input[id="Login1_ImageVerificationDealer_txtContent"]').length > 0;
 
-        console.log(`[HTTP] 🔍 Fallback check - Exact login form: ${hasExactLoginForm}, Login CAPTCHA: ${hasLoginCaptcha}`);
+        console.log(`[HTTP] ًں”چ Fallback check - Exact login form: ${hasExactLoginForm}, Login CAPTCHA: ${hasLoginCaptcha}`);
 
         if (hasExactLoginForm || hasLoginCaptcha) {
-            console.log(`[HTTP] ⚠️ SESSION EXPIRED - Login form elements detected (fallback)`);
+            console.log(`[HTTP] âڑ ï¸ڈ SESSION EXPIRED - Login form elements detected (fallback)`);
             return 'Session Expired - Redirected to Login Page';
         }
 
         // ============================================
         // STEP 5: No session expiry detected
         // ============================================
-        console.log(`[HTTP] ✅ No session expiry detected`);
+        console.log(`[HTTP] âœ… No session expiry detected`);
         return null;
     }
 
@@ -914,7 +914,7 @@ export class HttpClientService {
         this.lastLoginTime = null;
         this.sessionExpiresAt = null;
         this.currentViewState = null;
-        console.log('[HTTP] ⚠️ Session invalidated - will require fresh login');
+        console.log('[HTTP] âڑ ï¸ڈ Session invalidated - will require fresh login');
     }
 
     /**
@@ -966,7 +966,7 @@ export class HttpClientService {
             this.lastLoginTime = new Date();
             const timeoutMs = (this.config?.sessionTimeout || 15) * 60 * 1000;
             this.sessionExpiresAt = Date.now() + timeoutMs;
-            console.log('[HTTP] validateSession: Session is valid ✅ (expiry extended)');
+            console.log('[HTTP] validateSession: Session is valid âœ… (expiry extended)');
             return true;
 
         } catch (error: any) {
@@ -990,7 +990,7 @@ export class HttpClientService {
 
         // Check if session is still active - skip re-login
         if (this.isSessionActive()) {
-            console.log('[HTTP] ✅ Session still valid, skipping login');
+            console.log('[HTTP] âœ… Session still valid, skipping login');
             return { success: true };
         }
 
@@ -998,9 +998,9 @@ export class HttpClientService {
             // === DEBUG: Check IP before login to verify proxy ===
             try {
                 const ipCheckRes = await this.axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
-                console.log(`[HTTP] 🌐 Current IP (via proxy): ${ipCheckRes.data?.ip || 'unknown'}`);
+                console.log(`[HTTP] ًںŒگ Current IP (via proxy): ${ipCheckRes.data?.ip || 'unknown'}`);
             } catch (ipErr: any) {
-                console.log(`[HTTP] ⚠️ IP check failed: ${ipErr.message}`);
+                console.log(`[HTTP] âڑ ï¸ڈ IP check failed: ${ipErr.message}`);
             }
             // === END DEBUG ===
 
@@ -1172,7 +1172,7 @@ export class HttpClientService {
             );
 
             if (isSuccessPage) {
-                console.log(`[HTTP] ✅ Login successful! (Page: ${pageTitle})`);
+                console.log(`[HTTP] âœ… Login successful! (Page: ${pageTitle})`);
                 this.markSessionValid();
                 return { success: true };
             }
@@ -1182,9 +1182,9 @@ export class HttpClientService {
                 // === DEBUG: Log page details ===
                 const allRedSpans = $('span[style*="Red"], span[style*="red"]').map((i, el) => $(el).text().trim()).get();
                 const bodySnippet = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 500);
-                console.log(`[HTTP] 📄 DEBUG - Page title: ${pageTitle}`);
-                console.log(`[HTTP] 📄 DEBUG - Red spans found: ${JSON.stringify(allRedSpans)}`);
-                console.log(`[HTTP] 📄 DEBUG - Body snippet: ${bodySnippet}...`);
+                console.log(`[HTTP] ًں“„ DEBUG - Page title: ${pageTitle}`);
+                console.log(`[HTTP] ًں“„ DEBUG - Red spans found: ${JSON.stringify(allRedSpans)}`);
+                console.log(`[HTTP] ًں“„ DEBUG - Body snippet: ${bodySnippet}...`);
                 // === END DEBUG ===
 
                 // Still on login page - check for specific error
@@ -1198,7 +1198,7 @@ export class HttpClientService {
                 return { success: false, error: 'Login failed - redirected to error page' };
             }
 
-            console.log('[HTTP] ✅ Login successful!');
+            console.log('[HTTP] âœ… Login successful!');
             this.markSessionValid();
             return { success: true };
 
@@ -1242,7 +1242,7 @@ export class HttpClientService {
                 return { success: false, error: 'Session expired - please login again' };
             }
 
-            // Extract ViewState locally (NOT this.currentViewState — safe for parallel execution)
+            // Extract ViewState locally (NOT this.currentViewState â€” safe for parallel execution)
             const localViewState = this.extractHiddenFields(checkPageRes.data);
 
             // Get actual button value from HTML (ASP.NET may use 'Check', 'Check Now', etc.)
@@ -1268,7 +1268,7 @@ export class HttpClientService {
             // Akamai may block the POST and return login page even if GET worked
             const postSessionExpiry = this.checkForSessionExpiry(checkRes.data);
             if (postSessionExpiry) {
-                console.log(`[HTTP] ❌ POST response is login page - session expired during POST`);
+                console.log(`[HTTP] â‌Œ POST response is login page - session expired during POST`);
                 this.invalidateSession();
                 return { success: false, error: postSessionExpiry };
             }
@@ -1276,14 +1276,14 @@ export class HttpClientService {
             // Check for errors
             const error = this.checkForErrors(checkRes.data);
             if (error) {
-                console.log(`[HTTP] ❌ Check card error: "${error}"`);
+                console.log(`[HTTP] â‌Œ Check card error: "${error}"`);
                 return { success: false, error };
             }
 
             // DEBUG: Check for "Invalid Serial Number" in check page response
             const responseHtml = checkRes.data as string;
             if (responseHtml.includes('Invalid Serial') || responseHtml.includes('not found')) {
-                console.log(`[HTTP] ⚠️ Check page returned invalid/not found error`);
+                console.log(`[HTTP] âڑ ï¸ڈ Check page returned invalid/not found error`);
                 console.log(`[HTTP] Response preview: ${responseHtml.slice(0, 300).replace(/\s+/g, ' ')}...`);
             }
 
@@ -1314,9 +1314,9 @@ export class HttpClientService {
                     lblSerial.match(/(\d{15})/)?.[1];
             }
 
-            // Pattern 4: Arabic label "رقم الريسيفر"
+            // Pattern 4: Arabic label "ط±ظ‚ظ… ط§ظ„ط±ظٹط³ظٹظپط±"
             if (!stbMatch) {
-                stbMatch = pageText.match(/رقم الريسيفر[:\s]*(\d{10,})/)?.[1];
+                stbMatch = pageText.match(/ط±ظ‚ظ… ط§ظ„ط±ظٹط³ظٹظپط±[:\s]*(\d{10,})/)?.[1];
             }
 
             // Pattern 5: Any 15-digit number as fallback
@@ -1327,12 +1327,12 @@ export class HttpClientService {
             // AUDIT FIX: Validate STB format before storing
             if (stbMatch && stbMatch.length >= 10 && /^\d+$/.test(stbMatch)) {
                 this.currentStbNumber = stbMatch;
-                console.log(`[HTTP] ✅ STB extracted: ${stbMatch}`);
+                console.log(`[HTTP] âœ… STB extracted: ${stbMatch}`);
             } else {
-                console.log('[HTTP] ⚠️ STB not found in response');
+                console.log('[HTTP] âڑ ï¸ڈ STB not found in response');
             }
 
-            // NOTE: Not updating this.currentViewState here — checkCard runs in parallel
+            // NOTE: Not updating this.currentViewState here â€” checkCard runs in parallel
             // with loadPackages, which manages its own ViewState chain.
 
             return {
@@ -1367,7 +1367,7 @@ export class HttpClientService {
             const checkResult = await this.checkCard(cardNumber);
 
             if (!checkResult.success) {
-                console.log(`[HTTP] ❌ Card validation failed: ${checkResult.error}`);
+                console.log(`[HTTP] â‌Œ Card validation failed: ${checkResult.error}`);
                 return {
                     success: false,
                     packages: [],
@@ -1375,11 +1375,11 @@ export class HttpClientService {
                 };
             }
 
-            console.log(`[HTTP] ✅ Card validated successfully`);
+            console.log(`[HTTP] âœ… Card validated successfully`);
             if (this.currentStbNumber) {
-                console.log(`[HTTP] ✅ STB extracted: ${this.currentStbNumber}`);
+                console.log(`[HTTP] âœ… STB extracted: ${this.currentStbNumber}`);
             } else {
-                console.log(`[HTTP] ⚠️ STB not found - will try to extract later`);
+                console.log(`[HTTP] âڑ ï¸ڈ STB not found - will try to extract later`);
             }
 
             // Step 2: Load packages from SellPackages page
@@ -1480,7 +1480,7 @@ export class HttpClientService {
                     console.log(`[HTTP] ${smartcardType} not found in dropdown, using fallback: value="${selectedTypeValue}"`);
                 }
 
-                // POST to select the smartcard type (required — ASP.NET needs this server-side event)
+                // POST to select the smartcard type (required â€” ASP.NET needs this server-side event)
                 if (selectedTypeValue) {
                     const selectFormData: Record<string, string> = {
                         ...this.currentViewState!,
@@ -1508,9 +1508,9 @@ export class HttpClientService {
             // beIN SellPackages page has "7" pre-filled in tbSerial1, BUT:
             // When we POST, we REPLACE the field value entirely!
             // So we need to send the FULL card WITHOUT last digit (check digit)
-            // Example: 7511394806 → 751139480 (slice 0,-1)
+            // Example: 7511394806 â†’ 751139480 (slice 0,-1)
             const formattedCard = cardNumber.slice(0, -1);
-            console.log(`[HTTP] Card format: ${cardNumber} → ${formattedCard} (removed last digit only)`);
+            console.log(`[HTTP] Card format: ${cardNumber} â†’ ${formattedCard} (removed last digit only)`);
 
             // Get actual Load button value from current HTML
             const currentHtml = $.html();
@@ -1573,7 +1573,7 @@ export class HttpClientService {
             // CRITICAL FIX: Use proper session expiry detection (includes Layer 2 & 3)
             const loadPostSessionExpiry = this.checkForSessionExpiry(loadRes.data);
             if (loadPostSessionExpiry) {
-                console.log(`[HTTP] ❌ SESSION EXPIRED during loadPackages POST - ${loadPostSessionExpiry}`);
+                console.log(`[HTTP] â‌Œ SESSION EXPIRED during loadPackages POST - ${loadPostSessionExpiry}`);
                 this.invalidateSession();
                 return { success: false, packages: [], error: loadPostSessionExpiry };
             }
@@ -1592,7 +1592,7 @@ export class HttpClientService {
             if (bodyText.includes('invalid') || bodyText.includes('error') || bodyText.includes('not found')) {
                 const matchedKeyword = bodyText.includes('invalid') ? 'invalid' :
                     bodyText.includes('error') ? 'error' : 'not found';
-                console.log(`[HTTP] ⚠️ Page contains "${matchedKeyword}" keyword`);
+                console.log(`[HTTP] âڑ ï¸ڈ Page contains "${matchedKeyword}" keyword`);
 
                 // Try to find the actual message near the keyword
                 const invalidMatch = $('body').text().match(/invalid[^.]{0,50}/i);
@@ -1614,7 +1614,7 @@ export class HttpClientService {
 
             const serial2Field = $('input[id*="tbSerial2"], input[name*="tbSerial2"]');
             if (serial2Field.length > 0) {
-                console.log('[HTTP] ✅ tbSerial2 field found - sending step 2...');
+                console.log('[HTTP] âœ… tbSerial2 field found - sending step 2...');
 
                 // Detect the new "Load" button for Step 2 (usually btnLoad2 based on screenshots)
                 const step2Html = loadRes.data as string;
@@ -1649,7 +1649,7 @@ export class HttpClientService {
                     }
                 );
             } else {
-                console.log('[HTTP] ⚠️ tbSerial2 field NOT found in response - checking for packages directly');
+                console.log('[HTTP] âڑ ï¸ڈ tbSerial2 field NOT found in response - checking for packages directly');
             }
 
             // Check for errors
@@ -1677,7 +1677,7 @@ export class HttpClientService {
             const packages = this.extractPackagesFromHtml($);
 
             if (packages.length === 0) {
-                console.log('[HTTP] ⚠️ No packages found');
+                console.log('[HTTP] âڑ ï¸ڈ No packages found');
                 return {
                     success: false,
                     packages: [],
@@ -1692,10 +1692,10 @@ export class HttpClientService {
             const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : undefined;
 
             if (dealerBalance !== undefined) {
-                console.log(`[HTTP] 💰 Dealer Balance: ${dealerBalance} USD`);
+                console.log(`[HTTP] ًں’° Dealer Balance: ${dealerBalance} USD`);
             }
 
-            console.log(`[HTTP] ✅ Loaded ${packages.length} packages`);
+            console.log(`[HTTP] âœ… Loaded ${packages.length} packages`);
             return {
                 success: true,
                 packages,
@@ -1792,12 +1792,12 @@ export class HttpClientService {
                 if (match) {
                     // Remove commas before parsing: "1,340" -> "1340"
                     const balance = parseFloat(match[1].replace(/,/g, ''));
-                    console.log(`[HTTP] 💰 Dealer Balance: ${balance} USD`);
+                    console.log(`[HTTP] ًں’° Dealer Balance: ${balance} USD`);
                     return { success: true, balance };
                 }
             }
 
-            console.log('[HTTP] ⚠️ Could not extract balance from page');
+            console.log('[HTTP] âڑ ï¸ڈ Could not extract balance from page');
             return { success: false, balance: null, error: 'Balance not found on page' };
 
         } catch (err: any) {
@@ -1847,7 +1847,7 @@ export class HttpClientService {
             // Check for errors
             const error = this.checkForErrors(promoRes.data);
             if (error) {
-                console.log(`[HTTP] ⚠️ Promo code error: ${error}`);
+                console.log(`[HTTP] âڑ ï¸ڈ Promo code error: ${error}`);
                 return { success: false, packages: [], error };
             }
 
@@ -1861,7 +1861,7 @@ export class HttpClientService {
 
             // Check if promo code resulted in empty packages (User Requirement)
             if (packages.length === 0) {
-                console.log('[HTTP] ⚠️ No packages found after promo code - treating as invalid');
+                console.log('[HTTP] âڑ ï¸ڈ No packages found after promo code - treating as invalid');
 
                 // Check if there was a specific error message on page
                 const promoError = $('[id*="lblError"], .error, span[style*="red"]').text().trim();
@@ -1874,7 +1874,7 @@ export class HttpClientService {
                 };
             }
 
-            console.log(`[HTTP] ✅ Loaded ${packages.length} packages with promo code`);
+            console.log(`[HTTP] âœ… Loaded ${packages.length} packages with promo code`);
             return {
                 success: true,
                 packages,
@@ -1917,7 +1917,7 @@ export class HttpClientService {
 
         // CRITICAL: Check we have ViewState from previous step (loadPackages)
         if (!this.currentViewState) {
-            console.log('[HTTP] ❌ No ViewState available - session may have been lost');
+            console.log('[HTTP] â‌Œ No ViewState available - session may have been lost');
             return {
                 success: false,
                 message: 'Session expired - ViewState not available. Please start a new operation.'
@@ -1936,8 +1936,8 @@ export class HttpClientService {
                 };
             }
 
-            console.log(`[HTTP] 📦 Using stored checkbox: ${checkboxValue}`);
-            console.log(`[HTTP] 📦 Using stored ViewState: ${this.currentViewState.__VIEWSTATE?.length || 0} chars`);
+            console.log(`[HTTP] ًں“¦ Using stored checkbox: ${checkboxValue}`);
+            console.log(`[HTTP] ًں“¦ Using stored ViewState: ${this.currentViewState.__VIEWSTATE?.length || 0} chars`);
 
             // Step 1: Select checkbox + Add to cart (POST directly, no GET!)
             const addFormData: Record<string, string> = {
@@ -1963,12 +1963,12 @@ export class HttpClientService {
             // Check for errors in response
             const addError = this.checkForErrors(res.data);
             if (addError) {
-                console.log(`[HTTP] ❌ Add to cart error: ${addError}`);
+                console.log(`[HTTP] â‌Œ Add to cart error: ${addError}`);
                 return { success: false, message: `Add to cart failed: ${addError}` };
             }
 
             this.currentViewState = this.extractHiddenFields(res.data);
-            console.log('[HTTP] ✅ Added to cart');
+            console.log('[HTTP] âœ… Added to cart');
 
             // Step 2: Click Sell button
             const sellFormData: Record<string, string> = {
@@ -1988,12 +1988,12 @@ export class HttpClientService {
             // Check for errors
             const sellError = this.checkForErrors(res.data);
             if (sellError) {
-                console.log(`[HTTP] ❌ Sell error: ${sellError}`);
+                console.log(`[HTTP] â‌Œ Sell error: ${sellError}`);
                 return { success: false, message: `Sell failed: ${sellError}` };
             }
 
             this.currentViewState = this.extractHiddenFields(res.data);
-            console.log('[HTTP] ✅ Sell clicked');
+            console.log('[HTTP] âœ… Sell clicked');
 
             // Step 3: Enter STB number in both fields
             // beIN uses 'tbStbSerial1' and 'tbStbSerial2' (sometimes 'toStbSerial2')
@@ -2016,16 +2016,16 @@ export class HttpClientService {
             // Check for errors
             const stbError = this.checkForErrors(res.data);
             if (stbError) {
-                console.log(`[HTTP] ❌ STB error: ${stbError}`);
+                console.log(`[HTTP] â‌Œ STB error: ${stbError}`);
                 return { success: false, message: `STB entry failed: ${stbError}` };
             }
 
             this.currentViewState = this.extractHiddenFields(res.data);
-            console.log('[HTTP] ✅ STB entered');
+            console.log('[HTTP] âœ… STB entered');
 
             // If skipFinalClick, return here for user confirmation
             if (skipFinalClick) {
-                console.log('[HTTP] ⏸️ Paused for user confirmation');
+                console.log('[HTTP] âڈ¸ï¸ڈ Paused for user confirmation');
                 return {
                     success: true,
                     message: `Ready to confirm - ${selectedPackage.name} at ${selectedPackage.price} USD`,
@@ -2063,11 +2063,11 @@ export class HttpClientService {
 
             if (balanceMatch) {
                 const balance = parseFloat(balanceMatch[1].replace(/,/g, ''));
-                console.log(`[HTTP] 💰 Current Balance: ${balance} USD`);
+                console.log(`[HTTP] ًں’° Current Balance: ${balance} USD`);
                 return balance;
             }
 
-            console.log('[HTTP] ⚠️ Could not extract balance from page');
+            console.log('[HTTP] âڑ ï¸ڈ Could not extract balance from page');
             return null;
         } catch (error: any) {
             console.error('[HTTP] Error fetching balance:', error.message);
@@ -2087,6 +2087,7 @@ export class HttpClientService {
     async confirmPurchase(expectedCost?: number): Promise<PurchaseResult> {
         console.log('[HTTP] Confirming purchase...');
 
+        let paySubmitted = false;
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
 
@@ -2132,20 +2133,20 @@ export class HttpClientService {
             // Check for errors after OK
             const okError = this.checkForErrors(res.data);
             if (okError) {
-                console.log(`[HTTP] ❌ OK button error: ${okError}`);
+                console.log(`[HTTP] â‌Œ OK button error: ${okError}`);
                 return { success: false, message: okError };
             }
 
             // Extract ViewState for next step
             this.currentViewState = this.extractHiddenFields(res.data);
-            console.log('[HTTP] ✅ OK clicked, payment options page');
+            console.log('[HTTP] âœ… OK clicked, payment options page');
 
             // IMPORTANT: Capture balance BEFORE payment from this page
             // The OK response page shows "Your Current Credit Balance is X USD"
             const balanceBeforeMatch = res.data.match(/Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i);
             const balanceBefore = balanceBeforeMatch ? parseFloat(balanceBeforeMatch[1].replace(/,/g, '')) : null;
             if (balanceBefore !== null) {
-                console.log(`[HTTP] 💰 Balance BEFORE payment: ${balanceBefore} USD`);
+                console.log(`[HTTP] ًں’° Balance BEFORE payment: ${balanceBefore} USD`);
             }
 
             // Check if payment options page appeared
@@ -2154,7 +2155,7 @@ export class HttpClientService {
 
             // Check if already success (no payment needed)
             if (pageText.includes('Contract Created Successfully') || pageText.includes('Success')) {
-                console.log('[HTTP] ✅ Purchase completed directly (no payment selection)');
+                console.log('[HTTP] âœ… Purchase completed directly (no payment selection)');
                 const balanceAfterDirect = await this.getBalanceFromSellPackagesPage();
                 return {
                     success: true,
@@ -2228,6 +2229,7 @@ export class HttpClientService {
             }
 
             console.log('[HTTP] POST Pay (Direct Payment)...');
+            paySubmitted = true;
             res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(payFormData),
@@ -2239,7 +2241,7 @@ export class HttpClientService {
             // Check for immediate errors
             const payError = this.checkForErrors(res.data);
             if (payError) {
-                console.log(`[HTTP] ❌ Pay error: ${payError}`);
+                console.log(`[HTTP] â‌Œ Pay error: ${payError}`);
                 return { success: false, message: payError };
             }
 
@@ -2276,7 +2278,7 @@ export class HttpClientService {
             // Check for error patterns in response
             const errorPatterns = [
                 'insufficient balance',
-                'رصيد غير كافي',
+                'ط±طµظٹط¯ ط؛ظٹط± ظƒط§ظپظٹ',
                 'Insufficient Credit',
                 'not available',
                 'Sign In',
@@ -2285,7 +2287,12 @@ export class HttpClientService {
 
             for (const pattern of errorPatterns) {
                 if (resultPageText.toLowerCase().includes(pattern.toLowerCase())) {
-                    console.log(`[HTTP] ❌ Purchase failed: Page contains "${pattern}"`);
+                    // After pay submitted, session loss is ambiguous (beIN may have processed)
+                    if (paySubmitted && (pattern === 'Sign In' || pattern === 'Login')) {
+                        console.log(`[HTTP] âڑ ï¸ڈ Session lost AFTER pay submitted â€” ambiguous outcome`);
+                        return { success: false, message: `Transaction status unknown - session lost after payment submitted` };
+                    }
+                    console.log(`[HTTP] â‌Œ Purchase failed: Page contains "${pattern}"`);
                     return { success: false, message: `Purchase failed - ${pattern}` };
                 }
             }
@@ -2295,18 +2302,29 @@ export class HttpClientService {
             // ===============================================
             const successPatterns = [
                 'Contract Created Successfully',
-                'تم إنشاء العقد بنجاح',
+                'طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط¹ظ‚ط¯ ط¨ظ†ط¬ط§ط­',
                 'Package Added Successfully',
-                'تم إضافة الباقة بنجاح'
+                'طھظ… ط¥ط¶ط§ظپط© ط§ظ„ط¨ط§ظ‚ط© ط¨ظ†ط¬ط§ط­'
             ];
 
             for (const pattern of successPatterns) {
                 if (resultPageText.includes(pattern) || res.data.includes(pattern)) {
-                    console.log(`[HTTP] ✅ SUCCESS! Found message: "${pattern}"`);
+                    console.log(`[HTTP] âœ… SUCCESS! Found message: "${pattern}"`);
 
                     // Get balance after to report
                     const balanceAfter = await this.getBalanceFromSellPackagesPage();
-                    console.log(`[HTTP] 💰 Balance after success: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
+                    console.log(`[HTTP] ًں’° Balance after success: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
+
+                    // Validate balance delta against expected cost if provided
+                    if (expectedCost && balanceBefore !== null && balanceAfter !== null) {
+                        const delta = balanceBefore - balanceAfter;
+                        const tolerance = Math.max(0.5, expectedCost * 0.05);
+                        if (Math.abs(delta - expectedCost) > tolerance) {
+                            console.warn(`[HTTP] âڑ ï¸ڈ Balance delta $${delta} doesn't match expected $${expectedCost} (tolerance: $${tolerance})`);
+                            return { success: false, message: `Transaction status unknown - balance delta mismatch ($${delta} vs expected $${expectedCost})` };
+                        }
+                        console.log(`[HTTP] âœ… Balance delta $${delta} matches expected $${expectedCost}`);
+                    }
 
                     return {
                         success: true,
@@ -2320,16 +2338,16 @@ export class HttpClientService {
             // STEP 4: Handle "Transaction is busy" - RETRY
             // ===============================================
             if (resultPageText.includes('Transaction is busy') || resultPageText.includes('wait for sometime')) {
-                console.log('[HTTP] ⏳ Transaction is busy - beIN is processing, will retry...');
+                console.log('[HTTP] âڈ³ Transaction is busy - beIN is processing, will retry...');
 
                 // Retry up to 5 times with 3-second delays
                 for (let retry = 1; retry <= 5; retry++) {
-                    console.log(`[HTTP] ⏳ Retry ${retry}/5 - waiting 3 seconds...`);
+                    console.log(`[HTTP] âڈ³ Retry ${retry}/5 - waiting 3 seconds...`);
                     await new Promise(resolve => setTimeout(resolve, 3000));
 
                     // Check balance page to see if transaction completed
                     const retryBalance = await this.getBalanceFromSellPackagesPage();
-                    console.log(`[HTTP] 💰 Retry ${retry} balance: ${retryBalance !== null ? retryBalance + ' USD' : 'unknown'}`);
+                    console.log(`[HTTP] ًں’° Retry ${retry} balance: ${retryBalance !== null ? retryBalance + ' USD' : 'unknown'}`);
 
                     // Also re-check the sell packages page for any success message
                     try {
@@ -2342,7 +2360,7 @@ export class HttpClientService {
                         // Check for success
                         for (const pattern of successPatterns) {
                             if (retryText.includes(pattern)) {
-                                console.log(`[HTTP] ✅ SUCCESS on retry ${retry}! Found: "${pattern}"`);
+                                console.log(`[HTTP] âœ… SUCCESS on retry ${retry}! Found: "${pattern}"`);
                                 return {
                                     success: true,
                                     message: pattern,
@@ -2353,28 +2371,28 @@ export class HttpClientService {
 
                         // Check if "Transaction is busy" is gone (transaction may have completed)
                         if (!retryText.includes('Transaction is busy') && !retryText.includes('wait for sometime')) {
-                            console.log(`[HTTP] ℹ️ Retry ${retry}: "Transaction is busy" message gone`);
+                            console.log(`[HTTP] â„¹ï¸ڈ Retry ${retry}: "Transaction is busy" message gone`);
 
                             // CRITICAL FIX: Only return success if balance ACTUALLY decreased
                             // Previously returned success just because balance was readable (false positive!)
                             if (balanceBefore !== null && retryBalance !== null && retryBalance < balanceBefore) {
                                 const decrease = balanceBefore - retryBalance;
-                                console.log(`[HTTP] ✅ Balance decreased by $${decrease} (${balanceBefore} → ${retryBalance}) — transaction succeeded`);
+                                console.log(`[HTTP] âœ… Balance decreased by $${decrease} (${balanceBefore} â†’ ${retryBalance}) â€” transaction succeeded`);
                                 return {
                                     success: true,
                                     message: `Transaction completed (balance decreased by $${decrease})`,
                                     newBalance: retryBalance
                                 };
                             } else if (balanceBefore !== null && retryBalance !== null && retryBalance >= balanceBefore) {
-                                console.log(`[HTTP] ❌ Balance did NOT decrease (${balanceBefore} → ${retryBalance}) — transaction failed on beIN`);
+                                console.log(`[HTTP] â‌Œ Balance did NOT decrease (${balanceBefore} â†’ ${retryBalance}) â€” transaction failed on beIN`);
                                 return {
                                     success: false,
                                     message: `Transaction failed on beIN - balance unchanged ($${retryBalance})`,
                                     newBalance: retryBalance
                                 };
                             } else {
-                                // Can't determine balance — don't assume success
-                                console.log(`[HTTP] ⚠️ Cannot verify balance change — failing safe`);
+                                // Can't determine balance â€” don't assume success
+                                console.log(`[HTTP] âڑ ï¸ڈ Cannot verify balance change â€” failing safe`);
                                 return {
                                     success: false,
                                     message: 'Transaction status unknown - could not verify balance change',
@@ -2383,12 +2401,12 @@ export class HttpClientService {
                             }
                         }
                     } catch (retryErr: any) {
-                        console.log(`[HTTP] ⚠️ Retry ${retry} check failed: ${retryErr.message}`);
+                        console.log(`[HTTP] âڑ ï¸ڈ Retry ${retry} check failed: ${retryErr.message}`);
                     }
                 }
 
                 // All retries exhausted - still busy
-                console.log('[HTTP] ⚠️ Transaction still busy after 5 retries');
+                console.log('[HTTP] âڑ ï¸ڈ Transaction still busy after 5 retries');
                 const finalBalance = await this.getBalanceFromSellPackagesPage();
                 return {
                     success: false,
@@ -2400,16 +2418,26 @@ export class HttpClientService {
             // ===============================================
             // STEP 5: Get BALANCE AFTER to verify
             // ===============================================
-            console.log('[HTTP] 💰 No success message found, checking balance...');
+            console.log('[HTTP] ًں’° No success message found, checking balance...');
 
             // Small delay to ensure beIN has processed
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             const balanceAfter = await this.getBalanceFromSellPackagesPage();
-            console.log(`[HTTP] 💰 Balance AFTER: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
+            console.log(`[HTTP] ًں’° Balance AFTER: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
 
-            // If we can't find success message and can't verify balance, fail
-            console.log('[HTTP] ⚠️ No success confirmation found');
+            // If balance decreased despite no success text, likely succeeded
+            if (balanceBefore !== null && balanceAfter !== null && balanceAfter < balanceBefore) {
+                const delta = balanceBefore - balanceAfter;
+                console.log(`[HTTP] âœ… No text confirmation but balance decreased by $${delta}`);
+                return {
+                    success: true,
+                    message: `Transaction completed (balance decreased by $${delta})`,
+                    newBalance: balanceAfter
+                };
+            }
+
+            console.log('[HTTP] âڑ ï¸ڈ No success confirmation found');
             return {
                 success: false,
                 message: 'No success confirmation found from beIN',
@@ -2417,6 +2445,10 @@ export class HttpClientService {
             };
 
         } catch (error: any) {
+            if (paySubmitted) {
+                console.error('[HTTP] âڑ ï¸ڈ Error AFTER pay submitted:', error.message);
+                return { success: false, message: `Transaction status unknown - error after payment: ${error.message}` };
+            }
             console.error('[HTTP] Confirm error:', error.message);
             return { success: false, message: `Confirm failed: ${error.message}` };
         }
@@ -2478,7 +2510,7 @@ export class HttpClientService {
                 }
             );
 
-            console.log('[HTTP] ✅ Purchase cancelled');
+            console.log('[HTTP] âœ… Purchase cancelled');
             return { success: true, message: 'Purchase cancelled' };
 
         } catch (error: any) {
@@ -2525,9 +2557,9 @@ export class HttpClientService {
 
             // === DEBUG: Log cookies before check page request ===
             const checkCookies = await this.jar.getCookies(checkUrl);
-            console.log(`[HTTP] 🍪 DEBUG - Cookies for check page: ${checkCookies.length} cookies`);
+            console.log(`[HTTP] ًںچھ DEBUG - Cookies for check page: ${checkCookies.length} cookies`);
             if (checkCookies.length > 0) {
-                console.log(`[HTTP] 🍪 DEBUG - Cookie names: ${checkCookies.map(c => c.key).join(', ')}`);
+                console.log(`[HTTP] ًںچھ DEBUG - Cookie names: ${checkCookies.map(c => c.key).join(', ')}`);
             }
             // === END DEBUG ===
 
@@ -2540,9 +2572,9 @@ export class HttpClientService {
             // === DEBUG: Check what page we got ===
             const $getPage = cheerio.load(checkPageRes.data);
             const getPageTitle = $getPage('title').text().trim();
-            console.log(`[HTTP] 📄 DEBUG - GET check page title: "${getPageTitle}"`);
+            console.log(`[HTTP] ًں“„ DEBUG - GET check page title: "${getPageTitle}"`);
             if (getPageTitle.toLowerCase().includes('sign in') || getPageTitle.toLowerCase().includes('login')) {
-                console.log('[HTTP] ⚠️ WARNING: GET check page returned LOGIN page - session may be lost!');
+                console.log('[HTTP] âڑ ï¸ڈ WARNING: GET check page returned LOGIN page - session may be lost!');
             }
             // === END DEBUG ===
 
@@ -2575,9 +2607,9 @@ export class HttpClientService {
 
             // === DEBUG: Log cookies before POST ===
             const postCookies = await this.jar.getCookies(checkUrl);
-            console.log(`[HTTP] 🍪 DEBUG - Cookies for POST check: ${postCookies.length} cookies`);
-            console.log(`[HTTP] 📝 DEBUG - ViewState length: ${this.currentViewState.__VIEWSTATE?.length || 0} chars`);
-            console.log(`[HTTP] 📝 DEBUG - btnCheck value: "${checkBtnValue}"`);
+            console.log(`[HTTP] ًںچھ DEBUG - Cookies for POST check: ${postCookies.length} cookies`);
+            console.log(`[HTTP] ًں“‌ DEBUG - ViewState length: ${this.currentViewState.__VIEWSTATE?.length || 0} chars`);
+            console.log(`[HTTP] ًں“‌ DEBUG - btnCheck value: "${checkBtnValue}"`);
             // === END DEBUG ===
 
             console.log('[HTTP] POST check card...');
@@ -2590,16 +2622,16 @@ export class HttpClientService {
             );
 
             // === DEBUG: Check POST response page ===
-            console.log(`[HTTP] 📄 DEBUG - POST response status: ${checkRes.status}`);
+            console.log(`[HTTP] ًں“„ DEBUG - POST response status: ${checkRes.status}`);
             const $postPage = cheerio.load(checkRes.data);
             const postPageTitle = $postPage('title').text().trim();
-            console.log(`[HTTP] 📄 DEBUG - POST check response title: "${postPageTitle}"`);
+            console.log(`[HTTP] ًں“„ DEBUG - POST check response title: "${postPageTitle}"`);
             const hasCheckForm = $postPage('#ContentPlaceHolder1_tbSerial').length > 0;
-            console.log(`[HTTP] 📄 DEBUG - Check form exists: ${hasCheckForm}`);
+            console.log(`[HTTP] ًں“„ DEBUG - Check form exists: ${hasCheckForm}`);
 
             // Check if POST returned login page - this means session was lost
             if (postPageTitle.toLowerCase().includes('sign in') || postPageTitle.toLowerCase().includes('login')) {
-                console.log('[HTTP] ⚠️ ERROR: POST check returned LOGIN page - session lost during POST!');
+                console.log('[HTTP] âڑ ï¸ڈ ERROR: POST check returned LOGIN page - session lost during POST!');
                 this.invalidateSession();
                 return { success: false, error: 'Session expired during card check - please try again' };
             }
@@ -2609,7 +2641,7 @@ export class HttpClientService {
             // We only fail if the page indicates a session issue (login page/CAPTCHA)
             // The hasCheckForm check is informational, not a hard requirement
             if (!hasCheckForm) {
-                console.log('[HTTP] ⚠️ Form field not visible after POST (this may be normal for results page)');
+                console.log('[HTTP] âڑ ï¸ڈ Form field not visible after POST (this may be normal for results page)');
 
                 // AUDIT FIX 2.1: Use title-first detection instead of unreliable body text check
                 // The page title "Finance Module" indicates a valid page even if form is hidden
@@ -2627,10 +2659,10 @@ export class HttpClientService {
                     const hasCaptchaText = postBodyText.includes('Enter the following code');
                     const hasLoginContentInPost = hasSignInText && hasCaptchaText;
 
-                    console.log(`[HTTP] 🔍 POST Layer 2 - Login form: ${hasLoginFormInPost}, Sign In: ${hasSignInText}, CAPTCHA: ${hasCaptchaText}`);
+                    console.log(`[HTTP] ًں”چ POST Layer 2 - Login form: ${hasLoginFormInPost}, Sign In: ${hasSignInText}, CAPTCHA: ${hasCaptchaText}`);
 
                     if (hasLoginFormInPost || hasLoginContentInPost) {
-                        console.log('[HTTP] ⚠️ POST CACHED TITLE - Valid title but login content - session expired');
+                        console.log('[HTTP] âڑ ï¸ڈ POST CACHED TITLE - Valid title but login content - session expired');
                         this.invalidateSession();
                         return { success: false, error: 'Session expired - please login again' };
                     }
@@ -2643,36 +2675,36 @@ export class HttpClientService {
                     const hasCardInfo = postBodyText.includes('STB') || postBodyText.includes('Serial') || postBodyText.includes('Wallet');
                     const hasExpectedContent = hasMessagesArea || hasActivateBtn || hasCardInfo;
 
-                    console.log(`[HTTP] 🔍 POST Layer 3 - Messages: ${hasMessagesArea}, Activate btn: ${hasActivateBtn}, Card info: ${hasCardInfo}`);
+                    console.log(`[HTTP] ًں”چ POST Layer 3 - Messages: ${hasMessagesArea}, Activate btn: ${hasActivateBtn}, Card info: ${hasCardInfo}`);
 
                     if (!hasExpectedContent) {
-                        console.log('[HTTP] ⚠️ POST has valid title but no expected card content - might be session issue');
+                        console.log('[HTTP] âڑ ï¸ڈ POST has valid title but no expected card content - might be session issue');
                         // Don't fail immediately, but log warning
                     }
 
-                    console.log('[HTTP] ✅ POST response has valid title and content - continuing');
+                    console.log('[HTTP] âœ… POST response has valid title and content - continuing');
                 } else {
                     // Only check for session expiry if page title is NOT valid
                     const hasLoginTitle = postTitleLower.includes('sign in') || postTitleLower.includes('login');
                     const hasLoginForm = $postPage('input[id="Login1_UserName"]').length > 0;
 
-                    console.log(`[HTTP] 🔍 POST session check - Login title: ${hasLoginTitle}, Login form: ${hasLoginForm}`);
+                    console.log(`[HTTP] ًں”چ POST session check - Login title: ${hasLoginTitle}, Login form: ${hasLoginForm}`);
 
                     if (hasLoginTitle || hasLoginForm) {
-                        console.log('[HTTP] ⚠️ DETECTED: Session expired - Login page returned after POST');
+                        console.log('[HTTP] âڑ ï¸ڈ DETECTED: Session expired - Login page returned after POST');
                         this.invalidateSession();
                         return { success: false, error: 'Session expired - please login again' };
                     }
 
                     // If title is not valid but also not login page, continue with caution
-                    console.log('[HTTP] ℹ️ Unknown page state - continuing to parse results...');
+                    console.log('[HTTP] â„¹ï¸ڈ Unknown page state - continuing to parse results...');
                 }
             }
 
             // Check for errors
             const error = this.checkForErrors(checkRes.data);
             if (error) {
-                console.log(`[HTTP] ❌ Check card error: "${error}"`);
+                console.log(`[HTTP] â‌Œ Check card error: "${error}"`);
                 return { success: false, error };
             }
 
@@ -2688,8 +2720,8 @@ export class HttpClientService {
             const messageText = messagesDiv.text();
 
             // === DEBUG: Log page content for troubleshooting ===
-            console.log(`[HTTP] 📄 DEBUG - pageText (first 800 chars): ${pageText.replace(/\s+/g, ' ').trim().substring(0, 800)}...`);
-            console.log(`[HTTP] 📄 DEBUG - messagesDiv: ${messageText.replace(/\s+/g, ' ').trim()}`);
+            console.log(`[HTTP] ًں“„ DEBUG - pageText (first 800 chars): ${pageText.replace(/\s+/g, ' ').trim().substring(0, 800)}...`);
+            console.log(`[HTTP] ًں“„ DEBUG - messagesDiv: ${messageText.replace(/\s+/g, ' ').trim()}`);
             // === END DEBUG ===
 
             // Check if Premium
@@ -2723,7 +2755,7 @@ export class HttpClientService {
 
             // Extract Contracts Table
             const contracts = this.extractContractsTable($);
-            console.log(`[HTTP] ✅ Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}, CanActivate=${canActivate}, Contracts=${contracts.length}`);
+            console.log(`[HTTP] âœ… Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}, CanActivate=${canActivate}, Contracts=${contracts.length}`);
 
             return {
                 success: true,
@@ -2860,7 +2892,7 @@ export class HttpClientService {
 
             // Verify we have ViewState from previous check
             if (!this.currentViewState || !this.currentViewState.__VIEWSTATE) {
-                console.log('[HTTP] ⚠️ No ViewState - need to check card first');
+                console.log('[HTTP] âڑ ï¸ڈ No ViewState - need to check card first');
                 return { success: false, error: 'Please check card status first' };
             }
 
@@ -2948,9 +2980,9 @@ export class HttpClientService {
             const hasSuccessMessage = responseText.includes('signal sent') ||
                 responseText.includes('activation signal sent') ||
                 responseText.includes('successfully') ||
-                responseText.includes('تم الارسال') ||
-                responseText.includes('تم التفعيل') ||
-                responseText.includes('تمت العملية');
+                responseText.includes('طھظ… ط§ظ„ط§ط±ط³ط§ظ„') ||
+                responseText.includes('طھظ… ط§ظ„طھظپط¹ظٹظ„') ||
+                responseText.includes('طھظ…طھ ط§ظ„ط¹ظ…ظ„ظٹط©');
 
             // Extract new count
             const newBtnMatch = rawResponse.match(/Activate\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)/i);
@@ -2962,7 +2994,7 @@ export class HttpClientService {
 
             // Verification if no clear success
             if (!countIncreased && !hasSuccessMessage) {
-                console.log('[HTTP] ⚠️ No clear success indicator, verifying...');
+                console.log('[HTTP] âڑ ï¸ڈ No clear success indicator, verifying...');
                 await new Promise(resolve => setTimeout(resolve, 500));
 
                 const verifyRes = await this.axios.get(checkUrl, {
@@ -2991,7 +3023,7 @@ export class HttpClientService {
                 if (verifyMatch) {
                     const verifiedCount = parseInt(verifyMatch[1]);
                     if (verifiedCount > activateCount.current) {
-                        console.log(`[HTTP] ✅ Verified: count increased ${activateCount.current} → ${verifiedCount}`);
+                        console.log(`[HTTP] âœ… Verified: count increased ${activateCount.current} â†’ ${verifiedCount}`);
                         countIncreased = true;
                         newActivateCount = { current: verifiedCount, max: parseInt(verifyMatch[2]) };
                     }
@@ -3001,7 +3033,7 @@ export class HttpClientService {
             const isSuccess = countIncreased || hasSuccessMessage;
 
             if (isSuccess) {
-                console.log('[HTTP] ✅ Signal activated successfully!');
+                console.log('[HTTP] âœ… Signal activated successfully!');
                 return {
                     success: true,
                     activated: true,
@@ -3016,7 +3048,7 @@ export class HttpClientService {
                     }
                 };
             } else {
-                console.log('[HTTP] ❌ Activation failed');
+                console.log('[HTTP] â‌Œ Activation failed');
                 return {
                     success: true,
                     activated: false,
@@ -3096,7 +3128,7 @@ export class HttpClientService {
             // Check for errors
             const error = this.checkForErrors(checkRes.data);
             if (error) {
-                console.log(`[HTTP] ❌ Check card error: "${error}"`);
+                console.log(`[HTTP] â‌Œ Check card error: "${error}"`);
                 return { success: false, error };
             }
 
@@ -3161,7 +3193,7 @@ export class HttpClientService {
                 // Try to find actual button
                 const btnEl = $('input[id*="btnActivate"], button[id*="btnActivate"]');
                 if (btnEl.length === 0) {
-                    console.log('[HTTP] ⚠️ Activate button not found');
+                    console.log('[HTTP] âڑ ï¸ڈ Activate button not found');
                     return {
                         success: true,
                         cardStatus: {
@@ -3252,9 +3284,9 @@ export class HttpClientService {
             const hasSuccessMessage = responseText.includes('signal sent') ||
                 responseText.includes('activation signal sent') ||
                 responseText.includes('successfully') ||
-                responseText.includes('تم الارسال') ||  // Arabic: "Sent"
-                responseText.includes('تم التفعيل') ||  // Arabic: "Activated"
-                responseText.includes('تمت العملية');   // Arabic: "Operation completed"
+                responseText.includes('طھظ… ط§ظ„ط§ط±ط³ط§ظ„') ||  // Arabic: "Sent"
+                responseText.includes('طھظ… ط§ظ„طھظپط¹ظٹظ„') ||  // Arabic: "Activated"
+                responseText.includes('طھظ…طھ ط§ظ„ط¹ظ…ظ„ظٹط©');   // Arabic: "Operation completed"
 
             let countIncreased = newActivateCount && newActivateCount.current > activateCount.current;
 
@@ -3262,7 +3294,7 @@ export class HttpClientService {
 
             // STRICT SUCCESS: If count didn't increase and no success message, verify with a fresh GET
             if (!countIncreased && !hasSuccessMessage) {
-                console.log('[HTTP] ⚠️ No clear success indicator from response, sending verification request...');
+                console.log('[HTTP] âڑ ï¸ڈ No clear success indicator from response, sending verification request...');
 
                 try {
                     // Wait a moment for server to process
@@ -3285,15 +3317,15 @@ export class HttpClientService {
                         console.log(`[HTTP] Verified count: ${verifiedCount}/${verifiedMax} (was ${activateCount.current}/${activateCount.max})`);
 
                         if (verifiedCount > activateCount.current) {
-                            console.log(`[HTTP] ✅ Verification confirmed: count increased ${activateCount.current} → ${verifiedCount}`);
+                            console.log(`[HTTP] âœ… Verification confirmed: count increased ${activateCount.current} â†’ ${verifiedCount}`);
                             countIncreased = true;
                             newActivateCount = { current: verifiedCount, max: verifiedMax };
                         } else {
-                            console.log(`[HTTP] ❌ Verification failed: count did not increase`);
+                            console.log(`[HTTP] â‌Œ Verification failed: count did not increase`);
                         }
                     }
                 } catch (verifyError: any) {
-                    console.log(`[HTTP] ⚠️ Verification request failed: ${verifyError.message}`);
+                    console.log(`[HTTP] âڑ ï¸ڈ Verification request failed: ${verifyError.message}`);
                 }
             }
 
@@ -3303,7 +3335,7 @@ export class HttpClientService {
             console.log(`[HTTP] Final success determination: isSuccess=${isSuccess}, countIncreased=${countIncreased}, hasSuccessMessage=${hasSuccessMessage}`);
 
             if (isSuccess) {
-                console.log('[HTTP] ✅ Signal activated successfully!');
+                console.log('[HTTP] âœ… Signal activated successfully!');
                 return {
                     success: true,
                     cardStatus: {
@@ -3318,7 +3350,7 @@ export class HttpClientService {
                     message: 'Activation Signal Sent'
                 };
             } else {
-                console.log(`[HTTP] ❌ Activation failed: count did not increase, no success message`);
+                console.log(`[HTTP] â‌Œ Activation failed: count did not increase, no success message`);
                 return {
                     success: true,
                     cardStatus: {
@@ -3444,7 +3476,7 @@ export class HttpClientService {
 
             // ====== TWO-STEP CISCO POSTBACK ======
             // ASP.NET requires a postback when changing the dropdown to load CISCO-specific form.
-            // Without this, the server sees the serial field as empty → "Invalid Serial Number!"
+            // Without this, the server sees the serial field as empty â†’ "Invalid Serial Number!"
 
             // POST 1: Select CISCO via __doPostBack (triggers dropdown change postback)
             const selectFormData: Record<string, string> = {
@@ -3524,7 +3556,7 @@ export class HttpClientService {
             // Check for errors
             const loadError = this.checkForErrors(loadRes.data);
             if (loadError) {
-                console.log(`[HTTP] ❌ Load error: "${loadError}"`);
+                console.log(`[HTTP] â‌Œ Load error: "${loadError}"`);
                 return { success: false, hasInstallment: false, error: loadError };
             }
 
@@ -3570,12 +3602,12 @@ export class HttpClientService {
                 console.log(`[HTTP] DEBUG: Button - name="${name}" value="${value}"`);
             });
 
-            // Check for "Load Another" button — a previous card was loaded on this account
+            // Check for "Load Another" button â€” a previous card was loaded on this account
             // The page has "Load Another" but NO detail data (just card entry form).
             // Always fall through to the confirm step (tbSerial2 + btnLoad2)
             const loadAnotherBtn = $load('input[value*="Load Another"], input[value*="Another"]');
             if (loadAnotherBtn.length > 0) {
-                console.log('[HTTP] ⚠️ "Load Another" button found — will fall through to confirm step (tbSerial2 + btnLoad2)');
+                console.log('[HTTP] âڑ ï¸ڈ "Load Another" button found â€” will fall through to confirm step (tbSerial2 + btnLoad2)');
             }
 
             // Check for specific beIN installment page elements from screenshot analysis
@@ -3601,7 +3633,7 @@ export class HttpClientService {
 
             // If key beIN elements are found, parse directly
             if (installmentTable.length > 0 || paymentZone.length > 0 || packagesRow.length > 0) {
-                console.log('[HTTP] ✅ beIN installment elements found, parsing directly...');
+                console.log('[HTTP] âœ… beIN installment elements found, parsing directly...');
                 this.lastInstallmentPageHtml = loadRes.data;
                 return this.parseInstallmentDetails($load, cardNumber);
             }
@@ -3621,10 +3653,10 @@ export class HttpClientService {
 
             // ENHANCED: If page text contains installment-related keywords, try to parse directly
             // This handles cases where CSS selectors don't match but data is present
-            // NOTE: Do NOT use hasLoadAnotherKeyword here — it doesn't mean data exists!
+            // NOTE: Do NOT use hasLoadAnotherKeyword here â€” it doesn't mean data exists!
             if (hasDealerPriceKeyword ||
                 (hasPremiumKeyword && hasPackageKeyword)) {
-                console.log('[HTTP] ✅ Installment keywords detected in page, parsing directly...');
+                console.log('[HTTP] âœ… Installment keywords detected in page, parsing directly...');
                 this.lastInstallmentPageHtml = loadRes.data;
                 return this.parseInstallmentDetails($load, cardNumber);
             }
@@ -3632,14 +3664,14 @@ export class HttpClientService {
 
             // Fallback: check CSS selectors
             if (contractInfoSection.length > 0 || payInstallmentBtn.length > 0 || packageSection.length > 0) {
-                console.log('[HTTP] ✅ Contract info/package visible via selectors, parsing directly...');
+                console.log('[HTTP] âœ… Contract info/package visible via selectors, parsing directly...');
                 this.lastInstallmentPageHtml = loadRes.data;
                 return this.parseInstallmentDetails($load, cardNumber);
             }
 
             if (confirmSerialField.length === 0) {
                 // No confirm field AND no contract info - card may not have installments
-                console.log('[HTTP] ⚠️ Confirm serial field and contract info not found - card may not have installments');
+                console.log('[HTTP] âڑ ï¸ڈ Confirm serial field and contract info not found - card may not have installments');
                 return {
                     success: true,
                     hasInstallment: false,
@@ -3647,7 +3679,7 @@ export class HttpClientService {
                 };
             }
 
-            // Get Load button value for confirm step — try btnLoad2 first (actual beIN button), then btnLoad
+            // Get Load button value for confirm step â€” try btnLoad2 first (actual beIN button), then btnLoad
             let confirmBtnName = 'ctl00$ContentPlaceHolder1$btnLoad2';
             let confirmBtnValue = this.extractButtonValue(loadRes.data, 'btnLoad2', 'Load');
             if (!confirmBtnValue) {
@@ -3677,7 +3709,7 @@ export class HttpClientService {
             // Check for errors
             const detailsError = this.checkForErrors(detailsRes.data);
             if (detailsError) {
-                console.log(`[HTTP] ❌ Details error: "${detailsError}"`);
+                console.log(`[HTTP] â‌Œ Details error: "${detailsError}"`);
                 return { success: false, hasInstallment: false, error: detailsError };
             }
 
@@ -3728,7 +3760,7 @@ export class HttpClientService {
         console.log(`[HTTP] parseInstallmentDetails: contractSection=${contractSection.length}, payBtn=${payBtn.length}, paymentZone=${paymentZone.length}, packagesRow=${packagesRow.length}, loadAnother=${loadAnotherBtn.length}, packageRow=${packageRowFound}`);
 
         if (!hasData) {
-            console.log('[HTTP] ⚠️ No installment data found on page');
+            console.log('[HTTP] âڑ ï¸ڈ No installment data found on page');
             return {
                 success: true,
                 hasInstallment: false,
@@ -4002,7 +4034,7 @@ export class HttpClientService {
             pageText.match(/(\d+(?:,\d{3})*(?:\.\d{2})?)\s*USD/);
         const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : undefined;
 
-        console.log(`[HTTP] ✅ Installment loaded: ${packageText}, Dealer Price: ${dealerPrice} USD`);
+        console.log(`[HTTP] âœ… Installment loaded: ${packageText}, Dealer Price: ${dealerPrice} USD`);
         console.log(`[HTTP]    Subscriber: ${subscriber.name}, Mobile: ${subscriber.mobile}`);
 
         return {
@@ -4025,8 +4057,8 @@ export class HttpClientService {
 
     /**
      * Pay installment - Two-step payment process:
-     * Step 1: Click "Pay Installment" button → beIN returns payment type popup
-     * Step 2: Select "Direct Payment (From Account)" radio → Click "Pay" button
+     * Step 1: Click "Pay Installment" button â†’ beIN returns payment type popup
+     * Step 2: Select "Direct Payment (From Account)" radio â†’ Click "Pay" button
      * 
      * Must be called after loadInstallment()
      * 
@@ -4041,7 +4073,7 @@ export class HttpClientService {
 
             // Verify we have ViewState from previous load
             if (!this.currentViewState || !this.currentViewState.__VIEWSTATE) {
-                console.log('[HTTP] ⚠️ No ViewState - need to load installment first');
+                console.log('[HTTP] No ViewState - need to load installment first');
                 return { success: false, message: 'Please load installment details first' };
             }
 
@@ -4051,12 +4083,12 @@ export class HttpClientService {
 
             // ====== STEP 1: Click "Pay Installment" button ======
             // This triggers the payment type popup on beIN
-            let payBtnValue = 'Pay Installment';  // Default fallback
+            let payBtnValue = 'Pay Installment';
             if (this.lastInstallmentPageHtml) {
                 payBtnValue = this.extractButtonValue(this.lastInstallmentPageHtml, 'btnPayInstallment', 'Pay Installment');
                 console.log(`[HTTP] Pay button value from stored page: "${payBtnValue}"`);
             } else {
-                console.log(`[HTTP] ⚠️ No stored page HTML, using default button value: "${payBtnValue}"`);
+                console.log(`[HTTP] No stored page HTML, using default button value: "${payBtnValue}"`);
             }
 
             const payFormData: Record<string, string> = {
@@ -4082,15 +4114,12 @@ export class HttpClientService {
             }
 
             // ====== STEP 2: Handle "Please Select Type of Payment" popup ======
-            // Parse the response to find the payment type radio buttons
             const $popup = cheerio.load(payRes.data);
 
-            // Look for radio buttons related to DirectPay
             const radioInputs = $popup('input[type="radio"][name*="Epay"], input[type="radio"][id*="RbdDirectPay"], input[type="radio"][id*="RbdDirectEPay"], input[type="radio"][name*="DirectPay"]');
 
             console.log(`[HTTP] Step 1 response: Found ${radioInputs.length} payment type radio buttons`);
 
-            // DEBUG: Log all radio inputs found
             $popup('input[type="radio"]').each((i, el) => {
                 const name = $popup(el).attr('name') || '';
                 const id = $popup(el).attr('id') || '';
@@ -4099,7 +4128,6 @@ export class HttpClientService {
                 console.log(`[HTTP] Radio [${i}]: name="${name}" id="${id}" value="${value}" label="${labelFor}"`);
             });
 
-            // DEBUG: Log all submit buttons
             $popup('input[type="submit"]').each((i, el) => {
                 const name = $popup(el).attr('name') || '';
                 const id = $popup(el).attr('id') || '';
@@ -4108,13 +4136,8 @@ export class HttpClientService {
             });
 
             if (radioInputs.length > 0) {
-                // Popup detected — select Direct Payment and submit
-                console.log('[HTTP] ✅ Payment type popup detected — selecting Direct Payment...');
+                console.log('[HTTP] Payment type popup detected - selecting Direct Payment...');
 
-                // Extract new ViewState from the popup page
-                const popupViewState = this.extractHiddenFields(payRes.data);
-
-                // Extract all hidden fields from the popup page
                 const popupHiddenFields: Record<string, string> = {};
                 $popup('input[type="hidden"]').each((_, el) => {
                     const name = $popup(el).attr('name');
@@ -4124,8 +4147,6 @@ export class HttpClientService {
                     }
                 });
 
-                // Find the radio button name and "Direct Payment" value
-                // The first radio is typically "Direct Payment (From Account)"
                 let radioName = '';
                 let directPayValue = '';
 
@@ -4137,9 +4158,8 @@ export class HttpClientService {
 
                     if (!radioName) radioName = name;
 
-                    // Pick the "Direct Payment" option — check label text or default to first option
                     if (labelText.includes('direct') || labelText.includes('from account') ||
-                        labelText.includes('حساب') || i === 0) {
+                        labelText.includes('ط­ط³ط§ط¨') || i === 0) {
                         if (!directPayValue) {
                             directPayValue = value;
                             console.log(`[HTTP] Selected Direct Payment: name="${name}" value="${value}" label="${labelText}"`);
@@ -4148,17 +4168,14 @@ export class HttpClientService {
                 });
 
                 if (!radioName) {
-                    // Fallback: try common ASP.NET naming patterns
                     radioName = 'ctl00$ContentPlaceHolder1$Epay';
                     directPayValue = 'RbdDirectPay';
-                    console.log(`[HTTP] ⚠️ Using fallback radio name: "${radioName}" value: "${directPayValue}"`);
+                    console.log(`[HTTP] Using fallback radio name: "${radioName}" value: "${directPayValue}"`);
                 }
 
-                // Find the Pay/Confirm button in the popup
                 let payBtnName = '';
                 let payBtnVal = '';
 
-                // Try multiple button patterns
                 const btnSelectors = [
                     'input[id*="BtnPay"]',
                     'input[name*="BtnPay"]',
@@ -4181,13 +4198,11 @@ export class HttpClientService {
                 }
 
                 if (!payBtnName) {
-                    // Fallback
                     payBtnName = 'ctl00$ContentPlaceHolder1$BtnPay';
                     payBtnVal = 'Pay';
-                    console.log(`[HTTP] ⚠️ Using fallback Pay button: "${payBtnName}"`);
+                    console.log(`[HTTP] Using fallback Pay button: "${payBtnName}"`);
                 }
 
-                // Build the POST data for step 2
                 const confirmFormData: Record<string, string> = {
                     ...popupHiddenFields,
                     [radioName]: directPayValue,
@@ -4203,17 +4218,14 @@ export class HttpClientService {
                     }
                 );
 
-                // Check for errors in the final response
                 const confirmError = this.checkForErrors(confirmRes.data);
 
-                // Check for success messages in the final response
                 const finalText = confirmRes.data.toLowerCase();
                 const hasSuccessMessage = finalText.includes('success') ||
-                    finalText.includes('تم الدفع') ||
+                    finalText.includes('طھظ… ط§ظ„ط¯ظپط¹') ||
                     finalText.includes('payment completed') ||
-                    finalText.includes('تمت العملية');
+                    finalText.includes('طھظ…طھ ط§ظ„ط¹ظ…ظ„ظٹط©');
 
-                // Verify balance changed
                 const balanceAfter = await this.getCurrentBalance();
                 console.log(`[HTTP] Balance after payment: $${balanceAfter}`);
 
@@ -4221,48 +4233,49 @@ export class HttpClientService {
                     balanceAfter < balanceBefore;
 
                 if (balanceDecreased && hasSuccessMessage) {
-                    console.log('[HTTP] ✅ Installment payment successful (Direct Payment)');
+                    console.log('[HTTP] Installment payment successful (Direct Payment)');
                     return {
                         success: true,
                         message: 'Installment payment successful',
                         newBalance: balanceAfter || undefined
                     };
-                } else if (balanceDecreased) {
-                    console.log('[HTTP] Installment payment successful by balance delta (Direct Payment)');
-                    return {
-                        success: true,
-                        message: 'Installment payment successful (balance verified)',
-                        newBalance: balanceAfter || undefined
-                    };
-                } else if (hasSuccessMessage) {
+                } else if (hasSuccessMessage && !balanceDecreased) {
                     return {
                         success: false,
-                        message: 'Transaction status unknown - success text but balance unchanged'
+                        message: 'Transaction status unknown - success text but balance unchanged',
+                        newBalance: balanceAfter || undefined
+                    };
+                } else if (balanceDecreased && !hasSuccessMessage) {
+                    const delta = (balanceBefore !== null && balanceAfter !== null) ? (balanceBefore - balanceAfter) : null;
+                    return {
+                        success: true,
+                        message: delta !== null
+                            ? `Transaction completed (balance decreased by $${delta})`
+                            : 'Transaction completed (balance decreased)',
+                        newBalance: balanceAfter || undefined
                     };
                 } else if (confirmError) {
-                    console.log(`[HTTP] ❌ Payment error after Direct Pay: ${confirmError}`);
+                    console.log(`[HTTP] Payment error after Direct Pay: ${confirmError}`);
                     return { success: false, message: confirmError };
                 } else {
-                    // Log what we received for debugging
                     const htmlSample = confirmRes.data.slice(0, 2000);
-                    console.log(`[HTTP] ⚠️ Payment status unclear after Direct Pay. Response sample:`);
+                    console.log('[HTTP] Payment status unclear after Direct Pay. Response sample:');
                     console.log(htmlSample);
                     return {
                         success: false,
-                        message: 'Transaction status unknown - payment not confirmed, please check balance'
+                        message: 'Transaction status unknown - payment not confirmed'
                     };
                 }
 
             } else {
-                // No popup detected — maybe payment went through directly
-                console.log('[HTTP] ℹ️ No payment type popup detected, checking response directly...');
+                console.log('[HTTP] No payment type popup detected, checking response directly...');
 
                 const payError = this.checkForErrors(payRes.data);
                 const responseText = payRes.data.toLowerCase();
                 const hasSuccessMessage = responseText.includes('success') ||
-                    responseText.includes('تم الدفع') ||
+                    responseText.includes('طھظ… ط§ظ„ط¯ظپط¹') ||
                     responseText.includes('payment completed') ||
-                    responseText.includes('تمت العملية');
+                    responseText.includes('طھظ…طھ ط§ظ„ط¹ظ…ظ„ظٹط©');
 
                 const balanceAfter = await this.getCurrentBalance();
                 console.log(`[HTTP] Balance after payment: $${balanceAfter}`);
@@ -4271,47 +4284,47 @@ export class HttpClientService {
                     balanceAfter < balanceBefore;
 
                 if (balanceDecreased && hasSuccessMessage) {
-                    console.log('[HTTP] ✅ Installment payment successful (no popup)');
+                    console.log('[HTTP] Installment payment successful (no popup)');
                     return {
                         success: true,
                         message: 'Installment payment successful',
                         newBalance: balanceAfter || undefined
                     };
-                } else if (balanceDecreased) {
-                    console.log('[HTTP] Installment payment successful by balance delta (no popup)');
-                    return {
-                        success: true,
-                        message: 'Installment payment successful (balance verified)',
-                        newBalance: balanceAfter || undefined
-                    };
-                } else if (hasSuccessMessage) {
+                } else if (hasSuccessMessage && !balanceDecreased) {
                     return {
                         success: false,
-                        message: 'Transaction status unknown - success text but balance unchanged'
+                        message: 'Transaction status unknown - success text but balance unchanged',
+                        newBalance: balanceAfter || undefined
+                    };
+                } else if (balanceDecreased && !hasSuccessMessage) {
+                    const delta = (balanceBefore !== null && balanceAfter !== null) ? (balanceBefore - balanceAfter) : null;
+                    return {
+                        success: true,
+                        message: delta !== null
+                            ? `Transaction completed (balance decreased by $${delta})`
+                            : 'Transaction completed (balance decreased)',
+                        newBalance: balanceAfter || undefined
                     };
                 } else if (payError) {
-                    console.log(`[HTTP] ❌ Payment error: ${payError}`);
+                    console.log(`[HTTP] Payment error: ${payError}`);
                     return { success: false, message: payError };
                 } else {
-                    // Log what we received for debugging
                     const htmlSample = payRes.data.slice(0, 2000);
-                    console.log(`[HTTP] ⚠️ Payment status unclear. Response sample:`);
+                    console.log('[HTTP] Payment status unclear. Response sample:');
                     console.log(htmlSample);
                     return {
                         success: false,
-                        message: 'Transaction status unknown - payment not confirmed, please check balance'
+                        message: 'Transaction status unknown - payment not confirmed'
                     };
                 }
             }
 
         } catch (error: any) {
-            console.error('[HTTP] Pay installment error:', error.message);
             if (paySubmitted) {
-                return {
-                    success: false,
-                    message: `Transaction status unknown - request submitted but confirmation failed: ${error.message}`
-                };
+                console.error('[HTTP] Pay installment error AFTER payment submitted:', error.message);
+                return { success: false, message: `Transaction status unknown - error after payment: ${error.message}` };
             }
+            console.error('[HTTP] Pay installment error:', error.message);
             return { success: false, message: `Payment failed: ${error.message}` };
         }
     }

@@ -3,6 +3,7 @@
  */
 
 import { prisma } from '../lib/prisma'
+import { Prisma } from '@prisma/client'
 
 export interface OperationError {
     type: 'LOGIN_FAILED' | 'CAPTCHA_FAILED' | 'TIMEOUT' | 'NETWORK' | 'ELEMENT_NOT_FOUND' | 'UNKNOWN'
@@ -97,6 +98,7 @@ export async function refundUser(operationId: string, userId: string, amount: nu
         return true
     } catch (error: any) {
         if (error.message === 'REFUND_EXISTS') return false
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
         throw error
     }
 }

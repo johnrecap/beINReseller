@@ -1,4 +1,4 @@
-/**
+﻿/**
  * HTTP Queue Processor - Handles operations using HttpClientService
  * 
  * This is a parallel implementation to queue-processor.ts that uses
@@ -57,26 +57,6 @@ class OperationCancelledError extends Error {
     }
 }
 
-const TERMINAL_STATUSES = new Set([
-    'COMPLETED',
-    'REVIEW_REQUIRED',
-    'CANCELLED',
-    'FAILED',
-    'EXPIRED'
-]);
-
-function isTerminalStatus(status: string | null | undefined): boolean {
-    return !!status && TERMINAL_STATUSES.has(status);
-}
-
-function isAmbiguousFailure(message: string | null | undefined): boolean {
-    if (!message) return false;
-    const normalized = message.toLowerCase();
-    return normalized.includes('transaction status unknown') ||
-        normalized.includes('status unknown') ||
-        normalized.includes('please check balance');
-}
-
 // Map to store HTTP clients per account (session persistence)
 const httpClients = new Map<string, HttpClientService>();
 
@@ -96,12 +76,30 @@ setInterval(() => {
         }
     }
     if (evicted > 0) {
-        console.log(`🧹 Evicted ${evicted} stale HTTP client(s). Active: ${httpClients.size}`);
+        console.log(`ًں§¹ Evicted ${evicted} stale HTTP client(s). Active: ${httpClients.size}`);
     }
 }, 10 * 60 * 1000);
 
 // Worker ID for login locking (unique per process)
 const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
+
+// Terminal operation statuses â€” no further processing/refund should occur
+const TERMINAL_STATUSES = ['COMPLETED', 'CANCELLED', 'FAILED', 'EXPIRED', 'REVIEW_REQUIRED'] as const;
+
+function isTerminalStatus(status: string | null | undefined): boolean {
+    if (!status) return false;
+    return (TERMINAL_STATUSES as readonly string[]).includes(status);
+}
+
+// Detect ambiguous confirmPurchase failures that should NOT trigger refund
+function isAmbiguousFailure(message: string | undefined): boolean {
+    if (!message) return false;
+    const m = message.toLowerCase();
+    return m.includes('no success confirmation') ||
+        m.includes('transaction status unknown') ||
+        m.includes('transaction is busy') ||
+        m.includes('please check the card status manually');
+}
 
 /**
  * Get or create HTTP client for an account
@@ -148,10 +146,10 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
             if (cachedSession) {
                 await client.importSession(cachedSession);
                 client.markSessionValidFromCache(cachedSession.expiresAt);
-                console.log(`[HTTP] 🔄 Restored session from Redis cache for ${account.username}`);
+                console.log(`[HTTP] ًں”„ Restored session from Redis cache for ${account.username}`);
             }
         } catch (error) {
-            console.log(`[HTTP] ⚠️ Failed to restore cached session for ${account.username}, will login fresh`);
+            console.log(`[HTTP] âڑ ï¸ڈ Failed to restore cached session for ${account.username}, will login fresh`);
             await deleteSessionFromCache(account.id);
         }
     } else {
@@ -197,14 +195,14 @@ async function performReLogin(
 
     if (loginResult.requiresCaptcha && loginResult.captchaImage) {
         // Try 2Captcha auto-solve
-        console.log(`[HTTP] 🧩 CAPTCHA required during session retry, attempting auto-solve...`);
+        console.log(`[HTTP] ًں§© CAPTCHA required during session retry, attempting auto-solve...`);
         const captchaApiKey = await getCaptchaApiKey();
 
         if (captchaApiKey) {
             try {
                 const captchaSolver = new CaptchaSolver(captchaApiKey);
                 const solution = await captchaSolver.solve(loginResult.captchaImage);
-                console.log('[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]');
+                console.log(`[HTTP] âœ… CAPTCHA auto-solved: [REDACTED]`);
 
                 // Submit login with CAPTCHA solution
                 const loginWithCaptcha = await httpClient.submitLogin(
@@ -218,7 +216,7 @@ async function performReLogin(
                     throw new Error(`Re-login with CAPTCHA failed: ${loginWithCaptcha.error}`);
                 }
 
-                console.log(`[HTTP] ✅ Re-login with CAPTCHA successful`);
+                console.log(`[HTTP] âœ… Re-login with CAPTCHA successful`);
             } catch (captchaError: any) {
                 throw new Error(`CAPTCHA auto-solve failed: ${captchaError.message}`);
             }
@@ -236,7 +234,7 @@ async function performReLogin(
     newSession.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
     newSession.loginTimestamp = now;
     await saveSessionToCache(account.id, newSession, httpClient.getSessionTimeout());
-    console.log(`[HTTP] ✅ Fresh login successful for ${operationName}`);
+    console.log(`[HTTP] âœ… Fresh login successful for ${operationName}`);
 
     return true;
 }
@@ -271,7 +269,7 @@ async function withSessionRetry<T>(
             throw error;  // Not a session error, rethrow
         }
 
-        console.log(`[HTTP] ⚠️ Session expired (thrown) during ${operationName}, performing fresh login...`);
+        console.log(`[HTTP] âڑ ï¸ڈ Session expired (thrown) during ${operationName}, performing fresh login...`);
         await performReLogin(httpClient, account, operationName);
 
         // Retry the operation once
@@ -284,13 +282,13 @@ async function withSessionRetry<T>(
         const resultObj = result as unknown as { success: boolean; error?: string };
 
         if (!resultObj.success && isSessionExpiredError(resultObj.error)) {
-            console.log(`[HTTP] ⚠️ Session expired (returned) during ${operationName}, performing fresh login...`);
+            console.log(`[HTTP] âڑ ï¸ڈ Session expired (returned) during ${operationName}, performing fresh login...`);
             console.log(`[HTTP] Error was: ${resultObj.error}`);
 
             await performReLogin(httpClient, account, operationName);
 
             // Retry the operation once
-            console.log(`[HTTP] 🔄 Retrying ${operationName} after re-login...`);
+            console.log(`[HTTP] ًں”„ Retrying ${operationName} after re-login...`);
             return await operation();
         }
     }
@@ -308,7 +306,7 @@ async function checkIfCancelled(operationId: string): Promise<void> {
     });
 
     if (op?.status === 'CANCELLED') {
-        console.log(`🚫 [HTTP] Operation ${operationId} was cancelled`);
+        console.log(`ًںڑ« [HTTP] Operation ${operationId} was cancelled`);
         throw new OperationCancelledError(operationId);
     }
 }
@@ -397,12 +395,12 @@ export async function processOperationHttp(
                     await accountPool.renewLock(op.beinAccountId);
                 }
             } catch {
-                // Non-critical — next heartbeat will retry
+                // Non-critical â€” next heartbeat will retry
             }
         }, 60_000);
     }
 
-    console.log(`📥 [HTTP] Processing ${operationId}: ${type}`);
+    console.log(`ًں“¥ [HTTP] Processing ${operationId}: ${type}`);
 
     try {
         switch (type) {
@@ -411,7 +409,7 @@ export async function processOperationHttp(
                     try {
                         await handleCheckAccountBalance(accountId);
                     } catch (balanceError: any) {
-                        console.error(`❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for ${accountId}:`, balanceError.message);
+                        console.error(`â‌Œ [HTTP] CHECK_ACCOUNT_BALANCE failed for ${accountId}:`, balanceError.message);
                         // Don't throw - this job type has no operation to refund
                     }
                 }
@@ -421,9 +419,6 @@ export async function processOperationHttp(
                 break;
             case 'COMPLETE_PURCHASE':
                 await handleCompletePurchaseHttp(operationId, promoCode, accountPool);
-                break;
-            case 'APPLY_PROMO':
-                await handleApplyPromoHttp(operationId, cardNumber, promoCode, accountPool);
                 break;
             case 'CONFIRM_PURCHASE':
                 await handleConfirmPurchaseHttp(operationId, accountPool);
@@ -451,24 +446,26 @@ export async function processOperationHttp(
         }
     } catch (error: any) {
         if (error instanceof OperationCancelledError) {
-            console.log(`🚫 [HTTP] Operation ${operationId} cancelled`);
+            console.log(`ًںڑ« [HTTP] Operation ${operationId} cancelled`);
             return;
         }
 
-        console.error(`❌ [HTTP] Operation ${operationId} failed:`, error.message);
+        console.error(`â‌Œ [HTTP] Operation ${operationId} failed:`, error.message);
 
         // ALWAYS read from DB - job data amount may be stale (deferred payment)
         const op = await prisma.operation.findUnique({
             where: { id: operationId },
             select: { userId: true, amount: true, beinAccountId: true, status: true }
         });
-        if (isTerminalStatus(op?.status)) {
-            console.log(`[HTTP] Skipping refund/failure update for terminal operation ${operationId} (${op?.status})`);
-            return;
-        }
         const opUserId = op?.userId || userId;
         const opAmount = op?.amount || 0;
         selectedAccountId = op?.beinAccountId || null;
+
+        // Guard: If operation already in terminal state, do NOT refund or overwrite
+        if (isTerminalStatus(op?.status)) {
+            console.warn(`ًں›،ï¸ڈ [MONITOR] Operation ${operationId} already ${op?.status} â€” skipping refund/fail in catch`);
+            return;
+        }
 
         // Mark failed and refund (only if money was actually deducted)
         if (opUserId && opAmount && opAmount > 0) {
@@ -494,7 +491,7 @@ async function handleStartRenewalHttp(
     accountPool: AccountPoolManager,
     smartcardType?: string
 ): Promise<void> {
-    console.log(`🚀 [HTTP] Starting renewal for ${operationId}`);
+    console.log(`ًںڑ€ [HTTP] Starting renewal for ${operationId}`);
 
     await checkIfCancelled(operationId);
 
@@ -528,7 +525,7 @@ async function handleStartRenewalHttp(
 
     // beinAccountId will be merged into the final AWAITING_PACKAGE update to save a DB round-trip
 
-    console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
+    console.log(`ًں”‘ [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
     // Get HTTP client for this account (also reloads config if cache expired)
     const client = await getHttpClient(selectedAccount);
@@ -541,14 +538,14 @@ async function handleStartRenewalHttp(
     if (client.isSessionActive()) {
         // IMPORTANT: Validate session with beIN server before trusting Redis cache
         // The keepalive may have missed this account, or beIN may have expired it early
-        console.log(`[HTTP] 🔍 Validating cached session for ${selectedAccount.username} on beIN server...`);
+        console.log(`[HTTP] ًں”چ Validating cached session for ${selectedAccount.username} on beIN server...`);
         const sessionValid = await client.validateSession();
 
         if (sessionValid) {
-            console.log(`[HTTP] ✅ Session validated on beIN — using cached session for ${selectedAccount.username}`);
+            console.log(`[HTTP] âœ… Session validated on beIN â€” using cached session for ${selectedAccount.username}`);
             needsFreshLogin = false;
         } else {
-            console.log(`[HTTP] ⚠️ Session expired on beIN despite Redis cache — need fresh login`);
+            console.log(`[HTTP] âڑ ï¸ڈ Session expired on beIN despite Redis cache â€” need fresh login`);
             // Delete stale session from Redis so other workers don't use it
             await deleteSessionFromCache(selectedAccount.id);
             needsFreshLogin = true;
@@ -561,7 +558,7 @@ async function handleStartRenewalHttp(
 
         if (!lockAcquired) {
             // Another worker is logging in, wait for it to complete
-            console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
+            console.log(`[HTTP] âڈ³ Another worker is logging in, waiting...`);
             const loginCompleted = await waitForLoginComplete(selectedAccount.id);
 
             if (loginCompleted) {
@@ -570,7 +567,7 @@ async function handleStartRenewalHttp(
                 if (cachedSession) {
                     await client.importSession(cachedSession);
                     client.markSessionValidFromCache(cachedSession.expiresAt);
-                    console.log(`[HTTP] ✅ Got session from cache after waiting`);
+                    console.log(`[HTTP] âœ… Got session from cache after waiting`);
                     needsFreshLogin = false;
                 }
             }
@@ -586,7 +583,7 @@ async function handleStartRenewalHttp(
         );
 
         if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
+            console.log(`ًں§© [HTTP] CAPTCHA required for ${operationId}`);
 
             let solution: string | null = null;
 
@@ -594,15 +591,15 @@ async function handleStartRenewalHttp(
             const captchaApiKey = await getCaptchaApiKey();
             if (captchaApiKey) {
                 try {
-                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                    console.log(`ًں¤– [HTTP] Attempting auto-solve with 2Captcha...`);
                     const captchaSolver = new CaptchaSolver(captchaApiKey);
                     solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
+                    console.log(`âœ… [HTTP] CAPTCHA auto-solved: [REDACTED]`);
                 } catch (autoSolveError: any) {
-                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                    console.log(`âڑ ï¸ڈ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
                 }
             } else {
-                console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
+                console.log(`âڑ ï¸ڈ [HTTP] No 2Captcha API key configured, using manual entry`);
             }
 
             // Fallback to manual if auto-solve failed or not configured
@@ -655,9 +652,9 @@ async function handleStartRenewalHttp(
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
             await saveSessionToCache(selectedAccount.id, sessionData, sessionTimeout);
-            console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
+            console.log(`[HTTP] ًں’¾ Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
         } catch (saveError) {
-            console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
+            console.error(`[HTTP] âڑ ï¸ڈ Failed to save session to cache:`, saveError);
         }
 
         // Release login lock
@@ -680,12 +677,12 @@ async function handleStartRenewalHttp(
     let packagesResult: { success: boolean; packages: any[]; stbNumber?: string; dealerBalance?: number; error?: string };
 
     if (cachedStb) {
-        // STB is cached — only run loadPackages (skip checkCard entirely)
-        console.log(`[HTTP] ⚡ STB CACHE HIT (${cachedStb}) — running loadPackages only`);
+        // STB is cached â€” only run loadPackages (skip checkCard entirely)
+        console.log(`[HTTP] âڑ، STB CACHE HIT (${cachedStb}) â€” running loadPackages only`);
         client.setSTBNumber(cachedStb);
         stbNumber = cachedStb;
 
-        console.log(`📦 [HTTP] Loading packages... (smartcard: ${smartcardType || 'CISCO'})`);
+        console.log(`ًں“¦ [HTTP] Loading packages... (smartcard: ${smartcardType || 'CISCO'})`);
         packagesResult = await withSessionRetry(
             client,
             selectedAccount,
@@ -693,8 +690,8 @@ async function handleStartRenewalHttp(
             'loadPackages'
         );
     } else {
-        // No STB cache — run BOTH in parallel
-        console.log(`🔍📦 [HTTP] Running checkCard + loadPackages in PARALLEL...`);
+        // No STB cache â€” run BOTH in parallel
+        console.log(`ًں”چًں“¦ [HTTP] Running checkCard + loadPackages in PARALLEL...`);
         const startTime = Date.now();
 
         const [checkResult, pkgResult] = await Promise.all([
@@ -712,10 +709,10 @@ async function handleStartRenewalHttp(
             )
         ]);
 
-        console.log(`⚡ [HTTP] Parallel operations completed in ${Date.now() - startTime}ms`);
+        console.log(`âڑ، [HTTP] Parallel operations completed in ${Date.now() - startTime}ms`);
 
         if (!checkResult.success) {
-            console.log(`⚠️ [HTTP] checkCard failed: ${checkResult.error} (non-fatal, STB may not be available)`);
+            console.log(`âڑ ï¸ڈ [HTTP] checkCard failed: ${checkResult.error} (non-fatal, STB may not be available)`);
         } else {
             stbNumber = checkResult.stbNumber;
             // Cache STB (fire-and-forget)
@@ -739,7 +736,7 @@ async function handleStartRenewalHttp(
         cacheSTB(cardNumber, finalStbNumber).catch(() => { });
     }
 
-    // Update account's dealer balance (fire-and-forget — non-critical for user response)
+    // Update account's dealer balance (fire-and-forget â€” non-critical for user response)
     if (packagesResult.dealerBalance !== undefined) {
         prisma.beinAccount.update({
             where: { id: selectedAccount.id },
@@ -748,7 +745,7 @@ async function handleStartRenewalHttp(
                 balanceUpdatedAt: new Date()
             }
         }).catch(() => { });
-        console.log(`[HTTP] 💰 Dealer balance: ${packagesResult.dealerBalance} USD (updating async)`);
+        console.log(`[HTTP] ًں’° Dealer balance: ${packagesResult.dealerBalance} USD (updating async)`);
     }
 
     // Convert to format expected by frontend
@@ -809,149 +806,12 @@ async function handleStartRenewalHttp(
     // This allows other operations to use the account
     try {
         await accountPool.releaseLock(selectedAccount.id);
-        console.log(`🔓 [HTTP] Released account lock for ${selectedAccount.username} - user selecting package`);
+        console.log(`ًں”“ [HTTP] Released account lock for ${selectedAccount.username} - user selecting package`);
     } catch (releaseError) {
         console.warn(`[HTTP] Failed to release account lock:`, releaseError);
     }
 
-    console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
-}
-
-/**
- * APPLY_PROMO - Apply a promo code and refresh package prices
- * 
- * Flow:
- * 1. Get the operation and its assigned beIN account
- * 2. Restore session from cache or re-login
- * 3. Call applyPromoCode() on HttpClientService
- * 4. Update operation with new packages in responseData (promoApplied: true)
- * 5. Keep status as AWAITING_PACKAGE so user can select a package
- */
-async function handleApplyPromoHttp(
-    operationId: string,
-    cardNumber: string,
-    promoCode: string | undefined,
-    accountPool: AccountPoolManager
-): Promise<void> {
-    console.log(`🎫 [HTTP] Applying promo code for ${operationId}`);
-
-    if (!promoCode) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'No promo code provided' })
-            }
-        });
-        return;
-    }
-
-    await checkIfCancelled(operationId);
-
-    // Get operation with account
-    const operation = await prisma.operation.findUnique({
-        where: { id: operationId },
-        select: {
-            id: true,
-            beinAccountId: true,
-            cardNumber: true,
-            status: true,
-        }
-    });
-
-    if (!operation || !operation.beinAccountId) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'Operation or account not found' })
-            }
-        });
-        return;
-    }
-
-    // Get account
-    const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId },
-        include: { proxy: true }
-    });
-
-    if (!account) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'beIN account not found' })
-            }
-        });
-        return;
-    }
-
-    const client = await getHttpClient(account);
-
-    // Ensure session is active
-    if (!client.isSessionActive()) {
-        console.log(`[HTTP] ⚠️ Session expired for promo apply, restoring...`);
-        const cachedSession = await getSessionFromCache(account.id);
-        if (cachedSession) {
-            await client.importSession(cachedSession);
-            client.markSessionValidFromCache(cachedSession.expiresAt);
-            console.log(`[HTTP] ✅ Session restored from cache for promo`);
-        } else {
-            // Fresh login needed
-            const loginResult = await client.login(
-                account.username,
-                account.password,
-                account.totpSecret || undefined
-            );
-            if (!loginResult.success) {
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        responseData: JSON.stringify({ promoApplied: false, error: 'Login failed for promo apply' })
-                    }
-                });
-                return;
-            }
-            // Save session to cache
-            try {
-                const sessionData = await client.exportSession();
-                const sessionTimeout = client.getSessionTimeout();
-                await saveSessionToCache(account.id, sessionData, sessionTimeout);
-            } catch (saveError) {
-                console.error('[HTTP] Failed to save session to cache:', saveError);
-            }
-        }
-    }
-
-    // Apply promo code
-    console.log(`[HTTP] 🎫 Applying promo code: ${promoCode}`);
-    const useCardNumber = cardNumber || operation.cardNumber;
-    const result = await client.applyPromoCode(promoCode, useCardNumber);
-
-    if (result.success && result.packages.length > 0) {
-        // Update operation with new discounted packages
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                availablePackages: JSON.parse(JSON.stringify(result.packages)),
-                responseData: JSON.stringify({
-                    promoApplied: true,
-                    packages: result.packages
-                })
-            }
-        });
-        console.log(`✅ [HTTP] Promo code applied, ${result.packages.length} packages updated`);
-    } else {
-        // Promo failed — update responseData with error
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({
-                    promoApplied: false,
-                    error: result.error || 'Failed to apply promo code'
-                })
-            }
-        });
-        console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
-    }
+    console.log(`âœ… [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
 }
 
 /**
@@ -970,7 +830,7 @@ async function handleCompletePurchaseHttp(
     promoCode: string | undefined,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`💳 [HTTP] Completing purchase for ${operationId}`);
+    console.log(`ًں’³ [HTTP] Completing purchase for ${operationId}`);
 
     await checkIfCancelled(operationId);
 
@@ -1017,7 +877,7 @@ async function handleCompletePurchaseHttp(
     // Retry loop - try all available accounts
     while (true) {
         const attemptNumber = triedAccountIds.length + 1;
-        console.log(`[HTTP] 🔄 Attempt ${attemptNumber}: Trying account ${currentAccountId}`);
+        console.log(`[HTTP] ًں”„ Attempt ${attemptNumber}: Trying account ${currentAccountId}`);
 
         const attemptResult = await attemptPurchaseWithAccount(
             operationId,
@@ -1030,7 +890,7 @@ async function handleCompletePurchaseHttp(
         );
 
         if (attemptResult.success) {
-            console.log(`[HTTP] ✅ Purchase completed successfully on attempt ${attemptNumber}`);
+            console.log(`[HTTP] âœ… Purchase completed successfully on attempt ${attemptNumber}`);
             return;
         }
 
@@ -1040,12 +900,12 @@ async function handleCompletePurchaseHttp(
 
         // Check if we should retry with a different account
         if (!attemptResult.shouldRetryDifferentAccount) {
-            console.log(`[HTTP] ❌ Error is not recoverable with different account: ${lastError}`);
+            console.log(`[HTTP] â‌Œ Error is not recoverable with different account: ${lastError}`);
             throw new Error(lastError);
         }
 
-        console.log(`[HTTP] ⚠️ Attempt ${attemptNumber} failed: ${lastError}`);
-        console.log(`[HTTP] 🔍 Looking for alternative account (tried: ${triedAccountIds.length})...`);
+        console.log(`[HTTP] âڑ ï¸ڈ Attempt ${attemptNumber} failed: ${lastError}`);
+        console.log(`[HTTP] ًں”چ Looking for alternative account (tried: ${triedAccountIds.length})...`);
 
         // Try to get another account (with minimum balance filter for balance errors)
         const minBalance = attemptResult.isBalanceError ? selectedPackage.price : undefined;
@@ -1055,7 +915,7 @@ async function handleCompletePurchaseHttp(
         );
 
         if (!nextAccount) {
-            console.log(`[HTTP] ❌ No more accounts available after trying ${triedAccountIds.length}`);
+            console.log(`[HTTP] â‌Œ No more accounts available after trying ${triedAccountIds.length}`);
 
             // Final error message
             const finalError = attemptResult.isBalanceError
@@ -1072,7 +932,7 @@ async function handleCompletePurchaseHttp(
         });
 
         currentAccountId = nextAccount.id;
-        console.log(`[HTTP] 🔄 Retrying with account: ${nextAccount.label || nextAccount.username} (Balance: ${nextAccount.dealerBalance || 'unknown'} USD)`);
+        console.log(`[HTTP] ًں”„ Retrying with account: ${nextAccount.label || nextAccount.username} (Balance: ${nextAccount.dealerBalance || 'unknown'} USD)`);
     }
 }
 
@@ -1139,12 +999,12 @@ async function attemptPurchaseWithAccount(
                 }
 
                 if (savedData.sessionData) {
-                    console.log(`[HTTP] 🔄 Restoring session from database`);
+                    console.log(`[HTTP] ًں”„ Restoring session from database`);
                     await client.importSession(savedData.sessionData);
                 }
                 dealerBalance = savedData.dealerBalance;
             } catch (parseError: any) {
-                console.log(`[HTTP] ⚠️ Could not restore saved session: ${parseError.message}`);
+                console.log(`[HTTP] âڑ ï¸ڈ Could not restore saved session: ${parseError.message}`);
             }
         }
 
@@ -1160,7 +1020,7 @@ async function attemptPurchaseWithAccount(
         // For non-original account or if session restore failed, need fresh login + loadPackages
         if (!isOriginalAccount || !client.isSessionActive()) {
             await updateProgress(operationId, 'Logging in...');
-            console.log(`[HTTP] 🔑 New account - need fresh login and package load`);
+            console.log(`[HTTP] ًں”‘ New account - need fresh login and package load`);
 
             // Perform login
             const loginResult = await client.login(
@@ -1170,7 +1030,7 @@ async function attemptPurchaseWithAccount(
             );
 
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                console.log(`[HTTP] 🧩 CAPTCHA required for login, attempting auto-solve...`);
+                console.log(`[HTTP] ًں§© CAPTCHA required for login, attempting auto-solve...`);
                 const captchaApiKey = await getCaptchaApiKey();
 
                 if (!captchaApiKey) {
@@ -1223,7 +1083,7 @@ async function attemptPurchaseWithAccount(
             }
 
             // Load packages with session retry (use saved smartcard type)
-            console.log(`[HTTP] 📦 Loading packages for new account (smartcard: ${savedSmartcardType})...`);
+            console.log(`[HTTP] ًں“¦ Loading packages for new account (smartcard: ${savedSmartcardType})...`);
             const packagesResult = await withSessionRetry(
                 client,
                 account,
@@ -1261,7 +1121,7 @@ async function attemptPurchaseWithAccount(
 
         // ========== DEALER BALANCE CHECK ==========
         if (dealerBalance !== undefined && dealerBalance < selectedPackage.price) {
-            console.log(`[HTTP] ❌ INSUFFICIENT DEALER BALANCE: ${dealerBalance} USD < ${selectedPackage.price} USD`);
+            console.log(`[HTTP] â‌Œ INSUFFICIENT DEALER BALANCE: ${dealerBalance} USD < ${selectedPackage.price} USD`);
 
             // Mark account for cooldown
             await accountPool.markAccountFailed(
@@ -1297,7 +1157,7 @@ async function attemptPurchaseWithAccount(
         };
 
         // Complete purchase
-        console.log(`[HTTP] 📦 Completing purchase: ${pkg.name} @ ${pkg.price} USD`);
+        console.log(`[HTTP] ًں“¦ Completing purchase: ${pkg.name} @ ${pkg.price} USD`);
         const result = await client.completePurchase(
             pkg,
             operation.promoCode || promoCode,
@@ -1306,7 +1166,7 @@ async function attemptPurchaseWithAccount(
         );
 
         if (result.awaitingConfirm) {
-            console.log(`⏸️ [HTTP] Awaiting confirmation for ${operationId}`);
+            console.log(`âڈ¸ï¸ڈ [HTTP] Awaiting confirmation for ${operationId}`);
 
             // Export and save updated session for CONFIRM_PURCHASE
             const updatedSessionData = await client.exportSession();
@@ -1334,7 +1194,7 @@ async function attemptPurchaseWithAccount(
             if (operation.userId) {
                 await createNotification({
                     userId: operation.userId,
-                    title: '⚠️ Payment confirmation required',
+                    title: 'âڑ ï¸ڈ Payment confirmation required',
                     message: `${selectedPackage.name} - ${selectedPackage.price} USD`,
                     type: 'warning',
                     link: '/dashboard/operations'
@@ -1363,7 +1223,7 @@ async function attemptPurchaseWithAccount(
 
     } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
-        console.log(`[HTTP] ❌ attemptPurchaseWithAccount failed: ${errorMessage}`);
+        console.log(`[HTTP] â‌Œ attemptPurchaseWithAccount failed: ${errorMessage}`);
 
         // Determine if we should retry with different account
         const isRecoverableError =
@@ -1398,7 +1258,7 @@ async function handleConfirmPurchaseHttp(
     operationId: string,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`✅ [HTTP] Confirming purchase for ${operationId}`);
+    console.log(`âœ… [HTTP] Confirming purchase for ${operationId}`);
 
     await checkIfCancelled(operationId);
 
@@ -1422,10 +1282,16 @@ async function handleConfirmPurchaseHttp(
         throw new Error('Operation or account not found');
     }
 
-    // Guard: skip if already terminal (race condition with duplicate jobs)
-    // NOTE: COMPLETING is valid - the confirm-purchase API sets it before adding this job.
-    if (isTerminalStatus(operation.status)) {
-        console.log(`⏭️ [HTTP] Operation ${operationId} already terminal (${operation.status}), skipping CONFIRM_PURCHASE`);
+    // Guard: If already completed or in review, skip silently (race condition with duplicate jobs)
+    // NOTE: COMPLETING is valid â€” the confirm-purchase API sets it BEFORE adding this job
+    if (operation.status === 'COMPLETED' || operation.status === 'REVIEW_REQUIRED') {
+        console.log(`âڈ­ï¸ڈ [HTTP] Operation ${operationId} already ${operation.status}, skipping duplicate CONFIRM_PURCHASE`);
+        return;
+    }
+
+    // Guard: If in any other terminal state, skip
+    if (operation.status === 'CANCELLED' || operation.status === 'FAILED' || operation.status === 'EXPIRED') {
+        console.log(`âڈ­ï¸ڈ [HTTP] Operation ${operationId} already ${operation.status}, skipping CONFIRM_PURCHASE`);
         return;
     }
 
@@ -1442,10 +1308,15 @@ async function handleConfirmPurchaseHttp(
         throw new Error('Confirmation timeout');
     }
 
-    await prisma.operation.update({
-        where: { id: operationId },
+    // Guarded update: only transition from expected states (prevents stale job from overwriting newer state)
+    const guardResult = await prisma.operation.updateMany({
+        where: { id: operationId, status: { in: ['AWAITING_FINAL_CONFIRM', 'COMPLETING'] } },
         data: { status: 'COMPLETING', responseMessage: 'Confirming purchase...' }
     });
+    if (guardResult.count === 0) {
+        console.warn(`ًں›،ï¸ڈ [HTTP] Operation ${operationId} status changed concurrently â€” aborting CONFIRM_PURCHASE`);
+        return;
+    }
 
     const account = await prisma.beinAccount.findUnique({
         where: { id: operation.beinAccountId },
@@ -1465,7 +1336,7 @@ async function handleConfirmPurchaseHttp(
     while (Date.now() - lockStartTime < LOCK_WAIT_TIMEOUT) {
         lockAcquired = await lockAccount(redis, operation.beinAccountId, WORKER_ID, LOCK_TTL);
         if (lockAcquired) break;
-        console.log(`[HTTP] ⏳ Account ${account.username} locked by another job, waiting...`);
+        console.log(`[HTTP] âڈ³ Account ${account.username} locked by another job, waiting...`);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1s
     }
 
@@ -1473,7 +1344,7 @@ async function handleConfirmPurchaseHttp(
         throw new Error('Account busy - could not acquire lock within 30 seconds');
     }
 
-    console.log(`[HTTP] 🔒 Account lock acquired for CONFIRM_PURCHASE: ${account.username}`);
+    console.log(`[HTTP] ًں”’ Account lock acquired for CONFIRM_PURCHASE: ${account.username}`);
 
     try {
         const client = await getHttpClient(account);
@@ -1481,9 +1352,9 @@ async function handleConfirmPurchaseHttp(
         // CRITICAL: Set STB number on client for confirmPurchase
         if (operation.stbNumber) {
             client.setSTBNumber(operation.stbNumber);
-            console.log(`[HTTP] 📺 STB number set on client: ${operation.stbNumber}`);
+            console.log(`[HTTP] ًں“؛ STB number set on client: ${operation.stbNumber}`);
         } else {
-            console.warn('[HTTP] ⚠️ No STB number found in operation!');
+            console.warn('[HTTP] âڑ ï¸ڈ No STB number found in operation!');
         }
 
         // CRITICAL: Restore session from database (cross-worker support)
@@ -1498,38 +1369,32 @@ async function handleConfirmPurchaseHttp(
                 }
 
                 if (savedData.sessionData) {
-                    console.log(`[HTTP] 🔄 Restoring session for CONFIRM_PURCHASE (saved at ${savedData.savedAt})`);
+                    console.log(`[HTTP] ًں”„ Restoring session for CONFIRM_PURCHASE (saved at ${savedData.savedAt})`);
                     await client.importSession(savedData.sessionData);
-                    console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
+                    console.log(`[HTTP] âœ… Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
                 }
             } catch (parseError: any) {
                 if (parseError.message?.includes('Session expired')) {
                     throw parseError; // Re-throw session expiry error
                 }
-                console.error('[HTTP] ⚠️ Failed to parse saved session for confirm:', parseError);
+                console.error('[HTTP] âڑ ï¸ڈ Failed to parse saved session for confirm:', parseError);
                 throw new Error('Session restoration failed - cannot confirm purchase');
             }
         } else {
-            console.error('[HTTP] ❌ No saved session found - cannot confirm purchase');
+            console.error('[HTTP] â‌Œ No saved session found - cannot confirm purchase');
             throw new Error('No session data available - cannot confirm purchase');
         }
 
         await updateProgress(operationId, 'Sending final confirmation...');
-        const result = await client.confirmPurchase(operation.amount ?? undefined);
+        const selectedPkg = operation.selectedPackage as { price?: number } | null;
+        const result = await client.confirmPurchase(operation.amount || selectedPkg?.price);
 
         const selectedPackage = operation.selectedPackage as { name: string } | null;
 
         if (result.success) {
-            // OPTIMIZATION: Invalidate package cache since packages changed after purchase
-            if (operation.cardNumber) {
-                await invalidatePackageCache(operation.cardNumber);
-            }
-
-            const completed = await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
-                },
+            // === CONFIRMED ===
+            const completedUpdate = await prisma.operation.updateMany({
+                where: { id: operationId, status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] } },
                 data: {
                     status: 'COMPLETED',
                     responseMessage: result.message,
@@ -1537,70 +1402,90 @@ async function handleConfirmPurchaseHttp(
                     finalConfirmExpiry: null
                 }
             });
-            if (completed.count === 0) {
-                console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId} due to terminal transition race`);
+            if (completedUpdate.count === 0) {
+                console.warn(`ًں›،ï¸ڈ [MONITOR] Operation ${operationId} moved to terminal state before COMPLETED write - skipping overwrite`);
                 return;
             }
 
-            await accountPool.markAccountUsed(operation.beinAccountId);
+            // Best-effort side effects â€” must NOT trigger refund if they fail
+            try {
+                if (operation.cardNumber) await invalidatePackageCache(operation.cardNumber);
+            } catch (e: any) { console.warn(`[HTTP] Cache invalidation failed (non-fatal): ${e.message}`); }
 
-            // Track activity for user engagement metrics
-            if (operation.userId) {
-                await trackOperationComplete(
-                    operation.userId,
-                    operationId,
-                    'RENEW',
-                    operation.amount,
-                    { packageName: selectedPackage?.name }
-                );
-            }
+            try {
+                await accountPool.markAccountUsed(operation.beinAccountId);
+            } catch (e: any) { console.warn(`[HTTP] markAccountUsed failed (non-fatal): ${e.message}`); }
 
-            if (operation.userId) {
-                await createNotification({
-                    userId: operation.userId,
-                    title: 'Renewal successful',
-                    message: `${selectedPackage?.name || 'Package'} - ${result.message}`,
-                    type: 'success',
-                    link: '/dashboard/history'
-                });
-            }
+            try {
+                if (operation.userId) {
+                    await trackOperationComplete(
+                        operation.userId,
+                        operationId,
+                        'RENEW',
+                        operation.amount,
+                        { packageName: selectedPackage?.name }
+                    );
+                }
+            } catch (e: any) { console.warn(`[HTTP] Tracking failed (non-fatal): ${e.message}`); }
 
-            console.log(`✅ [HTTP] Purchase confirmed for ${operationId}`);
+            try {
+                if (operation.userId) {
+                    await createNotification({
+                        userId: operation.userId,
+                        title: 'Renewal successful',
+                        message: `${selectedPackage?.name || 'Package'} - ${result.message}`,
+                        type: 'success',
+                        link: '/dashboard/history'
+                    });
+                }
+            } catch (e: any) { console.warn(`[HTTP] Notification failed (non-fatal): ${e.message}`); }
+
+            console.log(`âœ… [HTTP] Purchase confirmed for ${operationId}`);
+            return; // Return to avoid outer catch
+
         } else if (isAmbiguousFailure(result.message)) {
-            const reviewRequired = await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
-                },
+            // === AMBIGUOUS â€” do NOT refund, mark for manual review ===
+            console.warn(`ًںں، [MONITOR] Operation ${operationId} REVIEW_REQUIRED: ${result.message}`);
+            const reviewUpdate = await prisma.operation.updateMany({
+                where: { id: operationId, status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] } },
                 data: {
                     status: 'REVIEW_REQUIRED',
                     responseMessage: result.message,
+                    completedAt: new Date(),
                     finalConfirmExpiry: null
                 }
             });
-            if (reviewRequired.count === 0) {
-                console.warn(`[HTTP] CONFIRM_PURCHASE review update skipped for ${operationId} due to terminal transition race`);
+            if (reviewUpdate.count === 0) {
+                console.warn(`ًں›،ï¸ڈ [MONITOR] Operation ${operationId} moved to terminal state before REVIEW_REQUIRED write - skipping overwrite`);
                 return;
             }
 
             try {
-                await accountPool.markAccountUsed(operation.beinAccountId);
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${e.message}`);
-            }
-            console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED: ${result.message}`);
-            return;
+                if (operation.userId) {
+                    await createNotification({
+                        userId: operation.userId,
+                        title: 'Manual review needed',
+                        message: `${selectedPackage?.name || 'Package'} â€” ${result.message}`,
+                        type: 'warning',
+                        link: '/dashboard/history'
+                    });
+                }
+            } catch (e: any) { console.warn(`[HTTP] Notification failed (non-fatal): ${e.message}`); }
+
+            return; // No refund, no throw
+
         } else {
+            // === DEFINITIVE FAILURE â€” refund ===
             if (operation.userId && operation.amount && operation.amount > 0) {
                 await refundUser(operationId, operation.userId, operation.amount, result.message);
             }
             await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1);
-            throw new Error(result.message);
+            return; // Return instead of throw to avoid double-processing in outer catch
         }
     } finally {
         // ALWAYS release account lock
         await unlockAccount(redis, operation.beinAccountId, WORKER_ID);
-        console.log(`[HTTP] 🔓 Account lock released after CONFIRM_PURCHASE: ${account.username}`);
+        console.log(`[HTTP] ًں”“ Account lock released after CONFIRM_PURCHASE: ${account.username}`);
     }
 }
 
@@ -1611,7 +1496,7 @@ async function handleCancelConfirmHttp(
     operationId: string,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`🚫 [HTTP] Cancelling purchase for ${operationId}`);
+    console.log(`ًںڑ« [HTTP] Cancelling purchase for ${operationId}`);
 
     const operation = await prisma.operation.findUnique({
         where: { id: operationId },
@@ -1630,7 +1515,7 @@ async function handleCancelConfirmHttp(
 
     // Guard: Skip if already cancelled (duplicate job from race condition)
     if (operation.status === 'CANCELLED') {
-        console.log(`⏭️ [HTTP] Operation ${operationId} already cancelled, skipping duplicate job`);
+        console.log(`âڈ­ï¸ڈ [HTTP] Operation ${operationId} already cancelled, skipping duplicate job`);
         return;
     }
 
@@ -1650,7 +1535,7 @@ async function handleCancelConfirmHttp(
                 await client.cancelPurchase();
             }
         } catch (e: any) {
-            console.log(`⚠️ [HTTP] Failed to click cancel: ${e.message}`);
+            console.log(`âڑ ï¸ڈ [HTTP] Failed to click cancel: ${e.message}`);
         }
     }
 
@@ -1688,14 +1573,14 @@ async function handleCancelConfirmHttp(
             const redis = (accountPool as any).redis;
             if (redis) {
                 await forceUnlockAccount(redis, operation.beinAccountId);
-                console.log(`🔓 [HTTP] Force-unlocked account ${operation.beinAccountId} after cancel`);
+                console.log(`ًں”“ [HTTP] Force-unlocked account ${operation.beinAccountId} after cancel`);
             }
         } catch (e: any) {
-            console.log(`⚠️ [HTTP] Failed to force-unlock: ${e.message}`);
+            console.log(`âڑ ï¸ڈ [HTTP] Failed to force-unlock: ${e.message}`);
         }
     }
 
-    console.log(`✅ [HTTP] Operation ${operationId} cancelled and refunded`);
+    console.log(`âœ… [HTTP] Operation ${operationId} cancelled and refunded`);
 }
 
 /**
@@ -1706,7 +1591,7 @@ async function handleSignalRefreshHttp(
     cardNumber: string,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`🔄 [HTTP] Starting signal refresh for ${operationId}`);
+    console.log(`ًں”„ [HTTP] Starting signal refresh for ${operationId}`);
 
     await checkIfCancelled(operationId);
 
@@ -1731,7 +1616,7 @@ async function handleSignalRefreshHttp(
     if (queueResult.waitTimeMs > 0) {
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
-    console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`);
+    console.log(`âœ… Selected account: ${account.label || account.username} (ID: ${account.id})`);
 
     // Store account reference
     await prisma.operation.update({
@@ -1749,7 +1634,7 @@ async function handleSignalRefreshHttp(
 
         // Check if we already have a valid session from Redis cache
         if (httpClient.isSessionActive()) {
-            console.log(`[HTTP] ✅ Using cached session for ${account.username}`);
+            console.log(`[HTTP] âœ… Using cached session for ${account.username}`);
             needsFreshLogin = false;
         }
 
@@ -1759,7 +1644,7 @@ async function handleSignalRefreshHttp(
 
             if (!lockAcquired) {
                 // Another worker is logging in, wait for it to complete
-                console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
+                console.log(`[HTTP] âڈ³ Another worker is logging in, waiting...`);
                 const loginCompleted = await waitForLoginComplete(account.id);
 
                 if (loginCompleted) {
@@ -1768,7 +1653,7 @@ async function handleSignalRefreshHttp(
                     if (cachedSession) {
                         await httpClient.importSession(cachedSession);
                         httpClient.markSessionValidFromCache(cachedSession.expiresAt);
-                        console.log(`[HTTP] ✅ Got session from cache after waiting`);
+                        console.log(`[HTTP] âœ… Got session from cache after waiting`);
                         needsFreshLogin = false;
                     }
                 }
@@ -1779,7 +1664,7 @@ async function handleSignalRefreshHttp(
             const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
 
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                console.log(`🧩 [HTTP] CAPTCHA required for signal refresh ${operationId}`);
+                console.log(`ًں§© [HTTP] CAPTCHA required for signal refresh ${operationId}`);
 
                 let solution: string | null = null;
 
@@ -1787,15 +1672,15 @@ async function handleSignalRefreshHttp(
                 const captchaApiKey = await getCaptchaApiKey();
                 if (captchaApiKey) {
                     try {
-                        console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                        console.log(`ًں¤– [HTTP] Attempting auto-solve with 2Captcha...`);
                         const captchaSolver = new CaptchaSolver(captchaApiKey);
                         solution = await captchaSolver.solve(loginResult.captchaImage);
-                        console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
+                        console.log(`âœ… [HTTP] CAPTCHA auto-solved: [REDACTED]`);
                     } catch (autoSolveError: any) {
-                        console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                        console.log(`âڑ ï¸ڈ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
                     }
                 } else {
-                    console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
+                    console.log(`âڑ ï¸ڈ [HTTP] No 2Captcha API key configured, using manual entry`);
                 }
 
                 // Fallback to manual if auto-solve failed or not configured
@@ -1828,12 +1713,12 @@ async function handleSignalRefreshHttp(
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
-                console.log('🔑 [HTTP] Login with CAPTCHA successful');
+                console.log('ًں”‘ [HTTP] Login with CAPTCHA successful');
             } else if (!loginResult.success) {
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             } else {
-                console.log('🔑 [HTTP] Login successful');
+                console.log('ًں”‘ [HTTP] Login successful');
             }
 
             // Save session to cache after successful login
@@ -1841,9 +1726,9 @@ async function handleSignalRefreshHttp(
                 const sessionData = await httpClient.exportSession();
                 const sessionTimeout = httpClient.getSessionTimeout();
                 await saveSessionToCache(account.id, sessionData, sessionTimeout);
-                console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
+                console.log(`[HTTP] ًں’¾ Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
             } catch (saveError) {
-                console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
+                console.error(`[HTTP] âڑ ï¸ڈ Failed to save session to cache:`, saveError);
             }
 
             // Release login lock
@@ -1897,7 +1782,7 @@ async function handleSignalRefreshHttp(
         // Mark account as used
         await accountPool.markAccountUsed(account.id);
 
-        console.log(`✅ [HTTP] Signal refresh completed for ${operationId}`);
+        console.log(`âœ… [HTTP] Signal refresh completed for ${operationId}`);
 
     } catch (error: any) {
         // Mark account as used even on failure
@@ -1915,7 +1800,7 @@ async function handleSignalCheckHttp(
     cardNumber: string,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`🔍 [HTTP] Starting signal check for ${operationId}`);
+    console.log(`ًں”چ [HTTP] Starting signal check for ${operationId}`);
 
     await checkIfCancelled(operationId);
 
@@ -1940,7 +1825,7 @@ async function handleSignalCheckHttp(
     if (queueResult.waitTimeMs > 0) {
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
-    console.log(`✅ Selected account: ${account.label || account.username}`);
+    console.log(`âœ… Selected account: ${account.label || account.username}`);
 
     // Store account reference
     await prisma.operation.update({
@@ -1956,7 +1841,7 @@ async function handleSignalCheckHttp(
 
         // Check if we already have a valid session from Redis cache
         if (httpClient.isSessionActive()) {
-            console.log(`[HTTP] ✅ Using cached session for ${account.username}`);
+            console.log(`[HTTP] âœ… Using cached session for ${account.username}`);
             needsFreshLogin = false;
         }
 
@@ -1966,7 +1851,7 @@ async function handleSignalCheckHttp(
 
             if (!lockAcquired) {
                 // Another worker is logging in, wait for it to complete
-                console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
+                console.log(`[HTTP] âڈ³ Another worker is logging in, waiting...`);
                 const loginCompleted = await waitForLoginComplete(account.id);
 
                 if (loginCompleted) {
@@ -1975,7 +1860,7 @@ async function handleSignalCheckHttp(
                     if (cachedSession) {
                         await httpClient.importSession(cachedSession);
                         httpClient.markSessionValidFromCache(cachedSession.expiresAt);
-                        console.log(`[HTTP] ✅ Got session from cache after waiting`);
+                        console.log(`[HTTP] âœ… Got session from cache after waiting`);
                         needsFreshLogin = false;
                     }
                 }
@@ -1986,7 +1871,7 @@ async function handleSignalCheckHttp(
             const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
 
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                console.log(`🧩 [HTTP] CAPTCHA required for signal check ${operationId}`);
+                console.log(`ًں§© [HTTP] CAPTCHA required for signal check ${operationId}`);
 
                 let solution: string | null = null;
 
@@ -1994,12 +1879,12 @@ async function handleSignalCheckHttp(
                 const captchaApiKey = await getCaptchaApiKey();
                 if (captchaApiKey) {
                     try {
-                        console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                        console.log(`ًں¤– [HTTP] Attempting auto-solve with 2Captcha...`);
                         const captchaSolver = new CaptchaSolver(captchaApiKey);
                         solution = await captchaSolver.solve(loginResult.captchaImage);
-                        console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
+                        console.log(`âœ… [HTTP] CAPTCHA auto-solved: [REDACTED]`);
                     } catch (autoSolveError: any) {
-                        console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                        console.log(`âڑ ï¸ڈ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
                     }
                 }
 
@@ -2043,9 +1928,9 @@ async function handleSignalCheckHttp(
                 const loginSessionData = await httpClient.exportSession();
                 const sessionTimeout = httpClient.getSessionTimeout();
                 await saveSessionToCache(account.id, loginSessionData, sessionTimeout);
-                console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
+                console.log(`[HTTP] ًں’¾ Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
             } catch (saveError) {
-                console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
+                console.error(`[HTTP] âڑ ï¸ڈ Failed to save session to cache:`, saveError);
             }
 
             // Release login lock
@@ -2091,7 +1976,7 @@ async function handleSignalCheckHttp(
         await extendSessionTTL(account.id, httpClient.getSessionTimeout());
 
         await accountPool.markAccountUsed(account.id);
-        console.log(`✅ [HTTP] Signal check completed for ${operationId}`);
+        console.log(`âœ… [HTTP] Signal check completed for ${operationId}`);
 
     } catch (error: any) {
         await accountPool.markAccountUsed(account.id);
@@ -2114,7 +1999,7 @@ async function handleSignalActivateHttp(
     cardNumber: string,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`⚡ [HTTP] Starting signal activation for ${operationId}`);
+    console.log(`âڑ، [HTTP] Starting signal activation for ${operationId}`);
 
     await checkIfCancelled(operationId);
 
@@ -2171,7 +2056,7 @@ async function handleSignalActivateHttp(
                 validateSessionAge(savedData.checkedAt, 'signalActivate');
             }
 
-            console.log(`[HTTP] 🔄 Restoring session for activation`);
+            console.log(`[HTTP] ًں”„ Restoring session for activation`);
             await httpClient.importSession(savedData.sessionData);
         }
 
@@ -2217,7 +2102,7 @@ async function handleSignalActivateHttp(
         }
 
         await accountPool.markAccountUsed(account.id);
-        console.log(`✅ [HTTP] Signal activation completed for ${operationId}: activated=${activateResult.activated}`);
+        console.log(`âœ… [HTTP] Signal activation completed for ${operationId}: activated=${activateResult.activated}`);
 
     } catch (error: any) {
         await accountPool.markAccountUsed(account.id);
@@ -2243,7 +2128,7 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
         }
 
         if (op?.captchaSolution) {
-            console.log(`🧩 [HTTP] CAPTCHA solution received`);
+            console.log(`ًں§© [HTTP] CAPTCHA solution received`);
             return op.captchaSolution;
         }
 
@@ -2258,7 +2143,7 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
  * This is called from the admin panel to update account balance
  */
 async function handleCheckAccountBalance(accountId: string): Promise<void> {
-    console.log(`💰 [HTTP] Checking balance for account ${accountId}`);
+    console.log(`ًں’° [HTTP] Checking balance for account ${accountId}`);
 
     // Get account with proxy
     const account = await prisma.beinAccount.findUnique({
@@ -2334,9 +2219,9 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
                 balanceUpdatedAt: new Date()
             }
         });
-        console.log(`✅ [HTTP] Balance updated: ${balanceResult.balance} USD`);
+        console.log(`âœ… [HTTP] Balance updated: ${balanceResult.balance} USD`);
     } else {
-        console.log(`⚠️ [HTTP] Could not fetch balance: ${balanceResult.error}`);
+        console.log(`âڑ ï¸ڈ [HTTP] Could not fetch balance: ${balanceResult.error}`);
         throw new Error(balanceResult.error || 'Failed to fetch balance');
     }
 }
@@ -2359,7 +2244,7 @@ async function handleStartInstallmentHttp(
     cardNumber: string,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`🚀 [HTTP] Starting installment load for ${operationId}`);
+    console.log(`ًںڑ€ [HTTP] Starting installment load for ${operationId}`);
 
     await checkIfCancelled(operationId);
 
@@ -2395,7 +2280,7 @@ async function handleStartInstallmentHttp(
         data: { beinAccountId: selectedAccount.id }
     });
 
-    console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
+    console.log(`ًں”‘ [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
     // Get HTTP client for this account
     const client = await getHttpClient(selectedAccount);
@@ -2411,7 +2296,7 @@ async function handleStartInstallmentHttp(
         const lockAcquired = await acquireLoginLock(selectedAccount.id, WORKER_ID);
 
         if (!lockAcquired) {
-            console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
+            console.log(`[HTTP] âڈ³ Another worker is logging in, waiting...`);
             const loginCompleted = await waitForLoginComplete(selectedAccount.id);
 
             if (loginCompleted) {
@@ -2419,7 +2304,7 @@ async function handleStartInstallmentHttp(
                 if (cachedSession) {
                     await client.importSession(cachedSession);
                     client.markSessionValidFromCache(cachedSession.expiresAt);
-                    console.log(`[HTTP] ✅ Got session from cache after waiting`);
+                    console.log(`[HTTP] âœ… Got session from cache after waiting`);
                     needsFreshLogin = false;
                 }
             }
@@ -2435,7 +2320,7 @@ async function handleStartInstallmentHttp(
 
         // Handle CAPTCHA if needed (similar to renewal)
         if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
+            console.log(`ًں§© [HTTP] CAPTCHA required for ${operationId}`);
 
             let solution: string | null = null;
 
@@ -2443,12 +2328,12 @@ async function handleStartInstallmentHttp(
             const captchaApiKey = await getCaptchaApiKey();
             if (captchaApiKey) {
                 try {
-                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
+                    console.log(`ًں¤– [HTTP] Attempting auto-solve with 2Captcha...`);
                     const captchaSolver = new CaptchaSolver(captchaApiKey);
                     solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
+                    console.log(`âœ… [HTTP] CAPTCHA auto-solved: [REDACTED]`);
                 } catch (autoSolveError: any) {
-                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                    console.log(`âڑ ï¸ڈ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
                 }
             }
 
@@ -2497,7 +2382,7 @@ async function handleStartInstallmentHttp(
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
             await saveSessionToCache(selectedAccount.id, sessionData, sessionTimeout);
-            console.log(`[HTTP] 💾 Session saved to Redis cache`);
+            console.log(`[HTTP] ًں’¾ Session saved to Redis cache`);
         } catch (saveError) {
             console.error('[HTTP] Failed to save session to cache:', saveError);
         }
@@ -2557,7 +2442,7 @@ async function handleStartInstallmentHttp(
         }
     });
 
-    console.log(`✅ [HTTP] Installment loaded, awaiting confirmation`);
+    console.log(`âœ… [HTTP] Installment loaded, awaiting confirmation`);
     console.log(`   Package: ${installmentResult.installment?.package}`);
     console.log(`   Dealer Price: ${installmentResult.installment?.dealerPrice} USD`);
 }
@@ -2570,11 +2455,10 @@ async function handleConfirmInstallmentHttp(
     cardNumber: string,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`💰 [HTTP] Confirming installment payment for ${operationId}`);
+    console.log(`[HTTP] Confirming installment payment for ${operationId}`);
 
     await checkIfCancelled(operationId);
 
-    // Get operation with account
     const operation = await prisma.operation.findUnique({
         where: { id: operationId },
         include: {
@@ -2587,51 +2471,49 @@ async function handleConfirmInstallmentHttp(
         throw new Error('No beIN account assigned to this operation');
     }
 
-    if (isTerminalStatus(operation.status)) {
-        console.log(`⏭️ [HTTP] Operation ${operationId} already terminal (${operation.status}), skipping CONFIRM_INSTALLMENT`);
+    if (operation.status === 'COMPLETED' || operation.status === 'REVIEW_REQUIRED') {
+        console.log(`[HTTP] Operation ${operationId} already ${operation.status}, skipping duplicate CONFIRM_INSTALLMENT`);
         return;
     }
 
-    const movedToCompleting = await prisma.operation.updateMany({
-        where: {
-            id: operationId,
-            status: { in: ['AWAITING_FINAL_CONFIRM', 'COMPLETING'] }
-        },
-        data: {
-            status: 'COMPLETING',
-            responseMessage: 'Confirming installment payment...'
+    if (operation.status === 'CANCELLED' || operation.status === 'FAILED' || operation.status === 'EXPIRED') {
+        console.log(`[HTTP] Operation ${operationId} already ${operation.status}, skipping CONFIRM_INSTALLMENT`);
+        return;
+    }
+
+    if (operation.status !== 'AWAITING_FINAL_CONFIRM' && operation.status !== 'COMPLETING') {
+        throw new Error(`Invalid status: ${operation.status}`);
+    }
+
+    if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+        if (operation.userId && operation.amount && operation.amount > 0) {
+            await refundUser(operationId, operation.userId, operation.amount, 'Confirmation timeout');
         }
+        await markOperationFailed(operationId, { type: 'TIMEOUT', message: 'Confirmation timeout', recoverable: false }, 1);
+        return;
+    }
+
+    const guardResult = await prisma.operation.updateMany({
+        where: { id: operationId, status: { in: ['AWAITING_FINAL_CONFIRM', 'COMPLETING'] } },
+        data: { status: 'COMPLETING', responseMessage: 'Confirming installment payment...' }
     });
-    if (movedToCompleting.count === 0) {
-        const current = await prisma.operation.findUnique({
-            where: { id: operationId },
-            select: { status: true }
-        });
-        if (isTerminalStatus(current?.status)) {
-            console.log(`[HTTP] Operation ${operationId} moved to terminal state (${current?.status}), skipping CONFIRM_INSTALLMENT`);
-            return;
-        }
-        throw new Error(`Invalid status for CONFIRM_INSTALLMENT: ${current?.status || operation.status}`);
+    if (guardResult.count === 0) {
+        console.warn(`[MONITOR] Operation ${operationId} status changed concurrently - aborting CONFIRM_INSTALLMENT`);
+        return;
     }
 
     const selectedAccount = operation.beinAccount;
-
-    // Get HTTP client
     const client = await getHttpClient(selectedAccount);
     await client.reloadConfig();
 
-    // Ensure session is active — re-login if expired
     if (!client.isSessionActive()) {
-        console.log(`[HTTP] ⚠️ Session expired for installment confirm, re-logging in...`);
-
-        // Try to get session from cache first
+        console.log('[HTTP] Session expired for installment confirm, re-logging in...');
         const cachedSession = await getSessionFromCache(selectedAccount.id);
         if (cachedSession) {
             await client.importSession(cachedSession);
             client.markSessionValidFromCache(cachedSession.expiresAt);
-            console.log(`[HTTP] ✅ Got session from cache`);
+            console.log('[HTTP] Got session from cache');
         } else {
-            // Fresh login
             const loginResult = await client.login(
                 selectedAccount.username,
                 selectedAccount.password,
@@ -2640,7 +2522,6 @@ async function handleConfirmInstallmentHttp(
             if (!loginResult.success) {
                 throw new Error(loginResult.error || 'Login failed for installment confirm');
             }
-            // Save session to cache
             try {
                 const sessionData = await client.exportSession();
                 const sessionTimeout = client.getSessionTimeout();
@@ -2653,7 +2534,6 @@ async function handleConfirmInstallmentHttp(
 
     await checkIfCancelled(operationId);
 
-    // Re-load installment to ensure card is loaded and ViewState is fresh
     await updateProgress(operationId, 'Loading installment data...');
     console.log(`[HTTP] Re-loading installment for card ${cardNumber} before payment...`);
     const loadResult = await client.loadInstallment(cardNumber);
@@ -2662,23 +2542,23 @@ async function handleConfirmInstallmentHttp(
         if (operation.userId && operation.amount && operation.amount > 0) {
             await refundUser(operationId, operation.userId, operation.amount, loadResult.error || 'Failed to re-load installment');
         }
-        await markOperationFailed(operationId, { type: 'UNKNOWN', message: loadResult.error || 'Failed to re-load installment before payment', recoverable: false }, 1);
+        await markOperationFailed(
+            operationId,
+            { type: 'UNKNOWN', message: loadResult.error || 'Failed to re-load installment before payment', recoverable: false },
+            1
+        );
         return;
     }
 
     await checkIfCancelled(operationId);
 
-    // Execute payment
     await updateProgress(operationId, 'Processing payment...');
-    console.log(`[HTTP] Executing installment payment...`);
+    console.log('[HTTP] Executing installment payment...');
     const payResult = await client.payInstallment();
 
     if (payResult.success) {
-        const completed = await prisma.operation.updateMany({
-            where: {
-                id: operationId,
-                status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
-            },
+        const completedUpdate = await prisma.operation.updateMany({
+            where: { id: operationId, status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] } },
             data: {
                 status: 'COMPLETED',
                 responseMessage: payResult.message,
@@ -2686,19 +2566,19 @@ async function handleConfirmInstallmentHttp(
                 finalConfirmExpiry: null
             }
         });
-        if (completed.count === 0) {
-            console.warn(`[HTTP] CONFIRM_INSTALLMENT completion skipped for ${operationId} due to terminal transition race`);
+        if (completedUpdate.count === 0) {
+            console.warn(`[MONITOR] Operation ${operationId} moved to terminal state before installment COMPLETED write - skipping overwrite`);
             return;
         }
 
         try {
             await accountPool.markAccountUsed(selectedAccount.id);
         } catch (e: any) {
-            console.error(`[HTTP] Failed to mark account used after installment completion for ${operationId}: ${e.message}`);
+            console.warn(`[HTTP] markAccountUsed failed (non-fatal): ${e.message}`);
         }
 
-        if (operation.userId) {
-            try {
+        try {
+            if (operation.userId) {
                 await trackOperationComplete(
                     operation.userId,
                     operationId,
@@ -2706,13 +2586,13 @@ async function handleConfirmInstallmentHttp(
                     operation.amount,
                     { type: 'installment', cardNumber }
                 );
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to track installment completion for ${operationId}: ${e.message}`);
             }
+        } catch (e: any) {
+            console.warn(`[HTTP] Tracking failed (non-fatal): ${e.message}`);
         }
 
-        if (operation.userId) {
-            try {
+        try {
+            if (operation.userId) {
                 await createNotification({
                     userId: operation.userId,
                     title: 'Installment paid',
@@ -2720,48 +2600,58 @@ async function handleConfirmInstallmentHttp(
                     type: 'success',
                     link: '/dashboard/history'
                 });
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to create installment notification for ${operationId}: ${e.message}`);
             }
+        } catch (e: any) {
+            console.warn(`[HTTP] Notification failed (non-fatal): ${e.message}`);
         }
 
-        console.log(`✅ [HTTP] Installment payment completed`);
+        console.log('[HTTP] Installment payment completed');
         return;
     }
 
     if (isAmbiguousFailure(payResult.message)) {
-        const reviewRequired = await prisma.operation.updateMany({
-            where: {
-                id: operationId,
-                status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
-            },
+        console.warn(`[MONITOR] Operation ${operationId} REVIEW_REQUIRED: ${payResult.message}`);
+        const reviewUpdate = await prisma.operation.updateMany({
+            where: { id: operationId, status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] } },
             data: {
                 status: 'REVIEW_REQUIRED',
                 responseMessage: payResult.message,
+                completedAt: new Date(),
                 finalConfirmExpiry: null
             }
         });
-        if (reviewRequired.count === 0) {
-            console.warn(`[HTTP] CONFIRM_INSTALLMENT review update skipped for ${operationId} due to terminal transition race`);
+        if (reviewUpdate.count === 0) {
+            console.warn(`[MONITOR] Operation ${operationId} moved to terminal state before installment REVIEW_REQUIRED write - skipping overwrite`);
             return;
         }
 
         try {
-            await accountPool.markAccountUsed(selectedAccount.id);
+            if (operation.userId) {
+                await createNotification({
+                    userId: operation.userId,
+                    title: 'Manual review needed',
+                    message: `Installment payment requires manual review - ${payResult.message}`,
+                    type: 'warning',
+                    link: '/dashboard/history'
+                });
+            }
         } catch (e: any) {
-            console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${e.message}`);
+            console.warn(`[HTTP] Notification failed (non-fatal): ${e.message}`);
         }
-        console.warn(`[HTTP] Installment payment for ${operationId} moved to REVIEW_REQUIRED: ${payResult.message}`);
+
         return;
     }
 
     if (operation.userId && operation.amount && operation.amount > 0) {
         await refundUser(operationId, operation.userId, operation.amount, payResult.message);
     }
-    await markOperationFailed(operationId, { type: 'UNKNOWN', message: payResult.message, recoverable: false }, 1);
+    await markOperationFailed(
+        operationId,
+        { type: 'UNKNOWN', message: payResult.message || 'Installment payment failed', recoverable: false },
+        1
+    );
     return;
 }
-
 /**
  * Cleanup all HTTP clients
  */

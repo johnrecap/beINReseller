@@ -89,17 +89,36 @@ export async function GET(request: Request) {
                 // Only refund if amount > 0 (AWAITING_PACKAGE has amount=0)
                 const shouldRefund = operation.amount > 0
 
-                await prisma.$transaction(async (tx) => {
-                    // Update operation status to FAILED
-                    await tx.operation.update({
-                        where: { id: operation.id },
+                const result = await prisma.$transaction(async (tx) => {
+                    // Guard: only fail if operation is still in the same stale state.
+                    const staleWhere = operation.status === 'AWAITING_FINAL_CONFIRM'
+                        ? {
+                            id: operation.id,
+                            status: operation.status,
+                            finalConfirmExpiry: { lt: nowDate },
+                        }
+                        : {
+                            id: operation.id,
+                            status: operation.status,
+                            updatedAt: operation.updatedAt,
+                        }
+
+                    const timeoutGuard = await tx.operation.updateMany({
+                        where: staleWhere,
                         data: {
                             status: 'FAILED',
                             responseMessage: shouldRefund
                                 ? `${timeoutMessage} - amount auto-refunded`
                                 : timeoutMessage,
+                            finalConfirmExpiry: null,
                         },
                     })
+
+                    if (timeoutGuard.count === 0) {
+                        return { processed: false, refunded: false }
+                    }
+
+                    let refunded = false
 
                     // Refund user balance only if amount > 0 AND no existing refund AND has userId (not store customer)
                     if (shouldRefund && operation.userId) {
@@ -130,6 +149,8 @@ export async function GET(request: Request) {
                                     notes: `Auto-refund - ${timeoutMessage}`,
                                 },
                             })
+
+                            refunded = true
                         }
                     }
 
@@ -146,9 +167,18 @@ export async function GET(request: Request) {
                             },
                         })
                     }
+
+                    return { processed: true, refunded }
                 })
 
-                refundedCount++
+                if (!result.processed) {
+                    console.log(`Skip ${operation.id} - state changed while processing timeout`)
+                    continue
+                }
+
+                if (result.refunded) {
+                    refundedCount++
+                }
             } catch (err) {
                 console.error(`Failed to refund operation ${operation.id}:`, err)
                 errors.push(operation.id)

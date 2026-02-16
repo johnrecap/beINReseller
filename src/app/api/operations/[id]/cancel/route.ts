@@ -86,7 +86,7 @@ export async function POST(
         }
 
         // RADICAL FIX: Allow cancellation of ANY status except COMPLETED and CANCELLED
-        const nonCancellableStatuses = ['COMPLETED', 'CANCELLED']
+        const nonCancellableStatuses = ['COMPLETED', 'CANCELLED', 'REVIEW_REQUIRED']
         if (nonCancellableStatuses.includes(operation.status)) {
             return NextResponse.json(
                 { error: 'Cannot cancel a completed or previously cancelled operation' },
@@ -142,14 +142,21 @@ export async function POST(
             const resellerUserId = authUser.userId
 
             await prisma.$transaction(async (tx) => {
-                // Update operation status only
-                await tx.operation.update({
-                    where: { id },
+                // Update operation status only, with state guard to avoid overwriting COMPLETED races.
+                const cancelGuard = await tx.operation.updateMany({
+                    where: {
+                        id,
+                        status: { notIn: ['COMPLETED', 'CANCELLED', 'REVIEW_REQUIRED'] },
+                    },
                     data: {
                         status: 'CANCELLED',
                         responseMessage: 'Cancelled by user (amount already refunded)',
                     },
                 })
+
+                if (cancelGuard.count === 0) {
+                    throw new Error('OPERATION_NOT_CANCELLABLE')
+                }
 
                 // Log activity (only for reseller users, not customer app)
                 if (resellerUserId) {
@@ -177,13 +184,20 @@ export async function POST(
 
         // Step 1: Mark as cancelled + log activity
         await prisma.$transaction(async (tx) => {
-            await tx.operation.update({
-                where: { id },
+            const cancelGuard = await tx.operation.updateMany({
+                where: {
+                    id,
+                    status: { notIn: ['COMPLETED', 'CANCELLED', 'REVIEW_REQUIRED'] },
+                },
                 data: {
                     status: 'CANCELLED',
                     responseMessage: 'Cancelled by user',
                 },
             })
+
+            if (cancelGuard.count === 0) {
+                throw new Error('OPERATION_NOT_CANCELLABLE')
+            }
 
             if (resellerUserId) {
                 await tx.activityLog.create({
@@ -197,17 +211,41 @@ export async function POST(
             }
         })
 
-        // Step 2: Atomic refund (has built-in duplicate protection)
+        // Step 2: Reload latest financial state before refunding.
+        // This avoids stale amount=0 snapshots when confirm-purchase is charging concurrently.
+        const latestOperation = await prisma.operation.findUnique({
+            where: { id },
+            select: {
+                userId: true,
+                customerId: true,
+                amount: true,
+            }
+        })
+
+        const latestDeductTx = await prisma.transaction.findFirst({
+            where: {
+                operationId: id,
+                type: 'OPERATION_DEDUCT',
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { amount: true }
+        })
+
+        const amountFromOperation = latestOperation?.amount || 0
+        const amountFromDeductTx = latestDeductTx ? Math.abs(latestDeductTx.amount) : 0
+        const amountToRefund = amountFromOperation > 0 ? amountFromOperation : amountFromDeductTx
+
         let refundedAmount = 0
 
-        if (operation.userId && operation.amount > 0) {
-            const refunded = await refundUser(operation.id, operation.userId, operation.amount, 'User cancellation')
-            if (refunded) refundedAmount = operation.amount
+        if (latestOperation?.userId && amountToRefund > 0) {
+            const refunded = await refundUser(id, latestOperation.userId, amountToRefund, 'User cancellation')
+            if (refunded) refundedAmount = amountToRefund
         }
 
-        if (operation.customerId && operation.amount > 0) {
-            const refunded = await refundCustomer(operation.id, operation.customerId, operation.amount, 'User cancellation')
-            if (refunded) refundedAmount = operation.amount
+        // Customer refunds rely on operation.amount; no OPERATION_DEDUCT row exists for customer wallet flow.
+        if (latestOperation?.customerId && amountFromOperation > 0) {
+            const refunded = await refundCustomer(id, latestOperation.customerId, amountFromOperation, 'User cancellation')
+            if (refunded) refundedAmount = amountFromOperation
         }
 
         return NextResponse.json({
@@ -217,6 +255,13 @@ export async function POST(
         })
 
     } catch (error) {
+        const msg = error instanceof Error ? error.message : ''
+        if (msg === 'OPERATION_NOT_CANCELLABLE') {
+            return NextResponse.json(
+                { error: 'Operation state changed and can no longer be cancelled.' },
+                { status: 409 }
+            )
+        }
         console.error('Cancel operation error:', error)
         return NextResponse.json(
             { error: 'Server error' },

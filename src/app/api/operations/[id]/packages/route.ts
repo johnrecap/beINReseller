@@ -92,6 +92,14 @@ export async function GET(
             })
         }
 
+        if (operation.status === 'REVIEW_REQUIRED') {
+            return NextResponse.json({
+                success: false,
+                status: 'REVIEW_REQUIRED',
+                message: operation.responseMessage || 'Operation requires manual verification',
+            })
+        }
+
         if (operation.status === 'COMPLETING') {
             return NextResponse.json({
                 success: true,

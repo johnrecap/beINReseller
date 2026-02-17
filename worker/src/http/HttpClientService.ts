@@ -2159,7 +2159,9 @@ export class HttpClientService {
                 return {
                     success: true,
                     message: 'Contract Created Successfully',
-                    newBalance: balanceAfterDirect || undefined
+                    newBalance: balanceAfterDirect || undefined,
+                    beinBalanceBefore: balanceBefore || undefined,
+                    beinBalanceAfter: balanceAfterDirect || undefined
                 };
             }
 
@@ -2311,7 +2313,9 @@ export class HttpClientService {
                     return {
                         success: true,
                         message: pattern,
-                        newBalance: balanceAfter || undefined
+                        newBalance: balanceAfter || undefined,
+                        beinBalanceBefore: balanceBefore || undefined,
+                        beinBalanceAfter: balanceAfter || undefined
                     };
                 }
             }
@@ -2346,7 +2350,9 @@ export class HttpClientService {
                                 return {
                                     success: true,
                                     message: pattern,
-                                    newBalance: retryBalance || undefined
+                                    newBalance: retryBalance || undefined,
+                                    beinBalanceBefore: balanceBefore || undefined,
+                                    beinBalanceAfter: retryBalance || undefined
                                 };
                             }
                         }
@@ -2363,14 +2369,18 @@ export class HttpClientService {
                                 return {
                                     success: true,
                                     message: `Transaction completed (balance decreased by $${decrease})`,
-                                    newBalance: retryBalance
+                                    newBalance: retryBalance,
+                                    beinBalanceBefore: balanceBefore || undefined,
+                                    beinBalanceAfter: retryBalance || undefined
                                 };
                             } else if (balanceBefore !== null && retryBalance !== null && retryBalance >= balanceBefore) {
                                 console.log(`[HTTP] ❌ Balance did NOT decrease (${balanceBefore} → ${retryBalance}) — transaction failed on beIN`);
                                 return {
                                     success: false,
                                     message: `Transaction failed on beIN - balance unchanged ($${retryBalance})`,
-                                    newBalance: retryBalance
+                                    newBalance: retryBalance,
+                                    beinBalanceBefore: balanceBefore || undefined,
+                                    beinBalanceAfter: retryBalance || undefined
                                 };
                             } else {
                                 // Can't determine balance — don't assume success
@@ -2378,7 +2388,9 @@ export class HttpClientService {
                                 return {
                                     success: false,
                                     message: 'Transaction status unknown - could not verify balance change',
-                                    newBalance: retryBalance || undefined
+                                    newBalance: retryBalance || undefined,
+                                    beinBalanceBefore: balanceBefore || undefined,
+                                    beinBalanceAfter: retryBalance || undefined
                                 };
                             }
                         }
@@ -2393,7 +2405,9 @@ export class HttpClientService {
                 return {
                     success: false,
                     message: 'Transaction is busy on beIN - please check the card status manually',
-                    newBalance: finalBalance || undefined
+                    newBalance: finalBalance || undefined,
+                    beinBalanceBefore: balanceBefore || undefined,
+                    beinBalanceAfter: finalBalance || undefined
                 };
             }
 
@@ -2413,7 +2427,9 @@ export class HttpClientService {
             return {
                 success: false,
                 message: 'No success confirmation found from beIN',
-                newBalance: balanceAfter || undefined
+                newBalance: balanceAfter || undefined,
+                beinBalanceBefore: balanceBefore || undefined,
+                beinBalanceAfter: balanceAfter || undefined
             };
 
         } catch (error: any) {
@@ -4225,19 +4241,25 @@ export class HttpClientService {
                     return {
                         success: true,
                         message: 'Installment payment successful',
-                        newBalance: balanceAfter || undefined
+                        newBalance: balanceAfter || undefined,
+                        beinBalanceBefore: balanceBefore || undefined,
+                        beinBalanceAfter: balanceAfter || undefined
                     };
                 } else if (balanceDecreased) {
                     console.log('[HTTP] Installment payment successful by balance delta (Direct Payment)');
                     return {
                         success: true,
                         message: 'Installment payment successful (balance verified)',
-                        newBalance: balanceAfter || undefined
+                        newBalance: balanceAfter || undefined,
+                        beinBalanceBefore: balanceBefore || undefined,
+                        beinBalanceAfter: balanceAfter || undefined
                     };
                 } else if (hasSuccessMessage) {
                     return {
                         success: false,
-                        message: 'Transaction status unknown - success text but balance unchanged'
+                        message: 'Transaction status unknown - success text but balance unchanged',
+                        beinBalanceBefore: balanceBefore || undefined,
+                        beinBalanceAfter: balanceAfter || undefined
                     };
                 } else if (confirmError) {
                     console.log(`[HTTP] ❌ Payment error after Direct Pay: ${confirmError}`);
@@ -4275,19 +4297,25 @@ export class HttpClientService {
                     return {
                         success: true,
                         message: 'Installment payment successful',
-                        newBalance: balanceAfter || undefined
+                        newBalance: balanceAfter || undefined,
+                        beinBalanceBefore: balanceBefore || undefined,
+                        beinBalanceAfter: balanceAfter || undefined
                     };
                 } else if (balanceDecreased) {
                     console.log('[HTTP] Installment payment successful by balance delta (no popup)');
                     return {
                         success: true,
                         message: 'Installment payment successful (balance verified)',
-                        newBalance: balanceAfter || undefined
+                        newBalance: balanceAfter || undefined,
+                        beinBalanceBefore: balanceBefore || undefined,
+                        beinBalanceAfter: balanceAfter || undefined
                     };
                 } else if (hasSuccessMessage) {
                     return {
                         success: false,
-                        message: 'Transaction status unknown - success text but balance unchanged'
+                        message: 'Transaction status unknown - success text but balance unchanged',
+                        beinBalanceBefore: balanceBefore || undefined,
+                        beinBalanceAfter: balanceAfter || undefined
                     };
                 } else if (payError) {
                     console.log(`[HTTP] ❌ Payment error: ${payError}`);

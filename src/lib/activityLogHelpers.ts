@@ -209,6 +209,13 @@ export function formatLogDetails(details: string | Record<string, unknown> | nul
     if (newBalance !== undefined) parts.push(`New Balance: $${newBalance}`)
     const managerNewBalance = obj.managerNewBalance
     if (managerNewBalance !== undefined) parts.push(`Manager Balance: $${managerNewBalance}`)
+    const beinBalanceBefore = obj.beinBalanceBefore
+    const beinBalanceAfter = obj.beinBalanceAfter
+    if (beinBalanceBefore !== undefined && beinBalanceAfter !== undefined) {
+        parts.push(`beIN Balance: $${beinBalanceBefore} -> $${beinBalanceAfter}`)
+    } else if (beinBalanceAfter !== undefined) {
+        parts.push(`beIN Balance After: $${beinBalanceAfter}`)
+    }
 
     // STB
     const stb = obj.stb || obj.stbNumber

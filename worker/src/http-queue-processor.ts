@@ -1551,7 +1551,12 @@ async function handleConfirmPurchaseHttp(
                     operationId,
                     'RENEW',
                     operation.amount,
-                    { packageName: selectedPackage?.name }
+                    {
+                        packageName: selectedPackage?.name,
+                        beinAccountId: operation.beinAccountId,
+                        beinBalanceBefore: result.beinBalanceBefore,
+                        beinBalanceAfter: result.beinBalanceAfter
+                    }
                 );
             }
 
@@ -2704,7 +2709,13 @@ async function handleConfirmInstallmentHttp(
                     operationId,
                     'RENEW',
                     operation.amount,
-                    { type: 'installment', cardNumber }
+                    {
+                        type: 'installment',
+                        cardNumber,
+                        beinAccountId: selectedAccount.id,
+                        beinBalanceBefore: payResult.beinBalanceBefore,
+                        beinBalanceAfter: payResult.beinBalanceAfter
+                    }
                 );
             } catch (e: any) {
                 console.error(`[HTTP] Failed to track installment completion for ${operationId}: ${e.message}`);

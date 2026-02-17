@@ -64,6 +64,8 @@ export interface PurchaseResult {
     message: string;
     awaitingConfirm?: boolean;
     newBalance?: number;  // Balance after purchase for verification
+    beinBalanceBefore?: number; // Dealer balance before successful payment
+    beinBalanceAfter?: number;  // Dealer balance after successful payment
 }
 
 export interface SessionData {
@@ -175,4 +177,6 @@ export interface PayInstallmentResult {
     success: boolean;
     message: string;
     newBalance?: number;
+    beinBalanceBefore?: number;
+    beinBalanceAfter?: number;
 }

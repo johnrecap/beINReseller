@@ -43,6 +43,27 @@ enum TransactionType {
   CORRECTION // تصحيح رصيد زائد
 }
 
+enum IntegrityIssueType {
+  NO_BEIN_BALANCE_CHANGE
+  BEIN_DEBIT_NO_USER_DEDUCT
+  BEIN_DEBIT_USER_UNDERDEDUCTED
+  TELEMETRY_MISSING
+}
+
+enum IntegrityIssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum IntegrityIssueStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  FALSE_POSITIVE
+  IGNORED
+}
+
 // ===== Wallet Transaction Types (B2C Mobile App) =====
 enum WalletTransactionType {
   CREDIT // إضافة رصيد
@@ -88,6 +109,8 @@ model User {
   managerLink    ManagerUser[] @relation("UserToManager")
   managerActions UserAction[]  @relation("ManagerActions")
   userActions    UserAction[]  @relation("UserActions")
+  integrityIssues         OperationIntegrityIssue[] @relation("IntegrityIssueUser")
+  reviewedIntegrityIssues OperationIntegrityIssue[] @relation("IntegrityIssueReviewer")
 
   @@index([lastLoginAt])
   @@index([lastOperationAt])
@@ -176,6 +199,7 @@ model Operation {
   customer     Customer?     @relation(fields: [customerId], references: [id])
   beinAccount  BeinAccount?  @relation(fields: [beinAccountId], references: [id])
   transactions Transaction[] @relation("OperationTransactions")
+  integrityIssues OperationIntegrityIssue[]
 
   // Store App - Links to customer subscription purchase
   storeSubscription StoreSubscription?
@@ -210,6 +234,39 @@ model Transaction {
   @@index([userId, createdAt])
   @@index([operationId, type])
   @@map("transactions")
+}
+
+model OperationIntegrityIssue {
+  id                String                 @id @default(cuid())
+  operationId       String                 @map("operation_id")
+  userId            String?                @map("user_id")
+  beinAccountId     String?                @map("bein_account_id")
+  issueType         IntegrityIssueType     @map("issue_type")
+  severity          IntegrityIssueSeverity @default(HIGH)
+  status            IntegrityIssueStatus   @default(OPEN)
+  operationAmount   Float?                 @map("operation_amount")
+  userDeductAmount  Float?                 @map("user_deduct_amount")
+  beinBalanceBefore Float?                 @map("bein_balance_before")
+  beinBalanceAfter  Float?                 @map("bein_balance_after")
+  beinDelta         Float?                 @map("bein_delta")
+  details           Json?
+  detectedAt        DateTime               @default(now()) @map("detected_at")
+  lastSeenAt        DateTime               @default(now()) @map("last_seen_at")
+  reviewedById      String?                @map("reviewed_by_id")
+  reviewedAt        DateTime?              @map("reviewed_at")
+  reviewNote        String?                @map("review_note")
+
+  operation   Operation   @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  user        User?       @relation("IntegrityIssueUser", fields: [userId], references: [id])
+  beinAccount BeinAccount? @relation(fields: [beinAccountId], references: [id])
+  reviewedBy  User?       @relation("IntegrityIssueReviewer", fields: [reviewedById], references: [id])
+
+  @@unique([operationId, issueType])
+  @@index([status, detectedAt])
+  @@index([issueType, severity])
+  @@index([userId, detectedAt])
+  @@index([beinAccountId, detectedAt])
+  @@map("operation_integrity_issues")
 }
 
 model Setting {
@@ -303,6 +360,7 @@ model BeinAccount {
   // ===== Relations =====
   operations Operation[]
   sessions   BeinAccountSession[]
+  integrityIssues OperationIntegrityIssue[]
 
   // ===== Proxy Assignment =====
   proxyId String? @map("proxy_id")

@@ -17,6 +17,7 @@ import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from './types/proxy';
 import { trackOperationComplete } from './lib/activity-tracker';
+import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
 import {
     getSessionFromCache,
     saveSessionToCache,
@@ -1558,6 +1559,12 @@ async function handleConfirmPurchaseHttp(
                         beinBalanceAfter: result.beinBalanceAfter
                     }
                 );
+
+                await detectAndRecordOperationIntegrity({
+                    operationId,
+                    beinBalanceBefore: result.beinBalanceBefore,
+                    beinBalanceAfter: result.beinBalanceAfter
+                });
             }
 
             if (operation.userId) {
@@ -2717,6 +2724,12 @@ async function handleConfirmInstallmentHttp(
                         beinBalanceAfter: payResult.beinBalanceAfter
                     }
                 );
+
+                await detectAndRecordOperationIntegrity({
+                    operationId,
+                    beinBalanceBefore: payResult.beinBalanceBefore,
+                    beinBalanceAfter: payResult.beinBalanceAfter
+                });
             } catch (e: any) {
                 console.error(`[HTTP] Failed to track installment completion for ${operationId}: ${e.message}`);
             }

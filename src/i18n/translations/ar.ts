@@ -88,6 +88,7 @@ export const ar = {
         manageUsers: 'إدارة المستخدمين',
         deletedAccounts: 'الحسابات المحذوفة',
         proxyManagement: 'إدارة البروكسي',
+        integrityReports: 'تقارير التطابق',
         announcements: 'الإعلانات',
         activityMonitoring: 'مراقبة النشاط',
         // App Management (Store)

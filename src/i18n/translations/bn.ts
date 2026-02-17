@@ -88,6 +88,7 @@ export const bn = {
         manageUsers: 'ব্যবহারকারী পরিচালনা',
         deletedAccounts: 'মুছে ফেলা অ্যাকাউন্ট',
         proxyManagement: 'প্রক্সি ব্যবস্থাপনা',
+        integrityReports: 'ইনটেগ্রিটি রিপোর্ট',
         announcements: 'ঘোষণা',
         activityMonitoring: 'কার্যকলাপ পর্যবেক্ষণ',
         // App Management (Store)

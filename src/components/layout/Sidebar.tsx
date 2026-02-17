@@ -27,13 +27,14 @@ import {
     ShoppingCart,
     Truck,
     Tags,
+    AlertTriangle,
     CreditCard as CreditCardIcon,
     UserCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
 import { Button } from '@/components/ui/button'
-import { canAccessSubscription, canAccessSignal } from '@/lib/permissions'
+import { canAccessSubscription } from '@/lib/permissions'
 
 interface SidebarProps {
     isOpen: boolean
@@ -50,8 +51,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     // Permission-based visibility
     const canRenew = canAccessSubscription(userRole)
-    const canSignal = canAccessSignal(userRole)
-
     // Base links for all authenticated users
     const baseLinks = [
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
@@ -87,6 +86,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
         { href: '/dashboard/admin/proxies', label: t.sidebar.proxyManagement, icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
+        { href: '/dashboard/admin/reports/integrity', label: t.sidebar.integrityReports || 'Integrity Reports', icon: AlertTriangle },
         { href: '/dashboard/admin/bein-config', label: t.sidebar.beinConfig, icon: Bot },
         { href: '/dashboard/admin/settings', label: t.sidebar.settings, icon: Settings },
         { href: '/dashboard/admin/settings/announcements', label: t.sidebar.announcements || 'Announcements', icon: Megaphone },

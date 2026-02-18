@@ -9,11 +9,19 @@ type IntegrityIssueType =
     | 'BEIN_DEBIT_USER_UNDERDEDUCTED'
     | 'TELEMETRY_MISSING'
 
+const ALL_INTEGRITY_ISSUE_TYPES: IntegrityIssueType[] = [
+    'NO_BEIN_BALANCE_CHANGE',
+    'BEIN_DEBIT_NO_USER_DEDUCT',
+    'BEIN_DEBIT_USER_UNDERDEDUCTED',
+    'TELEMETRY_MISSING'
+]
+
 interface IntegrityEvaluationInput {
     operationAmount: number
     userDeductAmount: number
     beinBalanceBefore: number | null
     beinBalanceAfter: number | null
+    trackTelemetryMissing: boolean
 }
 
 interface EvaluatedIssue {
@@ -38,21 +46,29 @@ function toNullableNumber(value: unknown): number | null {
 
 function evaluateIntegrityIssues(input: IntegrityEvaluationInput): EvaluatedIssue[] {
     const issues: EvaluatedIssue[] = []
-    const { operationAmount, userDeductAmount, beinBalanceBefore, beinBalanceAfter } = input
+    const {
+        operationAmount,
+        userDeductAmount,
+        beinBalanceBefore,
+        beinBalanceAfter,
+        trackTelemetryMissing
+    } = input
 
     if (operationAmount <= 0) return issues
 
     if (beinBalanceBefore === null || beinBalanceAfter === null) {
-        issues.push({
-            issueType: 'TELEMETRY_MISSING',
-            severity: 'HIGH',
-            beinDelta: null,
-            details: {
-                reason: 'Missing beIN balance snapshot for completed paid operation',
-                beinBalanceBefore,
-                beinBalanceAfter
-            }
-        })
+        if (trackTelemetryMissing) {
+            issues.push({
+                issueType: 'TELEMETRY_MISSING',
+                severity: 'HIGH',
+                beinDelta: null,
+                details: {
+                    reason: 'Missing beIN balance snapshot for completed paid operation',
+                    beinBalanceBefore,
+                    beinBalanceAfter
+                }
+            })
+        }
         return issues
     }
 
@@ -183,7 +199,7 @@ async function upsertIssue(params: {
     })
 }
 
-async function resolveSnapshotsFromActivityLog(operationId: string): Promise<SnapshotInput> {
+async function resolveSnapshotsFromActivityLog(operationId: string): Promise<SnapshotInput & { hasSnapshotData: boolean }> {
     const log = await prisma.activityLog.findFirst({
         where: {
             targetId: operationId,
@@ -194,10 +210,17 @@ async function resolveSnapshotsFromActivityLog(operationId: string): Promise<Sna
     })
 
     if (!log?.details || typeof log.details !== 'object') {
-        return {}
+        return { hasSnapshotData: false }
     }
 
     const details = log.details as Record<string, unknown>
+    const hasSnapshotData =
+        details.beinBalanceBefore !== undefined ||
+        details.beinBalanceAfter !== undefined ||
+        details.beinUsernameSnapshot !== undefined ||
+        details.userBalanceBefore !== undefined ||
+        details.userBalanceAfter !== undefined
+
     return {
         beinBalanceBefore: toNullableNumber(details.beinBalanceBefore),
         beinBalanceAfter: toNullableNumber(details.beinBalanceAfter),
@@ -206,11 +229,12 @@ async function resolveSnapshotsFromActivityLog(operationId: string): Promise<Sna
                 ? details.beinUsernameSnapshot
                 : null,
         userBalanceBefore: toNullableNumber(details.userBalanceBefore),
-        userBalanceAfter: toNullableNumber(details.userBalanceAfter)
+        userBalanceAfter: toNullableNumber(details.userBalanceAfter),
+        hasSnapshotData
     }
 }
 
-function resolveSnapshotsFromResponseData(responseData: unknown): SnapshotInput {
+function resolveSnapshotsFromResponseData(responseData: unknown): SnapshotInput & { hasAuditSnapshot: boolean } {
     let parsed: Record<string, unknown> | null = null
     if (typeof responseData === 'string') {
         try {
@@ -223,7 +247,7 @@ function resolveSnapshotsFromResponseData(responseData: unknown): SnapshotInput 
     }
 
     if (!parsed || typeof parsed.auditSnapshot !== 'object' || !parsed.auditSnapshot) {
-        return {}
+        return { hasAuditSnapshot: false }
     }
 
     const auditSnapshot = parsed.auditSnapshot as Record<string, unknown>
@@ -235,8 +259,40 @@ function resolveSnapshotsFromResponseData(responseData: unknown): SnapshotInput 
                 ? auditSnapshot.beinUsername
                 : null,
         userBalanceBefore: toNullableNumber(auditSnapshot.userBalanceBefore),
-        userBalanceAfter: toNullableNumber(auditSnapshot.userBalanceAfter)
+        userBalanceAfter: toNullableNumber(auditSnapshot.userBalanceAfter),
+        hasAuditSnapshot: true
     }
+}
+
+function hasDirectSnapshotInput(snapshot?: SnapshotInput): boolean {
+    if (!snapshot) return false
+    return (
+        snapshot.beinBalanceBefore !== undefined ||
+        snapshot.beinBalanceAfter !== undefined ||
+        snapshot.beinUsernameSnapshot !== undefined ||
+        snapshot.userBalanceBefore !== undefined ||
+        snapshot.userBalanceAfter !== undefined
+    )
+}
+
+async function resolveStaleIssues(operationId: string, detectedIssueTypes: IntegrityIssueType[]): Promise<void> {
+    const staleIssueTypes = ALL_INTEGRITY_ISSUE_TYPES.filter(
+        (issueType) => !detectedIssueTypes.includes(issueType)
+    )
+    if (staleIssueTypes.length === 0) return
+
+    await prisma.operationIntegrityIssue.updateMany({
+        where: {
+            operationId,
+            issueType: { in: staleIssueTypes },
+            status: { in: ['OPEN', 'ACKNOWLEDGED'] }
+        },
+        data: {
+            status: 'RESOLVED',
+            reviewNote: 'Auto-resolved by latest integrity re-check',
+            lastSeenAt: new Date()
+        }
+    })
 }
 
 export async function detectAndRecordOperationIntegrity(
@@ -290,12 +346,17 @@ export async function detectAndRecordOperationIntegrity(
     const userBalanceAfter = toNullableNumber(
         snapshot?.userBalanceAfter ?? responseDataSnapshot.userBalanceAfter ?? activitySnapshot.userBalanceAfter
     )
+    const trackTelemetryMissing =
+        hasDirectSnapshotInput(snapshot) ||
+        responseDataSnapshot.hasAuditSnapshot ||
+        activitySnapshot.hasSnapshotData
 
     const issues = evaluateIntegrityIssues({
         operationAmount: operation.amount,
         userDeductAmount,
         beinBalanceBefore,
-        beinBalanceAfter
+        beinBalanceAfter,
+        trackTelemetryMissing
     })
 
     for (const issue of issues) {
@@ -313,4 +374,6 @@ export async function detectAndRecordOperationIntegrity(
             issue
         })
     }
+
+    await resolveStaleIssues(operationId, issues.map((issue) => issue.issueType))
 }

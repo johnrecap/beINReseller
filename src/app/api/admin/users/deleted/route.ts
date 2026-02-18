@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '10')
 
         const where = {
-            deletedAt: { not: null }
+            deletedAt: { not: null },
+            purgedAt: null
         }
 
         const [users, total] = await Promise.all([

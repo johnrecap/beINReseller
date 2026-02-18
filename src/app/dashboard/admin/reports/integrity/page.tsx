@@ -59,16 +59,17 @@ const statusOptions: IssueStatus[] = ['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'FALSE
 
 export default function IntegrityReportsPage() {
     const { data: session, status } = useSession()
-    const { t } = useTranslation()
+    const { t, dir } = useTranslation()
     const [issues, setIssues] = useState<IntegrityIssue[]>([])
     const [summary, setSummary] = useState<SummaryData | null>(null)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
-    const [issueStatus, setIssueStatus] = useState('')
+    const [issueStatus, setIssueStatus] = useState<IssueStatus | ''>('OPEN')
     const [issueType, setIssueType] = useState('')
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
+    const tableTextAlignClass = dir === 'rtl' ? 'text-right' : 'text-left'
 
     useEffect(() => {
         if (status === 'unauthenticated') redirect('/login')
@@ -138,7 +139,7 @@ export default function IntegrityReportsPage() {
     }
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6" dir={dir}>
             <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <AlertTriangle className="w-6 h-6 text-amber-500" />
@@ -203,7 +204,7 @@ export default function IntegrityReportsPage() {
                 />
                 <select
                     value={issueStatus}
-                    onChange={(e) => { setPage(1); setIssueStatus(e.target.value) }}
+                    onChange={(e) => { setPage(1); setIssueStatus(e.target.value as IssueStatus | '') }}
                     className="px-3 py-2 rounded-lg border border-border bg-background"
                 >
                     <option value="">All Statuses</option>
@@ -226,16 +227,16 @@ export default function IntegrityReportsPage() {
                 <table className="w-full text-sm">
                     <thead className="bg-secondary/60 border-b border-border">
                         <tr>
-                            <th className="px-3 py-2 text-left">Issue</th>
-                            <th className="px-3 py-2 text-left">Operation</th>
-                            <th className="px-3 py-2 text-left">beIN Balance</th>
-                            <th className="px-3 py-2 text-left">beIN User</th>
-                            <th className="px-3 py-2 text-left">User Deduct</th>
-                            <th className="px-3 py-2 text-left">User Balance</th>
-                            <th className="px-3 py-2 text-left">Severity</th>
-                            <th className="px-3 py-2 text-left">Status</th>
-                            <th className="px-3 py-2 text-left">Detected</th>
-                            <th className="px-3 py-2 text-left">Action</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>Issue</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>Operation</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>beIN Balance</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>beIN User</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>User Deduct</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>User Balance</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>Severity</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>Status</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>Detected</th>
+                            <th className={`px-3 py-2 ${tableTextAlignClass}`}>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -291,11 +292,11 @@ export default function IntegrityReportsPage() {
                         <table className="w-full text-sm">
                             <thead className="bg-secondary/60 border-b border-border">
                                 <tr>
-                                    <th className="px-3 py-2 text-left">Account</th>
-                                    <th className="px-3 py-2 text-left">Requested</th>
-                                    <th className="px-3 py-2 text-left">beIN Delta</th>
-                                    <th className="px-3 py-2 text-left">Variance</th>
-                                    <th className="px-3 py-2 text-left">Ops</th>
+                                    <th className={`px-3 py-2 ${tableTextAlignClass}`}>Account</th>
+                                    <th className={`px-3 py-2 ${tableTextAlignClass}`}>Requested</th>
+                                    <th className={`px-3 py-2 ${tableTextAlignClass}`}>beIN Delta</th>
+                                    <th className={`px-3 py-2 ${tableTextAlignClass}`}>Variance</th>
+                                    <th className={`px-3 py-2 ${tableTextAlignClass}`}>Ops</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -322,9 +323,9 @@ export default function IntegrityReportsPage() {
                         <table className="w-full text-sm">
                             <thead className="bg-secondary/60 border-b border-border">
                                 <tr>
-                                    <th className="px-3 py-2 text-left">User</th>
-                                    <th className="px-3 py-2 text-left">Deducted</th>
-                                    <th className="px-3 py-2 text-left">Ops</th>
+                                    <th className={`px-3 py-2 ${tableTextAlignClass}`}>User</th>
+                                    <th className={`px-3 py-2 ${tableTextAlignClass}`}>Deducted</th>
+                                    <th className={`px-3 py-2 ${tableTextAlignClass}`}>Ops</th>
                                 </tr>
                             </thead>
                             <tbody>

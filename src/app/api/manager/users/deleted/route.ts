@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
                 where: {
                     id: { in: userIds },
                     deletedAt: { not: null },
+                    purgedAt: null,
                     deletedByUserId: manager.id
                 },
                 select: {
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
                 where: {
                     id: { in: userIds },
                     deletedAt: { not: null },
+                    purgedAt: null,
                     deletedByUserId: manager.id
                 }
             })

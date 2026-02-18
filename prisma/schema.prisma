@@ -86,6 +86,8 @@ model User {
   deletedAt       DateTime? @map("deleted_at")
   deletedBalance  Float?    @map("deleted_balance")
   deletedByUserId String?   @map("deleted_by_user_id")
+  purgedAt        DateTime? @map("purged_at")
+  purgedByUserId  String?   @map("purged_by_user_id")
 
   // ===== Enhanced Activity Tracking =====
   lastOperationAt     DateTime? @map("last_operation_at")

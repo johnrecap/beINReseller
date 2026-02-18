@@ -8,10 +8,10 @@ interface DeletedUsersPageHeaderProps {
 }
 
 export function DeletedUsersPageHeader({ children }: DeletedUsersPageHeaderProps) {
-    const { t } = useTranslation()
+    const { t, dir } = useTranslation()
 
     return (
-        <div className="space-y-6" dir="rtl">
+        <div className="space-y-6" dir={dir}>
             {/* Page Header */}
             <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg">

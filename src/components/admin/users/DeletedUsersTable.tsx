@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowRight, ArrowLeft, User, Calendar, Wallet, BarChart2 } from 'lucide-react'
+import { ArrowRight, ArrowLeft, User, Calendar, Wallet, BarChart2, RotateCcw, Trash2, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -25,6 +25,8 @@ export default function DeletedUsersTable() {
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
+    const [actionUserId, setActionUserId] = useState<string | null>(null)
+    const [actionType, setActionType] = useState<'restore' | 'permanent' | null>(null)
 
     const localeMap = {
         ar: ar,
@@ -54,6 +56,54 @@ export default function DeletedUsersTable() {
         fetchUsers()
     }, [fetchUsers])
 
+    const handleRestore = async (user: DeletedUser) => {
+        const confirmMessage = t.manager?.deletedUsers?.restoreConfirm || 'Are you sure you want to restore this account?'
+        if (!confirm(confirmMessage)) return
+
+        setActionUserId(user.id)
+        setActionType('restore')
+        try {
+            const res = await fetch(`/api/admin/users/${user.id}/restore`, { method: 'POST' })
+            const data = await res.json()
+            if (!res.ok) {
+                alert(data.error || t.manager?.messages?.error || 'Failed to restore user')
+                return
+            }
+            alert(data.message || t.manager?.messages?.userRestored || 'User restored successfully')
+            await fetchUsers()
+        } catch (error) {
+            console.error('Failed to restore user', error)
+            alert(t.manager?.messages?.error || 'An error occurred')
+        } finally {
+            setActionUserId(null)
+            setActionType(null)
+        }
+    }
+
+    const handlePermanentDelete = async (user: DeletedUser) => {
+        const confirmMessage = t.manager?.deletedUsers?.deleteConfirm || 'Are you sure you want to permanently delete this account? This action cannot be undone.'
+        if (!confirm(confirmMessage)) return
+
+        setActionUserId(user.id)
+        setActionType('permanent')
+        try {
+            const res = await fetch(`/api/admin/users/${user.id}/permanent`, { method: 'DELETE' })
+            const data = await res.json()
+            if (!res.ok) {
+                alert(data.error || t.admin?.users?.messages?.deleteFailed || 'Failed to delete user')
+                return
+            }
+            alert(data.message || t.admin?.users?.messages?.deleteSuccess || 'User permanently deleted')
+            await fetchUsers()
+        } catch (error) {
+            console.error('Failed to permanently delete user', error)
+            alert(t.admin?.users?.messages?.deleteError || 'An error occurred while deleting user')
+        } finally {
+            setActionUserId(null)
+            setActionType(null)
+        }
+    }
+
     const getRoleBadge = (role: string) => {
         const badges: Record<string, string> = {
             ADMIN: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
@@ -77,6 +127,7 @@ export default function DeletedUsersTable() {
                                 <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.common?.operations || 'Operations'}</th>
                                 <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.manager?.deletedUsers?.table?.deletedAt || 'Deleted At'}</th>
                                 <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.manager?.deletedUsers?.table?.deletedBy || 'Deleted By'}</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">{t.manager?.deletedUsers?.table?.actions || 'Actions'}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -89,11 +140,12 @@ export default function DeletedUsersTable() {
                                         <td className="p-4"><div className="h-4 bg-muted rounded w-16"></div></td>
                                         <td className="p-4"><div className="h-4 bg-muted rounded w-24"></div></td>
                                         <td className="p-4"><div className="h-4 bg-muted rounded w-20"></div></td>
+                                        <td className="p-4"><div className="h-4 bg-muted rounded w-28"></div></td>
                                     </tr>
                                 ))
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-muted-foreground">{t.manager?.deletedUsers?.noDeletedUsers || 'No deleted accounts'}</td>
+                                    <td colSpan={7} className="p-8 text-center text-muted-foreground">{t.manager?.deletedUsers?.noDeletedUsers || 'No deleted accounts'}</td>
                                 </tr>
                             ) : (
                                 users.map((user) => (
@@ -134,6 +186,34 @@ export default function DeletedUsersTable() {
                                         </td>
                                         <td className="px-4 py-3 text-xs text-muted-foreground">
                                             {user.deletedByUsername || t.common?.unknown || 'Unknown'}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleRestore(user)}
+                                                    disabled={actionUserId === user.id}
+                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-60 disabled:cursor-not-allowed text-xs"
+                                                    title={t.manager?.deletedUsers?.actions?.restore || 'Restore'}
+                                                >
+                                                    {actionUserId === user.id && actionType === 'restore'
+                                                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                        : <RotateCcw className="w-3 h-3" />
+                                                    }
+                                                    <span>{t.manager?.deletedUsers?.actions?.restore || 'Restore'}</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => handlePermanentDelete(user)}
+                                                    disabled={actionUserId === user.id}
+                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-60 disabled:cursor-not-allowed text-xs"
+                                                    title={t.manager?.deletedUsers?.actions?.permanentDelete || 'Permanent Delete'}
+                                                >
+                                                    {actionUserId === user.id && actionType === 'permanent'
+                                                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                        : <Trash2 className="w-3 h-3" />
+                                                    }
+                                                    <span>{t.manager?.deletedUsers?.actions?.permanentDelete || 'Permanent Delete'}</span>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

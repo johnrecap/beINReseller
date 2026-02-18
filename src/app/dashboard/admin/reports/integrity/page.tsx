@@ -69,7 +69,10 @@ export default function IntegrityReportsPage() {
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
+    const [backfilling, setBackfilling] = useState(false)
     const tableTextAlignClass = dir === 'rtl' ? 'text-right' : 'text-left'
+    const formatAmount = (value: number | null) =>
+        typeof value === 'number' ? value.toFixed(2) : '-'
 
     useEffect(() => {
         if (status === 'unauthenticated') redirect('/login')
@@ -138,6 +141,20 @@ export default function IntegrityReportsPage() {
         }
     }
 
+    const runBackfillUserBalances = async () => {
+        setBackfilling(true)
+        try {
+            await fetch('/api/admin/reports/integrity/backfill-balances', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: 60, limit: 2000 })
+            })
+            await fetchIssues()
+        } finally {
+            setBackfilling(false)
+        }
+    }
+
     return (
         <div className="p-6 space-y-6" dir={dir}>
             <div className="flex items-center justify-between gap-3">
@@ -148,13 +165,23 @@ export default function IntegrityReportsPage() {
                         <p className="text-sm text-muted-foreground">Financial mismatch detection between beIN debit and user deduction.</p>
                     </div>
                 </div>
-                <button
-                    onClick={runScan}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-secondary"
-                >
-                    <RefreshCw className="w-4 h-4" />
-                    Scan Last 7 Days
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={runBackfillUserBalances}
+                        disabled={backfilling}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-secondary disabled:opacity-60"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${backfilling ? 'animate-spin' : ''}`} />
+                        Backfill User Balances
+                    </button>
+                    <button
+                        onClick={runScan}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-secondary"
+                    >
+                        <RefreshCw className="w-4 h-4" />
+                        Scan Last 7 Days
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -255,16 +282,16 @@ export default function IntegrityReportsPage() {
                                     <div className="text-xs text-muted-foreground">{issue.operation?.cardNumber || '-'}</div>
                                 </td>
                                 <td className="px-3 py-2">
-                                    <div>{issue.beinBalanceBefore ?? '-'} {'->'} {issue.beinBalanceAfter ?? '-'}</div>
-                                    <div className="text-xs text-muted-foreground">Delta: {issue.beinDelta ?? '-'}</div>
+                                    <div>{formatAmount(issue.beinBalanceBefore)} {'->'} {formatAmount(issue.beinBalanceAfter)}</div>
+                                    <div className="text-xs text-muted-foreground">Delta: {formatAmount(issue.beinDelta)}</div>
                                 </td>
                                 <td className="px-3 py-2">{issue.beinUsernameSnapshot || issue.beinAccount?.username || '-'}</td>
                                 <td className="px-3 py-2">
-                                    <div>{issue.userDeductAmount ?? '-'}</div>
-                                    <div className="text-xs text-muted-foreground">Amount: {issue.operationAmount ?? '-'}</div>
+                                    <div>{formatAmount(issue.userDeductAmount)}</div>
+                                    <div className="text-xs text-muted-foreground">Amount: {formatAmount(issue.operationAmount)}</div>
                                 </td>
                                 <td className="px-3 py-2">
-                                    <div>{issue.userBalanceBefore ?? '-'} {'->'} {issue.userBalanceAfter ?? '-'}</div>
+                                    <div>{formatAmount(issue.userBalanceBefore)} {'->'} {formatAmount(issue.userBalanceAfter)}</div>
                                 </td>
                                 <td className="px-3 py-2">{issue.severity}</td>
                                 <td className="px-3 py-2">{issue.status}</td>

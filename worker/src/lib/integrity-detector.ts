@@ -255,6 +255,38 @@ function hasDirectSnapshotInput(input: IntegritySnapshotInput): boolean {
     );
 }
 
+async function resolveUserBalanceSnapshotFromTransactions(operationId: string): Promise<{
+    userBalanceBefore: number | null;
+    userBalanceAfter: number | null;
+}> {
+    const [deductionAgg, latestDeduction] = await Promise.all([
+        prisma.transaction.aggregate({
+            where: {
+                operationId,
+                type: 'OPERATION_DEDUCT'
+            },
+            _sum: { amount: true }
+        }),
+        prisma.transaction.findFirst({
+            where: {
+                operationId,
+                type: 'OPERATION_DEDUCT'
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { balanceAfter: true }
+        })
+    ]);
+
+    const userDeductTotal = Math.abs(deductionAgg._sum.amount || 0);
+    const userBalanceAfter = toNullableNumber(latestDeduction?.balanceAfter);
+    const userBalanceBefore =
+        userBalanceAfter === null
+            ? null
+            : userBalanceAfter + userDeductTotal;
+
+    return { userBalanceBefore, userBalanceAfter };
+}
+
 async function resolveStaleIssues(operationId: string, detectedIssueTypes: IntegrityIssueType[]): Promise<void> {
     const staleIssueTypes = ALL_INTEGRITY_ISSUE_TYPES.filter(
         (issueType) => !detectedIssueTypes.includes(issueType)
@@ -320,8 +352,13 @@ export async function detectAndRecordOperationIntegrity(
             responseDataSnapshot.beinUsernameSnapshot ??
             operation.beinAccount?.username ??
             null;
-        const userBalanceBefore = toNullableNumber(input.userBalanceBefore ?? responseDataSnapshot.userBalanceBefore);
-        const userBalanceAfter = toNullableNumber(input.userBalanceAfter ?? responseDataSnapshot.userBalanceAfter);
+        let userBalanceBefore = toNullableNumber(input.userBalanceBefore ?? responseDataSnapshot.userBalanceBefore);
+        let userBalanceAfter = toNullableNumber(input.userBalanceAfter ?? responseDataSnapshot.userBalanceAfter);
+        if (userBalanceBefore === null || userBalanceAfter === null) {
+            const txSnapshot = await resolveUserBalanceSnapshotFromTransactions(input.operationId);
+            userBalanceBefore = userBalanceBefore ?? txSnapshot.userBalanceBefore;
+            userBalanceAfter = userBalanceAfter ?? txSnapshot.userBalanceAfter;
+        }
         const trackTelemetryMissing =
             hasDirectSnapshotInput(input) ||
             responseDataSnapshot.hasAuditSnapshot;

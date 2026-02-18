@@ -250,6 +250,7 @@ export default function AnnouncementBanner() {
         ? banner.colors 
         : defaultColors
     const bannerImageSrc = resolveUploadedImageSrc(banner.imageUrl)
+    const hasMessage = banner.message.trim().length > 0
 
     return (
         <AnimatePresence>
@@ -271,27 +272,35 @@ export default function AnnouncementBanner() {
                 )}
             >
                 <div className="container mx-auto flex items-center justify-center">
-                    <div className="flex w-full flex-col items-center justify-center gap-3">
-                        {bannerImageSrc && (
+                    {bannerImageSrc ? (
+                        <div className="relative w-full overflow-hidden rounded-xl border border-white/15 shadow-[0_10px_35px_rgba(0,0,0,0.4)]">
                             <img
                                 src={bannerImageSrc}
                                 alt={banner.imageAlt || 'Announcement image'}
-                                className="w-full max-w-[220px] md:max-w-[320px] max-h-40 rounded-lg border border-white/20 object-cover shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+                                className="block w-full h-[180px] md:h-[240px] lg:h-[280px] object-cover"
                             />
-                        )}
-                        {/* Announcement text with animation */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+                            {hasMessage && (
+                                <div className="absolute inset-x-0 bottom-0 p-4 md:p-5 text-center">
+                                    <div className="inline-block max-w-full rounded-md bg-black/40 px-3 py-2 backdrop-blur-sm">
+                                        <TextComponent text={banner.message} colors={colors} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
                         <div className="w-full text-center">
                             <TextComponent text={banner.message} colors={colors} />
                         </div>
-                    </div>
+                    )}
 
                     {/* Dismiss button */}
                     {banner.isDismissable && (
                         <button
                             onClick={handleDismiss}
                             className={cn(
-                                "absolute top-3 p-1.5 rounded-full",
-                                "text-white/60 hover:text-white hover:bg-white/10",
+                                "absolute top-3 p-1.5 rounded-full z-20",
+                                "bg-black/45 text-white/80 hover:text-white hover:bg-black/65",
                                 "transition-colors duration-200",
                                 "end-3"
                             )}

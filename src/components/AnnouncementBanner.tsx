@@ -271,16 +271,16 @@ export default function AnnouncementBanner() {
                 )}
             >
                 <div className="container mx-auto flex items-center justify-center">
-                    <div className="flex w-full items-center justify-center gap-3">
+                    <div className="flex w-full flex-col items-center justify-center gap-3">
                         {bannerImageSrc && (
                             <img
                                 src={bannerImageSrc}
                                 alt={banner.imageAlt || 'Announcement image'}
-                                className="h-10 w-10 md:h-12 md:w-12 rounded-md border border-white/20 object-cover shrink-0"
+                                className="w-full max-w-[220px] md:max-w-[320px] max-h-40 rounded-lg border border-white/20 object-cover shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
                             />
                         )}
                         {/* Announcement text with animation */}
-                        <div className="flex-1 text-center">
+                        <div className="w-full text-center">
                             <TextComponent text={banner.message} colors={colors} />
                         </div>
                     </div>
@@ -290,7 +290,7 @@ export default function AnnouncementBanner() {
                         <button
                             onClick={handleDismiss}
                             className={cn(
-                                "absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full",
+                                "absolute top-3 p-1.5 rounded-full",
                                 "text-white/60 hover:text-white hover:bg-white/10",
                                 "transition-colors duration-200",
                                 "end-3"

@@ -16,6 +16,9 @@ interface IntegrityIssue {
     status: IssueStatus
     operationAmount: number | null
     userDeductAmount: number | null
+    beinUsernameSnapshot: string | null
+    userBalanceBefore: number | null
+    userBalanceAfter: number | null
     beinBalanceBefore: number | null
     beinBalanceAfter: number | null
     beinDelta: number | null
@@ -30,6 +33,26 @@ interface SummaryData {
     openHigh: number
     byStatus: Array<{ status: string; _count: number }>
     byType: Array<{ issueType: string; _count: number }>
+    totals: {
+        requestedTotal: number
+        beinDeltaTotal: number
+        deductedTotal: number
+    }
+    spentByBeinAccount: Array<{
+        beinAccountId: string
+        username: string | null
+        label: string | null
+        requestedTotal: number
+        beinDeltaTotal: number
+        variance: number
+        operationsCount: number
+    }>
+    spentByUser: Array<{
+        userId: string
+        username: string | null
+        deductedTotal: number
+        operationsCount: number
+    }>
 }
 
 const statusOptions: IssueStatus[] = ['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'FALSE_POSITIVE', 'IGNORED']
@@ -156,6 +179,21 @@ export default function IntegrityReportsPage() {
                 </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="text-xs text-muted-foreground">Requested Spend</p>
+                    <p className="text-2xl font-bold">{summary?.totals?.requestedTotal?.toFixed(2) ?? '0.00'}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="text-xs text-muted-foreground">beIN Delta Spend</p>
+                    <p className="text-2xl font-bold">{summary?.totals?.beinDeltaTotal?.toFixed(2) ?? '0.00'}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-4">
+                    <p className="text-xs text-muted-foreground">User Deducted Spend</p>
+                    <p className="text-2xl font-bold">{summary?.totals?.deductedTotal?.toFixed(2) ?? '0.00'}</p>
+                </div>
+            </div>
+
             <div className="rounded-xl border border-border bg-card p-4 flex flex-col md:flex-row gap-3">
                 <input
                     value={search}
@@ -191,7 +229,9 @@ export default function IntegrityReportsPage() {
                             <th className="px-3 py-2 text-left">Issue</th>
                             <th className="px-3 py-2 text-left">Operation</th>
                             <th className="px-3 py-2 text-left">beIN Balance</th>
+                            <th className="px-3 py-2 text-left">beIN User</th>
                             <th className="px-3 py-2 text-left">User Deduct</th>
+                            <th className="px-3 py-2 text-left">User Balance</th>
                             <th className="px-3 py-2 text-left">Severity</th>
                             <th className="px-3 py-2 text-left">Status</th>
                             <th className="px-3 py-2 text-left">Detected</th>
@@ -200,9 +240,9 @@ export default function IntegrityReportsPage() {
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td className="px-3 py-6 text-muted-foreground" colSpan={8}>Loading...</td></tr>
+                            <tr><td className="px-3 py-6 text-muted-foreground" colSpan={10}>Loading...</td></tr>
                         ) : issues.length === 0 ? (
-                            <tr><td className="px-3 py-6 text-muted-foreground" colSpan={8}>No integrity issues found.</td></tr>
+                            <tr><td className="px-3 py-6 text-muted-foreground" colSpan={10}>No integrity issues found.</td></tr>
                         ) : issues.map((issue) => (
                             <tr key={issue.id} className="border-b border-border/60">
                                 <td className="px-3 py-2">
@@ -217,9 +257,13 @@ export default function IntegrityReportsPage() {
                                     <div>{issue.beinBalanceBefore ?? '-'} {'->'} {issue.beinBalanceAfter ?? '-'}</div>
                                     <div className="text-xs text-muted-foreground">Delta: {issue.beinDelta ?? '-'}</div>
                                 </td>
+                                <td className="px-3 py-2">{issue.beinUsernameSnapshot || issue.beinAccount?.username || '-'}</td>
                                 <td className="px-3 py-2">
                                     <div>{issue.userDeductAmount ?? '-'}</div>
                                     <div className="text-xs text-muted-foreground">Amount: {issue.operationAmount ?? '-'}</div>
+                                </td>
+                                <td className="px-3 py-2">
+                                    <div>{issue.userBalanceBefore ?? '-'} {'->'} {issue.userBalanceAfter ?? '-'}</div>
                                 </td>
                                 <td className="px-3 py-2">{issue.severity}</td>
                                 <td className="px-3 py-2">{issue.status}</td>
@@ -238,6 +282,63 @@ export default function IntegrityReportsPage() {
                         ))}
                     </tbody>
                 </table>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border font-semibold">Spent by beIN Account</div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-secondary/60 border-b border-border">
+                                <tr>
+                                    <th className="px-3 py-2 text-left">Account</th>
+                                    <th className="px-3 py-2 text-left">Requested</th>
+                                    <th className="px-3 py-2 text-left">beIN Delta</th>
+                                    <th className="px-3 py-2 text-left">Variance</th>
+                                    <th className="px-3 py-2 text-left">Ops</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(summary?.spentByBeinAccount || []).slice(0, 15).map((row) => (
+                                    <tr key={row.beinAccountId} className="border-b border-border/60">
+                                        <td className="px-3 py-2">
+                                            <div className="font-medium">{row.username || row.label || row.beinAccountId.slice(0, 8)}</div>
+                                            <div className="text-xs text-muted-foreground">{row.label || row.beinAccountId}</div>
+                                        </td>
+                                        <td className="px-3 py-2">{row.requestedTotal.toFixed(2)}</td>
+                                        <td className="px-3 py-2">{row.beinDeltaTotal.toFixed(2)}</td>
+                                        <td className="px-3 py-2">{row.variance.toFixed(2)}</td>
+                                        <td className="px-3 py-2">{row.operationsCount}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border font-semibold">Spent by User</div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-secondary/60 border-b border-border">
+                                <tr>
+                                    <th className="px-3 py-2 text-left">User</th>
+                                    <th className="px-3 py-2 text-left">Deducted</th>
+                                    <th className="px-3 py-2 text-left">Ops</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(summary?.spentByUser || []).slice(0, 15).map((row) => (
+                                    <tr key={row.userId} className="border-b border-border/60">
+                                        <td className="px-3 py-2">{row.username || row.userId}</td>
+                                        <td className="px-3 py-2">{row.deductedTotal.toFixed(2)}</td>
+                                        <td className="px-3 py-2">{row.operationsCount}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <div className="flex items-center justify-between">
@@ -264,4 +365,3 @@ export default function IntegrityReportsPage() {
         </div>
     )
 }
-

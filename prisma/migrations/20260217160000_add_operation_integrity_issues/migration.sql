@@ -42,6 +42,9 @@ CREATE TABLE IF NOT EXISTS "operation_integrity_issues" (
   "status" "IntegrityIssueStatus" NOT NULL DEFAULT 'OPEN',
   "operation_amount" DOUBLE PRECISION,
   "user_deduct_amount" DOUBLE PRECISION,
+  "bein_username_snapshot" TEXT,
+  "user_balance_before" DOUBLE PRECISION,
+  "user_balance_after" DOUBLE PRECISION,
   "bein_balance_before" DOUBLE PRECISION,
   "bein_balance_after" DOUBLE PRECISION,
   "bein_delta" DOUBLE PRECISION,
@@ -88,3 +91,8 @@ CREATE INDEX IF NOT EXISTS "operation_integrity_issues_user_id_detected_at_idx"
 
 CREATE INDEX IF NOT EXISTS "operation_integrity_issues_bein_account_id_detected_at_idx"
   ON "operation_integrity_issues"("bein_account_id", "detected_at");
+
+-- Safety for environments where table already existed before these snapshot columns
+ALTER TABLE "operation_integrity_issues" ADD COLUMN IF NOT EXISTS "bein_username_snapshot" TEXT;
+ALTER TABLE "operation_integrity_issues" ADD COLUMN IF NOT EXISTS "user_balance_before" DOUBLE PRECISION;
+ALTER TABLE "operation_integrity_issues" ADD COLUMN IF NOT EXISTS "user_balance_after" DOUBLE PRECISION;

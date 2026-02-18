@@ -36,6 +36,7 @@ export default function LogsTable() {
     const [dateFilter, setDateFilter] = useState<Date | null>(null)
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [expandedRow, setExpandedRow] = useState<string | null>(null)
+    const [refreshing, setRefreshing] = useState(false)
 
     const localeMap = {
         ar: ar,
@@ -71,7 +72,11 @@ export default function LogsTable() {
             const data = await res.json()
             if (res.ok) {
                 setLogs(data.logs)
-                setTotalPages(data.totalPages)
+                const nextTotalPages = Math.max(1, data.totalPages || 1)
+                setTotalPages(nextTotalPages)
+                if (page > nextTotalPages) {
+                    setPage(nextTotalPages)
+                }
             }
         } catch (error) {
             console.error('Failed to fetch logs', error)
@@ -83,6 +88,15 @@ export default function LogsTable() {
     useEffect(() => {
         fetchLogs()
     }, [fetchLogs])
+
+    const handleRefresh = async () => {
+        setRefreshing(true)
+        try {
+            await fetchLogs()
+        } finally {
+            setRefreshing(false)
+        }
+    }
 
     // Category icon component
     const getCategoryIcon = (category: ActionCategory) => {
@@ -133,6 +147,15 @@ export default function LogsTable() {
                     onChange={(date) => { setDateFilter(date); setPage(1) }}
                     placeholder="Filter by date"
                 />
+                <button
+                    onClick={handleRefresh}
+                    disabled={loading || refreshing}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-border rounded-lg hover:bg-secondary disabled:opacity-60 disabled:cursor-not-allowed"
+                    title="Refresh logs"
+                >
+                    <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                    <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
             </div>
 
             {/* Logs List */}

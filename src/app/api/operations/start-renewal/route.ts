@@ -142,41 +142,6 @@ export async function POST(request: NextRequest) {
                 )
             }
 
-            // Check 2: Recently created operations (prevents rapid re-creation after auto-cancel)
-            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
-            const recentOperation = await prisma.operation.findFirst({
-                where: {
-                    cardNumber,
-                    status: { in: ['CANCELLED'] },
-                    createdAt: { gte: fiveMinutesAgo },
-                },
-                orderBy: { createdAt: 'desc' },
-            })
-
-            if (recentOperation) {
-                return NextResponse.json(
-                    { error: 'This card was recently used. Please wait a few minutes before trying again.', operationId: recentOperation.id },
-                    { status: 400 }
-                )
-            }
-
-            // Check 3: recently finished operations to prevent immediate double-charging loops.
-            const recentFinishedOperation = await prisma.operation.findFirst({
-                where: {
-                    cardNumber,
-                    status: 'COMPLETED',
-                    createdAt: { gte: fiveMinutesAgo },
-                },
-                orderBy: { createdAt: 'desc' },
-            })
-
-            if (recentFinishedOperation) {
-                return NextResponse.json(
-                    { error: 'This card was renewed recently. Please wait a few minutes before trying again.', operationId: recentFinishedOperation.id },
-                    { status: 400 }
-                )
-            }
-
             // 6. Create operation (no balance deduction yet - will be done after package selection)
             const operation = await prisma.operation.create({
                 data: {

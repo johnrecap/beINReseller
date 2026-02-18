@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2 } from 'lucide-react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
@@ -64,6 +64,7 @@ export default function UsersTable() {
     const [search, setSearch] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [counts, setCounts] = useState<TabCounts>({ distributors: 0, users: 0 })
+    const [refreshing, setRefreshing] = useState(false)
 
     // Filter users by specific distributor
     const [filterManagerId, setFilterManagerId] = useState<string | null>(null)
@@ -130,7 +131,11 @@ export default function UsersTable() {
                 } else {
                     setUsers(data.users)
                 }
-                setTotalPages(data.totalPages)
+                const nextTotalPages = Math.max(1, data.totalPages || 1)
+                setTotalPages(nextTotalPages)
+                if (page > nextTotalPages) {
+                    setPage(nextTotalPages)
+                }
             }
         } catch (error) {
             console.error('Failed to fetch data', error)
@@ -142,6 +147,15 @@ export default function UsersTable() {
     useEffect(() => {
         fetchData()
     }, [fetchData])
+
+    const handleRefresh = async () => {
+        setRefreshing(true)
+        try {
+            await Promise.all([fetchData(), fetchCounts()])
+        } finally {
+            setRefreshing(false)
+        }
+    }
 
     const handleToggleStatus = async (user: User | Distributor) => {
         if (!confirm(user.isActive ? t.admin.users.actions.disableConfirm : t.admin.users.actions.enableConfirm)) return
@@ -444,6 +458,15 @@ export default function UsersTable() {
                                 className="w-full pr-10 pl-4 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground"
                             />
                         </div>
+                        <button
+                            onClick={handleRefresh}
+                            disabled={loading || refreshing}
+                            className="flex items-center justify-center gap-2 border border-border px-4 py-2 rounded-lg hover:bg-secondary disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                            title={t.common?.refresh || 'Refresh'}
+                        >
+                            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                            <span>{t.common?.refresh || 'Refresh'}</span>
+                        </button>
                         <button
                             onClick={() => setCreateOpen(true)}
                             className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"

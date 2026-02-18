@@ -78,6 +78,122 @@ function isAmbiguousFailure(message: string | null | undefined): boolean {
         normalized.includes('please check balance');
 }
 
+interface OperationAuditSnapshot {
+    beinAccountId: string | null;
+    beinUsername: string | null;
+    beinBalanceBefore: number | null;
+    beinBalanceAfter: number | null;
+    beinDelta: number | null;
+    userId: string | null;
+    userDeductTotal: number;
+    userBalanceBefore: number | null;
+    userBalanceAfter: number | null;
+    capturedAt: string;
+}
+
+function toNullableNumber(value: unknown): number | null {
+    return typeof value === 'number' && !Number.isNaN(value) ? value : null;
+}
+
+function parseResponseDataObject(responseData: unknown): Record<string, unknown> {
+    if (!responseData) return {};
+    if (typeof responseData === 'string') {
+        try {
+            const parsed = JSON.parse(responseData);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof responseData === 'object') {
+        return responseData as Record<string, unknown>;
+    }
+    return {};
+}
+
+async function buildOperationAuditSnapshot(params: {
+    operationId: string;
+    userId: string | null;
+    beinAccountId: string | null;
+    beinUsername: string | null;
+    beinBalanceBefore: number | null;
+    beinBalanceAfter: number | null;
+}): Promise<OperationAuditSnapshot> {
+    const { operationId, userId, beinAccountId, beinUsername, beinBalanceBefore, beinBalanceAfter } = params;
+
+    const [deductionAgg, latestDeduction] = await Promise.all([
+        prisma.transaction.aggregate({
+            where: {
+                operationId,
+                type: 'OPERATION_DEDUCT'
+            },
+            _sum: { amount: true }
+        }),
+        prisma.transaction.findFirst({
+            where: {
+                operationId,
+                type: 'OPERATION_DEDUCT'
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { balanceAfter: true }
+        })
+    ]);
+
+    const userDeductTotal = Math.abs(deductionAgg._sum.amount || 0);
+    const userBalanceAfter = toNullableNumber(latestDeduction?.balanceAfter);
+    const userBalanceBefore =
+        userBalanceAfter === null
+            ? null
+            : userBalanceAfter + userDeductTotal;
+
+    const before = toNullableNumber(beinBalanceBefore);
+    const after = toNullableNumber(beinBalanceAfter);
+    const beinDelta =
+        before === null || after === null
+            ? null
+            : before - after;
+
+    return {
+        beinAccountId,
+        beinUsername,
+        beinBalanceBefore: before,
+        beinBalanceAfter: after,
+        beinDelta,
+        userId,
+        userDeductTotal,
+        userBalanceBefore,
+        userBalanceAfter,
+        capturedAt: new Date().toISOString()
+    };
+}
+
+async function persistOperationAuditSnapshot(
+    operationId: string,
+    responseData: unknown,
+    snapshot: OperationAuditSnapshot
+): Promise<void> {
+    const base = parseResponseDataObject(responseData);
+    const existingAudit =
+        typeof base.auditSnapshot === 'object' && base.auditSnapshot
+            ? base.auditSnapshot as Record<string, unknown>
+            : {};
+
+    const merged = {
+        ...base,
+        auditSnapshot: {
+            ...existingAudit,
+            ...snapshot
+        }
+    };
+
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: {
+            responseData: typeof responseData === 'string' ? JSON.stringify(merged) : merged
+        }
+    });
+}
+
 // Map to store HTTP clients per account (session persistence)
 const httpClients = new Map<string, HttpClientService>();
 
@@ -856,6 +972,7 @@ async function handleApplyPromoHttp(
             beinAccountId: true,
             cardNumber: true,
             status: true,
+            responseData: true,
         }
     });
 
@@ -886,6 +1003,24 @@ async function handleApplyPromoHttp(
     }
 
     const client = await getHttpClient(account);
+    const existingResponseData = parseResponseDataObject(operation.responseData);
+    const savedSessionData =
+        existingResponseData.sessionData && typeof existingResponseData.sessionData === 'object'
+            ? existingResponseData.sessionData as Record<string, unknown>
+            : null;
+
+    if (savedSessionData && typeof savedSessionData.cookies === 'string') {
+        try {
+            await client.importSession(savedSessionData as any);
+            const expiresAt = typeof savedSessionData.expiresAt === 'number'
+                ? savedSessionData.expiresAt
+                : undefined;
+            client.markSessionValidFromCache(expiresAt);
+            console.log('[HTTP] Promo flow restored operation-scoped session snapshot');
+        } catch (sessionImportError: any) {
+            console.log(`[HTTP] Failed to import operation session snapshot: ${sessionImportError.message}`);
+        }
+    }
 
     // Ensure session is active
     if (!client.isSessionActive()) {
@@ -906,7 +1041,12 @@ async function handleApplyPromoHttp(
                 await prisma.operation.update({
                     where: { id: operationId },
                     data: {
-                        responseData: JSON.stringify({ promoApplied: false, error: 'Login failed for promo apply' })
+                        responseData: JSON.stringify({
+                            ...existingResponseData,
+                            promoApplied: false,
+                            refreshing: false,
+                            error: 'Login failed for promo apply'
+                        })
                     }
                 });
                 return;
@@ -926,6 +1066,16 @@ async function handleApplyPromoHttp(
     console.log(`[HTTP] 🎫 Applying promo code: ${promoCode}`);
     const useCardNumber = cardNumber || operation.cardNumber;
     const result = await client.applyPromoCode(promoCode, useCardNumber);
+    const latestSessionData = await client.exportSession().catch(() => null);
+    const mergedResponseBase: Record<string, unknown> = {
+        ...existingResponseData,
+        refreshing: false,
+        promoCode: promoCode || null,
+    };
+    if (latestSessionData) {
+        mergedResponseBase.sessionData = latestSessionData;
+        mergedResponseBase.savedAt = new Date().toISOString();
+    }
 
     if (result.success && result.packages.length > 0) {
         // Update operation with new discounted packages
@@ -934,7 +1084,9 @@ async function handleApplyPromoHttp(
             data: {
                 availablePackages: JSON.parse(JSON.stringify(result.packages)),
                 responseData: JSON.stringify({
+                    ...mergedResponseBase,
                     promoApplied: true,
+                    error: null,
                     packages: result.packages
                 })
             }
@@ -945,9 +1097,14 @@ async function handleApplyPromoHttp(
         await prisma.operation.update({
             where: { id: operationId },
             data: {
+                ...(result.packages.length > 0
+                    ? { availablePackages: JSON.parse(JSON.stringify(result.packages)) }
+                    : {}),
                 responseData: JSON.stringify({
+                    ...mergedResponseBase,
                     promoApplied: false,
-                    error: result.error || 'Failed to apply promo code'
+                    error: result.error || 'Failed to apply promo code',
+                    packages: result.packages
                 })
             }
         });
@@ -1543,6 +1700,16 @@ async function handleConfirmPurchaseHttp(
                 return;
             }
 
+            const auditSnapshot = await buildOperationAuditSnapshot({
+                operationId,
+                userId: operation.userId || null,
+                beinAccountId: operation.beinAccountId,
+                beinUsername: account.username,
+                beinBalanceBefore: toNullableNumber(result.beinBalanceBefore),
+                beinBalanceAfter: toNullableNumber(result.beinBalanceAfter)
+            });
+            await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+
             await accountPool.markAccountUsed(operation.beinAccountId);
 
             // Track activity for user engagement metrics
@@ -1555,15 +1722,21 @@ async function handleConfirmPurchaseHttp(
                     {
                         packageName: selectedPackage?.name,
                         beinAccountId: operation.beinAccountId,
-                        beinBalanceBefore: result.beinBalanceBefore,
-                        beinBalanceAfter: result.beinBalanceAfter
+                        beinUsernameSnapshot: auditSnapshot.beinUsername,
+                        beinBalanceBefore: auditSnapshot.beinBalanceBefore,
+                        beinBalanceAfter: auditSnapshot.beinBalanceAfter,
+                        userBalanceBefore: auditSnapshot.userBalanceBefore,
+                        userBalanceAfter: auditSnapshot.userBalanceAfter
                     }
                 );
 
                 await detectAndRecordOperationIntegrity({
                     operationId,
-                    beinBalanceBefore: result.beinBalanceBefore,
-                    beinBalanceAfter: result.beinBalanceAfter
+                    beinBalanceBefore: auditSnapshot.beinBalanceBefore ?? undefined,
+                    beinBalanceAfter: auditSnapshot.beinBalanceAfter ?? undefined,
+                    beinUsernameSnapshot: auditSnapshot.beinUsername ?? undefined,
+                    userBalanceBefore: auditSnapshot.userBalanceBefore ?? undefined,
+                    userBalanceAfter: auditSnapshot.userBalanceAfter ?? undefined
                 });
             }
 
@@ -2703,6 +2876,16 @@ async function handleConfirmInstallmentHttp(
             return;
         }
 
+        const auditSnapshot = await buildOperationAuditSnapshot({
+            operationId,
+            userId: operation.userId || null,
+            beinAccountId: selectedAccount.id,
+            beinUsername: selectedAccount.username,
+            beinBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
+            beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter)
+        });
+        await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+
         try {
             await accountPool.markAccountUsed(selectedAccount.id);
         } catch (e: any) {
@@ -2720,15 +2903,21 @@ async function handleConfirmInstallmentHttp(
                         type: 'installment',
                         cardNumber,
                         beinAccountId: selectedAccount.id,
-                        beinBalanceBefore: payResult.beinBalanceBefore,
-                        beinBalanceAfter: payResult.beinBalanceAfter
+                        beinUsernameSnapshot: auditSnapshot.beinUsername,
+                        beinBalanceBefore: auditSnapshot.beinBalanceBefore,
+                        beinBalanceAfter: auditSnapshot.beinBalanceAfter,
+                        userBalanceBefore: auditSnapshot.userBalanceBefore,
+                        userBalanceAfter: auditSnapshot.userBalanceAfter
                     }
                 );
 
                 await detectAndRecordOperationIntegrity({
                     operationId,
-                    beinBalanceBefore: payResult.beinBalanceBefore,
-                    beinBalanceAfter: payResult.beinBalanceAfter
+                    beinBalanceBefore: auditSnapshot.beinBalanceBefore ?? undefined,
+                    beinBalanceAfter: auditSnapshot.beinBalanceAfter ?? undefined,
+                    beinUsernameSnapshot: auditSnapshot.beinUsername ?? undefined,
+                    userBalanceBefore: auditSnapshot.userBalanceBefore ?? undefined,
+                    userBalanceAfter: auditSnapshot.userBalanceAfter ?? undefined
                 });
             } catch (e: any) {
                 console.error(`[HTTP] Failed to track installment completion for ${operationId}: ${e.message}`);

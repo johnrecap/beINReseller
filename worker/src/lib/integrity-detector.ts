@@ -20,6 +20,9 @@ interface IntegritySnapshotInput {
     operationId: string;
     beinBalanceBefore?: number;
     beinBalanceAfter?: number;
+    beinUsernameSnapshot?: string;
+    userBalanceBefore?: number;
+    userBalanceAfter?: number;
 }
 
 interface EvaluatedIssue {
@@ -32,6 +35,46 @@ interface EvaluatedIssue {
 function toNullableNumber(value: unknown): number | null {
     if (typeof value !== 'number' || Number.isNaN(value)) return null;
     return value;
+}
+
+function resolveSnapshotsFromResponseData(responseData: unknown): {
+    beinBalanceBefore: number | null;
+    beinBalanceAfter: number | null;
+    beinUsernameSnapshot: string | null;
+    userBalanceBefore: number | null;
+    userBalanceAfter: number | null;
+} {
+    let parsed: Record<string, unknown> | null = null;
+    if (typeof responseData === 'string') {
+        try {
+            parsed = JSON.parse(responseData) as Record<string, unknown>;
+        } catch {
+            parsed = null;
+        }
+    } else if (responseData && typeof responseData === 'object') {
+        parsed = responseData as Record<string, unknown>;
+    }
+
+    const empty = {
+        beinBalanceBefore: null,
+        beinBalanceAfter: null,
+        beinUsernameSnapshot: null,
+        userBalanceBefore: null,
+        userBalanceAfter: null
+    };
+
+    if (!parsed || typeof parsed.auditSnapshot !== 'object' || !parsed.auditSnapshot) {
+        return empty;
+    }
+
+    const auditSnapshot = parsed.auditSnapshot as Record<string, unknown>;
+    return {
+        beinBalanceBefore: toNullableNumber(auditSnapshot.beinBalanceBefore),
+        beinBalanceAfter: toNullableNumber(auditSnapshot.beinBalanceAfter),
+        beinUsernameSnapshot: typeof auditSnapshot.beinUsername === 'string' ? auditSnapshot.beinUsername : null,
+        userBalanceBefore: toNullableNumber(auditSnapshot.userBalanceBefore),
+        userBalanceAfter: toNullableNumber(auditSnapshot.userBalanceAfter)
+    };
 }
 
 function evaluateIntegrityIssues(input: IntegrityEvaluationInput): EvaluatedIssue[] {
@@ -106,6 +149,9 @@ async function upsertIssue(params: {
     beinAccountId: string | null;
     operationAmount: number;
     userDeductAmount: number;
+    beinUsernameSnapshot: string | null;
+    userBalanceBefore: number | null;
+    userBalanceAfter: number | null;
     beinBalanceBefore: number | null;
     beinBalanceAfter: number | null;
     issue: EvaluatedIssue;
@@ -116,6 +162,9 @@ async function upsertIssue(params: {
         beinAccountId,
         operationAmount,
         userDeductAmount,
+        beinUsernameSnapshot,
+        userBalanceBefore,
+        userBalanceAfter,
         beinBalanceBefore,
         beinBalanceAfter,
         issue
@@ -141,6 +190,9 @@ async function upsertIssue(params: {
                 status: 'OPEN',
                 operationAmount,
                 userDeductAmount,
+                beinUsernameSnapshot,
+                userBalanceBefore,
+                userBalanceAfter,
                 beinBalanceBefore,
                 beinBalanceAfter,
                 beinDelta: issue.beinDelta,
@@ -152,6 +204,9 @@ async function upsertIssue(params: {
                 severity: issue.severity,
                 operationAmount,
                 userDeductAmount,
+                beinUsernameSnapshot,
+                userBalanceBefore,
+                userBalanceAfter,
                 beinBalanceBefore,
                 beinBalanceAfter,
                 beinDelta: issue.beinDelta,
@@ -182,7 +237,11 @@ export async function detectAndRecordOperationIntegrity(
                 userId: true,
                 beinAccountId: true,
                 amount: true,
-                status: true
+                status: true,
+                responseData: true,
+                beinAccount: {
+                    select: { username: true }
+                }
             }
         });
 
@@ -204,8 +263,16 @@ export async function detectAndRecordOperationIntegrity(
         });
 
         const userDeductAmount = Math.abs(deductionAgg._sum.amount || 0);
-        const beinBalanceBefore = toNullableNumber(input.beinBalanceBefore);
-        const beinBalanceAfter = toNullableNumber(input.beinBalanceAfter);
+        const responseDataSnapshot = resolveSnapshotsFromResponseData(operation.responseData);
+        const beinBalanceBefore = toNullableNumber(input.beinBalanceBefore ?? responseDataSnapshot.beinBalanceBefore);
+        const beinBalanceAfter = toNullableNumber(input.beinBalanceAfter ?? responseDataSnapshot.beinBalanceAfter);
+        const beinUsernameSnapshot =
+            input.beinUsernameSnapshot ??
+            responseDataSnapshot.beinUsernameSnapshot ??
+            operation.beinAccount?.username ??
+            null;
+        const userBalanceBefore = toNullableNumber(input.userBalanceBefore ?? responseDataSnapshot.userBalanceBefore);
+        const userBalanceAfter = toNullableNumber(input.userBalanceAfter ?? responseDataSnapshot.userBalanceAfter);
 
         const issues = evaluateIntegrityIssues({
             operationAmount,
@@ -221,6 +288,9 @@ export async function detectAndRecordOperationIntegrity(
                 beinAccountId: operation.beinAccountId || null,
                 operationAmount,
                 userDeductAmount,
+                beinUsernameSnapshot,
+                userBalanceBefore,
+                userBalanceAfter,
                 beinBalanceBefore,
                 beinBalanceAfter,
                 issue

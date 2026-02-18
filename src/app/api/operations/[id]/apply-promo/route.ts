@@ -13,6 +13,22 @@ async function getAuthUser(request: NextRequest) {
     return getMobileUserFromRequest(request)
 }
 
+function parseOperationResponseData(responseData: unknown): Record<string, unknown> {
+    if (!responseData) return {}
+    if (typeof responseData === 'object') return responseData as Record<string, unknown>
+    if (typeof responseData === 'string') {
+        try {
+            const parsed = JSON.parse(responseData)
+            return parsed && typeof parsed === 'object'
+                ? parsed as Record<string, unknown>
+                : {}
+        } catch {
+            return {}
+        }
+    }
+    return {}
+}
+
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -53,11 +69,17 @@ export async function POST(
         }
 
         // Save promo code to operation
+        const existingResponseData = parseOperationResponseData(operation.responseData)
+
         await prisma.operation.update({
             where: { id },
             data: {
                 promoCode,
-                responseData: JSON.stringify({ promoApplied: false, refreshing: true }),
+                responseData: JSON.stringify({
+                    ...existingResponseData,
+                    promoApplied: false,
+                    refreshing: true,
+                }),
             },
         })
 
@@ -86,13 +108,28 @@ export async function POST(
             // Check if packages were updated via responseData
             if (updatedOp?.responseData) {
                 try {
-                    const data = JSON.parse(String(updatedOp.responseData))
+                    const data = parseOperationResponseData(updatedOp.responseData)
                     if (data.promoApplied === true && Array.isArray(data.packages)) {
                         return NextResponse.json({
                             success: true,
                             message: 'Promo code applied',
                             packages: data.packages,
                         })
+                    }
+
+                    if (
+                        data.promoApplied === false &&
+                        data.refreshing !== true &&
+                        typeof data.error === 'string'
+                    ) {
+                        return NextResponse.json(
+                            {
+                                success: false,
+                                error: data.error,
+                                packages: Array.isArray(data.packages) ? data.packages : [],
+                            },
+                            { status: 400 }
+                        )
                     }
                 } catch {
                     // Not valid JSON, continue

@@ -1865,12 +1865,32 @@ export class HttpClientService {
 
                 // Check if there was a specific error message on page
                 const promoError = $('[id*="lblError"], .error, span[style*="red"]').text().trim();
-                if (promoError) console.log(`[HTTP] Promo Error Text: "${promoError}"`);
+                if (promoError) {
+                    console.log(`[HTTP] Promo Error Text: "${promoError}"`);
+                    return {
+                        success: false,
+                        packages: [],
+                        error: promoError
+                    };
+                }
+
+                // Fallback: some responses return an intermediate page after promo submit.
+                // Re-loading packages with same session/card recovers the real package list.
+                const fallbackReload = await this.loadPackages(cardNumber);
+                if (fallbackReload.success && fallbackReload.packages.length > 0) {
+                    console.log(`[HTTP] Promo fallback reload recovered ${fallbackReload.packages.length} packages`);
+                    return {
+                        success: true,
+                        packages: fallbackReload.packages,
+                        stbNumber: fallbackReload.stbNumber,
+                        dealerBalance: fallbackReload.dealerBalance
+                    };
+                }
 
                 return {
                     success: false,
                     packages: [],
-                    error: 'No promo code found please try again'
+                    error: fallbackReload.error || 'No promo code found please try again'
                 };
             }
 

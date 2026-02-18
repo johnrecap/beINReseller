@@ -417,7 +417,11 @@ export default function RenewWizardPage() {
 
             if (!res.ok) {
                 // Check if this is a duplicate operation error (API returns operationId)
-                if (data.operationId) {
+                if (
+                    data.operationId &&
+                    typeof data.error === 'string' &&
+                    data.error.toLowerCase().includes('active operation')
+                ) {
                     toast.error(
                         'An operation already exists for this card',
                         {

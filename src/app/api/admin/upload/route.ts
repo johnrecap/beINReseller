@@ -2,7 +2,7 @@
  * Image Upload API
  * POST /api/admin/upload
  * 
- * Handles image uploads for products and categories
+ * Handles image uploads for products, categories, and announcements
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         // Parse form data
         const formData = await request.formData()
         const file = formData.get('file') as File | null
-        const type = formData.get('type') as string | null // 'product' or 'category'
+        const type = formData.get('type') as string | null // 'product' | 'category' | 'announcement'
 
         if (!file) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -55,7 +55,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Determine upload folder
-        const folder = type === 'category' ? 'categories' : 'products'
+        const folder =
+            type === 'category'
+                ? 'categories'
+                : type === 'announcement'
+                    ? 'announcements'
+                    : 'products'
         const uploadDir = path.join(process.cwd(), 'public', 'uploads', folder)
 
         // Create directory if it doesn't exist

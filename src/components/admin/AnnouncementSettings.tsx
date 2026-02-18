@@ -8,10 +8,13 @@ import { toast } from 'sonner'
 import { Loader2, Plus, Trash2, Eye, Save, Power } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 
 interface Banner {
     id: string
     message: string
+    imageUrl?: string | null
+    imageAlt?: string | null
     isActive: boolean
     animationType: string
     colors: string[]
@@ -70,6 +73,8 @@ export default function AnnouncementSettings() {
     const [isActive, setIsActive] = useState(true)
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
+    const [imageUrl, setImageUrl] = useState('')
+    const [imageAlt, setImageAlt] = useState('')
 
     // Fetch banners
     useEffect(() => {
@@ -102,6 +107,8 @@ export default function AnnouncementSettings() {
         setIsActive(true)
         setStartDate('')
         setEndDate('')
+        setImageUrl('')
+        setImageAlt('')
         setEditingId(null)
     }
 
@@ -116,14 +123,16 @@ export default function AnnouncementSettings() {
         setIsActive(banner.isActive)
         setStartDate(banner.startDate ? banner.startDate.split('T')[0] : '')
         setEndDate(banner.endDate ? banner.endDate.split('T')[0] : '')
+        setImageUrl(banner.imageUrl || '')
+        setImageAlt(banner.imageAlt || '')
         setEditingId(banner.id)
         setShowForm(true)
     }
 
     // Save banner
     const handleSave = async () => {
-        if (!message.trim()) {
-            toast.error('Please enter announcement text')
+        if (!message.trim() && !imageUrl) {
+            toast.error('Please enter announcement text or upload an image')
             return
         }
 
@@ -138,7 +147,9 @@ export default function AnnouncementSettings() {
                 isDismissable,
                 isActive,
                 startDate: startDate || null,
-                endDate: endDate || null
+                endDate: endDate || null,
+                imageUrl: imageUrl || null,
+                imageAlt: imageAlt.trim() || null
             }
 
             const url = editingId
@@ -252,6 +263,28 @@ export default function AnnouncementSettings() {
                             />
                             <p className="text-xs text-muted-foreground mt-1">
                                 {message.length}/500 chars
+                            </p>
+                        </div>
+
+                        {/* Announcement Image */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Announcement Image (optional)</label>
+                            <ImageUpload
+                                value={imageUrl}
+                                onChange={(url) => setImageUrl(url as string)}
+                                type="announcement"
+                                multiple={false}
+                            />
+                            <input
+                                type="text"
+                                value={imageAlt}
+                                onChange={(e) => setImageAlt(e.target.value)}
+                                className="w-full mt-3 p-3 bg-secondary border border-border rounded-lg"
+                                maxLength={120}
+                                placeholder="Image alt text (optional)"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {imageAlt.length}/120 chars
                             </p>
                         </div>
 
@@ -391,6 +424,15 @@ export default function AnnouncementSettings() {
                                 Preview
                             </label>
                             <div className="p-4 bg-black/60 rounded-lg border border-border">
+                                {imageUrl && (
+                                    <div className="mb-3 flex justify-center">
+                                        <img
+                                            src={imageUrl}
+                                            alt={imageAlt || 'Announcement image preview'}
+                                            className="h-20 w-auto rounded-md border border-border object-cover"
+                                        />
+                                    </div>
+                                )}
                                 <p
                                     className={cn(
                                         "text-center font-semibold whitespace-pre-line break-words leading-relaxed",
@@ -420,7 +462,7 @@ export default function AnnouncementSettings() {
                         <div className="flex gap-3 pt-4">
                             <Button
                                 onClick={handleSave}
-                                disabled={saving || !message.trim()}
+                                disabled={saving || (!message.trim() && !imageUrl)}
                                 className="gap-2"
                             >
                                 {saving ? (
@@ -467,25 +509,39 @@ export default function AnnouncementSettings() {
                                     )}
                                 >
                                     <div className="flex items-start justify-between gap-4">
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium whitespace-pre-line break-words" dir="auto">
-                                                {banner.message}
-                                            </p>
-                                            <div className="flex flex-wrap gap-2 mt-2">
-                                                <span className="text-xs px-2 py-1 rounded bg-secondary">
-                                                    {animationTypes.find(a => a.value === banner.animationType)?.label}
-                                                </span>
-                                                <span className="text-xs px-2 py-1 rounded bg-secondary">
-                                                    {textSizes.find(s => s.value === banner.textSize)?.label}
-                                                </span>
-                                                <span className="text-xs px-2 py-1 rounded bg-secondary">
-                                                    {positions.find(p => p.value === banner.position)?.label}
-                                                </span>
-                                                {banner.isActive && (
-                                                    <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-500">
-                                                        Active
+                                        <div className="flex-1 min-w-0 flex items-start gap-3">
+                                            {banner.imageUrl && (
+                                                <img
+                                                    src={banner.imageUrl}
+                                                    alt={banner.imageAlt || 'Announcement image'}
+                                                    className="w-14 h-14 rounded-md border border-border object-cover shrink-0"
+                                                />
+                                            )}
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-medium whitespace-pre-line break-words" dir="auto">
+                                                    {banner.message || '(Image announcement)'}
+                                                </p>
+                                                <div className="flex flex-wrap gap-2 mt-2">
+                                                    <span className="text-xs px-2 py-1 rounded bg-secondary">
+                                                        {animationTypes.find(a => a.value === banner.animationType)?.label}
                                                     </span>
-                                                )}
+                                                    <span className="text-xs px-2 py-1 rounded bg-secondary">
+                                                        {textSizes.find(s => s.value === banner.textSize)?.label}
+                                                    </span>
+                                                    <span className="text-xs px-2 py-1 rounded bg-secondary">
+                                                        {positions.find(p => p.value === banner.position)?.label}
+                                                    </span>
+                                                    {banner.imageUrl && (
+                                                        <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400">
+                                                            Photo
+                                                        </span>
+                                                    )}
+                                                    {banner.isActive && (
+                                                        <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-500">
+                                                            Active
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">

@@ -9,6 +9,8 @@ import { useTranslation } from '@/hooks/useTranslation'
 interface Banner {
     id: string
     message: string
+    imageUrl?: string | null
+    imageAlt?: string | null
     animationType: 'gradient' | 'typing' | 'glow' | 'slide' | 'marquee' | 'none'
     colors: string[]
     textSize: 'small' | 'medium' | 'large'
@@ -261,9 +263,18 @@ export default function AnnouncementBanner() {
                 )}
             >
                 <div className="container mx-auto flex items-center justify-center">
-                    {/* Announcement text with animation */}
-                    <div className="flex-1 text-center">
-                        <TextComponent text={banner.message} colors={colors} />
+                    <div className="flex w-full items-center justify-center gap-3">
+                        {banner.imageUrl && (
+                            <img
+                                src={banner.imageUrl}
+                                alt={banner.imageAlt || 'Announcement image'}
+                                className="h-10 w-10 md:h-12 md:w-12 rounded-md border border-white/20 object-cover shrink-0"
+                            />
+                        )}
+                        {/* Announcement text with animation */}
+                        <div className="flex-1 text-center">
+                            <TextComponent text={banner.message} colors={colors} />
+                        </div>
                     </div>
 
                     {/* Dismiss button */}

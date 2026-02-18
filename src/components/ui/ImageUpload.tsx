@@ -16,7 +16,7 @@ import { toast } from 'sonner'
 interface ImageUploadProps {
     value: string | string[]
     onChange: (value: string | string[]) => void
-    type: 'product' | 'category'
+    type: 'product' | 'category' | 'announcement'
     multiple?: boolean
     maxFiles?: number
     className?: string

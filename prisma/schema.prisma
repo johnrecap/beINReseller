@@ -440,6 +440,8 @@ model AnnouncementBanner {
 
   // ===== Content =====
   message String // Announcement text (max 200 chars)
+  imageUrl String? @map("image_url") // Optional image displayed in announcement
+  imageAlt String? @map("image_alt") // Optional alt text for accessibility
 
   // ===== Display Settings =====
   isActive      Boolean @default(true) @map("is_active")

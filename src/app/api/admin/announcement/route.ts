@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { prisma } from '@/lib/prisma'
 
+function normalizeOptionalText(value: unknown): string | null {
+    if (typeof value !== 'string') return null
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+}
+
 /**
  * GET /api/admin/announcement
  * List all announcement banners (admin only)
@@ -52,13 +58,37 @@ export async function POST(request: NextRequest) {
             position = 'top',
             isDismissable = true,
             startDate,
-            endDate
+            endDate,
+            imageUrl,
+            imageAlt
         } = body
 
-        // Validate message
-        if (!message || typeof message !== 'string' || message.length > 500) {
+        const normalizedMessage = normalizeOptionalText(message)
+        const normalizedImageUrl = normalizeOptionalText(imageUrl)
+        const normalizedImageAlt = normalizeOptionalText(imageAlt)
+
+        // Validate content
+        if (!normalizedMessage && !normalizedImageUrl) {
             return NextResponse.json(
-                { success: false, error: 'Message is required and must be under 500 characters' },
+                { success: false, error: 'Provide announcement text or image' },
+                { status: 400 }
+            )
+        }
+        if (normalizedMessage && normalizedMessage.length > 500) {
+            return NextResponse.json(
+                { success: false, error: 'Message must be under 500 characters' },
+                { status: 400 }
+            )
+        }
+        if (normalizedImageUrl && !normalizedImageUrl.startsWith('/uploads/')) {
+            return NextResponse.json(
+                { success: false, error: 'Invalid image URL' },
+                { status: 400 }
+            )
+        }
+        if (normalizedImageAlt && normalizedImageAlt.length > 120) {
+            return NextResponse.json(
+                { success: false, error: 'Image alt text must be under 120 characters' },
                 { status: 400 }
             )
         }
@@ -100,7 +130,9 @@ export async function POST(request: NextRequest) {
 
         const banner = await prisma.announcementBanner.create({
             data: {
-                message,
+                message: normalizedMessage || '',
+                imageUrl: normalizedImageUrl,
+                imageAlt: normalizedImageAlt,
                 isActive,
                 animationType,
                 colors,

@@ -35,7 +35,7 @@ function GradientText({ text, colors }: { text: string; colors: string[] }) {
     
     return (
         <span 
-            className="inline-block font-semibold"
+            className="inline-block font-semibold whitespace-pre-line break-words"
             style={{
                 background: `linear-gradient(90deg, ${gradientStr})`,
                 backgroundSize: '300% 100%',
@@ -55,28 +55,25 @@ function GradientText({ text, colors }: { text: string; colors: string[] }) {
  */
 function TypingText({ text, colors }: { text: string; colors: string[] }) {
     const [displayText, setDisplayText] = useState('')
-    const [isTyping, setIsTyping] = useState(true)
     const textColor = colors[0] || '#00ff00'
     
     useEffect(() => {
-        if (isTyping) {
-            if (displayText.length < text.length) {
-                const timer = setTimeout(() => {
-                    setDisplayText(text.slice(0, displayText.length + 1))
-                }, 50)
-                return () => clearTimeout(timer)
-            } else {
-                // Pause at end, then restart
-                const timer = setTimeout(() => {
-                    setDisplayText('')
-                }, 3000)
-                return () => clearTimeout(timer)
-            }
+        if (displayText.length < text.length) {
+            const timer = setTimeout(() => {
+                setDisplayText(text.slice(0, displayText.length + 1))
+            }, 50)
+            return () => clearTimeout(timer)
+        } else {
+            // Pause at end, then restart
+            const timer = setTimeout(() => {
+                setDisplayText('')
+            }, 3000)
+            return () => clearTimeout(timer)
         }
-    }, [displayText, text, isTyping])
+    }, [displayText, text])
     
     return (
-        <span className="font-semibold" style={{ color: textColor }}>
+        <span className="font-semibold whitespace-pre-line break-words" style={{ color: textColor }}>
             {displayText}
             <span 
                 className="inline-block w-0.5 h-[1em] ml-0.5 align-middle"
@@ -97,7 +94,7 @@ function GlowText({ text, colors }: { text: string; colors: string[] }) {
     
     return (
         <span 
-            className="font-bold"
+            className="font-bold whitespace-pre-line break-words"
             style={{
                 color: glowColor,
                 animation: 'text-glow-pulse 2s ease-in-out infinite'
@@ -119,7 +116,7 @@ function SlideText({ text, colors }: { text: string; colors: string[] }) {
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="font-semibold inline-block"
+            className="font-semibold inline-block whitespace-pre-line break-words"
             style={{ color: textColor }}
         >
             {text}
@@ -132,6 +129,7 @@ function SlideText({ text, colors }: { text: string; colors: string[] }) {
  */
 function MarqueeText({ text, colors }: { text: string; colors: string[] }) {
     const textColor = colors[0] || '#ffffff'
+    const marqueeText = text.replace(/\s*\n+\s*/g, '   •   ')
     
     return (
         <div className="overflow-hidden whitespace-nowrap">
@@ -142,7 +140,7 @@ function MarqueeText({ text, colors }: { text: string; colors: string[] }) {
                     animation: 'marquee 15s linear infinite'
                 }}
             >
-                {text}
+                {marqueeText}
             </span>
         </div>
     )
@@ -155,7 +153,7 @@ function StaticText({ text, colors }: { text: string; colors: string[] }) {
     const textColor = colors[0] || '#ffffff'
     
     return (
-        <span className="font-semibold" style={{ color: textColor }}>
+        <span className="font-semibold whitespace-pre-line break-words" style={{ color: textColor }}>
             {text}
         </span>
     )

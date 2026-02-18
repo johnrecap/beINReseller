@@ -53,7 +53,7 @@ const presetGradients = [
 ]
 
 export default function AnnouncementSettings() {
-    const { t, language } = useTranslation()
+    const { language } = useTranslation()
     const [banners, setBanners] = useState<Banner[]>([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -393,7 +393,7 @@ export default function AnnouncementSettings() {
                             <div className="p-4 bg-black/60 rounded-lg border border-border">
                                 <p
                                     className={cn(
-                                        "text-center font-semibold",
+                                        "text-center font-semibold whitespace-pre-line break-words leading-relaxed",
                                         textSize === 'small' && 'text-sm',
                                         textSize === 'medium' && 'text-base',
                                         textSize === 'large' && 'text-lg'
@@ -468,7 +468,7 @@ export default function AnnouncementSettings() {
                                 >
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-medium truncate" dir="auto">
+                                            <p className="font-medium whitespace-pre-line break-words" dir="auto">
                                                 {banner.message}
                                             </p>
                                             <div className="flex flex-wrap gap-2 mt-2">

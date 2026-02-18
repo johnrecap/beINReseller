@@ -261,9 +261,10 @@ export default function AnnouncementBanner() {
                 transition={{ duration: 0.3 }}
                 className={cn(
                     // Base styles
-                    "relative w-full py-3 px-4",
-                    "bg-[rgba(0,0,0,0.6)] backdrop-blur-md",
-                    "border-b border-[rgba(255,255,255,0.1)]",
+                    "relative w-full",
+                    bannerImageSrc
+                        ? "py-2 px-0"
+                        : "py-3 px-4 bg-[rgba(0,0,0,0.6)] backdrop-blur-md border-b border-[rgba(255,255,255,0.1)]",
                     // Text size
                     textSizeClasses[banner.textSize],
                     // Position styles
@@ -271,18 +272,19 @@ export default function AnnouncementBanner() {
                     banner.position === 'bottom' && "fixed bottom-0 left-0 right-0 z-50"
                 )}
             >
-                <div className="container mx-auto flex items-center justify-center">
+                <div className={cn(
+                    bannerImageSrc ? "w-full" : "container mx-auto flex items-center justify-center"
+                )}>
                     {bannerImageSrc ? (
-                        <div className="relative w-full overflow-hidden rounded-xl border border-white/15 shadow-[0_10px_35px_rgba(0,0,0,0.4)]">
+                        <div className="w-full px-4">
                             <img
                                 src={bannerImageSrc}
                                 alt={banner.imageAlt || 'Announcement image'}
-                                className="block w-full h-[180px] md:h-[240px] lg:h-[280px] object-cover"
+                                className="block w-full h-auto max-h-[70vh] rounded-xl border border-white/15 object-contain bg-black shadow-[0_10px_35px_rgba(0,0,0,0.4)]"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
                             {hasMessage && (
-                                <div className="absolute inset-x-0 bottom-0 p-4 md:p-5 text-center">
-                                    <div className="inline-block max-w-full rounded-md bg-black/40 px-3 py-2 backdrop-blur-sm">
+                                <div className="mt-3 text-center px-2">
+                                    <div className="inline-block max-w-full rounded-md bg-black/40 px-3 py-2 backdrop-blur-sm border border-white/10">
                                         <TextComponent text={banner.message} colors={colors} />
                                     </div>
                                 </div>
@@ -300,7 +302,7 @@ export default function AnnouncementBanner() {
                             onClick={handleDismiss}
                             className={cn(
                                 "absolute top-3 p-1.5 rounded-full z-20",
-                                "bg-black/45 text-white/80 hover:text-white hover:bg-black/65",
+                                "bg-black/55 text-white/80 hover:text-white hover:bg-black/70",
                                 "transition-colors duration-200",
                                 "end-3"
                             )}

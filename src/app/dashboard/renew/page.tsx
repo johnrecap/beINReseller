@@ -807,6 +807,35 @@ export default function RenewWizardPage() {
                                         warningThreshold={15}
                                     />
                                 )}
+                                {packages.length > 0 && (
+                                    <div>
+                                        <Label htmlFor="promoCode">{'Promo code (optional)'}</Label>
+                                        <div className="flex gap-2 mt-2">
+                                            <Input
+                                                id="promoCode"
+                                                type="text"
+                                                value={promoCode}
+                                                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                                placeholder="Add promo code here"
+                                                dir="ltr"
+                                                className="flex-1"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={handleApplyPromo}
+                                                disabled={!promoCode || loading}
+                                                className="shrink-0"
+                                            >
+                                                {loading ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    'Apply'
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                                 {packages.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">
                                         <AlertCircle className="h-8 w-8 mx-auto mb-2" />
@@ -838,34 +867,6 @@ export default function RenewWizardPage() {
 
                                 {packages.length > 0 && (
                                     <>
-                                        <div>
-                                            <Label htmlFor="promoCode">{'Discount code (optional)'}</Label>
-                                            <div className="flex gap-2 mt-2">
-                                                <Input
-                                                    id="promoCode"
-                                                    type="text"
-                                                    value={promoCode}
-                                                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                                                    placeholder="SAVE20"
-                                                    dir="ltr"
-                                                    className="flex-1"
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    onClick={handleApplyPromo}
-                                                    disabled={!promoCode || loading}
-                                                    className="shrink-0"
-                                                >
-                                                    {loading ? (
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                    ) : (
-                                                        'Apply'
-                                                    )}
-                                                </Button>
-                                            </div>
-                                        </div>
-
                                         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                                             <div className="flex justify-between text-sm">
                                                 <span>{'Your balance:'}</span>
@@ -916,7 +917,7 @@ export default function RenewWizardPage() {
                                                         <>
                                                             <hr className="border-gray-200 dark:border-gray-700" />
                                                             <div className="flex justify-between items-center">
-                                                                <span className="text-gray-600 dark:text-gray-400">{'Discount code:'}</span>
+                                                                <span className="text-gray-600 dark:text-gray-400">{'Promo code:'}</span>
                                                                 <span className="font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
                                                                     {promoCode}
                                                                 </span>

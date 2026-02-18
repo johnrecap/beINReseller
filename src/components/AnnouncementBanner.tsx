@@ -28,6 +28,13 @@ const textSizeClasses = {
 // Default gradient colors
 const defaultColors = ['#ff0080', '#ff8c00', '#40e0d0', '#ff0080']
 
+function resolveUploadedImageSrc(url?: string | null): string {
+    if (!url) return ''
+    return url.startsWith('/uploads/')
+        ? `/api/uploads/${url.replace(/^\/uploads\//, '')}`
+        : url
+}
+
 /**
  * GradientText - Animated flowing gradient text
  */
@@ -242,6 +249,7 @@ export default function AnnouncementBanner() {
     const colors = Array.isArray(banner.colors) && banner.colors.length > 0 
         ? banner.colors 
         : defaultColors
+    const bannerImageSrc = resolveUploadedImageSrc(banner.imageUrl)
 
     return (
         <AnimatePresence>
@@ -264,9 +272,9 @@ export default function AnnouncementBanner() {
             >
                 <div className="container mx-auto flex items-center justify-center">
                     <div className="flex w-full items-center justify-center gap-3">
-                        {banner.imageUrl && (
+                        {bannerImageSrc && (
                             <img
-                                src={banner.imageUrl}
+                                src={bannerImageSrc}
                                 alt={banner.imageAlt || 'Announcement image'}
                                 className="h-10 w-10 md:h-12 md:w-12 rounded-md border border-white/20 object-cover shrink-0"
                             />

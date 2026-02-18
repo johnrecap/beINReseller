@@ -22,6 +22,12 @@ interface ImageUploadProps {
     className?: string
 }
 
+function resolveUploadedImageSrc(url: string): string {
+    return url.startsWith('/uploads/')
+        ? `/api/uploads/${url.replace(/^\/uploads\//, '')}`
+        : url
+}
+
 export function ImageUpload({
     value,
     onChange,
@@ -149,7 +155,7 @@ export function ImageUpload({
                             className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
                         >
                             <img
-                                src={url}
+                                src={resolveUploadedImageSrc(url)}
                                 alt={`Uploaded image ${index + 1}`}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {

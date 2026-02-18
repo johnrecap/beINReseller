@@ -55,6 +55,13 @@ const presetGradients = [
     { name: 'Rainbow', colors: ['#ff0080', '#ff8c00', '#40e0d0', '#8e2de2', '#ff0080'] }
 ]
 
+function resolveUploadedImageSrc(url?: string | null): string {
+    if (!url) return ''
+    return url.startsWith('/uploads/')
+        ? `/api/uploads/${url.replace(/^\/uploads\//, '')}`
+        : url
+}
+
 export default function AnnouncementSettings() {
     const { language } = useTranslation()
     const [banners, setBanners] = useState<Banner[]>([])
@@ -223,6 +230,8 @@ export default function AnnouncementSettings() {
             </div>
         )
     }
+
+    const previewImageSrc = resolveUploadedImageSrc(imageUrl)
 
     return (
         <div className="space-y-6">
@@ -424,10 +433,10 @@ export default function AnnouncementSettings() {
                                 Preview
                             </label>
                             <div className="p-4 bg-black/60 rounded-lg border border-border">
-                                {imageUrl && (
+                                {previewImageSrc && (
                                     <div className="mb-3 flex justify-center">
                                         <img
-                                            src={imageUrl}
+                                            src={previewImageSrc}
                                             alt={imageAlt || 'Announcement image preview'}
                                             className="h-20 w-auto rounded-md border border-border object-cover"
                                         />
@@ -512,7 +521,7 @@ export default function AnnouncementSettings() {
                                         <div className="flex-1 min-w-0 flex items-start gap-3">
                                             {banner.imageUrl && (
                                                 <img
-                                                    src={banner.imageUrl}
+                                                    src={resolveUploadedImageSrc(banner.imageUrl)}
                                                     alt={banner.imageAlt || 'Announcement image'}
                                                     className="w-14 h-14 rounded-md border border-border object-cover shrink-0"
                                                 />

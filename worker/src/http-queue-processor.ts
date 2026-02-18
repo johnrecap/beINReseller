@@ -1078,33 +1078,49 @@ async function handleApplyPromoHttp(
     }
 
     if (result.success && result.packages.length > 0) {
+        const normalizedPackages = result.packages.map((pkg) => ({
+            index: pkg.index,
+            name: pkg.name,
+            price: pkg.price,
+            checkboxSelector: pkg.checkboxValue,
+            checkboxValue: pkg.checkboxValue,
+        }));
+
         // Update operation with new discounted packages
         await prisma.operation.update({
             where: { id: operationId },
             data: {
-                availablePackages: JSON.parse(JSON.stringify(result.packages)),
+                availablePackages: JSON.parse(JSON.stringify(normalizedPackages)),
                 responseData: JSON.stringify({
                     ...mergedResponseBase,
                     promoApplied: true,
                     error: null,
-                    packages: result.packages
+                    packages: normalizedPackages
                 })
             }
         });
         console.log(`✅ [HTTP] Promo code applied, ${result.packages.length} packages updated`);
     } else {
+        const normalizedPackages = result.packages.map((pkg) => ({
+            index: pkg.index,
+            name: pkg.name,
+            price: pkg.price,
+            checkboxSelector: pkg.checkboxValue,
+            checkboxValue: pkg.checkboxValue,
+        }));
+
         // Promo failed — update responseData with error
         await prisma.operation.update({
             where: { id: operationId },
             data: {
-                ...(result.packages.length > 0
-                    ? { availablePackages: JSON.parse(JSON.stringify(result.packages)) }
+                ...(normalizedPackages.length > 0
+                    ? { availablePackages: JSON.parse(JSON.stringify(normalizedPackages)) }
                     : {}),
                 responseData: JSON.stringify({
                     ...mergedResponseBase,
                     promoApplied: false,
                     error: result.error || 'Failed to apply promo code',
-                    packages: result.packages
+                    packages: normalizedPackages
                 })
             }
         });
@@ -1155,7 +1171,8 @@ async function handleCompletePurchaseHttp(
         index: number;
         name: string;
         price: number;
-        checkboxSelector: string
+        checkboxSelector?: string;
+        checkboxValue?: string;
     } | null;
 
     if (!selectedPackage) {
@@ -1254,7 +1271,8 @@ async function attemptPurchaseWithAccount(
         index: number;
         name: string;
         price: number;
-        checkboxSelector: string;
+        checkboxSelector?: string;
+        checkboxValue?: string;
     },
     promoCode: string | undefined,
     accountPool: AccountPoolManager,
@@ -1447,11 +1465,12 @@ async function attemptPurchaseWithAccount(
         }
 
         // Convert to AvailablePackage format
+        const selectedCheckboxValue = selectedPackage.checkboxSelector || selectedPackage.checkboxValue || '';
         const pkg: AvailablePackage = {
             index: selectedPackage.index,
             name: selectedPackage.name,
             price: selectedPackage.price,
-            checkboxValue: selectedPackage.checkboxSelector
+            checkboxValue: selectedCheckboxValue
         };
 
         // Complete purchase

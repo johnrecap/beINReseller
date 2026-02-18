@@ -376,6 +376,7 @@ export class HttpClientService {
             if (checkbox.length === 1) {
                 const checkboxId = checkbox.attr('id') || '';
                 const checkboxName = checkbox.attr('name') || '';
+                const checkboxPostKey = checkboxName || checkboxId;
 
                 // Log both id and name for debugging
                 console.log(`[HTTP] Checkbox ${index}: id="${checkboxId}" name="${checkboxName}"`);
@@ -396,7 +397,8 @@ export class HttpClientService {
                         index,
                         name,
                         price,
-                        checkboxValue: checkboxName // Use name for POST (ASP.NET convention)
+                        // Prefer name for ASP.NET postback, fallback to id for promo page variants.
+                        checkboxValue: checkboxPostKey
                     });
                     console.log(`[HTTP] Package ${index}: "${name}" - ${price} USD${logPrefix ? ` ${logPrefix}` : ''}`);
                 }

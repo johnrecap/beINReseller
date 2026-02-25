@@ -6,7 +6,7 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { createNotification } from '@/lib/notification'
 
 const addBalanceSchema = z.object({
-    amount: z.number().min(1, 'Amount must be greater than 0'),
+    amount: z.number().refine(val => val !== 0, 'Amount cannot be zero'),
     notes: z.string().optional(),
 })
 
@@ -46,6 +46,8 @@ export async function PATCH(
 
         const { amount, notes } = result.data
 
+        const isWithdrawal = amount < 0
+
         // Transactional update
         const user = await prisma.$transaction(async (tx) => {
             // 1. Get current user
@@ -55,40 +57,49 @@ export async function PATCH(
 
             if (!currentUser) throw new Error('User not found')
 
-            // 2. Update balance
+            // 2. Guard: prevent balance going below 0 on withdrawal
+            if (isWithdrawal && currentUser.balance + amount < 0) {
+                throw new Error(`Insufficient balance. Current balance: ${currentUser.balance}`)
+            }
+
+            // 3. Update balance
             const updatedUser = await tx.user.update({
                 where: { id },
                 data: { balance: { increment: amount } }
             })
 
-// 3. Create Transaction Record
+            // 4. Create Transaction Record
             await tx.transaction.create({
                 data: {
                     userId: id,
-                    type: 'DEPOSIT',
+                    type: isWithdrawal ? 'WITHDRAW' : 'DEPOSIT',
                     amount: amount,
                     balanceAfter: updatedUser.balance,
-                    notes: notes || 'Balance top-up by admin',
+                    notes: notes || (isWithdrawal ? 'Balance withdrawn by admin' : 'Balance top-up by admin'),
                     adminId: adminUser.id
                 }
             })
 
-            // 4. Log Activity
+            // 5. Log Activity
             await tx.activityLog.create({
                 data: {
                     userId: adminUser.id,
-                    action: 'ADMIN_ADD_BALANCE',
-                    details: `Added ${amount} to user ${currentUser.username}`,
+                    action: isWithdrawal ? 'MANAGER_WITHDRAW_USER' : 'ADMIN_ADD_BALANCE',
+                    details: isWithdrawal
+                        ? `Withdrew ${Math.abs(amount)} from user ${currentUser.username}`
+                        : `Added ${amount} to user ${currentUser.username}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
                 }
             })
 
-            // 5. Notify User
+            // 6. Notify User
             await createNotification({
                 userId: id,
-                title: 'Balance added',
-                message: `Added ${amount} to your balance. Current balance: ${updatedUser.balance}`,
-                type: 'success',
+                title: isWithdrawal ? 'Balance withdrawn' : 'Balance added',
+                message: isWithdrawal
+                    ? `${Math.abs(amount)} was withdrawn from your balance. Current balance: ${updatedUser.balance}`
+                    : `${amount} was added to your balance. Current balance: ${updatedUser.balance}`,
+                type: isWithdrawal ? 'warning' : 'success',
                 link: '/dashboard/history'
             })
 
@@ -97,7 +108,7 @@ export async function PATCH(
 
         return NextResponse.json({
             success: true,
-            message: 'Balance added successfully',
+            message: isWithdrawal ? 'Balance withdrawn successfully' : 'Balance added successfully',
             newBalance: user.balance
         })
 

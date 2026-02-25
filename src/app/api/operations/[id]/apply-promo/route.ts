@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { addOperationJob } from '@/lib/queue'
+import { addOperationJob, operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
 /**
@@ -27,6 +27,11 @@ function parseOperationResponseData(responseData: unknown): Record<string, unkno
         }
     }
     return {}
+}
+
+function isDuplicateJobError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message.toLowerCase() : ''
+    return message.includes('already exists') || message.includes('jobid')
 }
 
 export async function POST(
@@ -70,6 +75,16 @@ export async function POST(
 
         // Save promo code to operation
         const existingResponseData = parseOperationResponseData(operation.responseData)
+        if (existingResponseData.refreshing === true) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    processing: true,
+                    message: 'Promo code is already being applied. Please wait a few seconds.',
+                },
+                { status: 202 }
+            )
+        }
 
         await prisma.operation.update({
             where: { id },
@@ -84,13 +99,47 @@ export async function POST(
         })
 
         // Add job to queue to apply promo
-        await addOperationJob({
-            operationId: id,
-            type: 'APPLY_PROMO',
-            promoCode,
-            userId: authUser.id,
-            cardNumber: operation.cardNumber,
-        })
+        const promoJobId = `APPLY_PROMO--${id}`
+        let existingJob = await operationsQueue.getJob(promoJobId).catch(() => null)
+
+        if (existingJob) {
+            const jobState = await existingJob.getState().catch(() => null)
+            if (jobState === 'completed' || jobState === 'failed') {
+                await existingJob.remove().catch(() => undefined)
+                existingJob = null
+            }
+        }
+
+        try {
+            if (!existingJob) {
+                await addOperationJob({
+                    operationId: id,
+                    type: 'APPLY_PROMO',
+                    promoCode,
+                    userId: authUser.id,
+                    cardNumber: operation.cardNumber,
+                })
+            }
+        } catch (queueError) {
+            if (!isDuplicateJobError(queueError)) {
+                await prisma.operation.update({
+                    where: { id },
+                    data: {
+                        responseData: JSON.stringify({
+                            ...existingResponseData,
+                            promoApplied: false,
+                            refreshing: false,
+                            error: 'Could not queue promo request. Please try again.',
+                        }),
+                    },
+                })
+
+                return NextResponse.json(
+                    { error: 'Could not apply promo right now. Please try again.' },
+                    { status: 503 }
+                )
+            }
+        }
 
         // Poll for updated packages (wait up to 30 seconds)
         const maxWait = 30000
@@ -137,10 +186,31 @@ export async function POST(
             }
         }
 
-        return NextResponse.json({
-            success: false,
-            error: 'Timeout - please try again',
-        }, { status: 408 })
+        const latestOp = await prisma.operation.findUnique({
+            where: { id },
+            select: { responseData: true, availablePackages: true },
+        })
+        const latestData = parseOperationResponseData(latestOp?.responseData)
+
+        if (latestData.refreshing === true) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    processing: true,
+                    message: 'Promo application is still processing. Please wait and try again.',
+                    packages: Array.isArray(latestOp?.availablePackages) ? latestOp?.availablePackages : [],
+                },
+                { status: 202 }
+            )
+        }
+
+        return NextResponse.json(
+            {
+                success: false,
+                error: 'Timeout - please try again',
+            },
+            { status: 408 }
+        )
 
     } catch (error) {
         console.error('Apply promo error:', error)

@@ -1002,8 +1002,36 @@ async function handleApplyPromoHttp(
         return;
     }
 
-    const client = await getHttpClient(account);
     const existingResponseData = parseResponseDataObject(operation.responseData);
+    const redis = accountPool.getRedis();
+    const LOCK_WAIT_TIMEOUT = 15_000;
+    const LOCK_TTL = 90;
+    const lockStartTime = Date.now();
+    let lockAcquired = false;
+
+    while (Date.now() - lockStartTime < LOCK_WAIT_TIMEOUT) {
+        lockAcquired = await lockAccount(redis, operation.beinAccountId, WORKER_ID, LOCK_TTL);
+        if (lockAcquired) break;
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    if (!lockAcquired) {
+        await prisma.operation.update({
+            where: { id: operationId },
+            data: {
+                responseData: JSON.stringify({
+                    ...existingResponseData,
+                    promoApplied: false,
+                    refreshing: false,
+                    error: 'beIN account is busy. Please retry promo in a few seconds.',
+                }),
+            }
+        });
+        return;
+    }
+
+    try {
+        const client = await getHttpClient(account);
     const savedSessionData =
         existingResponseData.sessionData && typeof existingResponseData.sessionData === 'object'
             ? existingResponseData.sessionData as Record<string, unknown>
@@ -1125,6 +1153,12 @@ async function handleApplyPromoHttp(
             }
         });
         console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
+    }
+    } finally {
+        await unlockAccount(redis, operation.beinAccountId, WORKER_ID).catch((releaseError: unknown) => {
+            const releaseMessage = releaseError instanceof Error ? releaseError.message : String(releaseError);
+            console.warn(`[HTTP] Failed to release promo lock for ${operationId}: ${releaseMessage}`);
+        });
     }
 }
 

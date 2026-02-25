@@ -207,7 +207,9 @@ export default function RenewWizardPage() {
     const [showExpiryWarning, setShowExpiryWarning] = useState(false)  // Show warning before auto-cancel
     const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
     const pollStartTimeRef = useRef<number>(0)  // Track when polling started for adaptive intervals
+    const pollErrorCountRef = useRef<number>(0)
     const startRenewalInFlightRef = useRef(false)
+    const MAX_POLL_ERROR_RETRIES = 5
 
     // Set dynamic page title
     useEffect(() => {
@@ -257,6 +259,7 @@ export default function RenewWizardPage() {
         try {
             const res = await fetch(`/api/operations/${operationId}/packages`)
             const data = await res.json()
+            pollErrorCountRef.current = 0
 
             if (data.status === 'AWAITING_CAPTCHA') {
                 // Only skip showing CAPTCHA if user already submitted a solution
@@ -284,6 +287,14 @@ export default function RenewWizardPage() {
                 setResult({ success: true, message: data.message || 'Renewal successful!' })
                 setStep('result')
                 refetchBalance()
+            } else if (data.status === 'CANCELLED') {
+                setResult({ success: false, message: data.message || 'Operation cancelled' })
+                setStep('result')
+                refetchBalance()
+            } else if (data.status === 'EXPIRED') {
+                setResult({ success: false, message: data.message || 'Operation expired. Please start a new operation.' })
+                setStep('result')
+                refetchBalance()
             } else if (data.status === 'FAILED') {
                 setResult({ success: false, message: data.message || 'Operation failed' })
                 setStep('result')
@@ -304,6 +315,15 @@ export default function RenewWizardPage() {
             }
         } catch (error) {
             console.error('Poll error:', error)
+            pollErrorCountRef.current += 1
+            if (pollErrorCountRef.current >= MAX_POLL_ERROR_RETRIES) {
+                setResult({
+                    success: false,
+                    message: 'Connection lost while tracking this operation. Continue from Active Operations.'
+                })
+                setStep('result')
+                return
+            }
             setTimeout(pollStatus, 2000)
         }
     }, [operationId, refetchBalance, captchaSubmitted])
@@ -442,6 +462,7 @@ export default function RenewWizardPage() {
 
             setOperationId(data.operationId)
             pollStartTimeRef.current = Date.now()  // Start adaptive polling timer
+            pollErrorCountRef.current = 0
             setStep('processing')
             toast.success('Starting operation...')
         } catch {
@@ -473,6 +494,7 @@ export default function RenewWizardPage() {
             setCaptchaSolution('')
             setCaptchaSubmitted(true)  // Mark that we submitted CAPTCHA
             pollStartTimeRef.current = Date.now()  // Reset adaptive polling timer
+            pollErrorCountRef.current = 0
             setStep('processing')
             toast.success('Loading packages...')
         } catch {
@@ -543,7 +565,10 @@ export default function RenewWizardPage() {
             if (data.packages && data.packages.length > 0) {
                 setPackages(data.packages)
                 setSelectedPackageIndex(null) // Reset selection
+                setShowConfirmation(false)
                 toast.success('Code applied! Prices updated')
+            } else if (data.processing) {
+                toast.info(data.message || 'Promo application is still processing')
             } else {
                 toast.warning('Code applied but packages unchanged')
             }
@@ -573,6 +598,7 @@ export default function RenewWizardPage() {
         setSelectedPackageInfo(null)
         setShowExpiryWarning(false)  // Reset expiry warning
         setIsAutoCancelling(false)  // Reset auto-cancelling flag
+        pollErrorCountRef.current = 0
     }
 
     return (

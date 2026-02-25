@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { addOperationJob } from '@/lib/queue'
+import { addOperationJob, operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 
@@ -17,6 +17,11 @@ interface AvailablePackage {
     name: string
     price: number
     checkboxSelector: string
+}
+
+function isDuplicateJobError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message.toLowerCase() : ''
+    return message.includes('already exists') || message.includes('jobid')
 }
 
 /**
@@ -89,6 +94,7 @@ export async function POST(
                     status: true,
                     stbNumber: true,
                     availablePackages: true,
+                    finalConfirmExpiry: true,
                 },
             })
 
@@ -104,6 +110,10 @@ export async function POST(
             // Check status
             if (operation.status !== 'AWAITING_PACKAGE') {
                 throw new Error('INVALID_STATUS')
+            }
+
+            if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+                throw new Error('SELECTION_EXPIRED')
             }
 
             // Parse and validate package selection
@@ -134,8 +144,15 @@ export async function POST(
             }
 
             // Update operation (amount=0 until confirm-purchase deducts)
-            const updatedOperation = await tx.operation.update({
-                where: { id: operation.id },
+            const transition = await tx.operation.updateMany({
+                where: {
+                    id: operation.id,
+                    status: 'AWAITING_PACKAGE',
+                    OR: [
+                        { finalConfirmExpiry: null },
+                        { finalConfirmExpiry: { gt: new Date() } },
+                    ],
+                },
                 data: {
                     status: 'COMPLETING',
                     amount: 0,
@@ -144,29 +161,52 @@ export async function POST(
                 },
             })
 
+            if (transition.count === 0) {
+                throw new Error('STATUS_RACE_OR_EXPIRED')
+            }
+
             // No transaction record yet — created at confirm-purchase
 
             return {
-                operation: updatedOperation,
+                operation: {
+                    cardNumber: operation.cardNumber,
+                },
                 selectedPackage,
                 newBalance: user.balance,
             }
         })
 
         // 4. Add job to queue to complete purchase
+        const completeJobId = `COMPLETE_PURCHASE--${id}`
+        const existingJob = await operationsQueue.getJob(completeJobId).catch(() => null)
         try {
-            await addOperationJob({
-                operationId: id,
-                type: 'COMPLETE_PURCHASE',
-                cardNumber: result.operation.cardNumber,
-                promoCode,
-                userId: authUser.id,
-                amount: 0,  // No money deducted yet — deduction at confirm-purchase
-            })
+            if (!existingJob) {
+                await addOperationJob({
+                    operationId: id,
+                    type: 'COMPLETE_PURCHASE',
+                    cardNumber: result.operation.cardNumber,
+                    promoCode,
+                    userId: authUser.id,
+                    amount: 0,  // No money deducted yet — deduction at confirm-purchase
+                })
+            }
         } catch (queueError) {
-            console.error('Failed to add complete job to queue:', queueError)
-            // We don't rollback the balance here - the operation is in COMPLETING state
-            // and can be retried or refunded later
+            if (!isDuplicateJobError(queueError)) {
+                console.error('Failed to add complete job to queue:', queueError)
+
+                await prisma.operation.updateMany({
+                    where: { id, status: 'COMPLETING', amount: 0 },
+                    data: {
+                        status: 'AWAITING_PACKAGE',
+                        responseMessage: 'Queue unavailable. Please retry package selection.'
+                    }
+                })
+
+                return NextResponse.json(
+                    { error: 'Could not start purchase right now. Please try again.' },
+                    { status: 503 }
+                )
+            }
         }
 
         // 5. Return success
@@ -191,6 +231,8 @@ export async function POST(
             'PACKAGE_NOT_FOUND': { message: 'Selected package not found', status: 400 },
             'USER_NOT_FOUND': { message: 'User not found', status: 404 },
             'INSUFFICIENT_BALANCE': { message: 'Insufficient balance', status: 400 },
+            'SELECTION_EXPIRED': { message: 'Package selection timed out. Please start again.', status: 400 },
+            'STATUS_RACE_OR_EXPIRED': { message: 'Operation state changed. Please refresh and retry.', status: 409 },
         }
 
         const errorInfo = errorMap[errorMessage]

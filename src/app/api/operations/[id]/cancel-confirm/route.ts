@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { addOperationJob } from '@/lib/queue'
+import { addOperationJob, operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
 /**
@@ -11,6 +11,11 @@ async function getAuthUser(request: NextRequest) {
     const session = await auth()
     if (session?.user?.id) return session.user
     return getMobileUserFromRequest(request)
+}
+
+function isDuplicateJobError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message.toLowerCase() : ''
+    return message.includes('already exists') || message.includes('jobid')
 }
 
 /**
@@ -91,13 +96,37 @@ export async function POST(
         }
 
         // 4. Add CANCEL_CONFIRM job to queue (only one will ever reach here)
-        await addOperationJob({
-            operationId: id,
-            type: 'CANCEL_CONFIRM',
-            cardNumber: operation.cardNumber,
-            userId: authUser.id,
-            amount: operation.amount,
-        })
+        const cancelJobId = `CANCEL_CONFIRM--${id}`
+        const existingJob = await operationsQueue.getJob(cancelJobId).catch(() => null)
+
+        try {
+            if (!existingJob) {
+                await addOperationJob({
+                    operationId: id,
+                    type: 'CANCEL_CONFIRM',
+                    cardNumber: operation.cardNumber,
+                    userId: authUser.id,
+                    amount: operation.amount,
+                })
+            }
+        } catch (queueError) {
+            if (!isDuplicateJobError(queueError)) {
+                console.error('Failed to queue cancel-confirm job:', queueError)
+
+                await prisma.operation.updateMany({
+                    where: { id, status: 'COMPLETING' },
+                    data: {
+                        status: 'AWAITING_FINAL_CONFIRM',
+                        responseMessage: 'Awaiting final confirmation'
+                    }
+                })
+
+                return NextResponse.json(
+                    { error: 'Could not start cancellation right now. Please try again.' },
+                    { status: 503 }
+                )
+            }
+        }
 
         // 5. Return success
         return NextResponse.json({

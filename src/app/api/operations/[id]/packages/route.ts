@@ -119,6 +119,14 @@ export async function GET(
 
         // Handle AWAITING_FINAL_CONFIRM - return package info for confirmation dialog
         if (operation.status === 'AWAITING_FINAL_CONFIRM') {
+            if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+                return NextResponse.json({
+                    success: false,
+                    status: 'EXPIRED',
+                    message: 'Final confirmation timed out. Please start a new operation.',
+                })
+            }
+
             return NextResponse.json({
                 success: true,
                 status: 'AWAITING_FINAL_CONFIRM',
@@ -135,6 +143,14 @@ export async function GET(
                 success: false,
                 status: operation.status,
                 message: 'Operation is not in package selection stage',
+            })
+        }
+
+        if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+            return NextResponse.json({
+                success: false,
+                status: 'EXPIRED',
+                message: 'Package selection timed out. Please start a new operation.',
             })
         }
 

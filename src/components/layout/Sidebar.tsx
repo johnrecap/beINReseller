@@ -22,14 +22,7 @@ import {
     Trash2,
     Megaphone,
     Activity,
-    Smartphone,
-    Package,
-    ShoppingCart,
-    Truck,
-    Tags,
     AlertTriangle,
-    CreditCard as CreditCardIcon,
-    UserCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -93,25 +86,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin/logs', label: t.sidebar.logs, icon: FileText },
     ]
 
-    // App Management links (Store) - Admin only
-    const appManagementLinks = [
-        { href: '/dashboard/admin/app-management', label: t.sidebar.appDashboard || 'Dashboard', icon: BarChart3 },
-        { href: '/dashboard/admin/app-management/products', label: t.sidebar.appProducts || 'Products', icon: Package },
-        { href: '/dashboard/admin/app-management/categories', label: t.sidebar.appCategories || 'Categories', icon: Tags },
-        { href: '/dashboard/admin/app-management/orders', label: t.sidebar.appOrders || 'Orders', icon: ShoppingCart },
-        { href: '/dashboard/admin/app-management/subscriptions', label: t.sidebar.appSubscriptions || 'Subscriptions', icon: CreditCardIcon },
-        { href: '/dashboard/admin/app-management/customers', label: t.sidebar.appCustomers || 'Customers', icon: UserCircle },
-        { href: '/dashboard/admin/app-management/shipping', label: t.sidebar.appShipping || 'Shipping', icon: Truck },
-        { href: '/dashboard/admin/app-management/settings', label: t.sidebar.appSettings || 'App Settings', icon: Settings },
-    ]
-
-    // Mobile App Management links - Admin only
-    const mobileAppLinks = [
-        { href: '/dashboard/mobile-app/customers', label: t.sidebar.mobileCustomers || 'Customers', icon: UserCircle },
-        { href: '/dashboard/mobile-app/transactions', label: t.sidebar.mobileTransactions || 'Transactions', icon: CreditCard },
-        { href: '/dashboard/mobile-app/operations', label: t.sidebar.mobileOperations || 'Operations', icon: Activity },
-        { href: '/dashboard/mobile-app/settings', label: t.sidebar.mobileSettings || 'Settings', icon: Settings },
-    ]
 
     const handleLogout = async () => {
         await signOut({ callbackUrl: '/login' })
@@ -295,69 +269,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             </div>
                         )}
 
-                        {/* App Management Menu - Admin Only */}
-                        {isAdmin && (
-                            <div>
-                                <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 flex items-center gap-2">
-                                    <Smartphone className="h-3 w-3" />
-                                    {t.sidebar.appManagement || 'App Management'}
-                                </h4>
-                                <div className="space-y-1">
-                                    {appManagementLinks.map((link) => {
-                                        const Icon = link.icon
-                                        const isActive = pathname === link.href || (pathname.startsWith(link.href + '/') && link.href !== '/dashboard/admin/app-management')
-                                        return (
-                                            <Link
-                                                key={link.href}
-                                                href={link.href}
-                                                onClick={onClose}
-                                                className={cn(
-                                                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                                                    isActive
-                                                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                                                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
-                                                )}
-                                            >
-                                                <Icon className="h-4 w-4" />
-                                                {link.label}
-                                            </Link>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Mobile App Management - Admin Only */}
-                        {isAdmin && (
-                            <div>
-                                <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 flex items-center gap-2">
-                                    <Smartphone className="h-3 w-3" />
-                                    {t.sidebar.mobileApp || 'Mobile App'}
-                                </h4>
-                                <div className="space-y-1">
-                                    {mobileAppLinks.map((link) => {
-                                        const Icon = link.icon
-                                        const isActive = pathname === link.href || pathname.startsWith(link.href + '/')
-                                        return (
-                                            <Link
-                                                key={link.href}
-                                                href={link.href}
-                                                onClick={onClose}
-                                                className={cn(
-                                                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                                                    isActive
-                                                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                                                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
-                                                )}
-                                            >
-                                                <Icon className="h-4 w-4" />
-                                                {link.label}
-                                            </Link>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* Footer / User Profile */}

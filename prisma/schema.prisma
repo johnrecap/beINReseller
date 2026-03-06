@@ -353,6 +353,13 @@ model BeinAccount {
   lastError           String?   @map("last_error")
   lastErrorAt         DateTime? @map("last_error_at")
 
+  // ===== Login Failure Tracking =====
+  consecutiveLoginFailures Int       @default(0) @map("consecutive_login_failures")
+  lastLoginAttemptAt       DateTime? @map("last_login_attempt_at")
+  lastLoginFailureAt       DateTime? @map("last_login_failure_at")
+  lastLoginFailureReason   String?   @map("last_login_failure_reason")
+  lastSuccessfulLoginAt    DateTime? @map("last_successful_login_at")
+
   // ===== Dealer Balance (from beIN page) =====
   dealerBalance          Float?    @map("dealer_balance") // USD balance from last transaction
   balanceUpdatedAt       DateTime? @map("balance_updated_at") // When balance was last updated
@@ -375,6 +382,7 @@ model BeinAccount {
   @@index([cooldownUntil])
   @@index([priority])
   @@index([customerOnly, isActive])
+  @@index([consecutiveLoginFailures, lastLoginFailureAt])
   @@map("bein_accounts")
 }
 

@@ -23,6 +23,11 @@ import {
     getSessionTTL,
     refreshSessionExpiry
 } from './session-cache';
+import {
+    recordLoginFailure,
+    recordLoginSuccess,
+    shouldCountAsCredentialFailure,
+} from './bein-login-tracking';
 import { isAccountLocked } from '../pool/account-locking';
 import { checkAndNotifyLowBalance } from '../utils/notification';
 import { BeinAccount, Proxy } from '@prisma/client';
@@ -398,6 +403,7 @@ export class SessionKeepAliveService {
                     );
 
                     if (finalLogin.success) {
+                        await recordLoginSuccess(accountId);
                         const sessionData = await client.exportSession();
                         const now = Date.now();
                         sessionData.expiresAt = now + (15 * 60 * 1000);
@@ -441,6 +447,9 @@ export class SessionKeepAliveService {
             }
 
             // All CAPTCHA attempts exhausted
+            if (shouldCountAsCredentialFailure(lastCaptchaError)) {
+                await recordLoginFailure(accountId, lastCaptchaError);
+            }
             console.error(`[KeepAlive] ${username}: All ${MAX_CAPTCHA_RETRIES} CAPTCHA attempts failed`);
             return {
                 accountId,
@@ -454,6 +463,7 @@ export class SessionKeepAliveService {
 
         // Login without CAPTCHA
         if (loginResult.success) {
+            await recordLoginSuccess(accountId);
             const sessionData = await client.exportSession();
             // FIX: Update timestamps before saving
             const now = Date.now();
@@ -467,6 +477,10 @@ export class SessionKeepAliveService {
                 status: 'logged_in',
                 durationMs: Date.now() - startTime
             };
+        }
+
+        if (shouldCountAsCredentialFailure(loginResult.error)) {
+            await recordLoginFailure(accountId, loginResult.error);
         }
 
         return {

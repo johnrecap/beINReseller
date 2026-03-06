@@ -3,6 +3,10 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import {
+    BEIN_LOGIN_FAILURE_THRESHOLD_SETTING_KEY,
+    validateBeinLoginFailureThreshold,
+} from '@/lib/bein-login-failure-threshold'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -61,9 +65,27 @@ export async function PUT(request: NextRequest) {
         }
 
         const body = await request.json()
+        if (!body || typeof body !== 'object' || Array.isArray(body)) {
+            return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+        }
+
+        const normalizedBody = { ...(body as Record<string, unknown>) }
+
+        if (BEIN_LOGIN_FAILURE_THRESHOLD_SETTING_KEY in normalizedBody) {
+            const validation = validateBeinLoginFailureThreshold(
+                normalizedBody[BEIN_LOGIN_FAILURE_THRESHOLD_SETTING_KEY]
+            )
+
+            if ('error' in validation) {
+                return NextResponse.json({ error: validation.error }, { status: 400 })
+            }
+
+            normalizedBody[BEIN_LOGIN_FAILURE_THRESHOLD_SETTING_KEY] = validation.value
+        }
+
         // Body is expected to be { key: value, key2: value2 }
 
-        const updates = Object.entries(body).map(([key, value]) => {
+        const updates = Object.entries(normalizedBody).map(([key, value]) => {
             return prisma.setting.upsert({
                 where: { key },
                 update: { value: String(value) },
@@ -81,7 +103,7 @@ export async function PUT(request: NextRequest) {
         ]
 
         const safeDetails = Object.fromEntries(
-            Object.entries(body).map(([key, value]) => [
+            Object.entries(normalizedBody).map(([key, value]) => [
                 key,
                 SENSITIVE_KEYS.includes(key) ? '********' : value
             ])

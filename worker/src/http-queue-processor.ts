@@ -34,6 +34,11 @@ import {
     cacheSTB,
     invalidatePackageCache
 } from './lib/package-cache';
+import {
+    recordLoginFailure,
+    recordLoginSuccess,
+    shouldCountAsCredentialFailure,
+} from './lib/bein-login-tracking';
 
 // Heartbeat configuration
 const HEARTBEAT_TTL_SECONDS = 15;  // Operation expires after 15s without heartbeat
@@ -68,6 +73,10 @@ const TERMINAL_STATUSES = new Set([
 
 function isTerminalStatus(status: string | null | undefined): boolean {
     return !!status && TERMINAL_STATUSES.has(status);
+}
+
+function getErrMsg(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
 }
 
 function isAmbiguousFailure(message: string | null | undefined): boolean {
@@ -292,6 +301,16 @@ function isSessionExpiredError(message: string | undefined): boolean {
         message.includes('Login page');
 }
 
+async function trackCredentialLoginFailure(accountId: string, reason: string | undefined): Promise<void> {
+    if (shouldCountAsCredentialFailure(reason)) {
+        await recordLoginFailure(accountId, reason);
+    }
+}
+
+async function trackFreshLoginSuccess(accountId: string): Promise<void> {
+    await recordLoginSuccess(accountId);
+}
+
 /**
  * Perform re-login with CAPTCHA handling
  * @returns true if login successful, false otherwise
@@ -332,19 +351,26 @@ async function performReLogin(
                 );
 
                 if (!loginWithCaptcha.success) {
+                    await trackCredentialLoginFailure(
+                        account.id,
+                        loginWithCaptcha.error || 'Login failed after CAPTCHA'
+                    );
                     throw new Error(`Re-login with CAPTCHA failed: ${loginWithCaptcha.error}`);
                 }
 
                 console.log(`[HTTP] ✅ Re-login with CAPTCHA successful`);
-            } catch (captchaError: any) {
-                throw new Error(`CAPTCHA auto-solve failed: ${captchaError.message}`);
+            } catch (captchaError: unknown) {
+                throw new Error(`CAPTCHA auto-solve failed: ${getErrMsg(captchaError)}`);
             }
         } else {
             throw new Error(`Re-login requires CAPTCHA but no API key configured`);
         }
     } else if (!loginResult.success) {
+        await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
         throw new Error(`Re-login failed: ${loginResult.error}`);
     }
+
+    await trackFreshLoginSuccess(account.id);
 
     // Save new session to cache
     const newSession = await httpClient.exportSession();
@@ -382,9 +408,9 @@ async function withSessionRetry<T>(
 
     try {
         result = await operation();
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Handle thrown errors
-        if (!isSessionExpiredError(error.message)) {
+        if (!isSessionExpiredError(getErrMsg(error))) {
             throw error;  // Not a session error, rethrow
         }
 
@@ -527,8 +553,8 @@ export async function processOperationHttp(
                 if (accountId) {
                     try {
                         await handleCheckAccountBalance(accountId);
-                    } catch (balanceError: any) {
-                        console.error(`❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for ${accountId}:`, balanceError.message);
+                    } catch (balanceError: unknown) {
+                        console.error(`❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for ${accountId}:`, getErrMsg(balanceError));
                         // Don't throw - this job type has no operation to refund
                     }
                 }
@@ -566,13 +592,13 @@ export async function processOperationHttp(
             default:
                 throw new Error(`Unsupported operation type for HTTP: ${type}`);
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof OperationCancelledError) {
             console.log(`🚫 [HTTP] Operation ${operationId} cancelled`);
             return;
         }
 
-        console.error(`❌ [HTTP] Operation ${operationId} failed:`, error.message);
+        console.error(`❌ [HTTP] Operation ${operationId} failed:`, getErrMsg(error));
 
         // ALWAYS read from DB - job data amount may be stale (deferred payment)
         const op = await prisma.operation.findUnique({
@@ -589,9 +615,9 @@ export async function processOperationHttp(
 
         // Mark failed and refund (only if money was actually deducted)
         if (opUserId && opAmount && opAmount > 0) {
-            await refundUser(operationId, opUserId, opAmount, error.message);
+            await refundUser(operationId, opUserId, opAmount, getErrMsg(error));
         }
-        await markOperationFailed(operationId, { type: 'UNKNOWN', message: error.message, recoverable: false }, 1);
+        await markOperationFailed(operationId, { type: 'UNKNOWN', message: getErrMsg(error), recoverable: false }, 1);
     } finally {
         if (lockHeartbeat) clearInterval(lockHeartbeat);
     }
@@ -715,8 +741,8 @@ async function handleStartRenewalHttp(
                     const captchaSolver = new CaptchaSolver(captchaApiKey);
                     solution = await captchaSolver.solve(loginResult.captchaImage);
                     console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
-                } catch (autoSolveError: any) {
-                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                } catch (autoSolveError: unknown) {
+                    console.log(`⚠️ [HTTP] Auto-solve failed: ${getErrMsg(autoSolveError)}, falling back to manual`);
                 }
             } else {
                 console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
@@ -757,15 +783,25 @@ async function handleStartRenewalHttp(
             );
 
             if (!loginWithCaptcha.success) {
+                await trackCredentialLoginFailure(
+                    selectedAccount.id,
+                    loginWithCaptcha.error || 'Login failed after CAPTCHA'
+                );
                 // Release lock before throwing
                 await releaseLoginLock(selectedAccount.id, WORKER_ID);
                 throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
             }
         } else if (!loginResult.success) {
+            await trackCredentialLoginFailure(
+                selectedAccount.id,
+                loginResult.error || 'Login failed'
+            );
             // Release lock before throwing
             await releaseLoginLock(selectedAccount.id, WORKER_ID);
             throw new Error(loginResult.error || 'Login failed');
         }
+
+        await trackFreshLoginSuccess(selectedAccount.id);
 
         // Login successful - save session to Redis cache
         try {
@@ -794,7 +830,7 @@ async function handleStartRenewalHttp(
     const cachedPackageData = await getCachedPackages(cardNumber);
     const cachedStb = cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
 
-    let packagesResult: { success: boolean; packages: any[]; stbNumber?: string; dealerBalance?: number; error?: string };
+    let packagesResult: { success: boolean; packages: AvailablePackage[]; stbNumber?: string; dealerBalance?: number; error?: string };
 
     if (cachedStb) {
         // STB is cached — only run loadPackages (skip checkCard entirely)
@@ -1039,14 +1075,14 @@ async function handleApplyPromoHttp(
 
     if (savedSessionData && typeof savedSessionData.cookies === 'string') {
         try {
-            await client.importSession(savedSessionData as any);
+            await client.importSession(savedSessionData as unknown as Parameters<typeof client.importSession>[0]);
             const expiresAt = typeof savedSessionData.expiresAt === 'number'
                 ? savedSessionData.expiresAt
                 : undefined;
             client.markSessionValidFromCache(expiresAt);
             console.log('[HTTP] Promo flow restored operation-scoped session snapshot');
-        } catch (sessionImportError: any) {
-            console.log(`[HTTP] Failed to import operation session snapshot: ${sessionImportError.message}`);
+        } catch (sessionImportError: unknown) {
+            console.log(`[HTTP] Failed to import operation session snapshot: ${getErrMsg(sessionImportError)}`);
         }
     }
 
@@ -1065,7 +1101,23 @@ async function handleApplyPromoHttp(
                 account.password,
                 account.totpSecret || undefined
             );
+            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                await prisma.operation.update({
+                    where: { id: operationId },
+                    data: {
+                        responseData: JSON.stringify({
+                            ...existingResponseData,
+                            promoApplied: false,
+                            refreshing: false,
+                            error: 'Login requires CAPTCHA for promo apply'
+                        })
+                    }
+                });
+                return;
+            }
+
             if (!loginResult.success) {
+                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
                 await prisma.operation.update({
                     where: { id: operationId },
                     data: {
@@ -1079,6 +1131,8 @@ async function handleApplyPromoHttp(
                 });
                 return;
             }
+
+            await trackFreshLoginSuccess(account.id);
             // Save session to cache
             try {
                 const sessionData = await client.exportSession();
@@ -1298,7 +1352,7 @@ async function attemptPurchaseWithAccount(
         promoCode: string | null;
         stbNumber: string | null;
         amount: number | null;
-        responseData: any;
+        responseData: unknown;
     },
     accountId: string,
     selectedPackage: {
@@ -1353,8 +1407,8 @@ async function attemptPurchaseWithAccount(
                     await client.importSession(savedData.sessionData);
                 }
                 dealerBalance = savedData.dealerBalance;
-            } catch (parseError: any) {
-                console.log(`[HTTP] ⚠️ Could not restore saved session: ${parseError.message}`);
+            } catch (parseError: unknown) {
+                console.log(`[HTTP] ⚠️ Could not restore saved session: ${getErrMsg(parseError)}`);
             }
         }
 
@@ -1405,6 +1459,10 @@ async function attemptPurchaseWithAccount(
                     );
 
                     if (!loginWithCaptcha.success) {
+                        await trackCredentialLoginFailure(
+                            accountId,
+                            loginWithCaptcha.error || 'Login failed after CAPTCHA'
+                        );
                         await accountPool.markAccountFailed(accountId, `CAPTCHA login failed: ${loginWithCaptcha.error}`);
                         return {
                             success: false,
@@ -1413,16 +1471,17 @@ async function attemptPurchaseWithAccount(
                             error: `Login with CAPTCHA failed: ${loginWithCaptcha.error}`
                         };
                     }
-                } catch (captchaError: any) {
-                    await accountPool.markAccountFailed(accountId, `CAPTCHA solve failed: ${captchaError.message}`);
+                } catch (captchaError: unknown) {
+                    await accountPool.markAccountFailed(accountId, `CAPTCHA solve failed: ${getErrMsg(captchaError)}`);
                     return {
                         success: false,
                         shouldRetryDifferentAccount: true,
                         isBalanceError: false,
-                        error: `CAPTCHA auto-solve failed: ${captchaError.message}`
+                        error: `CAPTCHA auto-solve failed: ${getErrMsg(captchaError)}`
                     };
                 }
             } else if (!loginResult.success) {
+                await trackCredentialLoginFailure(accountId, loginResult.error || 'Login failed');
                 await accountPool.markAccountFailed(accountId, `Login failed: ${loginResult.error}`);
                 return {
                     success: false,
@@ -1431,6 +1490,8 @@ async function attemptPurchaseWithAccount(
                     error: `Login failed: ${loginResult.error}`
                 };
             }
+
+            await trackFreshLoginSuccess(accountId);
 
             // Load packages with session retry (use saved smartcard type)
             console.log(`[HTTP] 📦 Loading packages for new account (smartcard: ${savedSmartcardType})...`);
@@ -1572,8 +1633,8 @@ async function attemptPurchaseWithAccount(
         // Purchase failed
         throw new Error(result.message);
 
-    } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error';
+    } catch (error: unknown) {
+        const errorMessage = getErrMsg(error) || 'Unknown error';
         console.log(`[HTTP] ❌ attemptPurchaseWithAccount failed: ${errorMessage}`);
 
         // Determine if we should retry with different account
@@ -1713,8 +1774,8 @@ async function handleConfirmPurchaseHttp(
                     await client.importSession(savedData.sessionData);
                     console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
                 }
-            } catch (parseError: any) {
-                if (parseError.message?.includes('Session expired')) {
+            } catch (parseError: unknown) {
+                if (getErrMsg(parseError).includes('Session expired')) {
                     throw parseError; // Re-throw session expiry error
                 }
                 console.error('[HTTP] ⚠️ Failed to parse saved session for confirm:', parseError);
@@ -1823,8 +1884,8 @@ async function handleConfirmPurchaseHttp(
 
             try {
                 await accountPool.markAccountUsed(operation.beinAccountId);
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${e.message}`);
+            } catch (e: unknown) {
+                console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
             }
             console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED: ${result.message}`);
             return;
@@ -1887,8 +1948,8 @@ async function handleCancelConfirmHttp(
                 const client = await getHttpClient(account);
                 await client.cancelPurchase();
             }
-        } catch (e: any) {
-            console.log(`⚠️ [HTTP] Failed to click cancel: ${e.message}`);
+        } catch (e: unknown) {
+            console.log(`⚠️ [HTTP] Failed to click cancel: ${getErrMsg(e)}`);
         }
     }
 
@@ -1923,13 +1984,13 @@ async function handleCancelConfirmHttp(
         // but cancels often run on a different worker than the one that locked the account.
         // Force-unlock guarantees the lock is released after cancellation.
         try {
-            const redis = (accountPool as any).redis;
+            const redis = (accountPool as unknown as { redis?: import("ioredis").Redis }).redis;
             if (redis) {
                 await forceUnlockAccount(redis, operation.beinAccountId);
                 console.log(`🔓 [HTTP] Force-unlocked account ${operation.beinAccountId} after cancel`);
             }
-        } catch (e: any) {
-            console.log(`⚠️ [HTTP] Failed to force-unlock: ${e.message}`);
+        } catch (e: unknown) {
+            console.log(`⚠️ [HTTP] Failed to force-unlock: ${getErrMsg(e)}`);
         }
     }
 
@@ -2029,8 +2090,8 @@ async function handleSignalRefreshHttp(
                         const captchaSolver = new CaptchaSolver(captchaApiKey);
                         solution = await captchaSolver.solve(loginResult.captchaImage);
                         console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
-                    } catch (autoSolveError: any) {
-                        console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                    } catch (autoSolveError: unknown) {
+                        console.log(`⚠️ [HTTP] Auto-solve failed: ${getErrMsg(autoSolveError)}, falling back to manual`);
                     }
                 } else {
                     console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
@@ -2063,16 +2124,23 @@ async function handleSignalRefreshHttp(
                 );
 
                 if (!loginWithCaptcha.success) {
+                    await trackCredentialLoginFailure(
+                        account.id,
+                        loginWithCaptcha.error || 'Login failed after CAPTCHA'
+                    );
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
                 console.log('🔑 [HTTP] Login with CAPTCHA successful');
             } else if (!loginResult.success) {
+                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             } else {
                 console.log('🔑 [HTTP] Login successful');
             }
+
+            await trackFreshLoginSuccess(account.id);
 
             // Save session to cache after successful login
             try {
@@ -2137,7 +2205,7 @@ async function handleSignalRefreshHttp(
 
         console.log(`✅ [HTTP] Signal refresh completed for ${operationId}`);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Mark account as used even on failure
         await accountPool.markAccountUsed(account.id);
         throw error;
@@ -2236,8 +2304,8 @@ async function handleSignalCheckHttp(
                         const captchaSolver = new CaptchaSolver(captchaApiKey);
                         solution = await captchaSolver.solve(loginResult.captchaImage);
                         console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
-                    } catch (autoSolveError: any) {
-                        console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                    } catch (autoSolveError: unknown) {
+                        console.log(`⚠️ [HTTP] Auto-solve failed: ${getErrMsg(autoSolveError)}, falling back to manual`);
                     }
                 }
 
@@ -2268,13 +2336,20 @@ async function handleSignalCheckHttp(
                 );
 
                 if (!loginWithCaptcha.success) {
+                    await trackCredentialLoginFailure(
+                        account.id,
+                        loginWithCaptcha.error || 'Login failed after CAPTCHA'
+                    );
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
             } else if (!loginResult.success) {
+                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             }
+
+            await trackFreshLoginSuccess(account.id);
 
             // Login successful - save session to Redis cache
             try {
@@ -2331,11 +2406,11 @@ async function handleSignalCheckHttp(
         await accountPool.markAccountUsed(account.id);
         console.log(`✅ [HTTP] Signal check completed for ${operationId}`);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         await accountPool.markAccountUsed(account.id);
 
         // Delete session from cache on session-related errors
-        if (error.message?.includes('Session expired') || error.message?.includes('login')) {
+        if (getErrMsg(error).includes('Session expired') || getErrMsg(error).includes('login')) {
             await deleteSessionFromCache(account.id);
         }
 
@@ -2376,7 +2451,7 @@ async function handleSignalActivateHttp(
     // Check that this operation is ready for activation (completed check step)
     const savedData = typeof operation.responseData === 'string'
         ? JSON.parse(operation.responseData)
-        : operation.responseData as any;
+        : operation.responseData as Record<string, unknown>;
 
     if (!savedData?.awaitingActivate) {
         throw new Error(`Operation is not awaiting activation`);
@@ -2457,7 +2532,7 @@ async function handleSignalActivateHttp(
         await accountPool.markAccountUsed(account.id);
         console.log(`✅ [HTTP] Signal activation completed for ${operationId}: activated=${activateResult.activated}`);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         await accountPool.markAccountUsed(account.id);
         throw error;
     }
@@ -2527,9 +2602,16 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
             account.totpSecret || undefined
         );
 
+        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+            throw new Error('Login requires CAPTCHA for balance check');
+        }
+
         if (!loginResult.success) {
+            await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
             throw new Error(loginResult.error || 'Login failed');
         }
+
+        await trackFreshLoginSuccess(account.id);
 
         // Save session to cache
         try {
@@ -2685,8 +2767,8 @@ async function handleStartInstallmentHttp(
                     const captchaSolver = new CaptchaSolver(captchaApiKey);
                     solution = await captchaSolver.solve(loginResult.captchaImage);
                     console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
-                } catch (autoSolveError: any) {
-                    console.log(`⚠️ [HTTP] Auto-solve failed: ${autoSolveError.message}, falling back to manual`);
+                } catch (autoSolveError: unknown) {
+                    console.log(`⚠️ [HTTP] Auto-solve failed: ${getErrMsg(autoSolveError)}, falling back to manual`);
                 }
             }
 
@@ -2722,13 +2804,23 @@ async function handleStartInstallmentHttp(
             );
 
             if (!loginWithCaptcha.success) {
+                await trackCredentialLoginFailure(
+                    selectedAccount.id,
+                    loginWithCaptcha.error || 'Login failed after CAPTCHA'
+                );
                 await releaseLoginLock(selectedAccount.id, WORKER_ID);
                 throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
             }
         } else if (!loginResult.success) {
+            await trackCredentialLoginFailure(
+                selectedAccount.id,
+                loginResult.error || 'Login failed'
+            );
             await releaseLoginLock(selectedAccount.id, WORKER_ID);
             throw new Error(loginResult.error || 'Login failed');
         }
+
+        await trackFreshLoginSuccess(selectedAccount.id);
 
         // Save session to cache
         try {
@@ -2875,9 +2967,17 @@ async function handleConfirmInstallmentHttp(
                 selectedAccount.password,
                 selectedAccount.totpSecret || undefined
             );
+            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                throw new Error('Login requires CAPTCHA for installment confirm');
+            }
             if (!loginResult.success) {
+                await trackCredentialLoginFailure(
+                    selectedAccount.id,
+                    loginResult.error || 'Login failed'
+                );
                 throw new Error(loginResult.error || 'Login failed for installment confirm');
             }
+            await trackFreshLoginSuccess(selectedAccount.id);
             // Save session to cache
             try {
                 const sessionData = await client.exportSession();
@@ -2941,8 +3041,8 @@ async function handleConfirmInstallmentHttp(
 
         try {
             await accountPool.markAccountUsed(selectedAccount.id);
-        } catch (e: any) {
-            console.error(`[HTTP] Failed to mark account used after installment completion for ${operationId}: ${e.message}`);
+        } catch (e: unknown) {
+            console.error(`[HTTP] Failed to mark account used after installment completion for ${operationId}: ${getErrMsg(e)}`);
         }
 
         if (operation.userId) {
@@ -2972,8 +3072,8 @@ async function handleConfirmInstallmentHttp(
                     userBalanceBefore: auditSnapshot.userBalanceBefore ?? undefined,
                     userBalanceAfter: auditSnapshot.userBalanceAfter ?? undefined
                 });
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to track installment completion for ${operationId}: ${e.message}`);
+            } catch (e: unknown) {
+                console.error(`[HTTP] Failed to track installment completion for ${operationId}: ${getErrMsg(e)}`);
             }
         }
 
@@ -2986,8 +3086,8 @@ async function handleConfirmInstallmentHttp(
                     type: 'success',
                     link: '/dashboard/history'
                 });
-            } catch (e: any) {
-                console.error(`[HTTP] Failed to create installment notification for ${operationId}: ${e.message}`);
+            } catch (e: unknown) {
+                console.error(`[HTTP] Failed to create installment notification for ${operationId}: ${getErrMsg(e)}`);
             }
         }
 
@@ -3014,8 +3114,8 @@ async function handleConfirmInstallmentHttp(
 
         try {
             await accountPool.markAccountUsed(selectedAccount.id);
-        } catch (e: any) {
-            console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${e.message}`);
+        } catch (e: unknown) {
+            console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
         }
         console.warn(`[HTTP] Installment payment for ${operationId} moved to REVIEW_REQUIRED: ${payResult.message}`);
         return;

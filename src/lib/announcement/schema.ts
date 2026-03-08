@@ -70,7 +70,6 @@ export const createAnnouncementSchema = z
         colors: colorsField,
         textSize: textSizeField.default('medium'),
         position: positionField.default('top'),
-        isDismissable: z.boolean().default(true),
         startDate: dateField,
         endDate: dateField,
     })
@@ -106,7 +105,6 @@ export const updateAnnouncementSchema = z
         colors: colorsField.optional(),
         textSize: textSizeField.optional(),
         position: positionField.optional(),
-        isDismissable: z.boolean().optional(),
         startDate: dateField,
         endDate: dateField,
     })
@@ -124,6 +122,5 @@ export interface PublicAnnouncementBanner {
     colors: string[]
     textSize: string
     position: string
-    isDismissable: boolean
     updatedAt: string
 }

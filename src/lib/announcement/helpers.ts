@@ -26,19 +26,6 @@ export function resolveUploadedImageSrc(url?: string | null): string {
 }
 
 /**
- * Generate a revision-aware dismiss key for a banner.
- * Changes when the banner is edited, so updated banners reappear.
- */
-export function getDismissKey(banner: { id: string; updatedAt?: string | Date }): string {
-    const ts = banner.updatedAt
-        ? typeof banner.updatedAt === 'string'
-            ? banner.updatedAt
-            : banner.updatedAt.toISOString()
-        : ''
-    return `dismiss_banner_${banner.id}_${ts}`
-}
-
-/**
  * Validate that an image URL is a valid uploaded path.
  */
 export function isValidUploadUrl(url: string): boolean {

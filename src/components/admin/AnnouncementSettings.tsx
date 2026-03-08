@@ -49,7 +49,6 @@ export default function AnnouncementSettings() {
     const [colors, setColors] = useState<string[]>(['#00ff00', '#00cc00', '#00ff00'])
     const [textSize, setTextSize] = useState('medium')
     const [position, setPosition] = useState('top')
-    const [isDismissable, setIsDismissable] = useState(true)
     const [isActive, setIsActive] = useState(true)
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
@@ -83,7 +82,6 @@ export default function AnnouncementSettings() {
         setColors(['#00ff00', '#00cc00', '#00ff00'])
         setTextSize('medium')
         setPosition('top')
-        setIsDismissable(true)
         setIsActive(true)
         setStartDate('')
         setEndDate('')
@@ -99,7 +97,6 @@ export default function AnnouncementSettings() {
         setColors(banner.colors || ['#00ff00'])
         setTextSize(banner.textSize)
         setPosition(banner.position)
-        setIsDismissable(banner.isDismissable)
         setIsActive(banner.isActive)
         setStartDate(banner.startDate ? banner.startDate.split('T')[0] : '')
         setEndDate(banner.endDate ? banner.endDate.split('T')[0] : '')
@@ -124,7 +121,6 @@ export default function AnnouncementSettings() {
                 colors,
                 textSize,
                 position,
-                isDismissable,
                 isActive,
                 startDate: startDate || null,
                 endDate: endDate || null,
@@ -367,13 +363,6 @@ export default function AnnouncementSettings() {
                                     onCheckedChange={setIsActive}
                                 />
                                 <label className="text-sm">Active</label>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <Switch
-                                    checked={isDismissable}
-                                    onCheckedChange={setIsDismissable}
-                                />
-                                <label className="text-sm">Dismissible</label>
                             </div>
                         </div>
 

@@ -64,6 +64,4 @@ export const TEXT_SIZE_CLASSES: Record<TextSize, string> = {
     large: 'text-lg md:text-xl',
 }
 
-/* ── Dismiss ────────────────────────────────────────── */
 
-export const DISMISS_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours

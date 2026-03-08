@@ -60,7 +60,6 @@ export async function POST(request: NextRequest) {
             colors,
             textSize,
             position,
-            isDismissable,
             startDate,
             endDate,
             imageUrl,
@@ -86,7 +85,6 @@ export async function POST(request: NextRequest) {
                     colors,
                     textSize,
                     position,
-                    isDismissable,
                     startDate: startDate ?? null,
                     endDate: endDate ?? null,
                 }

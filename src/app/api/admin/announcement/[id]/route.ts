@@ -102,7 +102,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (data.colors !== undefined) updateData.colors = data.colors
         if (data.textSize !== undefined) updateData.textSize = data.textSize
         if (data.position !== undefined) updateData.position = data.position
-        if (data.isDismissable !== undefined) updateData.isDismissable = data.isDismissable
         if (data.startDate !== undefined) updateData.startDate = data.startDate
         if (data.endDate !== undefined) updateData.endDate = data.endDate
 

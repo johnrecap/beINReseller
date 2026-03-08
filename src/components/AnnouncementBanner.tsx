@@ -1,19 +1,16 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { X } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { useTranslation } from '@/hooks/useTranslation'
 import {
     TEXT_SIZE_CLASSES,
     DEFAULT_GRADIENT_COLORS,
-    DISMISS_DURATION_MS,
     type AnimationType,
     type TextSize,
     type BannerPosition,
 } from '@/lib/announcement/constants'
-import { resolveUploadedImageSrc, getDismissKey } from '@/lib/announcement/helpers'
+import { resolveUploadedImageSrc } from '@/lib/announcement/helpers'
 
 interface Banner {
     id: string
@@ -24,8 +21,6 @@ interface Banner {
     colors: string[]
     textSize: TextSize
     position: BannerPosition
-    isDismissable: boolean
-    updatedAt?: string
 }
 
 // Default gradient colors
@@ -168,26 +163,8 @@ function StaticText({ text, colors }: { text: string; colors: string[] }) {
  * AnnouncementBanner - Dynamic announcement banner with multiple animation types
  */
 export default function AnnouncementBanner() {
-    const { t } = useTranslation()
     const [banner, setBanner] = useState<Banner | null>(null)
-    const [isDismissed, setIsDismissed] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
-
-    // Check localStorage for dismissed state
-    useEffect(() => {
-        if (!banner) return
-        const key = getDismissKey(banner)
-        const dismissed = localStorage.getItem(key)
-        if (dismissed) {
-            const expiry = localStorage.getItem(`${key}_expiry`)
-            if (expiry && Date.now() > parseInt(expiry)) {
-                localStorage.removeItem(key)
-                localStorage.removeItem(`${key}_expiry`)
-            } else {
-                setIsDismissed(true)
-            }
-        }
-    }, [banner])
 
     // Fetch active banner
     useEffect(() => {
@@ -198,12 +175,6 @@ export default function AnnouncementBanner() {
 
                 if (data.success && data.banner) {
                     setBanner(data.banner)
-
-                    // Check if this specific banner was dismissed
-                    const dismissedId = localStorage.getItem('dismissed_banner_id')
-                    if (dismissedId === data.banner.id) {
-                        setIsDismissed(true)
-                    }
                 }
             } catch (error) {
                 console.error('Failed to fetch banner:', error)
@@ -215,20 +186,8 @@ export default function AnnouncementBanner() {
         fetchBanner()
     }, [])
 
-    // Handle dismiss
-    const handleDismiss = useCallback(() => {
-        if (banner) {
-            const key = getDismissKey(banner)
-            localStorage.setItem(key, '1')
-            localStorage.setItem(`${key}_expiry`, String(Date.now() + DISMISS_DURATION_MS))
-        }
-        setIsDismissed(true)
-    }, [banner])
-
-
-
-    // Don't render if loading, no banner, or dismissed
-    if (isLoading || !banner || isDismissed) {
+    // Don't render if loading or no banner
+    if (isLoading || !banner) {
         return null
     }
 
@@ -292,21 +251,7 @@ export default function AnnouncementBanner() {
                         </div>
                     )}
 
-                    {/* Dismiss button */}
-                    {banner.isDismissable && (
-                        <button
-                            onClick={handleDismiss}
-                            className={cn(
-                                "absolute top-3 p-1.5 rounded-full z-20",
-                                "bg-black/55 text-white/80 hover:text-white hover:bg-black/70",
-                                "transition-colors duration-200",
-                                "end-3"
-                            )}
-                            aria-label={t.common?.close || 'Close'}
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    )}
+
                 </div>
             </motion.div>
         </AnimatePresence>

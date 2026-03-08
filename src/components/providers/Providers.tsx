@@ -3,6 +3,7 @@
 import { SessionProvider } from 'next-auth/react'
 import { ThemeProvider } from 'next-themes'
 import { ReactNode, useEffect } from 'react'
+import { CursorEffects } from '@/components/effects'
 import { useTranslation } from '@/hooks/useTranslation'
 
 interface ProvidersProps {
@@ -32,6 +33,7 @@ export default function Providers({ children }: ProvidersProps) {
             >
                 <LanguageSync />
                 {children}
+                <CursorEffects />
             </ThemeProvider>
         </SessionProvider>
     )

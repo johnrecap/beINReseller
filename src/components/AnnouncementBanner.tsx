@@ -5,35 +5,31 @@ import { X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
+import {
+    TEXT_SIZE_CLASSES,
+    DEFAULT_GRADIENT_COLORS,
+    DISMISS_DURATION_MS,
+    type AnimationType,
+    type TextSize,
+    type BannerPosition,
+} from '@/lib/announcement/constants'
+import { resolveUploadedImageSrc, getDismissKey } from '@/lib/announcement/helpers'
 
 interface Banner {
     id: string
     message: string
     imageUrl?: string | null
     imageAlt?: string | null
-    animationType: 'gradient' | 'typing' | 'glow' | 'slide' | 'marquee' | 'none'
+    animationType: AnimationType
     colors: string[]
-    textSize: 'small' | 'medium' | 'large'
-    position: 'top' | 'bottom' | 'floating'
+    textSize: TextSize
+    position: BannerPosition
     isDismissable: boolean
-}
-
-// Text size classes
-const textSizeClasses = {
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg md:text-xl'
+    updatedAt?: string
 }
 
 // Default gradient colors
-const defaultColors = ['#ff0080', '#ff8c00', '#40e0d0', '#ff0080']
-
-function resolveUploadedImageSrc(url?: string | null): string {
-    if (!url) return ''
-    return url.startsWith('/uploads/')
-        ? `/api/uploads/${url.replace(/^\/uploads\//, '')}`
-        : url
-}
+const defaultColors = DEFAULT_GRADIENT_COLORS
 
 /**
  * GradientText - Animated flowing gradient text
@@ -41,9 +37,9 @@ function resolveUploadedImageSrc(url?: string | null): string {
 function GradientText({ text, colors }: { text: string; colors: string[] }) {
     const gradientColors = colors.length >= 2 ? colors : defaultColors
     const gradientStr = gradientColors.join(', ')
-    
+
     return (
-        <span 
+        <span
             className="inline-block font-semibold whitespace-pre-line break-words"
             style={{
                 background: `linear-gradient(90deg, ${gradientStr})`,
@@ -65,7 +61,7 @@ function GradientText({ text, colors }: { text: string; colors: string[] }) {
 function TypingText({ text, colors }: { text: string; colors: string[] }) {
     const [displayText, setDisplayText] = useState('')
     const textColor = colors[0] || '#00ff00'
-    
+
     useEffect(() => {
         if (displayText.length < text.length) {
             const timer = setTimeout(() => {
@@ -80,13 +76,13 @@ function TypingText({ text, colors }: { text: string; colors: string[] }) {
             return () => clearTimeout(timer)
         }
     }, [displayText, text])
-    
+
     return (
         <span className="font-semibold whitespace-pre-line break-words" style={{ color: textColor }}>
             {displayText}
-            <span 
+            <span
                 className="inline-block w-0.5 h-[1em] ml-0.5 align-middle"
-                style={{ 
+                style={{
                     backgroundColor: textColor,
                     animation: 'cursor-blink 1s step-end infinite'
                 }}
@@ -100,9 +96,9 @@ function TypingText({ text, colors }: { text: string; colors: string[] }) {
  */
 function GlowText({ text, colors }: { text: string; colors: string[] }) {
     const glowColor = colors[0] || '#00ff00'
-    
+
     return (
-        <span 
+        <span
             className="font-bold whitespace-pre-line break-words"
             style={{
                 color: glowColor,
@@ -119,7 +115,7 @@ function GlowText({ text, colors }: { text: string; colors: string[] }) {
  */
 function SlideText({ text, colors }: { text: string; colors: string[] }) {
     const textColor = colors[0] || '#ffffff'
-    
+
     return (
         <motion.span
             initial={{ x: -100, opacity: 0 }}
@@ -139,10 +135,10 @@ function SlideText({ text, colors }: { text: string; colors: string[] }) {
 function MarqueeText({ text, colors }: { text: string; colors: string[] }) {
     const textColor = colors[0] || '#ffffff'
     const marqueeText = text.replace(/\s*\n+\s*/g, '   •   ')
-    
+
     return (
         <div className="overflow-hidden whitespace-nowrap">
-            <span 
+            <span
                 className="inline-block font-semibold"
                 style={{
                     color: textColor,
@@ -160,7 +156,7 @@ function MarqueeText({ text, colors }: { text: string; colors: string[] }) {
  */
 function StaticText({ text, colors }: { text: string; colors: string[] }) {
     const textColor = colors[0] || '#ffffff'
-    
+
     return (
         <span className="font-semibold whitespace-pre-line break-words" style={{ color: textColor }}>
             {text}
@@ -179,9 +175,17 @@ export default function AnnouncementBanner() {
 
     // Check localStorage for dismissed state
     useEffect(() => {
-        const dismissed = localStorage.getItem('dismissed_banner_id')
-        if (dismissed && banner && dismissed === banner.id) {
-            setIsDismissed(true)
+        if (!banner) return
+        const key = getDismissKey(banner)
+        const dismissed = localStorage.getItem(key)
+        if (dismissed) {
+            const expiry = localStorage.getItem(`${key}_expiry`)
+            if (expiry && Date.now() > parseInt(expiry)) {
+                localStorage.removeItem(key)
+                localStorage.removeItem(`${key}_expiry`)
+            } else {
+                setIsDismissed(true)
+            }
         }
     }, [banner])
 
@@ -191,10 +195,10 @@ export default function AnnouncementBanner() {
             try {
                 const res = await fetch('/api/announcement/active')
                 const data = await res.json()
-                
+
                 if (data.success && data.banner) {
                     setBanner(data.banner)
-                    
+
                     // Check if this specific banner was dismissed
                     const dismissedId = localStorage.getItem('dismissed_banner_id')
                     if (dismissedId === data.banner.id) {
@@ -214,22 +218,14 @@ export default function AnnouncementBanner() {
     // Handle dismiss
     const handleDismiss = useCallback(() => {
         if (banner) {
-            localStorage.setItem('dismissed_banner_id', banner.id)
-            // Set expiry for 24 hours
-            localStorage.setItem('dismissed_banner_expiry', String(Date.now() + 24 * 60 * 60 * 1000))
+            const key = getDismissKey(banner)
+            localStorage.setItem(key, '1')
+            localStorage.setItem(`${key}_expiry`, String(Date.now() + DISMISS_DURATION_MS))
         }
         setIsDismissed(true)
     }, [banner])
 
-    // Check if dismiss has expired
-    useEffect(() => {
-        const expiry = localStorage.getItem('dismissed_banner_expiry')
-        if (expiry && Date.now() > parseInt(expiry)) {
-            localStorage.removeItem('dismissed_banner_id')
-            localStorage.removeItem('dismissed_banner_expiry')
-            setIsDismissed(false)
-        }
-    }, [])
+
 
     // Don't render if loading, no banner, or dismissed
     if (isLoading || !banner || isDismissed) {
@@ -246,8 +242,8 @@ export default function AnnouncementBanner() {
         none: StaticText
     }[banner.animationType] || StaticText
 
-    const colors = Array.isArray(banner.colors) && banner.colors.length > 0 
-        ? banner.colors 
+    const colors = Array.isArray(banner.colors) && banner.colors.length > 0
+        ? banner.colors
         : defaultColors
     const bannerImageSrc = resolveUploadedImageSrc(banner.imageUrl)
     const hasMessage = banner.message.trim().length > 0
@@ -266,7 +262,7 @@ export default function AnnouncementBanner() {
                         ? "py-2 px-0"
                         : "py-3 px-4 bg-[rgba(0,0,0,0.6)] backdrop-blur-md border-b border-[rgba(255,255,255,0.1)]",
                     // Text size
-                    textSizeClasses[banner.textSize],
+                    TEXT_SIZE_CLASSES[banner.textSize],
                     // Position styles
                     banner.position === 'floating' && "rounded-lg mx-4 mb-4 border",
                     banner.position === 'bottom' && "fixed bottom-0 left-0 right-0 z-50"

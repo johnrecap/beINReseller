@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { prisma } from '@/lib/prisma'
+import { updateAnnouncementSchema } from '@/lib/announcement'
 import path from 'path'
-
-function normalizeOptionalText(value: unknown): string | null {
-    if (typeof value !== 'string') return null
-    const trimmed = value.trim()
-    return trimmed.length > 0 ? trimmed : null
-}
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -64,41 +59,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         const { id } = await params
         const body = await request.json()
 
-        const {
-            message,
-            isActive,
-            animationType,
-            colors,
-            textSize,
-            position,
-            isDismissable,
-            startDate,
-            endDate,
-            imageUrl,
-            imageAlt
-        } = body
+        const parsed = updateAnnouncementSchema.safeParse(body)
+        if (!parsed.success) {
+            const firstError = parsed.error.issues[0]?.message || 'Invalid data'
+            return NextResponse.json(
+                { success: false, error: firstError },
+                { status: 400 }
+            )
+        }
 
-        // Validate message if provided
-        if (message !== undefined && (typeof message !== 'string' || message.trim().length > 500)) {
-            return NextResponse.json(
-                { success: false, error: 'Message must be under 500 characters' },
-                { status: 400 }
-            )
-        }
-        const normalizedImageUrl = imageUrl !== undefined ? normalizeOptionalText(imageUrl) : undefined
-        const normalizedImageAlt = imageAlt !== undefined ? normalizeOptionalText(imageAlt) : undefined
-        if (normalizedImageUrl !== undefined && normalizedImageUrl && !normalizedImageUrl.startsWith('/uploads/')) {
-            return NextResponse.json(
-                { success: false, error: 'Invalid image URL' },
-                { status: 400 }
-            )
-        }
-        if (normalizedImageAlt !== undefined && normalizedImageAlt && normalizedImageAlt.length > 120) {
-            return NextResponse.json(
-                { success: false, error: 'Image alt text must be under 120 characters' },
-                { status: 400 }
-            )
-        }
+        const data = parsed.data
 
         const existingBanner = await prisma.announcementBanner.findUnique({
             where: { id },
@@ -112,8 +82,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             )
         }
 
-        const nextMessage = message !== undefined ? message.trim() : existingBanner.message
-        const nextImageUrl = normalizedImageUrl !== undefined ? normalizedImageUrl : existingBanner.imageUrl
+        // Validate that at least message or image remains
+        const nextMessage = data.message !== undefined ? (data.message?.trim() || '') : existingBanner.message
+        const nextImageUrl = data.imageUrl !== undefined ? data.imageUrl : existingBanner.imageUrl
         if (!nextMessage && !nextImageUrl) {
             return NextResponse.json(
                 { success: false, error: 'Provide announcement text or image' },
@@ -121,33 +92,62 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             )
         }
 
-        // If making this banner active, deactivate others
-        if (isActive === true) {
-            await prisma.announcementBanner.updateMany({
-                where: { 
-                    isActive: true,
-                    id: { not: id }
-                },
-                data: { isActive: false }
-            })
-        }
+        // Build update payload from only provided fields
+        const updateData: Record<string, unknown> = {}
+        if (data.message !== undefined) updateData.message = nextMessage
+        if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl
+        if (data.imageAlt !== undefined) updateData.imageAlt = data.imageAlt
+        if (data.isActive !== undefined) updateData.isActive = data.isActive
+        if (data.animationType !== undefined) updateData.animationType = data.animationType
+        if (data.colors !== undefined) updateData.colors = data.colors
+        if (data.textSize !== undefined) updateData.textSize = data.textSize
+        if (data.position !== undefined) updateData.position = data.position
+        if (data.isDismissable !== undefined) updateData.isDismissable = data.isDismissable
+        if (data.startDate !== undefined) updateData.startDate = data.startDate
+        if (data.endDate !== undefined) updateData.endDate = data.endDate
 
-        const banner = await prisma.announcementBanner.update({
-            where: { id },
-            data: {
-                ...(message !== undefined && { message: nextMessage }),
-                ...(isActive !== undefined && { isActive }),
-                ...(animationType !== undefined && { animationType }),
-                ...(colors !== undefined && { colors }),
-                ...(textSize !== undefined && { textSize }),
-                ...(position !== undefined && { position }),
-                ...(isDismissable !== undefined && { isDismissable }),
-                ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
-                ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
-                ...(imageUrl !== undefined && { imageUrl: normalizedImageUrl }),
-                ...(imageAlt !== undefined && { imageAlt: normalizedImageAlt })
+        // If making this banner active, deactivate others (in a transaction)
+        const banner = await prisma.$transaction(async (tx) => {
+            if (data.isActive === true) {
+                await tx.announcementBanner.updateMany({
+                    where: {
+                        isActive: true,
+                        id: { not: id }
+                    },
+                    data: { isActive: false }
+                })
             }
+
+            return tx.announcementBanner.update({
+                where: { id },
+                data: updateData
+            })
         })
+
+        // Clean up old image if it was replaced
+        if (
+            data.imageUrl !== undefined &&
+            existingBanner.imageUrl &&
+            existingBanner.imageUrl !== data.imageUrl &&
+            existingBanner.imageUrl.startsWith('/uploads/')
+        ) {
+            // Check if any other banner uses this same image before deleting
+            const otherUsage = await prisma.announcementBanner.count({
+                where: {
+                    imageUrl: existingBanner.imageUrl,
+                    id: { not: id }
+                }
+            })
+            if (otherUsage === 0) {
+                try {
+                    const filePath = path.join(process.cwd(), 'public', existingBanner.imageUrl)
+                    const { unlink } = await import('fs/promises')
+                    await unlink(filePath)
+                } catch (err) {
+                    console.warn('Failed to remove old announcement image:', err)
+                }
+            }
+        }
 
         return NextResponse.json({
             success: true,
@@ -180,13 +180,19 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             select: { imageUrl: true }
         })
 
+        // Only delete file if no other banner references it
         if (banner.imageUrl && banner.imageUrl.startsWith('/uploads/')) {
-            try {
-                const filePath = path.join(process.cwd(), 'public', banner.imageUrl)
-                const { unlink } = await import('fs/promises')
-                await unlink(filePath)
-            } catch (error) {
-                console.warn('Failed to remove announcement image:', error)
+            const otherUsage = await prisma.announcementBanner.count({
+                where: { imageUrl: banner.imageUrl }
+            })
+            if (otherUsage === 0) {
+                try {
+                    const filePath = path.join(process.cwd(), 'public', banner.imageUrl)
+                    const { unlink } = await import('fs/promises')
+                    await unlink(filePath)
+                } catch (err) {
+                    console.warn('Failed to remove announcement image:', err)
+                }
             }
         }
 
@@ -231,20 +237,22 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
         const newActiveState = !current.isActive
 
-        // If activating, deactivate others
-        if (newActiveState) {
-            await prisma.announcementBanner.updateMany({
-                where: { 
-                    isActive: true,
-                    id: { not: id }
-                },
-                data: { isActive: false }
-            })
-        }
+        // If activating, deactivate others (in a transaction)
+        const banner = await prisma.$transaction(async (tx) => {
+            if (newActiveState) {
+                await tx.announcementBanner.updateMany({
+                    where: {
+                        isActive: true,
+                        id: { not: id }
+                    },
+                    data: { isActive: false }
+                })
+            }
 
-        const banner = await prisma.announcementBanner.update({
-            where: { id },
-            data: { isActive: newActiveState }
+            return tx.announcementBanner.update({
+                where: { id },
+                data: { isActive: newActiveState }
+            })
         })
 
         return NextResponse.json({

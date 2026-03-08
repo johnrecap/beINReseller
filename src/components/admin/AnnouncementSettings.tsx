@@ -9,6 +9,15 @@ import { Loader2, Plus, Trash2, Eye, Save, Power } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
 import { ImageUpload } from '@/components/ui/ImageUpload'
+import {
+    ANIMATION_TYPE_OPTIONS,
+    TEXT_SIZE_OPTIONS,
+    POSITION_OPTIONS,
+    PRESET_GRADIENTS,
+    MESSAGE_MAX_LENGTH,
+    IMAGE_ALT_MAX_LENGTH,
+} from '@/lib/announcement/constants'
+import { resolveUploadedImageSrc } from '@/lib/announcement/helpers'
 
 interface Banner {
     id: string
@@ -24,42 +33,6 @@ interface Banner {
     startDate: string | null
     endDate: string | null
     createdAt: string
-}
-
-const animationTypes = [
-    { value: 'gradient', label: 'Gradient', labelEn: 'Gradient' },
-    { value: 'typing', label: 'Typing', labelEn: 'Typing' },
-    { value: 'glow', label: 'Glow', labelEn: 'Glow' },
-    { value: 'slide', label: 'Slide', labelEn: 'Slide' },
-    { value: 'marquee', label: 'Marquee', labelEn: 'Marquee' },
-    { value: 'none', label: 'None', labelEn: 'None' }
-]
-
-const textSizes = [
-    { value: 'small', label: 'Small', labelEn: 'Small' },
-    { value: 'medium', label: 'Medium', labelEn: 'Medium' },
-    { value: 'large', label: 'Large', labelEn: 'Large' }
-]
-
-const positions = [
-    { value: 'top', label: 'Top', labelEn: 'Top' },
-    { value: 'bottom', label: 'Bottom', labelEn: 'Bottom' },
-    { value: 'floating', label: 'Floating', labelEn: 'Floating' }
-]
-
-const presetGradients = [
-    { name: 'Matrix', colors: ['#00ff00', '#00cc00', '#00ff00'] },
-    { name: 'Fire', colors: ['#ff0080', '#ff8c00', '#ffff00'] },
-    { name: 'Ocean', colors: ['#00d2ff', '#3a7bd5', '#00d2ff'] },
-    { name: 'Neon', colors: ['#00ff87', '#60efff', '#00ff87'] },
-    { name: 'Rainbow', colors: ['#ff0080', '#ff8c00', '#40e0d0', '#8e2de2', '#ff0080'] }
-]
-
-function resolveUploadedImageSrc(url?: string | null): string {
-    if (!url) return ''
-    return url.startsWith('/uploads/')
-        ? `/api/uploads/${url.replace(/^\/uploads\//, '')}`
-        : url
 }
 
 export default function AnnouncementSettings() {
@@ -266,12 +239,12 @@ export default function AnnouncementSettings() {
                                 onChange={(e) => setMessage(e.target.value)}
                                 className="w-full p-3 bg-secondary border border-border rounded-lg resize-none"
                                 rows={3}
-                                maxLength={500}
+                                maxLength={MESSAGE_MAX_LENGTH}
                                 placeholder="Enter announcement text here..."
                                 dir="auto"
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                                {message.length}/500 chars
+                                {message.length}/{MESSAGE_MAX_LENGTH} chars
                             </p>
                         </div>
 
@@ -289,11 +262,11 @@ export default function AnnouncementSettings() {
                                 value={imageAlt}
                                 onChange={(e) => setImageAlt(e.target.value)}
                                 className="w-full mt-3 p-3 bg-secondary border border-border rounded-lg"
-                                maxLength={120}
+                                maxLength={IMAGE_ALT_MAX_LENGTH}
                                 placeholder="Image alt text (optional)"
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                                {imageAlt.length}/120 chars
+                                {imageAlt.length}/{IMAGE_ALT_MAX_LENGTH} chars
                             </p>
                         </div>
 
@@ -301,7 +274,7 @@ export default function AnnouncementSettings() {
                         <div>
                             <label className="block text-sm font-medium mb-2">Animation Type</label>
                             <div className="grid grid-cols-3 gap-2">
-                                {animationTypes.map((type) => (
+                                {ANIMATION_TYPE_OPTIONS.map((type) => (
                                     <button
                                         key={type.value}
                                         onClick={() => setAnimationType(type.value)}
@@ -312,7 +285,7 @@ export default function AnnouncementSettings() {
                                                 : "border-border hover:border-primary/50"
                                         )}
                                     >
-                                        {language === 'ar' ? type.label : type.labelEn}
+                                        {language === 'ar' ? type.labelAr : type.labelEn}
                                     </button>
                                 ))}
                             </div>
@@ -322,13 +295,13 @@ export default function AnnouncementSettings() {
                         <div>
                             <label className="block text-sm font-medium mb-2">Gradient Colors</label>
                             <div className="flex gap-2 flex-wrap">
-                                {presetGradients.map((preset) => (
+                                {PRESET_GRADIENTS.map((preset) => (
                                     <button
                                         key={preset.name}
-                                        onClick={() => setColors(preset.colors)}
+                                        onClick={() => setColors([...preset.colors])}
                                         className={cn(
                                             "px-3 py-2 rounded-lg border text-sm transition-all",
-                                            JSON.stringify(colors) === JSON.stringify(preset.colors)
+                                            JSON.stringify(colors) === JSON.stringify([...preset.colors])
                                                 ? "border-primary ring-2 ring-primary/30"
                                                 : "border-border hover:border-primary/50"
                                         )}
@@ -337,7 +310,7 @@ export default function AnnouncementSettings() {
                                         }}
                                     >
                                         <span className="text-white font-medium drop-shadow-md">
-                                            {preset.name}
+                                            {language === 'ar' ? preset.nameAr : preset.name}
                                         </span>
                                     </button>
                                 ))}
@@ -348,7 +321,7 @@ export default function AnnouncementSettings() {
                         <div>
                             <label className="block text-sm font-medium mb-2">Text Size</label>
                             <div className="flex gap-2">
-                                {textSizes.map((size) => (
+                                {TEXT_SIZE_OPTIONS.map((size) => (
                                     <button
                                         key={size.value}
                                         onClick={() => setTextSize(size.value)}
@@ -359,7 +332,7 @@ export default function AnnouncementSettings() {
                                                 : "border-border hover:border-primary/50"
                                         )}
                                     >
-                                        {language === 'ar' ? size.label : size.labelEn}
+                                        {language === 'ar' ? size.labelAr : size.labelEn}
                                     </button>
                                 ))}
                             </div>
@@ -369,7 +342,7 @@ export default function AnnouncementSettings() {
                         <div>
                             <label className="block text-sm font-medium mb-2">Position</label>
                             <div className="flex gap-2">
-                                {positions.map((pos) => (
+                                {POSITION_OPTIONS.map((pos) => (
                                     <button
                                         key={pos.value}
                                         onClick={() => setPosition(pos.value)}
@@ -380,7 +353,7 @@ export default function AnnouncementSettings() {
                                                 : "border-border hover:border-primary/50"
                                         )}
                                     >
-                                        {language === 'ar' ? pos.label : pos.labelEn}
+                                        {language === 'ar' ? pos.labelAr : pos.labelEn}
                                     </button>
                                 ))}
                             </div>
@@ -532,13 +505,13 @@ export default function AnnouncementSettings() {
                                                 </p>
                                                 <div className="flex flex-wrap gap-2 mt-2">
                                                     <span className="text-xs px-2 py-1 rounded bg-secondary">
-                                                        {animationTypes.find(a => a.value === banner.animationType)?.label}
+                                                        {ANIMATION_TYPE_OPTIONS.find(a => a.value === banner.animationType)?.labelEn}
                                                     </span>
                                                     <span className="text-xs px-2 py-1 rounded bg-secondary">
-                                                        {textSizes.find(s => s.value === banner.textSize)?.label}
+                                                        {TEXT_SIZE_OPTIONS.find(s => s.value === banner.textSize)?.labelEn}
                                                     </span>
                                                     <span className="text-xs px-2 py-1 rounded bg-secondary">
-                                                        {positions.find(p => p.value === banner.position)?.label}
+                                                        {POSITION_OPTIONS.find(p => p.value === banner.position)?.labelEn}
                                                     </span>
                                                     {banner.imageUrl && (
                                                         <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400">

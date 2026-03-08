@@ -12,6 +12,7 @@ import { Upload, X, Loader2, ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { resolveUploadedImageSrc } from '@/lib/announcement/helpers'
 
 interface ImageUploadProps {
     value: string | string[]
@@ -20,12 +21,6 @@ interface ImageUploadProps {
     multiple?: boolean
     maxFiles?: number
     className?: string
-}
-
-function resolveUploadedImageSrc(url: string): string {
-    return url.startsWith('/uploads/')
-        ? `/api/uploads/${url.replace(/^\/uploads\//, '')}`
-        : url
 }
 
 export function ImageUpload({
@@ -105,16 +100,9 @@ export function ImageUpload({
         }
     }, [images, multiple, maxFiles, type, onChange])
 
-    const handleRemove = useCallback(async (urlToRemove: string) => {
-        // Optional: Delete from server
-        try {
-            await fetch(`/api/admin/upload?url=${encodeURIComponent(urlToRemove)}`, {
-                method: 'DELETE'
-            })
-        } catch (error) {
-            // Ignore delete errors, just remove from UI
-        }
-
+    const handleRemove = useCallback((urlToRemove: string) => {
+        // Only update form state — actual file deletion is handled
+        // by API routes after successful DB write (orphan-safe)
         if (multiple) {
             onChange(images.filter(url => url !== urlToRemove))
         } else {
@@ -150,7 +138,7 @@ export function ImageUpload({
                     multiple ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-1'
                 )}>
                     {images.map((url, index) => (
-                        <div 
+                        <div
                             key={`${url}-${index}`}
                             className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
                         >
@@ -213,7 +201,7 @@ export function ImageUpload({
                                     {dragActive ? 'Drop image here' : 'Click or drag image to upload'}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    {multiple 
+                                    {multiple
                                         ? `Up to ${maxFiles} images, max 5MB each`
                                         : 'JPG, PNG, WebP or GIF (max 5MB)'
                                     }

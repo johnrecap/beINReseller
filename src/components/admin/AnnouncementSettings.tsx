@@ -18,6 +18,7 @@ import {
     IMAGE_ALT_MAX_LENGTH,
 } from '@/lib/announcement/constants'
 import { resolveUploadedImageSrc } from '@/lib/announcement/helpers'
+import AnnouncementBannerView from '@/components/announcements/AnnouncementBannerView'
 
 interface Banner {
     id: string
@@ -200,7 +201,7 @@ export default function AnnouncementSettings() {
         )
     }
 
-    const previewImageSrc = resolveUploadedImageSrc(imageUrl)
+
 
     return (
         <div className="space-y-6">
@@ -388,45 +389,24 @@ export default function AnnouncementSettings() {
                             </div>
                         </div>
 
-                        {/* Preview */}
+                        {/* Preview — uses the same renderer as the live banner */}
                         <div>
                             <label className="block text-sm font-medium mb-2 flex items-center gap-2">
                                 <Eye className="w-4 h-4" />
                                 Preview
                             </label>
-                            <div className="p-4 bg-black/60 rounded-lg border border-border">
-                                {previewImageSrc && (
-                                    <div className="mb-3 flex justify-center">
-                                        <img
-                                            src={previewImageSrc}
-                                            alt={imageAlt || 'Announcement image preview'}
-                                            className="h-20 w-auto rounded-md border border-border object-cover"
-                                        />
-                                    </div>
-                                )}
-                                <p
-                                    className={cn(
-                                        "text-center font-semibold whitespace-pre-line break-words leading-relaxed",
-                                        textSize === 'small' && 'text-sm',
-                                        textSize === 'medium' && 'text-base',
-                                        textSize === 'large' && 'text-lg'
-                                    )}
-                                    style={{
-                                        background: animationType === 'gradient'
-                                            ? `linear-gradient(90deg, ${colors.join(', ')})`
-                                            : 'none',
-                                        backgroundSize: '300% 100%',
-                                        WebkitBackgroundClip: animationType === 'gradient' ? 'text' : 'unset',
-                                        backgroundClip: animationType === 'gradient' ? 'text' : 'unset',
-                                        WebkitTextFillColor: animationType === 'gradient' ? 'transparent' : 'unset',
-                                        color: animationType !== 'gradient' ? colors[0] : 'unset',
-                                        animation: animationType === 'gradient' ? 'gradient-flow 4s ease infinite' : 'none',
-                                        textShadow: animationType === 'glow' ? `0 0 20px ${colors[0]}` : 'none'
-                                    }}
-                                >
-                                    {message || 'Announcement text will appear here...'}
-                                </p>
-                            </div>
+                            <AnnouncementBannerView
+                                banner={{
+                                    message,
+                                    imageUrl: imageUrl || null,
+                                    imageAlt: imageAlt || null,
+                                    animationType,
+                                    colors,
+                                    textSize,
+                                    position,
+                                }}
+                                previewMode
+                            />
                         </div>
 
                         {/* Actions */}

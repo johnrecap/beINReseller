@@ -13,7 +13,10 @@
  */
 
 import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import pg from 'pg'
 import crypto from 'crypto'
+import 'dotenv/config'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
@@ -58,7 +61,10 @@ async function main() {
     getEncryptionKey()
     console.log('✅ BEIN_ENCRYPTION_KEY is valid\n')
 
-    const prisma = new PrismaClient()
+    // Use the same adapter pattern as the project
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
+    const adapter = new PrismaPg(pool)
+    const prisma = new PrismaClient({ adapter })
 
     try {
         const accounts = await prisma.beinAccount.findMany({

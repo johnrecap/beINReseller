@@ -2,12 +2,20 @@
 
 import { useEffect, useRef, useSyncExternalStore, type JSX } from 'react'
 
-const DEFAULT_TRAIL_COLORS = ['#00A651', '#00c764', '#3b82f6', '#60a5fa', '#f59e0b'] as const
-const DEFAULT_CLICK_COLORS = ['#00A651', '#22c55e', '#ffffff', '#f59e0b'] as const
+/* ── palette defaults ─────────────────────────────────────── */
+const DEFAULT_TRAIL_COLORS = ['#00A651', '#00c764', '#3b82f6', '#60a5fa', '#f59e0b']
+const DEFAULT_CLICK_COLORS = ['#00A651', '#22c55e', '#ffffff', '#f59e0b']
 const DEFAULT_RING_COLOR = 'rgba(0, 166, 81, 0.6)'
 const TAU = Math.PI * 2
-const TRAIL_SPAWN_INTERVAL_MS = 16
-const MAX_ACTIVE_RINGS = 4
+
+/* ── tunables ─────────────────────────────────────────────── */
+const TRAIL_THROTTLE_MS = 30          // spawn trail every 30 ms max
+const TRAIL_COUNT_MIN = 1             // particles per accepted mousemove
+const TRAIL_COUNT_MAX = 2
+const CLICK_COUNT_MIN = 5             // particles per click burst
+const CLICK_COUNT_MAX = 8
+const MAX_RINGS = 3
+const DPR_CAP = 1.5                   // never allocate > 1.5x backing pixels
 
 export interface CursorEffectsProps {
     enabled?: boolean
@@ -19,6 +27,7 @@ export interface CursorEffectsProps {
     maxParticles?: number
 }
 
+/* ── internal types ───────────────────────────────────────── */
 interface Particle {
     x: number
     y: number
@@ -26,78 +35,50 @@ interface Particle {
     vy: number
     gravity: number
     color: string
-    initialSize: number
-    initialAlpha: number
-    glowRadius: number
-    lifeMs: number
-    createdAt: number
+    size: number
+    alpha: number
+    life: number        // remaining 0→1
+    decay: number       // how much life decreases per dt
 }
 
-interface RingRipple {
+interface Ring {
     x: number
     y: number
-    maxRadius: number
-    initialLineWidth: number
+    progress: number    // 0→1
+    speed: number       // progress increment per dt
     color: string
-    lifeMs: number
-    createdAt: number
 }
 
-interface CanvasSize {
-    width: number
-    height: number
-    dpr: number
-}
-
-function randomBetween(min: number, max: number): number {
+/* ── helpers ──────────────────────────────────────────────── */
+function rand(min: number, max: number) {
     return min + Math.random() * (max - min)
 }
-
-function randomInt(min: number, max: number): number {
-    return Math.floor(randomBetween(min, max + 1))
+function randInt(min: number, max: number) {
+    return Math.floor(rand(min, max + 1))
+}
+function pick(arr: string[]) {
+    return arr[Math.floor(Math.random() * arr.length)]
+}
+function palette(custom: string[] | undefined, fallback: string[]): string[] {
+    const c = custom?.filter(s => s.trim().length > 0)
+    return c && c.length > 0 ? c : fallback
 }
 
-function pickRandomColor(colors: string[]): string {
-    return colors[randomInt(0, colors.length - 1)]
-}
-
-function normalizeColors(colors: string[] | undefined, fallback: readonly string[]): string[] {
-    const filteredColors = colors?.map((color) => color.trim()).filter((color) => color.length > 0) ?? []
-    return filteredColors.length > 0 ? filteredColors : [...fallback]
-}
-
-function attachMediaQueryListener(query: MediaQueryList, handler: () => void): () => void {
-    if (typeof query.addEventListener === 'function') {
-        query.addEventListener('change', handler)
-        return () => query.removeEventListener('change', handler)
-    }
-
-    const legacyHandler = handler as unknown as (this: MediaQueryList, event: MediaQueryListEvent) => void
-    query.addListener(legacyHandler)
-    return () => query.removeListener(legacyHandler)
-}
-
-function useMediaQuery(query: string): boolean {
+/* ── media query hook (SSR-safe) ──────────────────────────── */
+function useMedia(query: string): boolean {
     return useSyncExternalStore(
-        (onStoreChange) => {
-            if (typeof window === 'undefined') {
-                return () => undefined
-            }
-
-            const mediaQuery = window.matchMedia(query)
-            return attachMediaQueryListener(mediaQuery, onStoreChange)
+        cb => {
+            if (typeof window === 'undefined') return () => { }
+            const mql = window.matchMedia(query)
+            mql.addEventListener('change', cb)
+            return () => mql.removeEventListener('change', cb)
         },
-        () => {
-            if (typeof window === 'undefined') {
-                return false
-            }
-
-            return window.matchMedia(query).matches
-        },
+        () => typeof window !== 'undefined' && window.matchMedia(query).matches,
         () => false,
     )
 }
 
+/* ── component ────────────────────────────────────────────── */
 export function CursorEffects({
     enabled = true,
     trailEnabled = true,
@@ -105,304 +86,198 @@ export function CursorEffects({
     trailColors,
     clickColors,
     ringColor = DEFAULT_RING_COLOR,
-    maxParticles = 80,
+    maxParticles = 50,
 }: CursorEffectsProps): JSX.Element | null {
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
-    const particlesRef = useRef<Particle[]>([])
-    const ringsRef = useRef<RingRipple[]>([])
-    const animationFrameRef = useRef<number | null>(null)
-    const lastFrameTimeRef = useRef<number | null>(null)
-    const lastTrailSpawnTimeRef = useRef(0)
-    const canvasSizeRef = useRef<CanvasSize>({ width: 0, height: 0, dpr: 1 })
-    const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
-    const hasFinePointer = useMediaQuery('(any-hover: hover) and (any-pointer: fine)')
-    const shouldRender = enabled && (trailEnabled || clickEnabled) && !prefersReducedMotion && hasFinePointer
+    const reducedMotion = useMedia('(prefers-reduced-motion: reduce)')
+    const finePointer = useMedia('(any-hover: hover) and (any-pointer: fine)')
+    const active = enabled && (trailEnabled || clickEnabled) && !reducedMotion && finePointer
 
     useEffect(() => {
-        if (!shouldRender) {
-            return
-        }
+        if (!active) return
 
         const canvas = canvasRef.current
-        if (!canvas) {
-            return
+        if (!canvas) return
+        const ctx = canvas.getContext('2d', { alpha: true })
+        if (!ctx) return
+
+        const tPalette = palette(trailColors, DEFAULT_TRAIL_COLORS)
+        const cPalette = palette(clickColors, DEFAULT_CLICK_COLORS)
+        const rColor = ringColor.trim() || DEFAULT_RING_COLOR
+        const cap = Math.max(0, Math.floor(maxParticles))
+
+        let particles: Particle[] = []
+        let rings: Ring[] = []
+        let rafId: number | null = null
+        let lastSpawn = 0
+        let w = 0
+        let h = 0
+
+        /* ── canvas sizing ──────────────────────────────── */
+        const resize = () => {
+            w = window.innerWidth
+            h = window.innerHeight
+            const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP)
+            canvas.style.width = `${w}px`
+            canvas.style.height = `${h}px`
+            canvas.width = Math.floor(w * dpr)
+            canvas.height = Math.floor(h * dpr)
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
         }
 
-        const context = canvas.getContext('2d')
-        if (!context) {
-            return
-        }
+        /* ── animation loop ─────────────────────────────── */
+        const tick = () => {
+            rafId = null
 
-        const trailPalette = normalizeColors(trailColors, DEFAULT_TRAIL_COLORS)
-        const clickPalette = normalizeColors(clickColors, DEFAULT_CLICK_COLORS)
-        const resolvedRingColor = ringColor.trim().length > 0 ? ringColor : DEFAULT_RING_COLOR
-        const particleLimit = Math.max(0, Math.floor(maxParticles))
+            try {
+                ctx.clearRect(0, 0, w, h)
 
-        const stopAnimation = () => {
-            if (animationFrameRef.current !== null) {
-                cancelAnimationFrame(animationFrameRef.current)
-                animationFrameRef.current = null
-            }
-            lastFrameTimeRef.current = null
-        }
+                // update & draw particles
+                let alive = 0
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i]
+                    p.life -= p.decay
+                    if (p.life <= 0) continue
 
-        const clearCanvas = () => {
-            context.setTransform(canvasSizeRef.current.dpr, 0, 0, canvasSizeRef.current.dpr, 0, 0)
-            context.clearRect(0, 0, canvasSizeRef.current.width, canvasSizeRef.current.height)
-            context.globalAlpha = 1
-        }
+                    p.vy += p.gravity
+                    p.x += p.vx
+                    p.y += p.vy
+                    p.alpha = p.life
+                    p.size *= 0.98
 
-        const resizeCanvas = () => {
-            const width = window.innerWidth
-            const height = window.innerHeight
-            const dpr = Math.min(window.devicePixelRatio || 1, 2)
+                    if (p.size < 0.3) continue
 
-            canvasSizeRef.current = { width, height, dpr }
-            canvas.style.width = `${width}px`
-            canvas.style.height = `${height}px`
-            canvas.width = Math.floor(width * dpr)
-            canvas.height = Math.floor(height * dpr)
-            context.setTransform(dpr, 0, 0, dpr, 0, 0)
-            context.lineCap = 'round'
-            context.lineJoin = 'round'
-            clearCanvas()
-        }
+                    ctx.globalAlpha = p.alpha
+                    ctx.fillStyle = p.color
+                    ctx.beginPath()
+                    ctx.arc(p.x, p.y, p.size, 0, TAU)
+                    ctx.fill()
 
-        const trimParticleOverflow = (incomingCount: number) => {
-            if (particleLimit <= 0) {
-                particlesRef.current = []
-                return
-            }
-
-            const overflow = particlesRef.current.length + incomingCount - particleLimit
-            if (overflow > 0) {
-                particlesRef.current.splice(0, overflow)
-            }
-        }
-
-        const drawFrame = (timestamp: number) => {
-            const previousFrameTime = lastFrameTimeRef.current
-            const delta = previousFrameTime === null
-                ? 1
-                : Math.min((timestamp - previousFrameTime) / 16.67, 2)
-
-            lastFrameTimeRef.current = timestamp
-            clearCanvas()
-
-            const nextParticles: Particle[] = []
-            for (const particle of particlesRef.current) {
-                const progress = (timestamp - particle.createdAt) / particle.lifeMs
-                if (progress >= 1) {
-                    continue
+                    particles[alive++] = p
                 }
+                particles.length = alive
 
-                particle.vy += particle.gravity * delta
-                particle.x += particle.vx * delta
-                particle.y += particle.vy * delta
+                // update & draw rings
+                let rAlive = 0
+                for (let i = 0; i < rings.length; i++) {
+                    const r = rings[i]
+                    r.progress += r.speed
+                    if (r.progress >= 1) continue
 
-                const alpha = particle.initialAlpha * (1 - progress)
-                const size = particle.initialSize * (1 - progress)
-                if (alpha <= 0.01 || size <= 0.1) {
-                    continue
+                    const radius = 35 * r.progress
+                    const fade = 1 - r.progress
+                    ctx.globalAlpha = fade * 0.5
+                    ctx.strokeStyle = r.color
+                    ctx.lineWidth = 1.5 * fade
+                    ctx.beginPath()
+                    ctx.arc(r.x, r.y, radius, 0, TAU)
+                    ctx.stroke()
+
+                    rings[rAlive++] = r
                 }
+                rings.length = rAlive
 
-                // Cheap glow: draw a larger semi-transparent circle behind the particle
-                const glowSize = particle.glowRadius * (1 - progress * 0.35)
-                if (glowSize > 0.5) {
-                    context.globalAlpha = alpha * 0.2
-                    context.fillStyle = particle.color
-                    context.beginPath()
-                    context.arc(particle.x, particle.y, glowSize, 0, TAU)
-                    context.fill()
-                }
-
-                // Core particle
-                context.globalAlpha = alpha
-                context.fillStyle = particle.color
-                context.beginPath()
-                context.arc(particle.x, particle.y, size, 0, TAU)
-                context.fill()
-
-                nextParticles.push(particle)
+                ctx.globalAlpha = 1
+            } catch {
+                // swallow to keep RAF chain alive
             }
 
-            const nextRings: RingRipple[] = []
-            for (const ring of ringsRef.current) {
-                const progress = (timestamp - ring.createdAt) / ring.lifeMs
-                if (progress >= 1) {
-                    continue
-                }
-
-                const easedProgress = 1 - (1 - progress) * (1 - progress)
-                const lineWidth = ring.initialLineWidth * (1 - progress)
-                if (lineWidth <= 0.05) {
-                    continue
-                }
-
-                const ringRadius = ring.maxRadius * easedProgress
-                const ringAlpha = 1 - progress
-
-                // Cheap outer glow stroke
-                if (lineWidth > 0.3) {
-                    context.globalAlpha = ringAlpha * 0.25
-                    context.strokeStyle = ring.color
-                    context.lineWidth = lineWidth * 3
-                    context.beginPath()
-                    context.arc(ring.x, ring.y, ringRadius, 0, TAU)
-                    context.stroke()
-                }
-
-                // Core ring stroke
-                context.globalAlpha = ringAlpha
-                context.strokeStyle = ring.color
-                context.lineWidth = lineWidth
-                context.beginPath()
-                context.arc(ring.x, ring.y, ringRadius, 0, TAU)
-                context.stroke()
-
-                nextRings.push(ring)
+            if (particles.length > 0 || rings.length > 0) {
+                rafId = requestAnimationFrame(tick)
             }
-
-            context.globalAlpha = 1
-
-            particlesRef.current = nextParticles
-            ringsRef.current = nextRings
-
-            if (nextParticles.length > 0 || nextRings.length > 0) {
-                animationFrameRef.current = requestAnimationFrame(drawFrame)
-                return
-            }
-
-            animationFrameRef.current = null
-            lastFrameTimeRef.current = null
         }
 
-        const ensureAnimationLoop = () => {
-            if (animationFrameRef.current !== null) {
-                return
+        const kick = () => {
+            if (rafId === null && (particles.length > 0 || rings.length > 0)) {
+                rafId = requestAnimationFrame(tick)
             }
-
-            if (particlesRef.current.length === 0 && ringsRef.current.length === 0) {
-                return
-            }
-
-            lastFrameTimeRef.current = null
-            animationFrameRef.current = requestAnimationFrame(drawFrame)
         }
 
-        const handleMouseMove = (event: MouseEvent) => {
-            if (!trailEnabled) {
-                return
+        /* ── spawn helpers ──────────────────────────────── */
+        const spawnTrail = (x: number, y: number) => {
+            const count = randInt(TRAIL_COUNT_MIN, TRAIL_COUNT_MAX)
+            for (let i = 0; i < count; i++) {
+                if (particles.length >= cap) particles.shift()
+                particles.push({
+                    x,
+                    y,
+                    vx: rand(-1.5, 1.5),
+                    vy: rand(-2, 0.5),
+                    gravity: rand(0.04, 0.09),
+                    color: pick(tPalette),
+                    size: rand(2, 4),
+                    alpha: 0.85,
+                    life: 1,
+                    decay: rand(0.015, 0.03),
+                })
             }
-
-            if (event.timeStamp - lastTrailSpawnTimeRef.current < TRAIL_SPAWN_INTERVAL_MS) {
-                return
-            }
-
-            lastTrailSpawnTimeRef.current = event.timeStamp
-
-            const particleCount = randomInt(2, 3)
-            const createdAt = performance.now()
-            trimParticleOverflow(particleCount)
-
-            if (particleLimit > 0) {
-                for (let index = 0; index < particleCount; index += 1) {
-                    particlesRef.current.push({
-                        x: event.clientX,
-                        y: event.clientY,
-                        vx: randomBetween(-0.8, 0.8),
-                        vy: randomBetween(-0.35, 0.45),
-                        gravity: randomBetween(0.03, 0.06),
-                        color: pickRandomColor(trailPalette),
-                        initialSize: randomBetween(1.5, 4),
-                        initialAlpha: 0.8,
-                        glowRadius: randomBetween(6, 10),
-                        lifeMs: randomBetween(400, 800),
-                        createdAt,
-                    })
-                }
-            }
-
-            ensureAnimationLoop()
         }
 
-        const handleMouseDown = (event: MouseEvent) => {
-            if (!clickEnabled || event.button !== 0) {
-                return
+        const spawnBurst = (x: number, y: number) => {
+            const count = randInt(CLICK_COUNT_MIN, CLICK_COUNT_MAX)
+            for (let i = 0; i < count; i++) {
+                if (particles.length >= cap) particles.shift()
+                const angle = (TAU / count) * i + rand(-0.25, 0.25)
+                const speed = rand(2.5, 5)
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    gravity: rand(0.02, 0.05),
+                    color: pick(cPalette),
+                    size: rand(2.5, 5),
+                    alpha: 0.9,
+                    life: 1,
+                    decay: rand(0.01, 0.022),
+                })
             }
-
-            const particleCount = randomInt(8, 12)
-            const createdAt = performance.now()
-            trimParticleOverflow(particleCount)
-
-            if (particleLimit > 0) {
-                const angleStep = TAU / particleCount
-                for (let index = 0; index < particleCount; index += 1) {
-                    const angle = index * angleStep + randomBetween(-0.18, 0.18)
-                    const speed = randomBetween(1.8, 4.2)
-
-                    particlesRef.current.push({
-                        x: event.clientX,
-                        y: event.clientY,
-                        vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed,
-                        gravity: randomBetween(0.01, 0.03),
-                        color: pickRandomColor(clickPalette),
-                        initialSize: randomBetween(2, 5),
-                        initialAlpha: 0.9,
-                        glowRadius: randomBetween(8, 14),
-                        lifeMs: randomBetween(500, 1000),
-                        createdAt,
-                    })
-                }
-            }
-
-            if (ringsRef.current.length >= MAX_ACTIVE_RINGS) {
-                ringsRef.current.shift()
-            }
-
-            ringsRef.current.push({
-                x: event.clientX,
-                y: event.clientY,
-                maxRadius: 40,
-                initialLineWidth: 2,
-                color: resolvedRingColor,
-                lifeMs: 400,
-                createdAt,
-            })
-
-            ensureAnimationLoop()
+            // ring
+            if (rings.length >= MAX_RINGS) rings.shift()
+            rings.push({ x, y, progress: 0, speed: rand(0.035, 0.05), color: rColor })
         }
 
-        particlesRef.current = []
-        ringsRef.current = []
-        lastTrailSpawnTimeRef.current = 0
-        resizeCanvas()
+        /* ── event handlers ─────────────────────────────── */
+        const onMove = (e: MouseEvent) => {
+            if (!trailEnabled) return
+            const now = e.timeStamp
+            if (now - lastSpawn < TRAIL_THROTTLE_MS) return
+            lastSpawn = now
+            spawnTrail(e.clientX, e.clientY)
+            kick()
+        }
 
-        window.addEventListener('resize', resizeCanvas)
-        window.addEventListener('mousemove', handleMouseMove, { passive: true })
-        window.addEventListener('mousedown', handleMouseDown, { passive: true })
+        const onDown = (e: MouseEvent) => {
+            if (!clickEnabled || e.button !== 0) return
+            spawnBurst(e.clientX, e.clientY)
+            kick()
+        }
+
+        /* ── attach ─────────────────────────────────────── */
+        resize()
+        window.addEventListener('resize', resize)
+        window.addEventListener('mousemove', onMove, { passive: true })
+        window.addEventListener('mousedown', onDown, { passive: true })
 
         return () => {
-            stopAnimation()
-            window.removeEventListener('resize', resizeCanvas)
-            window.removeEventListener('mousemove', handleMouseMove)
-            window.removeEventListener('mousedown', handleMouseDown)
-            particlesRef.current = []
-            ringsRef.current = []
-            clearCanvas()
+            if (rafId !== null) cancelAnimationFrame(rafId)
+            window.removeEventListener('resize', resize)
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mousedown', onDown)
+            particles = []
+            rings = []
+            ctx.clearRect(0, 0, w, h)
         }
-    }, [shouldRender, trailEnabled, clickEnabled, trailColors, clickColors, ringColor, maxParticles])
+    }, [active, trailEnabled, clickEnabled, trailColors, clickColors, ringColor, maxParticles])
 
-    if (!shouldRender) {
-        return null
-    }
+    if (!active) return null
 
     return (
         <canvas
             ref={canvasRef}
             aria-hidden="true"
-            className="pointer-events-none fixed inset-0 z-[9999]"
+            className="pointer-events-none fixed inset-0"
+            style={{ zIndex: 50 }}
         />
     )
 }

@@ -28,7 +28,7 @@ interface Particle {
     color: string
     initialSize: number
     initialAlpha: number
-    shadowBlur: number
+    glowRadius: number
     lifeMs: number
     createdAt: number
 }
@@ -150,7 +150,6 @@ export function CursorEffects({
             context.setTransform(canvasSizeRef.current.dpr, 0, 0, canvasSizeRef.current.dpr, 0, 0)
             context.clearRect(0, 0, canvasSizeRef.current.width, canvasSizeRef.current.height)
             context.globalAlpha = 1
-            context.shadowBlur = 0
         }
 
         const resizeCanvas = () => {
@@ -207,10 +206,19 @@ export function CursorEffects({
                     continue
                 }
 
+                // Cheap glow: draw a larger semi-transparent circle behind the particle
+                const glowSize = particle.glowRadius * (1 - progress * 0.35)
+                if (glowSize > 0.5) {
+                    context.globalAlpha = alpha * 0.2
+                    context.fillStyle = particle.color
+                    context.beginPath()
+                    context.arc(particle.x, particle.y, glowSize, 0, TAU)
+                    context.fill()
+                }
+
+                // Core particle
                 context.globalAlpha = alpha
                 context.fillStyle = particle.color
-                context.shadowColor = particle.color
-                context.shadowBlur = particle.shadowBlur * (1 - progress * 0.35)
                 context.beginPath()
                 context.arc(particle.x, particle.y, size, 0, TAU)
                 context.fill()
@@ -231,20 +239,31 @@ export function CursorEffects({
                     continue
                 }
 
-                context.globalAlpha = 1 - progress
+                const ringRadius = ring.maxRadius * easedProgress
+                const ringAlpha = 1 - progress
+
+                // Cheap outer glow stroke
+                if (lineWidth > 0.3) {
+                    context.globalAlpha = ringAlpha * 0.25
+                    context.strokeStyle = ring.color
+                    context.lineWidth = lineWidth * 3
+                    context.beginPath()
+                    context.arc(ring.x, ring.y, ringRadius, 0, TAU)
+                    context.stroke()
+                }
+
+                // Core ring stroke
+                context.globalAlpha = ringAlpha
                 context.strokeStyle = ring.color
                 context.lineWidth = lineWidth
-                context.shadowColor = ring.color
-                context.shadowBlur = 12 * (1 - progress)
                 context.beginPath()
-                context.arc(ring.x, ring.y, ring.maxRadius * easedProgress, 0, TAU)
+                context.arc(ring.x, ring.y, ringRadius, 0, TAU)
                 context.stroke()
 
                 nextRings.push(ring)
             }
 
             context.globalAlpha = 1
-            context.shadowBlur = 0
 
             particlesRef.current = nextParticles
             ringsRef.current = nextRings
@@ -297,7 +316,7 @@ export function CursorEffects({
                         color: pickRandomColor(trailPalette),
                         initialSize: randomBetween(1.5, 4),
                         initialAlpha: 0.8,
-                        shadowBlur: randomBetween(8, 14),
+                        glowRadius: randomBetween(6, 10),
                         lifeMs: randomBetween(400, 800),
                         createdAt,
                     })
@@ -331,7 +350,7 @@ export function CursorEffects({
                         color: pickRandomColor(clickPalette),
                         initialSize: randomBetween(2, 5),
                         initialAlpha: 0.9,
-                        shadowBlur: randomBetween(10, 18),
+                        glowRadius: randomBetween(8, 14),
                         lifeMs: randomBetween(500, 1000),
                         createdAt,
                     })

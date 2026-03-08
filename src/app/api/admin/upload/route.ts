@@ -42,15 +42,15 @@ export async function POST(request: NextRequest) {
 
         // Validate file type
         if (!ALLOWED_TYPES.includes(file.type)) {
-            return NextResponse.json({ 
-                error: 'Invalid file type. Allowed: JPG, PNG, WebP, GIF' 
+            return NextResponse.json({
+                error: 'Invalid file type. Allowed: JPG, PNG, WebP, GIF'
             }, { status: 400 })
         }
 
         // Validate file size
         if (file.size > MAX_FILE_SIZE) {
-            return NextResponse.json({ 
-                error: 'File too large. Maximum size: 5MB' 
+            return NextResponse.json({
+                error: 'File too large. Maximum size: 5MB'
             }, { status: 400 })
         }
 
@@ -109,11 +109,18 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
         }
 
-        const filePath = path.join(process.cwd(), 'public', url)
-        
+        // SECURITY: Resolve and verify path stays inside uploads root
+        const uploadsRoot = path.resolve(process.cwd(), 'public', 'uploads')
+        const resolvedPath = path.resolve(process.cwd(), 'public', url)
+
+        if (!resolvedPath.startsWith(uploadsRoot + path.sep)) {
+            return NextResponse.json({ error: 'Invalid file path' }, { status: 400 })
+        }
+
         // Use dynamic import for unlink
         const { unlink } = await import('fs/promises')
-        await unlink(filePath)
+        await unlink(resolvedPath)
+
 
         return NextResponse.json({ success: true })
     } catch (error) {

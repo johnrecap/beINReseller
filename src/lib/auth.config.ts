@@ -36,9 +36,10 @@ export const authConfig = {
         async jwt({ token, user, trigger, session }) {
             if (user) {
                 token.id = user.id as string
-                token.username = (user as any).username
-                token.role = (user as any).role
-                token.balance = (user as any).balance
+                token.username = (user as { username?: string }).username ?? ''
+                token.role = (user as { role?: string }).role ?? ''
+                token.balance = (user as { balance?: number }).balance ?? 0
+                token.passwordChangedAt = (user as { passwordChangedAt?: number }).passwordChangedAt ?? 0
             }
 
             if (trigger === 'update') {
@@ -53,6 +54,7 @@ export const authConfig = {
                 session.user.username = token.username as string
                 session.user.role = token.role as string
                 session.user.balance = token.balance as number
+                session.user.passwordChangedAt = token.passwordChangedAt as number
             }
             return session
         },

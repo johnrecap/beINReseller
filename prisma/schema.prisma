@@ -72,22 +72,23 @@ enum WalletTransactionType {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  username        String    @unique
-  email           String    @unique
-  passwordHash    String    @map("password_hash")
-  role            Role      @default(USER)
-  balance         Float     @default(0)
-  isActive        Boolean   @default(true) @map("is_active")
-  lowBalanceAlert Float     @default(50) @map("low_balance_alert")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  lastLoginAt     DateTime? @map("last_login_at")
-  deletedAt       DateTime? @map("deleted_at")
-  deletedBalance  Float?    @map("deleted_balance")
-  deletedByUserId String?   @map("deleted_by_user_id")
-  purgedAt        DateTime? @map("purged_at")
-  purgedByUserId  String?   @map("purged_by_user_id")
+  id                String    @id @default(cuid())
+  username          String    @unique
+  email             String    @unique
+  passwordHash      String    @map("password_hash")
+  role              Role      @default(USER)
+  balance           Float     @default(0)
+  isActive          Boolean   @default(true) @map("is_active")
+  lowBalanceAlert   Float     @default(50) @map("low_balance_alert")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  lastLoginAt       DateTime? @map("last_login_at")
+  deletedAt         DateTime? @map("deleted_at")
+  deletedBalance    Float?    @map("deleted_balance")
+  deletedByUserId   String?   @map("deleted_by_user_id")
+  purgedAt          DateTime? @map("purged_at")
+  purgedByUserId    String?   @map("purged_by_user_id")
+  passwordChangedAt DateTime? @map("password_changed_at")
 
   // ===== Enhanced Activity Tracking =====
   lastOperationAt     DateTime? @map("last_operation_at")
@@ -107,10 +108,10 @@ model User {
   notifications Notification[]
 
   // RBAC Relations
-  managedUsers   ManagerUser[] @relation("ManagerToUsers")
-  managerLink    ManagerUser[] @relation("UserToManager")
-  managerActions UserAction[]  @relation("ManagerActions")
-  userActions    UserAction[]  @relation("UserActions")
+  managedUsers            ManagerUser[]             @relation("ManagerToUsers")
+  managerLink             ManagerUser[]             @relation("UserToManager")
+  managerActions          UserAction[]              @relation("ManagerActions")
+  userActions             UserAction[]              @relation("UserActions")
   integrityIssues         OperationIntegrityIssue[] @relation("IntegrityIssueUser")
   reviewedIntegrityIssues OperationIntegrityIssue[] @relation("IntegrityIssueReviewer")
 
@@ -197,10 +198,10 @@ model Operation {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
 
-  user         User?         @relation(fields: [userId], references: [id])
-  customer     Customer?     @relation(fields: [customerId], references: [id])
-  beinAccount  BeinAccount?  @relation(fields: [beinAccountId], references: [id])
-  transactions Transaction[] @relation("OperationTransactions")
+  user            User?                     @relation(fields: [userId], references: [id])
+  customer        Customer?                 @relation(fields: [customerId], references: [id])
+  beinAccount     BeinAccount?              @relation(fields: [beinAccountId], references: [id])
+  transactions    Transaction[]             @relation("OperationTransactions")
   integrityIssues OperationIntegrityIssue[]
 
   // Store App - Links to customer subscription purchase
@@ -239,32 +240,32 @@ model Transaction {
 }
 
 model OperationIntegrityIssue {
-  id                String                 @id @default(cuid())
-  operationId       String                 @map("operation_id")
-  userId            String?                @map("user_id")
-  beinAccountId     String?                @map("bein_account_id")
-  issueType         IntegrityIssueType     @map("issue_type")
-  severity          IntegrityIssueSeverity @default(HIGH)
-  status            IntegrityIssueStatus   @default(OPEN)
-  operationAmount   Float?                 @map("operation_amount")
-  userDeductAmount  Float?                 @map("user_deduct_amount")
-  beinUsernameSnapshot String?             @map("bein_username_snapshot")
-  userBalanceBefore Float?                 @map("user_balance_before")
-  userBalanceAfter  Float?                 @map("user_balance_after")
-  beinBalanceBefore Float?                 @map("bein_balance_before")
-  beinBalanceAfter  Float?                 @map("bein_balance_after")
-  beinDelta         Float?                 @map("bein_delta")
-  details           Json?
-  detectedAt        DateTime               @default(now()) @map("detected_at")
-  lastSeenAt        DateTime               @default(now()) @map("last_seen_at")
-  reviewedById      String?                @map("reviewed_by_id")
-  reviewedAt        DateTime?              @map("reviewed_at")
-  reviewNote        String?                @map("review_note")
+  id                   String                 @id @default(cuid())
+  operationId          String                 @map("operation_id")
+  userId               String?                @map("user_id")
+  beinAccountId        String?                @map("bein_account_id")
+  issueType            IntegrityIssueType     @map("issue_type")
+  severity             IntegrityIssueSeverity @default(HIGH)
+  status               IntegrityIssueStatus   @default(OPEN)
+  operationAmount      Float?                 @map("operation_amount")
+  userDeductAmount     Float?                 @map("user_deduct_amount")
+  beinUsernameSnapshot String?                @map("bein_username_snapshot")
+  userBalanceBefore    Float?                 @map("user_balance_before")
+  userBalanceAfter     Float?                 @map("user_balance_after")
+  beinBalanceBefore    Float?                 @map("bein_balance_before")
+  beinBalanceAfter     Float?                 @map("bein_balance_after")
+  beinDelta            Float?                 @map("bein_delta")
+  details              Json?
+  detectedAt           DateTime               @default(now()) @map("detected_at")
+  lastSeenAt           DateTime               @default(now()) @map("last_seen_at")
+  reviewedById         String?                @map("reviewed_by_id")
+  reviewedAt           DateTime?              @map("reviewed_at")
+  reviewNote           String?                @map("review_note")
 
-  operation   Operation   @relation(fields: [operationId], references: [id], onDelete: Cascade)
-  user        User?       @relation("IntegrityIssueUser", fields: [userId], references: [id])
+  operation   Operation    @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  user        User?        @relation("IntegrityIssueUser", fields: [userId], references: [id])
   beinAccount BeinAccount? @relation(fields: [beinAccountId], references: [id])
-  reviewedBy  User?       @relation("IntegrityIssueReviewer", fields: [reviewedById], references: [id])
+  reviewedBy  User?        @relation("IntegrityIssueReviewer", fields: [reviewedById], references: [id])
 
   @@unique([operationId, issueType])
   @@index([status, detectedAt])
@@ -370,8 +371,8 @@ model BeinAccount {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // ===== Relations =====
-  operations Operation[]
-  sessions   BeinAccountSession[]
+  operations      Operation[]
+  sessions        BeinAccountSession[]
   integrityIssues OperationIntegrityIssue[]
 
   // ===== Proxy Assignment =====
@@ -447,7 +448,7 @@ model AnnouncementBanner {
   id String @id @default(cuid())
 
   // ===== Content =====
-  message String // Announcement text (max 200 chars)
+  message  String // Announcement text (max 200 chars)
   imageUrl String? @map("image_url") // Optional image displayed in announcement
   imageAlt String? @map("image_alt") // Optional alt text for accessibility
 

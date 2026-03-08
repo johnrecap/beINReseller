@@ -10,6 +10,7 @@ import { getRedisConnection } from '../lib/redis'
 import { PoolConfig, AccountHealth, PoolStatus, BeinAccount } from './types'
 import { checkRateLimit, recordRequest } from './rate-limiter'
 import { lockAccount, unlockAccount, isAccountLocked, extendLock } from './account-locking'
+import { decryptAccountPassword } from '../lib/crypto'
 
 const COUNTER_KEY = 'bein:pool:counter'
 const COOLDOWN_PREFIX = 'bein:account:cooldown:'
@@ -58,8 +59,8 @@ export class AccountPoolManager {
             await this.loadConfig()
         }
 
-        // Build where clause with customerOnly filter if specified
-        const whereClause: any = {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const whereClause: Record<string, any> = {
             isActive: true,
             OR: [
                 { cooldownUntil: null },
@@ -112,7 +113,7 @@ export class AccountPoolManager {
             }
 
             console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`)
-            return account
+            return decryptAccountPassword(account)
         }
 
         console.warn('⚠️ All accounts are rate-limited, in cooldown, or locked')
@@ -392,7 +393,6 @@ export class AccountPoolManager {
         maxDelayMs: number = 10000
     ): Promise<BeinAccount | null> {
         let delay = initialDelayMs
-        let lastError = ''
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             const account = await this.getNextAvailableAccount()
@@ -432,8 +432,8 @@ export class AccountPoolManager {
         if (!this.configLoaded) {
             await this.loadConfig()
         }
-
-        const whereClause: any = {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const whereClause: Record<string, any> = {
             isActive: true,
             id: { notIn: excludeAccountIds },
             OR: [
@@ -485,7 +485,7 @@ export class AccountPoolManager {
             }
 
             console.log(`✅ Selected alternative account: ${account.label || account.username} (Balance: ${account.dealerBalance || 'unknown'} USD)`)
-            return account
+            return decryptAccountPassword(account)
         }
 
         console.warn('⚠️ All alternative accounts are unavailable')
@@ -500,8 +500,8 @@ export class AccountPoolManager {
         if (!this.configLoaded) {
             await this.loadConfig()
         }
-
-        const whereClause: any = {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const whereClause: Record<string, any> = {
             isActive: true,
             OR: [
                 { cooldownUntil: null },

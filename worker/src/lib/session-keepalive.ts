@@ -21,7 +21,6 @@ import {
     getSessionFromCache,
     saveSessionToCache,
     getSessionTTL,
-    refreshSessionExpiry
 } from './session-cache';
 import {
     recordLoginFailure,
@@ -32,6 +31,7 @@ import { isAccountLocked } from '../pool/account-locking';
 import { checkAndNotifyLowBalance } from '../utils/notification';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from '../types/proxy';
+import { decryptAccountPassword } from './crypto';
 
 // Types
 interface AccountRefreshResult {
@@ -100,7 +100,7 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
                 await client.importSession(cachedSession);
                 client.markSessionValidFromCache(cachedSession.expiresAt);
             }
-        } catch (error) {
+        } catch {
             console.log(`[KeepAlive] Could not restore cached session for ${account.username}`);
         }
     }
@@ -264,13 +264,14 @@ export class SessionKeepAliveService {
                     }
                 }
 
-            } catch (error: any) {
-                console.error(`[KeepAlive] Error refreshing ${account.username}:`, error.message);
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                console.error(`[KeepAlive] Error refreshing ${account.username}:`, errorMessage);
                 results.push({
                     accountId: account.id,
                     username: account.username,
                     status: 'failed',
-                    error: error.message
+                    error: errorMessage
                 });
                 failed++;
             }
@@ -303,7 +304,9 @@ export class SessionKeepAliveService {
      * - Validates session on beIN server
      * - Performs full login if session expired
      */
-    async refreshSession(account: BeinAccount & { proxy?: Proxy | null }): Promise<AccountRefreshResult> {
+    async refreshSession(rawAccount: BeinAccount & { proxy?: Proxy | null }): Promise<AccountRefreshResult> {
+        // SECURITY: Decrypt encrypted password from DB
+        const account = decryptAccountPassword(rawAccount);
         const startTime = Date.now();
         const accountId = account.id;
         const username = account.username;
@@ -428,9 +431,10 @@ export class SessionKeepAliveService {
                         lastCaptchaError = finalLogin.error || 'Login failed after CAPTCHA';
                         break;
                     }
-                } catch (captchaError: any) {
-                    console.error(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt} error:`, captchaError.message);
-                    lastCaptchaError = captchaError.message;
+                } catch (captchaError: unknown) {
+                    const captchaMsg = captchaError instanceof Error ? captchaError.message : String(captchaError);
+                    console.error(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt} error:`, captchaMsg);
+                    lastCaptchaError = captchaMsg;
                     // On solve error, we need a fresh CAPTCHA — re-login to get one
                     if (attempt < MAX_CAPTCHA_RETRIES) {
                         try {

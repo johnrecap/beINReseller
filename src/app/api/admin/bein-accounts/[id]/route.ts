@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { encryptSecret } from '@/lib/crypto'
 import Redis from 'ioredis'
 
 interface RouteParams {
@@ -116,7 +117,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         const updateData: Record<string, string | number | boolean | null> = {}
 
         if (password !== undefined && password !== '') {
-            updateData.password = password
+            updateData.password = encryptSecret(password)
         }
         if (totpSecret !== undefined) {
             updateData.totpSecret = totpSecret || null

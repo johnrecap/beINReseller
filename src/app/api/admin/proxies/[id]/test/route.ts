@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
+import { HttpsProxyAgent } from 'https-proxy-agent'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -27,7 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: 'Proxy not found' }, { status: 404 })
         }
 
-        // Get proxy config from database (new schema)
+        // Get proxy config from database
         const { host, port, username, password } = proxy as {
             host: string
             port: number
@@ -35,29 +32,43 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             password: string | null
         }
 
+        // SECURITY: Validate host — only allow hostname/IP characters
+        if (!/^[a-zA-Z0-9.\-]+$/.test(host)) {
+            return NextResponse.json({ error: 'Invalid proxy host' }, { status: 400 })
+        }
+
+        // SECURITY: Validate port — must be a valid port number
+        if (!port || port < 1 || port > 65535) {
+            return NextResponse.json({ error: 'Invalid proxy port' }, { status: 400 })
+        }
+
         console.log(`Testing proxy: ${host}:${port}`)
 
         const start = Date.now()
 
         try {
-            // Build curl command based on auth
-            let curlCommand: string
+            // Build proxy URL safely with proper encoding
+            const proxyUrl = username && password
+                ? `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`
+                : `http://${host}:${port}`
 
-            if (username && password) {
-                // Authenticated proxy
-                curlCommand = `curl -k -s -x "http://${username}:${password}@${host}:${port}" https://api.ipify.org?format=json --max-time 15`
-            } else {
-                // Unauthenticated proxy
-                curlCommand = `curl -k -s -x "http://${host}:${port}" https://api.ipify.org?format=json --max-time 15`
+            const agent = new HttpsProxyAgent(proxyUrl)
+
+            // Use AbortController for timeout instead of shell --max-time
+            const controller = new AbortController()
+            const timeout = setTimeout(() => controller.abort(), 15000)
+
+            const response = await fetch('https://api.ipify.org?format=json', {
+                agent,
+                signal: controller.signal,
+            } as RequestInit)
+            clearTimeout(timeout)
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`)
             }
 
-            const { stdout, stderr } = await execAsync(curlCommand)
-
-            if (stderr && !stdout) {
-                throw new Error(stderr)
-            }
-
-            const data = JSON.parse(stdout.trim()) as { ip: string }
+            const data = await response.json() as { ip: string }
             const duration = Date.now() - start
             const ip = data.ip
 

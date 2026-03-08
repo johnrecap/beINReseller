@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import prisma from '@/lib/prisma'
 import { generateMobileToken } from '@/lib/mobile-auth'
 import { trackLogin } from '@/lib/services/activityTracker'
+import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { getClientIP } from '@/lib/security'
 
 /**
  * POST /api/mobile/login
@@ -40,6 +42,22 @@ import { trackLogin } from '@/lib/services/activityTracker'
  */
 export async function POST(request: NextRequest) {
     try {
+        // SECURITY: Rate limit login attempts by IP
+        const ip = getClientIP(request)
+        const { allowed, result: rateLimitResult } = await withRateLimit(
+            `reseller-login:${ip}`,
+            RATE_LIMITS.login
+        )
+        if (!allowed) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: 'Too many login attempts. Please try again later.'
+                },
+                { status: 429, headers: rateLimitHeaders(rateLimitResult) }
+            )
+        }
+
         const body = await request.json()
         const { username, password } = body
 

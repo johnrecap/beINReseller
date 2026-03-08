@@ -53,7 +53,7 @@ export async function POST(
 
         const body = await request.json()
         const { newPassword } = body
-        
+
         // Generate random password if not provided
         const passwordToSet = newPassword || Math.random().toString(36).slice(-8)
 
@@ -63,7 +63,10 @@ export async function POST(
         // Update user password
         await prisma.user.update({
             where: { id },
-            data: { passwordHash: hashedPassword }
+            data: {
+                passwordHash: hashedPassword,
+                passwordChangedAt: new Date(),
+            }
         })
 
         // Log activity

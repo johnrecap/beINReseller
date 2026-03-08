@@ -1,13 +1,14 @@
 import { auth } from './auth'
 import { redirect } from 'next/navigation'
 import { NextRequest } from 'next/server'
-import { 
-    Permission, 
-    roleHasPermission, 
+import {
+    Permission,
+    roleHasPermission,
     roleHasAnyPermission,
-    PERMISSIONS 
+    PERMISSIONS
 } from './permissions'
-import { getMobileUserFromRequest, MobileUser } from './mobile-auth'
+import { getMobileUserFromRequest } from './mobile-auth'
+import prisma from './prisma'
 
 /**
  * Unified user type for both web session and mobile token
@@ -22,11 +23,26 @@ export interface AuthenticatedUser {
 
 /**
  * Get the current authenticated user from session
- * Returns null if not authenticated
+ * Returns null if not authenticated or if password was changed after token was issued
  */
 export async function getAuthUser() {
     const session = await auth()
-    return session?.user || null
+    if (!session?.user?.id) return null
+
+    // SECURITY: Verify token hasn't been invalidated by password change
+    const dbUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { passwordChangedAt: true, isActive: true }
+    })
+
+    if (!dbUser || !dbUser.isActive) return null
+
+    const tokenPwdChangedAt = session.user.passwordChangedAt || 0
+    if (dbUser.passwordChangedAt && dbUser.passwordChangedAt.getTime() > tokenPwdChangedAt) {
+        return null // Token issued before password change — invalid
+    }
+
+    return session.user
 }
 
 export type RoleLevel = 'ADMIN' | 'MANAGER' | 'USER'
@@ -260,13 +276,13 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<Authen
             balance: session.user.balance,
         }
     }
-    
+
     // Step 2: Try mobile token (Bearer token from Authorization header)
     const mobileUser = getMobileUserFromRequest(request)
     if (mobileUser) {
         return mobileUser
     }
-    
+
     // No authentication found
     return null
 }
@@ -280,11 +296,11 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<Authen
  */
 export async function requireAuthAPI(request: NextRequest) {
     const user = await getAuthenticatedUser(request)
-    
+
     if (!user) {
         return { error: 'Unauthorized', status: 401 }
     }
-    
+
     return { user }
 }
 
@@ -297,15 +313,15 @@ export async function requireAuthAPI(request: NextRequest) {
  */
 export async function requireRoleAPIWithMobile(request: NextRequest, requiredRole: RoleLevel) {
     const user = await getAuthenticatedUser(request)
-    
+
     if (!user) {
         return { error: 'Unauthorized', status: 401 }
     }
-    
+
     if (!hasRole(user.role, requiredRole)) {
         return { error: 'Insufficient permissions', status: 403 }
     }
-    
+
     return { user }
 }
 
@@ -318,15 +334,15 @@ export async function requireRoleAPIWithMobile(request: NextRequest, requiredRol
  */
 export async function requirePermissionAPIWithMobile(request: NextRequest, permission: Permission) {
     const user = await getAuthenticatedUser(request)
-    
+
     if (!user) {
         return { error: 'Unauthorized', status: 401 }
     }
-    
+
     if (!roleHasPermission(user.role, permission)) {
         return { error: 'Insufficient permissions', status: 403 }
     }
-    
+
     return { user }
 }
 
@@ -339,14 +355,14 @@ export async function requirePermissionAPIWithMobile(request: NextRequest, permi
  */
 export async function requireAnyPermissionAPIWithMobile(request: NextRequest, permissions: Permission[]) {
     const user = await getAuthenticatedUser(request)
-    
+
     if (!user) {
         return { error: 'Unauthorized', status: 401 }
     }
-    
+
     if (!roleHasAnyPermission(user.role, permissions)) {
         return { error: 'Insufficient permissions', status: 403 }
     }
-    
+
     return { user }
 }

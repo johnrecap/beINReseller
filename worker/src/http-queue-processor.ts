@@ -18,6 +18,7 @@ import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from './types/proxy';
 import { trackOperationComplete } from './lib/activity-tracker';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
+import { decryptAccountPassword } from './lib/crypto';
 import {
     getSessionFromCache,
     saveSessionToCache,
@@ -1022,11 +1023,11 @@ async function handleApplyPromoHttp(
         return;
     }
 
-    // Get account
+    // Get account (decrypt password from DB)
     const account = await prisma.beinAccount.findUnique({
         where: { id: operation.beinAccountId },
         include: { proxy: true }
-    });
+    }).then(a => a ? decryptAccountPassword(a) : null);
 
     if (!account) {
         await prisma.operation.update({
@@ -1068,146 +1069,146 @@ async function handleApplyPromoHttp(
 
     try {
         const client = await getHttpClient(account);
-    const savedSessionData =
-        existingResponseData.sessionData && typeof existingResponseData.sessionData === 'object'
-            ? existingResponseData.sessionData as Record<string, unknown>
-            : null;
+        const savedSessionData =
+            existingResponseData.sessionData && typeof existingResponseData.sessionData === 'object'
+                ? existingResponseData.sessionData as Record<string, unknown>
+                : null;
 
-    if (savedSessionData && typeof savedSessionData.cookies === 'string') {
-        try {
-            await client.importSession(savedSessionData as unknown as Parameters<typeof client.importSession>[0]);
-            const expiresAt = typeof savedSessionData.expiresAt === 'number'
-                ? savedSessionData.expiresAt
-                : undefined;
-            client.markSessionValidFromCache(expiresAt);
-            console.log('[HTTP] Promo flow restored operation-scoped session snapshot');
-        } catch (sessionImportError: unknown) {
-            console.log(`[HTTP] Failed to import operation session snapshot: ${getErrMsg(sessionImportError)}`);
-        }
-    }
-
-    // Ensure session is active
-    if (!client.isSessionActive()) {
-        console.log(`[HTTP] ⚠️ Session expired for promo apply, restoring...`);
-        const cachedSession = await getSessionFromCache(account.id);
-        if (cachedSession) {
-            await client.importSession(cachedSession);
-            client.markSessionValidFromCache(cachedSession.expiresAt);
-            console.log(`[HTTP] ✅ Session restored from cache for promo`);
-        } else {
-            // Fresh login needed
-            const loginResult = await client.login(
-                account.username,
-                account.password,
-                account.totpSecret || undefined
-            );
-            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        responseData: JSON.stringify({
-                            ...existingResponseData,
-                            promoApplied: false,
-                            refreshing: false,
-                            error: 'Login requires CAPTCHA for promo apply'
-                        })
-                    }
-                });
-                return;
-            }
-
-            if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        responseData: JSON.stringify({
-                            ...existingResponseData,
-                            promoApplied: false,
-                            refreshing: false,
-                            error: 'Login failed for promo apply'
-                        })
-                    }
-                });
-                return;
-            }
-
-            await trackFreshLoginSuccess(account.id);
-            // Save session to cache
+        if (savedSessionData && typeof savedSessionData.cookies === 'string') {
             try {
-                const sessionData = await client.exportSession();
-                const sessionTimeout = client.getSessionTimeout();
-                await saveSessionToCache(account.id, sessionData, sessionTimeout);
-            } catch (saveError) {
-                console.error('[HTTP] Failed to save session to cache:', saveError);
+                await client.importSession(savedSessionData as unknown as Parameters<typeof client.importSession>[0]);
+                const expiresAt = typeof savedSessionData.expiresAt === 'number'
+                    ? savedSessionData.expiresAt
+                    : undefined;
+                client.markSessionValidFromCache(expiresAt);
+                console.log('[HTTP] Promo flow restored operation-scoped session snapshot');
+            } catch (sessionImportError: unknown) {
+                console.log(`[HTTP] Failed to import operation session snapshot: ${getErrMsg(sessionImportError)}`);
             }
         }
-    }
 
-    // Apply promo code
-    console.log(`[HTTP] 🎫 Applying promo code: ${promoCode}`);
-    const useCardNumber = cardNumber || operation.cardNumber;
-    const result = await client.applyPromoCode(promoCode, useCardNumber);
-    const latestSessionData = await client.exportSession().catch(() => null);
-    const mergedResponseBase: Record<string, unknown> = {
-        ...existingResponseData,
-        refreshing: false,
-        promoCode: promoCode || null,
-    };
-    if (latestSessionData) {
-        mergedResponseBase.sessionData = latestSessionData;
-        mergedResponseBase.savedAt = new Date().toISOString();
-    }
+        // Ensure session is active
+        if (!client.isSessionActive()) {
+            console.log(`[HTTP] ⚠️ Session expired for promo apply, restoring...`);
+            const cachedSession = await getSessionFromCache(account.id);
+            if (cachedSession) {
+                await client.importSession(cachedSession);
+                client.markSessionValidFromCache(cachedSession.expiresAt);
+                console.log(`[HTTP] ✅ Session restored from cache for promo`);
+            } else {
+                // Fresh login needed
+                const loginResult = await client.login(
+                    account.username,
+                    account.password,
+                    account.totpSecret || undefined
+                );
+                if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                    await prisma.operation.update({
+                        where: { id: operationId },
+                        data: {
+                            responseData: JSON.stringify({
+                                ...existingResponseData,
+                                promoApplied: false,
+                                refreshing: false,
+                                error: 'Login requires CAPTCHA for promo apply'
+                            })
+                        }
+                    });
+                    return;
+                }
 
-    if (result.success && result.packages.length > 0) {
-        const normalizedPackages = result.packages.map((pkg) => ({
-            index: pkg.index,
-            name: pkg.name,
-            price: pkg.price,
-            checkboxSelector: pkg.checkboxValue,
-            checkboxValue: pkg.checkboxValue,
-        }));
+                if (!loginResult.success) {
+                    await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
+                    await prisma.operation.update({
+                        where: { id: operationId },
+                        data: {
+                            responseData: JSON.stringify({
+                                ...existingResponseData,
+                                promoApplied: false,
+                                refreshing: false,
+                                error: 'Login failed for promo apply'
+                            })
+                        }
+                    });
+                    return;
+                }
 
-        // Update operation with new discounted packages
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                availablePackages: JSON.parse(JSON.stringify(normalizedPackages)),
-                responseData: JSON.stringify({
-                    ...mergedResponseBase,
-                    promoApplied: true,
-                    error: null,
-                    packages: normalizedPackages
-                })
+                await trackFreshLoginSuccess(account.id);
+                // Save session to cache
+                try {
+                    const sessionData = await client.exportSession();
+                    const sessionTimeout = client.getSessionTimeout();
+                    await saveSessionToCache(account.id, sessionData, sessionTimeout);
+                } catch (saveError) {
+                    console.error('[HTTP] Failed to save session to cache:', saveError);
+                }
             }
-        });
-        console.log(`✅ [HTTP] Promo code applied, ${result.packages.length} packages updated`);
-    } else {
-        const normalizedPackages = result.packages.map((pkg) => ({
-            index: pkg.index,
-            name: pkg.name,
-            price: pkg.price,
-            checkboxSelector: pkg.checkboxValue,
-            checkboxValue: pkg.checkboxValue,
-        }));
+        }
 
-        // Promo failed — update responseData with error
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                ...(normalizedPackages.length > 0
-                    ? { availablePackages: JSON.parse(JSON.stringify(normalizedPackages)) }
-                    : {}),
-                responseData: JSON.stringify({
-                    ...mergedResponseBase,
-                    promoApplied: false,
-                    error: result.error || 'Failed to apply promo code',
-                    packages: normalizedPackages
-                })
-            }
-        });
-        console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
-    }
+        // Apply promo code
+        console.log(`[HTTP] 🎫 Applying promo code: ${promoCode}`);
+        const useCardNumber = cardNumber || operation.cardNumber;
+        const result = await client.applyPromoCode(promoCode, useCardNumber);
+        const latestSessionData = await client.exportSession().catch(() => null);
+        const mergedResponseBase: Record<string, unknown> = {
+            ...existingResponseData,
+            refreshing: false,
+            promoCode: promoCode || null,
+        };
+        if (latestSessionData) {
+            mergedResponseBase.sessionData = latestSessionData;
+            mergedResponseBase.savedAt = new Date().toISOString();
+        }
+
+        if (result.success && result.packages.length > 0) {
+            const normalizedPackages = result.packages.map((pkg) => ({
+                index: pkg.index,
+                name: pkg.name,
+                price: pkg.price,
+                checkboxSelector: pkg.checkboxValue,
+                checkboxValue: pkg.checkboxValue,
+            }));
+
+            // Update operation with new discounted packages
+            await prisma.operation.update({
+                where: { id: operationId },
+                data: {
+                    availablePackages: JSON.parse(JSON.stringify(normalizedPackages)),
+                    responseData: JSON.stringify({
+                        ...mergedResponseBase,
+                        promoApplied: true,
+                        error: null,
+                        packages: normalizedPackages
+                    })
+                }
+            });
+            console.log(`✅ [HTTP] Promo code applied, ${result.packages.length} packages updated`);
+        } else {
+            const normalizedPackages = result.packages.map((pkg) => ({
+                index: pkg.index,
+                name: pkg.name,
+                price: pkg.price,
+                checkboxSelector: pkg.checkboxValue,
+                checkboxValue: pkg.checkboxValue,
+            }));
+
+            // Promo failed — update responseData with error
+            await prisma.operation.update({
+                where: { id: operationId },
+                data: {
+                    ...(normalizedPackages.length > 0
+                        ? { availablePackages: JSON.parse(JSON.stringify(normalizedPackages)) }
+                        : {}),
+                    responseData: JSON.stringify({
+                        ...mergedResponseBase,
+                        promoApplied: false,
+                        error: result.error || 'Failed to apply promo code',
+                        packages: normalizedPackages
+                    })
+                }
+            });
+            console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
+        }
     } finally {
         await unlockAccount(redis, operation.beinAccountId, WORKER_ID).catch((releaseError: unknown) => {
             const releaseMessage = releaseError instanceof Error ? releaseError.message : String(releaseError);
@@ -1372,11 +1373,11 @@ async function attemptPurchaseWithAccount(
     error?: string;
 }> {
     try {
-        // Get account
+        // Get account (decrypt password from DB)
         const account = await prisma.beinAccount.findUnique({
             where: { id: accountId },
             include: { proxy: true }
-        });
+        }).then(a => a ? decryptAccountPassword(a) : null);
 
         if (!account) {
             return {
@@ -1722,7 +1723,7 @@ async function handleConfirmPurchaseHttp(
     const account = await prisma.beinAccount.findUnique({
         where: { id: operation.beinAccountId },
         include: { proxy: true }  // CRITICAL: Include proxy for HTTP client
-    });
+    }).then(a => a ? decryptAccountPassword(a) : null);
     if (!account) throw new Error('Account not found');
 
     // CONCURRENCY FIX: Acquire account lock before sending confirmation
@@ -1943,7 +1944,7 @@ async function handleCancelConfirmHttp(
             const account = await prisma.beinAccount.findUnique({
                 where: { id: operation.beinAccountId },
                 include: { proxy: true }  // Include proxy for HTTP client
-            });
+            }).then(a => a ? decryptAccountPassword(a) : null);
             if (account) {
                 const client = await getHttpClient(account);
                 await client.cancelPurchase();
@@ -2471,7 +2472,7 @@ async function handleSignalActivateHttp(
     const account = await prisma.beinAccount.findUnique({
         where: { id: operation.beinAccountId },
         include: { proxy: true }  // CRITICAL: Include proxy for HTTP client
-    });
+    }).then(a => a ? decryptAccountPassword(a) : null);
     if (!account) throw new Error('Account not found');
 
     const httpClient = await getHttpClient(account);
@@ -2577,7 +2578,7 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
     const account = await prisma.beinAccount.findUnique({
         where: { id: accountId },
         include: { proxy: true }
-    });
+    }).then(a => a ? decryptAccountPassword(a) : null);
 
     if (!account) {
         throw new Error(`Account ${accountId} not found`);

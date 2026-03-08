@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs"
 import prisma from "@/lib/prisma"
 import { authConfig } from "@/lib/auth.config"
 import { trackLogin } from "@/lib/services/activityTracker"
+import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limiter"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     ...authConfig,
@@ -21,6 +22,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                 const username = credentials.username as string
                 const password = credentials.password as string
+
+                // SECURITY: Rate limit login attempts by username
+                const rateLimitResult = await checkRateLimit(
+                    `panel-login:${username.toLowerCase()}`,
+                    RATE_LIMITS.login
+                )
+                if (!rateLimitResult.success) {
+                    throw new Error("Too many login attempts. Please try again later.")
+                }
 
                 // Find user by username OR email
                 const user = await prisma.user.findFirst({
@@ -64,6 +74,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     email: user.email,
                     role: user.role,
                     balance: user.balance,
+                    passwordChangedAt: user.passwordChangedAt?.getTime() || 0,
                 }
             },
         }),

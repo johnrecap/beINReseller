@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { encryptSecret } from '@/lib/crypto'
 import Redis from 'ioredis'
 
 // Initialize Redis for pool status
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest) {
         const account = await prisma.beinAccount.create({
             data: {
                 username,
-                password, // In production, consider encrypting this
+                password: encryptSecret(password),
                 totpSecret: totpSecret || null,
                 label: label || null,
                 priority: priority || 0,

@@ -165,7 +165,7 @@ export class SessionKeepAlive {
             for (const account of accounts) {
                 // Try to acquire lock - if another worker has it, skip
                 const lockAcquired = await acquireKeepAliveLock(account.id, this.workerId);
-                
+
                 if (!lockAcquired) {
                     // Another worker is handling this account
                     skippedByLock++;
@@ -229,7 +229,7 @@ export class SessionKeepAlive {
         try {
             // Check if session exists in cache
             const cachedSession = await getSessionFromCache(account.id);
-            
+
             if (!cachedSession) {
                 // No cached session - attempt re-login to keep account warm
                 console.log(`[KeepAlive] 🔑 ${account.username}: No session, attempting re-login...`);
@@ -271,8 +271,12 @@ export class SessionKeepAlive {
             // Get or create HTTP client
             const client = await this.getOrCreateClient(account);
 
-            // Import the cached session
-            await client.importSession(cachedSession);
+            // Only import if client doesn't have an active session
+            // importSession() rebuilds CookieJar+axios — destructive if session is already loaded
+            if (!client.isSessionActive()) {
+                await client.importSession(cachedSession);
+                client.markSessionValidFromCache(cachedSession.expiresAt);
+            }
 
             // Send lightweight keep-alive request (GET Check page)
             const isStillValid = await this.sendKeepAliveRequest(client);
@@ -280,7 +284,7 @@ export class SessionKeepAlive {
             if (isStillValid) {
                 // Session is still valid - refresh the expiry
                 await refreshSessionExpiry(account.id, SESSION_TIMEOUT_MS);
-                
+
                 // Update in-memory client session too
                 const now = Date.now();
                 client.markSessionValidFromCache(now + SESSION_TIMEOUT_MS);
@@ -293,7 +297,7 @@ export class SessionKeepAlive {
                 console.log(`[KeepAlive] 🔑 ${account.username}: Session expired on beIN, attempting re-login...`);
                 await deleteSessionFromCache(account.id);
                 client.invalidateSession();
-                
+
                 const loginSuccess = await this.preLogin(account);
                 if (loginSuccess) {
                     result.success = true;
@@ -311,7 +315,7 @@ export class SessionKeepAlive {
 
             // On error, invalidate the session and try re-login
             await deleteSessionFromCache(account.id);
-            
+
             console.log(`[KeepAlive] 🔑 ${account.username}: Error occurred, attempting re-login...`);
             const loginSuccess = await this.preLogin(account);
             if (loginSuccess) {
@@ -570,7 +574,7 @@ export class SessionKeepAlive {
 
             // Try to acquire lock - if another worker has it, skip
             const lockAcquired = await acquireKeepAliveLock(account.id, this.workerId);
-            
+
             if (!lockAcquired) {
                 // Another worker is handling this account
                 console.log(`[KeepAlive] ⏭️ ${account.username}: Another worker is logging in`);

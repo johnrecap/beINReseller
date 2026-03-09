@@ -313,76 +313,128 @@ async function trackFreshLoginSuccess(accountId: string): Promise<void> {
 }
 
 /**
- * Perform re-login with CAPTCHA handling
+ * Perform re-login with CAPTCHA handling and retry logic
+ * Retries up to MAX_LOGIN_RETRIES times before giving up.
+ * Each failure is recorded (consecutive counter increments).
+ * On success, the counter resets to 0.
+ * After threshold consecutive failures, the account is auto-disabled.
+ * 
  * @returns true if login successful, false otherwise
  */
+const MAX_LOGIN_RETRIES = 3;
+const LOGIN_RETRY_DELAY_MS = 2000;
+
 async function performReLogin(
     httpClient: HttpClientService,
     account: BeinAccount & { proxy?: Proxy | null },
     operationName: string
 ): Promise<boolean> {
-    // Clear cached session
-    await deleteSessionFromCache(account.id);
-    httpClient.invalidateSession();
+    let lastError: string = 'Login failed';
 
-    // Perform fresh login
-    const loginResult = await httpClient.login(
-        account.username,
-        account.password,
-        account.totpSecret || undefined
-    );
+    for (let attempt = 1; attempt <= MAX_LOGIN_RETRIES; attempt++) {
+        try {
+            console.log(`[HTTP] 🔑 Login attempt ${attempt}/${MAX_LOGIN_RETRIES} for ${account.username} (${operationName})`);
 
-    if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-        // Try 2Captcha auto-solve
-        console.log(`[HTTP] 🧩 CAPTCHA required during session retry, attempting auto-solve...`);
-        const captchaApiKey = await getCaptchaApiKey();
-
-        if (captchaApiKey) {
-            try {
-                const captchaSolver = new CaptchaSolver(captchaApiKey);
-                const solution = await captchaSolver.solve(loginResult.captchaImage);
-                console.log('[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]');
-
-                // Submit login with CAPTCHA solution
-                const loginWithCaptcha = await httpClient.submitLogin(
-                    account.username,
-                    account.password,
-                    account.totpSecret || undefined,
-                    solution
-                );
-
-                if (!loginWithCaptcha.success) {
-                    await trackCredentialLoginFailure(
-                        account.id,
-                        loginWithCaptcha.error || 'Login failed after CAPTCHA'
-                    );
-                    throw new Error(`Re-login with CAPTCHA failed: ${loginWithCaptcha.error}`);
-                }
-
-                console.log(`[HTTP] ✅ Re-login with CAPTCHA successful`);
-            } catch (captchaError: unknown) {
-                throw new Error(`CAPTCHA auto-solve failed: ${getErrMsg(captchaError)}`);
+            // Clear cached session on first attempt only
+            if (attempt === 1) {
+                await deleteSessionFromCache(account.id);
+                httpClient.invalidateSession();
             }
-        } else {
-            throw new Error(`Re-login requires CAPTCHA but no API key configured`);
+
+            // Perform fresh login
+            const loginResult = await httpClient.login(
+                account.username,
+                account.password,
+                account.totpSecret || undefined
+            );
+
+            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                // Try 2Captcha auto-solve
+                console.log(`[HTTP] 🧩 CAPTCHA required during login attempt ${attempt}, attempting auto-solve...`);
+                const captchaApiKey = await getCaptchaApiKey();
+
+                if (captchaApiKey) {
+                    try {
+                        const captchaSolver = new CaptchaSolver(captchaApiKey);
+                        const solution = await captchaSolver.solve(loginResult.captchaImage);
+                        console.log('[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]');
+
+                        // Submit login with CAPTCHA solution
+                        const loginWithCaptcha = await httpClient.submitLogin(
+                            account.username,
+                            account.password,
+                            account.totpSecret || undefined,
+                            solution
+                        );
+
+                        if (!loginWithCaptcha.success) {
+                            lastError = loginWithCaptcha.error || 'Login failed after CAPTCHA';
+                            await trackCredentialLoginFailure(account.id, lastError);
+                            console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
+
+                            if (attempt < MAX_LOGIN_RETRIES) {
+                                console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
+                                await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+                            }
+                            continue; // Try next attempt
+                        }
+
+                        console.log(`[HTTP] ✅ Login with CAPTCHA successful on attempt ${attempt}`);
+                    } catch (captchaError: unknown) {
+                        lastError = `CAPTCHA auto-solve failed: ${getErrMsg(captchaError)}`;
+                        console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${lastError}`);
+
+                        if (attempt < MAX_LOGIN_RETRIES) {
+                            console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
+                            await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+                        }
+                        continue; // Try next attempt
+                    }
+                } else {
+                    lastError = 'Re-login requires CAPTCHA but no API key configured';
+                    // Don't retry for missing API key — won't change between attempts
+                    throw new Error(lastError);
+                }
+            } else if (!loginResult.success) {
+                lastError = loginResult.error || 'Login failed';
+                await trackCredentialLoginFailure(account.id, lastError);
+                console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
+
+                if (attempt < MAX_LOGIN_RETRIES) {
+                    console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+                }
+                continue; // Try next attempt
+            }
+
+            // === LOGIN SUCCESS ===
+            await trackFreshLoginSuccess(account.id);
+
+            // Save new session to cache
+            const newSession = await httpClient.exportSession();
+            // FIX: Update timestamps before saving
+            const now = Date.now();
+            newSession.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+            newSession.loginTimestamp = now;
+            await saveSessionToCache(account.id, newSession, httpClient.getSessionTimeout());
+            console.log(`[HTTP] ✅ Fresh login successful for ${operationName} (attempt ${attempt})`);
+
+            return true;
+
+        } catch (error: unknown) {
+            lastError = getErrMsg(error);
+            console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} threw: ${lastError}`);
+
+            if (attempt < MAX_LOGIN_RETRIES) {
+                console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
+                await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+            }
         }
-    } else if (!loginResult.success) {
-        await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
-        throw new Error(`Re-login failed: ${loginResult.error}`);
     }
 
-    await trackFreshLoginSuccess(account.id);
-
-    // Save new session to cache
-    const newSession = await httpClient.exportSession();
-    // FIX: Update timestamps before saving
-    const now = Date.now();
-    newSession.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
-    newSession.loginTimestamp = now;
-    await saveSessionToCache(account.id, newSession, httpClient.getSessionTimeout());
-    console.log(`[HTTP] ✅ Fresh login successful for ${operationName}`);
-
-    return true;
+    // All attempts exhausted
+    console.error(`[HTTP] 🚫 All ${MAX_LOGIN_RETRIES} login attempts failed for ${account.username}. Last error: ${lastError}`);
+    throw new Error(`Login failed after ${MAX_LOGIN_RETRIES} attempts: ${lastError}`);
 }
 
 /**
@@ -2487,6 +2539,9 @@ async function handleSignalActivateHttp(
 
             console.log(`[HTTP] 🔄 Restoring session for activation`);
             await httpClient.importSession(savedData.sessionData);
+            httpClient.markSessionValidFromCache(
+                (savedData.sessionData as any)?.expiresAt
+            );
         }
 
         // Use card number from operation or parameter

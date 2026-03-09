@@ -60,11 +60,11 @@ function maybeLogMetrics(): void {
  */
 function compressViewState(viewState: HiddenFields): string {
     const json = JSON.stringify(viewState);
-    
+
     if (json.length < COMPRESSION_THRESHOLD) {
         return json;  // Don't compress small data
     }
-    
+
     try {
         const compressed = gzipSync(json).toString('base64');
         const ratio = ((1 - compressed.length / json.length) * 100).toFixed(1);
@@ -92,7 +92,7 @@ function decompressViewState(data: string): HiddenFields {
             throw error;
         }
     }
-    
+
     return JSON.parse(data);
 }
 
@@ -107,7 +107,7 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
-        
+
         const data = await redis.get(key);
         if (!data) {
             cacheMisses++;
@@ -115,10 +115,10 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
             maybeLogMetrics();
             return null;
         }
-        
+
         const rawSession = JSON.parse(data);
         const now = Date.now();
-        
+
         // Decompress ViewState if it was compressed
         let viewState: HiddenFields | undefined;
         if (rawSession.viewStateCompressed) {
@@ -132,7 +132,7 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
             // Legacy uncompressed format
             viewState = rawSession.viewState;
         }
-        
+
         // Reconstruct SessionData
         const session: SessionData = {
             cookies: rawSession.cookies,
@@ -142,7 +142,7 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
             expiresAt: rawSession.expiresAt,
             accountId: rawSession.accountId
         };
-        
+
         // Validate session expiry using stored expiresAt
         if (session.expiresAt) {
             if (now >= session.expiresAt) {
@@ -152,23 +152,23 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
                 console.log(`[Session Cache] ⚠️ EXPIRED for account ${accountId.substring(0, 8)}... (expired ${expiredAgoMin} min ago)`);
                 cacheExpired++;
                 maybeLogMetrics();
-                
+
                 // Delete the expired session
                 await redis.del(key);
                 return null;
             }
-            
+
             // Calculate remaining time
             const remainingMs = session.expiresAt - now;
             const remainingMin = Math.floor(remainingMs / 60000);
             const remainingSec = Math.floor((remainingMs % 60000) / 1000);
-            
+
             cacheHits++;
             console.log(`[Session Cache] ✅ HIT for account ${accountId.substring(0, 8)}... (${remainingMin}m ${remainingSec}s remaining)`);
             maybeLogMetrics();
             return session;
         }
-        
+
         // Fallback: If no expiresAt, use loginTimestamp with default timeout
         if (session.loginTimestamp) {
             const sessionAge = now - session.loginTimestamp;
@@ -180,24 +180,24 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
                 await redis.del(key);
                 return null;
             }
-            
+
             const remainingMs = DEFAULT_SESSION_TIMEOUT_MS - sessionAge;
             const remainingMin = Math.floor(remainingMs / 60000);
-            
+
             cacheHits++;
             console.log(`[Session Cache] ✅ HIT for account ${accountId.substring(0, 8)}... (~${remainingMin} min remaining, age-based)`);
             maybeLogMetrics();
             return session;
         }
-        
+
         // Legacy session without timestamps - use Redis TTL as indicator
         const ttl = await redis.ttl(key);
         const ttlMinutes = Math.floor(ttl / 60);
-        
+
         cacheHits++;
         console.log(`[Session Cache] ✅ HIT (legacy) for account ${accountId.substring(0, 8)}... (TTL: ${ttlMinutes} min)`);
         maybeLogMetrics();
-        
+
         return session;
     } catch (error) {
         console.error(`[Session Cache] Error reading session:`, error);
@@ -215,21 +215,21 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
  * @param ttlMinutes - Time to live in minutes (default: 16 = slightly longer than session timeout)
  */
 export async function saveSessionToCache(
-    accountId: string, 
-    session: SessionData, 
+    accountId: string,
+    session: SessionData,
     ttlMinutes: number = 16
 ): Promise<void> {
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
         const now = Date.now();
-        
+
         // Compress ViewState if present and large
         let compressedViewState: string | undefined;
         if (session.viewState) {
             compressedViewState = compressViewState(session.viewState);
         }
-        
+
         // Ensure session has proper timestamps
         // Store ViewState as compressed string separately
         const sessionToSave = {
@@ -240,7 +240,7 @@ export async function saveSessionToCache(
             expiresAt: session.expiresAt || (now + DEFAULT_SESSION_TIMEOUT_MS),
             lastLoginTime: session.lastLoginTime || new Date().toISOString()
         };
-        
+
         // Calculate Redis TTL: slightly longer than expiresAt to allow for clock drift
         // Add 60 seconds buffer
         const expiresInMs = sessionToSave.expiresAt - now;
@@ -248,9 +248,9 @@ export async function saveSessionToCache(
             Math.ceil(expiresInMs / 1000) + 60,  // expiresAt + 60s buffer
             ttlMinutes * 60                       // Or provided TTL
         );
-        
+
         await redis.setex(key, redisTtlSeconds, JSON.stringify(sessionToSave));
-        
+
         const expiresInMin = Math.floor(expiresInMs / 60000);
         console.log(`[Session Cache] 💾 Saved session for account ${accountId.substring(0, 8)}... (expires in ${expiresInMin} min, Redis TTL: ${Math.floor(redisTtlSeconds / 60)} min)`);
     } catch (error) {
@@ -267,7 +267,7 @@ export async function deleteSessionFromCache(accountId: string): Promise<void> {
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
-        
+
         await redis.del(key);
         console.log(`[Session Cache] 🗑️ Deleted cached session for account ${accountId.substring(0, 8)}...`);
     } catch (error) {
@@ -284,7 +284,7 @@ export async function hasValidSession(accountId: string): Promise<boolean> {
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
-        
+
         const ttl = await redis.ttl(key);
         return ttl > 0;
     } catch (error) {
@@ -302,7 +302,7 @@ export async function getSessionTTL(accountId: string): Promise<number> {
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
-        
+
         return await redis.ttl(key);
     } catch (error) {
         console.error(`[Session Cache] Error getting TTL:`, error);
@@ -312,23 +312,35 @@ export async function getSessionTTL(accountId: string): Promise<number> {
 
 /**
  * Extend session TTL (refresh on activity)
+ * Updates BOTH Redis TTL AND in-payload expiresAt to keep them in sync.
+ * Previously only called redis.expire() which left expiresAt stale,
+ * causing getSessionFromCache() to reject valid sessions.
  * @param accountId - beIN account ID
  * @param ttlMinutes - New TTL in minutes
  */
 export async function extendSessionTTL(
-    accountId: string, 
+    accountId: string,
     ttlMinutes: number = 600
 ): Promise<void> {
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
-        const ttlSeconds = ttlMinutes * 60;
-        
-        // Only extend if key exists
-        const exists = await redis.exists(key);
-        if (exists) {
-            await redis.expire(key, ttlSeconds);
-            console.log(`[Session Cache] ⏰ Extended TTL for account ${accountId.substring(0, 8)}... to ${ttlMinutes} min`);
+
+        // Read the session payload so we can update expiresAt inside it
+        const data = await redis.get(key);
+        if (data) {
+            const session = JSON.parse(data);
+            const now = Date.now();
+            const ttlMs = ttlMinutes * 60 * 1000;
+            const ttlSeconds = ttlMinutes * 60;
+
+            // Update BOTH Redis TTL AND in-payload expiresAt
+            // Without this, getSessionFromCache() sees stale expiresAt and returns null
+            session.expiresAt = now + ttlMs;
+            session.loginTimestamp = now;
+
+            await redis.setex(key, ttlSeconds + 60, JSON.stringify(session));
+            console.log(`[Session Cache] ⏰ Extended TTL + expiresAt for account ${accountId.substring(0, 8)}... to ${ttlMinutes} min`);
         }
     } catch (error) {
         console.error(`[Session Cache] Error extending TTL:`, error);
@@ -352,10 +364,10 @@ export async function acquireLoginLock(accountId: string, workerId: string): Pro
     try {
         const redis = getRedisConnection();
         const key = `${LOGIN_LOCK_PREFIX}${accountId}`;
-        
+
         // SET NX = only set if not exists (atomic operation)
         const result = await redis.set(key, workerId, 'EX', LOGIN_LOCK_TTL_SECONDS, 'NX');
-        
+
         if (result === 'OK') {
             console.log(`[Session Cache] 🔒 Acquired login lock for account ${accountId.substring(0, 8)}... (worker: ${workerId})`);
             return true;
@@ -380,7 +392,7 @@ export async function releaseLoginLock(accountId: string, workerId: string): Pro
     try {
         const redis = getRedisConnection();
         const key = `${LOGIN_LOCK_PREFIX}${accountId}`;
-        
+
         // Only release if we own the lock (Lua script for atomicity)
         const script = `
             if redis.call("get", KEYS[1]) == ARGV[1] then
@@ -389,7 +401,7 @@ export async function releaseLoginLock(accountId: string, workerId: string): Pro
                 return 0
             end
         `;
-        
+
         const result = await redis.eval(script, 1, key, workerId);
         if (result === 1) {
             console.log(`[Session Cache] 🔓 Released login lock for account ${accountId.substring(0, 8)}...`);
@@ -413,9 +425,9 @@ export async function waitForLoginComplete(accountId: string, timeoutMs: number 
         const key = `${LOGIN_LOCK_PREFIX}${accountId}`;
         const startTime = Date.now();
         const pollIntervalMs = 500;
-        
+
         console.log(`[Session Cache] ⏳ Waiting for login to complete for account ${accountId.substring(0, 8)}...`);
-        
+
         while (Date.now() - startTime < timeoutMs) {
             const exists = await redis.exists(key);
             if (!exists) {
@@ -424,7 +436,7 @@ export async function waitForLoginComplete(accountId: string, timeoutMs: number 
             }
             await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
         }
-        
+
         console.log(`[Session Cache] ⚠️ Timeout waiting for login (${timeoutMs}ms)`);
         return false; // Timeout
     } catch (error) {
@@ -470,7 +482,7 @@ export async function getAllCachedSessionIds(): Promise<string[]> {
     try {
         const redis = getRedisConnection();
         const pattern = `${SESSION_PREFIX}*`;
-        
+
         const keys = await redis.keys(pattern);
         return keys.map(key => key.replace(SESSION_PREFIX, ''));
     } catch (error) {
@@ -492,29 +504,29 @@ export async function refreshSessionExpiry(
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
-        
+
         const data = await redis.get(key);
         if (!data) {
             console.log(`[Session Cache] ⚠️ Cannot refresh - no session for ${accountId.substring(0, 8)}...`);
             return false;
         }
-        
+
         const session: SessionData = JSON.parse(data);
         const now = Date.now();
-        
+
         // Update timestamps
         session.loginTimestamp = now;  // Treat keep-alive as new login
         session.expiresAt = now + sessionTimeoutMs;
         session.lastLoginTime = new Date().toISOString();
-        
+
         // Calculate new Redis TTL (expiresAt + 60s buffer)
         const redisTtlSeconds = Math.ceil(sessionTimeoutMs / 1000) + 60;
-        
+
         await redis.setex(key, redisTtlSeconds, JSON.stringify(session));
-        
+
         const expiresInMin = Math.floor(sessionTimeoutMs / 60000);
         console.log(`[Session Cache] 🔄 Refreshed session for ${accountId.substring(0, 8)}... (expires in ${expiresInMin} min)`);
-        
+
         return true;
     } catch (error) {
         console.error(`[Session Cache] Error refreshing session:`, error);
@@ -535,25 +547,25 @@ export async function sessionNeedsRefresh(
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
-        
+
         const data = await redis.get(key);
         if (!data) return false;
-        
+
         const session: SessionData = JSON.parse(data);
         const now = Date.now();
-        
+
         if (session.expiresAt) {
             const remainingMs = session.expiresAt - now;
             return remainingMs > 0 && remainingMs <= thresholdMs;
         }
-        
+
         // Fallback to loginTimestamp
         if (session.loginTimestamp) {
             const sessionAge = now - session.loginTimestamp;
             const remainingMs = DEFAULT_SESSION_TIMEOUT_MS - sessionAge;
             return remainingMs > 0 && remainingMs <= thresholdMs;
         }
-        
+
         return false;
     } catch (error) {
         console.error(`[Session Cache] Error checking session refresh:`, error);
@@ -570,24 +582,24 @@ export async function getSessionRemainingTime(accountId: string): Promise<number
     try {
         const redis = getRedisConnection();
         const key = `${SESSION_PREFIX}${accountId}`;
-        
+
         const data = await redis.get(key);
         if (!data) return -1;
-        
+
         const session: SessionData = JSON.parse(data);
         const now = Date.now();
-        
+
         if (session.expiresAt) {
             const remaining = session.expiresAt - now;
             return remaining > 0 ? remaining : -1;
         }
-        
+
         if (session.loginTimestamp) {
             const age = now - session.loginTimestamp;
             const remaining = DEFAULT_SESSION_TIMEOUT_MS - age;
             return remaining > 0 ? remaining : -1;
         }
-        
+
         return -1;
     } catch (error) {
         console.error(`[Session Cache] Error getting session remaining time:`, error);
@@ -612,10 +624,10 @@ export async function acquireKeepAliveLock(accountId: string, workerId: string):
     try {
         const redis = getRedisConnection();
         const key = `${KEEPALIVE_LOCK_PREFIX}${accountId}`;
-        
+
         // SET NX = only set if not exists (atomic operation)
         const result = await redis.set(key, workerId, 'EX', KEEPALIVE_LOCK_TTL_SECONDS, 'NX');
-        
+
         if (result === 'OK') {
             console.log(`[Session Cache] 🔒 Acquired keep-alive lock for ${accountId.substring(0, 8)}... (worker: ${workerId.substring(0, 15)})`);
             return true;
@@ -642,7 +654,7 @@ export async function releaseKeepAliveLock(accountId: string, workerId: string):
     try {
         const redis = getRedisConnection();
         const key = `${KEEPALIVE_LOCK_PREFIX}${accountId}`;
-        
+
         // Only release if we own the lock (Lua script for atomicity)
         const script = `
             if redis.call("get", KEYS[1]) == ARGV[1] then
@@ -651,7 +663,7 @@ export async function releaseKeepAliveLock(accountId: string, workerId: string):
                 return 0
             end
         `;
-        
+
         const result = await redis.eval(script, 1, key, workerId);
         if (result === 1) {
             console.log(`[Session Cache] 🔓 Released keep-alive lock for ${accountId.substring(0, 8)}...`);

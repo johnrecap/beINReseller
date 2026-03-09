@@ -990,10 +990,17 @@ export class HttpClientService {
     async login(username: string, password: string, totpSecret?: string): Promise<LoginResult> {
         console.log(`[HTTP] Starting login for: ${username}`);
 
-        // Check if session is still active - skip re-login
+        // Check if session is still active - verify on beIN server before trusting
         if (this.isSessionActive()) {
-            console.log('[HTTP] ✅ Session still valid, skipping login');
-            return { success: true };
+            // Verify session is actually valid on beIN server
+            // This catches stale in-memory timestamps and server-side expirations
+            const isReallyValid = await this.validateSession();
+            if (isReallyValid) {
+                console.log('[HTTP] ✅ Session verified on beIN, skipping login');
+                return { success: true };
+            }
+            console.log('[HTTP] ⚠️ Session appeared active locally but INVALID on beIN — proceeding with fresh login');
+            this.invalidateSession();
         }
 
         try {
@@ -1174,7 +1181,23 @@ export class HttpClientService {
             );
 
             if (isSuccessPage) {
-                console.log(`[HTTP] ✅ Login successful! (Page: ${pageTitle})`);
+                // LAYER 2: Verify body is NOT a login page (catches cached title bug)
+                const hasLoginFormInBody = $('#Login1_UserName').length > 0 || $('input#Login1_UserName').length > 0;
+                const bodyText = $('body').text();
+                const hasSignInAndCaptcha = bodyText.includes('Sign In') && bodyText.includes('Enter the following code');
+
+                if (hasLoginFormInBody || hasSignInAndCaptcha) {
+                    console.log(`[HTTP] ⚠️ FAKE LOGIN DETECTED — Title "${pageTitle}" but body has login form`);
+                    return { success: false, error: 'Login failed — server returned login page with cached title' };
+                }
+
+                // LAYER 3: Positive indicator — confirm authenticated content exists
+                const hasContentPlaceHolder = $('[id*="ContentPlaceHolder1"]').length > 0;
+                if (!hasContentPlaceHolder) {
+                    console.log(`[HTTP] ⚠️ SUSPICIOUS LOGIN — Title OK but no ContentPlaceHolder found (continuing)`);
+                }
+
+                console.log(`[HTTP] ✅ Login verified! (Page: ${pageTitle})`);
                 this.markSessionValid();
                 return { success: true };
             }
@@ -2909,6 +2932,14 @@ export class HttpClientService {
                 headers: { 'Referer': checkUrl }
             });
 
+            // Check for session expiry (matching checkCardForSignal defense)
+            const getSessionExpiry = this.checkForSessionExpiry(pageRes.data);
+            if (getSessionExpiry) {
+                console.log(`[HTTP] ⚠️ activateSignalOnly GET: session expired — ${getSessionExpiry}`);
+                this.invalidateSession();
+                return { success: false, error: getSessionExpiry };
+            }
+
             // Re-check the card to get fresh ViewState
             this.currentViewState = this.extractHiddenFields(pageRes.data);
             const checkBtnValue = this.extractButtonValue(pageRes.data, 'btnCheck', 'Check');
@@ -2930,6 +2961,14 @@ export class HttpClientService {
 
             // Update ViewState
             this.currentViewState = this.extractHiddenFields(checkRes.data);
+
+            // Verify POST didn't return login page
+            const postSessionExpiry = this.checkForSessionExpiry(checkRes.data);
+            if (postSessionExpiry) {
+                console.log(`[HTTP] ⚠️ activateSignalOnly POST check: session expired — ${postSessionExpiry}`);
+                this.invalidateSession();
+                return { success: false, error: postSessionExpiry };
+            }
 
             // Get Activate button info
             const activateBtnName = 'ctl00$ContentPlaceHolder1$btnActivate';

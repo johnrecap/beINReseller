@@ -30,6 +30,7 @@ const NON_CREDENTIAL_FAILURE_PATTERNS = [
     'server returned html',
     'status code 5',
     'status code 429',
+    'cached title',
 ];
 
 let thresholdCache: { value: number; cachedAt: number } | null = null;
@@ -130,9 +131,15 @@ export async function recordLoginFailure(accountId: string, reason: string | und
 
         const threshold = await getLoginFailureThreshold();
         if (account.consecutiveLoginFailures >= threshold) {
-            console.warn(
-                `[LoginTracking] ${account.label || account.username} reached the login failure threshold ` +
-                `(${account.consecutiveLoginFailures}/${threshold})`
+            // Auto-disable the account when threshold is reached
+            await prisma.beinAccount.update({
+                where: { id: accountId },
+                data: { isActive: false },
+            });
+            console.error(
+                `[LoginTracking] 🚫 ${account.label || account.username} AUTO-DISABLED — ` +
+                `${account.consecutiveLoginFailures}/${threshold} consecutive login failures. ` +
+                `Reason: ${failureReason}. Check beIN Login Failures page.`
             );
         }
     } catch (error: unknown) {

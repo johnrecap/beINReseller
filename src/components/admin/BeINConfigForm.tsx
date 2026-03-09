@@ -126,6 +126,14 @@ export default function BeINConfigForm() {
                 },
             ]
         },
+        {
+            title: 'Sidebar Visibility',
+            icon: '👁️',
+            fields: [
+                { key: 'sidebar_show_login_failures', label: 'Show beIN Login Failures page', type: 'checkbox' as const },
+                { key: 'sidebar_show_low_balance', label: 'Show beIN Low Balance page', type: 'checkbox' as const },
+            ]
+        },
     ], [t])
 
     useEffect(() => {

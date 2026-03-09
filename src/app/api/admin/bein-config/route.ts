@@ -50,7 +50,7 @@ const BEIN_SETTINGS_KEYS = [
     'worker_session_timeout',
     'worker_max_retries',
     'worker_headless',
-    
+
     // Session Keep-Alive Settings (NEW)
     'worker_keepalive_enabled',         // Enable/disable background keep-alive
     'worker_keepalive_interval',        // Interval in minutes (default: 10)
@@ -58,6 +58,10 @@ const BEIN_SETTINGS_KEYS = [
 
     // User Proxy Settings
     'user_proxy_limit',  // Number of users with proxy linked (display only)
+
+    // Sidebar Visibility
+    'sidebar_show_login_failures',
+    'sidebar_show_low_balance',
 ]
 
 export async function GET(request: NextRequest) {

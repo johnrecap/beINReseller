@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
@@ -43,6 +44,21 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const isAdmin = userRole === 'ADMIN'
     const isManager = userRole === 'MANAGER'
 
+    // Sidebar visibility settings
+    const [sidebarSettings, setSidebarSettings] = useState<Record<string, boolean>>({
+        sidebar_show_login_failures: true,
+        sidebar_show_low_balance: true,
+    })
+
+    useEffect(() => {
+        if (isAdmin) {
+            fetch('/api/admin/sidebar-settings')
+                .then(res => res.json())
+                .then(data => setSidebarSettings(data))
+                .catch(() => { /* keep defaults */ })
+        }
+    }, [isAdmin])
+
     // Permission-based visibility
     const canRenew = canAccessSubscription(userRole)
     // Base links for all authenticated users
@@ -78,8 +94,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin/users/activity', label: t.sidebar.activityMonitoring || 'Activity Monitoring', icon: Activity },
         { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
-        { href: '/dashboard/admin/bein-accounts/login-failures', label: 'beIN Login Failures', icon: AlertTriangle },
-        { href: '/dashboard/admin/bein-accounts/low-balance', label: 'beIN Low Balance', icon: DollarSign },
+        ...(sidebarSettings.sidebar_show_login_failures ? [{ href: '/dashboard/admin/bein-accounts/login-failures', label: 'beIN Login Failures', icon: AlertTriangle }] : []),
+        ...(sidebarSettings.sidebar_show_low_balance ? [{ href: '/dashboard/admin/bein-accounts/low-balance', label: 'beIN Low Balance', icon: DollarSign }] : []),
         { href: '/dashboard/admin/proxies', label: t.sidebar.proxyManagement, icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
         { href: '/dashboard/admin/reports/integrity', label: t.sidebar.integrityReports || 'Integrity Reports', icon: AlertTriangle },

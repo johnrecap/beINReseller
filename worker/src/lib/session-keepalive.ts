@@ -131,7 +131,7 @@ export class SessionKeepAliveService {
     private stats: KeepAliveStats;
     private redis: ReturnType<typeof getRedisConnection>;
 
-    constructor(refreshIntervalMinutes: number = 19, staggerDelayMs: number = 10000) {
+    constructor(refreshIntervalMinutes: number = 19, staggerDelayMs: number = 3000) {
         this.refreshIntervalMs = refreshIntervalMinutes * 60 * 1000;
         this.staggerDelayMs = staggerDelayMs;
         this.redis = getRedisConnection();
@@ -426,6 +426,22 @@ export class SessionKeepAliveService {
                         currentCaptchaImage = finalLogin.captchaImage;
                         lastCaptchaError = finalLogin.error || 'CAPTCHA incorrect';
                         continue;
+                    } else if (finalLogin.error && finalLogin.error.includes('cached title')) {
+                        // FAKE LOGIN — beIN returned login page with cached title
+                        // Reset session and retry with fresh CAPTCHA
+                        console.log(`[KeepAlive] ${username}: FAKE LOGIN on attempt ${attempt}, resetting for fresh retry...`);
+                        lastCaptchaError = finalLogin.error;
+                        if (attempt < MAX_CAPTCHA_RETRIES) {
+                            try {
+                                client.resetSession();
+                                const retryLogin = await client.login(username, account.password, account.totpSecret || undefined);
+                                if (retryLogin.requiresCaptcha && retryLogin.captchaImage) {
+                                    currentCaptchaImage = retryLogin.captchaImage;
+                                    continue;
+                                }
+                            } catch { /* fall through to failure */ }
+                        }
+                        break;
                     } else {
                         // Non-CAPTCHA failure (e.g., wrong password, account locked)
                         lastCaptchaError = finalLogin.error || 'Login failed after CAPTCHA';

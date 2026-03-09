@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { AlertTriangle, KeyRound, Loader2, RefreshCw, RotateCcw } from 'lucide-react'
+import { AlertTriangle, KeyRound, Loader2, RefreshCw, RotateCcw, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,12 +23,13 @@ interface LoginFailureAccount {
     id: string
     username: string
     label: string | null
+    isActive: boolean
     consecutiveLoginFailures: number
     lastLoginAttemptAt: string | null
     lastLoginFailureAt: string | null
     lastLoginFailureReason: string | null
     lastSuccessfulLoginAt: string | null
-    needsPasswordUpdate: boolean
+    failureType: 'low_balance' | 'login_failure'
 }
 
 interface LoginFailuresResponse {
@@ -110,13 +111,13 @@ export default function BeinLoginFailuresPage() {
             const data = await res.json()
 
             if (!res.ok || !data.success) {
-                throw new Error(data.error || 'Failed to reset beIN login tracking')
+                throw new Error(data.error || 'Failed to reset and reactivate account')
             }
 
-            toast.success(data.message || 'beIN login tracking reset successfully')
+            toast.success(data.message || 'Account reset and reactivated successfully')
             await fetchAccounts({ silent: true })
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Failed to reset beIN login tracking'
+            const message = error instanceof Error ? error.message : 'Failed to reset and reactivate account'
             toast.error(message)
         } finally {
             setResettingAccountId(null)
@@ -141,7 +142,7 @@ export default function BeinLoginFailuresPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-foreground">beIN login failures</h1>
                         <p className="text-sm text-muted-foreground">
-                            Accounts listed here reached the current failed-login threshold and likely need a password update.
+                            Accounts listed here have been flagged and need admin action.
                         </p>
                     </div>
                 </div>
@@ -175,7 +176,7 @@ export default function BeinLoginFailuresPage() {
                     <CardContent>
                         <div className="text-3xl font-bold text-foreground">{accounts.length}</div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                            Reset the tracking after updating the password in beIN.
+                            Reset and reactivate after resolving the issue.
                         </p>
                     </CardContent>
                 </Card>
@@ -183,7 +184,7 @@ export default function BeinLoginFailuresPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Accounts requiring password review</CardTitle>
+                    <CardTitle>Accounts requiring admin action</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -230,9 +231,16 @@ export default function BeinLoginFailuresPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-center">
-                                            <Badge variant={account.needsPasswordUpdate ? 'destructive' : 'secondary'}>
-                                                {account.needsPasswordUpdate ? 'Needs password update' : 'Below threshold'}
-                                            </Badge>
+                                            {account.failureType === 'low_balance' ? (
+                                                <Badge variant="destructive" className="gap-1">
+                                                    <DollarSign className="h-3 w-3" />
+                                                    Low balance
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="destructive">
+                                                    Login failures
+                                                </Badge>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Button
@@ -246,7 +254,7 @@ export default function BeinLoginFailuresPage() {
                                                 ) : (
                                                     <RotateCcw className="h-4 w-4" />
                                                 )}
-                                                <span>Reset login tracking</span>
+                                                <span>Reset & reactivate</span>
                                             </Button>
                                         </TableCell>
                                     </TableRow>

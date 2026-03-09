@@ -12,7 +12,7 @@ import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage } from './http';
 import { AccountPoolManager, AccountQueueManager, getQueueManager, forceUnlockAccount, lockAccount, unlockAccount } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
-import { createNotification, notifyAdminLowBalance } from './utils/notification';
+import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { ProxyConfig } from './types/proxy';
@@ -945,16 +945,17 @@ async function handleStartRenewalHttp(
         cacheSTB(cardNumber, finalStbNumber).catch(() => { });
     }
 
-    // Update account's dealer balance (fire-and-forget — non-critical for user response)
+    // Update account's dealer balance and check for low balance auto-disable
     if (packagesResult.dealerBalance !== undefined) {
-        prisma.beinAccount.update({
+        await prisma.beinAccount.update({
             where: { id: selectedAccount.id },
             data: {
                 dealerBalance: packagesResult.dealerBalance,
                 balanceUpdatedAt: new Date()
             }
-        }).catch(() => { });
-        console.log(`[HTTP] 💰 Dealer balance: ${packagesResult.dealerBalance} USD (updating async)`);
+        });
+        console.log(`[HTTP] 💰 Dealer balance: ${packagesResult.dealerBalance} USD`);
+        await checkAndNotifyLowBalance(selectedAccount.id, selectedAccount.label || selectedAccount.username, packagesResult.dealerBalance);
     }
 
     // Convert to format expected by frontend
@@ -1580,6 +1581,7 @@ async function attemptPurchaseWithAccount(
                         balanceUpdatedAt: new Date()
                     }
                 });
+                await checkAndNotifyLowBalance(accountId, account.label || account.username, dealerBalance);
             }
         }
 
@@ -2711,6 +2713,7 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
             }
         });
         console.log(`✅ [HTTP] Balance updated: ${balanceResult.balance} USD`);
+        await checkAndNotifyLowBalance(accountId, account.label || account.username, balanceResult.balance);
     } else {
         console.log(`⚠️ [HTTP] Could not fetch balance: ${balanceResult.error}`);
         throw new Error(balanceResult.error || 'Failed to fetch balance');

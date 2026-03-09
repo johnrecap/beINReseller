@@ -83,39 +83,39 @@ export async function notifyAdminLowBalance(
             where: { id: accountId },
             select: { lowBalanceAlertEnabled: true }
         })
-        
+
         if (!account?.lowBalanceAlertEnabled) {
             console.log(`[Notification] Low balance alert disabled for ${accountName}, skipping`)
             return
         }
-        
+
         // Check if we already sent an alert recently (cooldown)
         const redis = getRedisConnection()
         const alertKey = `${LOW_BALANCE_ALERT_COOLDOWN_KEY}${accountId}`
         const recentAlert = await redis.get(alertKey)
-        
+
         if (recentAlert) {
             console.log(`[Notification] Skipping low balance alert for ${accountName} (recent alert exists)`)
             return
         }
-        
+
         // Get all admin users
         const admins = await prisma.user.findMany({
             where: { role: 'ADMIN', isActive: true },
             select: { id: true }
         })
-        
+
         if (admins.length === 0) {
             console.log('[Notification] No admin users found for low balance alert')
             return
         }
-        
+
         // Build message
         const threshold = await getLowBalanceThreshold()
         const message = requiredBalance
             ? `Account "${accountName}" - Current balance: ${currentBalance} USD. Required for operation: ${requiredBalance} USD`
             : `Account "${accountName}" - Current balance: ${currentBalance} USD (below ${threshold} USD)`
-        
+
         // Create notification for each admin
         await prisma.notification.createMany({
             data: admins.map(admin => ({
@@ -126,10 +126,10 @@ export async function notifyAdminLowBalance(
                 link: '/admin/bein-accounts'
             }))
         })
-        
+
         // Set cooldown (1 hour)
         await redis.setex(alertKey, ALERT_COOLDOWN_SECONDS, '1')
-        
+
         console.log(`[Notification] 📧 Notified ${admins.length} admins about low balance for ${accountName}`)
     } catch (error: any) {
         console.error(`[Notification] Failed to send low balance alert: ${error.message}`)
@@ -137,8 +137,9 @@ export async function notifyAdminLowBalance(
 }
 
 /**
- * Check if an account's balance is below the threshold and notify if needed
- * Used for proactive monitoring during keep-alive
+ * Check if an account's balance is below the threshold.
+ * If lowBalanceAlertEnabled is true, auto-disable the account and flag it
+ * so it appears on the Login Failures page.
  * 
  * @param accountId - The beIN account ID
  * @param accountName - Display name
@@ -150,9 +151,56 @@ export async function checkAndNotifyLowBalance(
     currentBalance: number | null
 ): Promise<void> {
     if (currentBalance === null) return
-    
+
     const threshold = await getLowBalanceThreshold()
-    if (currentBalance < threshold) {
+    if (currentBalance >= threshold) return
+
+    try {
+        // Read account state
+        const account = await prisma.beinAccount.findUnique({
+            where: { id: accountId },
+            select: {
+                lowBalanceAlertEnabled: true,
+                isActive: true,
+                consecutiveLoginFailures: true,
+                lastLoginFailureReason: true,
+            }
+        })
+        if (!account) return
+
+        if (!account.lowBalanceAlertEnabled) {
+            console.log(`[Balance] ${accountName}: balance ${currentBalance} USD below ${threshold} USD, but auto-disable is OFF`)
+            return
+        }
+
+        const lowBalanceReason = `Low balance: ${currentBalance} USD (threshold: ${threshold} USD)`
+
+        // Skip if already disabled with same low-balance reason
+        if (!account.isActive && account.lastLoginFailureReason?.startsWith('Low balance:')) {
+            console.log(`[Balance] ${accountName}: already disabled for low balance, skipping`)
+            return
+        }
+
+        // Load login failure threshold to make the account appear on the Login Failures page
+        const { getLoginFailureThreshold } = await import('../lib/bein-login-tracking')
+        const loginFailureThreshold = await getLoginFailureThreshold()
+
+        await prisma.beinAccount.update({
+            where: { id: accountId },
+            data: {
+                isActive: false,
+                consecutiveLoginFailures: Math.max(account.consecutiveLoginFailures, loginFailureThreshold),
+                lastLoginFailureReason: lowBalanceReason,
+                lastLoginFailureAt: new Date(),
+            }
+        })
+
+        console.log(`[Balance] AUTO-DISABLED ${accountName} — balance ${currentBalance} USD below ${threshold} USD`)
+
+        // Send admin notification (existing flow with cooldown)
         await notifyAdminLowBalance(accountId, accountName, currentBalance)
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error)
+        console.error(`[Balance] Failed to check/disable ${accountName}: ${msg}`)
     }
 }

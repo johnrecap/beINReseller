@@ -14,7 +14,13 @@ export async function GET(request: NextRequest) {
 
         const accounts = await prisma.beinAccount.findMany({
             where: {
-                consecutiveLoginFailures: { gte: threshold }
+                OR: [
+                    { consecutiveLoginFailures: { gte: threshold } },
+                    {
+                        isActive: false,
+                        lastLoginFailureReason: { startsWith: 'Low balance:' }
+                    }
+                ]
             },
             orderBy: [
                 { lastLoginFailureAt: 'desc' },
@@ -24,6 +30,7 @@ export async function GET(request: NextRequest) {
                 id: true,
                 username: true,
                 label: true,
+                isActive: true,
                 consecutiveLoginFailures: true,
                 lastLoginAttemptAt: true,
                 lastLoginFailureAt: true,
@@ -37,7 +44,9 @@ export async function GET(request: NextRequest) {
             threshold,
             accounts: accounts.map((account) => ({
                 ...account,
-                needsPasswordUpdate: account.consecutiveLoginFailures >= threshold,
+                failureType: account.lastLoginFailureReason?.startsWith('Low balance:')
+                    ? 'low_balance' as const
+                    : 'login_failure' as const,
             })),
         })
     } catch (error) {

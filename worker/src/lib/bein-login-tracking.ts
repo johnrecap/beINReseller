@@ -30,7 +30,6 @@ const NON_CREDENTIAL_FAILURE_PATTERNS = [
     'server returned html',
     'status code 5',
     'status code 429',
-    'cached title',
 ];
 
 let thresholdCache: { value: number; cachedAt: number } | null = null;

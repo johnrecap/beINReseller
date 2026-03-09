@@ -23,6 +23,7 @@ import {
     Megaphone,
     Activity,
     AlertTriangle,
+    DollarSign,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -78,6 +79,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
         { href: '/dashboard/admin/bein-accounts/login-failures', label: 'beIN Login Failures', icon: AlertTriangle },
+        { href: '/dashboard/admin/bein-accounts/low-balance', label: 'beIN Low Balance', icon: DollarSign },
         { href: '/dashboard/admin/proxies', label: t.sidebar.proxyManagement, icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
         { href: '/dashboard/admin/reports/integrity', label: t.sidebar.integrityReports || 'Integrity Reports', icon: AlertTriangle },

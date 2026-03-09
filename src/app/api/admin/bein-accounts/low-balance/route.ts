@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
-import { getBeinLoginFailureThreshold } from '@/lib/get-bein-login-failure-threshold'
 
 export async function GET(request: NextRequest) {
     try {
@@ -10,38 +9,44 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        const threshold = await getBeinLoginFailureThreshold()
+        // Get low balance threshold from settings
+        let threshold = 300
+        try {
+            const setting = await prisma.setting.findUnique({
+                where: { key: 'min_dealer_balance_alert' }
+            })
+            if (setting?.value) threshold = parseFloat(setting.value)
+        } catch { /* use default */ }
 
+        // Find accounts that are disabled AND have low balance
         const accounts = await prisma.beinAccount.findMany({
             where: {
-                consecutiveLoginFailures: { gte: threshold }
+                isActive: false,
+                lowBalanceAlertEnabled: true,
+                dealerBalance: { lt: threshold }
             },
             orderBy: [
-                { lastLoginFailureAt: 'desc' },
+                { balanceUpdatedAt: 'desc' },
                 { updatedAt: 'desc' }
             ],
             select: {
                 id: true,
                 username: true,
                 label: true,
-                consecutiveLoginFailures: true,
-                lastLoginAttemptAt: true,
-                lastLoginFailureAt: true,
-                lastLoginFailureReason: true,
-                lastSuccessfulLoginAt: true,
+                isActive: true,
+                dealerBalance: true,
+                balanceUpdatedAt: true,
+                lowBalanceAlertEnabled: true,
             }
         })
 
         return NextResponse.json({
             success: true,
             threshold,
-            accounts: accounts.map((account) => ({
-                ...account,
-                needsPasswordUpdate: account.consecutiveLoginFailures >= threshold,
-            })),
+            accounts,
         })
     } catch (error) {
-        console.error('Get beIN login failures error:', error)
+        console.error('Get beIN low balance accounts error:', error)
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 }

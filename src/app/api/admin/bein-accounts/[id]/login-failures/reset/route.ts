@@ -33,7 +33,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                     lastLoginAttemptAt: null,
                     lastLoginFailureAt: null,
                     lastLoginFailureReason: null,
-                    isActive: true,
                 }
             }),
             prisma.beinAccountSession.updateMany({
@@ -52,7 +51,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({
             success: true,
-            message: 'Account reset and reactivated successfully'
+            message: 'beIN login failure tracking reset successfully'
         })
     } catch (error) {
         console.error('Reset beIN login failures error:', error)

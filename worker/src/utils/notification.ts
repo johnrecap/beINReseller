@@ -130,16 +130,17 @@ export async function notifyAdminLowBalance(
         // Set cooldown (1 hour)
         await redis.setex(alertKey, ALERT_COOLDOWN_SECONDS, '1')
 
-        console.log(`[Notification] 📧 Notified ${admins.length} admins about low balance for ${accountName}`)
-    } catch (error: any) {
-        console.error(`[Notification] Failed to send low balance alert: ${error.message}`)
+        console.log(`[Notification] Notified ${admins.length} admins about low balance for ${accountName}`)
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error)
+        console.error(`[Notification] Failed to send low balance alert: ${msg}`)
     }
 }
 
 /**
  * Check if an account's balance is below the threshold.
- * If lowBalanceAlertEnabled is true, auto-disable the account and flag it
- * so it appears on the Login Failures page.
+ * If lowBalanceAlertEnabled is true, auto-disable the account.
+ * This is completely separate from login failure tracking.
  * 
  * @param accountId - The beIN account ID
  * @param accountName - Display name
@@ -162,8 +163,6 @@ export async function checkAndNotifyLowBalance(
             select: {
                 lowBalanceAlertEnabled: true,
                 isActive: true,
-                consecutiveLoginFailures: true,
-                lastLoginFailureReason: true,
             }
         })
         if (!account) return
@@ -173,25 +172,17 @@ export async function checkAndNotifyLowBalance(
             return
         }
 
-        const lowBalanceReason = `Low balance: ${currentBalance} USD (threshold: ${threshold} USD)`
-
-        // Skip if already disabled with same low-balance reason
-        if (!account.isActive && account.lastLoginFailureReason?.startsWith('Low balance:')) {
-            console.log(`[Balance] ${accountName}: already disabled for low balance, skipping`)
+        // Skip if already disabled
+        if (!account.isActive) {
+            console.log(`[Balance] ${accountName}: already disabled, skipping`)
             return
         }
 
-        // Load login failure threshold to make the account appear on the Login Failures page
-        const { getLoginFailureThreshold } = await import('../lib/bein-login-tracking')
-        const loginFailureThreshold = await getLoginFailureThreshold()
-
+        // Disable account — do NOT touch login failure fields
         await prisma.beinAccount.update({
             where: { id: accountId },
             data: {
                 isActive: false,
-                consecutiveLoginFailures: Math.max(account.consecutiveLoginFailures, loginFailureThreshold),
-                lastLoginFailureReason: lowBalanceReason,
-                lastLoginFailureAt: new Date(),
             }
         })
 

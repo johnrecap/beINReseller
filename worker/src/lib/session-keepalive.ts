@@ -391,6 +391,7 @@ export class SessionKeepAliveService {
             const MAX_CAPTCHA_RETRIES = 3;
             let lastCaptchaError = '';
             let currentCaptchaImage = loginResult.captchaImage;
+            let failureAlreadyRecorded = false;
 
             for (let attempt = 1; attempt <= MAX_CAPTCHA_RETRIES; attempt++) {
                 try {
@@ -428,9 +429,14 @@ export class SessionKeepAliveService {
                         continue;
                     } else if (finalLogin.error && finalLogin.error.includes('cached title')) {
                         // FAKE LOGIN — beIN returned login page with cached title
-                        // Reset session and retry with fresh CAPTCHA
-                        console.log(`[KeepAlive] ${username}: FAKE LOGIN on attempt ${attempt}, resetting for fresh retry...`);
+                        // Record failure PER ATTEMPT so 3 fake logins = threshold reached
                         lastCaptchaError = finalLogin.error;
+                        failureAlreadyRecorded = true;
+                        if (shouldCountAsCredentialFailure(finalLogin.error)) {
+                            await recordLoginFailure(accountId, finalLogin.error);
+                            console.log(`[KeepAlive] ${username}: FAKE LOGIN on attempt ${attempt} — failure recorded (consecutiveLoginFailures incremented)`);
+                        }
+                        // Reset session and retry with fresh CAPTCHA
                         if (attempt < MAX_CAPTCHA_RETRIES) {
                             try {
                                 client.resetSession();
@@ -466,8 +472,8 @@ export class SessionKeepAliveService {
                 }
             }
 
-            // All CAPTCHA attempts exhausted
-            if (shouldCountAsCredentialFailure(lastCaptchaError)) {
+            // All CAPTCHA attempts exhausted — record if not already done per-attempt
+            if (!failureAlreadyRecorded && shouldCountAsCredentialFailure(lastCaptchaError)) {
                 await recordLoginFailure(accountId, lastCaptchaError);
             }
             console.error(`[KeepAlive] ${username}: All ${MAX_CAPTCHA_RETRIES} CAPTCHA attempts failed`);

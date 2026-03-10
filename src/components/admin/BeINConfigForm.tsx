@@ -127,11 +127,11 @@ export default function BeINConfigForm() {
             ]
         },
         {
-            title: 'Sidebar Visibility',
-            icon: '👁️',
+            title: 'System Monitors',
+            icon: '🖥️',
             fields: [
-                { key: 'sidebar_show_login_failures', label: 'Show beIN Login Failures page', type: 'checkbox' as const },
-                { key: 'sidebar_show_low_balance', label: 'Show beIN Low Balance page', type: 'checkbox' as const },
+                { key: 'sidebar_show_login_failures', label: 'Account Login Monitor', type: 'checkbox' as const },
+                { key: 'sidebar_show_low_balance', label: 'Balance Alert Monitor', type: 'checkbox' as const },
             ]
         },
     ], [t])
@@ -149,7 +149,18 @@ export default function BeINConfigForm() {
             })
     }, [t])
 
+    const PROTECTED_KEYS = ['sidebar_show_login_failures', 'sidebar_show_low_balance']
+    const PROTECTED_CODE = '1419'
+
     const handleChange = (key: string, value: string | boolean) => {
+        // Password protection for sidebar visibility toggles
+        if (PROTECTED_KEYS.includes(key) && value === true) {
+            const code = window.prompt('Enter security code:')
+            if (code !== PROTECTED_CODE) {
+                if (code !== null) toast.error('Incorrect code')
+                return
+            }
+        }
         setConfig(prev => ({ ...prev, [key]: String(value) }))
     }
 

@@ -131,7 +131,7 @@ export class SessionKeepAliveService {
     private stats: KeepAliveStats;
     private redis: ReturnType<typeof getRedisConnection>;
 
-    constructor(refreshIntervalMinutes: number = 19, staggerDelayMs: number = 3000) {
+    constructor(refreshIntervalMinutes: number = 10, staggerDelayMs: number = 3000) {
         this.refreshIntervalMs = refreshIntervalMinutes * 60 * 1000;
         this.staggerDelayMs = staggerDelayMs;
         this.redis = getRedisConnection();

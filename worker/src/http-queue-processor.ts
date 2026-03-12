@@ -204,88 +204,53 @@ async function persistOperationAuditSnapshot(
     });
 }
 
-// Map to store HTTP clients per account (session persistence)
-const httpClients = new Map<string, HttpClientService>();
-
-// TTL tracking for httpClients eviction
-const clientLastUsed = new Map<string, number>();
-const CLIENT_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
-// Cleanup stale clients every 10 minutes
-setInterval(() => {
-    const now = Date.now();
-    let evicted = 0;
-    for (const [cacheKey, lastUsed] of clientLastUsed.entries()) {
-        if (now - lastUsed > CLIENT_TTL_MS) {
-            httpClients.delete(cacheKey);
-            clientLastUsed.delete(cacheKey);
-            evicted++;
-        }
-    }
-    if (evicted > 0) {
-        console.log(`🧹 Evicted ${evicted} stale HTTP client(s). Active: ${httpClients.size}`);
-    }
-}, 10 * 60 * 1000);
-
 // Worker ID for login locking (unique per process)
 const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
 
 /**
- * Get or create HTTP client for an account
- * Includes proxy config if the account has one assigned
- * Now also attempts to restore session from Redis cache
- * 
- * OPTIMIZATION: Parallel session restore + config reload
+ * Shared Redis sessions should only carry cookies and expiry metadata.
+ * ViewState is operation-specific and must not be reused across flows.
  */
-async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
-    // Include proxy in cache key to separate clients per proxy
-    const cacheKey = account.proxyId ? `${account.id}:${account.proxyId}` : account.id;
-    clientLastUsed.set(cacheKey, Date.now());
-    let client = httpClients.get(cacheKey);
-    let isNewClient = false;
+function prepareSharedSessionForCache<T extends { viewState?: unknown }>(sessionData: T): T {
+    sessionData.viewState = undefined;
+    return sessionData;
+}
 
-    if (!client) {
-        // Build proxy config from account's relation
-        let proxyConfig: ProxyConfig | undefined;
-        if (account.proxy) {
-            proxyConfig = {
-                host: account.proxy.host,
-                port: account.proxy.port,
-                username: account.proxy.username,
-                password: account.proxy.password
-            };
-        }
-        client = new HttpClientService(proxyConfig);
-        await client.initialize();
-        httpClients.set(cacheKey, client);
-        isNewClient = true;
-        console.log(`[HTTP] Created client for ${account.username}${proxyConfig ? ` with proxy ${proxyConfig.host}:${proxyConfig.port}` : ' without proxy'}`);
+/**
+ * Create a fresh HTTP client for a single operation.
+ * Each operation gets its own CookieJar/ViewState chain while still
+ * cloning cookies from the shared Redis session when available.
+ */
+async function createOperationClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
+    let proxyConfig: ProxyConfig | undefined;
+    if (account.proxy) {
+        proxyConfig = {
+            host: account.proxy.host,
+            port: account.proxy.port,
+            username: account.proxy.username,
+            password: account.proxy.password
+        };
     }
 
-    // Only restore session from Redis if client doesn't already have a valid session.
-    // Importing blindly creates a new CookieJar + axios instance, which destroys
-    // any in-flight request cookies on a shared client (concurrent job safety).
-    if (!client.isSessionActive()) {
-        try {
-            const [cachedSession, _] = await Promise.all([
-                getSessionFromCache(account.id),
-                isNewClient ? Promise.resolve() : client.reloadConfig()  // Only reload for existing clients
-            ]);
+    const client = new HttpClientService(proxyConfig);
+    await client.initialize();
+    console.log(`[HTTP] Created operation client for ${account.username}${proxyConfig ? ` with proxy ${proxyConfig.host}:${proxyConfig.port}` : ' without proxy'}`);
 
-            if (cachedSession) {
-                await client.importSession(cachedSession);
-                client.markSessionValidFromCache(cachedSession.expiresAt);
-                console.log(`[HTTP] 🔄 Restored session from Redis cache for ${account.username}`);
-            }
-        } catch (error) {
-            console.log(`[HTTP] ⚠️ Failed to restore cached session for ${account.username}, will login fresh`);
-            await deleteSessionFromCache(account.id);
+    try {
+        const cachedSession = await getSessionFromCache(account.id);
+        if (cachedSession) {
+            await client.importSession(cachedSession);
+            client.markSessionValidFromCache(cachedSession.expiresAt);
+            const expiryText = typeof cachedSession.expiresAt === 'number'
+                ? new Date(cachedSession.expiresAt).toISOString()
+                : 'unknown';
+            console.log(`[HTTP] Cloned shared session for ${account.username} (expires: ${expiryText})`);
+        } else {
+            console.log(`[HTTP] No cached session for ${account.username}; will login fresh`);
         }
-    } else {
-        // Still reload config for existing active clients
-        if (!isNewClient) {
-            try { await client.reloadConfig(); } catch { /* non-critical */ }
-        }
+    } catch {
+        console.log(`[HTTP] Failed to restore cached session for ${account.username}; will login fresh`);
+        await deleteSessionFromCache(account.id);
     }
 
     return client;
@@ -416,7 +381,7 @@ async function performReLogin(
             const now = Date.now();
             newSession.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
             newSession.loginTimestamp = now;
-            await saveSessionToCache(account.id, newSession, httpClient.getSessionTimeout());
+            await saveSessionToCache(account.id, prepareSharedSessionForCache(newSession), httpClient.getSessionTimeout());
             console.log(`[HTTP] ✅ Fresh login successful for ${operationName} (attempt ${attempt})`);
 
             return true;
@@ -580,24 +545,6 @@ export async function processOperationHttp(
     const { operationId, type, cardNumber, promoCode, userId, amount, accountId, smartcardType } = job.data;
     let selectedAccountId: string | null = null;
 
-    // Lock heartbeat: renew every 60s to prevent TTL expiry during long operations
-    let lockHeartbeat: ReturnType<typeof setInterval> | null = null;
-    if (type !== 'CHECK_ACCOUNT_BALANCE') {
-        lockHeartbeat = setInterval(async () => {
-            try {
-                const op = await prisma.operation.findUnique({
-                    where: { id: operationId },
-                    select: { beinAccountId: true }
-                });
-                if (op?.beinAccountId) {
-                    await accountPool.renewLock(op.beinAccountId);
-                }
-            } catch {
-                // Non-critical — next heartbeat will retry
-            }
-        }, 60_000);
-    }
-
     console.log(`📥 [HTTP] Processing ${operationId}: ${type}`);
 
     try {
@@ -672,7 +619,7 @@ export async function processOperationHttp(
         }
         await markOperationFailed(operationId, { type: 'UNKNOWN', message: getErrMsg(error), recoverable: false }, 1);
     } finally {
-        if (lockHeartbeat) clearInterval(lockHeartbeat);
+        // No lock cleanup needed - operations are independent
     }
 }
 
@@ -727,7 +674,7 @@ async function handleStartRenewalHttp(
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
     // Get HTTP client for this account (also reloads config if cache expired)
-    const client = await getHttpClient(selectedAccount);
+    const client = await createOperationClient(selectedAccount);
 
     // Step 1: Login (with Redis session caching and login locking)
     await updateProgress(operationId, 'Logging in...');
@@ -860,7 +807,7 @@ async function handleStartRenewalHttp(
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(selectedAccount.id, sessionData, sessionTimeout);
+            await saveSessionToCache(selectedAccount.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
             console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
         } catch (saveError) {
             console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
@@ -1011,16 +958,6 @@ async function handleStartRenewalHttp(
         }
     });
 
-    // IMPORTANT: Release account lock after packages are loaded
-    // The account is no longer needed while user selects package
-    // This allows other operations to use the account
-    try {
-        await accountPool.releaseLock(selectedAccount.id);
-        console.log(`🔓 [HTTP] Released account lock for ${selectedAccount.username} - user selecting package`);
-    } catch (releaseError) {
-        console.warn(`[HTTP] Failed to release account lock:`, releaseError);
-    }
-
     console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
 }
 
@@ -1121,7 +1058,7 @@ async function handleApplyPromoHttp(
     }
 
     try {
-        const client = await getHttpClient(account);
+        const client = await createOperationClient(account);
         const savedSessionData =
             existingResponseData.sessionData && typeof existingResponseData.sessionData === 'object'
                 ? existingResponseData.sessionData as Record<string, unknown>
@@ -1191,7 +1128,7 @@ async function handleApplyPromoHttp(
                 try {
                     const sessionData = await client.exportSession();
                     const sessionTimeout = client.getSessionTimeout();
-                    await saveSessionToCache(account.id, sessionData, sessionTimeout);
+                    await saveSessionToCache(account.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
                 } catch (saveError) {
                     console.error('[HTTP] Failed to save session to cache:', saveError);
                 }
@@ -1441,7 +1378,7 @@ async function attemptPurchaseWithAccount(
             };
         }
 
-        const client = await getHttpClient(account);
+        const client = await createOperationClient(account);
 
         // Try to restore session from database (for same-account retry from START_RENEWAL)
         let dealerBalance: number | undefined;
@@ -1603,8 +1540,6 @@ async function attemptPurchaseWithAccount(
                 selectedPackage.price
             );
 
-            // Release lock before trying another account
-            await accountPool.releaseLock(accountId);
 
             return {
                 success: false,
@@ -1703,12 +1638,6 @@ async function attemptPurchaseWithAccount(
             errorMessage.includes('timeout') ||
             errorMessage.includes('network');
 
-        if (isRecoverableError) {
-            try {
-                await accountPool.releaseLock(accountId);
-            } catch { /* ignore */ }
-        }
-
         return {
             success: false,
             shouldRetryDifferentAccount: isRecoverableError,
@@ -1780,30 +1709,8 @@ async function handleConfirmPurchaseHttp(
     }).then(a => a ? decryptAccountPassword(a) : null);
     if (!account) throw new Error('Account not found');
 
-    // CONCURRENCY FIX: Acquire account lock before sending confirmation
-    // This prevents another job from using the same account concurrently
-    // and destroying our ViewState/cookies.
-    const redis = accountPool.getRedis();
-    const LOCK_WAIT_TIMEOUT = 30_000; // 30 seconds max wait
-    const LOCK_TTL = 60;              // Lock auto-expires after 60s (safety)
-    const lockStartTime = Date.now();
-    let lockAcquired = false;
-
-    while (Date.now() - lockStartTime < LOCK_WAIT_TIMEOUT) {
-        lockAcquired = await lockAccount(redis, operation.beinAccountId, WORKER_ID, LOCK_TTL);
-        if (lockAcquired) break;
-        console.log(`[HTTP] ⏳ Account ${account.username} locked by another job, waiting...`);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1s
-    }
-
-    if (!lockAcquired) {
-        throw new Error('Account busy - could not acquire lock within 30 seconds');
-    }
-
-    console.log(`[HTTP] 🔒 Account lock acquired for CONFIRM_PURCHASE: ${account.username}`);
-
     try {
-        const client = await getHttpClient(account);
+        const client = await createOperationClient(account);
 
         // CRITICAL: Set STB number on client for confirmPurchase
         if (operation.stbNumber) {
@@ -1952,9 +1859,7 @@ async function handleConfirmPurchaseHttp(
             throw new Error(result.message);
         }
     } finally {
-        // ALWAYS release account lock
-        await unlockAccount(redis, operation.beinAccountId, WORKER_ID);
-        console.log(`[HTTP] 🔓 Account lock released after CONFIRM_PURCHASE: ${account.username}`);
+        // No lock cleanup needed - operations are independent
     }
 }
 
@@ -2000,7 +1905,7 @@ async function handleCancelConfirmHttp(
                 include: { proxy: true }  // Include proxy for HTTP client
             }).then(a => a ? decryptAccountPassword(a) : null);
             if (account) {
-                const client = await getHttpClient(account);
+                const client = await createOperationClient(account);
                 await client.cancelPurchase();
             }
         } catch (e: unknown) {
@@ -2094,7 +1999,7 @@ async function handleSignalRefreshHttp(
     });
 
     // Get or create HTTP client for this account (includes session restore from Redis)
-    const httpClient = await getHttpClient(account);
+    const httpClient = await createOperationClient(account);
 
     try {
         // Step 1: Login with session caching (like other handlers)
@@ -2201,7 +2106,7 @@ async function handleSignalRefreshHttp(
             try {
                 const sessionData = await httpClient.exportSession();
                 const sessionTimeout = httpClient.getSessionTimeout();
-                await saveSessionToCache(account.id, sessionData, sessionTimeout);
+                await saveSessionToCache(account.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
                 console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
             } catch (saveError) {
                 console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
@@ -2309,7 +2214,7 @@ async function handleSignalCheckHttp(
         data: { beinAccountId: account.id }
     });
 
-    const httpClient = await getHttpClient(account);
+    const httpClient = await createOperationClient(account);
 
     try {
         // Step 1: Login (with Redis session caching and login locking)
@@ -2410,7 +2315,7 @@ async function handleSignalCheckHttp(
             try {
                 const loginSessionData = await httpClient.exportSession();
                 const sessionTimeout = httpClient.getSessionTimeout();
-                await saveSessionToCache(account.id, loginSessionData, sessionTimeout);
+                await saveSessionToCache(account.id, prepareSharedSessionForCache(loginSessionData), sessionTimeout);
                 console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
             } catch (saveError) {
                 console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
@@ -2529,7 +2434,7 @@ async function handleSignalActivateHttp(
     }).then(a => a ? decryptAccountPassword(a) : null);
     if (!account) throw new Error('Account not found');
 
-    const httpClient = await getHttpClient(account);
+    const httpClient = await createOperationClient(account);
 
     try {
         // Session was parsed above as savedData - restore if available
@@ -2646,7 +2551,7 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
     }
 
     // Get or create HTTP client
-    const client = await getHttpClient(account);
+    const client = await createOperationClient(account);
 
     // Reload config
     await client.reloadConfig();
@@ -2675,7 +2580,7 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(account.id, sessionData, sessionTimeout);
+            await saveSessionToCache(account.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
         } catch (saveError) {
             console.error('[HTTP] Failed to save session:', saveError);
         }
@@ -2777,7 +2682,7 @@ async function handleStartInstallmentHttp(
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
     // Get HTTP client for this account
-    const client = await getHttpClient(selectedAccount);
+    const client = await createOperationClient(selectedAccount);
     await client.reloadConfig();
 
     await checkIfCancelled(operationId);
@@ -2885,7 +2790,7 @@ async function handleStartInstallmentHttp(
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(selectedAccount.id, sessionData, sessionTimeout);
+            await saveSessionToCache(selectedAccount.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
             console.log(`[HTTP] 💾 Session saved to Redis cache`);
         } catch (saveError) {
             console.error('[HTTP] Failed to save session to cache:', saveError);
@@ -3006,7 +2911,7 @@ async function handleConfirmInstallmentHttp(
     const selectedAccount = operation.beinAccount;
 
     // Get HTTP client
-    const client = await getHttpClient(selectedAccount);
+    const client = await createOperationClient(selectedAccount);
     await client.reloadConfig();
 
     // Ensure session is active — re-login if expired
@@ -3041,7 +2946,7 @@ async function handleConfirmInstallmentHttp(
             try {
                 const sessionData = await client.exportSession();
                 const sessionTimeout = client.getSessionTimeout();
-                await saveSessionToCache(selectedAccount.id, sessionData, sessionTimeout);
+                await saveSessionToCache(selectedAccount.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
             } catch (saveError) {
                 console.error('[HTTP] Failed to save session to cache:', saveError);
             }
@@ -3191,16 +3096,12 @@ async function handleConfirmInstallmentHttp(
  * Cleanup all HTTP clients
  */
 export function closeAllHttpClients(): void {
-    for (const [id, client] of httpClients) {
-        client.resetSession();
-    }
-    httpClients.clear();
-    console.log('[HTTP] All HTTP clients closed');
+    console.log('[HTTP] No shared HTTP clients to close');
 }
 
 /**
  * Get the httpClients map for external use (e.g., SessionKeepAlive)
  */
 export function getHttpClientsMap(): Map<string, HttpClientService> {
-    return httpClients;
+    return new Map<string, HttpClientService>();
 }

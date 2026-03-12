@@ -25,7 +25,7 @@ import { closeRedisConnection } from './lib/redis';
 import { prisma } from './lib/prisma';
 
 // Default interval (can be overridden by database setting)
-const DEFAULT_INTERVAL_MINUTES = 19;
+const DEFAULT_INTERVAL_MINUTES = 10;
 
 async function getIntervalFromSettings(): Promise<number> {
     try {

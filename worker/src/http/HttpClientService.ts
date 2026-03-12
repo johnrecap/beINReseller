@@ -1382,7 +1382,7 @@ export class HttpClientService {
      * 
      * This is the RECOMMENDED method for starting the renewal wizard.
      */
-    async startRenewalWithCheck(cardNumber: string): Promise<LoadPackagesResult> {
+    async startRenewalWithCheck(cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
         console.log(`[HTTP] ========== START RENEWAL WITH CHECK ==========`);
         console.log(`[HTTP] Card: ${cardNumber}`);
 
@@ -1409,7 +1409,7 @@ export class HttpClientService {
 
             // Step 2: Load packages from SellPackages page
             console.log(`[HTTP] Step 2: Loading packages from SellPackages...`);
-            const packagesResult = await this.loadPackages(cardNumber);
+            const packagesResult = await this.loadPackages(cardNumber, smartcardType);
 
             // Include the STB we extracted from Check page
             if (this.currentStbNumber && !packagesResult.stbNumber) {
@@ -1529,13 +1529,17 @@ export class HttpClientService {
             }
 
 
-            // Step 3: Enter serial number
-            // beIN SellPackages page has "7" pre-filled in tbSerial1, BUT:
-            // When we POST, we REPLACE the field value entirely!
-            // So we need to send the FULL card WITHOUT last digit (check digit)
-            // Example: 7511394806 → 751139480 (slice 0,-1)
-            const formattedCard = cardNumber.slice(0, -1);
-            console.log(`[HTTP] Card format: ${cardNumber} → ${formattedCard} (removed last digit only)`);
+            // Step 3: Enter serial number — strategy depends on smartcard type
+            // Handle IRDETO fallback sentinel — use trimmed serial like CISCO
+            const isIrdetoFallback = smartcardType === '__IRDETO_FALLBACK__';
+            if (isIrdetoFallback) {
+                console.log('[HTTP] 🔄 IRDETO FALLBACK: using trimmed serial (Cisco-style)');
+            }
+
+            const formattedCard = smartcardType === 'IRDETO'
+                ? cardNumber                      // IRDETO: full serial
+                : cardNumber.slice(0, -1);        // CISCO and IRDETO_FALLBACK: remove check digit
+            console.log(`[HTTP] Card format: ${cardNumber} → ${formattedCard} (${smartcardType === 'IRDETO' ? 'full serial' : 'removed last digit'})`);
 
             // Get actual Load button value from current HTML
             const currentHtml = $.html();
@@ -1702,7 +1706,26 @@ export class HttpClientService {
             const packages = this.extractPackagesFromHtml($);
 
             if (packages.length === 0) {
-                console.log('[HTTP] ⚠️ No packages found');
+                // IRDETO adaptive fallback: if full serial returned no packages,
+                // retry once with trimmed serial (Cisco-style)
+                if (smartcardType === 'IRDETO') {
+                    const bodyText2 = $('body').text().toLowerCase();
+                    const hasExplicitError = bodyText2.includes('invalid serial')
+                        || bodyText2.includes('not found')
+                        || serial2Field.length > 0;  // tbSerial2 appeared = wrong path
+
+                    if (hasExplicitError) {
+                        console.log(`[HTTP] ⚠️ IRDETO primary attempt failed (explicit error detected), trying trimmed fallback...`);
+                        console.log(`[HTTP] IRDETO fallback reason: ${
+                            bodyText2.includes('invalid serial') ? 'Invalid Serial' :
+                            bodyText2.includes('not found') ? 'Not Found' : 'tbSerial2 appeared'
+                        }`);
+                        // Recursive call with CISCO-style trim (one retry only)
+                        return this.loadPackages(cardNumber, '__IRDETO_FALLBACK__');
+                    }
+                }
+
+                console.log(`[HTTP] ⚠️ No packages found (smartcard: ${smartcardType})`);
                 return {
                     success: false,
                     packages: [],
@@ -1720,7 +1743,7 @@ export class HttpClientService {
                 console.log(`[HTTP] 💰 Dealer Balance: ${dealerBalance} USD`);
             }
 
-            console.log(`[HTTP] ✅ Loaded ${packages.length} packages`);
+            console.log(`[HTTP] ✅ Loaded ${packages.length} packages (smartcard: ${smartcardType})`);
             return {
                 success: true,
                 packages,
@@ -1843,7 +1866,7 @@ export class HttpClientService {
      * @param cardNumber - Card number (for re-extracting packages)
      * @returns Updated packages with discounted prices
      */
-    async applyPromoCode(promoCode: string, cardNumber: string): Promise<LoadPackagesResult> {
+    async applyPromoCode(promoCode: string, cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
         console.log(`[HTTP] Applying promo code: ${promoCode}`);
 
         try {
@@ -1901,7 +1924,7 @@ export class HttpClientService {
 
                 // Fallback: some responses return an intermediate page after promo submit.
                 // Re-loading packages with same session/card recovers the real package list.
-                const fallbackReload = await this.loadPackages(cardNumber);
+                const fallbackReload = await this.loadPackages(cardNumber, smartcardType);
                 if (fallbackReload.success && fallbackReload.packages.length > 0) {
                     console.log(`[HTTP] Promo fallback reload recovered ${fallbackReload.packages.length} packages`);
                     return {

@@ -1030,6 +1030,7 @@ async function handleApplyPromoHttp(
     }
 
     const existingResponseData = parseResponseDataObject(operation.responseData);
+    const savedSmartcardType = (existingResponseData.smartcardType as string) || 'CISCO';
 
     try {
         const client = await createOperationClient(account);
@@ -1112,12 +1113,13 @@ async function handleApplyPromoHttp(
         // Apply promo code
         console.log(`[HTTP] 🎫 Applying promo code: ${promoCode}`);
         const useCardNumber = cardNumber || operation.cardNumber;
-        const result = await client.applyPromoCode(promoCode, useCardNumber);
+        const result = await client.applyPromoCode(promoCode, useCardNumber, savedSmartcardType);
         const latestSessionData = await client.exportSession().catch(() => null);
         const mergedResponseBase: Record<string, unknown> = {
             ...existingResponseData,
             refreshing: false,
             promoCode: promoCode || null,
+            smartcardType: savedSmartcardType,  // Preserve for subsequent operations
         };
         if (latestSessionData) {
             mergedResponseBase.sessionData = latestSessionData;

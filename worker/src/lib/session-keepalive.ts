@@ -347,6 +347,7 @@ export class SessionKeepAliveService {
                 const now = Date.now();
                 sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
                 sessionData.loginTimestamp = now;
+                sessionData.viewState = undefined;  // ViewState is operation-specific
                 await saveSessionToCache(accountId, sessionData, 16);
                 console.log(`[KeepAlive] ${username}: Session validated on beIN and extended`);
                 return {
@@ -412,6 +413,7 @@ export class SessionKeepAliveService {
                         const now = Date.now();
                         sessionData.expiresAt = now + (15 * 60 * 1000);
                         sessionData.loginTimestamp = now;
+                        sessionData.viewState = undefined;  // ViewState is operation-specific
                         await saveSessionToCache(accountId, sessionData, 16);
                         console.log(`[KeepAlive] ${username}: Login successful (CAPTCHA solved on attempt ${attempt})`);
                         return {
@@ -495,6 +497,7 @@ export class SessionKeepAliveService {
             const now = Date.now();
             sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
             sessionData.loginTimestamp = now;
+            sessionData.viewState = undefined;  // ViewState is operation-specific
             await saveSessionToCache(accountId, sessionData, 16);
             console.log(`[KeepAlive] ${username}: Login successful`);
             return {

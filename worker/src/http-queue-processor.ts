@@ -10,7 +10,7 @@
 import { Job } from 'bullmq';
 import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage } from './http';
-import { AccountPoolManager, AccountQueueManager, getQueueManager, forceUnlockAccount, lockAccount, unlockAccount } from './pool';
+import { AccountPoolManager, AccountQueueManager, getQueueManager } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
@@ -1030,32 +1030,6 @@ async function handleApplyPromoHttp(
     }
 
     const existingResponseData = parseResponseDataObject(operation.responseData);
-    const redis = accountPool.getRedis();
-    const LOCK_WAIT_TIMEOUT = 15_000;
-    const LOCK_TTL = 90;
-    const lockStartTime = Date.now();
-    let lockAcquired = false;
-
-    while (Date.now() - lockStartTime < LOCK_WAIT_TIMEOUT) {
-        lockAcquired = await lockAccount(redis, operation.beinAccountId, WORKER_ID, LOCK_TTL);
-        if (lockAcquired) break;
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    if (!lockAcquired) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({
-                    ...existingResponseData,
-                    promoApplied: false,
-                    refreshing: false,
-                    error: 'beIN account is busy. Please retry promo in a few seconds.',
-                }),
-            }
-        });
-        return;
-    }
 
     try {
         const client = await createOperationClient(account);
@@ -1200,10 +1174,7 @@ async function handleApplyPromoHttp(
             console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
         }
     } finally {
-        await unlockAccount(redis, operation.beinAccountId, WORKER_ID).catch((releaseError: unknown) => {
-            const releaseMessage = releaseError instanceof Error ? releaseError.message : String(releaseError);
-            console.warn(`[HTTP] Failed to release promo lock for ${operationId}: ${releaseMessage}`);
-        });
+        // No lock cleanup needed — operations are independent
     }
 }
 
@@ -1940,18 +1911,6 @@ async function handleCancelConfirmHttp(
 
     if (operation.beinAccountId) {
         await accountPool.markAccountUsed(operation.beinAccountId);
-        // Force-unlock: markAccountUsed uses unlockAccount which checks worker ID ownership,
-        // but cancels often run on a different worker than the one that locked the account.
-        // Force-unlock guarantees the lock is released after cancellation.
-        try {
-            const redis = (accountPool as unknown as { redis?: import("ioredis").Redis }).redis;
-            if (redis) {
-                await forceUnlockAccount(redis, operation.beinAccountId);
-                console.log(`🔓 [HTTP] Force-unlocked account ${operation.beinAccountId} after cancel`);
-            }
-        } catch (e: unknown) {
-            console.log(`⚠️ [HTTP] Failed to force-unlock: ${getErrMsg(e)}`);
-        }
     }
 
     console.log(`✅ [HTTP] Operation ${operationId} cancelled and refunded`);

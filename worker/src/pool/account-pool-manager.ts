@@ -9,7 +9,7 @@ import { prisma } from '../lib/prisma'
 import { getRedisConnection } from '../lib/redis'
 import { PoolConfig, AccountHealth, PoolStatus, BeinAccount } from './types'
 import { checkRateLimit, recordRequest } from './rate-limiter'
-import { isAccountLocked } from './account-locking'
+
 import { decryptAccountPassword } from '../lib/crypto'
 
 const COUNTER_KEY = 'bein:pool:counter'
@@ -218,16 +218,6 @@ export class AccountPoolManager {
                 reason: `In cooldown (${cooldownTTL}s remaining)`,
                 requestsInWindow: 0,
                 cooldownRemaining: cooldownTTL,
-            }
-        }
-
-        // Check if locked by another worker
-        const locked = await isAccountLocked(this.redis, accountId)
-        if (locked) {
-            return {
-                isAvailable: false,
-                reason: 'Locked by another worker',
-                requestsInWindow: 0,
             }
         }
 

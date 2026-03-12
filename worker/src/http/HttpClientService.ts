@@ -1004,15 +1004,6 @@ export class HttpClientService {
         }
 
         try {
-            // === DEBUG: Check IP before login to verify proxy ===
-            try {
-                const ipCheckRes = await this.axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
-                console.log(`[HTTP] 🌐 Current IP (via proxy): ${ipCheckRes.data?.ip || 'unknown'}`);
-            } catch (ipErr: any) {
-                console.log(`[HTTP] ⚠️ IP check failed: ${ipErr.message}`);
-            }
-            // === END DEBUG ===
-
             // Step 1: GET login page
             console.log(`[HTTP] GET ${this.config.loginUrl}`);
             const loginPageRes = await this.axios.get(this.config.loginUrl);

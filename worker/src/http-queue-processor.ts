@@ -846,38 +846,37 @@ async function handleStartRenewalHttp(
             'loadPackages'
         );
     } else {
-        // No STB cache — run BOTH in parallel
-        console.log(`🔍📦 [HTTP] Running checkCard + loadPackages in PARALLEL...`);
+        // No STB cache — run loadPackages immediately, checkCard in background
+        console.log(`📦 [HTTP] Loading packages (checkCard deferred to background)...`);
         const startTime = Date.now();
 
-        const [checkResult, pkgResult] = await Promise.all([
-            withSessionRetry(
-                client,
-                selectedAccount,
-                () => client.checkCard(cardNumber),
-                'checkCard'
-            ),
-            withSessionRetry(
-                client,
-                selectedAccount,
-                () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
-                'loadPackages'
-            )
-        ]);
+        packagesResult = await withSessionRetry(
+            client,
+            selectedAccount,
+            () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
+            'loadPackages'
+        );
 
-        console.log(`⚡ [HTTP] Parallel operations completed in ${Date.now() - startTime}ms`);
+        console.log(`⚡ [HTTP] loadPackages completed in ${Date.now() - startTime}ms`);
 
-        if (!checkResult.success) {
-            console.log(`⚠️ [HTTP] checkCard failed: ${checkResult.error} (non-fatal, STB may not be available)`);
-        } else {
-            stbNumber = checkResult.stbNumber;
-            // Cache STB (fire-and-forget)
-            if (stbNumber) {
-                cacheSTB(cardNumber, stbNumber).catch(() => { });
+        // Fire checkCard in background — saves STB to cache for COMPLETE_PURCHASE
+        // Don't await — let it run while user views packages
+        withSessionRetry(
+            client,
+            selectedAccount,
+            () => client.checkCard(cardNumber),
+            'checkCard'
+        ).then(checkResult => {
+            if (checkResult.success && checkResult.stbNumber) {
+                stbNumber = checkResult.stbNumber;
+                cacheSTB(cardNumber, checkResult.stbNumber).catch(() => {});
+                console.log(`[HTTP] ✅ Background checkCard completed in ${Date.now() - startTime}ms: STB=${checkResult.stbNumber}`);
+            } else {
+                console.log(`[HTTP] ⚠️ Background checkCard: no STB (${checkResult.error || 'unknown'})`);
             }
-        }
-
-        packagesResult = pkgResult;
+        }).catch(err => {
+            console.log(`[HTTP] ⚠️ Background checkCard failed: ${getErrMsg(err)} (non-fatal)`);
+        });
     }
 
     if (!packagesResult.success) {
@@ -1532,11 +1531,35 @@ async function attemptPurchaseWithAccount(
         };
 
         // Complete purchase
+        // Ensure STB is available (may have been deferred during START_RENEWAL)
+        let stbForPurchase = operation.stbNumber;
+        if (!stbForPurchase) {
+            // Try Redis cache first (background checkCard should have saved it)
+            const cachedStb = await getCachedSTB(operation.cardNumber);
+            if (cachedStb) {
+                stbForPurchase = cachedStb;
+                console.log(`[HTTP] 📡 STB from cache: ${cachedStb}`);
+            } else {
+                // Last resort: run checkCard inline
+                console.log(`[HTTP] ⚠️ No STB available — running checkCard inline...`);
+                try {
+                    const checkResult = await client.checkCard(operation.cardNumber);
+                    if (checkResult.success && checkResult.stbNumber) {
+                        stbForPurchase = checkResult.stbNumber;
+                        cacheSTB(operation.cardNumber, checkResult.stbNumber).catch(() => {});
+                        console.log(`[HTTP] ✅ Inline checkCard got STB: ${checkResult.stbNumber}`);
+                    }
+                } catch (checkErr) {
+                    console.log(`[HTTP] ⚠️ Inline checkCard failed: ${getErrMsg(checkErr)}`);
+                }
+            }
+        }
+
         console.log(`[HTTP] 📦 Completing purchase: ${pkg.name} @ ${pkg.price} USD`);
         const result = await client.completePurchase(
             pkg,
             operation.promoCode || promoCode,
-            operation.stbNumber || undefined,
+            stbForPurchase || undefined,
             true // skipFinalClick - pause for confirmation
         );
 

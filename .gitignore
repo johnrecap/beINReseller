@@ -51,3 +51,6 @@ worker/.env
 .agent
 .opencode
 .claude
+.osgrep
+.memsearch
+.worktrees/

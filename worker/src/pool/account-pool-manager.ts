@@ -9,7 +9,7 @@ import { prisma } from '../lib/prisma'
 import { getRedisConnection } from '../lib/redis'
 import { PoolConfig, AccountHealth, PoolStatus, BeinAccount } from './types'
 import { checkRateLimit, recordRequest } from './rate-limiter'
-import { lockAccount, unlockAccount, isAccountLocked, extendLock } from './account-locking'
+import { isAccountLocked } from './account-locking'
 import { decryptAccountPassword } from '../lib/crypto'
 
 const COUNTER_KEY = 'bein:pool:counter'
@@ -105,12 +105,6 @@ export class AccountPoolManager {
                 continue
             }
 
-            // Try to acquire lock
-            const locked = await lockAccount(this.redis, account.id, this.workerId)
-            if (!locked) {
-                console.log(`🔒 Account ${account.label || account.username} is locked by another worker`)
-                continue
-            }
 
             console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`)
             return decryptAccountPassword(account)
@@ -139,8 +133,6 @@ export class AccountPoolManager {
             },
         })
 
-        // Release the lock
-        await unlockAccount(this.redis, accountId, this.workerId)
 
         console.log(`📊 Account ${accountId} marked as used`)
     }
@@ -178,8 +170,6 @@ export class AccountPoolManager {
             console.error(`🚫 Account ${accountId} auto-disabled after ${account.consecutiveFailures} consecutive failures`)
         }
 
-        // Release the lock
-        await unlockAccount(this.redis, accountId, this.workerId)
 
         console.log(`❌ Account ${accountId} marked as failed: ${error}`)
     }
@@ -356,15 +346,15 @@ export class AccountPoolManager {
      * Release a lock for a specific account (cleanup)
      */
     async releaseLock(accountId: string): Promise<void> {
-        await unlockAccount(this.redis, accountId, this.workerId)
+        // No-op: Account locks removed in favor of per-operation clients
     }
 
     /**
      * Extend the lock TTL (heartbeat keep-alive)
      * Call this periodically during long operations to prevent expiry
      */
-    async renewLock(accountId: string): Promise<boolean> {
-        return extendLock(this.redis, accountId, this.workerId)
+    async renewLock(accountId: string): Promise<void> {
+        // No-op: Account locks removed in favor of per-operation clients
     }
 
     /**
@@ -478,11 +468,6 @@ export class AccountPoolManager {
                 continue
             }
 
-            const locked = await lockAccount(this.redis, account.id, this.workerId)
-            if (!locked) {
-                console.log(`🔒 Account ${account.label || account.username} is locked by another worker`)
-                continue
-            }
 
             console.log(`✅ Selected alternative account: ${account.label || account.username} (Balance: ${account.dealerBalance || 'unknown'} USD)`)
             return decryptAccountPassword(account)

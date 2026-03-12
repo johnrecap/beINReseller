@@ -1,6 +1,5 @@
 import type { NextAuthConfig } from "next-auth"
 import { SECURITY_CONFIG } from "@/lib/config"
-import { refreshSessionOnActivity } from "@/lib/session-refresh"
 
 export const authConfig = {
     pages: {
@@ -46,7 +45,7 @@ export const authConfig = {
                 return { ...token, ...session }
             }
 
-            return refreshSessionOnActivity(token)
+            return token
         },
         async session({ session, token }) {
             if (token) {

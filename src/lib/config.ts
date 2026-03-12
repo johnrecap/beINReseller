@@ -3,7 +3,7 @@ export const SECURITY_CONFIG = {
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '12'),
 
     // Session (Seconds)
-    sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || '3600'), // 1 hour
+    sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE || '28800'), // 8 hours
 
     // Captcha (Seconds)
     captchaTimeout: parseInt(process.env.CAPTCHA_TIMEOUT || '120'), // 2 minutes

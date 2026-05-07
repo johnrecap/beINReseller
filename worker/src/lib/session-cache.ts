@@ -19,6 +19,7 @@ import { gzipSync, gunzipSync } from 'zlib';
 
 // Redis key prefixes
 const SESSION_PREFIX = 'bein:session:';
+const OPERATION_SESSION_PREFIX = 'bein:operation-session:';
 const LOGIN_LOCK_PREFIX = 'bein:login-lock:';
 const KEEPALIVE_LOCK_PREFIX = 'bein:keepalive-lock:';
 
@@ -70,7 +71,7 @@ function compressViewState(viewState: HiddenFields): string {
         const ratio = ((1 - compressed.length / json.length) * 100).toFixed(1);
         console.log(`[Session Cache] 🗜️ Compressed ViewState: ${json.length} -> ${compressed.length} chars (${ratio}% reduction)`);
         return COMPRESSION_PREFIX + compressed;
-    } catch (error) {
+    } catch {
         console.warn(`[Session Cache] ⚠️ Compression failed, using uncompressed`);
         return json;
     }
@@ -124,7 +125,7 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
         if (rawSession.viewStateCompressed) {
             try {
                 viewState = decompressViewState(rawSession.viewStateCompressed);
-            } catch (e) {
+            } catch {
                 console.error(`[Session Cache] ❌ Failed to decompress ViewState`);
                 viewState = undefined;
             }
@@ -256,6 +257,85 @@ export async function saveSessionToCache(
     } catch (error) {
         console.error(`[Session Cache] Error saving session:`, error);
         // Don't throw - graceful degradation
+    }
+}
+
+/**
+ * Save operation-scoped session data for user confirmation flows.
+ * Unlike shared account sessions, this may include operation-specific ViewState.
+ */
+export async function saveOperationSessionToCache(
+    operationId: string,
+    session: SessionData,
+    ttlSeconds: number
+): Promise<void> {
+    try {
+        const redis = getRedisConnection();
+        const key = `${OPERATION_SESSION_PREFIX}${operationId}`;
+
+        let compressedViewState: string | undefined;
+        if (session.viewState) {
+            compressedViewState = compressViewState(session.viewState);
+        }
+
+        const sessionToSave = {
+            cookies: session.cookies,
+            viewStateCompressed: compressedViewState,
+            accountId: session.accountId,
+            loginTimestamp: session.loginTimestamp || Date.now(),
+            expiresAt: session.expiresAt,
+            lastLoginTime: session.lastLoginTime || new Date().toISOString()
+        };
+
+        await redis.setex(key, ttlSeconds, JSON.stringify(sessionToSave));
+        console.log(`[Session Cache] Saved operation-scoped session for operation ${operationId}`);
+    } catch (error) {
+        console.error(`[Session Cache] Error saving operation session:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Get operation-scoped session data for confirmation flows.
+ */
+export async function getOperationSessionFromCache(operationId: string): Promise<SessionData | null> {
+    try {
+        const redis = getRedisConnection();
+        const key = `${OPERATION_SESSION_PREFIX}${operationId}`;
+        const data = await redis.get(key);
+        if (!data) return null;
+
+        const rawSession = JSON.parse(data);
+        let viewState: HiddenFields | undefined;
+        if (rawSession.viewStateCompressed) {
+            viewState = decompressViewState(rawSession.viewStateCompressed);
+        } else if (rawSession.viewState) {
+            viewState = rawSession.viewState;
+        }
+
+        return {
+            cookies: rawSession.cookies,
+            viewState,
+            lastLoginTime: rawSession.lastLoginTime,
+            loginTimestamp: rawSession.loginTimestamp,
+            expiresAt: rawSession.expiresAt,
+            accountId: rawSession.accountId
+        };
+    } catch (error) {
+        console.error(`[Session Cache] Error reading operation session:`, error);
+        return null;
+    }
+}
+
+/**
+ * Delete operation-scoped session data after terminal flows.
+ */
+export async function deleteOperationSessionFromCache(operationId: string): Promise<void> {
+    try {
+        const redis = getRedisConnection();
+        await redis.del(`${OPERATION_SESSION_PREFIX}${operationId}`);
+    } catch (error) {
+        console.error(`[Session Cache] Error deleting operation session:`, error);
     }
 }
 

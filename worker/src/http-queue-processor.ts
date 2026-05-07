@@ -23,6 +23,9 @@ import {
     getSessionFromCache,
     saveSessionToCache,
     deleteSessionFromCache,
+    saveOperationSessionToCache,
+    getOperationSessionFromCache,
+    deleteOperationSessionFromCache,
     extendSessionTTL,
     acquireLoginLock,
     releaseLoginLock,
@@ -183,6 +186,7 @@ async function persistOperationAuditSnapshot(
     snapshot: OperationAuditSnapshot
 ): Promise<void> {
     const base = parseResponseDataObject(responseData);
+    delete base.sessionData;
     const existingAudit =
         typeof base.auditSnapshot === 'object' && base.auditSnapshot
             ? base.auditSnapshot as Record<string, unknown>
@@ -202,6 +206,36 @@ async function persistOperationAuditSnapshot(
             responseData: typeof responseData === 'string' ? JSON.stringify(merged) : merged
         }
     });
+}
+
+function getLegacySessionData(responseData: unknown): Record<string, unknown> | null {
+    const data = parseResponseDataObject(responseData);
+    return data.sessionData && typeof data.sessionData === 'object'
+        ? data.sessionData as Record<string, unknown>
+        : null;
+}
+
+async function restoreOperationSession(
+    operationId: string,
+    responseData: unknown,
+    client: HttpClientService
+): Promise<boolean> {
+    const cachedSession = await getOperationSessionFromCache(operationId);
+    if (cachedSession) {
+        await client.importSession(cachedSession);
+        client.markSessionValidFromCache(cachedSession.expiresAt);
+        return true;
+    }
+
+    const legacySession = getLegacySessionData(responseData);
+    if (legacySession) {
+        await client.importSession(legacySession as unknown as Parameters<typeof client.importSession>[0]);
+        const expiresAt = typeof legacySession.expiresAt === 'number' ? legacySession.expiresAt : undefined;
+        client.markSessionValidFromCache(expiresAt);
+        return true;
+    }
+
+    return false;
 }
 
 // Worker ID for login locking (unique per process)
@@ -922,13 +956,14 @@ async function handleStartRenewalHttp(
         packagesResult.dealerBalance || null
     ).catch(() => { });
 
-    // CRITICAL: Export session data for cross-worker access
-    // Different PM2 workers have separate memory, so we need to persist
-    // ViewState and cookies in the database
+    // CRITICAL: Export session data for cross-worker access.
+    // Different PM2 workers have separate memory, so the operation-scoped
+    // ViewState and cookies are stored server-side in Redis only.
     const sessionData = await client.exportSession();
     console.log(`[HTTP] Session exported: ViewState=${sessionData.viewState?.__VIEWSTATE?.length || 0} chars, Cookies=${sessionData.cookies.length} chars`);
+    await saveOperationSessionToCache(operationId, sessionData, 180);
 
-    // Update operation with packages AND session data
+    // Update operation with packages and safe user-facing metadata.
     // CRITICAL: Set heartbeatExpiry so cleanup cron knows when to auto-cancel
     const now = new Date();
     const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
@@ -948,9 +983,8 @@ async function handleStartRenewalHttp(
             // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
             lastHeartbeat: now,
             heartbeatExpiry: heartbeatExpiry,
-            // Store session data for COMPLETE_PURCHASE to restore
+            // Operation session is stored server-side in Redis.
             responseData: JSON.stringify({
-                sessionData: sessionData,
                 dealerBalance: packagesResult.dealerBalance,  // For balance validation
                 savedAt: new Date().toISOString(),
                 smartcardType: smartcardType || 'CISCO'  // Persist for COMPLETE_PURCHASE retry
@@ -1030,6 +1064,7 @@ async function handleApplyPromoHttp(
     }
 
     const existingResponseData = parseResponseDataObject(operation.responseData);
+    delete existingResponseData.sessionData;
     const redis = accountPool.getRedis();
     const LOCK_WAIT_TIMEOUT = 15_000;
     const LOCK_TTL = 90;
@@ -1059,22 +1094,11 @@ async function handleApplyPromoHttp(
 
     try {
         const client = await createOperationClient(account);
-        const savedSessionData =
-            existingResponseData.sessionData && typeof existingResponseData.sessionData === 'object'
-                ? existingResponseData.sessionData as Record<string, unknown>
-                : null;
-
-        if (savedSessionData && typeof savedSessionData.cookies === 'string') {
-            try {
-                await client.importSession(savedSessionData as unknown as Parameters<typeof client.importSession>[0]);
-                const expiresAt = typeof savedSessionData.expiresAt === 'number'
-                    ? savedSessionData.expiresAt
-                    : undefined;
-                client.markSessionValidFromCache(expiresAt);
-                console.log('[HTTP] Promo flow restored operation-scoped session snapshot');
-            } catch (sessionImportError: unknown) {
-                console.log(`[HTTP] Failed to import operation session snapshot: ${getErrMsg(sessionImportError)}`);
-            }
+        try {
+            const restored = await restoreOperationSession(operationId, operation.responseData, client);
+            if (restored) console.log('[HTTP] Promo flow restored operation-scoped session snapshot');
+        } catch (sessionImportError: unknown) {
+            console.log(`[HTTP] Failed to import operation session snapshot: ${getErrMsg(sessionImportError)}`);
         }
 
         // Ensure session is active
@@ -1146,7 +1170,7 @@ async function handleApplyPromoHttp(
             promoCode: promoCode || null,
         };
         if (latestSessionData) {
-            mergedResponseBase.sessionData = latestSessionData;
+            await saveOperationSessionToCache(operationId, latestSessionData, 180);
             mergedResponseBase.savedAt = new Date().toISOString();
         }
 
@@ -1393,10 +1417,9 @@ async function attemptPurchaseWithAccount(
                     validateSessionAge(savedData.savedAt, 'completePurchase');
                 }
 
-                if (savedData.sessionData) {
-                    console.log(`[HTTP] 🔄 Restoring session from database`);
-                    await client.importSession(savedData.sessionData);
-                }
+                const restored = await restoreOperationSession(operationId, operation.responseData, client);
+                if (restored) console.log(`[HTTP] Restored operation-scoped session`);
+
                 dealerBalance = savedData.dealerBalance;
             } catch (parseError: unknown) {
                 console.log(`[HTTP] ⚠️ Could not restore saved session: ${getErrMsg(parseError)}`);
@@ -1572,6 +1595,7 @@ async function attemptPurchaseWithAccount(
 
             // Export and save updated session for CONFIRM_PURCHASE
             const updatedSessionData = await client.exportSession();
+            await saveOperationSessionToCache(operationId, updatedSessionData, 90);
 
             // Set heartbeat expiry
             const now = new Date();
@@ -1586,7 +1610,6 @@ async function attemptPurchaseWithAccount(
                     lastHeartbeat: now,
                     heartbeatExpiry: heartbeatExpiry,
                     responseData: JSON.stringify({
-                        sessionData: updatedSessionData,
                         dealerBalance: dealerBalance,
                         savedAt: new Date().toISOString()
                     })
@@ -1720,7 +1743,7 @@ async function handleConfirmPurchaseHttp(
             console.warn('[HTTP] ⚠️ No STB number found in operation!');
         }
 
-        // CRITICAL: Restore session from database (cross-worker support)
+        // CRITICAL: Restore session from server-side cache (cross-worker support)
         // Without this, the ViewState and cookies are missing and purchase fails silently!
         if (operation.responseData) {
             try {
@@ -1731,11 +1754,12 @@ async function handleConfirmPurchaseHttp(
                     validateSessionAge(savedData.savedAt, 'confirmPurchase');
                 }
 
-                if (savedData.sessionData) {
-                    console.log(`[HTTP] 🔄 Restoring session for CONFIRM_PURCHASE (saved at ${savedData.savedAt})`);
-                    await client.importSession(savedData.sessionData);
-                    console.log(`[HTTP] ✅ Session restored: ViewState=${savedData.sessionData.viewState?.__VIEWSTATE?.length || 0} chars`);
+                const restored = await restoreOperationSession(operationId, operation.responseData, client);
+                if (!restored) {
+                    throw new Error('No session data available - cannot confirm purchase');
                 }
+                console.log(`[HTTP] Session restored for CONFIRM_PURCHASE`);
+
             } catch (parseError: unknown) {
                 if (getErrMsg(parseError).includes('Session expired')) {
                     throw parseError; // Re-throw session expiry error
@@ -1787,6 +1811,7 @@ async function handleConfirmPurchaseHttp(
             await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
 
             await accountPool.markAccountUsed(operation.beinAccountId);
+            await deleteOperationSessionFromCache(operationId);
 
             // Track activity for user engagement metrics
             if (operation.userId) {
@@ -1849,6 +1874,7 @@ async function handleConfirmPurchaseHttp(
             } catch (e: unknown) {
                 console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
             }
+            await deleteOperationSessionFromCache(operationId);
             console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED: ${result.message}`);
             return;
         } else {
@@ -1856,6 +1882,7 @@ async function handleConfirmPurchaseHttp(
                 await refundUser(operationId, operation.userId, operation.amount, result.message);
             }
             await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1);
+            await deleteOperationSessionFromCache(operationId);
             throw new Error(result.message);
         }
     } finally {
@@ -2341,8 +2368,9 @@ async function handleSignalCheckHttp(
 
         // Export session for activation step
         const sessionData = await httpClient.exportSession();
+        await saveOperationSessionToCache(operationId, sessionData, 900);
 
-        // Store card status and session - await user to click activate
+        // Store card status and await user to click activate.
         // Use 'COMPLETED' status with awaitingActivate flag to indicate waiting for user to click activate
         await prisma.operation.update({
             where: { id: operationId },
@@ -2353,7 +2381,6 @@ async function handleSignalCheckHttp(
                 responseData: JSON.stringify({
                     cardStatus: checkResult.cardStatus,
                     contracts: checkResult.contracts || [], // Include contracts table
-                    sessionData: sessionData,
                     awaitingActivate: true,
                     checkedAt: new Date().toISOString()
                 })
@@ -2412,6 +2439,7 @@ async function handleSignalActivateHttp(
     const savedData = typeof operation.responseData === 'string'
         ? JSON.parse(operation.responseData)
         : operation.responseData as Record<string, unknown>;
+    delete savedData.sessionData;
 
     if (!savedData?.awaitingActivate) {
         throw new Error(`Operation is not awaiting activation`);
@@ -2438,19 +2466,11 @@ async function handleSignalActivateHttp(
 
     try {
         // Session was parsed above as savedData - restore if available
-        if (savedData?.sessionData) {
-            // AUDIT FIX 4.2: Validate session age for signalActivate flow
-            if (savedData.checkedAt) {
-                validateSessionAge(savedData.checkedAt, 'signalActivate');
-            }
-
-            console.log(`[HTTP] 🔄 Restoring session for activation`);
-            await httpClient.importSession(savedData.sessionData);
-            httpClient.markSessionValidFromCache(
-                (savedData.sessionData as any)?.expiresAt
-            );
+        if (savedData.checkedAt) {
+            validateSessionAge(savedData.checkedAt as string, 'signalActivate');
         }
-
+        const restored = await restoreOperationSession(operationId, operation.responseData, httpClient);
+        if (restored) console.log(`[HTTP] Restored operation-scoped session for activation`);
         // Use card number from operation or parameter
         const targetCardNumber = cardNumber || operation.cardNumber;
 
@@ -2493,6 +2513,7 @@ async function handleSignalActivateHttp(
         }
 
         await accountPool.markAccountUsed(account.id);
+        await deleteOperationSessionFromCache(operationId);
         console.log(`✅ [HTTP] Signal activation completed for ${operationId}: activated=${activateResult.activated}`);
 
     } catch (error: unknown) {

@@ -12,6 +12,42 @@ async function getAuthUser(request: NextRequest) {
     return getMobileUserFromRequest(request)
 }
 
+const SENSITIVE_RESPONSE_KEYS = new Set([
+    'sessionData',
+    'cookies',
+    'storageState',
+    'viewState',
+    '__VIEWSTATE',
+    '__VIEWSTATEGENERATOR',
+    '__EVENTVALIDATION',
+])
+
+function redactOperationResponseData(value: unknown): unknown {
+    if (!value) return value
+
+    if (typeof value === 'string') {
+        try {
+            return redactOperationResponseData(JSON.parse(value))
+        } catch {
+            return value
+        }
+    }
+
+    if (Array.isArray(value)) {
+        return value.map(item => redactOperationResponseData(item))
+    }
+
+    if (typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .filter(([key]) => !SENSITIVE_RESPONSE_KEYS.has(key))
+                .map(([key, entry]) => [key, redactOperationResponseData(entry)])
+        )
+    }
+
+    return value
+}
+
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -62,9 +98,13 @@ export async function GET(
         }
 
         // Remove userId from response
-        const { userId: _userId, ...operationData } = operation
+        const operationData = { ...operation }
+        delete (operationData as { userId?: string }).userId
 
-        return NextResponse.json(operationData)
+        return NextResponse.json({
+            ...operationData,
+            responseData: redactOperationResponseData(operationData.responseData),
+        })
 
     } catch (error) {
         console.error('Get operation error:', error)

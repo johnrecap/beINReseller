@@ -10,6 +10,7 @@ export interface MobileUser {
     email?: string | null
     role: string
     balance: number
+    tokenIssuedAt?: number
 }
 
 /**
@@ -72,8 +73,9 @@ export function verifyMobileToken(token: string): MobileUser | null {
             email: decoded.email,
             role: decoded.role,
             balance: decoded.balance,
+            tokenIssuedAt: decoded.iat ? decoded.iat * 1000 : undefined,
         }
-    } catch (error) {
+    } catch {
         // Token is invalid or expired
         return null
     }

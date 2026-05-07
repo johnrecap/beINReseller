@@ -32,7 +32,7 @@ export const authConfig = {
 
             return true
         },
-        async jwt({ token, user, trigger, session }) {
+        async jwt({ token, user, trigger }) {
             if (user) {
                 token.id = user.id as string
                 token.username = (user as { username?: string }).username ?? ''
@@ -42,7 +42,7 @@ export const authConfig = {
             }
 
             if (trigger === 'update') {
-                return { ...token, ...session }
+                return token
             }
 
             return token

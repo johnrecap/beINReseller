@@ -21,6 +21,43 @@ export interface AuthenticatedUser {
     balance: number
 }
 
+const authenticatedUserSelect = {
+    id: true,
+    username: true,
+    email: true,
+    role: true,
+    balance: true,
+    isActive: true,
+    passwordChangedAt: true,
+} as const
+
+async function getDbAuthenticatedUser(
+    userId: string,
+    tokenIssuedAt?: number
+): Promise<AuthenticatedUser | null> {
+    const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: authenticatedUserSelect,
+    })
+
+    if (!dbUser || !dbUser.isActive) return null
+
+    if (
+        dbUser.passwordChangedAt &&
+        (!tokenIssuedAt || dbUser.passwordChangedAt.getTime() > tokenIssuedAt)
+    ) {
+        return null
+    }
+
+    return {
+        id: dbUser.id,
+        username: dbUser.username,
+        email: dbUser.email,
+        role: dbUser.role,
+        balance: dbUser.balance,
+    }
+}
+
 /**
  * Get the current authenticated user from session
  * Returns null if not authenticated or if password was changed after token was issued
@@ -28,21 +65,8 @@ export interface AuthenticatedUser {
 export async function getAuthUser() {
     const session = await auth()
     if (!session?.user?.id) return null
+    return getDbAuthenticatedUser(session.user.id, session.user.passwordChangedAt || 0)
 
-    // SECURITY: Verify token hasn't been invalidated by password change
-    const dbUser = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { passwordChangedAt: true, isActive: true }
-    })
-
-    if (!dbUser || !dbUser.isActive) return null
-
-    const tokenPwdChangedAt = session.user.passwordChangedAt || 0
-    if (dbUser.passwordChangedAt && dbUser.passwordChangedAt.getTime() > tokenPwdChangedAt) {
-        return null // Token issued before password change — invalid
-    }
-
-    return session.user
 }
 
 export type RoleLevel = 'ADMIN' | 'MANAGER' | 'USER'
@@ -80,81 +104,80 @@ export function hasRole(userRole: string | undefined, requiredRole: RoleLevel): 
  * Require authentication - redirect to login if not authenticated
  */
 export async function requireAuth() {
-    const session = await auth()
-    if (!session?.user) {
+    const user = await getAuthUser()
+    if (!user) {
         redirect('/login')
     }
-    return session.user
+    return user
 }
 
 /**
  * Require admin role - redirect if not admin
  */
 export async function requireAdmin() {
-    const session = await auth()
-    if (!session?.user) {
+    const user = await getAuthUser()
+    if (!user) {
         redirect('/login')
     }
-    if (session.user.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN') {
         redirect('/dashboard')
     }
-    return session.user
+    return user
 }
 
 /**
  * Require manager role (or admin) - redirect if not manager/admin
  */
 export async function requireManager() {
-    const session = await auth()
-    if (!session?.user) {
+    const user = await getAuthUser()
+    if (!user) {
         redirect('/login')
     }
 
-    if (!hasRole(session.user.role, 'MANAGER')) {
+    if (!hasRole(user.role, 'MANAGER')) {
         redirect('/dashboard')
     }
-    return session.user
+    return user
 }
 
 /**
  * Require specific role for API routes (returns error object instead of redirect)
  */
 export async function requireRoleAPI(requiredRole: RoleLevel) {
-    const session = await auth()
+    const user = await getAuthUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
         return { error: 'Unauthorized', status: 401 }
     }
 
-    if (!hasRole(session.user.role, requiredRole)) {
+    if (!hasRole(user.role, requiredRole)) {
         return { error: 'Insufficient permissions', status: 403 }
     }
 
-    return { user: session.user }
+    return { user }
 }
 
 /**
  * Check if user is authenticated
  */
 export async function isAuthenticated() {
-    const session = await auth()
-    return !!session?.user
+    return !!(await getAuthUser())
 }
 
 /**
  * Check if user is admin
  */
 export async function isAdmin() {
-    const session = await auth()
-    return session?.user?.role === 'ADMIN'
+    const user = await getAuthUser()
+    return user?.role === 'ADMIN'
 }
 
 /**
  * Check if user is manager or higher
  */
 export async function isManager() {
-    const session = await auth()
-    return hasRole(session?.user?.role, 'MANAGER')
+    const user = await getAuthUser()
+    return hasRole(user?.role, 'MANAGER')
 }
 
 // ============================================
@@ -166,74 +189,74 @@ export async function isManager() {
  * Use this for page-level protection
  */
 export async function requirePermission(permission: Permission, redirectTo = '/dashboard') {
-    const session = await auth()
-    if (!session?.user) {
+    const user = await getAuthUser()
+    if (!user) {
         redirect('/login')
     }
 
-    if (!roleHasPermission(session.user.role, permission)) {
+    if (!roleHasPermission(user.role, permission)) {
         redirect(redirectTo)
     }
 
-    return session.user
+    return user
 }
 
 /**
  * Require any of the specified permissions - redirect if not authorized
  */
 export async function requireAnyPermission(permissions: Permission[], redirectTo = '/dashboard') {
-    const session = await auth()
-    if (!session?.user) {
+    const user = await getAuthUser()
+    if (!user) {
         redirect('/login')
     }
 
-    if (!roleHasAnyPermission(session.user.role, permissions)) {
+    if (!roleHasAnyPermission(user.role, permissions)) {
         redirect(redirectTo)
     }
 
-    return session.user
+    return user
 }
 
 /**
  * Require specific permission for API routes (returns error object instead of redirect)
  */
 export async function requirePermissionAPI(permission: Permission) {
-    const session = await auth()
+    const user = await getAuthUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
         return { error: 'Unauthorized', status: 401 }
     }
 
-    if (!roleHasPermission(session.user.role, permission)) {
+    if (!roleHasPermission(user.role, permission)) {
         return { error: 'Insufficient permissions', status: 403 }
     }
 
-    return { user: session.user }
+    return { user }
 }
 
 /**
  * Require any of the specified permissions for API routes
  */
 export async function requireAnyPermissionAPI(permissions: Permission[]) {
-    const session = await auth()
+    const user = await getAuthUser()
 
-    if (!session?.user?.id) {
+    if (!user) {
         return { error: 'Unauthorized', status: 401 }
     }
 
-    if (!roleHasAnyPermission(session.user.role, permissions)) {
+    if (!roleHasAnyPermission(user.role, permissions)) {
         return { error: 'Insufficient permissions', status: 403 }
     }
 
-    return { user: session.user }
+    return { user }
 }
 
 /**
  * Check if current user has permission (async version for server components)
  */
 export async function checkPermission(permission: Permission): Promise<boolean> {
-    const session = await auth()
-    return roleHasPermission(session?.user?.role, permission)
+    const user = await getAuthUser()
+    return roleHasPermission(user?.role, permission)
 }
 
 /**
@@ -268,19 +291,13 @@ export async function getAuthenticatedUser(request: NextRequest): Promise<Authen
     // Step 1: Try NextAuth session first (web app)
     const session = await auth()
     if (session?.user?.id) {
-        return {
-            id: session.user.id,
-            username: session.user.username,
-            email: session.user.email,
-            role: session.user.role,
-            balance: session.user.balance,
-        }
+        return getDbAuthenticatedUser(session.user.id, session.user.passwordChangedAt || 0)
     }
 
     // Step 2: Try mobile token (Bearer token from Authorization header)
     const mobileUser = getMobileUserFromRequest(request)
     if (mobileUser) {
-        return mobileUser
+        return getDbAuthenticatedUser(mobileUser.id, mobileUser.tokenIssuedAt)
     }
 
     // No authentication found

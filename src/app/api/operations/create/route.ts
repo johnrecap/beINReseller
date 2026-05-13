@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { z } from 'zod'
 
 import { getOperationPriceFromDB } from '@/lib/pricing'
-import { addOperationJob } from '@/lib/queue'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { createNotification } from '@/lib/notification'
 import { roleHasPermission } from '@/lib/auth-utils'
@@ -171,13 +171,8 @@ export async function POST(request: NextRequest) {
                 },
             })
 
-            return { operation, newBalance: updatedUser.balance }
-        })
-
-        // 7. Add job to queue
-        try {
-            await addOperationJob({
-                operationId: result.operation.id,
+            await createOperationDispatch(tx, {
+                operationId: operation.id,
                 type,
                 cardNumber,
                 duration,
@@ -185,6 +180,18 @@ export async function POST(request: NextRequest) {
                 amount: price,
             })
 
+            return { operation, newBalance: updatedUser.balance }
+        })
+
+        // 7. Dispatch queued job; pending outbox row remains retryable if Redis is unavailable.
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [result.operation.id],
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch operation job; saved for retry:', result.operation.id)
+        }
+
+        try {
             // Send notification
             await createNotification({
                 userId: authUser.id,
@@ -194,9 +201,8 @@ export async function POST(request: NextRequest) {
                 link: '/dashboard/history'
             })
 
-        } catch (queueError) {
-            console.error('Failed to add job to queue:', queueError)
-            // Don't fail the request, the operation is saved in DB
+        } catch (notificationError) {
+            console.error('Failed to create operation notification:', notificationError)
         }
 
         // 8. Return success
@@ -205,6 +211,7 @@ export async function POST(request: NextRequest) {
             operationId: result.operation.id,
             deducted: price,
             newBalance: result.newBalance,
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {

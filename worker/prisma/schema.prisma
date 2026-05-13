@@ -203,6 +203,7 @@ model Operation {
   beinAccount     BeinAccount?              @relation(fields: [beinAccountId], references: [id])
   transactions    Transaction[]             @relation("OperationTransactions")
   integrityIssues OperationIntegrityIssue[]
+  dispatches      OperationDispatch[]
 
   // Store App - Links to customer subscription purchase
   storeSubscription StoreSubscription?
@@ -217,6 +218,26 @@ model Operation {
   @@index([heartbeatExpiry])
   @@index([status, heartbeatExpiry])
   @@map("operations")
+}
+
+model OperationDispatch {
+  id           String    @id @default(cuid())
+  operationId  String    @map("operation_id")
+  jobType      String    @map("job_type")
+  payload      Json
+  status       String    @default("PENDING")
+  attempts     Int       @default(0)
+  lastError    String?   @map("last_error")
+  dispatchedAt DateTime? @map("dispatched_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  @@unique([operationId, jobType])
+  @@index([status, createdAt])
+  @@index([operationId])
+  @@map("operation_dispatches")
 }
 
 model Transaction {

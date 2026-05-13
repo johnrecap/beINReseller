@@ -653,7 +653,11 @@ export async function processOperationHttp(
         }
         await markOperationFailed(operationId, { type: 'UNKNOWN', message: getErrMsg(error), recoverable: false }, 1);
     } finally {
-        // No lock cleanup needed - operations are independent
+        if (selectedAccountId) {
+            await accountPool.releaseLock(selectedAccountId).catch((releaseError: unknown) => {
+                console.warn(`[HTTP] Failed to release account lock for ${selectedAccountId}: ${getErrMsg(releaseError)}`);
+            });
+        }
     }
 }
 
@@ -703,7 +707,10 @@ async function handleStartRenewalHttp(
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
 
-    // beinAccountId will be merged into the final AWAITING_PACKAGE update to save a DB round-trip
+    await prisma.operation.update({
+        where: { id: operationId },
+        data: { beinAccountId: selectedAccount.id }
+    });
 
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
@@ -991,6 +998,8 @@ async function handleStartRenewalHttp(
             })
         }
     });
+
+    await accountPool.markAccountUsed(selectedAccount.id);
 
     console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
 }
@@ -2871,6 +2880,8 @@ async function handleStartInstallmentHttp(
             heartbeatExpiry: heartbeatExpiry
         }
     });
+
+    await accountPool.markAccountUsed(selectedAccount.id);
 
     console.log(`✅ [HTTP] Installment loaded, awaiting confirmation`);
     console.log(`   Package: ${installmentResult.installment?.package}`);

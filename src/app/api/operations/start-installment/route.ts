@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { addOperationJob } from '@/lib/queue'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -92,57 +92,49 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // 6. Create operation
-        const operation = await prisma.operation.create({
-            data: {
-                userId: authUser.id,
-                type: 'RENEW', // Using RENEW type for installment operations
-                cardNumber,
-                amount: 0, // Will be set after loading installment details
-                status: 'PENDING',
-            },
-        })
+        const operation = await prisma.$transaction(async (tx) => {
+            const createdOperation = await tx.operation.create({
+                data: {
+                    userId: authUser.id,
+                    type: 'RENEW', // Using RENEW type for installment operations
+                    cardNumber,
+                    amount: 0, // Will be set after loading installment details
+                    status: 'PENDING',
+                },
+            })
 
-        // 7. Log activity
-        await prisma.$transaction([
-            prisma.activityLog.create({
+            await tx.activityLog.create({
                 data: {
                     userId: authUser.id,
                     action: 'INSTALLMENT_STARTED',
                     details: `Start installment payment for card ${cardNumber}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },
-            }),
-            prisma.userAction.create({
+            })
+
+            await tx.userAction.create({
                 data: {
                     userId: authUser.id,
                     actionType: 'INSTALLMENT_STARTED',
-                    details: { cardNumber: cardNumber, operationId: operation.id },
+                    details: { cardNumber: cardNumber, operationId: createdOperation.id },
                 }
             })
-        ])
 
-        // 8. Add job to queue
-        try {
-            await addOperationJob({
-                operationId: operation.id,
+            await createOperationDispatch(tx, {
+                operationId: createdOperation.id,
                 type: 'START_INSTALLMENT',
                 cardNumber,
                 userId: authUser.id,
             })
-        } catch (queueError) {
-            console.error('Failed to add job to queue:', queueError)
-            await prisma.operation.update({
-                where: { id: operation.id },
-                data: {
-                    status: 'FAILED',
-                    responseMessage: 'Failed to add operation to queue'
-                },
-            })
-            return NextResponse.json(
-                { error: 'Failed to start operation, please try again' },
-                { status: 500 }
-            )
+
+            return createdOperation
+        })
+
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [operation.id],
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch start-installment job; saved for retry:', operation.id)
         }
 
         // 9. Return success
@@ -159,6 +151,7 @@ export async function POST(request: NextRequest) {
                 status: operation.status,
                 createdAt: operation.createdAt.toISOString(),
             },
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {

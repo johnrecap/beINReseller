@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { addOperationJob } from '@/lib/queue'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { Prisma } from '@prisma/client'
@@ -172,60 +172,42 @@ export async function POST(
                         notes: `Renewal ${selectedPkg?.name || 'package'} for card ${operation.cardNumber}`,
                     }
                 })
+
+                await createOperationDispatch(tx, {
+                    operationId: id,
+                    type: 'CONFIRM_PURCHASE',
+                    cardNumber: operation.cardNumber,
+                    userId: authUser.id,
+                    amount: dealerPrice,
+                })
             })
         } else {
             // OLD flow: money was already deducted at select-package (deployment transition)
             console.log(`Operation ${id} already has amount ${operation.amount} - skipping deduction (legacy flow)`)
             finalAmount = operation.amount
-        }
-
-        // 4. Add CONFIRM_PURCHASE job to queue (only one will ever reach here)
-        try {
-            await addOperationJob({
-                operationId: id,
-                type: 'CONFIRM_PURCHASE',
-                cardNumber: operation.cardNumber,
-                userId: authUser.id,
-                amount: finalAmount,
-            })
-        } catch (jobError) {
-            // CRITICAL: Job creation failed AFTER money was deducted — refund immediately
-            console.error(`❌ addOperationJob failed for ${id}, refunding ${finalAmount}:`, jobError)
-            try {
-                await prisma.$transaction(async (tx) => {
-                    const updatedUser = await tx.user.update({
-                        where: { id: authUser.id },
-                        data: { balance: { increment: finalAmount } }
-                    })
-                    await tx.operation.update({
-                        where: { id },
-                        data: { status: 'FAILED', amount: 0, responseMessage: 'System error - amount refunded' }
-                    })
-                    await tx.transaction.create({
-                        data: {
-                            userId: authUser.id,
-                            type: 'REFUND',
-                            amount: finalAmount,
-                            balanceAfter: updatedUser.balance,
-                            operationId: id,
-                            notes: 'Auto-refund: job queue unavailable'
-                        }
-                    })
+            await prisma.$transaction(async (tx) => {
+                await createOperationDispatch(tx, {
+                    operationId: id,
+                    type: 'CONFIRM_PURCHASE',
+                    cardNumber: operation.cardNumber,
+                    userId: authUser.id,
+                    amount: finalAmount,
                 })
-            } catch (refundError) {
-                console.error(`❌ CRITICAL: Failed to refund ${id}:`, refundError)
-            }
-            return NextResponse.json(
-                { error: 'System error - amount refunded to your balance' },
-                { status: 500 }
-            )
+            })
         }
 
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [id],
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch confirm-purchase job; saved for retry:', id)
+        }
         // 5. Return success
         return NextResponse.json({
             success: true,
             operationId: id,
             message: 'Confirming payment...',
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {

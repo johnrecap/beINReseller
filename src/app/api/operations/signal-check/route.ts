@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { addOperationJob } from '@/lib/queue'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -97,47 +97,42 @@ export async function POST(request: NextRequest) {
         }
 
         // 5. Create operation
-        const operation = await prisma.operation.create({
-            data: {
-                userId: authUser.id,
-                type: 'SIGNAL_REFRESH', // Use SIGNAL_REFRESH since it's a valid enum value
-                cardNumber,
-                amount: 0,
-                status: 'PENDING',
-            },
-        })
+        const operation = await prisma.$transaction(async (tx) => {
+            const createdOperation = await tx.operation.create({
+                data: {
+                    userId: authUser.id,
+                    type: 'SIGNAL_REFRESH', // Use SIGNAL_REFRESH since it's a valid enum value
+                    cardNumber,
+                    amount: 0,
+                    status: 'PENDING',
+                },
+            })
 
         // 6. Log activity (fire-and-forget — don't block response)
-        prisma.activityLog.create({
+            await tx.activityLog.create({
             data: {
                 userId: authUser.id,
                 action: 'SIGNAL_CHECK_STARTED',
                 details: `Check card ${cardNumber}`,
                 ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
             },
-        }).catch(e => console.error('Activity log failed:', e))
+            })
 
-        // 7. Add job to queue with SIGNAL_CHECK type
-        try {
-            await addOperationJob({
-                operationId: operation.id,
+            await createOperationDispatch(tx, {
+                operationId: createdOperation.id,
                 type: 'SIGNAL_CHECK',
                 cardNumber,
                 userId: authUser.id,
             })
-        } catch (queueError) {
-            console.error('Failed to add signal check job to queue:', queueError)
-            await prisma.operation.update({
-                where: { id: operation.id },
-                data: {
-                    status: 'FAILED',
-                    responseMessage: 'Failed to add operation to queue'
-                },
-            })
-            return NextResponse.json(
-                { error: 'Failed to start operation, please try again' },
-                { status: 500 }
-            )
+
+            return createdOperation
+        })
+
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [operation.id],
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch signal check job; saved for retry:', operation.id)
         }
 
         // 8. Return success with operation for polling
@@ -155,6 +150,7 @@ export async function POST(request: NextRequest) {
                 status: operation.status,
                 createdAt: operation.createdAt.toISOString(),
             },
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {

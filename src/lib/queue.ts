@@ -11,6 +11,18 @@ function buildOperationJobId(data: { operationId: string; type: string }) {
     return `${data.type}--${data.operationId}`
 }
 
+export interface OperationJobData {
+    operationId: string
+    type: string
+    cardNumber: string
+    duration?: string
+    promoCode?: string
+    userId?: string
+    customerId?: string
+    amount?: number
+    smartcardType?: string
+}
+
 // ===== Reseller Operations Queue (Priority 1 - Higher) =====
 export const operationsQueue = new Queue('operations', {
     connection: {
@@ -45,17 +57,7 @@ export const customerOperationsQueue = new Queue('customer-operations', {
 })
 
 // ===== Reseller Job Function (Priority 1) =====
-export async function addOperationJob(data: {
-    operationId: string
-    type: string
-    cardNumber: string
-    duration?: string
-    promoCode?: string      // Promo code for discount (Wizard flow)
-    userId?: string
-    customerId?: string     // Store customer ID (for store app)
-    amount?: number
-    smartcardType?: string  // 'CISCO' or 'IRDETO' (default: CISCO)
-}) {
+export async function addOperationJob(data: OperationJobData) {
     return operationsQueue.add('process-operation', data, {
         priority: 1,  // Higher priority for resellers
         jobId: buildOperationJobId(data), // Idempotency: prevent duplicate jobs for same operation+type

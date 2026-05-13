@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { addOperationJob } from '@/lib/queue'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -119,43 +119,34 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // 5. Update operation status back to PENDING for activation
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: { status: 'PENDING' },
-        })
+        await prisma.$transaction(async (tx) => {
+            await tx.operation.update({
+                where: { id: operationId },
+                data: { status: 'PENDING' },
+            })
 
-        // 6. Log activity
-        await prisma.activityLog.create({
-            data: {
-                userId: authUser.id,
-                action: 'SIGNAL_ACTIVATE_STARTED',
-                details: `Signal activation for card ${cardNumber}`,
-                ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-            },
-        })
+            await tx.activityLog.create({
+                data: {
+                    userId: authUser.id,
+                    action: 'SIGNAL_ACTIVATE_STARTED',
+                    details: `Signal activation for card ${cardNumber}`,
+                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                },
+            })
 
-        // 7. Add SIGNAL_ACTIVATE job to queue
-        try {
-            await addOperationJob({
+            await createOperationDispatch(tx, {
                 operationId,
                 type: 'SIGNAL_ACTIVATE',
                 cardNumber,
                 userId: authUser.id,
             })
-        } catch (queueError) {
-            console.error('Failed to add signal activate job to queue:', queueError)
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    status: 'FAILED',
-                    responseMessage: 'Failed to add operation to queue'
-                },
-            })
-            return NextResponse.json(
-                { error: 'Failed to start activation, please try again' },
-                { status: 500 }
-            )
+        })
+
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [operationId],
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch signal activate job; saved for retry:', operationId)
         }
 
         // 8. Return success
@@ -163,6 +154,7 @@ export async function POST(request: NextRequest) {
             success: true,
             operationId,
             message: 'Activating signal...',
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {

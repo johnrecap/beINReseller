@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getOperationPriceFromDB } from '@/lib/pricing'
-import { addOperationJob } from '@/lib/queue'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { createNotification } from '@/lib/notification'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -173,6 +173,15 @@ export async function POST(request: NextRequest) {
                     operationId: operation.id,
                 })
 
+                await createOperationDispatch(tx, {
+                    operationId: operation.id,
+                    type,
+                    cardNumber,
+                    duration,
+                    userId: user.id,
+                    amount: pricePerOperation,
+                })
+
                 // Create transaction record
                 await tx.transaction.create({
                     data: {
@@ -204,20 +213,11 @@ export async function POST(request: NextRequest) {
             }
         })
 
-        // Add jobs to queue (async)
-        for (const op of result.operations) {
-            try {
-                await addOperationJob({
-                    operationId: op.operationId,
-                    type,
-                    cardNumber: op.cardNumber,
-                    duration,
-                    userId: user.id,
-                    amount: pricePerOperation,
-                })
-            } catch (err) {
-                console.error(`Failed to queue operation ${op.operationId}:`, err)
-            }
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: result.operations.map((op) => op.operationId),
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch one or more bulk operation jobs; saved for retry:', dispatchResult)
         }
 
         // Notify Success
@@ -234,6 +234,7 @@ export async function POST(request: NextRequest) {
             operations: result.operations,
             totalDeducted: result.totalDeducted,
             newBalance: result.newBalance,
+            queued: dispatchResult.failed === 0,
             blockedCards: result.blockedCards.length > 0 ? result.blockedCards : undefined,
         })
 

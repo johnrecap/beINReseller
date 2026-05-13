@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { addOperationJob } from '@/lib/queue'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -96,49 +96,41 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // 5. Create operation (Signal refresh is free - no balance deduction)
-        const operation = await prisma.operation.create({
-            data: {
-                userId: authUser.id,
-                type: 'SIGNAL_REFRESH',
-                cardNumber,
-                amount: 0, // Signal refresh is free
-                status: 'PENDING',
-            },
-        })
-
-        // 6. Log activity
-        await prisma.activityLog.create({
-            data: {
-                userId: authUser.id,
-                action: 'SIGNAL_REFRESH_STARTED',
-                details: `Start signal refresh for card ${cardNumber}`,
-                ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-            },
-        })
-
-        // 7. Add job to queue
-        try {
-            await addOperationJob({
-                operationId: operation.id,
-                type: 'SIGNAL_REFRESH',
-                cardNumber,
-                userId: authUser.id,
-            })
-        } catch (queueError) {
-            console.error('Failed to add signal refresh job to queue:', queueError)
-            // Update operation status to FAILED
-            await prisma.operation.update({
-                where: { id: operation.id },
+        const operation = await prisma.$transaction(async (tx) => {
+            const createdOperation = await tx.operation.create({
                 data: {
-                    status: 'FAILED',
-                    responseMessage: 'Failed to add operation to queue'
+                    userId: authUser.id,
+                    type: 'SIGNAL_REFRESH',
+                    cardNumber,
+                    amount: 0, // Signal refresh is free
+                    status: 'PENDING',
                 },
             })
-            return NextResponse.json(
-                { error: 'Failed to start operation, please try again' },
-                { status: 500 }
-            )
+
+            await tx.activityLog.create({
+                data: {
+                    userId: authUser.id,
+                    action: 'SIGNAL_REFRESH_STARTED',
+                    details: `Start signal refresh for card ${cardNumber}`,
+                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                },
+            })
+
+            await createOperationDispatch(tx, {
+                operationId: createdOperation.id,
+                type: 'SIGNAL_REFRESH',
+                cardNumber,
+                userId: authUser.id,
+            })
+
+            return createdOperation
+        })
+
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [operation.id],
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch signal refresh job; saved for retry:', operation.id)
         }
 
         // 8. Return success
@@ -146,6 +138,7 @@ export async function POST(request: NextRequest) {
             success: true,
             operationId: operation.id,
             message: 'Refreshing signal...',
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {

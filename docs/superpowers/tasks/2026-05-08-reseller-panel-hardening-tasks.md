@@ -8,6 +8,7 @@ Use this checklist to track execution. It mirrors the implementation plan but is
 - [x] Phase 2 committed: `fix(operations): keep bein sessions server-side`.
 - [x] Balance Safety committed: `fix(finance): guard balance mutations`.
 - [x] Active Card Guard committed: `fix(operations): enforce active card guard`.
+- [x] Queue Durability and Worker Account Locking committed: `fix(operations): add durable dispatch and account locks`.
 
 ## Exclusions
 
@@ -61,20 +62,20 @@ Use this checklist to track execution. It mirrors the implementation plan but is
 
 ## Queue Durability
 
-- [ ] Add durable operation dispatch outbox or equivalent.
-- [ ] Write outbox row in same transaction as operation/debit.
-- [ ] Add dispatcher or retry path.
-- [ ] Do not silently swallow queue failure after debit.
+- [x] Add durable operation dispatch outbox or equivalent.
+- [x] Write outbox row in same transaction as operation/debit.
+- [x] Add dispatcher or retry path.
+- [x] Do not silently swallow queue failure after debit.
 - [ ] Test Redis down scenario.
 
 ## Worker Account Locking
 
-- [ ] Acquire Redis lock before returning selected beIN account.
-- [ ] Skip locked accounts.
+- [x] Acquire Redis lock before returning selected beIN account.
+- [x] Skip locked accounts.
 - [ ] Renew lock during long operations.
-- [ ] Release lock in success paths.
-- [ ] Release lock in failure paths.
-- [ ] Release lock in cancel/timeout paths.
+- [x] Release lock in success paths.
+- [x] Release lock in failure paths.
+- [x] Release lock in cancel/timeout paths.
 - [ ] Test two workers cannot use same account.
 
 ## Worker Logs and TLS

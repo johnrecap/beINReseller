@@ -9,11 +9,12 @@ import { prisma } from '../lib/prisma'
 import { getRedisConnection } from '../lib/redis'
 import { PoolConfig, AccountHealth, PoolStatus, BeinAccount } from './types'
 import { checkRateLimit, recordRequest } from './rate-limiter'
-import { isAccountLocked } from './account-locking'
+import { extendLock, isAccountLocked, lockAccount, unlockAccount } from './account-locking'
 import { decryptAccountPassword } from '../lib/crypto'
 
 const COUNTER_KEY = 'bein:pool:counter'
 const COOLDOWN_PREFIX = 'bein:account:cooldown:'
+const ACCOUNT_LOCK_TTL_SECONDS = 300
 
 export class AccountPoolManager {
     private redis: Redis
@@ -107,6 +108,12 @@ export class AccountPoolManager {
 
 
             console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`)
+            const locked = await lockAccount(this.redis, account.id, this.workerId, ACCOUNT_LOCK_TTL_SECONDS)
+            if (!locked) {
+                console.log(`Skipping ${account.label || account.username}: lock was taken`)
+                continue
+            }
+
             return decryptAccountPassword(account)
         }
 
@@ -119,6 +126,7 @@ export class AccountPoolManager {
      * Records the usage and resets consecutive failures
      */
     async markAccountUsed(accountId: string): Promise<void> {
+        try {
         // Record request for rate limiting
         await recordRequest(this.redis, accountId, this.config.rateLimitWindowSeconds)
 
@@ -135,6 +143,9 @@ export class AccountPoolManager {
 
 
         console.log(`📊 Account ${accountId} marked as used`)
+        } finally {
+            await this.releaseLock(accountId)
+        }
     }
 
     /**
@@ -142,6 +153,7 @@ export class AccountPoolManager {
      * Tracks failures and applies cooldown if threshold reached
      */
     async markAccountFailed(accountId: string, error: string): Promise<void> {
+        try {
         const account = await prisma.beinAccount.update({
             where: { id: accountId },
             data: {
@@ -172,6 +184,9 @@ export class AccountPoolManager {
 
 
         console.log(`❌ Account ${accountId} marked as failed: ${error}`)
+        } finally {
+            await this.releaseLock(accountId)
+        }
     }
 
     /**
@@ -346,7 +361,10 @@ export class AccountPoolManager {
      * Release a lock for a specific account (cleanup)
      */
     async releaseLock(accountId: string): Promise<void> {
-        // No-op: Account locks removed in favor of per-operation clients
+        const released = await unlockAccount(this.redis, accountId, this.workerId)
+        if (released) {
+            console.log(`Released lock for account ${accountId}`)
+        }
     }
 
     /**
@@ -354,7 +372,10 @@ export class AccountPoolManager {
      * Call this periodically during long operations to prevent expiry
      */
     async renewLock(accountId: string): Promise<void> {
-        // No-op: Account locks removed in favor of per-operation clients
+        const renewed = await extendLock(this.redis, accountId, this.workerId, ACCOUNT_LOCK_TTL_SECONDS)
+        if (!renewed) {
+            console.warn(`Failed to renew lock for account ${accountId}`)
+        }
     }
 
     /**
@@ -470,6 +491,12 @@ export class AccountPoolManager {
 
 
             console.log(`✅ Selected alternative account: ${account.label || account.username} (Balance: ${account.dealerBalance || 'unknown'} USD)`)
+            const locked = await lockAccount(this.redis, account.id, this.workerId, ACCOUNT_LOCK_TTL_SECONDS)
+            if (!locked) {
+                console.log(`Skipping ${account.label || account.username}: lock was taken`)
+                continue
+            }
+
             return decryptAccountPassword(account)
         }
 

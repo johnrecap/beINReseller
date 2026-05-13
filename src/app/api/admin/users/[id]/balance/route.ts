@@ -52,21 +52,39 @@ export async function PATCH(
         const user = await prisma.$transaction(async (tx) => {
             // 1. Get current user
             const currentUser = await tx.user.findUnique({
-                where: { id }
+                where: { id },
+                select: { id: true, username: true }
             })
 
             if (!currentUser) throw new Error('User not found')
 
-            // 2. Guard: prevent balance going below 0 on withdrawal
-            if (isWithdrawal && currentUser.balance + amount < 0) {
-                throw new Error(`Insufficient balance. Current balance: ${currentUser.balance}`)
-            }
+            // 2. Update balance with a DB guard so concurrent withdrawals cannot overdraw.
+            let updatedUser: { id: string; username: string; balance: number }
+            if (isWithdrawal) {
+                const withdrawal = Math.abs(amount)
+                const debitResult = await tx.user.updateMany({
+                    where: {
+                        id,
+                        balance: { gte: withdrawal },
+                    },
+                    data: { balance: { decrement: withdrawal } }
+                })
 
-            // 3. Update balance
-            const updatedUser = await tx.user.update({
-                where: { id },
-                data: { balance: { increment: amount } }
-            })
+                if (debitResult.count !== 1) {
+                    throw new Error('INSUFFICIENT_BALANCE')
+                }
+
+                updatedUser = await tx.user.findUniqueOrThrow({
+                    where: { id },
+                    select: { id: true, username: true, balance: true }
+                })
+            } else {
+                updatedUser = await tx.user.update({
+                    where: { id },
+                    data: { balance: { increment: amount } },
+                    select: { id: true, username: true, balance: true }
+                })
+            }
 
             // 4. Create Transaction Record
             await tx.transaction.create({
@@ -113,6 +131,14 @@ export async function PATCH(
         })
 
     } catch (error) {
+        if (error instanceof Error && error.message === 'INSUFFICIENT_BALANCE') {
+            return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 })
+        }
+
+        if (error instanceof Error && error.message === 'User not found') {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
+        }
+
         console.error('Add balance error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }

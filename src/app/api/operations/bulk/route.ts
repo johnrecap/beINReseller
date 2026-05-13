@@ -70,12 +70,17 @@ export async function POST(request: NextRequest) {
 
         // Calculate total price
         const pricePerOperation = await getOperationPriceFromDB(type, duration)
-        const totalPrice = pricePerOperation * uniqueCardNumbers.length
+        if (pricePerOperation <= 0) {
+            return NextResponse.json(
+                { error: 'Invalid operation type' },
+                { status: 400 }
+            )
+        }
 
-        // Get user and check balance
+        // Get user
         const user = await prisma.user.findUnique({
             where: { id: authUser.id },
-            select: { id: true, balance: true },
+            select: { id: true },
         })
 
         if (!user) {
@@ -83,16 +88,6 @@ export async function POST(request: NextRequest) {
                 { error: 'User not found' },
                 { status: 404 }
             )
-        }
-
-        if (user.balance < totalPrice) {
-            return NextResponse.json({
-                error: 'Insufficient balance',
-                required: totalPrice,
-                available: user.balance,
-                perCard: pricePerOperation,
-                cardCount: uniqueCardNumbers.length,
-            }, { status: 400 })
         }
 
         // Check for existing pending/processing operations
@@ -114,19 +109,46 @@ export async function POST(request: NextRequest) {
             }, { status: 400 })
         }
 
-        const actualTotalPrice = pricePerOperation * availableCards.length
-
         // Create operations in a transaction
         const result = await prisma.$transaction(async (tx) => {
-            // Deduct total balance
-            await tx.user.update({
-                where: { id: user.id },
-                data: { balance: { decrement: actualTotalPrice } },
+            const freshExistingOperations = await tx.operation.findMany({
+                where: {
+                    cardNumber: { in: availableCards },
+                    status: { in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] },
+                },
+                select: { cardNumber: true },
             })
 
+            const freshBlockedCards = freshExistingOperations.map(op => op.cardNumber)
+            const finalCards = availableCards.filter(card => !freshBlockedCards.includes(card))
+
+            if (finalCards.length === 0) {
+                throw new Error('ALL_CARDS_BLOCKED')
+            }
+
+            const finalTotalPrice = pricePerOperation * finalCards.length
+
+            const debitResult = await tx.user.updateMany({
+                where: {
+                    id: user.id,
+                    balance: { gte: finalTotalPrice },
+                },
+                data: { balance: { decrement: finalTotalPrice } },
+            })
+
+            if (debitResult.count !== 1) {
+                throw new Error('INSUFFICIENT_BALANCE')
+            }
+
+            const updatedUser = await tx.user.findUniqueOrThrow({
+                where: { id: user.id },
+                select: { balance: true },
+            })
+
+            const startingBalance = updatedUser.balance + finalTotalPrice
             const operations = []
 
-            for (const cardNumber of availableCards) {
+            for (const cardNumber of finalCards) {
                 // Create operation
                 const operation = await tx.operation.create({
                     data: {
@@ -150,7 +172,7 @@ export async function POST(request: NextRequest) {
                         userId: user.id,
                         type: 'OPERATION_DEDUCT',
                         amount: -pricePerOperation,
-                        balanceAfter: user.balance - (operations.length * pricePerOperation),
+                        balanceAfter: startingBalance - (operations.length * pricePerOperation),
                         operationId: operation.id,
                         notes: `Bulk operation deduction - ${cardNumber}`,
                     },
@@ -167,11 +189,16 @@ export async function POST(request: NextRequest) {
                 },
             })
 
-            return operations
+            return {
+                operations,
+                newBalance: updatedUser.balance,
+                blockedCards: [...blockedCards, ...freshBlockedCards],
+                totalDeducted: finalTotalPrice,
+            }
         })
 
         // Add jobs to queue (async)
-        for (const op of result) {
+        for (const op of result.operations) {
             try {
                 await addOperationJob({
                     operationId: op.operationId,
@@ -190,20 +217,34 @@ export async function POST(request: NextRequest) {
         await createNotification({
             userId: user.id,
             title: 'Bulk request received',
-            message: `Processing ${result.length} operations`,
+            message: `Processing ${result.operations.length} operations`,
             type: 'info',
             link: '/dashboard/history'
         })
 
         return NextResponse.json({
             success: true,
-            operations: result,
-            totalDeducted: actualTotalPrice,
-            newBalance: user.balance - actualTotalPrice,
-            blockedCards: blockedCards.length > 0 ? blockedCards : undefined,
+            operations: result.operations,
+            totalDeducted: result.totalDeducted,
+            newBalance: result.newBalance,
+            blockedCards: result.blockedCards.length > 0 ? result.blockedCards : undefined,
         })
 
     } catch (error) {
+        if (error instanceof Error && error.message === 'INSUFFICIENT_BALANCE') {
+            return NextResponse.json(
+                { error: 'Insufficient balance' },
+                { status: 400 }
+            )
+        }
+
+        if (error instanceof Error && error.message === 'ALL_CARDS_BLOCKED') {
+            return NextResponse.json(
+                { error: 'All cards have active operations' },
+                { status: 400 }
+            )
+        }
+
         console.error('Bulk operation error:', error)
         return NextResponse.json(
             { error: 'Server error' },

@@ -74,41 +74,66 @@ export async function PATCH(
         // Transactional update with balance checks INSIDE transaction (prevents race conditions)
         try {
             const updatedUser = await prisma.$transaction(async (tx) => {
-                // 1. Check manager balance for deposit (INSIDE transaction)
+                let updatedManager: { balance: number }
+                let updated: { balance: number }
+
+                // 1. For deposits, debit manager with a DB guard before crediting user.
                 if (isDeposit) {
-                    const currentManager = await tx.user.findUnique({
+                    const managerDebit = await tx.user.updateMany({
+                        where: {
+                            id: manager.id,
+                            balance: { gte: absAmount }
+                        },
+                        data: { balance: { decrement: absAmount } }
+                    })
+
+                    if (managerDebit.count !== 1) {
+                        const currentManager = await tx.user.findUnique({
+                            where: { id: manager.id },
+                            select: { balance: true }
+                        })
+                        throw new Error(`INSUFFICIENT_MANAGER_BALANCE:${currentManager?.balance.toFixed(2) || 0}`)
+                    }
+
+                    updatedManager = await tx.user.findUniqueOrThrow({
                         where: { id: manager.id },
                         select: { balance: true }
                     })
 
-                    if (!currentManager || currentManager.balance < absAmount) {
-                        throw new Error(`INSUFFICIENT_MANAGER_BALANCE:${currentManager?.balance.toFixed(2) || 0}`)
-                    }
-                }
+                    updated = await tx.user.update({
+                        where: { id },
+                        data: { balance: { increment: absAmount } },
+                        select: { balance: true }
+                    })
+                } else {
+                    // 2. For withdrawals, debit user with a DB guard before crediting manager.
+                    const userDebit = await tx.user.updateMany({
+                        where: {
+                            id,
+                            balance: { gte: absAmount }
+                        },
+                        data: { balance: { decrement: absAmount } }
+                    })
 
-                // 2. Check user balance for withdraw (INSIDE transaction)
-                if (!isDeposit) {
-                    const currentUser = await tx.user.findUnique({
+                    if (userDebit.count !== 1) {
+                        const currentUser = await tx.user.findUnique({
+                            where: { id },
+                            select: { balance: true }
+                        })
+                        throw new Error(`INSUFFICIENT_USER_BALANCE:${currentUser?.balance.toFixed(2) || 0}`)
+                    }
+
+                    updated = await tx.user.findUniqueOrThrow({
                         where: { id },
                         select: { balance: true }
                     })
 
-                    if (!currentUser || currentUser.balance < absAmount) {
-                        throw new Error(`INSUFFICIENT_USER_BALANCE:${currentUser?.balance.toFixed(2) || 0}`)
-                    }
+                    updatedManager = await tx.user.update({
+                        where: { id: manager.id },
+                        data: { balance: { increment: absAmount } },
+                        select: { balance: true }
+                    })
                 }
-
-                // 3. Update user balance
-                const updated = await tx.user.update({
-                    where: { id },
-                    data: { balance: { increment: amount } }
-                })
-
-                // 4. Update manager balance (opposite direction)
-                const updatedManager = await tx.user.update({
-                    where: { id: manager.id },
-                    data: { balance: { increment: -amount } }
-                })
 
                 // 5. Create transaction for user
                 await tx.transaction.create({

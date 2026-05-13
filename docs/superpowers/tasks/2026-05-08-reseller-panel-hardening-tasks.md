@@ -6,6 +6,7 @@ Use this checklist to track execution. It mirrors the implementation plan but is
 
 - [x] Phase 1 committed: `12e5c2b fix(auth): harden session authorization claims`.
 - [x] Phase 2 committed: `fix(operations): keep bein sessions server-side`.
+- [x] Balance Safety committed: `fix(finance): guard balance mutations`.
 
 ## Exclusions
 
@@ -41,11 +42,12 @@ Use this checklist to track execution. It mirrors the implementation plan but is
 
 ## Balance Safety
 
-- [ ] Fix atomic debit in `src/app/api/operations/create/route.ts`.
-- [ ] Fix atomic debit in `src/app/api/operations/bulk/route.ts`.
-- [ ] Fix admin balance withdrawal/deposit guards.
-- [ ] Fix manager transfer guards.
-- [ ] Add DB non-negative balance constraint or migration plan.
+- [x] Fix atomic debit in `src/app/api/operations/create/route.ts`.
+- [x] Fix atomic debit in `src/app/api/operations/bulk/route.ts`.
+- [x] Fix admin balance withdrawal/deposit guards.
+- [x] Fix manager transfer guards.
+- [x] Fix manager create-user initial balance debit guard.
+- [x] Add DB non-negative balance constraint or migration plan.
 - [ ] Test concurrent deductions.
 
 ## Active Card Guard

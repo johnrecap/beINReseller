@@ -100,16 +100,6 @@ export async function POST(request: NextRequest) {
 
         // 6. Create operation in a transaction with balance check INSIDE
         const result = await prisma.$transaction(async (tx) => {
-            // Get fresh user balance inside transaction (prevents race condition)
-            const user = await tx.user.findUnique({
-                where: { id: authUser.id },
-                select: { id: true, balance: true },
-            })
-
-            if (!user || user.balance < price) {
-                throw new Error('INSUFFICIENT_BALANCE')
-            }
-
             // Check for duplicate pending/processing operations
             const existingOperation = await tx.operation.findFirst({
                 where: {
@@ -122,21 +112,28 @@ export async function POST(request: NextRequest) {
                 throw new Error('DUPLICATE_OPERATION')
             }
 
-            // Deduct balance (atomic with balance check above)
-            const updatedUser = await tx.user.update({
-                where: { id: user.id },
+            // Deduct balance only if the committed balance is still sufficient.
+            const debitResult = await tx.user.updateMany({
+                where: {
+                    id: authUser.id,
+                    balance: { gte: price },
+                },
                 data: { balance: { decrement: price } },
             })
 
-            // Double-check balance didn't go negative (safety net)
-            if (updatedUser.balance < 0) {
+            if (debitResult.count !== 1) {
                 throw new Error('INSUFFICIENT_BALANCE')
             }
+
+            const updatedUser = await tx.user.findUniqueOrThrow({
+                where: { id: authUser.id },
+                select: { id: true, balance: true },
+            })
 
             // Create operation
             const operation = await tx.operation.create({
                 data: {
-                    userId: user.id,
+                    userId: updatedUser.id,
                     type: type as 'RENEW' | 'CHECK_BALANCE' | 'SIGNAL_REFRESH',
                     cardNumber,
                     amount: price,
@@ -148,7 +145,7 @@ export async function POST(request: NextRequest) {
             // Create transaction record
             await tx.transaction.create({
                 data: {
-                    userId: user.id,
+                    userId: updatedUser.id,
                     type: 'OPERATION_DEDUCT',
                     amount: -price,
                     balanceAfter: updatedUser.balance,
@@ -160,7 +157,7 @@ export async function POST(request: NextRequest) {
             // Log activity
             await tx.activityLog.create({
                 data: {
-                    userId: user.id,
+                    userId: updatedUser.id,
                     action: 'OPERATION_CREATED',
                     details: `Created ${type} operation for card ${cardNumber}`,
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',

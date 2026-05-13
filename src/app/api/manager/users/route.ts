@@ -157,16 +157,29 @@ export async function POST(request: NextRequest) {
         // Transaction: Create User + Link to Manager + Deduct Balance (with balance check INSIDE)
         try {
             const newUser = await prisma.$transaction(async (tx) => {
-                // 1. Check manager balance INSIDE transaction (prevents race condition)
+                // 1. Debit manager balance with a DB guard inside the transaction.
+                let updatedManager: { balance: number } | null = null
                 if (balance > 0) {
-                    const managerData = await tx.user.findUnique({
+                    const managerDebit = await tx.user.updateMany({
+                        where: {
+                            id: manager.id,
+                            balance: { gte: balance }
+                        },
+                        data: { balance: { decrement: balance } }
+                    })
+
+                    if (managerDebit.count !== 1) {
+                        const managerData = await tx.user.findUnique({
+                            where: { id: manager.id },
+                            select: { balance: true }
+                        })
+                        throw new Error(`INSUFFICIENT_BALANCE:${managerData?.balance.toFixed(2) || 0}`)
+                    }
+
+                    updatedManager = await tx.user.findUniqueOrThrow({
                         where: { id: manager.id },
                         select: { balance: true }
                     })
-
-                    if (!managerData || managerData.balance < balance) {
-                        throw new Error(`INSUFFICIENT_BALANCE:${managerData?.balance.toFixed(2) || 0}`)
-                    }
                 }
 
                 // 2. Create User
@@ -189,13 +202,8 @@ export async function POST(request: NextRequest) {
                     }
                 })
 
-                // 4. Deduct balance from manager if giving initial balance
+                // 4. Log balance movement if giving initial balance
                 if (balance > 0) {
-                    const updatedManager = await tx.user.update({
-                        where: { id: manager.id },
-                        data: { balance: { decrement: balance } }
-                    })
-
                     // 5. Log the balance transfer as transaction
                     await tx.transaction.create({
                         data: {
@@ -214,7 +222,7 @@ export async function POST(request: NextRequest) {
                             type: 'WITHDRAW',
                             amount: balance,
                             notes: `Balance transfer to new user ${username}`,
-                            balanceAfter: updatedManager.balance
+                            balanceAfter: updatedManager!.balance
                         }
                     })
                 }

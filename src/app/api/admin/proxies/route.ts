@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { encryptSecret } from '@/lib/crypto'
 
 // GET /api/admin/proxies - List all proxies
 export async function GET(request: NextRequest) {
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
                 host: host.trim(),
                 port: port,
                 username: username?.trim() || null,
-                password: password || null,
+                password: password ? encryptSecret(password) : null,
                 label: label.trim(),
                 isActive: isActive
             }

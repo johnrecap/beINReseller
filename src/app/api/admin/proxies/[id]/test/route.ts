@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { decryptSecret } from '@/lib/crypto'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
 interface RouteParams {
@@ -25,12 +26,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         // Get proxy config from database
-        const { host, port, username, password } = proxy as {
+        const { host, port, username } = proxy as {
             host: string
             port: number
             username: string | null
-            password: string | null
         }
+        const password = proxy.password ? decryptSecret(proxy.password) : null
 
         // SECURITY: Validate host — only allow hostname/IP characters
         if (!/^[a-zA-Z0-9.\-]+$/.test(host)) {

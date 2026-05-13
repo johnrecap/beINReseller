@@ -21,6 +21,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
+import { refundUser } from '@/lib/refund'
 
 // Configuration
 const LOCK_PREFIX = 'bein:account:lock:'
@@ -141,42 +142,7 @@ export async function GET(request: Request) {
                     })
 
                     if (expireGuard.count === 0) {
-                        return { expired: false, refunded: false }
-                    }
-
-                    let refunded = false
-
-                    // 2. Refund user balance only if amount > 0 AND no existing refund AND has userId (not store customer)
-                    if (shouldRefund && operation.userId) {
-                        const existingRefund = await tx.transaction.findFirst({
-                            where: {
-                                operationId: operation.id,
-                                type: 'REFUND'
-                            }
-                        })
-
-                        if (existingRefund) {
-                            console.log(`[Cleanup Cron] Refund already exists for ${operation.id}, skipping`)
-                        } else {
-                            const user = await tx.user.update({
-                                where: { id: operation.userId },
-                                data: { balance: { increment: operation.amount } }
-                            })
-
-                            await tx.transaction.create({
-                                data: {
-                                    userId: operation.userId,
-                                    type: 'REFUND',
-                                    amount: operation.amount,
-                                    balanceAfter: user.balance,
-                                    operationId: operation.id,
-                                    notes: `Auto-refund - ${expiryReason}`
-                                }
-                            })
-
-                            refunded = true
-                            console.log(`[Cleanup Cron] Refunded ${operation.amount} to user ${operation.userId}`)
-                        }
+                        return { expired: false }
                     }
 
                     // 3. Create notification for user (only if userId exists - not store customer)
@@ -205,7 +171,7 @@ export async function GET(request: Request) {
                                     previousStatus: operation.status,
                                     lastHeartbeat: operation.lastHeartbeat?.toISOString() || null,
                                     heartbeatExpiry: operation.heartbeatExpiry?.toISOString() || null,
-                                    refunded: refunded ? operation.amount : 0,
+                                    refunded: shouldRefund ? operation.amount : 0,
                                     reason: expiryReason
                                 },
                                 ipAddress: 'cleanup-cron'
@@ -213,7 +179,7 @@ export async function GET(request: Request) {
                         })
                     }
 
-                    return { expired: true, refunded }
+                    return { expired: true }
                 })
 
                 if (!result.expired) {
@@ -221,7 +187,7 @@ export async function GET(request: Request) {
                     continue
                 }
 
-                if (result.refunded) {
+                if (shouldRefund && operation.userId && await refundUser(operation.id, operation.userId, operation.amount, expiryReason)) {
                     refundedCount++
                 }
 

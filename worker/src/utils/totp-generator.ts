@@ -25,14 +25,8 @@ export class TOTPGenerator {
         // Clean the secret: remove spaces, dashes, and uppercase
         const cleanSecret = secret.replace(/[\s-]/g, '').toUpperCase();
 
-        // Log time info for debugging
-        const now = Math.floor(Date.now() / 1000);
-        const timeStep = Math.floor(now / 30);
-        console.log(`[TOTP] Time: ${now}, Step: ${timeStep}, Remaining: ${30 - (now % 30)}s`);
-
         // Generate the code
         const code = authenticator.generate(cleanSecret);
-        console.log(`[TOTP] Generated code: ${code} for secret: ${cleanSecret.slice(0, 4)}****`);
 
         return code;
     }
@@ -56,4 +50,3 @@ export class TOTPGenerator {
         return 30 - (Math.floor(Date.now() / 1000) % 30)
     }
 }
-

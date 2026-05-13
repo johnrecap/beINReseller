@@ -16,10 +16,6 @@
  * Workers do NOT run their own keep-alive to avoid duplication.
  */
 
-// IMPORTANT: Skip TLS verification for Bright Data proxy (self-signed certs)
-// This MUST be set before any https connections are made
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 import 'dotenv/config'
 import { Worker } from 'bullmq'
 import { processOperationHttp, closeAllHttpClients } from './http-queue-processor'

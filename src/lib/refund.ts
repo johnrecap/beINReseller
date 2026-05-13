@@ -5,7 +5,7 @@
  * by any API route that needs to refund a user or customer.
  * 
  * Key safety features:
- * - Duplicate refund check INSIDE the transaction (prevents race conditions)
+ * - DB unique refund guard makes reseller duplicate refunds idempotent
  * - Handles both reseller users and customer mobile app wallets
  * - Automatic notification creation
  */
@@ -15,7 +15,7 @@ import { Prisma } from '@prisma/client'
 
 /**
  * Atomically refund a reseller user's balance.
- * Checks for existing refund INSIDE the transaction to prevent double-refund on concurrent requests.
+ * Relies on the DB unique refund guard to prevent double-refund on concurrent requests.
  * 
  * @returns true if refund was applied, false if skipped (already refunded or amount <= 0)
  */
@@ -26,7 +26,7 @@ export async function refundUser(
     reason: string
 ): Promise<boolean> {
     if (!amount || amount <= 0) {
-        console.log(`⚠️ Skipping refund for operation ${operationId}: amount is ${amount}`)
+        console.log(`Skipping refund for operation ${operationId}: amount is ${amount}`)
         return false
     }
 
@@ -44,18 +44,6 @@ export async function refundUser(
                 throw new Error('REFUND_BLOCKED_TERMINAL')
             }
 
-            // Check INSIDE transaction for atomicity (prevents race condition)
-            const existingRefund = await tx.transaction.findFirst({
-                where: {
-                    operationId,
-                    type: 'REFUND'
-                }
-            })
-
-            if (existingRefund) {
-                console.log(`⚠️ Refund already exists for operation ${operationId}, skipping`)
-                throw new Error('REFUND_EXISTS')
-            }
 
             // Update user balance
             const user = await tx.user.update({
@@ -86,12 +74,11 @@ export async function refundUser(
                 }
             })
 
-            console.log(`💰 Refunded ${amount} to user ${userId} for operation ${operationId}`)
+            console.log(`Refunded ${amount} to user ${userId} for operation ${operationId}`)
         })
 
         return true
     } catch (error: unknown) {
-        if (error instanceof Error && error.message === 'REFUND_EXISTS') return false
         if (error instanceof Error && error.message === 'REFUND_BLOCKED_TERMINAL') return false
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
         throw error
@@ -111,7 +98,7 @@ export async function refundCustomer(
     reason: string
 ): Promise<boolean> {
     if (!amount || amount <= 0) {
-        console.log(`⚠️ Skipping customer refund for operation ${operationId}: amount is ${amount}`)
+        console.log(`Skipping customer refund for operation ${operationId}: amount is ${amount}`)
         return false
     }
 
@@ -138,7 +125,7 @@ export async function refundCustomer(
             })
 
             if (existingRefund) {
-                console.log(`⚠️ Customer refund already exists for operation ${operationId}, skipping`)
+                console.log(`Customer refund already exists for operation ${operationId}, skipping`)
                 throw new Error('REFUND_EXISTS')
             }
 
@@ -162,7 +149,7 @@ export async function refundCustomer(
                 }
             })
 
-            console.log(`💰 Refunded ${amount} to customer ${customerId} for operation ${operationId}`)
+            console.log(`Refunded ${amount} to customer ${customerId} for operation ${operationId}`)
         })
 
         return true

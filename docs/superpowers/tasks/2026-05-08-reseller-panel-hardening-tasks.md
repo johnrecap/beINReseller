@@ -80,34 +80,36 @@ Use this checklist to track execution. It mirrors the implementation plan but is
 
 ## Worker Logs and TLS
 
-- [ ] Remove cookie/session logging.
-- [ ] Remove TOTP logging.
-- [ ] Remove CAPTCHA answer/API key logging.
-- [ ] Add `worker/logs/*.log` to `.gitignore`.
-- [ ] Remove tracked worker log files from git index.
-- [ ] Remove global `NODE_TLS_REJECT_UNAUTHORIZED = '0'`.
+- [x] Remove cookie/session logging.
+- [x] Remove TOTP logging.
+- [x] Remove CAPTCHA answer/API key logging.
+- [x] Add `worker/logs/*.log` to `.gitignore`.
+- [x] Remove tracked worker log files from git index.
+- [x] Remove global `NODE_TLS_REJECT_UNAUTHORIZED = '0'` from reseller worker and keepalive paths.
 - [ ] Test worker HTTPS flow in staging.
 
 ## Credential Encryption
 
-- [ ] Encrypt beIN TOTP secrets.
-- [ ] Encrypt proxy passwords.
-- [ ] Backfill existing plaintext values.
-- [ ] Add encrypted marker/version.
-- [ ] Remove silent plaintext fallback after backfill.
+- [x] Encrypt beIN TOTP secrets.
+- [x] Encrypt proxy passwords.
+- [x] Backfill existing plaintext values.
+- [x] Add encrypted marker/version.
+- [x] Remove silent plaintext fallback after backfill.
+- [ ] Run `npx tsx scripts/backfill-credential-encryption.ts --dry-run`.
+- [ ] Run `npx tsx scripts/backfill-credential-encryption.ts` after backup.
 
 ## Refund Idempotency
 
-- [ ] Add unique refund guard.
-- [ ] Update `src/lib/refund.ts` to rely on DB idempotency.
-- [ ] Treat duplicate refund conflict as already refunded.
+- [x] Add unique refund guard.
+- [x] Update `src/lib/refund.ts` to rely on DB idempotency.
+- [x] Treat duplicate refund conflict as already refunded.
 - [ ] Test cancel and timeout refund race.
 
 ## Cancellation Race
 
-- [ ] Add guarded worker status update helper.
-- [ ] Replace unguarded active-state writes.
-- [ ] Stop worker if operation is terminal.
+- [x] Add guarded worker status update helper.
+- [x] Replace unguarded active-state writes.
+- [x] Stop worker if operation is terminal.
 - [ ] Test cancel while worker is mid-flow.
 
 ## Verification
@@ -115,7 +117,7 @@ Use this checklist to track execution. It mirrors the implementation plan but is
 - [ ] Run `npm run lint`.
 - [ ] Run `npm run build`.
 - [x] Run `cmd /c npm --prefix worker run build`.
-- [ ] Search for sensitive log patterns.
+- [x] Search for sensitive log patterns.
 - [x] Search touched files for mojibake patterns.
 - [x] Review sensitive-file diffs manually.
 - [ ] Prepare release notes and rollback notes.

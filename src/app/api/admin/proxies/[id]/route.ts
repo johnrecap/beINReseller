@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { encryptSecret } from '@/lib/crypto'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -140,7 +141,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 errors.push('Username and password must both be provided or both be empty')
             } else {
                 updateData.username = newUsername?.trim() || null
-                updateData.password = newPassword || null
+                updateData.password = password !== undefined && newPassword
+                    ? encryptSecret(newPassword)
+                    : newPassword || null
             }
         }
 

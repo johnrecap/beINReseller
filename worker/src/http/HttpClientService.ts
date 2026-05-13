@@ -37,6 +37,10 @@ import {
     CheckCardForSignalResult
 } from './types';
 
+function shouldAllowInsecureProxyTls(): boolean {
+    return process.env.WORKER_ALLOW_INSECURE_PROXY_TLS === 'true';
+}
+
 export class HttpClientService {
     private axios: AxiosInstance;
     private jar: CookieJar;
@@ -103,12 +107,14 @@ export class HttpClientService {
             const proxyManager = getProxyManager();
             const proxyUrl = proxyManager.buildProxyUrlFromConfig(proxyConfig);
             const proxyType = proxyConfig.proxyType || 'socks5';
+            const proxyTlsOptions = shouldAllowInsecureProxyTls() ? { rejectUnauthorized: false } : {};
 
             // Create a cookie-aware agent that wraps the proxy agent
             // This ensures cookies are properly handled during redirect chains
             if (proxyType === 'socks5') {
                 const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
                 axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, {
+                    ...proxyTlsOptions,
                     cookies: { jar: this.jar },
                     keepAlive: true,       // Reuse TCP+TLS connections (~300ms saved per request)
                     keepAliveMsecs: 30000, // Keep idle connections for 30s
@@ -116,6 +122,7 @@ export class HttpClientService {
             } else {
                 const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
                 axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, {
+                    ...proxyTlsOptions,
                     cookies: { jar: this.jar },
                     keepAlive: true,
                     keepAliveMsecs: 30000,
@@ -710,16 +717,19 @@ export class HttpClientService {
                 const proxyManager = getProxyManager();
                 const proxyUrl = proxyManager.buildProxyUrlFromConfig(this.proxyConfig);
                 const proxyType = this.proxyConfig.proxyType || 'socks5';
+                const proxyTlsOptions = shouldAllowInsecureProxyTls() ? { rejectUnauthorized: false } : {};
 
                 // Create a cookie-aware agent that wraps the proxy agent
                 if (proxyType === 'socks5') {
                     const SocksCookieAgent = createCookieAgent(SocksProxyAgent);
                     axiosConfig.httpsAgent = new SocksCookieAgent(proxyUrl, {
+                        ...proxyTlsOptions,
                         cookies: { jar: this.jar }
                     });
                 } else {
                     const HttpsCookieAgent = createCookieAgent(HttpsProxyAgent);
                     axiosConfig.httpsAgent = new HttpsCookieAgent(proxyUrl, {
+                        ...proxyTlsOptions,
                         cookies: { jar: this.jar }
                     });
                 }
@@ -1067,11 +1077,6 @@ export class HttpClientService {
 
                 console.log(`[HTTP] Fetching CAPTCHA from: ${captchaUrl}`);
 
-                // Debug: Log cookies being sent by cookie jar
-                const cookies = await this.jar.getCookies(captchaUrl);
-                const cookieHeader = cookies.map(c => `${c.key}=${c.value}`).join('; ');
-                console.log(`[HTTP] Cookie jar has ${cookies.length} cookies: ${cookieHeader.substring(0, 100)}...`);
-
                 // Let axios-cookiejar-support handle Cookie header automatically
                 const captchaRes = await this.axios.get(captchaUrl, {
                     responseType: 'arraybuffer',
@@ -1140,7 +1145,6 @@ export class HttpClientService {
             // Add 2FA if available
             if (totpSecret) {
                 const totpCode = this.totp.generate(totpSecret);
-                console.log(`[HTTP] Generated 2FA code: ${totpCode}`);
                 formData['Login1$txt2FaCode'] = totpCode;
             }
 
@@ -2584,14 +2588,6 @@ export class HttpClientService {
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
 
-            // === DEBUG: Log cookies before check page request ===
-            const checkCookies = await this.jar.getCookies(checkUrl);
-            console.log(`[HTTP] 🍪 DEBUG - Cookies for check page: ${checkCookies.length} cookies`);
-            if (checkCookies.length > 0) {
-                console.log(`[HTTP] 🍪 DEBUG - Cookie names: ${checkCookies.map(c => c.key).join(', ')}`);
-            }
-            // === END DEBUG ===
-
             // Step 1: GET check page
             console.log(`[HTTP] GET ${checkUrl}`);
             const checkPageRes = await this.axios.get(checkUrl, {
@@ -2634,9 +2630,6 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$btnCheck': checkBtnValue
             };
 
-            // === DEBUG: Log cookies before POST ===
-            const postCookies = await this.jar.getCookies(checkUrl);
-            console.log(`[HTTP] 🍪 DEBUG - Cookies for POST check: ${postCookies.length} cookies`);
             console.log(`[HTTP] 📝 DEBUG - ViewState length: ${this.currentViewState.__VIEWSTATE?.length || 0} chars`);
             console.log(`[HTTP] 📝 DEBUG - btnCheck value: "${checkBtnValue}"`);
             // === END DEBUG ===

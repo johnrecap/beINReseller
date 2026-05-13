@@ -91,7 +91,7 @@ export class CaptchaSolver {
             const resultData = await resultResponse.json() as CaptchaResponse
 
             if (resultData.status === 1) {
-                console.log(`✅ CAPTCHA solved: ${resultData.request}`)
+                console.log('CAPTCHA solved')
                 return resultData.request
             }
 

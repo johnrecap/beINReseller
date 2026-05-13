@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
             data: {
                 username,
                 password: encryptSecret(password),
-                totpSecret: totpSecret || null,
+                totpSecret: totpSecret ? encryptSecret(totpSecret) : null,
                 label: label || null,
                 priority: priority || 0,
                 customerOnly: customerOnly || false,

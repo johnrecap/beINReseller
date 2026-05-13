@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { encryptSecret } from '@/lib/crypto'
 
 const poolSettings = [
     { key: 'pool_round_robin_enabled', value: 'true' },
@@ -50,8 +51,8 @@ export async function POST(request: NextRequest) {
                 await prisma.beinAccount.create({
                     data: {
                         username: username.value,
-                        password: password.value,
-                        totpSecret: totpSecret?.value || null,
+                        password: encryptSecret(password.value),
+                        totpSecret: totpSecret?.value ? encryptSecret(totpSecret.value) : null,
                         label: 'Original account',
                         isActive: true,
                         priority: 10,

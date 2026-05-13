@@ -46,6 +46,8 @@ next-env.d.ts
 worker/node_modules
 worker/dist
 worker/.env
+worker/logs/*.log
+worker/src/http/*.bak_*
 
 # Agent
 .agent

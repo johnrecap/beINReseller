@@ -120,7 +120,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             updateData.password = encryptSecret(password)
         }
         if (totpSecret !== undefined) {
-            updateData.totpSecret = totpSecret || null
+            updateData.totpSecret = totpSecret ? encryptSecret(totpSecret) : null
         }
         if (label !== undefined) {
             updateData.label = label || null

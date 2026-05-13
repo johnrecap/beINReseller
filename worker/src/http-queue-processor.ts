@@ -14,7 +14,7 @@ import { AccountPoolManager, AccountQueueManager, getQueueManager, forceUnlockAc
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
-import { BeinAccount, Proxy } from '@prisma/client';
+import { BeinAccount, OperationStatus, Prisma, Proxy } from '@prisma/client';
 import { ProxyConfig } from './types/proxy';
 import { trackOperationComplete } from './lib/activity-tracker';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
@@ -67,16 +67,41 @@ class OperationCancelledError extends Error {
     }
 }
 
-const TERMINAL_STATUSES = new Set([
-    'COMPLETED',
-    'REVIEW_REQUIRED',
-    'CANCELLED',
-    'FAILED',
-    'EXPIRED'
-]);
+const TERMINAL_STATUS_LIST: OperationStatus[] = [
+    OperationStatus.COMPLETED,
+    OperationStatus.REVIEW_REQUIRED,
+    OperationStatus.CANCELLED,
+    OperationStatus.FAILED,
+    OperationStatus.EXPIRED
+];
+
+const TERMINAL_STATUSES = new Set<string>(TERMINAL_STATUS_LIST);
 
 function isTerminalStatus(status: string | null | undefined): boolean {
     return !!status && TERMINAL_STATUSES.has(status);
+}
+
+async function updateOperationIfActive(
+    operationId: string,
+    data: Prisma.OperationUncheckedUpdateManyInput,
+    context: string
+): Promise<boolean> {
+    const updated = await prisma.operation.updateMany({
+        where: {
+            id: operationId,
+            status: { notIn: TERMINAL_STATUS_LIST }
+        },
+        data
+    });
+
+    if (updated.count > 0) return true;
+
+    const current = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: { status: true }
+    });
+    console.log(`[HTTP] Skipping ${context} for ${operationId}; current status is ${current?.status || 'missing'}`);
+    return false;
 }
 
 function getErrMsg(error: unknown): string {
@@ -685,10 +710,7 @@ async function handleStartRenewalHttp(
     });
 
     // Mark as PROCESSING
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'Searching for available account...' }
-    });
+    if (!await updateOperationIfActive(operationId, { status: 'PROCESSING', responseMessage: 'Searching for available account...' }, 'START_RENEWAL processing update')) return;
 
     // Get next available account with queue-based retry
     // If no account is immediately available, wait in queue up to 2 minutes
@@ -707,10 +729,10 @@ async function handleStartRenewalHttp(
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
 
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { beinAccountId: selectedAccount.id }
-    });
+    if (!await updateOperationIfActive(operationId, { beinAccountId: selectedAccount.id }, 'START_RENEWAL account update')) {
+        await accountPool.markAccountUsed(selectedAccount.id);
+        return;
+    }
 
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
@@ -795,17 +817,18 @@ async function handleStartRenewalHttp(
                 const now = new Date();
                 const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
 
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        status: 'AWAITING_CAPTCHA',
-                        captchaImage: loginResult.captchaImage,
-                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS),
-                        // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
-                        lastHeartbeat: now,
-                        heartbeatExpiry: heartbeatExpiry
-                    }
-                });
+                if (!await updateOperationIfActive(operationId, {
+                    status: 'AWAITING_CAPTCHA',
+                    captchaImage: loginResult.captchaImage,
+                    captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS),
+                    // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
+                    lastHeartbeat: now,
+                    heartbeatExpiry: heartbeatExpiry
+                }, 'START_RENEWAL captcha update')) {
+                    await releaseLoginLock(selectedAccount.id, WORKER_ID);
+                    await accountPool.markAccountUsed(selectedAccount.id);
+                    return;
+                }
 
                 solution = await waitForCaptchaSolution(operationId);
                 if (!solution) {
@@ -967,7 +990,6 @@ async function handleStartRenewalHttp(
     // Different PM2 workers have separate memory, so the operation-scoped
     // ViewState and cookies are stored server-side in Redis only.
     const sessionData = await client.exportSession();
-    console.log(`[HTTP] Session exported: ViewState=${sessionData.viewState?.__VIEWSTATE?.length || 0} chars, Cookies=${sessionData.cookies.length} chars`);
     await saveOperationSessionToCache(operationId, sessionData, 180);
 
     // Update operation with packages and safe user-facing metadata.
@@ -975,29 +997,29 @@ async function handleStartRenewalHttp(
     const now = new Date();
     const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
 
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: {
-            status: 'AWAITING_PACKAGE',
-            beinAccountId: selectedAccount.id,  // Merged here instead of separate update
-            stbNumber: finalStbNumber,
-            availablePackages: packages,
-            captchaImage: null,
-            captchaSolution: null,
-            captchaExpiry: null,
-            // Hard deadline: 2 minutes to select a package, then auto-cancel
-            finalConfirmExpiry: new Date(now.getTime() + 120_000),  // 2 minutes
-            // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
-            lastHeartbeat: now,
-            heartbeatExpiry: heartbeatExpiry,
-            // Operation session is stored server-side in Redis.
-            responseData: JSON.stringify({
-                dealerBalance: packagesResult.dealerBalance,  // For balance validation
-                savedAt: new Date().toISOString(),
-                smartcardType: smartcardType || 'CISCO'  // Persist for COMPLETE_PURCHASE retry
-            })
-        }
-    });
+    if (!await updateOperationIfActive(operationId, {
+        status: 'AWAITING_PACKAGE',
+        beinAccountId: selectedAccount.id,  // Merged here instead of separate update
+        stbNumber: finalStbNumber,
+        availablePackages: packages,
+        captchaImage: null,
+        captchaSolution: null,
+        captchaExpiry: null,
+        // Hard deadline: 2 minutes to select a package, then auto-cancel
+        finalConfirmExpiry: new Date(now.getTime() + 120_000),  // 2 minutes
+        // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
+        lastHeartbeat: now,
+        heartbeatExpiry: heartbeatExpiry,
+        // Operation session is stored server-side in Redis.
+        responseData: JSON.stringify({
+            dealerBalance: packagesResult.dealerBalance,  // For balance validation
+            savedAt: new Date().toISOString(),
+            smartcardType: smartcardType || 'CISCO'  // Persist for COMPLETE_PURCHASE retry
+        })
+    }, 'START_RENEWAL package update')) {
+        await accountPool.markAccountUsed(selectedAccount.id);
+        return;
+    }
 
     await accountPool.markAccountUsed(selectedAccount.id);
 
@@ -1291,10 +1313,7 @@ async function handleCompletePurchaseHttp(
         throw new Error('No package selected');
     }
 
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { status: 'COMPLETING', responseMessage: 'Completing purchase...' }
-    });
+    if (!await updateOperationIfActive(operationId, { status: 'COMPLETING', responseMessage: 'Completing purchase...' }, 'COMPLETE_PURCHASE completing update')) return;
 
     // Track which accounts we've tried
     const triedAccountIds: string[] = [];
@@ -1353,10 +1372,10 @@ async function handleCompletePurchaseHttp(
         }
 
         // Update operation with new account
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: { beinAccountId: nextAccount.id }
-        });
+        if (!await updateOperationIfActive(operationId, { beinAccountId: nextAccount.id }, 'COMPLETE_PURCHASE account update')) {
+            await accountPool.markAccountUsed(nextAccount.id);
+            return;
+        }
 
         currentAccountId = nextAccount.id;
         console.log(`[HTTP] 🔄 Retrying with account: ${nextAccount.label || nextAccount.username} (Balance: ${nextAccount.dealerBalance || 'unknown'} USD)`);
@@ -1610,20 +1629,20 @@ async function attemptPurchaseWithAccount(
             const now = new Date();
             const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
 
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    status: 'AWAITING_FINAL_CONFIRM',
-                    finalConfirmExpiry: new Date(Date.now() + 30000),  // 30 seconds
-                    responseMessage: result.message,
-                    lastHeartbeat: now,
-                    heartbeatExpiry: heartbeatExpiry,
-                    responseData: JSON.stringify({
-                        dealerBalance: dealerBalance,
-                        savedAt: new Date().toISOString()
-                    })
-                }
-            });
+            if (!await updateOperationIfActive(operationId, {
+                status: 'AWAITING_FINAL_CONFIRM',
+                finalConfirmExpiry: new Date(Date.now() + 30000),  // 30 seconds
+                responseMessage: result.message,
+                lastHeartbeat: now,
+                heartbeatExpiry: heartbeatExpiry,
+                responseData: JSON.stringify({
+                    dealerBalance: dealerBalance,
+                    savedAt: new Date().toISOString()
+                })
+            }, 'COMPLETE_PURCHASE final confirm update')) {
+                await accountPool.markAccountUsed(accountId);
+                return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
+            }
 
             if (operation.userId) {
                 await createNotification({
@@ -1640,14 +1659,14 @@ async function attemptPurchaseWithAccount(
 
         // Direct success (shouldn't happen with skipFinalClick=true)
         if (result.success) {
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    status: 'COMPLETED',
-                    responseMessage: result.message,
-                    completedAt: new Date()
-                }
-            });
+            if (!await updateOperationIfActive(operationId, {
+                status: 'COMPLETED',
+                responseMessage: result.message,
+                completedAt: new Date()
+            }, 'COMPLETE_PURCHASE direct completion update')) {
+                await accountPool.markAccountUsed(accountId);
+                return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
+            }
             await accountPool.markAccountUsed(accountId);
             return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
         }
@@ -1730,10 +1749,7 @@ async function handleConfirmPurchaseHttp(
         throw new Error('Confirmation timeout');
     }
 
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { status: 'COMPLETING', responseMessage: 'Confirming purchase...' }
-    });
+    if (!await updateOperationIfActive(operationId, { status: 'COMPLETING', responseMessage: 'Confirming purchase...' }, 'CONFIRM_PURCHASE completing update')) return;
 
     const account = await prisma.beinAccount.findUnique({
         where: { id: operation.beinAccountId },
@@ -1795,7 +1811,7 @@ async function handleConfirmPurchaseHttp(
             const completed = await prisma.operation.updateMany({
                 where: {
                     id: operationId,
-                    status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
+                    status: { notIn: TERMINAL_STATUS_LIST }
                 },
                 data: {
                     status: 'COMPLETED',
@@ -1865,7 +1881,7 @@ async function handleConfirmPurchaseHttp(
             const reviewRequired = await prisma.operation.updateMany({
                 where: {
                     id: operationId,
-                    status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
+                    status: { notIn: TERMINAL_STATUS_LIST }
                 },
                 data: {
                     status: 'REVIEW_REQUIRED',
@@ -2006,10 +2022,7 @@ async function handleSignalRefreshHttp(
     await checkIfCancelled(operationId);
 
     // Update status
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'Searching for available account...' }
-    });
+    if (!await updateOperationIfActive(operationId, { status: 'PROCESSING', responseMessage: 'Searching for available account...' }, 'SIGNAL_REFRESH processing update')) return;
 
     // Acquire account using queue-based system (with wait if busy)
     const queueManager = getQueueManager(accountPool);
@@ -2029,10 +2042,10 @@ async function handleSignalRefreshHttp(
     console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`);
 
     // Store account reference
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { beinAccountId: account.id }
-    });
+    if (!await updateOperationIfActive(operationId, { beinAccountId: account.id }, 'SIGNAL_REFRESH account update')) {
+        await accountPool.markAccountUsed(account.id);
+        return;
+    }
 
     // Get or create HTTP client for this account (includes session restore from Redis)
     const httpClient = await createOperationClient(account);
@@ -2095,14 +2108,15 @@ async function handleSignalRefreshHttp(
 
                 // Fallback to manual if auto-solve failed or not configured
                 if (!solution) {
-                    await prisma.operation.update({
-                        where: { id: operationId },
-                        data: {
-                            status: 'AWAITING_CAPTCHA',
-                            captchaImage: loginResult.captchaImage,
-                            captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
-                        }
-                    });
+                    if (!await updateOperationIfActive(operationId, {
+                        status: 'AWAITING_CAPTCHA',
+                        captchaImage: loginResult.captchaImage,
+                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                    }, 'SIGNAL_REFRESH captcha update')) {
+                        await releaseLoginLock(account.id, WORKER_ID);
+                        await accountPool.markAccountUsed(account.id);
+                        return;
+                    }
 
                     solution = await waitForCaptchaSolution(operationId);
                     if (!solution) {
@@ -2163,21 +2177,21 @@ async function handleSignalRefreshHttp(
         }
 
         // Store card status in responseData
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                status: 'COMPLETED',
-                completedAt: new Date(),
-                stbNumber: signalResult.cardStatus?.stbNumber,
-                responseMessage: signalResult.activated
-                    ? 'Signal activated successfully'
-                    : signalResult.message || 'Card status retrieved',
-                responseData: {
-                    cardStatus: signalResult.cardStatus,
-                    activated: signalResult.activated
-                }
+        if (!await updateOperationIfActive(operationId, {
+            status: 'COMPLETED',
+            completedAt: new Date(),
+            stbNumber: signalResult.cardStatus?.stbNumber,
+            responseMessage: signalResult.activated
+                ? 'Signal activated successfully'
+                : signalResult.message || 'Card status retrieved',
+            responseData: {
+                cardStatus: signalResult.cardStatus,
+                activated: signalResult.activated
             }
-        });
+        }, 'SIGNAL_REFRESH completion update')) {
+            await accountPool.markAccountUsed(account.id);
+            return;
+        }
 
         // Create success notification
         const op = await prisma.operation.findUnique({
@@ -2222,10 +2236,7 @@ async function handleSignalCheckHttp(
     await checkIfCancelled(operationId);
 
     // Update status
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'Searching for available account...' }
-    });
+    if (!await updateOperationIfActive(operationId, { status: 'PROCESSING', responseMessage: 'Searching for available account...' }, 'SIGNAL_CHECK processing update')) return;
 
     // Acquire account using queue-based system (with wait if busy)
     const queueManager = getQueueManager(accountPool);
@@ -2245,10 +2256,10 @@ async function handleSignalCheckHttp(
     console.log(`✅ Selected account: ${account.label || account.username}`);
 
     // Store account reference
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { beinAccountId: account.id }
-    });
+    if (!await updateOperationIfActive(operationId, { beinAccountId: account.id }, 'SIGNAL_CHECK account update')) {
+        await accountPool.markAccountUsed(account.id);
+        return;
+    }
 
     const httpClient = await createOperationClient(account);
 
@@ -2307,14 +2318,15 @@ async function handleSignalCheckHttp(
 
                 // Fallback to manual if needed
                 if (!solution) {
-                    await prisma.operation.update({
-                        where: { id: operationId },
-                        data: {
-                            status: 'AWAITING_CAPTCHA',
-                            captchaImage: loginResult.captchaImage,
-                            captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
-                        }
-                    });
+                    if (!await updateOperationIfActive(operationId, {
+                        status: 'AWAITING_CAPTCHA',
+                        captchaImage: loginResult.captchaImage,
+                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
+                    }, 'SIGNAL_CHECK captcha update')) {
+                        await releaseLoginLock(account.id, WORKER_ID);
+                        await accountPool.markAccountUsed(account.id);
+                        return;
+                    }
 
                     solution = await waitForCaptchaSolution(operationId);
                     if (!solution) {
@@ -2381,20 +2393,20 @@ async function handleSignalCheckHttp(
 
         // Store card status and await user to click activate.
         // Use 'COMPLETED' status with awaitingActivate flag to indicate waiting for user to click activate
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                status: 'COMPLETED',
-                stbNumber: checkResult.cardStatus?.stbNumber,
-                responseMessage: 'Card checked - ready for activation',
-                responseData: JSON.stringify({
-                    cardStatus: checkResult.cardStatus,
-                    contracts: checkResult.contracts || [], // Include contracts table
-                    awaitingActivate: true,
-                    checkedAt: new Date().toISOString()
-                })
-            }
-        });
+        if (!await updateOperationIfActive(operationId, {
+            status: 'COMPLETED',
+            stbNumber: checkResult.cardStatus?.stbNumber,
+            responseMessage: 'Card checked - ready for activation',
+            responseData: JSON.stringify({
+                cardStatus: checkResult.cardStatus,
+                contracts: checkResult.contracts || [], // Include contracts table
+                awaitingActivate: true,
+                checkedAt: new Date().toISOString()
+            })
+        }, 'SIGNAL_CHECK completion update')) {
+            await accountPool.markAccountUsed(account.id);
+            return;
+        }
 
         // Extend session TTL on successful operation
         await extendSessionTTL(account.id, httpClient.getSessionTimeout());
@@ -2459,10 +2471,7 @@ async function handleSignalActivateHttp(
     }
 
     // Update status
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'Activating signal...' }
-    });
+    if (!await updateOperationIfActive(operationId, { status: 'PROCESSING', responseMessage: 'Activating signal...' }, 'SIGNAL_ACTIVATE processing update')) return;
 
     // Get account
     const account = await prisma.beinAccount.findUnique({
@@ -2491,23 +2500,23 @@ async function handleSignalActivateHttp(
         }
 
         // Update operation with result
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                status: 'COMPLETED',
-                completedAt: new Date(),
-                responseMessage: activateResult.activated
-                    ? 'Signal activated successfully'
-                    : activateResult.message || 'Activation not completed',
-                responseData: JSON.stringify({
-                    ...savedData,
-                    cardStatus: activateResult.cardStatus,
-                    activated: activateResult.activated,
-                    awaitingActivate: false,  // Clear the flag
-                    activatedAt: new Date().toISOString()
-                })
-            }
-        });
+        if (!await updateOperationIfActive(operationId, {
+            status: 'COMPLETED',
+            completedAt: new Date(),
+            responseMessage: activateResult.activated
+                ? 'Signal activated successfully'
+                : activateResult.message || 'Activation not completed',
+            responseData: JSON.stringify({
+                ...savedData,
+                cardStatus: activateResult.cardStatus,
+                activated: activateResult.activated,
+                awaitingActivate: false,  // Clear the flag
+                activatedAt: new Date().toISOString()
+            })
+        }, 'SIGNAL_ACTIVATE completion update')) {
+            await accountPool.markAccountUsed(account.id);
+            return;
+        }
 
         // Create notification
         if (operation.userId) {
@@ -2683,10 +2692,7 @@ async function handleStartInstallmentHttp(
     });
 
     // Mark as PROCESSING
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { status: 'PROCESSING', responseMessage: 'Searching for available account...' }
-    });
+    if (!await updateOperationIfActive(operationId, { status: 'PROCESSING', responseMessage: 'Searching for available account...' }, 'START_INSTALLMENT processing update')) return;
 
     // Get next available account with queue-based retry
     const queueManager = getQueueManager(accountPool);
@@ -2704,10 +2710,10 @@ async function handleStartInstallmentHttp(
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
 
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: { beinAccountId: selectedAccount.id }
-    });
+    if (!await updateOperationIfActive(operationId, { beinAccountId: selectedAccount.id }, 'START_INSTALLMENT account update')) {
+        await accountPool.markAccountUsed(selectedAccount.id);
+        return;
+    }
 
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
@@ -2771,16 +2777,17 @@ async function handleStartInstallmentHttp(
                 const now = new Date();
                 const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
 
-                await prisma.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        status: 'AWAITING_CAPTCHA',
-                        captchaImage: loginResult.captchaImage,
-                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS),
-                        lastHeartbeat: now,
-                        heartbeatExpiry: heartbeatExpiry
-                    }
-                });
+                if (!await updateOperationIfActive(operationId, {
+                    status: 'AWAITING_CAPTCHA',
+                    captchaImage: loginResult.captchaImage,
+                    captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS),
+                    lastHeartbeat: now,
+                    heartbeatExpiry: heartbeatExpiry
+                }, 'START_INSTALLMENT captcha update')) {
+                    await releaseLoginLock(selectedAccount.id, WORKER_ID);
+                    await accountPool.markAccountUsed(selectedAccount.id);
+                    return;
+                }
 
                 solution = await waitForCaptchaSolution(operationId);
                 if (!solution) {
@@ -2843,14 +2850,14 @@ async function handleStartInstallmentHttp(
 
     if (!installmentResult.hasInstallment) {
         // No installment found - complete with message
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                status: 'COMPLETED',
-                responseMessage: 'No installments found for this card',
-                completedAt: new Date()
-            }
-        });
+        if (!await updateOperationIfActive(operationId, {
+            status: 'COMPLETED',
+            responseMessage: 'No installments found for this card',
+            completedAt: new Date()
+        }, 'START_INSTALLMENT no-installment completion update')) {
+            await accountPool.markAccountUsed(selectedAccount.id);
+            return;
+        }
 
         // Release account
         await accountPool.markAccountUsed(selectedAccount.id);
@@ -2862,24 +2869,24 @@ async function handleStartInstallmentHttp(
     const confirmExpiry = new Date(now.getTime() + 60_000); // 60 seconds to confirm
     const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
 
-    await prisma.operation.update({
-        where: { id: operationId },
-        data: {
-            status: 'AWAITING_FINAL_CONFIRM',
-            // Store installment data in responseData
-            responseData: JSON.stringify({
-                installment: installmentResult.installment || null,
-                subscriber: installmentResult.subscriber || null,
-                dealerBalance: installmentResult.dealerBalance || null,
-                isInstallment: true // Flag to identify installment operations
-            }),
-            stbNumber: installmentResult.subscriber?.stbModel || null,
-            amount: 0, // CRITICAL: Set to 0 initially. Only set full amount AFTER user pays in confirm-installment API, to prevent free money refunds on timeout.
-            finalConfirmExpiry: confirmExpiry,
-            lastHeartbeat: now,
-            heartbeatExpiry: heartbeatExpiry
-        }
-    });
+    if (!await updateOperationIfActive(operationId, {
+        status: 'AWAITING_FINAL_CONFIRM',
+        // Store installment data in responseData
+        responseData: JSON.stringify({
+            installment: installmentResult.installment || null,
+            subscriber: installmentResult.subscriber || null,
+            dealerBalance: installmentResult.dealerBalance || null,
+            isInstallment: true // Flag to identify installment operations
+        }),
+        stbNumber: installmentResult.subscriber?.stbModel || null,
+        amount: 0, // CRITICAL: Set to 0 initially. Only set full amount AFTER user pays in confirm-installment API, to prevent free money refunds on timeout.
+        finalConfirmExpiry: confirmExpiry,
+        lastHeartbeat: now,
+        heartbeatExpiry: heartbeatExpiry
+    }, 'START_INSTALLMENT final confirm update')) {
+        await accountPool.markAccountUsed(selectedAccount.id);
+        return;
+    }
 
     await accountPool.markAccountUsed(selectedAccount.id);
 
@@ -3011,7 +3018,7 @@ async function handleConfirmInstallmentHttp(
         const completed = await prisma.operation.updateMany({
             where: {
                 id: operationId,
-                status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
+                status: { notIn: TERMINAL_STATUS_LIST }
             },
             data: {
                 status: 'COMPLETED',
@@ -3095,7 +3102,7 @@ async function handleConfirmInstallmentHttp(
         const reviewRequired = await prisma.operation.updateMany({
             where: {
                 id: operationId,
-                status: { notIn: ['CANCELLED', 'FAILED', 'EXPIRED'] }
+                status: { notIn: TERMINAL_STATUS_LIST }
             },
             data: {
                 status: 'REVIEW_REQUIRED',

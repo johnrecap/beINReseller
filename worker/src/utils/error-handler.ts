@@ -11,8 +11,9 @@ export interface OperationError {
     recoverable: boolean
 }
 
-export function classifyError(error: any): OperationError {
-    const message = error.message?.toLowerCase() || ''
+export function classifyError(error: unknown): OperationError {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const message = errorMessage.toLowerCase()
 
     if (message.includes('login') || message.includes('credentials')) {
         return { type: 'LOGIN_FAILED', message: 'Login failed - check account credentials', recoverable: false }
@@ -34,10 +35,8 @@ export function classifyError(error: any): OperationError {
         return { type: 'ELEMENT_NOT_FOUND', message: 'Element not found - page may have changed', recoverable: false }
     }
 
-    return { type: 'UNKNOWN', message: error.message || 'Unknown error', recoverable: true }
+    return { type: 'UNKNOWN', message: errorMessage || 'Unknown error', recoverable: true }
 }
-
-import { createNotification } from './notification'
 
 export async function refundUser(operationId: string, userId: string, amount: number, reason: string): Promise<boolean> {
     // Guard: skip if no money to refund
@@ -47,20 +46,7 @@ export async function refundUser(operationId: string, userId: string, amount: nu
     }
 
     try {
-        await prisma.$transaction(async (tx: any) => {
-            // Check INSIDE transaction for atomicity (prevents race condition)
-            const existingRefund = await tx.transaction.findFirst({
-                where: {
-                    operationId,
-                    type: 'REFUND'
-                }
-            })
-
-            if (existingRefund) {
-                console.log(`⚠️ Refund already exists for operation ${operationId}, skipping to prevent double refund`)
-                throw new Error('REFUND_EXISTS')
-            }
-
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             // Update user balance
             const user = await tx.user.update({
                 where: { id: userId },
@@ -96,8 +82,7 @@ export async function refundUser(operationId: string, userId: string, amount: nu
         })
 
         return true
-    } catch (error: any) {
-        if (error.message === 'REFUND_EXISTS') return false
+    } catch (error: unknown) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
         throw error
     }
@@ -108,8 +93,11 @@ export async function markOperationFailed(
     error: OperationError,
     retryCount: number
 ): Promise<void> {
-    await prisma.operation.update({
-        where: { id: operationId },
+    await prisma.operation.updateMany({
+        where: {
+            id: operationId,
+            status: { notIn: ['COMPLETED', 'REVIEW_REQUIRED', 'CANCELLED', 'FAILED', 'EXPIRED'] }
+        },
         data: {
             status: 'FAILED',
             retryCount,

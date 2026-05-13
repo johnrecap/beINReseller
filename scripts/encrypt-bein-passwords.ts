@@ -21,6 +21,7 @@ import 'dotenv/config'
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
 const ENCODING = 'hex' as const
+const ENCRYPTED_PREFIX = 'enc:v1:'
 
 const isDryRun = process.argv.includes('--dry-run')
 
@@ -36,6 +37,8 @@ function getEncryptionKey(): Buffer {
 }
 
 function isAlreadyEncrypted(value: string): boolean {
+    if (value.startsWith(ENCRYPTED_PREFIX)) return true
+
     // Encrypted format: iv:tag:ciphertext (3 hex segments)
     const parts = value.split(':')
     if (parts.length !== 3) return false
@@ -49,7 +52,7 @@ function encryptSecret(plaintext: string): string {
     let encrypted = cipher.update(plaintext, 'utf8', ENCODING)
     encrypted += cipher.final(ENCODING)
     const tag = cipher.getAuthTag()
-    return `${iv.toString(ENCODING)}:${tag.toString(ENCODING)}:${encrypted}`
+    return `${ENCRYPTED_PREFIX}${iv.toString(ENCODING)}:${tag.toString(ENCODING)}:${encrypted}`
 }
 
 async function main() {

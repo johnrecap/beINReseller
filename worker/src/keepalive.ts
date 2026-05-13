@@ -16,9 +16,6 @@
  *   pm2 logs bein-keepalive
  */
 
-// IMPORTANT: Skip TLS verification for Bright Data proxy (self-signed certs)
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 import 'dotenv/config';
 import { SessionKeepAliveService, closeAllKeepAliveClients } from './lib/session-keepalive';
 import { closeRedisConnection } from './lib/redis';

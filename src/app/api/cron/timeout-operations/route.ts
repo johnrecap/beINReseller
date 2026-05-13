@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { refundUser } from '@/lib/refund'
 
 // This endpoint should be called by a cron job every 5 minutes
 // Example: Vercel Cron, or external service like cron-job.org
@@ -115,43 +116,7 @@ export async function GET(request: Request) {
                     })
 
                     if (timeoutGuard.count === 0) {
-                        return { processed: false, refunded: false }
-                    }
-
-                    let refunded = false
-
-                    // Refund user balance only if amount > 0 AND no existing refund AND has userId (not store customer)
-                    if (shouldRefund && operation.userId) {
-                        // ===== CRITICAL: Check for existing refund to prevent double refund =====
-                        const existingRefund = await tx.transaction.findFirst({
-                            where: {
-                                operationId: operation.id,
-                                type: 'REFUND'
-                            }
-                        })
-
-                        if (existingRefund) {
-                            console.log(`⚠️ Refund already exists for ${operation.id}, skipping`)
-                        } else {
-                            const user = await tx.user.update({
-                                where: { id: operation.userId },
-                                data: { balance: { increment: operation.amount } },
-                            })
-
-                            // Create refund transaction
-                            await tx.transaction.create({
-                                data: {
-                                    userId: operation.userId,
-                                    type: 'REFUND',
-                                    amount: operation.amount,
-                                    balanceAfter: user.balance,
-                                    operationId: operation.id,
-                                    notes: `Auto-refund - ${timeoutMessage}`,
-                                },
-                            })
-
-                            refunded = true
-                        }
+                        return { processed: false }
                     }
 
                     // Log activity (only if userId exists - not store customer)
@@ -168,7 +133,7 @@ export async function GET(request: Request) {
                         })
                     }
 
-                    return { processed: true, refunded }
+                    return { processed: true }
                 })
 
                 if (!result.processed) {
@@ -176,7 +141,7 @@ export async function GET(request: Request) {
                     continue
                 }
 
-                if (result.refunded) {
+                if (shouldRefund && operation.userId && await refundUser(operation.id, operation.userId, operation.amount, timeoutMessage)) {
                     refundedCount++
                 }
             } catch (err) {

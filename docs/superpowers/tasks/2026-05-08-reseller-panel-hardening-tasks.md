@@ -7,6 +7,7 @@ Use this checklist to track execution. It mirrors the implementation plan but is
 - [x] Phase 1 committed: `12e5c2b fix(auth): harden session authorization claims`.
 - [x] Phase 2 committed: `fix(operations): keep bein sessions server-side`.
 - [x] Balance Safety committed: `fix(finance): guard balance mutations`.
+- [x] Active Card Guard committed: `fix(operations): enforce active card guard`.
 
 ## Exclusions
 
@@ -52,10 +53,10 @@ Use this checklist to track execution. It mirrors the implementation plan but is
 
 ## Active Card Guard
 
-- [ ] Add DB-backed guard for one active operation per card.
-- [ ] Apply guard to single create flow.
-- [ ] Apply guard to bulk flow.
-- [ ] Convert guard conflict to clean API error.
+- [x] Add DB-backed guard for one active operation per card.
+- [x] Apply guard to single create flow.
+- [x] Apply guard to bulk flow.
+- [x] Convert guard conflict to clean API error.
 - [ ] Test concurrent same-card requests.
 
 ## Queue Durability

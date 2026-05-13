@@ -33,6 +33,13 @@ const bulkOperationSchema = z.object({
     duration: z.string().optional(),
 })
 
+function isActiveCardConflict(error: unknown): boolean {
+    return typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code?: string }).code === 'P2002'
+}
+
 export async function POST(request: NextRequest) {
     try {
         // Check authentication (supports both web session and mobile token)
@@ -241,6 +248,13 @@ export async function POST(request: NextRequest) {
         if (error instanceof Error && error.message === 'ALL_CARDS_BLOCKED') {
             return NextResponse.json(
                 { error: 'All cards have active operations' },
+                { status: 400 }
+            )
+        }
+
+        if (isActiveCardConflict(error)) {
+            return NextResponse.json(
+                { error: 'One or more cards have active operations' },
                 { status: 400 }
             )
         }

@@ -31,6 +31,13 @@ const createOperationSchema = z.object({
     duration: z.string().optional(),
 })
 
+function isActiveCardConflict(error: unknown): boolean {
+    return typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code?: string }).code === 'P2002'
+}
+
 export async function POST(request: NextRequest) {
     try {
         // 1. Check authentication (supports both web session and mobile token)
@@ -212,6 +219,13 @@ export async function POST(request: NextRequest) {
         }
 
         if (errorMessage === 'DUPLICATE_OPERATION') {
+            return NextResponse.json(
+                { error: 'There is an active operation for this card' },
+                { status: 400 }
+            )
+        }
+
+        if (isActiveCardConflict(error)) {
             return NextResponse.json(
                 { error: 'There is an active operation for this card' },
                 { status: 400 }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { Megaphone } from 'lucide-react'
-import AnnouncementSettings from '@/components/admin/AnnouncementSettings'
+import SimpleAnnouncementSettings from '@/components/admin/SimpleAnnouncementSettings'
 
 export const metadata = {
     title: 'Announcements | Desh Panel',
@@ -28,7 +28,7 @@ export default async function AnnouncementsPage() {
                 </div>
             </div>
 
-            <AnnouncementSettings />
+            <SimpleAnnouncementSettings />
         </div>
     )
 }

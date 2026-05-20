@@ -89,6 +89,7 @@ export const en = {
         deletedAccounts: 'Deleted Accounts',
         proxyManagement: 'Proxy Management',
         integrityReports: 'Integrity Reports',
+        beinSpendReport: 'beIN Spend Report',
         announcements: 'Announcements',
         activityMonitoring: 'Activity Monitoring',
     },

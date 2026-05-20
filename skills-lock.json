@@ -1,0 +1,1095 @@
+{
+  "version": 1,
+  "skills": {
+    "ab-test-analysis": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "3e78bcc057b936fcd8f987504b69fdda414b8a4def0b73229e0755b4029e8ba4"
+    },
+    "analyze-feature-requests": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "dbf58d384cdf248e5f11fcfddf2a00d9ea0913958cb600976a5d6b0e4b8e0023"
+    },
+    "ansoff-matrix": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "8d4619a27828764e397e7cb65137a951a60cf87ab5f7822833b231089696b049"
+    },
+    "app-store-changelog": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "dc9b8e606174a60a5cda3e6d7e0269d028313e8f4af7a61b03efb06a56497445"
+    },
+    "aspnet-core": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "192537b889ef60aba67db5f3c1f694e460fde9b6a45fb4c35ecab8e7710bfa67"
+    },
+    "beachhead-segment": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "d85d7ab80e4ae2e00ddff8982c4e19630c43a1efd96ae11b3b0af6eb60f8d2c0"
+    },
+    "brainstorm-experiments-existing": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "3671c7b2669f0c3197348781843cb0a26017929ba5c4d1416555d0bbb07f00bf"
+    },
+    "brainstorm-experiments-new": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "8aadc41391e6c048466240de8feefa63c6b6d74475a629b8f983c293da965787"
+    },
+    "brainstorm-ideas-existing": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "318189ed1869045ba8bded1a250d010c993ba5acbee7a5a52d3e4d9094024178"
+    },
+    "brainstorm-ideas-new": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "9cac3d00cb4414cdc2e02802af8c153c49cdfc2e925a22c5020c24587a31bce0"
+    },
+    "brainstorm-okrs": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "5cbed0f2806a864bab73a26a37f176c15e440739323c2e4bb8ebe3a746139ad7"
+    },
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "8e99026256fdd857520640b72e0181221ae02bcba16bdb9d644191c1b1b3b9e4"
+    },
+    "business-model": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "bedee52fe485016e2810ec4327ea0282679fb4a6bf20603b393f6ee867f2b810"
+    },
+    "chatgpt-apps": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "e2eac08717de5e826f311c341f6bb5e0ac7970118922531655ecad36ee7f8d7b"
+    },
+    "cloudflare-deploy": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "6fee45f564189edfb4d0ee4a94a3b2b2caf9825fdac5b69f466f4ea05029ddf9"
+    },
+    "cohort-analysis": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "6569a07357c0abf011080b90d2cbd3de0f8c4ac6ff732b4d450a993d73b5c0d4"
+    },
+    "competitive-battlecard": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "3e950c496f15b629b5c68bb600a5e049fef2d962094da960c76eddfef56329a9"
+    },
+    "competitor-analysis": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "182488f313aba2174ed888e6d77cb6920c2fbf40604cf40bf07a04128bf39f3f"
+    },
+    "create-prd": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "3368fad0b60a31605f03340e33fbe0fb90982ba4e80a904298168f3fbcba4ba7"
+    },
+    "customer-journey-map": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "8f9e591c23c212878bdf34a2c083e0bb09d717ef0a32a4ac065acd6f7bee94ef"
+    },
+    "develop-web-game": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "e779aebb4314bff3d239ef8f4d19ddb5a2d4986363a83b6ac7d11f511204e4c1"
+    },
+    "dispatching-parallel-agents": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "534432f7d0af6f567ec505ef251e6bbf0a8f2d12a34d9da9517fb131dd9c8646"
+    },
+    "doc": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "0e0f15f85ffd8ba3cbed6af80dc4141644951e810cfa473654d05f335a080bec"
+    },
+    "draft-nda": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "9006aa3708e4f36b1140961df5a291321a65030c70056e975378b5d23cb6c2cc"
+    },
+    "dummy-dataset": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "840611313b78b0e5df519bd95a15c7af39e251540a4e09c74604d6060b969d79"
+    },
+    "executing-plans": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "2f709d1a2c7564f8ce6a9bb707e7f5451117ba80f8e8e2302662c29bc61246a6"
+    },
+    "figma": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "2de5802766e6025d562f69ae8c70f8738b474e29cb93db14e2d63499fa87712f"
+    },
+    "figma-implement-design": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "015994104387f091517373d2893701af033c9b5bdcec311340ea7803d65b8657"
+    },
+    "finishing-a-development-branch": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "9edba9a38684c060fdc38290f640e1dc0c37de286723ac9be73bacacf7cd6f3d"
+    },
+    "gh-address-comments": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "d37268fc7264390862129b554b13f3d35e1b7b9c16ea8d748261a480ace75300"
+    },
+    "gh-fix-ci": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "62b4c9b9aeb0e52925882185019e65c7785da8e7fa16ddb95dd3aaa00883961a"
+    },
+    "github": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "611b090fbdabbb82dca470dfa831d66a650acb8ea6043cdfc37ad038bc7598ae"
+    },
+    "grammar-check": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "543ee9e41682444e3ad9f411e443cfbd547620afc83745583c2de697509f9cc7"
+    },
+    "growth-loops": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "d32e728cca11d669d15a936ab8f3b8f4d3e7d6ef49df67a0b24426cdcdc51a8b"
+    },
+    "gtm-motions": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "e52aeafb62bec64a26cad477a0eddc44d0ef582d82ac527e8fa67d06c1d4c7d7"
+    },
+    "gtm-strategy": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "4eef1d029ae0a22117f705a32286f46ea044964f6af96bd063bdb491873995cd"
+    },
+    "gws-admin-reports": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "f425b818b74653fd6b9b62efb21c8da6eec327d82844382156ee4039e85a07ad"
+    },
+    "gws-calendar": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "c308861ff2bacc081d4f49a2ef0ae72c2db8b39542c9e82eed672468d2277ae8"
+    },
+    "gws-calendar-agenda": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "414fa0bad4de55d05a6d053f4df5c5ecde3a518667d1c316c9f5b5460f73c9ff"
+    },
+    "gws-calendar-insert": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "9750722d404931bf5cfe25924c9baacd517db2b9d64055c2f1f838f268ace7cc"
+    },
+    "gws-chat": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "c42503eed130155b8b625f1186845f0e36fda127603e6e0ee8d1671c9b52ffe8"
+    },
+    "gws-chat-send": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "5a985d7b7eb9c06acb6d74a2a17472238504350577467a31a7efe5e2aa65dd5b"
+    },
+    "gws-classroom": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "7ab6a191f00982e14744517cf1e41a14835616e63dd5aad735b39a64bdcfc703"
+    },
+    "gws-docs": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "a13be5337f947f001deb498015c264038282248fce1e2004dddd4c7f0c4ad8db"
+    },
+    "gws-docs-write": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "97f9c54cae3fa278db745834154b2abe107f2bd6d4ba6243575747c669cc8ff5"
+    },
+    "gws-drive": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "89f7ee87afd19349bde20024586bdc1b1a2de29309b441539938ecc98c58d91f"
+    },
+    "gws-drive-upload": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "76949dd5079c3160c04ac825a4f7c0082f3a1f17fc59fbb7e3a80c6f2c2ea0df"
+    },
+    "gws-events": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "79a0eb16475022973797bfeb733c079a93796186fed9b1de80c92c246526ac1a"
+    },
+    "gws-events-renew": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "467bf18ac592838c20f4b9923155b062066363710ba71e8dda934cbff0c1ca83"
+    },
+    "gws-events-subscribe": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "bd57247e96dde9a9b9dd70f64d1a7cbec250d4127991a4b75a25cde0fe5f1c71"
+    },
+    "gws-forms": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "863840abfa7df080b98df9b8615644bf37628070ec806f9fd88114d2f7eb06a3"
+    },
+    "gws-gmail": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "d37aeb1741b9456265fd43f3d320e3fd8c6313defa49a42b94542fcf2213cb3f"
+    },
+    "gws-gmail-forward": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "803bdc81c0102b10a1e4ee1c347607f14990da6f1ee76afb59fc5b521b0214ec"
+    },
+    "gws-gmail-reply": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "a61ffcdab96a72e4156ecba1b752841c53e4c7abc1a34e158369781bb4bb5325"
+    },
+    "gws-gmail-reply-all": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "4e6fb7159347d869418b8e42382e24a1b897f374106361e8f7c061aff79a99cc"
+    },
+    "gws-gmail-send": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "28534a075124a46eadb34b124e79e0270e34267dfad834ce1f34d4e36b09bef7"
+    },
+    "gws-gmail-triage": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "9786e231ba3c33ffaff78ebe754d52272ac4554c2bcb9d0fd656dc38f887bfbd"
+    },
+    "gws-gmail-watch": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "d2e2bf4216284340e8347f161ab94f3c3423a9c8df535b64f7678f630a25f30b"
+    },
+    "gws-keep": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "5e44e903799960f8784e71b20b50757394aa07d74284d579976db8eb200cfb29"
+    },
+    "gws-meet": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "092ef32543558456e08baf0c74477e94b678381c4a75487b29e083e3586e6bc9"
+    },
+    "gws-modelarmor": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "aa405d23c00a861a700b8f49c87aa418a60b15d3348174b97cebc572ac02a772"
+    },
+    "gws-modelarmor-create-template": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "4b7bd9d106a38ab15ebf14016aff58b966a9bd65b521d4407eb5037b7cbeeb31"
+    },
+    "gws-modelarmor-sanitize-prompt": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "e9422ccf7d161ab0c842b6d1b239bed80a68dd6fe36b7c1225e384915ed2efe4"
+    },
+    "gws-modelarmor-sanitize-response": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "5d64ee8dc40a9e4bed9cac4c62ea4151484f0006b1b9bd48ac69fc0ae63636bd"
+    },
+    "gws-people": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "e0df905f7f9b22fc351e88836ca9c9fec5162407cdfe5d1c17897a88e76e4aa1"
+    },
+    "gws-shared": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "7f2c0daa7397467a1e7dd69f166e67c990bb87cec8ffdaa5b5bc8c92ed36d5fe"
+    },
+    "gws-sheets": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "f8cf4693b01f9058646ea6778f986e354a1290e07b3304e3f878329222b6d34c"
+    },
+    "gws-sheets-append": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "80c213ced452cfb5311c5d3bced09c9241ee210e67c13a194d63469aea83467c"
+    },
+    "gws-sheets-read": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "e23477534f0451812519edc128f1d1a0bf1f5af88c97117e6d5abe1b0ae48601"
+    },
+    "gws-slides": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "f495873c91fa640cfe185f4887550062f425ba674c4ecfad4563e023055bf5b7"
+    },
+    "gws-tasks": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "76f46c5592846a29953179de7a8a9032daa59caa00988aeb6059abd49e52bacc"
+    },
+    "gws-workflow": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "13d14bc3e2c51449e563e692b2e979134d440c90122ea20b498655a920e5e606"
+    },
+    "gws-workflow-email-to-task": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "e81f6839a321613bd7f6b0170b03bbc2f02c3d58dd124b2a1d3fb3dc552a738f"
+    },
+    "gws-workflow-file-announce": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "22de8d0eb5e18f1690d2bc06ae63fbf8e924ebffd74824e5443e4c9e743dab7e"
+    },
+    "gws-workflow-meeting-prep": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "822cd49768514519bef90056f087ea6a6acbff682e8a37905ec3d40f951f943d"
+    },
+    "gws-workflow-standup-report": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "e2649c3cf0cfadefc14f04f15889c0df3bfed841a0e62eb7a4e2290c95777740"
+    },
+    "gws-workflow-weekly-digest": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "309e5518af8bf105dd6b330436c294b6eea2030c135f617acd12b23531cf7c2c"
+    },
+    "ideal-customer-profile": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "dc8f70743a5a2f78ceac3a37bcfda9d468b504d12793a42a5cad6e29992e2d33"
+    },
+    "identify-assumptions-existing": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "d8165539cd6936ce56689d0e073ab8151120f86374bc3befc7e3f3ba16a4215c"
+    },
+    "identify-assumptions-new": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "f516b5f291c633e6d78ce82e02d86260bce8748d8abece121e37630ea0e6ae98"
+    },
+    "imagegen": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "8d74b5ae9635b883835bbb340582572156969f1f66138d243fc0b4bcc9bfa904"
+    },
+    "interview-script": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "3693252dd48b3bddca244cc53674f3a3ac9c19bd3acddf8843dd6e6c796d9af2"
+    },
+    "ios-debugger-agent": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "b61630a29589c8e22d2154c9e3b9c5862e1d2a7cb548c34602f7e835bf79a6c2"
+    },
+    "job-stories": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "b4576e0cb3a98da5619393644b16f2885c06f101ff99dd22f4368767db0b0122"
+    },
+    "jupyter-notebook": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "ed6cf5b159eeb076eaa43007920ae5aca10336ad1e6cec7baf973f3f83a9eb7f"
+    },
+    "lean-canvas": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "d081f584b320a9f33ea652cc9ee613d505d675102c8cbe315f2fff47d0f7bf2b"
+    },
+    "linear": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "d798e8a2da07a2a228a46c506fcc547693bedfb935e561e582ce9a706f380f67"
+    },
+    "macos-spm-app-packaging": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "a9963cd4335bc37217727fa404e4a0542ab63d66adb476239c935ff7a47aedee"
+    },
+    "market-segments": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "00a4bd33f52f8a824b9236f832698ed541fe4d867f11016e2292ea61b4738127"
+    },
+    "market-sizing": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "566955818d1f1ca9115d846e556183034071a09147ce550732efa2518f9998fb"
+    },
+    "marketing-ideas": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "7bdc7235487ce20384b014c1ecd996e73c1651dfdbaece20dfdb3eb24f192383"
+    },
+    "metrics-dashboard": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "de39b1fd8a10868dbe5f07f972fd8aa7208173b17ed757e23cba297aab76ca2a"
+    },
+    "monetization-strategy": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "d27d638023aeec412bf8dd424fbf278321342b4bb350ce34a4b0e02badb29f23"
+    },
+    "netlify-deploy": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "d92c426e39620e737f9415bb7b059e46abc57fb39217692aff878e4085e00206"
+    },
+    "north-star-metric": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "a400a8870558a4d063ef00d288bb38de3bd2b95677748781e0957e14c3dfb4d9"
+    },
+    "notion-knowledge-capture": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "6195e4ae1b5d418ee7ea88b862e35985e75a24f3d790906174f75fc9ee186e9c"
+    },
+    "notion-meeting-intelligence": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "cdfdf62a53f09090274178466d058b48952defca718e6cb6f49596517c2f8ee0"
+    },
+    "notion-research-documentation": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "58f6d7ee593087d2a8c4dc85f282b09240e43eb63683b2b55e13084b3e035429"
+    },
+    "notion-spec-to-implementation": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "af316e2d0689762d9837178b899d35648ca05c999780da49723fe75e71d15579"
+    },
+    "openai-docs": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "73660ae885068bb6991c25becac40b222d6bc42b256c53170027d8e625aa520f"
+    },
+    "opportunity-solution-tree": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "f1c96dc763e1bc1887be7ad3db31670cd5e62aabc0b989591c8116f7e4fc062d"
+    },
+    "outcome-roadmap": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "81dfe79f81d5acc689b1144cda14297efec63005154dd6fe3cd600f4576a661c"
+    },
+    "pdf": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "af1e0791f5356b6de053e6b97d7703fe0d7ea1997371b9023afd4720bebcf93f"
+    },
+    "persona-content-creator": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "b734eb991f460da03c602a4de1803b4e2600fec9683007f539779f5a40af400b"
+    },
+    "persona-customer-support": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "9c17955ae2cb51c3c57b3e5add2c034660133150476a9ab0d1239d732e2c046a"
+    },
+    "persona-event-coordinator": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "ec4b8a57a67d25491fb0b8bffe51eac9eecb80ffc207b502479f80526ff80852"
+    },
+    "persona-exec-assistant": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "26225af5ef45912fb28c52bd92e6e75e299cee5cc13aedbd7ae7dc208601330d"
+    },
+    "persona-hr-coordinator": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "74b262a9cb3f7a61078f9fac2aba48c63952d4e19f6e75b04e834f90d664a85f"
+    },
+    "persona-it-admin": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "6405e4df3a866713a5b73f3ef0b779a5a03326e259c4fcedca874b6caa321298"
+    },
+    "persona-project-manager": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "f10c39a32470bbf10df20b438438935fcd030286c70f75f2f4dade9ada444011"
+    },
+    "persona-researcher": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "79e99d8c5636b4578abb4c3ce5f88c179cc8a4d9d9a5f93166746f7dfc10ad7b"
+    },
+    "persona-sales-ops": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "dc7d2ec3e50f9cc64740fa5ae2e89380de5011b9ebca937709e84ec6e11ab7b5"
+    },
+    "persona-team-lead": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "dc0a1e344d6dad156064eb9af0a937a3ab437e0f4ec8990991c717ea192f9306"
+    },
+    "pestle-analysis": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "48a8bf74ae4f1b028badc6ca1651ae3e3491cd7eceba3060e1849706001174a6"
+    },
+    "playwright": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "844a180ab348b8d13044a320b8306e6263e1cda75e158e479a463225e43a5eb1"
+    },
+    "playwright-interactive": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "655978946ccfaf4cd88b20f65ebe2d8da1384b1e67fd1ea8dd6377ccfedf91a4"
+    },
+    "porters-five-forces": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "9436074cdef99dd83e7ff7d95313fd833ce2dc87f33982b8b95922823aee8c00"
+    },
+    "positioning-ideas": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "e687f210775aee3e5d85ad8fb8b6c3572bdc0af5d2e70dca8c007a496998b333"
+    },
+    "pre-mortem": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "c65c8678f31896a2dccb1df2d8245abaf02efbfd58af2128a06f4ac711a57f4d"
+    },
+    "pricing-strategy": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "223e5ed8c4abd05ed259629272b4cbd14280ce65654de00134dab91442b3ec56"
+    },
+    "prioritization-frameworks": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "0767054f99ae816c1e21fcd25f84cd17b0f78aff033355a87264505db49dad64"
+    },
+    "prioritize-assumptions": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "954ff9e5168c269809ac582f826b88fa0336fb4fe26a1f564909f5938962e3cc"
+    },
+    "prioritize-features": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "ccfabdf9944819b0d46ec3d8621be11a731e2f476ecc50c0a099759d3341f8e8"
+    },
+    "privacy-policy": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "4f79d99d3bc7d1a14108bbff25d28cce0f86a70d89edb1ef908f30001b176a9c"
+    },
+    "product-name": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "3a5bad48c840519b2c775bdb5d69fed37537de77001a8822aa31676a21cf163e"
+    },
+    "product-strategy": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "1046a3f07b319296e6552b3dbc5f64455bc7cdf6677c28988f611619b2b66afd"
+    },
+    "product-vision": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "83187e7e0db26fa8823ff0c4149b92d732b086e9abdcf0eac5407bacdd1dda9a"
+    },
+    "react-component-performance": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "88f3cc496f64b6ae8f742d2fee21fb651794539e1ce1ea25953dc8c32fe2a936"
+    },
+    "receiving-code-review": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "2760c85d4f4117b0006e7ba755f4bbd61f8f4c185f347999763c97f507274e30"
+    },
+    "recipe-backup-sheet-as-csv": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "a7b5d5a306dc41556362e2697a0ae0b51c544a0431fae521de3171eb7730c66e"
+    },
+    "recipe-batch-invite-to-event": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "cf55cfbc424048165fb8040dd47ad1ebd669a50864ad22321c0d6cafb025de96"
+    },
+    "recipe-block-focus-time": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "f5ab80739c1edea4f819034a0919bcd9818db6a9ea715300b040140030569a68"
+    },
+    "recipe-bulk-download-folder": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "6dd243e1ab796d487d9f8af4ab5a005037b7f5b9ef167e879dd60975f944617f"
+    },
+    "recipe-collect-form-responses": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "dc6d8fa342bfbcc657f1d23963f15a48dcf6f1bd0b416b2a5af470440182f113"
+    },
+    "recipe-compare-sheet-tabs": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "bfffa6b95c8feda7c2a6ffa86ca23c236b01aa03bace403a51fb4c7af15c219c"
+    },
+    "recipe-copy-sheet-for-new-month": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "beb7ed1d5f8f3670c1629bdcac1c17adb4b270b74d25ecbf6966e746d70413fa"
+    },
+    "recipe-create-classroom-course": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "76f8a0e213596ab27c2d4fb7ecdad0c223a71d0ff0977823e386d1f2bce21d11"
+    },
+    "recipe-create-doc-from-template": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "e6c1cd5a75e62b1e06699353f65bbf16cd7409e874ec088a3136545936f2de57"
+    },
+    "recipe-create-events-from-sheet": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "dd7d2237694c4f59243c4b4b909ba9b9ef59192d99cbf2bc42a9802a3b849955"
+    },
+    "recipe-create-expense-tracker": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "162800992f19cba8295bc3853e1b7451b20820c682003593fa2f5180a10e0ee3"
+    },
+    "recipe-create-feedback-form": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "a1a41f060ece235f6cdba9420f7483bdd0558b1a55e62ca6ea9a2bb89c2d7acd"
+    },
+    "recipe-create-gmail-filter": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "fb6c9188c8fbd8e2e67f5b003d8f254daaf6722b6eb03d3fe8b1bd1ee0c44c88"
+    },
+    "recipe-create-meet-space": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "4a0341bc15e5f64b9762ab15e408a1b2372c4ac15cab00141b9900b374d843f9"
+    },
+    "recipe-create-presentation": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "5ae0ed278cac1cd27938ff40da546a6f3874bd9b0531f2cde6ca7d67d437d7a6"
+    },
+    "recipe-create-shared-drive": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "d2f193380876c4eefef304d36ab72635bf553cd13628b6aa88b70cadbc17ed69"
+    },
+    "recipe-create-task-list": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "0b125b3f82031df6d9af458d6fa7d14f8ff4375e5f3380b7ce45a351b3de599b"
+    },
+    "recipe-create-vacation-responder": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "304b3ce4384214c35ea51d43f4735046271c31d8d7ed2ea49a738ccce51ffb43"
+    },
+    "recipe-draft-email-from-doc": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "9927ee7e66a1597de80385750847b5b728038eb0da137174b1724e0fa23586de"
+    },
+    "recipe-email-drive-link": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "a6cacaa064a2c28d7145489b15f0fe7a94cfda7a9ac1d0a55ade183f2d8a04c2"
+    },
+    "recipe-find-free-time": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "04c6295924e43389cffc6071e372b5405cb611576794b4106a90a003694d3ae0"
+    },
+    "recipe-find-large-files": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "a18c5dc404abbbe1060a547edfad876e8f14e73766e64fcfe7bdf2d1049fde23"
+    },
+    "recipe-forward-labeled-emails": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "b356c26a1c8f9f989ff6473fead2ff3a3325d4c7d660c78fb382fdb5c08985b6"
+    },
+    "recipe-generate-report-from-sheet": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "f38e88c154df6e333587b71150098a1c7b610b3c0f9b2f45cf23ffcb93b1b9dc"
+    },
+    "recipe-label-and-archive-emails": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "756f3dee07475e0e4bf5afb226e3872222a3f03a3389d18863751a83635bd4be"
+    },
+    "recipe-log-deal-update": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "ffbc252686967fbfeb37aed0d0baccafdadec7841c39cc4349d6156144e112c1"
+    },
+    "recipe-organize-drive-folder": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "928f05a6e5c20fc7bc4582da3f161c6dfd1714f707895cc51ef071198ebb1c56"
+    },
+    "recipe-plan-weekly-schedule": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "76a3dabd1d403e36ae8b9726a8fb4a36016bb909b604619fe153b5c378db6d5b"
+    },
+    "recipe-post-mortem-setup": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "5e09e6adccb98b049a749d9c175673b2c5bd85342460548c688f903bb2988dfe"
+    },
+    "recipe-reschedule-meeting": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "d9330e86da346b23e624d09cc4f09fb9a9486a6d77c1840943a6eb1b024e7fc6"
+    },
+    "recipe-review-meet-participants": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "17003f35e1a0d15e29981833ae0a5a182273022f27a843eb6e2e4eed1d83d13b"
+    },
+    "recipe-review-overdue-tasks": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "b09c96527204a4590011fba0a084c9176e5f6dcc6848612c2dcdd7826a200aef"
+    },
+    "recipe-save-email-attachments": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "14e6bfbbcda15246eb2cc09d5929866634666601bb76aa2addb0541ef33450c0"
+    },
+    "recipe-save-email-to-doc": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "de3fd3d16db9f37ae7dc50d7a62e3b6f2623508230c3f6523887162d38ec3b36"
+    },
+    "recipe-schedule-recurring-event": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "ddf18887364f4a5c681d9fcf6801896b39336c7bddaae8599377216bf42f2273"
+    },
+    "recipe-send-team-announcement": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "936a8ed793075e5241dc82ae2f580cf37dbdff38fa225509a85f7e459c882630"
+    },
+    "recipe-share-doc-and-notify": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "6417a78227d0122209d50f6bb292ea74f5113de590e09fa1008dd02c105870c6"
+    },
+    "recipe-share-event-materials": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "b068d078695f80cf0f296f8a457c878262543ff65ac2deadbd617588887a014a"
+    },
+    "recipe-share-folder-with-team": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "1bfecfa60e0850bf771c927e8474f1fad0cd6416de59d7316a2aae4cf79dd2e9"
+    },
+    "recipe-sync-contacts-to-sheet": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "b4b45bd928d4b8687acb967dfca2ee34c3fddb46352f4e01e72635ea13b83f11"
+    },
+    "recipe-watch-drive-changes": {
+      "source": "googleworkspace/cli",
+      "sourceType": "github",
+      "computedHash": "f020a48d174a8687460adf6e1ebd63e93492404fdbcddf5a5cb5bb5d4c9fb54a"
+    },
+    "release-notes": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "3553814c2f40e0c59ffe55315741a04f8e13f3b37d2e348aae3de58be730fd42"
+    },
+    "render-deploy": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "5ccf3f9d94511258cc568484b8ebee170e8dbec4a74428acae948fe6021ff8d8"
+    },
+    "requesting-code-review": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "132fe05b4fe9c16dfe93920b0840b0c9e90c7422ecdbfcd40df42a914e3a9f76"
+    },
+    "retro": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "4b7acd6479e4b710777ba6131d644e77c497a4f0f17e31b06237ddc7fa5b97b8"
+    },
+    "review-resume": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "c5278789e6491dd276de8dbc091e4823a0ab8b4d143c68af0a72a1e099b6a3e7"
+    },
+    "screenshot": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "08ad9780b78f73c1a9abdcedd443108019ba2264a56b7f287006cbe99c3ed0c1"
+    },
+    "security-best-practices": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "0c42fff660b6f7e85add36437edc36976466bb254b7cd9eb38ec67b2ad64a9bf"
+    },
+    "security-ownership-map": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "b905fd278fe5385cfd1e0dea318777fa9f14de1e3490016773b2542be472428b"
+    },
+    "security-threat-model": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "76fad9d4726561fce7442e965bfaf318e8db1b369a7aa95e6a2be241d11a1a9f"
+    },
+    "sentiment-analysis": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "0ce85da912a73d9828ed8b414dfdcda31ce1a9af3e0ef462bb2fc158e1ef315d"
+    },
+    "sentry": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "ba600e5b0b66721bac94e993044dd50074d6ca764e84252580bbac0606854cb8"
+    },
+    "skill-creator": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "4f29d93bdb1cfacbcd993a8c2a924cb0a12842267bb46f1317c224614b5400b9"
+    },
+    "skill-installer": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "3149149cc0b5ea744420bc01ebcc4e012b908b1af6d28099dc720b2b616e6dba"
+    },
+    "slides": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "d861f1d09058a44841bce23d2694839697df062c9654c8af947d6f8a9f05c63c"
+    },
+    "sora": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "475e8c95a5684e43f034eeff1ae47924b263c7c879031eae9b1b37c99e033695"
+    },
+    "speech": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "099160d19d78785e38b411131f960f4a9c8f1745fba4d3419a8469db69a757cc"
+    },
+    "spreadsheet": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "0c083801a2ed2b49ab85787a37a81f6c6a90167737d24b3645f038d957e22568"
+    },
+    "sprint-plan": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "ffe8c793276c753d75eca75fda6f98a5654c4f3e3b1f9a1c4803271823cebd1a"
+    },
+    "sql-queries": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "9e536c811ca95a15f11bf55cf13112de7c63646dcd1bc87b18a3063594ca505c"
+    },
+    "stakeholder-map": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "1c7b66ad7d7be2aef27b259bf56333588f7f0650c2a35530139c96c0f7e7733b"
+    },
+    "startup-canvas": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "d9b2b0d493703b0bdff1776a390ac3786fb93dad4a2f308f0a1b641eaa03981d"
+    },
+    "subagent-driven-development": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "0a6a9693ff8973a205b34394c64858fc39562a0b9948027dcddb8627897e16ae"
+    },
+    "summarize-interview": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "a0c51fb5cc9243eb22a61d6d328505367263e98848e3b21b44f898c91c14a0a3"
+    },
+    "summarize-meeting": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "aff2dd02f137454d4c6bc27a99a2f0b27c16351ae1f6a444d5815068c98e6b2e"
+    },
+    "swift-concurrency-expert": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "285d6ebacab1fb05281121e743869f7a3e869f43ac0d58b1c8b6d5a560d93004"
+    },
+    "swiftui-liquid-glass": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "61fd36ced5c674f38634f6f7c8c5299f8ffb3e637b7a9300463aba6c3a045249"
+    },
+    "swiftui-performance-audit": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "cf3926c928297a02ea9b91c540e6ccc7fd27dfdc076103b5f8e4d23a0a05441b"
+    },
+    "swiftui-ui-patterns": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "b0c838b6992965fb7b6ab7dfed8c21fdab13012cb3b11411359e387e9592de64"
+    },
+    "swiftui-view-refactor": {
+      "source": "Dimillian/Skills",
+      "sourceType": "github",
+      "computedHash": "2944c13d8e28d07c5446f56d1d951c0a505011e705ff7e604b7b896ef9dce48d"
+    },
+    "swot-analysis": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "262504779a1d1d26ed2a1a9a72b17784c60f5cfa8261cd41eda745478f7abc76"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "72e9ab72627e4fd8ed26a582e82309a98ecdc4f6e1c99418430ac05682c9e91d"
+    },
+    "test-driven-development": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "126f1ebf6ccd414f42544f6e83d8cc5adb089e1108eaffb7c400701e37eecd9f"
+    },
+    "test-scenarios": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "66225d50d6eb80ffbdc0d75cee39d3638b5953e24a7c8b39711cc9d1846612c8"
+    },
+    "transcribe": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "a6319cde4e4ee267534117d15b462ea9bb972499bfeefaf6e1ce19eca27bbdad"
+    },
+    "user-personas": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "ee72fcbc6025177be0f7b44794e4e9387f4c6ad463baebc13d82751185f9945a"
+    },
+    "user-segmentation": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "fde518e205a364335004aefc2db2eec7ef444e4fad6a4dec87a147433a2ec629"
+    },
+    "user-stories": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "f430b0828102f2f54eb5d1658726e8feaacae9f04afad6ab56e5d6334e4f7dd7"
+    },
+    "using-git-worktrees": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "52bbb4b6e80918e83e92a1514f3b3757712154c2a8a42de24919e48a794c54fc"
+    },
+    "using-superpowers": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "86875ae224eeff83e28bdf6799c27685b533b1b97c870b21867dfaadb3e65f90"
+    },
+    "value-prop-statements": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "6c3605396bbc7e3e7a6bffe6365f9b03311d5509ac400015b7f3052130756ef1"
+    },
+    "value-proposition": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "b9bfc23451e23a465a2192e612fe8f8da4e45f615ec6385758b3487ff73f0e9d"
+    },
+    "vercel-deploy": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "18c91dc583a912f6b4715819234a923e95d99c39f40b9fd3ac5b330e7555dedb"
+    },
+    "verification-before-completion": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "9b446f0c7fe1cfb560b1d34439523b1a76d5f177290007b2c053a1c749a4a8ba"
+    },
+    "winui-app": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "d4d9408ca78c5f574af0699ad6749ba840505ba18d0913f470af32d5ffab7c64"
+    },
+    "writing-plans": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "0a4f401596106cfa62c8fd821326c23ef6969a99792dc64691163ec2737f3ec7"
+    },
+    "writing-skills": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "90371e81ed49a9d9a5eb5a36f62e75586939253f85096e8d50fd1f6b8bacf2a8"
+    },
+    "wwas": {
+      "source": "phuryn/pm-skills",
+      "sourceType": "github",
+      "computedHash": "5b51da69db655652538777dc7cc30e08865f1b2e17232b8850bf58871ee744be"
+    },
+    "yeet": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "computedHash": "62154e1e050db78ace8b627d28806c9774edc0e081badc8488f433cccfab9f20"
+    }
+  }
+}

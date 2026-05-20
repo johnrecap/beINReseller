@@ -12,6 +12,7 @@
 
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { decideRefundSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
 
 /**
  * Atomically refund a reseller user's balance.
@@ -34,16 +35,41 @@ export async function refundUser(
         await prisma.$transaction(async (tx) => {
             const operation = await tx.operation.findUnique({
                 where: { id: operationId },
-                select: { status: true }
+                select: { status: true, amount: true, responseData: true }
             })
 
-            if (operation && (operation.status === 'COMPLETED' || operation.status === 'REVIEW_REQUIRED')) {
+            const existingRefund = await tx.transaction.findFirst({
+                where: {
+                    operationId,
+                    type: 'REFUND'
+                },
+                select: { id: true }
+            })
+
+            const deductTx = await tx.transaction.findFirst({
+                where: {
+                    operationId,
+                    type: 'OPERATION_DEDUCT'
+                },
+                select: { id: true }
+            })
+
+            const refundDecision = operation ? decideRefundSafety({
+                operationId,
+                operationStatus: operation.status,
+                operationAmount: operation.amount || amount,
+                operationResponseData: operation.responseData,
+                phaseEvidence: getOperationPhaseEvidence(operation.responseData),
+                customerDeductTransactionExists: !!deductTx || amount > 0,
+                refundTransactionExists: !!existingRefund,
+            }) : null
+
+            if (refundDecision && !refundDecision.refundAllowed) {
                 console.error(
-                    `[MONITOR] Refund blocked for operation ${operationId}: status=${operation.status}, reason=${reason}`
+                    `[MONITOR] Refund blocked for operation ${operationId}: status=${operation?.status || 'missing'}, decision=${refundDecision.reason}, reason=${reason}`
                 )
                 throw new Error('REFUND_BLOCKED_TERMINAL')
             }
-
 
             // Update user balance
             const user = await tx.user.update({
@@ -106,12 +132,22 @@ export async function refundCustomer(
         await prisma.$transaction(async (tx) => {
             const operation = await tx.operation.findUnique({
                 where: { id: operationId },
-                select: { status: true }
+                select: { status: true, amount: true, responseData: true }
             })
 
-            if (operation && (operation.status === 'COMPLETED' || operation.status === 'REVIEW_REQUIRED')) {
+            const refundDecision = operation ? decideRefundSafety({
+                operationId,
+                operationStatus: operation.status,
+                operationAmount: operation.amount || amount,
+                operationResponseData: operation.responseData,
+                phaseEvidence: getOperationPhaseEvidence(operation.responseData),
+                customerDeductTransactionExists: amount > 0,
+                refundTransactionExists: false,
+            }) : null
+
+            if (refundDecision && !refundDecision.refundAllowed) {
                 console.error(
-                    `[MONITOR] Customer refund blocked for operation ${operationId}: status=${operation.status}, reason=${reason}`
+                    `[MONITOR] Customer refund blocked for operation ${operationId}: status=${operation?.status || 'missing'}, decision=${refundDecision.reason}, reason=${reason}`
                 )
                 throw new Error('REFUND_BLOCKED_TERMINAL')
             }

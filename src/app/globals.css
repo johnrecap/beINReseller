@@ -361,6 +361,47 @@
   }
 }
 
+/* Announcement ticker - independent from legacy message marquee */
+@keyframes announcement-ticker-rtl {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes announcement-ticker-ltr {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.announcement-ticker-content {
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.announcement-ticker-rtl {
+  animation-name: announcement-ticker-rtl;
+}
+
+.announcement-ticker-ltr {
+  animation-name: announcement-ticker-ltr;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .announcement-ticker-content {
+    animation: none !important;
+    transform: none !important;
+    white-space: normal;
+  }
+}
+
 /* Typing Cursor Blink */
 @keyframes cursor-blink {
   0%, 50% {

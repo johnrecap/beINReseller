@@ -114,6 +114,7 @@ model User {
   userActions             UserAction[]              @relation("UserActions")
   integrityIssues         OperationIntegrityIssue[] @relation("IntegrityIssueUser")
   reviewedIntegrityIssues OperationIntegrityIssue[] @relation("IntegrityIssueReviewer")
+  beinSpendLedger         BeinAccountSpendLedger[]  @relation("BeinSpendLedgerUser")
 
   @@index([lastLoginAt])
   @@index([lastOperationAt])
@@ -204,6 +205,7 @@ model Operation {
   transactions    Transaction[]             @relation("OperationTransactions")
   integrityIssues OperationIntegrityIssue[]
   dispatches      OperationDispatch[]
+  chargedBeinSpendLedger BeinAccountSpendLedger? @relation("OperationChargedBeinSpendLedger")
 
   // Store App - Links to customer subscription purchase
   storeSubscription StoreSubscription?
@@ -395,6 +397,7 @@ model BeinAccount {
   operations      Operation[]
   sessions        BeinAccountSession[]
   integrityIssues OperationIntegrityIssue[]
+  spendLedger     BeinAccountSpendLedger[] @relation("BeinSpendLedgerAccount")
 
   // ===== Proxy Assignment =====
   proxyId String? @map("proxy_id")
@@ -457,10 +460,47 @@ model Proxy {
 
   // ===== Relations =====
   accounts BeinAccount[]
+  spendLedger BeinAccountSpendLedger[] @relation("BeinSpendLedgerProxy")
 
   // ===== Unique constraint on host:port =====
   @@unique([host, port])
   @@map("proxies")
+}
+
+model BeinAccountSpendLedger {
+  id                      String          @id @default(cuid())
+  operationId             String          @unique @map("operation_id")
+  userId                  String          @map("user_id")
+  beinAccountId           String          @map("bein_account_id")
+  proxyId                 String?         @map("proxy_id")
+  operationType           OperationType   @map("operation_type")
+  operationStatusAtRecord OperationStatus @map("operation_status_at_record")
+  cardNumberSnapshot      String          @map("card_number_snapshot")
+  selectedPackageName     String?         @map("selected_package_name")
+  selectedPackagePrice    Float?          @map("selected_package_price")
+  currency                String          @default("USD")
+  dealerBalanceBefore     Float           @map("dealer_balance_before")
+  dealerBalanceAfter      Float           @map("dealer_balance_after")
+  spendAmount             Float           @map("spend_amount")
+  evidenceSource          String          @map("evidence_source")
+  evidenceConfidence      String          @default("CONFIRMED") @map("evidence_confidence")
+  beinUsernameSnapshot    String          @map("bein_username_snapshot")
+  beinLabelSnapshot       String?         @map("bein_label_snapshot")
+  proxyLabelSnapshot      String?         @map("proxy_label_snapshot")
+  chargedAt               DateTime        @default(now()) @map("charged_at")
+  createdAt               DateTime        @default(now()) @map("created_at")
+  updatedAt               DateTime        @updatedAt @map("updated_at")
+
+  operation   Operation   @relation("OperationChargedBeinSpendLedger", fields: [operationId], references: [id], onDelete: Cascade)
+  user        User        @relation("BeinSpendLedgerUser", fields: [userId], references: [id])
+  beinAccount BeinAccount @relation("BeinSpendLedgerAccount", fields: [beinAccountId], references: [id])
+  proxy       Proxy?      @relation("BeinSpendLedgerProxy", fields: [proxyId], references: [id])
+
+  @@index([beinAccountId, chargedAt])
+  @@index([userId, chargedAt])
+  @@index([operationType, chargedAt])
+  @@index([chargedAt])
+  @@map("bein_account_spend_ledger")
 }
 
 // ===== Announcement Banner System =====
@@ -474,16 +514,40 @@ model AnnouncementBanner {
   imageAlt String? @map("image_alt") // Optional alt text for accessibility
 
   // ===== Display Settings =====
-  isActive      Boolean @default(true) @map("is_active")
-  animationType String  @default("gradient") @map("animation_type") // gradient, typing, glow, slide, marquee, none
-  colors        Json    @default("[]") // Array of color hex codes for gradients
-  textSize      String  @default("medium") @map("text_size") // small, medium, large
-  position      String  @default("top") // top, bottom, floating
-  isDismissable Boolean @default(true) @map("is_dismissable")
+  isActive         Boolean @default(true) @map("is_active")
+  animationType    String  @default("gradient") @map("animation_type") // gradient, typing, glow, slide, marquee, none
+  colors           Json    @default("[]") // Array of color hex codes for gradients
+  textSize         String  @default("medium") @map("text_size") // small, medium, large
+  position         String  @default("top") // top, bottom, floating
+  isDismissable    Boolean @default(true) @map("is_dismissable")
+  displayMode      String  @default("banner") @map("display_mode") // banner, slider, mixed
+  imageFit         String  @default("cover") @map("image_fit") // cover, contain
+  imageAspectRatio String  @default("4:1") @map("image_aspect_ratio")
+
+  // ===== Slider Settings =====
+  sliderEnabled      Boolean @default(false) @map("slider_enabled")
+  sliderAutoplay     Boolean @default(false) @map("slider_autoplay")
+  sliderIntervalMs   Int     @default(5000) @map("slider_interval_ms")
+  sliderCardsDesktop Int     @default(3) @map("slider_cards_desktop")
+  sliderCardsTablet  Int     @default(2) @map("slider_cards_tablet")
+  sliderCardsMobile  Int     @default(1) @map("slider_cards_mobile")
+
+  // ===== Ticker Settings =====
+  tickerEnabled         Boolean @default(false) @map("ticker_enabled")
+  tickerText            String? @map("ticker_text")
+  tickerSpeed           String  @default("normal") @map("ticker_speed") // slow, normal, fast
+  tickerDirection       String  @default("auto") @map("ticker_direction") // auto, rtl, ltr
+  tickerPosition        String  @default("below") @map("ticker_position") // top, below, bottom
+  tickerBackgroundColor String  @default("#111827") @map("ticker_background_color")
+  tickerTextColor       String  @default("#ffffff") @map("ticker_text_color")
+  dismissalVersion      Int     @default(1) @map("dismissal_version")
 
   // ===== Scheduling =====
   startDate DateTime? @map("start_date") // Optional: when to start showing
   endDate   DateTime? @map("end_date") // Optional: when to stop showing
+
+  // ===== Relations =====
+  slides AnnouncementSlide[]
 
   // ===== Timestamps =====
   createdAt DateTime @default(now()) @map("created_at")
@@ -492,6 +556,38 @@ model AnnouncementBanner {
   @@index([isActive])
   @@index([startDate, endDate])
   @@map("announcement_banners")
+}
+
+model AnnouncementSlide {
+  id String @id @default(cuid())
+
+  // ===== Parent =====
+  bannerId String @map("banner_id")
+
+  // ===== Slide Content =====
+  imageUrl    String  @map("image_url")
+  imageAlt    String? @map("image_alt")
+  title       String?
+  description String?
+  linkLabel   String? @map("link_label")
+  linkUrl     String? @map("link_url")
+
+  // ===== Display Settings =====
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+  imageFit  String  @default("cover") @map("image_fit") // cover, contain
+
+  // ===== Relations =====
+  banner AnnouncementBanner @relation(fields: [bannerId], references: [id], onDelete: Cascade)
+
+  // ===== Timestamps =====
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([bannerId])
+  @@index([bannerId, sortOrder])
+  @@index([bannerId, isActive, sortOrder])
+  @@map("announcement_slides")
 }
 
 // =====================================================

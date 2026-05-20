@@ -21,6 +21,14 @@ function extractAuditSnapshot(responseData: unknown): Record<string, unknown> | 
     return parsed.auditSnapshot as Record<string, unknown>
 }
 
+function toNullableNumber(value: unknown): number | null {
+    return typeof value === 'number' && !Number.isNaN(value) ? value : null
+}
+
+function hasRefundTransaction(transactions: Array<{ type: string }>): boolean {
+    return transactions.some((transaction) => transaction.type === 'REFUND')
+}
+
 export async function GET(request: NextRequest) {
     try {
         const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
@@ -33,7 +41,7 @@ export async function GET(request: NextRequest) {
         const startDate = new Date()
         startDate.setDate(startDate.getDate() - days)
 
-        const [total, byStatus, byType, bySeverity, openHigh, operationsByAccount, operationsForDelta, deductionsByUser] = await Promise.all([
+        const [total, byStatus, byType, bySeverity, openHigh, operationsByAccount, operationsForDelta, deductionsByUser, reviewOperations] = await Promise.all([
             prisma.operationIntegrityIssue.count({
                 where: { detectedAt: { gte: startDate } }
             }),
@@ -90,6 +98,29 @@ export async function GET(request: NextRequest) {
                 },
                 _sum: { amount: true },
                 _count: true
+            }),
+            prisma.operation.findMany({
+                where: {
+                    status: 'REVIEW_REQUIRED',
+                    updatedAt: { gte: startDate }
+                },
+                select: {
+                    id: true,
+                    type: true,
+                    cardNumber: true,
+                    amount: true,
+                    responseMessage: true,
+                    responseData: true,
+                    updatedAt: true,
+                    selectedPackage: true,
+                    user: { select: { id: true, username: true } },
+                    beinAccount: { select: { id: true, username: true, label: true } },
+                    transactions: {
+                        select: { type: true }
+                    }
+                },
+                orderBy: { updatedAt: 'desc' },
+                take: 50
             })
         ])
 
@@ -176,6 +207,63 @@ export async function GET(request: NextRequest) {
             deductedTotal: spentByUser.reduce((sum, row) => sum + row.deductedTotal, 0)
         }
 
+        const reviewRequiredOperations = reviewOperations.map((operation) => {
+            const snapshot = extractAuditSnapshot(operation.responseData)
+            const selectedPackage =
+                operation.selectedPackage && typeof operation.selectedPackage === 'object'
+                    ? operation.selectedPackage as Record<string, unknown>
+                    : null
+            return {
+                operationId: operation.id,
+                type: operation.type,
+                cardNumber: operation.cardNumber,
+                amount: operation.amount,
+                userId: operation.user?.id || null,
+                username: operation.user?.username || null,
+                selectedPackageName:
+                    typeof selectedPackage?.name === 'string' ? selectedPackage.name : null,
+                selectedPackagePrice: toNullableNumber(selectedPackage?.price),
+                responseMessage: operation.responseMessage,
+                updatedAt: operation.updatedAt,
+                refundExists: hasRefundTransaction(operation.transactions),
+                beinAccountId: operation.beinAccount?.id || null,
+                beinAccountLabel: operation.beinAccount?.label || null,
+                beinUsername:
+                    typeof snapshot?.beinUsername === 'string'
+                        ? snapshot.beinUsername
+                        : operation.beinAccount?.username || null,
+                beinBalanceBefore: toNullableNumber(snapshot?.beinBalanceBefore),
+                beinBalanceAfter: toNullableNumber(snapshot?.beinBalanceAfter),
+                beinDelta: toNullableNumber(snapshot?.beinDelta),
+                userDeductTotal: toNullableNumber(snapshot?.userDeductTotal),
+                userBalanceBefore: toNullableNumber(snapshot?.userBalanceBefore),
+                userBalanceAfter: toNullableNumber(snapshot?.userBalanceAfter),
+                outcomeCategory:
+                    typeof snapshot?.outcomeCategory === 'string' ? snapshot.outcomeCategory : null,
+                reviewReason:
+                    typeof snapshot?.reviewReason === 'string'
+                        ? snapshot.reviewReason
+                        : operation.responseMessage || null,
+                reviewSource:
+                    typeof snapshot?.reviewSource === 'string' ? snapshot.reviewSource : null,
+                refundBlocked: snapshot?.refundBlocked === true,
+                capturedAt:
+                    typeof snapshot?.capturedAt === 'string' ? snapshot.capturedAt : null
+            }
+        })
+
+        const reviewRequired = {
+            total: reviewRequiredOperations.length,
+            withBeinBalanceEvidence: reviewRequiredOperations.filter((operation) =>
+                operation.beinBalanceBefore !== null || operation.beinBalanceAfter !== null
+            ).length,
+            withUserDeductionEvidence: reviewRequiredOperations.filter((operation) =>
+                operation.userDeductTotal !== null && operation.userDeductTotal > 0
+            ).length,
+            refundAlreadyExists: reviewRequiredOperations.filter((operation) => operation.refundExists).length,
+            operations: reviewRequiredOperations
+        }
+
         return NextResponse.json({
             period: { days, startDate: startDate.toISOString() },
             total,
@@ -185,7 +273,8 @@ export async function GET(request: NextRequest) {
             bySeverity,
             totals,
             spentByBeinAccount,
-            spentByUser
+            spentByUser,
+            reviewRequired
         })
     } catch (error) {
         console.error('Integrity summary error:', error)

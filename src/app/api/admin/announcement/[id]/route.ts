@@ -1,11 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { prisma } from '@/lib/prisma'
-import { updateAnnouncementSchema } from '@/lib/announcement'
+import { updateAnnouncementSchema, type UpdateAnnouncementInput } from '@/lib/announcement'
 import path from 'path'
 
 interface RouteParams {
     params: Promise<{ id: string }>
+}
+
+type ParsedUpdateAnnouncement = ReturnType<typeof updateAnnouncementSchema.parse>
+type ExistingAnnouncementForUpdate = NonNullable<Awaited<ReturnType<typeof getExistingAnnouncementForUpdate>>>
+
+async function getExistingAnnouncementForUpdate(id: string) {
+    return prisma.announcementBanner.findUnique({
+        where: { id },
+        include: {
+            slides: {
+                orderBy: { sortOrder: 'asc' }
+            }
+        }
+    })
+}
+
+function buildAnnouncementUpdateData(data: ParsedUpdateAnnouncement, nextMessage?: string): Record<string, unknown> {
+    const updateData: Record<string, unknown> = {}
+    if (data.message !== undefined) updateData.message = nextMessage ?? data.message
+    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl
+    if (data.imageAlt !== undefined) updateData.imageAlt = data.imageAlt
+    if (data.isActive !== undefined) updateData.isActive = data.isActive
+    if (data.animationType !== undefined) updateData.animationType = data.animationType
+    if (data.colors !== undefined) updateData.colors = data.colors
+    if (data.textSize !== undefined) updateData.textSize = data.textSize
+    if (data.position !== undefined) updateData.position = data.position
+    if (data.isDismissable !== undefined) updateData.isDismissable = data.isDismissable
+    if (data.displayMode !== undefined) updateData.displayMode = data.displayMode
+    if (data.imageFit !== undefined) updateData.imageFit = data.imageFit
+    if (data.sliderEnabled !== undefined) updateData.sliderEnabled = data.sliderEnabled
+    if (data.sliderAutoplay !== undefined) updateData.sliderAutoplay = data.sliderAutoplay
+    if (data.sliderIntervalMs !== undefined) updateData.sliderIntervalMs = data.sliderIntervalMs
+    if (data.sliderCardsDesktop !== undefined) updateData.sliderCardsDesktop = data.sliderCardsDesktop
+    if (data.sliderCardsTablet !== undefined) updateData.sliderCardsTablet = data.sliderCardsTablet
+    if (data.sliderCardsMobile !== undefined) updateData.sliderCardsMobile = data.sliderCardsMobile
+    if (data.tickerEnabled !== undefined) updateData.tickerEnabled = data.tickerEnabled
+    if (data.tickerText !== undefined) updateData.tickerText = data.tickerText
+    if (data.tickerSpeed !== undefined) updateData.tickerSpeed = data.tickerSpeed
+    if (data.tickerDirection !== undefined) updateData.tickerDirection = data.tickerDirection
+    if (data.tickerPosition !== undefined) updateData.tickerPosition = data.tickerPosition
+    if (data.tickerBackgroundColor !== undefined) updateData.tickerBackgroundColor = data.tickerBackgroundColor
+    if (data.tickerTextColor !== undefined) updateData.tickerTextColor = data.tickerTextColor
+    if (data.dismissalVersion !== undefined) updateData.dismissalVersion = data.dismissalVersion
+    if (data.startDate !== undefined) updateData.startDate = data.startDate
+    if (data.endDate !== undefined) updateData.endDate = data.endDate
+    return updateData
+}
+
+function buildSlideReplacementData(slides: NonNullable<ParsedUpdateAnnouncement['slides']>, bannerId: string) {
+    return slides.map((slide, index) => ({
+        bannerId,
+        imageUrl: slide.imageUrl || '',
+        imageAlt: slide.imageAlt ?? null,
+        title: slide.title ?? null,
+        description: slide.description ?? null,
+        linkLabel: slide.linkLabel ?? null,
+        linkUrl: slide.linkUrl ?? null,
+        sortOrder: slide.sortOrder ?? index,
+        isActive: slide.isActive,
+        imageFit: slide.imageFit,
+    }))
+}
+
+function nextStateHasContent(existing: ExistingAnnouncementForUpdate, data: ParsedUpdateAnnouncement): boolean {
+    const nextMessage = data.message !== undefined ? (data.message?.trim() || '') : existing.message
+    const nextImageUrl = data.imageUrl !== undefined ? data.imageUrl : existing.imageUrl
+    const nextTickerEnabled = data.tickerEnabled !== undefined ? data.tickerEnabled : existing.tickerEnabled
+    const nextTickerText = data.tickerText !== undefined ? data.tickerText : existing.tickerText
+    const nextSlides = data.slides !== undefined ? data.slides : existing.slides
+    const hasActiveSlide = nextSlides.some((slide) => slide.isActive !== false)
+
+    return Boolean(
+        nextMessage ||
+        nextImageUrl ||
+        hasActiveSlide ||
+        (nextTickerEnabled && nextTickerText?.trim())
+    )
 }
 
 /**
@@ -22,7 +99,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const { id } = await params
 
         const banner = await prisma.announcementBanner.findUnique({
-            where: { id }
+            where: { id },
+            include: {
+                slides: {
+                    orderBy: { sortOrder: 'asc' }
+                }
+            }
         })
 
         if (!banner) {
@@ -57,7 +139,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         }
 
         const { id } = await params
-        const body = await request.json()
+        const body = await request.json() as UpdateAnnouncementInput
 
         const parsed = updateAnnouncementSchema.safeParse(body)
         if (!parsed.success) {
@@ -70,10 +152,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         const data = parsed.data
 
-        const existingBanner = await prisma.announcementBanner.findUnique({
-            where: { id },
-            select: { message: true, imageUrl: true }
-        })
+        const existingBanner = await getExistingAnnouncementForUpdate(id)
 
         if (!existingBanner) {
             return NextResponse.json(
@@ -82,30 +161,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             )
         }
 
-        // Validate that at least message or image remains
         const nextMessage = data.message !== undefined ? (data.message?.trim() || '') : existingBanner.message
-        const nextImageUrl = data.imageUrl !== undefined ? data.imageUrl : existingBanner.imageUrl
-        if (!nextMessage && !nextImageUrl) {
+        if (!nextStateHasContent(existingBanner, data)) {
             return NextResponse.json(
-                { success: false, error: 'Provide announcement text or image' },
+                { success: false, error: 'Provide announcement text, image, slide, or ticker' },
                 { status: 400 }
             )
         }
 
-        // Build update payload from only provided fields
-        const updateData: Record<string, unknown> = {}
-        if (data.message !== undefined) updateData.message = nextMessage
-        if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl
-        if (data.imageAlt !== undefined) updateData.imageAlt = data.imageAlt
-        if (data.isActive !== undefined) updateData.isActive = data.isActive
-        if (data.animationType !== undefined) updateData.animationType = data.animationType
-        if (data.colors !== undefined) updateData.colors = data.colors
-        if (data.textSize !== undefined) updateData.textSize = data.textSize
-        if (data.position !== undefined) updateData.position = data.position
-        if (data.startDate !== undefined) updateData.startDate = data.startDate
-        if (data.endDate !== undefined) updateData.endDate = data.endDate
+        const updateData = buildAnnouncementUpdateData(data, nextMessage)
 
-        // If making this banner active, deactivate others (in a transaction)
         const banner = await prisma.$transaction(async (tx) => {
             if (data.isActive === true) {
                 await tx.announcementBanner.updateMany({
@@ -117,9 +182,33 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 })
             }
 
-            return tx.announcementBanner.update({
+            if (Object.keys(updateData).length > 0) {
+                await tx.announcementBanner.update({
+                    where: { id },
+                    data: updateData
+                })
+            }
+
+            if (data.slides !== undefined) {
+                await tx.announcementSlide.deleteMany({
+                    where: { bannerId: id }
+                })
+
+                const slides = buildSlideReplacementData(data.slides, id)
+                if (slides.length > 0) {
+                    await tx.announcementSlide.createMany({
+                        data: slides
+                    })
+                }
+            }
+
+            return tx.announcementBanner.findUnique({
                 where: { id },
-                data: updateData
+                include: {
+                    slides: {
+                        orderBy: { sortOrder: 'asc' }
+                    }
+                }
             })
         })
 
@@ -137,7 +226,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                     id: { not: id }
                 }
             })
-            if (otherUsage === 0) {
+            const slideUsage = await prisma.announcementSlide.count({
+                where: {
+                    imageUrl: existingBanner.imageUrl
+                }
+            })
+            if (otherUsage === 0 && slideUsage === 0) {
                 try {
                     const filePath = path.join(process.cwd(), 'public', existingBanner.imageUrl)
                     const { unlink } = await import('fs/promises')
@@ -181,10 +275,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
         // Only delete file if no other banner references it
         if (banner.imageUrl && banner.imageUrl.startsWith('/uploads/')) {
-            const otherUsage = await prisma.announcementBanner.count({
+            const bannerUsage = await prisma.announcementBanner.count({
                 where: { imageUrl: banner.imageUrl }
             })
-            if (otherUsage === 0) {
+            const slideUsage = await prisma.announcementSlide.count({
+                where: { imageUrl: banner.imageUrl }
+            })
+            if (bannerUsage === 0 && slideUsage === 0) {
                 try {
                     const filePath = path.join(process.cwd(), 'public', banner.imageUrl)
                     const { unlink } = await import('fs/promises')
@@ -250,7 +347,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
             return tx.announcementBanner.update({
                 where: { id },
-                data: { isActive: newActiveState }
+                data: { isActive: newActiveState },
+                include: {
+                    slides: {
+                        orderBy: { sortOrder: 'asc' }
+                    }
+                }
             })
         })
 

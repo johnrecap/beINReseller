@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { addOperationJob, operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
 
 // Validation schema
 const selectPackageSchema = z.object({
@@ -95,6 +96,7 @@ export async function POST(
                     stbNumber: true,
                     availablePackages: true,
                     finalConfirmExpiry: true,
+                    responseData: true,
                 },
             })
 
@@ -158,6 +160,11 @@ export async function POST(
                     amount: 0,
                     selectedPackage: JSON.parse(JSON.stringify(selectedPackage)),
                     promoCode: promoCode || null,
+                    responseData: mergeOperationPhaseEvidence(operation.responseData, {
+                        phase: 'PACKAGE_PREPARATION',
+                        jobType: 'COMPLETE_PURCHASE',
+                        finalPaySubmitted: false,
+                    }),
                 },
             })
 

@@ -25,6 +25,7 @@ import {
     Activity,
     AlertTriangle,
     DollarSign,
+    WalletCards,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -99,6 +100,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin/proxies', label: t.sidebar.proxyManagement, icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
         { href: '/dashboard/admin/reports/integrity', label: t.sidebar.integrityReports || 'Integrity Reports', icon: AlertTriangle },
+        { href: '/dashboard/admin/reports/bein-spend', label: t.sidebar.beinSpendReport || 'beIN Spend Report', icon: WalletCards },
         { href: '/dashboard/admin/bein-config', label: t.sidebar.beinConfig, icon: Bot },
         { href: '/dashboard/admin/settings', label: t.sidebar.settings, icon: Settings },
         { href: '/dashboard/admin/settings/announcements', label: t.sidebar.announcements || 'Announcements', icon: Megaphone },

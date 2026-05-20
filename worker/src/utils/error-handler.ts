@@ -38,6 +38,52 @@ export function classifyError(error: unknown): OperationError {
     return { type: 'UNKNOWN', message: errorMessage || 'Unknown error', recoverable: true }
 }
 
+function parseResponseData(responseData: unknown): Record<string, unknown> {
+    if (!responseData) return {}
+    if (typeof responseData === 'string') {
+        try {
+            const parsed = JSON.parse(responseData)
+            return parsed && typeof parsed === 'object' ? parsed : {}
+        } catch {
+            return {}
+        }
+    }
+    return typeof responseData === 'object' ? responseData as Record<string, unknown> : {}
+}
+
+function finalPayMayHaveStarted(status: string, responseData: unknown): boolean {
+    const data = parseResponseData(responseData)
+    const phase = data.operationPhase ?? data.phase
+
+    if (data.finalPaySubmitted === true) return true
+    if (phase === 'FINAL_PAY_SUBMITTED' || phase === 'POST_FINAL_PAY_REVIEW') return true
+    if (phase === 'PACKAGE_PREPARATION' || phase === 'CANCELLATION_CONFIRM' || phase === 'FINAL_CONFIRMATION') return false
+
+    return status === 'COMPLETING'
+}
+
+function decideRefundSafety(params: {
+    status: string
+    amount: number
+    responseData: unknown
+    existingRefund: boolean
+}): { refundAllowed: boolean; reason: string; finalPayMayHaveStarted: boolean } {
+    const finalPayStarted = finalPayMayHaveStarted(params.status, params.responseData)
+    if (params.status === 'COMPLETED' || params.status === 'REVIEW_REQUIRED') {
+        return { refundAllowed: false, reason: 'terminal_status', finalPayMayHaveStarted: finalPayStarted }
+    }
+    if (params.existingRefund) {
+        return { refundAllowed: false, reason: 'refund_exists', finalPayMayHaveStarted: finalPayStarted }
+    }
+    if (params.amount <= 0) {
+        return { refundAllowed: false, reason: 'no_amount', finalPayMayHaveStarted: finalPayStarted }
+    }
+    if (finalPayStarted) {
+        return { refundAllowed: false, reason: 'final_pay_may_have_started', finalPayMayHaveStarted: true }
+    }
+    return { refundAllowed: true, reason: 'pre_final_payment', finalPayMayHaveStarted: false }
+}
+
 export async function refundUser(operationId: string, userId: string, amount: number, reason: string): Promise<boolean> {
     // Guard: skip if no money to refund
     if (!amount || amount <= 0) {
@@ -47,6 +93,37 @@ export async function refundUser(operationId: string, userId: string, amount: nu
 
     try {
         await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const operation = await tx.operation.findUnique({
+                where: { id: operationId },
+                select: { status: true, responseData: true }
+            })
+
+            if (!operation) {
+                throw new Error('REFUND_BLOCKED_MISSING_OPERATION')
+            }
+
+            const existingRefund = await tx.transaction.findFirst({
+                where: {
+                    operationId,
+                    type: 'REFUND'
+                },
+                select: { id: true }
+            })
+
+            const refundDecision = decideRefundSafety({
+                status: operation.status,
+                amount,
+                responseData: operation.responseData,
+                existingRefund: !!existingRefund
+            })
+
+            if (!refundDecision.refundAllowed) {
+                console.error(
+                    `[MONITOR] Worker refund blocked for operation ${operationId}: status=${operation.status}, decision=${refundDecision.reason}, reason=${reason}`
+                )
+                throw new Error('REFUND_BLOCKED_SAFETY')
+            }
+
             // Update user balance
             const user = await tx.user.update({
                 where: { id: userId },
@@ -83,6 +160,8 @@ export async function refundUser(operationId: string, userId: string, amount: nu
 
         return true
     } catch (error: unknown) {
+        if (error instanceof Error && error.message === 'REFUND_BLOCKED_SAFETY') return false
+        if (error instanceof Error && error.message === 'REFUND_BLOCKED_MISSING_OPERATION') return false
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
         throw error
     }

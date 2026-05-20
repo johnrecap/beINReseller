@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { buildPublicAnnouncementDto } from '@/lib/announcement'
 
 /**
  * GET /api/announcement/active
@@ -37,14 +38,21 @@ export async function GET() {
                     }
                 ]
             },
+            include: {
+                slides: {
+                    where: { isActive: true },
+                    orderBy: { sortOrder: 'asc' }
+                }
+            },
             orderBy: {
                 createdAt: 'desc'
             }
         })
+        const publicBanner = banner ? buildPublicAnnouncementDto(banner) : null
 
         return NextResponse.json({
             success: true,
-            banner
+            banner: publicBanner
         })
     } catch (error) {
         console.error('Error fetching active banner:', error)

@@ -6,6 +6,17 @@ import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { getCustomerFromRequest } from '@/lib/customer-auth'
 import { refundUser, refundCustomer } from '@/lib/refund'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { decideOperationCancellationSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
+import type { OperationStatus } from '@prisma/client'
+
+const SAFE_CANCEL_STATUSES: OperationStatus[] = [
+    'PENDING',
+    'PROCESSING',
+    'AWAITING_CAPTCHA',
+    'AWAITING_PACKAGE',
+    'AWAITING_FINAL_CONFIRM',
+    'COMPLETING',
+]
 
 /**
  * Helper to get authenticated user from session, mobile token, OR customer token
@@ -85,30 +96,72 @@ export async function POST(
             )
         }
 
-        // RADICAL FIX: Allow cancellation of ANY status except COMPLETED and CANCELLED
-        const nonCancellableStatuses = ['COMPLETED', 'CANCELLED', 'REVIEW_REQUIRED']
-        if (nonCancellableStatuses.includes(operation.status)) {
+        const [existingRefund, existingCustomerRefund, latestDeductTx] = await Promise.all([
+            prisma.transaction.findFirst({
+                where: {
+                    operationId: id,
+                    type: 'REFUND'
+                }
+            }),
+            operation.customerId ? prisma.walletTransaction.findFirst({
+                where: {
+                    referenceId: id,
+                    referenceType: 'REFUND'
+                }
+            }) : Promise.resolve(null),
+            prisma.transaction.findFirst({
+                where: {
+                    operationId: id,
+                    type: 'OPERATION_DEDUCT',
+                },
+                orderBy: { createdAt: 'desc' },
+                select: { amount: true }
+            }),
+        ])
+
+        const cancellationDecision = decideOperationCancellationSafety({
+            operationStatus: operation.status,
+            operationAmount: operation.amount,
+            operationType: operation.type,
+            operationResponseData: operation.responseData,
+            phaseEvidence: getOperationPhaseEvidence(operation.responseData),
+            customerDeductTransactionExists: !!latestDeductTx,
+            refundTransactionExists: !!existingRefund || !!existingCustomerRefund,
+        })
+        if (cancellationDecision.action === 'reject') {
             return NextResponse.json(
                 { error: 'Cannot cancel a completed or previously cancelled operation' },
                 { status: 400 }
             )
         }
 
-        // Check if a refund already exists from prior failure
-        const existingRefund = await prisma.transaction.findFirst({
-            where: {
-                operationId: id,
-                type: 'REFUND'
-            }
-        })
+        if (cancellationDecision.action === 'review') {
+            const reviewGuard = await prisma.operation.updateMany({
+                where: {
+                    id,
+                    status: 'COMPLETING',
+                },
+                data: {
+                    status: 'REVIEW_REQUIRED',
+                    responseMessage: 'Cancellation requested while final payment may be in progress. Manual review required.',
+                    finalConfirmExpiry: null,
+                },
+            })
 
-        // Also check customer wallet refund
-        const existingCustomerRefund = operation.customerId ? await prisma.walletTransaction.findFirst({
-            where: {
-                referenceId: id,
-                referenceType: 'REFUND'
+            if (reviewGuard.count === 0) {
+                return NextResponse.json(
+                    { error: 'Operation state changed and can no longer be cancelled.' },
+                    { status: 409 }
+                )
             }
-        }) : null
+
+            return NextResponse.json({
+                success: true,
+                message: 'Cancellation is under manual review because final payment may have started.',
+                refunded: 0,
+                reviewRequired: true,
+            })
+        }
 
         const hasExistingRefund = existingRefund || existingCustomerRefund
 
@@ -146,7 +199,7 @@ export async function POST(
                 const cancelGuard = await tx.operation.updateMany({
                     where: {
                         id,
-                        status: { notIn: ['COMPLETED', 'CANCELLED', 'REVIEW_REQUIRED'] },
+                        status: { in: SAFE_CANCEL_STATUSES },
                     },
                     data: {
                         status: 'CANCELLED',
@@ -187,7 +240,7 @@ export async function POST(
             const cancelGuard = await tx.operation.updateMany({
                 where: {
                     id,
-                    status: { notIn: ['COMPLETED', 'CANCELLED', 'REVIEW_REQUIRED'] },
+                    status: { in: SAFE_CANCEL_STATUSES },
                 },
                 data: {
                     status: 'CANCELLED',
@@ -220,15 +273,6 @@ export async function POST(
                 customerId: true,
                 amount: true,
             }
-        })
-
-        const latestDeductTx = await prisma.transaction.findFirst({
-            where: {
-                operationId: id,
-                type: 'OPERATION_DEDUCT',
-            },
-            orderBy: { createdAt: 'desc' },
-            select: { amount: true }
         })
 
         const amountFromOperation = latestOperation?.amount || 0

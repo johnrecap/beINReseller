@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { addOperationJob, operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -52,6 +53,7 @@ export async function POST(
                 status: true,
                 amount: true,
                 selectedPackage: true,
+                responseData: true,
             },
         })
 
@@ -84,7 +86,16 @@ export async function POST(
         // The second call finds status=COMPLETING and gets count=0 → rejected.
         const updated = await prisma.operation.updateMany({
             where: { id, status: 'AWAITING_FINAL_CONFIRM' },
-            data: { status: 'COMPLETING', responseMessage: 'Cancelling operation...' }
+            data: {
+                status: 'COMPLETING',
+                responseMessage: 'Cancelling operation...',
+                responseData: mergeOperationPhaseEvidence(operation.responseData, {
+                    phase: 'CANCELLATION_CONFIRM',
+                    jobType: 'CANCEL_CONFIRM',
+                    finalPaySubmitted: false,
+                    cancelRequestedAt: new Date().toISOString(),
+                }),
+            }
         })
 
         if (updated.count === 0) {

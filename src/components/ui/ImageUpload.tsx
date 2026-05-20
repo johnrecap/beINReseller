@@ -7,26 +7,51 @@
  * Supports single and multiple file uploads
  */
 
-import { useState, useRef, useCallback } from 'react'
-import { Upload, X, Loader2, ImageIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState, useRef, useCallback, useMemo } from 'react'
+import { Upload, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { resolveUploadedImageSrc } from '@/lib/announcement/helpers'
+import {
+    resolveUploadedImageSrc,
+    validateAnnouncementImageDimensions,
+} from '@/lib/announcement/helpers'
+import {
+    ANNOUNCEMENT_IMAGE_DIMENSION_RULES,
+    type AnnouncementImagePurpose,
+} from '@/lib/announcement/constants'
 
 interface ImageUploadProps {
     value: string | string[]
     onChange: (value: string | string[]) => void
     type: 'product' | 'category' | 'announcement'
+    purpose?: AnnouncementImagePurpose
     multiple?: boolean
     maxFiles?: number
     className?: string
+}
+
+function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file)
+        const image = new Image()
+
+        image.onload = () => {
+            URL.revokeObjectURL(url)
+            resolve({ width: image.naturalWidth, height: image.naturalHeight })
+        }
+        image.onerror = () => {
+            URL.revokeObjectURL(url)
+            reject(new Error('Could not read image dimensions'))
+        }
+        image.src = url
+    })
 }
 
 export function ImageUpload({
     value,
     onChange,
     type,
+    purpose,
     multiple = false,
     maxFiles = 5,
     className
@@ -36,7 +61,10 @@ export function ImageUpload({
     const inputRef = useRef<HTMLInputElement>(null)
 
     // Normalize value to array
-    const images = Array.isArray(value) ? value : (value ? [value] : [])
+    const images = useMemo(
+        () => Array.isArray(value) ? value : (value ? [value] : []),
+        [value]
+    )
 
     const handleUpload = useCallback(async (files: FileList | null) => {
         if (!files || files.length === 0) return
@@ -66,10 +94,31 @@ export function ImageUpload({
                     continue
                 }
 
+                if (type === 'announcement' && purpose) {
+                    const dimensions = await getImageDimensions(file)
+                    const dimensionResult = validateAnnouncementImageDimensions(
+                        purpose,
+                        dimensions.width,
+                        dimensions.height
+                    )
+
+                    if (dimensionResult.status === 'rejected') {
+                        toast.error(`${file.name}: ${dimensionResult.reason}`)
+                        continue
+                    }
+
+                    if (dimensionResult.status === 'accepted_with_warning') {
+                        toast.warning(`${file.name}: ${dimensionResult.reason}`)
+                    }
+                }
+
                 // Upload file
                 const formData = new FormData()
                 formData.append('file', file)
                 formData.append('type', type)
+                if (purpose) {
+                    formData.append('purpose', purpose)
+                }
 
                 const res = await fetch('/api/admin/upload', {
                     method: 'POST',
@@ -82,6 +131,9 @@ export function ImageUpload({
                 }
 
                 const data = await res.json()
+                if (data.dimensionStatus === 'accepted_with_warning' && data.dimensionMessage) {
+                    toast.warning(data.dimensionMessage)
+                }
                 uploadedUrls.push(data.url)
             }
 
@@ -98,7 +150,7 @@ export function ImageUpload({
         } finally {
             setUploading(false)
         }
-    }, [images, multiple, maxFiles, type, onChange])
+    }, [images, multiple, maxFiles, purpose, type, onChange])
 
     const handleRemove = useCallback((urlToRemove: string) => {
         // Only update form state — actual file deletion is handled
@@ -128,6 +180,9 @@ export function ImageUpload({
     }, [handleUpload])
 
     const canAddMore = multiple ? images.length < maxFiles : images.length === 0
+    const dimensionRule = type === 'announcement' && purpose
+        ? ANNOUNCEMENT_IMAGE_DIMENSION_RULES[purpose]
+        : null
 
     return (
         <div className={cn('space-y-3', className)}>
@@ -142,6 +197,7 @@ export function ImageUpload({
                             key={`${url}-${index}`}
                             className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
                         >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                                 src={resolveUploadedImageSrc(url)}
                                 alt={`Uploaded image ${index + 1}`}
@@ -206,6 +262,12 @@ export function ImageUpload({
                                         : 'JPG, PNG, WebP or GIF (max 5MB)'
                                     }
                                 </p>
+                                {dimensionRule && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Recommended {dimensionRule.recommendedWidth}x{dimensionRule.recommendedHeight}px,
+                                        minimum {dimensionRule.minWidth}x{dimensionRule.minHeight}px
+                                    </p>
+                                )}
                             </>
                         )}
                     </div>
@@ -216,6 +278,12 @@ export function ImageUpload({
             {multiple && images.length > 0 && (
                 <p className="text-xs text-muted-foreground">
                     {images.length} of {maxFiles} images uploaded
+                </p>
+            )}
+            {dimensionRule && images.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                    Recommended size: {dimensionRule.recommendedWidth}x{dimensionRule.recommendedHeight}px.
+                    Minimum accepted size: {dimensionRule.minWidth}x{dimensionRule.minHeight}px.
                 </p>
             )}
         </div>

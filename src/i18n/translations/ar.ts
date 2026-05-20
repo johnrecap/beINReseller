@@ -89,6 +89,7 @@ export const ar = {
         deletedAccounts: 'الحسابات المحذوفة',
         proxyManagement: 'إدارة البروكسي',
         integrityReports: 'تقارير التطابق',
+        beinSpendReport: 'beIN Spend Report',
         announcements: 'الإعلانات',
         activityMonitoring: 'مراقبة النشاط',
     },

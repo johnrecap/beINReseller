@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { refundUser } from '@/lib/refund'
+import { decideRefundSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
 
 // This endpoint should be called by a cron job every 5 minutes
 // Example: Vercel Cron, or external service like cron-job.org
@@ -87,8 +88,17 @@ export async function GET(request: Request) {
                     timeoutMessage = 'Final confirmation timeout (2 minutes)'
                 }
 
-                // Only refund if amount > 0 (AWAITING_PACKAGE has amount=0)
-                const shouldRefund = operation.amount > 0
+                const refundDecision = decideRefundSafety({
+                    operationId: operation.id,
+                    operationStatus: operation.status,
+                    operationAmount: operation.amount,
+                    operationResponseData: operation.responseData,
+                    phaseEvidence: getOperationPhaseEvidence(operation.responseData),
+                    customerDeductTransactionExists: operation.amount > 0,
+                    refundTransactionExists: false,
+                })
+                const requiresReview = operation.amount > 0 && refundDecision.reviewRequired
+                const shouldRefund = operation.amount > 0 && refundDecision.refundAllowed
 
                 const result = await prisma.$transaction(async (tx) => {
                     // Guard: only fail if operation is still in the same stale state.
@@ -107,8 +117,10 @@ export async function GET(request: Request) {
                     const timeoutGuard = await tx.operation.updateMany({
                         where: staleWhere,
                         data: {
-                            status: 'FAILED',
-                            responseMessage: shouldRefund
+                            status: requiresReview ? 'REVIEW_REQUIRED' : 'FAILED',
+                            responseMessage: requiresReview
+                                ? `${timeoutMessage} - manual review required before any refund (${refundDecision.reason})`
+                                : shouldRefund
                                 ? `${timeoutMessage} - amount auto-refunded`
                                 : timeoutMessage,
                             finalConfirmExpiry: null,
@@ -125,9 +137,11 @@ export async function GET(request: Request) {
                             data: {
                                 userId: operation.userId,
                                 action: 'OPERATION_TIMEOUT',
-                                details: shouldRefund
-                                    ? `${timeoutMessage} - ${operation.amount} SAR refunded`
-                                    : timeoutMessage,
+                                details: requiresReview
+                                    ? `${timeoutMessage} - moved to review without refund (${refundDecision.reason})`
+                                    : shouldRefund
+                                        ? `${timeoutMessage} - ${operation.amount} SAR refunded`
+                                        : timeoutMessage,
                                 ipAddress: 'cron-job',
                             },
                         })

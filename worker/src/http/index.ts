@@ -4,5 +4,5 @@
  * Fast HTTP-based beIN automation replacing Playwright.
  */
 
-export { HttpClientService } from './HttpClientService';
+export { HttpClientService, classifyFinalPayOutcome } from './HttpClientService';
 export * from './types';

@@ -66,7 +66,14 @@ export interface PurchaseResult {
     newBalance?: number;  // Balance after purchase for verification
     beinBalanceBefore?: number; // Dealer balance before successful payment
     beinBalanceAfter?: number;  // Dealer balance after successful payment
+    outcomeCategory?: FinalPayOutcomeCategory;
+    finalPaySubmitted?: boolean;
 }
+
+export type FinalPayOutcomeCategory =
+    | 'CONFIRMED_SUCCESS'
+    | 'CONFIRMED_NOT_CHARGED'
+    | 'UNCERTAIN_REVIEW_REQUIRED';
 
 export interface SessionData {
     cookies: string; // JSON serialized cookies
@@ -179,4 +186,6 @@ export interface PayInstallmentResult {
     newBalance?: number;
     beinBalanceBefore?: number;
     beinBalanceAfter?: number;
+    outcomeCategory?: FinalPayOutcomeCategory;
+    finalPaySubmitted?: boolean;
 }

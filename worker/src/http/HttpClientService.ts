@@ -32,6 +32,8 @@ import {
     LoadPackagesResult,
     AvailablePackage,
     PurchaseResult,
+    FinalPayOutcomeCategory,
+    PayInstallmentResult,
     SessionData,
     SignalRefreshResult,
     CheckCardForSignalResult
@@ -39,6 +41,68 @@ import {
 
 function shouldAllowInsecureProxyTls(): boolean {
     return process.env.WORKER_ALLOW_INSECURE_PROXY_TLS === 'true';
+}
+
+export function classifyFinalPayOutcome(input: {
+    success: boolean;
+    message?: string | null;
+    finalPaySubmitted: boolean;
+    beinBalanceBefore?: number | null;
+    beinBalanceAfter?: number | null;
+}): FinalPayOutcomeCategory {
+    if (input.success) return 'CONFIRMED_SUCCESS';
+    if (!input.finalPaySubmitted) return 'CONFIRMED_NOT_CHARGED';
+
+    if (
+        typeof input.beinBalanceBefore === 'number' &&
+        typeof input.beinBalanceAfter === 'number' &&
+        input.beinBalanceAfter < input.beinBalanceBefore
+    ) {
+        return 'CONFIRMED_SUCCESS';
+    }
+
+    const normalized = (input.message || '').toLowerCase();
+    if (
+        normalized.includes('insufficient balance') ||
+        normalized.includes('insufficient credit') ||
+        normalized.includes('balance unchanged') ||
+        normalized.includes('transaction failed on bein')
+    ) {
+        return 'CONFIRMED_NOT_CHARGED';
+    }
+
+    if (
+        normalized.includes('transaction is busy') ||
+        normalized.includes('transaction status unknown') ||
+        normalized.includes('status unknown') ||
+        normalized.includes('no success confirmation') ||
+        normalized.includes('could not verify') ||
+        normalized.includes('please check balance') ||
+        normalized.includes('confirm failed') ||
+        normalized.includes('timeout') ||
+        normalized.includes('login')
+    ) {
+        return 'UNCERTAIN_REVIEW_REQUIRED';
+    }
+
+    return 'UNCERTAIN_REVIEW_REQUIRED';
+}
+
+function withFinalPayOutcome<T extends PurchaseResult | PayInstallmentResult>(
+    result: T,
+    finalPaySubmitted: boolean
+): T {
+    return {
+        ...result,
+        finalPaySubmitted,
+        outcomeCategory: result.outcomeCategory ?? classifyFinalPayOutcome({
+            success: result.success,
+            message: result.message,
+            finalPaySubmitted,
+            beinBalanceBefore: result.beinBalanceBefore,
+            beinBalanceAfter: result.beinBalanceAfter
+        })
+    };
 }
 
 export class HttpClientService {
@@ -2135,12 +2199,13 @@ export class HttpClientService {
      */
     async confirmPurchase(expectedCost?: number): Promise<PurchaseResult> {
         console.log('[HTTP] Confirming purchase...');
+        let finalPaySubmitted = false;
 
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
 
             if (!this.currentViewState) {
-                return { success: false, message: 'ViewState not available' };
+                return withFinalPayOutcome({ success: false, message: 'ViewState not available' }, false);
             }
 
             // ===============================================
@@ -2182,7 +2247,7 @@ export class HttpClientService {
             const okError = this.checkForErrors(res.data);
             if (okError) {
                 console.log(`[HTTP] ❌ OK button error: ${okError}`);
-                return { success: false, message: okError };
+                return withFinalPayOutcome({ success: false, message: okError }, false);
             }
 
             // Extract ViewState for next step
@@ -2205,50 +2270,14 @@ export class HttpClientService {
             if (pageText.includes('Contract Created Successfully') || pageText.includes('Success')) {
                 console.log('[HTTP] ✅ Purchase completed directly (no payment selection)');
                 const balanceAfterDirect = await this.getBalanceFromSellPackagesPage();
-                return {
+                return withFinalPayOutcome({
                     success: true,
                     message: 'Contract Created Successfully',
                     newBalance: balanceAfterDirect || undefined,
                     beinBalanceBefore: balanceBefore || undefined,
                     beinBalanceAfter: balanceAfterDirect || undefined
-                };
+                }, false);
             }
-
-            // ===============================================
-            // DEBUG: Log all form elements on payment page
-            // ===============================================
-            console.log('[HTTP] DEBUG: Inspecting payment page form elements...');
-
-            // Find all text inputs (including STB fields)
-            const textInputs = $('input[type="text"]');
-            console.log(`[HTTP] DEBUG: Found ${textInputs.length} text inputs`);
-            textInputs.each((i, el) => {
-                const name = $(el).attr('name') || 'no-name';
-                const id = $(el).attr('id') || 'no-id';
-                const value = $(el).val() || '';
-                console.log(`[HTTP] DEBUG: TextInput ${i}: name="${name}" id="${id}" value="${value}"`);
-            });
-
-            // Find all radio buttons
-            const radioButtons = $('input[type="radio"]');
-            console.log(`[HTTP] DEBUG: Found ${radioButtons.length} radio buttons`);
-            radioButtons.each((i, el) => {
-                const name = $(el).attr('name') || 'no-name';
-                const id = $(el).attr('id') || 'no-id';
-                const value = $(el).attr('value') || 'no-value';
-                const checked = $(el).prop('checked') ? ' [CHECKED]' : '';
-                console.log(`[HTTP] DEBUG: Radio ${i}: name="${name}" id="${id}" value="${value}"${checked}`);
-            });
-
-            // Find all buttons/inputs of type submit
-            const buttons = $('input[type="submit"], button, input[type="button"]');
-            console.log(`[HTTP] DEBUG: Found ${buttons.length} buttons`);
-            buttons.each((i, el) => {
-                const name = $(el).attr('name') || 'no-name';
-                const id = $(el).attr('id') || 'no-id';
-                const value = $(el).attr('value') || $(el).text().trim() || 'no-value';
-                console.log(`[HTTP] DEBUG: Button ${i}: name="${name}" id="${id}" value="${value}"`);
-            });
 
             // ===============================================
             // STEP 2: Click Pay (Direct Payment)
@@ -2258,7 +2287,6 @@ export class HttpClientService {
 
             // Extract the actual tbSerial1 value from the page
             const tbSerial1Value = $('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').val() as string || '';
-            console.log(`[HTTP] DEBUG: tbSerial1 value from page: "${tbSerial1Value}"`);
 
             const payFormData: Record<string, string> = {
                 ...this.currentViewState,
@@ -2270,15 +2298,8 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$BtnPay': 'Pay'
             };
 
-            // Log what we're sending
-            console.log('[HTTP] DEBUG: Pay form data:');
-            for (const [key, value] of Object.entries(payFormData)) {
-                if (!key.includes('VIEWSTATE') && !key.includes('EVENTVALIDATION')) {
-                    console.log(`[HTTP]   - ${key}: "${value}"`);
-                }
-            }
-
             console.log('[HTTP] POST Pay (Direct Payment)...');
+            finalPaySubmitted = true;
             res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(payFormData),
@@ -2291,38 +2312,18 @@ export class HttpClientService {
             const payError = this.checkForErrors(res.data);
             if (payError) {
                 console.log(`[HTTP] ❌ Pay error: ${payError}`);
-                return { success: false, message: payError };
+                return withFinalPayOutcome({
+                    success: false,
+                    message: payError,
+                    beinBalanceBefore: balanceBefore || undefined
+                }, true);
             }
 
-            // Detailed response logging for debugging
             const $result = cheerio.load(res.data);
             const resultPageText = $result('body').text();
 
-            // Log page title
             const pageTitle = $result('title').text();
             console.log(`[HTTP] Pay response - Page title: "${pageTitle}"`);
-
-            // Log all labels and alerts
-            const labels = $result('span[id*="lbl"], span[class*="alert"], div[class*="alert"], span[class*="success"], span[class*="error"]');
-            console.log(`[HTTP] Pay response - Found ${labels.length} labels/alerts:`);
-            labels.each((i, el) => {
-                const text = $result(el).text().trim();
-                if (text) {
-                    console.log(`[HTTP]   Label ${i}: "${text.substring(0, 100)}"`);
-                }
-            });
-
-            // Log any visible messages
-            const messages = $result('[id*="Message"], [id*="msg"], [id*="Msg"], [class*="message"]');
-            messages.each((i, el) => {
-                const text = $result(el).text().trim();
-                if (text) {
-                    console.log(`[HTTP]   Message: "${text.substring(0, 100)}"`);
-                }
-            });
-
-            // Full page text preview (more characters)
-            console.log(`[HTTP] Pay response preview (500 chars): ${resultPageText.substring(0, 500)}`);
 
             // Check for error patterns in response
             const errorPatterns = [
@@ -2359,13 +2360,13 @@ export class HttpClientService {
                     const balanceAfter = await this.getBalanceFromSellPackagesPage();
                     console.log(`[HTTP] 💰 Balance after success: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
 
-                    return {
+                    return withFinalPayOutcome({
                         success: true,
                         message: pattern,
                         newBalance: balanceAfter || undefined,
                         beinBalanceBefore: balanceBefore || undefined,
                         beinBalanceAfter: balanceAfter || undefined
-                    };
+                    }, true);
                 }
             }
 
@@ -2396,13 +2397,13 @@ export class HttpClientService {
                         for (const pattern of successPatterns) {
                             if (retryText.includes(pattern)) {
                                 console.log(`[HTTP] ✅ SUCCESS on retry ${retry}! Found: "${pattern}"`);
-                                return {
+                                return withFinalPayOutcome({
                                     success: true,
                                     message: pattern,
                                     newBalance: retryBalance || undefined,
                                     beinBalanceBefore: balanceBefore || undefined,
                                     beinBalanceAfter: retryBalance || undefined
-                                };
+                                }, true);
                             }
                         }
 
@@ -2415,32 +2416,32 @@ export class HttpClientService {
                             if (balanceBefore !== null && retryBalance !== null && retryBalance < balanceBefore) {
                                 const decrease = balanceBefore - retryBalance;
                                 console.log(`[HTTP] ✅ Balance decreased by $${decrease} (${balanceBefore} → ${retryBalance}) — transaction succeeded`);
-                                return {
+                                return withFinalPayOutcome({
                                     success: true,
                                     message: `Transaction completed (balance decreased by $${decrease})`,
                                     newBalance: retryBalance,
                                     beinBalanceBefore: balanceBefore || undefined,
                                     beinBalanceAfter: retryBalance || undefined
-                                };
+                                }, true);
                             } else if (balanceBefore !== null && retryBalance !== null && retryBalance >= balanceBefore) {
                                 console.log(`[HTTP] ❌ Balance did NOT decrease (${balanceBefore} → ${retryBalance}) — transaction failed on beIN`);
-                                return {
+                                return withFinalPayOutcome({
                                     success: false,
                                     message: `Transaction failed on beIN - balance unchanged ($${retryBalance})`,
                                     newBalance: retryBalance,
                                     beinBalanceBefore: balanceBefore || undefined,
                                     beinBalanceAfter: retryBalance || undefined
-                                };
+                                }, true);
                             } else {
                                 // Can't determine balance — don't assume success
                                 console.log(`[HTTP] ⚠️ Cannot verify balance change — failing safe`);
-                                return {
+                                return withFinalPayOutcome({
                                     success: false,
                                     message: 'Transaction status unknown - could not verify balance change',
                                     newBalance: retryBalance || undefined,
                                     beinBalanceBefore: balanceBefore || undefined,
                                     beinBalanceAfter: retryBalance || undefined
-                                };
+                                }, true);
                             }
                         }
                     } catch (retryErr: any) {
@@ -2451,13 +2452,13 @@ export class HttpClientService {
                 // All retries exhausted - still busy
                 console.log('[HTTP] ⚠️ Transaction still busy after 5 retries');
                 const finalBalance = await this.getBalanceFromSellPackagesPage();
-                return {
+                return withFinalPayOutcome({
                     success: false,
                     message: 'Transaction is busy on beIN - please check the card status manually',
                     newBalance: finalBalance || undefined,
                     beinBalanceBefore: balanceBefore || undefined,
                     beinBalanceAfter: finalBalance || undefined
-                };
+                }, true);
             }
 
             // ===============================================
@@ -2469,21 +2470,31 @@ export class HttpClientService {
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             const balanceAfter = await this.getBalanceFromSellPackagesPage();
+            if (balanceBefore !== null && balanceAfter !== null && balanceAfter < balanceBefore) {
+                const decrease = balanceBefore - balanceAfter;
+                return withFinalPayOutcome({
+                    success: true,
+                    message: `Transaction completed (balance decreased by $${decrease})`,
+                    newBalance: balanceAfter,
+                    beinBalanceBefore: balanceBefore,
+                    beinBalanceAfter: balanceAfter
+                }, true);
+            }
             console.log(`[HTTP] 💰 Balance AFTER: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
 
             // If we can't find success message and can't verify balance, fail
             console.log('[HTTP] ⚠️ No success confirmation found');
-            return {
+            return withFinalPayOutcome({
                 success: false,
                 message: 'No success confirmation found from beIN',
                 newBalance: balanceAfter || undefined,
                 beinBalanceBefore: balanceBefore || undefined,
                 beinBalanceAfter: balanceAfter || undefined
-            };
+            }, true);
 
         } catch (error: any) {
             console.error('[HTTP] Confirm error:', error.message);
-            return { success: false, message: `Confirm failed: ${error.message}` };
+            return withFinalPayOutcome({ success: false, message: `Confirm failed: ${error.message}` }, finalPaySubmitted);
         }
     }
 
@@ -4105,6 +4116,7 @@ export class HttpClientService {
     async payInstallment(): Promise<import('./types').PayInstallmentResult> {
         console.log('[HTTP] Paying installment (two-step flow)...');
         let paySubmitted = false;
+        let finalPaySubmitted = false;
 
         try {
             const installmentUrl = this.buildFullUrl(this.config.installmentUrl);
@@ -4112,7 +4124,7 @@ export class HttpClientService {
             // Verify we have ViewState from previous load
             if (!this.currentViewState || !this.currentViewState.__VIEWSTATE) {
                 console.log('[HTTP] ⚠️ No ViewState - need to load installment first');
-                return { success: false, message: 'Please load installment details first' };
+                return withFinalPayOutcome({ success: false, message: 'Please load installment details first' }, false);
             }
 
             // Get current balance before payment
@@ -4136,6 +4148,7 @@ export class HttpClientService {
 
             console.log('[HTTP] POST Step 1 - Clicking Pay Installment button...');
             paySubmitted = true;
+            finalPaySubmitted = true;
             const payRes = await this.axios.post(
                 installmentUrl,
                 this.buildFormData(payFormData),
@@ -4148,7 +4161,7 @@ export class HttpClientService {
             const sessionExpiry = this.checkForSessionExpiry(payRes.data);
             if (sessionExpiry) {
                 this.invalidateSession();
-                return { success: false, message: sessionExpiry };
+                return withFinalPayOutcome({ success: false, message: sessionExpiry }, finalPaySubmitted);
             }
 
             // ====== STEP 2: Handle "Please Select Type of Payment" popup ======
@@ -4159,23 +4172,6 @@ export class HttpClientService {
             const radioInputs = $popup('input[type="radio"][name*="Epay"], input[type="radio"][id*="RbdDirectPay"], input[type="radio"][id*="RbdDirectEPay"], input[type="radio"][name*="DirectPay"]');
 
             console.log(`[HTTP] Step 1 response: Found ${radioInputs.length} payment type radio buttons`);
-
-            // DEBUG: Log all radio inputs found
-            $popup('input[type="radio"]').each((i, el) => {
-                const name = $popup(el).attr('name') || '';
-                const id = $popup(el).attr('id') || '';
-                const value = $popup(el).attr('value') || '';
-                const labelFor = $popup(`label[for="${id}"]`).text().trim();
-                console.log(`[HTTP] Radio [${i}]: name="${name}" id="${id}" value="${value}" label="${labelFor}"`);
-            });
-
-            // DEBUG: Log all submit buttons
-            $popup('input[type="submit"]').each((i, el) => {
-                const name = $popup(el).attr('name') || '';
-                const id = $popup(el).attr('id') || '';
-                const value = $popup(el).attr('value') || '';
-                console.log(`[HTTP] Submit button [${i}]: name="${name}" id="${id}" value="${value}"`);
-            });
 
             if (radioInputs.length > 0) {
                 // Popup detected — select Direct Payment and submit
@@ -4265,6 +4261,7 @@ export class HttpClientService {
                 };
 
                 console.log('[HTTP] POST Step 2 - Submitting Direct Payment...');
+                finalPaySubmitted = true;
                 const confirmRes = await this.axios.post(
                     installmentUrl,
                     this.buildFormData(confirmFormData),
@@ -4292,41 +4289,38 @@ export class HttpClientService {
 
                 if (balanceDecreased && hasSuccessMessage) {
                     console.log('[HTTP] ✅ Installment payment successful (Direct Payment)');
-                    return {
+                    return withFinalPayOutcome({
                         success: true,
                         message: 'Installment payment successful',
                         newBalance: balanceAfter || undefined,
                         beinBalanceBefore: balanceBefore || undefined,
                         beinBalanceAfter: balanceAfter || undefined
-                    };
+                    }, true);
                 } else if (balanceDecreased) {
                     console.log('[HTTP] Installment payment successful by balance delta (Direct Payment)');
-                    return {
+                    return withFinalPayOutcome({
                         success: true,
                         message: 'Installment payment successful (balance verified)',
                         newBalance: balanceAfter || undefined,
                         beinBalanceBefore: balanceBefore || undefined,
                         beinBalanceAfter: balanceAfter || undefined
-                    };
+                    }, true);
                 } else if (hasSuccessMessage) {
-                    return {
+                    return withFinalPayOutcome({
                         success: false,
                         message: 'Transaction status unknown - success text but balance unchanged',
                         beinBalanceBefore: balanceBefore || undefined,
                         beinBalanceAfter: balanceAfter || undefined
-                    };
+                    }, true);
                 } else if (confirmError) {
                     console.log(`[HTTP] ❌ Payment error after Direct Pay: ${confirmError}`);
-                    return { success: false, message: confirmError };
+                    return withFinalPayOutcome({ success: false, message: confirmError }, true);
                 } else {
-                    // Log what we received for debugging
-                    const htmlSample = confirmRes.data.slice(0, 2000);
-                    console.log(`[HTTP] ⚠️ Payment status unclear after Direct Pay. Response sample:`);
-                    console.log(htmlSample);
-                    return {
+                    console.log('[HTTP] Payment status unclear after Direct Pay');
+                    return withFinalPayOutcome({
                         success: false,
                         message: 'Transaction status unknown - payment not confirmed, please check balance'
-                    };
+                    }, true);
                 }
 
             } else {
@@ -4348,53 +4342,50 @@ export class HttpClientService {
 
                 if (balanceDecreased && hasSuccessMessage) {
                     console.log('[HTTP] ✅ Installment payment successful (no popup)');
-                    return {
+                    return withFinalPayOutcome({
                         success: true,
                         message: 'Installment payment successful',
                         newBalance: balanceAfter || undefined,
                         beinBalanceBefore: balanceBefore || undefined,
                         beinBalanceAfter: balanceAfter || undefined
-                    };
+                    }, true);
                 } else if (balanceDecreased) {
                     console.log('[HTTP] Installment payment successful by balance delta (no popup)');
-                    return {
+                    return withFinalPayOutcome({
                         success: true,
                         message: 'Installment payment successful (balance verified)',
                         newBalance: balanceAfter || undefined,
                         beinBalanceBefore: balanceBefore || undefined,
                         beinBalanceAfter: balanceAfter || undefined
-                    };
+                    }, true);
                 } else if (hasSuccessMessage) {
-                    return {
+                    return withFinalPayOutcome({
                         success: false,
                         message: 'Transaction status unknown - success text but balance unchanged',
                         beinBalanceBefore: balanceBefore || undefined,
                         beinBalanceAfter: balanceAfter || undefined
-                    };
+                    }, true);
                 } else if (payError) {
                     console.log(`[HTTP] ❌ Payment error: ${payError}`);
-                    return { success: false, message: payError };
+                    return withFinalPayOutcome({ success: false, message: payError }, true);
                 } else {
-                    // Log what we received for debugging
-                    const htmlSample = payRes.data.slice(0, 2000);
-                    console.log(`[HTTP] ⚠️ Payment status unclear. Response sample:`);
-                    console.log(htmlSample);
-                    return {
+                    console.log('[HTTP] Payment status unclear');
+                    return withFinalPayOutcome({
                         success: false,
                         message: 'Transaction status unknown - payment not confirmed, please check balance'
-                    };
+                    }, true);
                 }
             }
 
         } catch (error: any) {
             console.error('[HTTP] Pay installment error:', error.message);
             if (paySubmitted) {
-                return {
+                return withFinalPayOutcome({
                     success: false,
                     message: `Transaction status unknown - request submitted but confirmation failed: ${error.message}`
-                };
+                }, true);
             }
-            return { success: false, message: `Payment failed: ${error.message}` };
+            return withFinalPayOutcome({ success: false, message: `Payment failed: ${error.message}` }, finalPaySubmitted);
         }
     }
 }

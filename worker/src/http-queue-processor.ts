@@ -9,7 +9,8 @@
 
 import { Job } from 'bullmq';
 import { prisma } from './lib/prisma';
-import { HttpClientService, AvailablePackage } from './http';
+import { HttpClientService, AvailablePackage, classifyFinalPayOutcome } from './http';
+import type { FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
 import { AccountPoolManager, AccountQueueManager, getQueueManager, forceUnlockAccount, lockAccount, unlockAccount } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
@@ -19,6 +20,7 @@ import { ProxyConfig } from './types/proxy';
 import { trackOperationComplete } from './lib/activity-tracker';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
 import { decryptAccountPassword } from './lib/crypto';
+import { recordConfirmedBeinSpend } from './lib/bein-spend-ledger';
 import {
     getSessionFromCache,
     saveSessionToCache,
@@ -81,6 +83,43 @@ function isTerminalStatus(status: string | null | undefined): boolean {
     return !!status && TERMINAL_STATUSES.has(status);
 }
 
+function getOperationPhase(responseData: unknown): string | null {
+    const data = parseResponseDataObject(responseData);
+    const phase = data.operationPhase ?? data.phase;
+    return typeof phase === 'string' ? phase : null;
+}
+
+function mergeOperationPhaseData(
+    responseData: unknown,
+    evidence: {
+        operationPhase: string;
+        jobType: string;
+        finalPaySubmitted?: boolean;
+        finalPaySubmittedAt?: string;
+    }
+): Prisma.InputJsonObject {
+    return {
+        ...parseResponseDataObject(responseData),
+        ...evidence
+    };
+}
+
+function hasFinalPaymentStarted(
+    status: OperationStatus | string | null | undefined,
+    responseData?: unknown
+): boolean {
+    const data = parseResponseDataObject(responseData);
+    const phase = getOperationPhase(responseData);
+
+    if (data.finalPaySubmitted === true) return true;
+    if (phase === 'FINAL_PAY_SUBMITTED' || phase === 'POST_FINAL_PAY_REVIEW') return true;
+    if (phase === 'PACKAGE_PREPARATION' || phase === 'CANCELLATION_CONFIRM' || phase === 'FINAL_CONFIRMATION') {
+        return false;
+    }
+
+    return status === OperationStatus.COMPLETING;
+}
+
 async function updateOperationIfActive(
     operationId: string,
     data: Prisma.OperationUncheckedUpdateManyInput,
@@ -116,6 +155,34 @@ function isAmbiguousFailure(message: string | null | undefined): boolean {
         normalized.includes('please check balance');
 }
 
+interface FinalPayRefundDecision {
+    outcomeCategory: FinalPayOutcomeCategory;
+    refundSafe: boolean;
+    reviewRequired: boolean;
+    reason: string;
+}
+
+function decideFinalPayRefundSafety(
+    result: PurchaseResult | PayInstallmentResult,
+    finalPaySubmitted: boolean
+): FinalPayRefundDecision {
+    const outcomeCategory = result.outcomeCategory ?? classifyFinalPayOutcome({
+        success: result.success,
+        message: result.message,
+        finalPaySubmitted: result.finalPaySubmitted ?? finalPaySubmitted,
+        beinBalanceBefore: result.beinBalanceBefore,
+        beinBalanceAfter: result.beinBalanceAfter
+    });
+
+    // Business rule: after final Pay, unknown means review, not refund.
+    return {
+        outcomeCategory,
+        refundSafe: outcomeCategory === 'CONFIRMED_NOT_CHARGED',
+        reviewRequired: outcomeCategory === 'UNCERTAIN_REVIEW_REQUIRED',
+        reason: result.message
+    };
+}
+
 interface OperationAuditSnapshot {
     beinAccountId: string | null;
     beinUsername: string | null;
@@ -127,6 +194,11 @@ interface OperationAuditSnapshot {
     userBalanceBefore: number | null;
     userBalanceAfter: number | null;
     capturedAt: string;
+    outcomeCategory?: FinalPayOutcomeCategory;
+    reviewReason?: string;
+    reviewSource?: string;
+    refundBlocked?: boolean;
+    chargedBeinLedgerId?: string;
 }
 
 function toNullableNumber(value: unknown): number | null {
@@ -156,8 +228,25 @@ async function buildOperationAuditSnapshot(params: {
     beinUsername: string | null;
     beinBalanceBefore: number | null;
     beinBalanceAfter: number | null;
+    outcomeCategory?: FinalPayOutcomeCategory;
+    reviewReason?: string;
+    reviewSource?: string;
+    refundBlocked?: boolean;
+    chargedBeinLedgerId?: string;
 }): Promise<OperationAuditSnapshot> {
-    const { operationId, userId, beinAccountId, beinUsername, beinBalanceBefore, beinBalanceAfter } = params;
+    const {
+        operationId,
+        userId,
+        beinAccountId,
+        beinUsername,
+        beinBalanceBefore,
+        beinBalanceAfter,
+        outcomeCategory,
+        reviewReason,
+        reviewSource,
+        refundBlocked,
+        chargedBeinLedgerId
+    } = params;
 
     const [deductionAgg, latestDeduction] = await Promise.all([
         prisma.transaction.aggregate({
@@ -191,7 +280,7 @@ async function buildOperationAuditSnapshot(params: {
             ? null
             : before - after;
 
-    return {
+    const snapshot: OperationAuditSnapshot = {
         beinAccountId,
         beinUsername,
         beinBalanceBefore: before,
@@ -203,6 +292,12 @@ async function buildOperationAuditSnapshot(params: {
         userBalanceAfter,
         capturedAt: new Date().toISOString()
     };
+    if (outcomeCategory !== undefined) snapshot.outcomeCategory = outcomeCategory;
+    if (reviewReason !== undefined) snapshot.reviewReason = reviewReason;
+    if (reviewSource !== undefined) snapshot.reviewSource = reviewSource;
+    if (refundBlocked !== undefined) snapshot.refundBlocked = refundBlocked;
+    if (chargedBeinLedgerId !== undefined) snapshot.chargedBeinLedgerId = chargedBeinLedgerId;
+    return snapshot;
 }
 
 async function persistOperationAuditSnapshot(
@@ -662,8 +757,12 @@ export async function processOperationHttp(
         // ALWAYS read from DB - job data amount may be stale (deferred payment)
         const op = await prisma.operation.findUnique({
             where: { id: operationId },
-            select: { userId: true, amount: true, beinAccountId: true, status: true }
+            select: { userId: true, amount: true, beinAccountId: true, status: true, responseData: true }
         });
+        if (!op) {
+            console.warn(`[HTTP] Operation ${operationId} missing during generic error handling; skipping refund/failure update`);
+            return;
+        }
         if (isTerminalStatus(op?.status)) {
             console.log(`[HTTP] Skipping refund/failure update for terminal operation ${operationId} (${op?.status})`);
             return;
@@ -671,6 +770,38 @@ export async function processOperationHttp(
         const opUserId = op?.userId || userId;
         const opAmount = op?.amount || 0;
         selectedAccountId = op?.beinAccountId || null;
+        const genericDecision = decideFinalPayRefundSafety({
+            success: false,
+            message: getErrMsg(error)
+        }, hasFinalPaymentStarted(op?.status, op?.responseData));
+        if (hasFinalPaymentStarted(op?.status, op?.responseData) && genericDecision.reviewRequired) {
+            await prisma.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: { notIn: TERMINAL_STATUS_LIST }
+                },
+                data: {
+                    status: 'REVIEW_REQUIRED',
+                    responseMessage: getErrMsg(error),
+                    finalConfirmExpiry: null
+                }
+            });
+            const auditSnapshot = await buildOperationAuditSnapshot({
+                operationId,
+                userId: op.userId || opUserId || null,
+                beinAccountId: op.beinAccountId || null,
+                beinUsername: null,
+                beinBalanceBefore: null,
+                beinBalanceAfter: null,
+                outcomeCategory: genericDecision.outcomeCategory,
+                reviewReason: getErrMsg(error),
+                reviewSource: 'worker-generic-catch',
+                refundBlocked: true
+            });
+            await persistOperationAuditSnapshot(operationId, op.responseData, auditSnapshot);
+            console.warn(`[HTTP] Operation ${operationId} moved to REVIEW_REQUIRED from generic catch (${genericDecision.outcomeCategory}): ${getErrMsg(error)}`);
+            return;
+        }
 
         // Mark failed and refund (only if money was actually deducted)
         if (opUserId && opAmount && opAmount > 0) {
@@ -890,7 +1021,8 @@ async function handleStartRenewalHttp(
     updateProgress(operationId, 'Loading card info...');
     let stbNumber: string | undefined;
 
-    // Check STB cache first
+    // Use cache only to skip card/STB lookup before final Pay.
+    // Package prices/options are still loaded fresh from beIN for this operation.
     const cachedPackageData = await getCachedPackages(cardNumber);
     const cachedStb = cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
 
@@ -1749,7 +1881,10 @@ async function handleConfirmPurchaseHttp(
         throw new Error('Confirmation timeout');
     }
 
-    if (!await updateOperationIfActive(operationId, { status: 'COMPLETING', responseMessage: 'Confirming purchase...' }, 'CONFIRM_PURCHASE completing update')) return;
+    if (!await updateOperationIfActive(operationId, {
+        status: 'COMPLETING',
+        responseMessage: 'Confirming purchase...'
+    }, 'CONFIRM_PURCHASE completing update')) return;
 
     const account = await prisma.beinAccount.findUnique({
         where: { id: operation.beinAccountId },
@@ -1763,7 +1898,7 @@ async function handleConfirmPurchaseHttp(
         // CRITICAL: Set STB number on client for confirmPurchase
         if (operation.stbNumber) {
             client.setSTBNumber(operation.stbNumber);
-            console.log(`[HTTP] 📺 STB number set on client: ${operation.stbNumber}`);
+            console.log('[HTTP] STB number restored for CONFIRM_PURCHASE');
         } else {
             console.warn('[HTTP] ⚠️ No STB number found in operation!');
         }
@@ -1797,8 +1932,18 @@ async function handleConfirmPurchaseHttp(
             throw new Error('No session data available - cannot confirm purchase');
         }
 
+        await updateOperationIfActive(operationId, {
+            responseData: mergeOperationPhaseData(operation.responseData, {
+                operationPhase: 'FINAL_PAY_SUBMITTED',
+                jobType: 'CONFIRM_PURCHASE',
+                finalPaySubmitted: true,
+                finalPaySubmittedAt: new Date().toISOString()
+            })
+        }, 'CONFIRM_PURCHASE final Pay evidence update');
+
         await updateProgress(operationId, 'Sending final confirmation...');
         const result = await client.confirmPurchase(operation.amount ?? undefined);
+        const outcomeDecision = decideFinalPayRefundSafety(result, true);
 
         const selectedPackage = operation.selectedPackage as { name: string } | null;
 
@@ -1825,13 +1970,28 @@ async function handleConfirmPurchaseHttp(
                 return;
             }
 
+            const ledgerResult = operation.userId
+                ? await recordConfirmedBeinSpend({
+                    operationId,
+                    userId: operation.userId,
+                    beinAccountId: operation.beinAccountId,
+                    dealerBalanceBefore: toNullableNumber(result.beinBalanceBefore),
+                    dealerBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                    evidenceSource: 'BALANCE_DELTA',
+                })
+                : null;
+            if (ledgerResult?.status === 'conflict_review_required') {
+                console.warn(`[HTTP] beIN spend ledger conflict for ${operationId}: ${ledgerResult.reason}`);
+            }
+
             const auditSnapshot = await buildOperationAuditSnapshot({
                 operationId,
                 userId: operation.userId || null,
                 beinAccountId: operation.beinAccountId,
                 beinUsername: account.username,
                 beinBalanceBefore: toNullableNumber(result.beinBalanceBefore),
-                beinBalanceAfter: toNullableNumber(result.beinBalanceAfter)
+                beinBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
             });
             await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
 
@@ -1877,7 +2037,7 @@ async function handleConfirmPurchaseHttp(
             }
 
             console.log(`✅ [HTTP] Purchase confirmed for ${operationId}`);
-        } else if (isAmbiguousFailure(result.message)) {
+        } else if (outcomeDecision.reviewRequired || !outcomeDecision.refundSafe) {
             const reviewRequired = await prisma.operation.updateMany({
                 where: {
                     id: operationId,
@@ -1894,13 +2054,42 @@ async function handleConfirmPurchaseHttp(
                 return;
             }
 
+            const ledgerResult = operation.userId
+                ? await recordConfirmedBeinSpend({
+                    operationId,
+                    userId: operation.userId,
+                    beinAccountId: operation.beinAccountId,
+                    dealerBalanceBefore: toNullableNumber(result.beinBalanceBefore),
+                    dealerBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                    evidenceSource: 'BALANCE_DELTA',
+                })
+                : null;
+            if (ledgerResult?.status === 'conflict_review_required') {
+                console.warn(`[HTTP] beIN spend ledger conflict for ${operationId}: ${ledgerResult.reason}`);
+            }
+
+            const auditSnapshot = await buildOperationAuditSnapshot({
+                operationId,
+                userId: operation.userId || null,
+                beinAccountId: operation.beinAccountId,
+                beinUsername: account.username,
+                beinBalanceBefore: toNullableNumber(result.beinBalanceBefore),
+                beinBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                outcomeCategory: outcomeDecision.outcomeCategory,
+                reviewReason: result.message,
+                reviewSource: 'confirm-purchase',
+                refundBlocked: true,
+                chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
+            });
+            await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+
             try {
                 await accountPool.markAccountUsed(operation.beinAccountId);
             } catch (e: unknown) {
                 console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
             }
             await deleteOperationSessionFromCache(operationId);
-            console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED: ${result.message}`);
+            console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED (${outcomeDecision.outcomeCategory}): ${result.message}`);
             return;
         } else {
             if (operation.userId && operation.amount && operation.amount > 0) {
@@ -1931,7 +2120,8 @@ async function handleCancelConfirmHttp(
             userId: true,
             beinAccountId: true,
             amount: true,
-            status: true
+            status: true,
+            responseData: true
         }
     });
 
@@ -1939,14 +2129,47 @@ async function handleCancelConfirmHttp(
         throw new Error('Operation not found');
     }
 
-    // Guard: Skip if already cancelled (duplicate job from race condition)
-    if (operation.status === 'CANCELLED') {
-        console.log(`⏭️ [HTTP] Operation ${operationId} already cancelled, skipping duplicate job`);
+    // Guard: terminal operations must not be overwritten by late cancel jobs.
+    if (isTerminalStatus(operation.status)) {
+        console.log(`[HTTP] Operation ${operationId} already terminal (${operation.status}), skipping CANCEL_CONFIRM`);
         return;
     }
 
-    if (operation.status !== 'AWAITING_FINAL_CONFIRM' && operation.status !== 'COMPLETING') {
-        throw new Error(`Invalid status: ${operation.status}`);
+    const cancellationConfirmInProgress =
+        operation.status === OperationStatus.COMPLETING &&
+        getOperationPhase(operation.responseData) === 'CANCELLATION_CONFIRM';
+
+    if (hasFinalPaymentStarted(operation.status, operation.responseData)) {
+        await prisma.operation.updateMany({
+            where: {
+                id: operationId,
+                status: OperationStatus.COMPLETING
+            },
+            data: {
+                status: OperationStatus.REVIEW_REQUIRED,
+                responseMessage: 'Cancellation requested while final payment may be in progress. Manual review required.',
+                finalConfirmExpiry: null
+            }
+        });
+        const auditSnapshot = await buildOperationAuditSnapshot({
+            operationId,
+            userId: operation.userId || null,
+            beinAccountId: operation.beinAccountId,
+            beinUsername: null,
+            beinBalanceBefore: null,
+            beinBalanceAfter: null,
+            reviewReason: 'Cancellation requested while final payment may be in progress. Manual review required.',
+            reviewSource: 'cancel-confirm',
+            refundBlocked: true
+        });
+        await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+        console.warn(`[HTTP] Cancellation for ${operationId} moved to REVIEW_REQUIRED because final payment may have started`);
+        return;
+    }
+
+    if (operation.status !== OperationStatus.AWAITING_FINAL_CONFIRM && !cancellationConfirmInProgress) {
+        console.warn(`[HTTP] Ignoring CANCEL_CONFIRM for ${operationId}; invalid status ${operation.status}`);
+        return;
     }
 
     // Click Cancel if account available
@@ -1965,20 +2188,30 @@ async function handleCancelConfirmHttp(
         }
     }
 
-    // Refund (only if money was actually deducted)
-    if (operation.userId && operation.amount && operation.amount > 0) {
-        await refundUser(operationId, operation.userId, operation.amount, 'User cancellation');
-    }
-
-    await prisma.operation.update({
-        where: { id: operationId },
+    const cancelled = await prisma.operation.updateMany({
+        where: {
+            id: operationId,
+            status: cancellationConfirmInProgress
+                ? OperationStatus.COMPLETING
+                : OperationStatus.AWAITING_FINAL_CONFIRM
+        },
         data: {
-            status: 'CANCELLED',
+            status: OperationStatus.CANCELLED,
             responseMessage: 'Operation cancelled',
             completedAt: new Date(),
             finalConfirmExpiry: null
         }
     });
+
+    if (cancelled.count === 0) {
+        console.warn(`[HTTP] CANCEL_CONFIRM update skipped for ${operationId} due to state transition race`);
+        return;
+    }
+
+    // Refund only after the guarded pre-final-payment cancellation succeeds.
+    if (operation.userId && operation.amount && operation.amount > 0) {
+        await refundUser(operationId, operation.userId, operation.amount, 'User cancellation');
+    }
 
     if (operation.userId) {
         await createNotification({
@@ -3013,6 +3246,7 @@ async function handleConfirmInstallmentHttp(
     await updateProgress(operationId, 'Processing payment...');
     console.log(`[HTTP] Executing installment payment...`);
     const payResult = await client.payInstallment();
+    const payOutcomeDecision = decideFinalPayRefundSafety(payResult, true);
 
     if (payResult.success) {
         const completed = await prisma.operation.updateMany({
@@ -3032,13 +3266,28 @@ async function handleConfirmInstallmentHttp(
             return;
         }
 
+        const ledgerResult = operation.userId
+            ? await recordConfirmedBeinSpend({
+                operationId,
+                userId: operation.userId,
+                beinAccountId: selectedAccount.id,
+                dealerBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
+                dealerBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+                evidenceSource: 'BALANCE_DELTA',
+            })
+            : null;
+        if (ledgerResult?.status === 'conflict_review_required') {
+            console.warn(`[HTTP] beIN spend ledger conflict for ${operationId}: ${ledgerResult.reason}`);
+        }
+
         const auditSnapshot = await buildOperationAuditSnapshot({
             operationId,
             userId: operation.userId || null,
             beinAccountId: selectedAccount.id,
             beinUsername: selectedAccount.username,
             beinBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
-            beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter)
+            beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+            chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
         });
         await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
 
@@ -3098,7 +3347,7 @@ async function handleConfirmInstallmentHttp(
         return;
     }
 
-    if (isAmbiguousFailure(payResult.message)) {
+    if (payOutcomeDecision.reviewRequired || !payOutcomeDecision.refundSafe) {
         const reviewRequired = await prisma.operation.updateMany({
             where: {
                 id: operationId,
@@ -3115,12 +3364,41 @@ async function handleConfirmInstallmentHttp(
             return;
         }
 
+        const ledgerResult = operation.userId
+            ? await recordConfirmedBeinSpend({
+                operationId,
+                userId: operation.userId,
+                beinAccountId: selectedAccount.id,
+                dealerBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
+                dealerBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+                evidenceSource: 'BALANCE_DELTA',
+            })
+            : null;
+        if (ledgerResult?.status === 'conflict_review_required') {
+            console.warn(`[HTTP] beIN spend ledger conflict for ${operationId}: ${ledgerResult.reason}`);
+        }
+
+        const auditSnapshot = await buildOperationAuditSnapshot({
+            operationId,
+            userId: operation.userId || null,
+            beinAccountId: selectedAccount.id,
+            beinUsername: selectedAccount.username,
+            beinBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
+            beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+            outcomeCategory: payOutcomeDecision.outcomeCategory,
+            reviewReason: payResult.message,
+            reviewSource: 'confirm-installment',
+            refundBlocked: true,
+            chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
+        });
+        await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+
         try {
             await accountPool.markAccountUsed(selectedAccount.id);
         } catch (e: unknown) {
             console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
         }
-        console.warn(`[HTTP] Installment payment for ${operationId} moved to REVIEW_REQUIRED: ${payResult.message}`);
+        console.warn(`[HTTP] Installment payment for ${operationId} moved to REVIEW_REQUIRED (${payOutcomeDecision.outcomeCategory}): ${payResult.message}`);
         return;
     }
 

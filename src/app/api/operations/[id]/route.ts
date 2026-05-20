@@ -79,6 +79,19 @@ export async function GET(
                 createdAt: true,
                 updatedAt: true,
                 userId: true,
+                chargedBeinSpendLedger: {
+                    select: {
+                        id: true,
+                        beinAccountId: true,
+                        beinUsernameSnapshot: true,
+                        beinLabelSnapshot: true,
+                        spendAmount: true,
+                        dealerBalanceBefore: true,
+                        dealerBalanceAfter: true,
+                        chargedAt: true,
+                        evidenceSource: true,
+                    },
+                },
             },
         })
 
@@ -98,8 +111,24 @@ export async function GET(
         }
 
         // Remove userId from response
-        const operationData = { ...operation }
+        const operationData = {
+            ...operation,
+            chargedBeinAccount: operation.chargedBeinSpendLedger
+                ? {
+                    ledgerId: operation.chargedBeinSpendLedger.id,
+                    beinAccountId: operation.chargedBeinSpendLedger.beinAccountId,
+                    username: operation.chargedBeinSpendLedger.beinUsernameSnapshot,
+                    label: operation.chargedBeinSpendLedger.beinLabelSnapshot,
+                    spendAmount: operation.chargedBeinSpendLedger.spendAmount,
+                    dealerBalanceBefore: operation.chargedBeinSpendLedger.dealerBalanceBefore,
+                    dealerBalanceAfter: operation.chargedBeinSpendLedger.dealerBalanceAfter,
+                    chargedAt: operation.chargedBeinSpendLedger.chargedAt,
+                    evidenceSource: operation.chargedBeinSpendLedger.evidenceSource,
+                }
+                : null,
+        }
         delete (operationData as { userId?: string }).userId
+        delete (operationData as { chargedBeinSpendLedger?: unknown }).chargedBeinSpendLedger
 
         return NextResponse.json({
             ...operationData,

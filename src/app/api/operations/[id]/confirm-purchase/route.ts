@@ -5,6 +5,7 @@ import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/ope
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { Prisma } from '@prisma/client'
+import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -62,6 +63,7 @@ export async function POST(
                 selectedPackage: true,
                 finalConfirmExpiry: true,
                 amount: true,
+                responseData: true,
             },
         })
 
@@ -111,7 +113,15 @@ export async function POST(
         // Must run BEFORE money deduction to prevent double-charging
         const confirmGuard = await prisma.operation.updateMany({
             where: { id, status: 'AWAITING_FINAL_CONFIRM' },
-            data: { status: 'COMPLETING', responseMessage: 'Confirming payment...' }
+            data: {
+                status: 'COMPLETING',
+                responseMessage: 'Confirming payment...',
+                responseData: mergeOperationPhaseEvidence(operation.responseData, {
+                    phase: 'FINAL_CONFIRMATION',
+                    jobType: 'CONFIRM_PURCHASE',
+                    finalPaySubmitted: false,
+                }),
+            }
         })
 
         if (confirmGuard.count === 0) {
@@ -135,7 +145,12 @@ export async function POST(
                         amount: 0,
                     },
                     data: {
-                        amount: dealerPrice
+                        amount: dealerPrice,
+                        responseData: mergeOperationPhaseEvidence(operation.responseData, {
+                            phase: 'FINAL_PAY_SUBMITTED',
+                            jobType: 'CONFIRM_PURCHASE',
+                            finalPaySubmitted: false,
+                        }),
                     }
                 })
 
@@ -186,6 +201,21 @@ export async function POST(
             console.log(`Operation ${id} already has amount ${operation.amount} - skipping deduction (legacy flow)`)
             finalAmount = operation.amount
             await prisma.$transaction(async (tx) => {
+                await tx.operation.updateMany({
+                    where: {
+                        id,
+                        userId: authUser.id,
+                        status: 'COMPLETING',
+                    },
+                    data: {
+                        responseData: mergeOperationPhaseEvidence(operation.responseData, {
+                            phase: 'FINAL_PAY_SUBMITTED',
+                            jobType: 'CONFIRM_PURCHASE',
+                            finalPaySubmitted: false,
+                        }),
+                    },
+                })
+
                 await createOperationDispatch(tx, {
                     operationId: id,
                     type: 'CONFIRM_PURCHASE',
@@ -222,8 +252,12 @@ export async function POST(
             // Revert status — money was NOT deducted ($transaction rolled back)
             // but status was already changed to COMPLETING at line 113
             try {
-                await prisma.operation.update({
-                    where: { id: (await params).id },
+                await prisma.operation.updateMany({
+                    where: {
+                        id: (await params).id,
+                        status: 'COMPLETING',
+                        amount: 0,
+                    },
                     data: { status: 'AWAITING_FINAL_CONFIRM', responseMessage: 'Insufficient balance - please top up' }
                 })
             } catch { /* best effort */ }

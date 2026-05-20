@@ -22,6 +22,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
 import { refundUser } from '@/lib/refund'
+import { decideRefundSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
 
 // Configuration
 const LOCK_PREFIX = 'bein:account:lock:'
@@ -102,7 +103,17 @@ export async function GET(request: Request) {
 
         for (const operation of stuckOperations) {
             try {
-                const shouldRefund = operation.amount > 0
+                const refundDecision = decideRefundSafety({
+                    operationId: operation.id,
+                    operationStatus: operation.status,
+                    operationAmount: operation.amount,
+                    operationResponseData: operation.responseData,
+                    phaseEvidence: getOperationPhaseEvidence(operation.responseData),
+                    customerDeductTransactionExists: operation.amount > 0,
+                    refundTransactionExists: false,
+                })
+                const requiresReview = operation.amount > 0 && refundDecision.reviewRequired
+                const shouldRefund = operation.amount > 0 && refundDecision.refundAllowed
 
                 // Determine expiry reason
                 let expiryReason = 'Operation timeout - heartbeat not received from browser'
@@ -130,9 +141,11 @@ export async function GET(request: Request) {
                             ]
                         },
                         data: {
-                            status: 'EXPIRED',
+                            status: requiresReview ? 'REVIEW_REQUIRED' : 'EXPIRED',
                             error: expiryReason,
-                            responseMessage: shouldRefund
+                            responseMessage: requiresReview
+                                ? `${expiryReason} - manual review required before any refund (${refundDecision.reason})`
+                                : shouldRefund
                                 ? `${expiryReason} - amount auto-refunded`
                                 : expiryReason,
                             completedAt: now,
@@ -153,6 +166,8 @@ export async function GET(request: Request) {
                                 title: 'Operation timeout',
                                 message: shouldRefund
                                     ? `Operation auto-cancelled and ${operation.amount} SAR refunded. Reason: ${expiryReason}`
+                                    : requiresReview
+                                    ? `Operation requires manual review before refund. Reason: ${expiryReason}`
                                     : `Operation auto-cancelled. Reason: ${expiryReason}`,
                                 type: 'warning',
                                 link: `/dashboard/operations/${operation.id}`
@@ -172,6 +187,8 @@ export async function GET(request: Request) {
                                     lastHeartbeat: operation.lastHeartbeat?.toISOString() || null,
                                     heartbeatExpiry: operation.heartbeatExpiry?.toISOString() || null,
                                     refunded: shouldRefund ? operation.amount : 0,
+                                    reviewRequired: requiresReview,
+                                    refundDecision: refundDecision.reason,
                                     reason: expiryReason
                                 },
                                 ipAddress: 'cleanup-cron'

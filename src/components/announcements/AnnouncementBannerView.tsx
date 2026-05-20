@@ -234,7 +234,7 @@ function useReducedMotionPreference() {
 
 function clampSliderInterval(intervalMs?: number) {
     if (!intervalMs || Number.isNaN(intervalMs)) {
-        return 5000
+        return 4800
     }
 
     return Math.min(Math.max(intervalMs, MIN_SLIDER_INTERVAL_MS), MAX_SLIDER_INTERVAL_MS)
@@ -264,7 +264,6 @@ function TickerStrip({
     reducedMotion: boolean
 }) {
     const direction = getEffectiveTickerDirection(ticker)
-    const animationDirection = direction === 'ltr' ? 'ltr' : 'rtl'
 
     if (!ticker.enabled || ticker.text.trim().length === 0) {
         return null
@@ -272,18 +271,17 @@ function TickerStrip({
 
     return (
         <div
-            className="announcement-ticker-strip overflow-hidden border-y border-white/10 px-0 py-2"
+            className="overflow-hidden border-y border-white/10 bg-[#1f1f26]/80 px-0 py-3 backdrop-blur-xl"
             style={{
-                backgroundColor: ticker.backgroundColor || '#111827',
+                backgroundColor: ticker.backgroundColor || undefined,
                 color: ticker.textColor || '#ffffff',
             }}
             dir={direction === 'auto' ? 'auto' : direction}
         >
             <div
                 className={cn(
-                    'announcement-ticker-content inline-block min-w-full whitespace-nowrap px-4 text-sm font-semibold',
-                    !reducedMotion && animationDirection === 'rtl' && 'announcement-ticker-rtl',
-                    !reducedMotion && animationDirection === 'ltr' && 'announcement-ticker-ltr',
+                    'stitch-label px-4 text-[#c0caae]',
+                    !reducedMotion && 'stitch-ticker-track',
                     reducedMotion && 'text-center'
                 )}
                 style={{ animationDuration: getTickerDuration(ticker.speed) }}
@@ -317,7 +315,9 @@ function AnnouncementSlider({
             return []
         }
 
-        return [0, 1, 2].map((offset) => slides[(activeIndex + offset) % slides.length])
+        return Array.from({ length: Math.min(3, slides.length) }, (_, offset) => (
+            slides[(activeIndex + offset) % slides.length]
+        ))
     }, [activeIndex, slides])
 
     useEffect(() => {
@@ -342,60 +342,86 @@ function AnnouncementSlider({
 
     return (
         <section
-            className="relative w-full"
+            className="relative w-full stitch-announcement-stage"
             aria-roledescription="carousel"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
             onFocus={() => setIsPaused(true)}
             onBlur={() => setIsPaused(false)}
         >
-            <div className={cn('grid gap-3', previewMode ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3')}>
+            <div className={cn('relative w-full pr-12', previewMode ? 'aspect-[21/10]' : 'aspect-[21/9]')}>
                 {visibleSlides.map((slide, index) => {
                     const imageSrc = resolveUploadedImageSrc(slide.imageUrl)
+                    const layerClass = index === 0
+                        ? 'stitch-card-front'
+                        : index === 1
+                            ? 'stitch-card-middle'
+                            : 'stitch-card-back'
                     const card = (
                         <article
                             className={cn(
-                                'group overflow-hidden rounded-lg border border-white/15 bg-black/55 shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-md',
-                                index === 1 && 'hidden sm:block',
-                                index === 2 && 'hidden xl:block'
+                                'stitch-announcement-card overflow-hidden rounded-xl border border-white/10 bg-[#131319]/60 shadow-2xl backdrop-blur-xl',
+                                layerClass
                             )}
                         >
-                            <div className="aspect-video w-full overflow-hidden bg-black/70">
-                                {imageSrc && (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img
-                                        src={imageSrc}
-                                        alt={slide.imageAlt || slide.title || 'Announcement slide'}
-                                        className={cn('h-full w-full', getImageFitClass(slide.imageFit))}
-                                        loading={index === 0 ? 'eager' : 'lazy'}
-                                    />
-                                )}
-                            </div>
+                            {imageSrc && (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                    src={imageSrc}
+                                    alt={slide.imageAlt || slide.title || 'Announcement slide'}
+                                    className={cn(
+                                        'absolute inset-0 h-full w-full',
+                                        getImageFitClass(slide.imageFit),
+                                        index === 0 ? 'opacity-80' : 'opacity-60 mix-blend-luminosity'
+                                    )}
+                                    loading={index === 0 ? 'eager' : 'lazy'}
+                                />
+                            )}
+                            <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#0e0e14] via-[#0e0e14]/80 to-transparent" />
+                            <div className="absolute left-0 top-0 z-20 h-1 w-full bg-[#571bc1]" />
                             {(slide.title || slide.description || slide.linkLabel) && (
-                                <div className="space-y-2 p-3 text-start">
+                                <div className="absolute inset-0 z-20 flex flex-col justify-end p-8 text-start">
                                     {slide.title && (
-                                        <h3 className="text-sm font-bold leading-5 text-white">
+                                        <div className="mb-4 w-fit rounded border border-[#571bc1]/50 bg-[#571bc1]/20 px-3 py-1">
+                                            <span className="stitch-label text-[#d0bcff]">Announcement</span>
+                                        </div>
+                                    )}
+                                    {slide.title && (
+                                        <h3 className={cn(
+                                            'mb-3 font-bold leading-tight text-white drop-shadow-lg',
+                                            previewMode ? 'text-2xl' : 'text-4xl'
+                                        )}>
                                             {slide.title}
                                         </h3>
                                     )}
                                     {slide.description && (
-                                        <p className="line-clamp-2 text-xs leading-5 text-white/75">
+                                        <p className={cn(
+                                            'mb-6 max-w-3xl leading-relaxed text-[#c0caae]',
+                                            previewMode ? 'line-clamp-2 text-sm' : 'text-lg'
+                                        )}>
                                             {slide.description}
                                         </p>
                                     )}
                                     {slide.linkLabel && slide.linkUrl && (
-                                        <span className="inline-flex rounded-md border border-white/20 px-2.5 py-1 text-xs font-semibold text-white/90 transition group-hover:border-white/40 group-hover:bg-white/10">
+                                        <span className="inline-flex w-fit items-center rounded border border-[#9ffb06]/50 bg-[#1f1f26] px-6 py-3 stitch-label text-[#9ffb06] transition hover:bg-[#9ffb06]/10">
                                             {slide.linkLabel}
                                         </span>
                                     )}
                                 </div>
                             )}
+                            {!slide.title && !slide.description && !slide.linkLabel && (
+                                <div className="absolute inset-0 z-20 flex items-end p-8">
+                                    <div className="w-fit rounded border border-[#571bc1]/50 bg-[#571bc1]/20 px-3 py-1">
+                                        <span className="stitch-label text-[#d0bcff]">Announcement</span>
+                                    </div>
+                                </div>
+                            )}
                         </article>
                     )
 
-                    if (slide.linkUrl) {
+                    if (slide.linkUrl && index === 0) {
                         return (
-                            <a key={`${slide.id}-${index}`} href={slide.linkUrl} className="block focus:outline-none focus:ring-2 focus:ring-white/60">
+                            <a key={`${slide.id}-${index}`} href={slide.linkUrl} className="block focus:outline-none focus:ring-2 focus:ring-[#9ffb06]/70">
                                 {card}
                             </a>
                         )
@@ -406,22 +432,22 @@ function AnnouncementSlider({
             </div>
 
             {canNavigate && (
-                <div className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center justify-between px-2">
+                <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-30 flex items-center justify-between px-3">
                     <button
                         type="button"
                         aria-label="Previous announcement slide"
                         onClick={goPrevious}
-                        className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white shadow-lg backdrop-blur transition hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white/70"
+                        className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#1f1f26]/80 text-[#c0caae] shadow-lg backdrop-blur transition hover:border-[#9ffb06]/50 hover:text-[#9ffb06] focus:outline-none focus:ring-2 focus:ring-[#9ffb06]/70"
                     >
-                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                     </button>
                     <button
                         type="button"
                         aria-label="Next announcement slide"
                         onClick={goNext}
-                        className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white shadow-lg backdrop-blur transition hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white/70"
+                        className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#1f1f26]/80 text-[#c0caae] shadow-lg backdrop-blur transition hover:border-[#9ffb06]/50 hover:text-[#9ffb06] focus:outline-none focus:ring-2 focus:ring-[#9ffb06]/70"
                     >
-                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
                     </button>
                 </div>
             )}

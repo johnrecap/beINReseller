@@ -37,6 +37,12 @@ interface SidebarProps {
     onClose: () => void
 }
 
+type SidebarLink = {
+    href: string
+    label: string
+    icon: typeof Home
+}
+
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname()
     const { data: session, status } = useSession()
@@ -112,6 +118,45 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         await signOut({ callbackUrl: '/login' })
     }
 
+    const activeBorderClass = dir === 'rtl' ? 'border-l-2' : 'border-r-2'
+    const activeOffsetClass = dir === 'rtl' ? '-translate-x-1' : 'translate-x-1'
+    const renderNavLink = (link: SidebarLink, exact = false) => {
+        const Icon = link.icon
+        const isActive = exact ? pathname === link.href : pathname === link.href || pathname.startsWith(link.href + '/')
+
+        return (
+            <Link
+                key={link.href}
+                href={link.href}
+                onClick={onClose}
+                className={cn(
+                    "group flex items-center gap-4 px-6 py-3 transition-all duration-200 active:scale-95",
+                    "text-[#c0caae] hover:bg-white/5 hover:text-[#9ffb06]",
+                    isActive && [
+                        activeOffsetClass,
+                        "bg-[#571bc1]/30 text-[#d0bcff]",
+                        activeBorderClass,
+                        "border-[#9ffb06]",
+                    ]
+                )}
+            >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="stitch-label truncate">{link.label}</span>
+            </Link>
+        )
+    }
+
+    const renderSection = (title: string, links: SidebarLink[], exact = false) => (
+        <div>
+            <h4 className="mb-2 px-6 stitch-label text-[#c0caae]/70">
+                {title}
+            </h4>
+            <div className="flex flex-col">
+                {links.map((link) => renderNavLink(link, exact))}
+            </div>
+        </div>
+    )
+
     // Sidebar Skeleton
     if (status === 'loading') {
         return (
@@ -124,12 +169,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     />
                 )}
 
-                <aside
-                    className={cn(
-                        "fixed top-0 bottom-0 z-[var(--z-modal)] w-[var(--sidebar-width)] transition-transform duration-300 ease-in-out bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl lg:shadow-none",
-                        dir === 'rtl' ? "right-0 border-l border-r-0" : "left-0",
-                        isOpen ? "translate-x-0" : (dir === 'rtl' ? "translate-x-full" : "-translate-x-full"),
-                        "lg:translate-x-0"
+            <aside
+                className={cn(
+                    "stitch-sidebar fixed top-0 bottom-0 z-[var(--z-modal)] w-[var(--sidebar-width)] transition-transform duration-300 ease-in-out border-r",
+                    dir === 'rtl' ? "right-0 border-l border-r-0" : "left-0",
+                    isOpen ? "translate-x-0" : (dir === 'rtl' ? "translate-x-full" : "-translate-x-full"),
+                    "lg:translate-x-0"
                     )}
                     dir={dir}
                 >
@@ -173,9 +218,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             )}
 
             {/* Sidebar */}
-            <aside
-                className={cn(
-                    "fixed top-0 bottom-0 z-[var(--z-modal)] w-[var(--sidebar-width)] transition-transform duration-300 ease-in-out bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl lg:shadow-none",
+                <aside
+                    className={cn(
+                    "stitch-sidebar fixed top-0 bottom-0 z-[var(--z-modal)] w-[var(--sidebar-width)] transition-transform duration-300 ease-in-out border-r",
                     dir === 'rtl' ? "right-0 border-l border-r-0" : "left-0",
                     isOpen ? "translate-x-0" : (dir === 'rtl' ? "translate-x-full" : "-translate-x-full"),
                     "lg:translate-x-0"
@@ -184,130 +229,59 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             >
                 <div className="flex h-full flex-col">
                     {/* Header */}
-                    <div className="flex h-16 items-center px-6 border-b border-sidebar-border">
-                        <span className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                            Desh Panel
-                        </span>
-                        <div className="ml-auto lg:hidden">
-                            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 text-sidebar-foreground">
-                                <X className="h-5 w-5" />
-                            </Button>
+                    <div className="border-b border-white/5 px-6 py-8">
+                        <div className="mb-3 flex items-center gap-3">
+                            <div className="h-2 w-2 rounded-full bg-[#9ffb06] shadow-[0_0_10px_#9ffb06]" />
+                            <span className="stitch-label text-[#c0caae]">System Status Indicator</span>
+                            <div className={cn("lg:hidden", dir === 'rtl' ? "mr-auto" : "ml-auto")}>
+                                <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 text-[#c0caae] hover:text-[#9ffb06]">
+                                    <X className="h-5 w-5" />
+                                </Button>
+                            </div>
                         </div>
+                        <h2 className="text-2xl font-bold uppercase tracking-tight text-[#9ffb06] drop-shadow-[0_0_10px_rgba(163,255,18,0.3)]">
+                            Desh Panel
+                        </h2>
+                        <p className="mt-1 text-sm text-[#c0caae]">
+                            {session?.user?.role?.toLowerCase() || 'user'} active
+                        </p>
                     </div>
 
                     {/* Navigation */}
-                    <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 scrollbar-thin scrollbar-thumb-sidebar-accent scrollbar-track-transparent">
+                    <div className="flex-1 overflow-y-auto py-6 space-y-6 scrollbar-thin scrollbar-thumb-[#35343b] scrollbar-track-transparent">
 
                         {/* Reseller Menu */}
-                        <div>
-                            <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
-                                {t.sidebar.mainMenu}
-                            </h4>
-                            <div className="space-y-1">
-                                {resellerLinks.map((link) => {
-                                    const Icon = link.icon
-                                    const isActive = pathname === link.href
-                                    return (
-                                        <Link
-                                            key={link.href}
-                                            href={link.href}
-                                            onClick={onClose}
-                                            className={cn(
-                                                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                                                isActive
-                                                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                                                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
-                                            )}
-                                        >
-                                            <Icon className="h-4 w-4" />
-                                            {link.label}
-                                        </Link>
-                                    )
-                                })}
-                            </div>
-                        </div>
+                        {renderSection(t.sidebar.mainMenu, resellerLinks, true)}
 
 
                         {/* Manager Menu */}
                         {isManager && (
-                            <div>
-                                <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
-                                    {t.sidebar.managerPanel}
-                                </h4>
-                                <div className="space-y-1">
-                                    {managerLinks.map((link) => {
-                                        const Icon = link.icon
-                                        const isActive = pathname === link.href || pathname.startsWith(link.href + '/')
-                                        return (
-                                            <Link
-                                                key={link.href}
-                                                href={link.href}
-                                                onClick={onClose}
-                                                className={cn(
-                                                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                                                    isActive
-                                                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                                                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
-                                                )}
-                                            >
-                                                <Icon className="h-4 w-4" />
-                                                {link.label}
-                                            </Link>
-                                        )
-                                    })}
-                                </div>
-                            </div>
+                            renderSection(t.sidebar.managerPanel, managerLinks)
                         )}
 
                         {/* Admin Menu */}
                         {isAdmin && (
-                            <div>
-                                <h4 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60">
-                                    {t.sidebar.admin}
-                                </h4>
-                                <div className="space-y-1">
-                                    {adminLinks.map((link) => {
-                                        const Icon = link.icon
-                                        const isActive = pathname === link.href || pathname.startsWith(link.href + '/')
-                                        return (
-                                            <Link
-                                                key={link.href}
-                                                href={link.href}
-                                                onClick={onClose}
-                                                className={cn(
-                                                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                                                    isActive
-                                                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                                                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
-                                                )}
-                                            >
-                                                <Icon className="h-4 w-4" />
-                                                {link.label}
-                                            </Link>
-                                        )
-                                    })}
-                                </div>
-                            </div>
+                            renderSection(t.sidebar.admin, adminLinks)
                         )}
 
                     </div>
 
                     {/* Footer / User Profile */}
-                    <div className="border-t border-sidebar-border p-4 bg-sidebar-accent/30">
+                    <div className="border-t border-white/5 bg-[#1b1b22]/40 p-6">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-primary text-white">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[#2a2930] text-[#9ffb06]">
                                 <User className="h-4 w-4" />
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-sm font-medium text-white">{session?.user?.username}</span>
-                                <span className="text-xs text-sidebar-foreground/60 capitalize">
+                                <span className="text-xs capitalize text-[#c0caae]">
                                     {session?.user?.role?.toLowerCase() || 'User'}
                                 </span>
                             </div>
                         </div>
                         <Button
                             variant="outline"
-                            className="w-full justify-start gap-2 border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
+                            className="w-full justify-start gap-2 rounded border-white/10 bg-transparent text-[#c0caae] hover:bg-white/5 hover:text-[#9ffb06]"
                             onClick={handleLogout}
                         >
                             <LogOut className="h-4 w-4" />

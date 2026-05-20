@@ -183,7 +183,7 @@ export default function RenewWizardPage() {
     const isAdmin = session?.user?.role === 'ADMIN'
     const searchParams = useSearchParams()
     const { balance, refetch: refetchBalance } = useBalance()
-    const { isMaintenanceMode, maintenanceMessage, isLoading: isMaintenanceLoading, isInstallmentDevMode } = useMaintenance()
+    const { isMaintenanceMode, maintenanceMessage, maintenancePauseUntil, isLoading: isMaintenanceLoading, isInstallmentDevMode } = useMaintenance()
 
     // State
     const [renewalMode, setRenewalMode] = useState<RenewalMode>('package-renewal')
@@ -605,7 +605,7 @@ export default function RenewWizardPage() {
         <div className="container max-w-full mx-auto py-8 px-[var(--space-lg)] md:overflow-x-auto">
             {/* Maintenance Mode Overlay - blocks interaction when enabled (admin bypasses) */}
             {!isMaintenanceLoading && isMaintenanceMode && !isAdmin && (
-                <MaintenanceOverlay message={maintenanceMessage} />
+                <MaintenanceOverlay message={maintenanceMessage} pauseUntil={maintenancePauseUntil} />
             )}
 
             <div className="text-center mb-8">

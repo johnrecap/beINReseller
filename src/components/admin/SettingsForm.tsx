@@ -39,8 +39,16 @@ export default function SettingsForm() {
         // Checkbox handling
         if (!formData.get('maintenance_mode')) {
             data['maintenance_mode'] = 'false'
+            data['maintenance_pause_until'] = ''
         } else {
             data['maintenance_mode'] = 'true'
+            const durationValue = Number(formData.get('maintenance_pause_duration_value') || 0)
+            const durationUnit = String(formData.get('maintenance_pause_duration_unit') || 'hours')
+
+            if (Number.isFinite(durationValue) && durationValue > 0) {
+                const multiplier = durationUnit === 'days' ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000
+                data['maintenance_pause_until'] = new Date(Date.now() + durationValue * multiplier).toISOString()
+            }
         }
 
         if (!formData.get('installment_dev_mode')) {
@@ -100,6 +108,38 @@ export default function SettingsForm() {
                             className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground"
                             placeholder={t.admin.settings.fields.maintenancePlaceholder}
                         />
+                    </div>
+
+                    <div className="stitch-glass rounded-lg p-4">
+                        <div className="mb-4">
+                            <span className="stitch-label text-[#9ffb06]">Operation Pause Timer</span>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Set the countdown shown on the maintenance waiting screen.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <label className="text-sm font-medium text-foreground">
+                                Duration
+                                <input
+                                    name="maintenance_pause_duration_value"
+                                    type="number"
+                                    min={1}
+                                    defaultValue={settings.maintenance_pause_duration_value || '4'}
+                                    className="mt-2 w-full rounded-lg border border-white/10 bg-[#0e0e14] px-4 py-3 font-mono text-foreground outline-none focus:border-[#571bc1] focus:ring-1 focus:ring-[#571bc1]"
+                                />
+                            </label>
+                            <label className="text-sm font-medium text-foreground">
+                                Unit
+                                <select
+                                    name="maintenance_pause_duration_unit"
+                                    defaultValue={settings.maintenance_pause_duration_unit || 'hours'}
+                                    className="mt-2 w-full rounded-lg border border-white/10 bg-[#0e0e14] px-4 py-3 text-foreground outline-none focus:border-[#571bc1] focus:ring-1 focus:ring-[#571bc1]"
+                                >
+                                    <option value="hours">Hours</option>
+                                    <option value="days">Days</option>
+                                </select>
+                            </label>
+                        </div>
                     </div>
 
                     <div>

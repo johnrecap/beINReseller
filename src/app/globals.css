@@ -258,6 +258,120 @@
 }
 
 /* Simple Input - No glows */
+
+/* Stitch exact dashboard surfaces */
+.stitch-grid-bg {
+  background-color: #05050a;
+  background-image:
+    linear-gradient(rgba(139, 92, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center top;
+}
+
+.stitch-glass {
+  background-color: rgba(30, 30, 46, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.stitch-sidebar {
+  background-color: rgba(14, 14, 20, 0.8);
+  border-color: rgba(255, 255, 255, 0.05);
+  box-shadow: 20px 0 40px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+[dir="rtl"] .stitch-sidebar {
+  box-shadow: -20px 0 40px rgba(0, 0, 0, 0.4);
+}
+
+.stitch-label {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.stitch-lime {
+  color: #9ffb06;
+}
+
+.stitch-purple {
+  color: #d0bcff;
+}
+
+.stitch-tech-glow {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+}
+
+.stitch-lime-glow {
+  box-shadow: 0 0 20px rgba(163, 255, 18, 0.15);
+}
+
+.stitch-announcement-stage {
+  perspective: 1200px;
+}
+
+.stitch-announcement-card {
+  position: absolute;
+  inset: 0;
+  transform-origin: center right;
+  transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.stitch-card-front {
+  transform: translateZ(0) translateX(0) scale(1);
+  opacity: 1;
+  z-index: 3;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8);
+  filter: blur(0);
+}
+
+.stitch-card-middle {
+  transform: translateZ(-60px) translateX(30px) scale(0.95);
+  opacity: 0.7;
+  z-index: 2;
+  filter: blur(1px);
+}
+
+.stitch-card-back {
+  transform: translateZ(-120px) translateX(60px) scale(0.9);
+  opacity: 0.3;
+  z-index: 1;
+  filter: blur(2px);
+}
+
+.stitch-ticker-track {
+  display: inline-block;
+  min-width: 100%;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: stitchTickerScroll 20s linear infinite;
+}
+
+@keyframes stitchTickerScroll {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.stitch-perspective-grid {
+  background-image:
+    linear-gradient(to right, rgba(139, 92, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(139, 92, 246, 0.05) 1px, transparent 1px);
+  background-size: 50px 50px;
+  transform: perspective(500px) rotateX(60deg);
+  transform-origin: top;
+}
 .simple-input {
   background: #141720;
   border: 1px solid #2a2f3a;

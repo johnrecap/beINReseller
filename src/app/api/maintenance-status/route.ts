@@ -11,15 +11,17 @@ import prisma from '@/lib/prisma'
 export async function GET() {
     try {
         // Fetch maintenance settings
-        const [maintenanceMode, maintenanceMessage, installmentDevMode] = await Promise.all([
+        const [maintenanceMode, maintenanceMessage, maintenancePauseUntil, installmentDevMode] = await Promise.all([
             prisma.setting.findUnique({ where: { key: 'maintenance_mode' } }),
             prisma.setting.findUnique({ where: { key: 'maintenance_message' } }),
+            prisma.setting.findUnique({ where: { key: 'maintenance_pause_until' } }),
             prisma.setting.findUnique({ where: { key: 'installment_dev_mode' } })
         ])
 
         return NextResponse.json({
             maintenance_mode: maintenanceMode?.value === 'true',
             maintenance_message: maintenanceMessage?.value || 'System under maintenance, please try again later',
+            maintenance_pause_until: maintenancePauseUntil?.value || null,
             installment_dev_mode: installmentDevMode?.value === 'true'
         })
 
@@ -28,7 +30,8 @@ export async function GET() {
         // On error, return not in maintenance to avoid blocking users
         return NextResponse.json({
             maintenance_mode: false,
-            maintenance_message: ''
+            maintenance_message: '',
+            maintenance_pause_until: null
         })
     }
 }

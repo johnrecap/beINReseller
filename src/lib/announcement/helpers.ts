@@ -194,7 +194,7 @@ export function buildPublicAnnouncementDto(banner: AnnouncementBannerLike) {
         imageFit: banner.imageFit ?? 'cover',
         sliderEnabled,
         sliderAutoplay: Boolean(banner.sliderAutoplay),
-        sliderIntervalMs: banner.sliderIntervalMs ?? 5000,
+        sliderIntervalMs: banner.sliderIntervalMs ?? 4800,
         ticker: tickerEnabled
             ? {
                 enabled: true,

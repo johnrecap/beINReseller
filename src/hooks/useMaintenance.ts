@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 interface MaintenanceStatus {
     isMaintenanceMode: boolean
     maintenanceMessage: string
+    maintenancePauseUntil: string | null
     isInstallmentDevMode: boolean
     isLoading: boolean
     refetch: () => Promise<void>
@@ -17,6 +18,7 @@ interface MaintenanceStatus {
 export function useMaintenance(): MaintenanceStatus {
     const [isMaintenanceMode, setIsMaintenanceMode] = useState(false)
     const [maintenanceMessage, setMaintenanceMessage] = useState('')
+    const [maintenancePauseUntil, setMaintenancePauseUntil] = useState<string | null>(null)
     const [isInstallmentDevMode, setIsInstallmentDevMode] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
 
@@ -28,6 +30,7 @@ export function useMaintenance(): MaintenanceStatus {
             const data = await res.json()
             setIsMaintenanceMode(data.maintenance_mode === true || data.maintenance_mode === 'true')
             setMaintenanceMessage(data.maintenance_message || 'System is under maintenance, please try again later')
+            setMaintenancePauseUntil(data.maintenance_pause_until || null)
             setIsInstallmentDevMode(data.installment_dev_mode === true || data.installment_dev_mode === 'true')
         } catch (error) {
             console.error('Failed to check maintenance status:', error)
@@ -51,6 +54,7 @@ export function useMaintenance(): MaintenanceStatus {
     return {
         isMaintenanceMode,
         maintenanceMessage,
+        maintenancePauseUntil,
         isInstallmentDevMode,
         isLoading,
         refetch: checkMaintenance

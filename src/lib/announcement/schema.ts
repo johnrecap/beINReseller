@@ -157,7 +157,7 @@ export const createAnnouncementSchema = z
         imageFit: imageFitField.default('cover'),
         sliderEnabled: z.boolean().default(false),
         sliderAutoplay: z.boolean().default(false),
-        sliderIntervalMs: sliderIntervalField.default(5000),
+        sliderIntervalMs: sliderIntervalField.default(4800),
         sliderCardsDesktop: z.number().int().min(1).max(6).default(3),
         sliderCardsTablet: z.number().int().min(1).max(4).default(2),
         sliderCardsMobile: z.number().int().min(1).max(2).default(1),

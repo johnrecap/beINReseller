@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
+import BrandLogo from '@/components/brand/BrandLogo'
 
 interface MaintenanceOverlayProps {
     message?: string
@@ -66,10 +67,8 @@ export default function MaintenanceOverlay({ message, pauseUntil }: MaintenanceO
             <main className="relative z-10 w-full max-w-4xl">
                 <div className="stitch-glass stitch-tech-glow flex flex-col items-center rounded-xl p-8 text-center md:p-12">
                     <div className="mb-12">
-                        <h1 className="text-5xl font-extrabold tracking-tight text-[#9ffb06] drop-shadow-[0_0_10px_rgba(163,255,18,0.3)]">
-                            DESH PANEL
-                        </h1>
-                        <div className="mx-auto mt-4 h-px w-32 bg-gradient-to-r from-transparent via-[#9ffb06] to-transparent opacity-50" />
+                        <BrandLogo className="mx-auto h-36 w-full max-w-md rounded-2xl" />
+                        <div className="mx-auto mt-5 h-px w-40 bg-gradient-to-r from-transparent via-[#9ffb06] to-transparent opacity-60" />
                     </div>
 
                     <div className="mb-16 max-w-2xl space-y-4">

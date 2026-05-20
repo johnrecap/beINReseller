@@ -1,10 +1,10 @@
 'use client'
 
 import { Suspense, useEffect } from 'react'
-import Image from 'next/image'
 import LoginForm from "@/components/auth/LoginForm"
 import { LoginCard } from "@/components/auth/LoginCard"
 import { useTranslation } from '@/hooks/useTranslation'
+import BrandLogo from '@/components/brand/BrandLogo'
 
 function LoginPageContent() {
     const { t } = useTranslation()
@@ -41,18 +41,8 @@ function LoginPageContent() {
                     {/* Logo with Breathing Animation */}
                     <div className="mb-8 text-center">
                         <div className="logo-breathe mb-4">
-                            <Image
-                                src="/images/logo.png"
-                                alt="Desh Panel"
-                                width={280}
-                                height={80}
-                                className="mx-auto"
-                                priority
-                            />
+                            <BrandLogo className="mx-auto h-32 w-72 rounded-2xl" compact />
                         </div>
-                        <h1 className="text-2xl font-bold text-white mb-1">
-                            Desh Panel
-                        </h1>
                         <p className="text-slate-500 text-sm">
                             Reseller Management System
                         </p>

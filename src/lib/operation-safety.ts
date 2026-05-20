@@ -11,6 +11,7 @@ export const TERMINAL_OPERATION_STATUSES = new Set<OperationStatus>([
 export const OPERATION_PHASES = [
     'PACKAGE_PREPARATION',
     'FINAL_CONFIRMATION',
+    'FINAL_CONFIRMATION_REQUESTED',
     'CANCELLATION_CONFIRM',
     'FINAL_PAY_SUBMITTED',
     'POST_FINAL_PAY_REVIEW',
@@ -81,10 +82,25 @@ export function isTerminalOperationStatus(status: OperationStatus | null | undef
     return !!status && TERMINAL_OPERATION_STATUSES.has(status)
 }
 
-export function getOperationPhaseEvidence(input: unknown): OperationPhaseEvidence | null {
-    if (!input || typeof input !== 'object') return null
+export function parseOperationResponseData(input: unknown): Record<string, unknown> {
+    if (!input) return {}
+    if (typeof input === 'string') {
+        try {
+            const parsed = JSON.parse(input)
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                ? parsed as Record<string, unknown>
+                : {}
+        } catch {
+            return {}
+        }
+    }
+    return typeof input === 'object' && !Array.isArray(input)
+        ? input as Record<string, unknown>
+        : {}
+}
 
-    const data = input as Record<string, unknown>
+export function getOperationPhaseEvidence(input: unknown): OperationPhaseEvidence | null {
+    const data = parseOperationResponseData(input)
     const phase = data.operationPhase ?? data.phase
 
     if (typeof phase !== 'string' || !OPERATION_PHASES.includes(phase as OperationPhase)) {
@@ -107,9 +123,7 @@ export function mergeOperationPhaseEvidence(
     responseData: unknown,
     evidence: OperationPhaseEvidence
 ): Prisma.InputJsonObject {
-    const base = responseData && typeof responseData === 'object' && !Array.isArray(responseData)
-        ? responseData as Prisma.InputJsonObject
-        : {}
+    const base = parseOperationResponseData(responseData) as Prisma.InputJsonObject
 
     return {
         ...base,
@@ -134,7 +148,8 @@ export function hasFinalPayStarted(input: OperationSafetyInput): boolean {
     if (
         phaseEvidence?.phase === 'PACKAGE_PREPARATION' ||
         phaseEvidence?.phase === 'CANCELLATION_CONFIRM' ||
-        phaseEvidence?.phase === 'FINAL_CONFIRMATION'
+        phaseEvidence?.phase === 'FINAL_CONFIRMATION' ||
+        phaseEvidence?.phase === 'FINAL_CONFIRMATION_REQUESTED'
     ) {
         return false
     }

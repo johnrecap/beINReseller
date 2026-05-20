@@ -2197,7 +2197,10 @@ export class HttpClientService {
      * 5. Get balance AFTER purchase
      * 6. SUCCESS if balance decreased, FAIL otherwise
      */
-    async confirmPurchase(expectedCost?: number): Promise<PurchaseResult> {
+    async confirmPurchase(
+        expectedCost?: number,
+        onFinalPaySubmitted?: () => Promise<void>
+    ): Promise<PurchaseResult> {
         console.log('[HTTP] Confirming purchase...');
         let finalPaySubmitted = false;
 
@@ -2300,6 +2303,9 @@ export class HttpClientService {
 
             console.log('[HTTP] POST Pay (Direct Payment)...');
             finalPaySubmitted = true;
+            if (onFinalPaySubmitted) {
+                await onFinalPaySubmitted();
+            }
             res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(payFormData),

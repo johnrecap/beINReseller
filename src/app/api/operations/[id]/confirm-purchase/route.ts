@@ -147,7 +147,7 @@ export async function POST(
                     data: {
                         amount: dealerPrice,
                         responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                            phase: 'FINAL_PAY_SUBMITTED',
+                            phase: 'FINAL_CONFIRMATION',
                             jobType: 'CONFIRM_PURCHASE',
                             finalPaySubmitted: false,
                         }),
@@ -209,7 +209,7 @@ export async function POST(
                     },
                     data: {
                         responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                            phase: 'FINAL_PAY_SUBMITTED',
+                            phase: 'FINAL_CONFIRMATION',
                             jobType: 'CONFIRM_PURCHASE',
                             finalPaySubmitted: false,
                         }),

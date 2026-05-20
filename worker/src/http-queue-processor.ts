@@ -113,7 +113,12 @@ function hasFinalPaymentStarted(
 
     if (data.finalPaySubmitted === true) return true;
     if (phase === 'FINAL_PAY_SUBMITTED' || phase === 'POST_FINAL_PAY_REVIEW') return true;
-    if (phase === 'PACKAGE_PREPARATION' || phase === 'CANCELLATION_CONFIRM' || phase === 'FINAL_CONFIRMATION') {
+    if (
+        phase === 'PACKAGE_PREPARATION' ||
+        phase === 'CANCELLATION_CONFIRM' ||
+        phase === 'FINAL_CONFIRMATION' ||
+        phase === 'FINAL_CONFIRMATION_REQUESTED'
+    ) {
         return false;
     }
 
@@ -1468,7 +1473,7 @@ async function handleCompletePurchaseHttp(
         );
 
         if (attemptResult.success) {
-            console.log(`[HTTP] ✅ Purchase completed successfully on attempt ${attemptNumber}`);
+            console.log(`[HTTP] Purchase prepared for final confirmation on attempt ${attemptNumber}`);
             return;
         }
 
@@ -1570,17 +1575,17 @@ async function attemptPurchaseWithAccount(
 
         if (isOriginalAccount && operation.responseData) {
             try {
-                const savedData = JSON.parse(operation.responseData as string);
+                const savedData = parseResponseDataObject(operation.responseData);
 
                 // Validate session age
-                if (savedData.savedAt) {
+                if (typeof savedData.savedAt === 'string') {
                     validateSessionAge(savedData.savedAt, 'completePurchase');
                 }
 
                 const restored = await restoreOperationSession(operationId, operation.responseData, client);
                 if (restored) console.log(`[HTTP] Restored operation-scoped session`);
 
-                dealerBalance = savedData.dealerBalance;
+                dealerBalance = typeof savedData.dealerBalance === 'number' ? savedData.dealerBalance : undefined;
             } catch (parseError: unknown) {
                 console.log(`[HTTP] ⚠️ Could not restore saved session: ${getErrMsg(parseError)}`);
             }
@@ -1590,8 +1595,8 @@ async function attemptPurchaseWithAccount(
         let savedSmartcardType = 'CISCO';
         try {
             if (operation.responseData) {
-                const savedData = JSON.parse(operation.responseData as string);
-                savedSmartcardType = savedData.smartcardType || 'CISCO';
+                const savedData = parseResponseDataObject(operation.responseData);
+                savedSmartcardType = typeof savedData.smartcardType === 'string' ? savedData.smartcardType : 'CISCO';
             }
         } catch { /* ignore parse errors */ }
 
@@ -1907,10 +1912,10 @@ async function handleConfirmPurchaseHttp(
         // Without this, the ViewState and cookies are missing and purchase fails silently!
         if (operation.responseData) {
             try {
-                const savedData = JSON.parse(operation.responseData as string);
+                const savedData = parseResponseDataObject(operation.responseData);
 
                 // AUDIT FIX 4.2: Use helper function for session age validation
-                if (savedData.savedAt) {
+                if (typeof savedData.savedAt === 'string') {
                     validateSessionAge(savedData.savedAt, 'confirmPurchase');
                 }
 
@@ -1920,11 +1925,11 @@ async function handleConfirmPurchaseHttp(
                 }
                 console.log(`[HTTP] Session restored for CONFIRM_PURCHASE`);
 
-            } catch (parseError: unknown) {
-                if (getErrMsg(parseError).includes('Session expired')) {
-                    throw parseError; // Re-throw session expiry error
+            } catch (sessionError: unknown) {
+                if (getErrMsg(sessionError).includes('Session expired')) {
+                    throw sessionError; // Re-throw session expiry error
                 }
-                console.error('[HTTP] ⚠️ Failed to parse saved session for confirm:', parseError);
+                console.error('[HTTP] Failed to restore saved session for confirm:', sessionError);
                 throw new Error('Session restoration failed - cannot confirm purchase');
             }
         } else {
@@ -1932,18 +1937,18 @@ async function handleConfirmPurchaseHttp(
             throw new Error('No session data available - cannot confirm purchase');
         }
 
-        await updateOperationIfActive(operationId, {
-            responseData: mergeOperationPhaseData(operation.responseData, {
-                operationPhase: 'FINAL_PAY_SUBMITTED',
-                jobType: 'CONFIRM_PURCHASE',
-                finalPaySubmitted: true,
-                finalPaySubmittedAt: new Date().toISOString()
-            })
-        }, 'CONFIRM_PURCHASE final Pay evidence update');
-
         await updateProgress(operationId, 'Sending final confirmation...');
-        const result = await client.confirmPurchase(operation.amount ?? undefined);
-        const outcomeDecision = decideFinalPayRefundSafety(result, true);
+        const result = await client.confirmPurchase(operation.amount ?? undefined, async () => {
+            await updateOperationIfActive(operationId, {
+                responseData: mergeOperationPhaseData(operation.responseData, {
+                    operationPhase: 'FINAL_PAY_SUBMITTED',
+                    jobType: 'CONFIRM_PURCHASE',
+                    finalPaySubmitted: true,
+                    finalPaySubmittedAt: new Date().toISOString()
+                })
+            }, 'CONFIRM_PURCHASE final Pay evidence update');
+        });
+        const outcomeDecision = decideFinalPayRefundSafety(result, result.finalPaySubmitted === true);
 
         const selectedPackage = operation.selectedPackage as { name: string } | null;
 
@@ -2690,9 +2695,7 @@ async function handleSignalActivateHttp(
     }
 
     // Check that this operation is ready for activation (completed check step)
-    const savedData = typeof operation.responseData === 'string'
-        ? JSON.parse(operation.responseData)
-        : operation.responseData as Record<string, unknown>;
+    const savedData = parseResponseDataObject(operation.responseData);
     delete savedData.sessionData;
 
     if (!savedData?.awaitingActivate) {

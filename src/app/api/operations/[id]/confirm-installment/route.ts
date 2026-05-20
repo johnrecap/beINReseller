@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { addOperationJob } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { Prisma } from '@prisma/client'
+import { parseOperationResponseData } from '@/lib/operation-safety'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -94,8 +95,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         // Get dealer price from responseData
-        const responseData = operation.responseData ? JSON.parse(operation.responseData as string) : null
-        const dealerPrice = responseData?.installment?.dealerPrice || 0
+        const responseData = parseOperationResponseData(operation.responseData)
+        const installmentData = responseData.installment as { dealerPrice?: unknown } | undefined
+        const dealerPrice = typeof installmentData?.dealerPrice === 'number' ? installmentData.dealerPrice : 0
 
         if (dealerPrice <= 0) {
             return NextResponse.json(

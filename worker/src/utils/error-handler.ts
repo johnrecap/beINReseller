@@ -57,7 +57,12 @@ function finalPayMayHaveStarted(status: string, responseData: unknown): boolean 
 
     if (data.finalPaySubmitted === true) return true
     if (phase === 'FINAL_PAY_SUBMITTED' || phase === 'POST_FINAL_PAY_REVIEW') return true
-    if (phase === 'PACKAGE_PREPARATION' || phase === 'CANCELLATION_CONFIRM' || phase === 'FINAL_CONFIRMATION') return false
+    if (
+        phase === 'PACKAGE_PREPARATION' ||
+        phase === 'CANCELLATION_CONFIRM' ||
+        phase === 'FINAL_CONFIRMATION' ||
+        phase === 'FINAL_CONFIRMATION_REQUESTED'
+    ) return false
 
     return status === 'COMPLETING'
 }

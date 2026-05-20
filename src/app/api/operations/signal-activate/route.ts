@@ -7,6 +7,7 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { parseOperationResponseData } from '@/lib/operation-safety'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -108,9 +109,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if operation is ready for activation
-        const responseData = typeof operation.responseData === 'string'
-            ? JSON.parse(operation.responseData)
-            : operation.responseData
+        const responseData = parseOperationResponseData(operation.responseData)
 
         if (!responseData?.awaitingActivate) {
             return NextResponse.json(

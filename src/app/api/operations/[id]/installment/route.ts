@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { parseOperationResponseData } from '@/lib/operation-safety'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -73,16 +74,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         let dealerBalance = null
 
         if (operation.responseData) {
-            try {
-                const data = typeof operation.responseData === 'string'
-                    ? JSON.parse(operation.responseData)
-                    : operation.responseData
-                installment = data.installment
-                subscriber = data.subscriber
-                dealerBalance = data.dealerBalance
-            } catch {
-                // Ignore parse errors
-            }
+            const data = parseOperationResponseData(operation.responseData)
+            installment = data.installment
+            subscriber = data.subscriber
+            dealerBalance = data.dealerBalance
         }
 
         // Return based on status

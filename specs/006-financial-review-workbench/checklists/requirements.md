@@ -21,6 +21,8 @@
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
+- [x] Card verification behavior is defined without automatic money movement
+- [x] Plain-language requirement is explicit for admin-facing review text
 
 ## Feature Readiness
 
@@ -28,8 +30,10 @@
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] Implementation risks are deferred to `tasks.md` and `quickstart.md`
+- [x] Tasks include reason, benefit, expected result, and risks to avoid
 
 ## Notes
 
 - The implementation intentionally separates analytics from operational refund decisions.
 - Refund/no-refund decisions must remain admin-only and idempotent.
+- Card verification is evidence only; it must not renew, pay, refund, or mutate user balances.

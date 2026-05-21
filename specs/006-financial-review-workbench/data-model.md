@@ -80,6 +80,31 @@ Validation rules:
 - `BEIN_EXECUTED_NO_REFUND` must not change user balance.
 - `KEEP_UNDER_REVIEW` must not hide the operation from the pending queue.
 
+## Proposed Entity: FinancialReviewCardCheck
+
+Represents a safe admin-triggered check of the current beIN card/subscription state for a reviewed operation.
+
+Fields:
+
+- `id`: unique check id.
+- `operationId`: reviewed operation.
+- `cardNumber`: card number checked.
+- `checkedById`: admin user who ran the check.
+- `outcome`: `LIKELY_RENEWED`, `NOT_CONFIRMED`, or `CHECK_FAILED`.
+- `packageName`: package detected on the card when available.
+- `expiryDate`: expiry date detected on the card when available.
+- `evidenceSummary`: plain-language text shown to the admin.
+- `rawEvidenceSnapshot`: JSON snapshot for later support/debugging.
+- `errorMessage`: nullable error or unclear reason.
+- `createdAt`: check timestamp.
+
+Validation rules:
+
+- Card check must never create a renewal, payment, refund, or user-balance movement.
+- Card check must require admin access.
+- A failed card check must be stored as evidence instead of hiding the failure.
+- Latest check should be displayed first, but older checks remain available for audit.
+
 ## Review State Model
 
 Derived states:
@@ -94,7 +119,22 @@ Derived states:
 Derived recommendations:
 
 - `LIKELY_BEIN_EXECUTED`: beIN delta is close to requested amount or success message exists.
-- `REFUND_POSSIBLE`: user was deducted, no refund exists, and evidence does not show beIN charge.
-- `NEEDS_FOLLOW_UP`: evidence missing, conflicting, or refund blocked.
+- `LIKELY_CARD_RENEWED`: latest card verification shows the expected package or a matching expiry/subscription state.
+- `REFUND_POSSIBLE`: user was deducted, no refund exists, and combined evidence does not show beIN charge or card renewal.
+- `NEEDS_FOLLOW_UP`: evidence missing, conflicting, verification failed, or refund blocked.
 
 Recommendations never execute money movement automatically.
+
+## Plain-Language Reason Model
+
+Primary labels should be derived from technical evidence and shown before any raw codes.
+
+Examples:
+
+- "The user was charged, and beIN balance appears to have dropped by the same amount."
+- "The user was charged, but there is no clear beIN charge evidence yet."
+- "The card check could not confirm the renewal."
+- "A refund already exists for this operation."
+- "Evidence is incomplete; keep under review or check the card."
+
+Raw technical codes remain available only in an advanced details area.

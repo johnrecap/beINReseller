@@ -3,7 +3,7 @@
 **Feature Branch**: `codex/fix-renewal-confirm-session-safety`  
 **Created**: 2026-05-20  
 **Status**: Draft  
-**Input**: User needs a clear Spec Kit plan for replacing the confusing Integrity Reports workflow with a focused admin screen for operations that need manual financial review, including refund and no-refund decisions.
+**Input**: User needs a clear Spec Kit plan for replacing the confusing Integrity Reports workflow with a focused admin screen for operations that need manual financial review, including refund/no-refund decisions, plain-language reasons, and a way to verify the card before deciding.
 
 ## User Scenarios & Testing
 
@@ -56,7 +56,24 @@ An admin can resolve a review operation by confirming that beIN executed it, ref
 
 ---
 
-### User Story 4 - Keep Integrity Reports Useful But Not Operationally Confusing (Priority: P2)
+### User Story 4 - Verify Card Outcome Before Final Decision (Priority: P1)
+
+An admin can run a safe "check card now" action from the review card to compare the current beIN card/subscription state with the requested package before deciding whether the operation actually renewed.
+
+**Why this priority**: Logs and balance deltas help, but the admin also needs a practical answer to "did the customer's card actually get renewed?" before refunding or closing the case.
+
+**Independent Test**: Open a pending review operation, run card verification, and verify the result shows current card status, package/expiry evidence when available, check time, and a plain recommendation.
+
+**Acceptance Scenarios**:
+
+1. **Given** a review operation has card number and selected package, **When** admin clicks "check card now", **Then** the system retrieves current card/subscription evidence without charging beIN or changing balances.
+2. **Given** verification shows the expected package or a matching expiry change, **When** the result is displayed, **Then** the card recommends "likely renewed - no refund unless customer evidence conflicts".
+3. **Given** verification cannot confirm renewal, **When** the result is displayed, **Then** the card recommends "not confirmed - review before refund" and keeps the operation pending.
+4. **Given** beIN check fails or times out, **When** the result is displayed, **Then** the card shows "could not verify now" and does not auto-refund.
+
+---
+
+### User Story 5 - Keep Integrity Reports Useful But Not Operationally Confusing (Priority: P2)
 
 An admin can still use Integrity Reports for analytics and mismatch scanning, but day-to-day financial decisions are handled in the new Financial Review page.
 
@@ -72,12 +89,15 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 ### Edge Cases
 
 - A `REVIEW_REQUIRED` operation has no user id, no amount, or no selected package.
+- A review operation has no card number or the selected package no longer appears in beIN.
+- Card verification returns a timeout, login error, proxy error, or unclear subscription data.
 - A refund transaction already exists for the same operation.
 - beIN evidence indicates a balance drop but the user deduction evidence is missing.
 - The operation was manually edited or resolved by another admin while the page was open.
 - The operation came from renewal, signal refresh, balance check, store, or mobile flow with different data shape.
 - The existing response data is JSON object or legacy JSON string.
 - Admin refreshes after submitting a decision and resubmits the form.
+- Two admins verify or resolve the same operation at the same time.
 
 ## Requirements
 
@@ -96,11 +116,17 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 - **FR-011**: The system MUST avoid using generic admin balance adjustments as the review refund mechanism.
 - **FR-012**: The system MUST log or persist all review decisions so a later admin can see who made the decision and why.
 - **FR-013**: The system MUST handle both JSON object and legacy JSON string `responseData` shapes.
+- **FR-014**: The workbench MUST use plain business language as primary UI text and avoid exposing internal codes such as `BEIN_DEBIT_USER_UNDERDEDUCTED` unless they are tucked inside an advanced/details area.
+- **FR-015**: The system MUST provide a safe card verification action for review operations that checks current beIN card/subscription evidence without submitting a renewal, payment, refund, or user-balance change.
+- **FR-016**: Card verification results MUST store checked time, checked by, outcome, readable evidence summary, and any error/unclear reason.
+- **FR-017**: The review card MUST show a recommendation based on combined evidence: provider balance/message, user deduction/refund state, and latest card verification result.
+- **FR-018**: Recommendations MUST never automatically refund or close a review operation without an explicit admin decision.
 
 ### Key Entities
 
 - **Review Operation**: Existing operation requiring manual decision because beIN outcome or refund safety is uncertain.
 - **Review Evidence**: Parsed business evidence from operation data, transactions, beIN ledger, and audit snapshots.
+- **Card Verification Result**: Latest safe check of the customer's current beIN card/subscription state.
 - **Review Decision**: Admin action that resolves or annotates the review operation.
 - **Refund Transaction**: Operation-linked transaction that returns money to the customer/user exactly once.
 - **Integrity Issue**: Existing analytics issue used for mismatch reporting, not the primary action object.
@@ -113,7 +139,8 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 - **SC-002**: Admin can identify whether refund is blocked, already done, or available within 10 seconds of opening a review card.
 - **SC-003**: Refund decision path prevents duplicate refund transactions in 100% of repeated-submit attempts.
 - **SC-004**: At least 90% of pending review operations show a plain-language recommended next action.
-- **SC-005**: Integrity Reports remains available for analytics while financial decisions move to the dedicated review page.
+- **SC-005**: Admin can run card verification from a review card and see a readable result in under 30 seconds when beIN responds normally.
+- **SC-006**: Integrity Reports remains available for analytics while financial decisions move to the dedicated review page.
 
 ## Assumptions
 

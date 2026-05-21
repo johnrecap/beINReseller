@@ -45,7 +45,14 @@ Returns review operations for the admin workbench.
         "refundBlocked": false,
         "responseMessage": "Contract Created Successfully",
         "reviewReason": "Uncertain provider response",
+        "plainReason": "The user was charged and beIN balance appears to have dropped by the same amount.",
         "recommendation": "LIKELY_BEIN_EXECUTED"
+      },
+      "cardVerification": {
+        "latestOutcome": "LIKELY_RENEWED",
+        "checkedAt": "2026-05-20T19:30:00.000Z",
+        "checkedBy": "admin",
+        "summary": "The card currently shows a package/expiry that matches this renewal."
       },
       "latestDecision": null,
       "updatedAt": "2026-05-20T19:21:36.000Z"
@@ -59,6 +66,45 @@ Returns review operations for the admin workbench.
 - `401`: user not authenticated.
 - `403`: user is not admin.
 - `500`: server error.
+
+## POST `/api/admin/financial-review/[operationId]/verify-card`
+
+Runs a safe card/subscription check for one review operation.
+
+### Request Body
+
+```json
+{
+  "reason": "Customer says the package did not renew; verify before refund."
+}
+```
+
+### Response Shape
+
+```json
+{
+  "success": true,
+  "operationId": "cmpeg5zj400046thy3ars9kod",
+  "cardVerification": {
+    "id": "check_id",
+    "outcome": "LIKELY_RENEWED",
+    "summary": "The card currently shows a package/expiry that matches this renewal.",
+    "packageName": "Add Summer Offer 2",
+    "expiryDate": "2026-08-20",
+    "checkedAt": "2026-05-20T19:30:00.000Z",
+    "checkedBy": "admin"
+  },
+  "recommendation": "LIKELY_CARD_RENEWED"
+}
+```
+
+### Required Server Rules
+
+- Admin role required.
+- Operation must exist and be reviewable.
+- Verification must not submit renewal, payment, refund, or balance changes.
+- Verification must store success, unclear, and failed checks.
+- A failed check must return a readable summary such as "could not verify now" instead of allowing automatic refund.
 
 ## POST `/api/admin/financial-review/[operationId]/resolve`
 

@@ -30,12 +30,19 @@ npm run build
    - user deduction evidence
    - beIN balance evidence
    - refund state
+   - latest card verification result, if present
+   - plain-language reason
    - recommendation
-8. Try "Keep under review" with a note and verify the item remains visible.
-9. Try "beIN executed - no refund" on a staging record and verify no refund transaction is created.
-10. Try "Refund customer" on a staging record and verify exactly one operation-linked refund transaction is created.
-11. Refresh and repeat the refund submit. Expected: duplicate refund is blocked.
-12. Open Integrity Reports and verify it still works and links to Financial Review for pending review operations.
+8. Run "check card now" on a staging record and verify:
+   - no renewal or payment is submitted
+   - no refund or user-balance change is created
+   - the result is stored with checked time and admin identity
+   - the card shows a readable outcome: likely renewed, not confirmed, or could not verify
+9. Try "Keep under review" with a note and verify the item remains visible.
+10. Try "beIN executed - no refund" on a staging record and verify no refund transaction is created.
+11. Try "Refund customer" on a staging record and verify exactly one operation-linked refund transaction is created.
+12. Refresh and repeat the refund submit. Expected: duplicate refund is blocked.
+13. Open Integrity Reports and verify it still works and links to Financial Review for pending review operations.
 
 ## Production Safety Gate
 
@@ -44,6 +51,8 @@ Before deploying:
 - Confirm no generic balance adjustment is used for review refunds.
 - Confirm admin-only authorization on all new routes.
 - Confirm duplicate refund protection.
+- Confirm card verification cannot charge beIN or mutate balances.
+- Confirm primary UI text is readable without internal issue-code knowledge.
 - Confirm the new decision action writes an audit trail.
 - Confirm `npm run build` succeeds.
 - Confirm no database migration is applied without a backup plan.

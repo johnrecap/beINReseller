@@ -1,11 +1,11 @@
 # Tasks: Financial Review Workbench
 
 **Input**: Design documents from `specs/006-financial-review-workbench/`  
-**Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/review-workbench-contract.md`, `quickstart.md`
+**Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `ui-content-map.md`, `contracts/review-workbench-contract.md`, `quickstart.md`
 
 **Tests**: Include focused API/build/manual checks because this is a financial admin workflow.
 
-**Task Detail Rule**: Every task includes Reason, Benefit, Expected, and Risks to avoid so another engineer can understand purpose, business return, target outcome, and safety boundaries before touching code.
+**Task Detail Rule**: Every task includes Reason, Benefit, Expected, and Risks to avoid so another engineer can understand purpose, business return, target outcome, and safety boundaries before touching code. UI tasks must also follow `ui-content-map.md` exactly for visible components, labels, buttons, fields, dialogs, and states.
 
 ## Phase 1: Baseline and Current-State Mapping
 
@@ -56,7 +56,7 @@
 - [ ] T007 Add plain-language mapping helpers in `src/lib/financial-review/plain-language.ts`.
   - Reason: Admin-facing text must avoid internal issue codes and confusing programming terms.
   - Benefit: Admin can decide what happened without reading logs or codes.
-  - Expected: Functions that convert technical evidence into readable labels, reasons, and recommended next action.
+  - Expected: Functions that convert technical evidence into the exact readable labels, reasons, and recommendations defined in `specs/006-financial-review-workbench/ui-content-map.md`.
   - Risks to avoid: Do not hide raw details completely; keep them available under advanced details for support.
 
 - [ ] T008 Add evidence extraction helpers in `src/lib/financial-review/evidence.ts`.
@@ -106,13 +106,13 @@
 - [ ] T014 [US1] Create queue container in `src/components/admin/financial-review/FinancialReviewClient.tsx`.
   - Reason: Filtering, refreshing, tabs, loading state, and empty state belong in a focused client component.
   - Benefit: UI state remains understandable and separate from report analytics.
-  - Expected: Admin can view pending, follow-up, refunded, and no-refund states.
+  - Expected: Admin can view pending, follow-up, refunded, and no-refund states using the exact tab/filter/empty/error copy from `ui-content-map.md`.
   - Risks to avoid: Do not import the full Integrity Reports table state into this component.
 
 - [ ] T015 [US1] Add admin sidebar link in `src/components/layout/Sidebar.tsx`.
   - Reason: The user needs to know where the review page is.
   - Benefit: Pending reviews become discoverable in normal admin navigation.
-  - Expected: Financial Review is reachable from the sidebar without removing Integrity Reports.
+  - Expected: Financial Review is reachable from the sidebar using the label `مراجعة العمليات` without removing Integrity Reports.
   - Risks to avoid: Do not replace existing report links that admins may still need.
 
 ---
@@ -126,31 +126,31 @@
 - [ ] T016 [P] [US2] Create `src/components/admin/financial-review/ReviewOperationCard.tsx`.
   - Reason: The current table is dense and hard to interpret.
   - Benefit: One operation becomes readable as a case card with clear priority and actions.
-  - Expected: Card shows operation identity, user, amount, card, package, beIN account, state badges, and quick actions.
+  - Expected: Card shows every header field, badge, primary button, secondary button, and disabled state listed under `ReviewOperationCard` in `ui-content-map.md`.
   - Risks to avoid: Do not make internal issue code the primary visible text.
 
 - [ ] T017 [P] [US2] Create `src/components/admin/financial-review/ReviewReasonText.tsx`.
   - Reason: The admin asked for reasons without programming terms or unclear words.
   - Benefit: Every case starts with "what likely happened" in business language.
-  - Expected: Component renders reason, recommendation, and confidence from `plain-language.ts`.
+  - Expected: Component renders only the title/body/recommendation texts defined under `ReviewReasonText` in `ui-content-map.md`.
   - Risks to avoid: Do not overstate certainty when evidence is incomplete.
 
 - [ ] T018 [P] [US2] Create `src/components/admin/financial-review/ReviewEvidencePanel.tsx`.
   - Reason: Admin still needs the numbers behind the recommendation.
   - Benefit: Decisions are backed by visible evidence without scanning raw logs.
-  - Expected: Panel shows user deduction, beIN before/after/delta, response message, refund state, and missing-evidence warnings.
+  - Expected: Panel shows every row, missing-value label, warning, and advanced-details toggle defined under `ReviewEvidencePanel` in `ui-content-map.md`.
   - Risks to avoid: Do not hide missing or conflicting evidence.
 
 - [ ] T019 [US2] Add filters/search in `src/components/admin/financial-review/FinancialReviewClient.tsx`.
   - Reason: Review volume can grow and admins need quick triage.
   - Benefit: Admin finds cases by card, user, operation, state, beIN account, refund state, and date window.
-  - Expected: Filters call the GET endpoint without running full integrity scans.
+  - Expected: Filters include every label, placeholder, option, and button defined under `ReviewFilters` in `ui-content-map.md`.
   - Risks to avoid: Do not trigger expensive backfill/scan actions from simple filter changes.
 
 - [ ] T020 [US2] Add advanced technical details section to `ReviewEvidencePanel.tsx`.
   - Reason: Developers/support may still need raw codes during investigation.
   - Benefit: UI stays simple by default while preserving diagnostics.
-  - Expected: Raw issue codes and JSON snippets are collapsed behind an advanced section.
+  - Expected: Raw issue codes and JSON snippets are collapsed behind `تفاصيل تقنية` exactly as defined in `ui-content-map.md`.
   - Risks to avoid: Do not expose raw sensitive secrets, passwords, tokens, or full credential data.
 
 ---
@@ -176,7 +176,7 @@
 - [ ] T023 [P] [US4] Create `src/components/admin/financial-review/CardVerificationPanel.tsx`.
   - Reason: Verification needs a clear button, progress state, latest result, and failure messaging.
   - Benefit: Admin can verify without leaving the workbench.
-  - Expected: Panel shows last check result, checked time, checked by, package/expiry evidence, and "check again" action.
+  - Expected: Panel shows every state, button, badge, field, and message defined under `CardVerificationPanel` in `ui-content-map.md`.
   - Risks to avoid: Do not show a failed beIN/proxy check as proof that renewal failed.
 
 - [ ] T024 [US4] Connect `CardVerificationPanel.tsx` to `ReviewOperationCard.tsx`.
@@ -226,7 +226,7 @@
 - [ ] T030 [US3] Create `src/components/admin/financial-review/ReviewDecisionDialog.tsx`.
   - Reason: Money decisions need confirmation, readable warning, and required note.
   - Benefit: Reduces accidental refunds or premature no-refund decisions.
-  - Expected: Dialog supports refund, no-refund, and keep-review with required note and disabled submit while pending.
+  - Expected: Dialog supports refund, no-refund, and keep-review with the exact titles, warnings, fields, checkbox, buttons, success messages, and errors defined in `ui-content-map.md`.
   - Risks to avoid: Do not allow one-click refund or empty-note final decisions.
 
 ---
@@ -240,19 +240,19 @@
 - [ ] T031 [US5] Add Financial Review callout to `src/app/dashboard/admin/reports/integrity/page.tsx`.
   - Reason: Existing admins may still open Integrity Reports first.
   - Benefit: They are guided to the correct action screen.
-  - Expected: Report page shows pending review count and a link to Financial Review.
+  - Expected: Report page shows the exact callout title, body, count label, and buttons defined under `Integrity Reports Callout` in `ui-content-map.md`.
   - Risks to avoid: Do not duplicate refund/no-refund buttons on Integrity Reports.
 
 - [ ] T032 [US5] Update operation status labels in `src/lib/constants.ts` and related translation/status helper files.
   - Reason: `REVIEW_REQUIRED` currently has weak or missing friendly display in parts of the UI.
   - Benefit: Customers/admins see "under admin review" instead of a confusing raw status.
-  - Expected: Status labels cover `REVIEW_REQUIRED` and other active/review states used by this flow.
+  - Expected: Status labels cover `REVIEW_REQUIRED` using the exact user-facing text in `ui-content-map.md`.
   - Risks to avoid: Do not rename enum values or break existing status comparisons.
 
 - [ ] T033 [US5] Update user-facing operation tables in `src/components/history/OperationsTable.tsx` and relevant renewal/operation pages.
   - Reason: Customers need to know their case is being reviewed instead of thinking it disappeared or failed silently.
   - Benefit: Fewer support complaints and clearer expectations.
-  - Expected: Review-required operations display as pending admin review with no confusing technical wording.
+  - Expected: Review-required operations display the exact customer-facing status label/helper text from `ui-content-map.md`.
   - Risks to avoid: Do not expose internal beIN account names, worker logs, or financial investigation details to customers.
 
 ---
@@ -282,7 +282,7 @@
 - [ ] T037 Execute the manual validation flow in `specs/006-financial-review-workbench/quickstart.md`.
   - Reason: Financial safety cannot be proven by build alone.
   - Benefit: Confirms real admin workflow, duplicate-refund protection, and card verification safety.
-  - Expected: One correct outcome per decision path and no money movement from card verification.
+  - Expected: One correct outcome per decision path, no money movement from card verification, and all visible copy matches `ui-content-map.md`.
   - Risks to avoid: Do not test real production refunds without explicit approval and backup readiness.
 
 - [ ] T038 Commit and push only after the verification gate passes.

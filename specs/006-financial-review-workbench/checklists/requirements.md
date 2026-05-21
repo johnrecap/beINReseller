@@ -23,6 +23,7 @@
 - [x] Dependencies and assumptions identified
 - [x] Card verification behavior is defined without automatic money movement
 - [x] Plain-language requirement is explicit for admin-facing review text
+- [x] UI content map defines components, buttons, fields, dialogs, and visible copy
 
 ## Feature Readiness
 
@@ -31,6 +32,7 @@
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] Implementation risks are deferred to `tasks.md` and `quickstart.md`
 - [x] Tasks include reason, benefit, expected result, and risks to avoid
+- [x] UI implementation can be reviewed against `ui-content-map.md`
 
 ## Notes
 

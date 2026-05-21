@@ -20,7 +20,8 @@ npm run build
 4. Open `/dashboard/admin/financial-review` as admin.
 5. Verify the sidebar contains "Financial Review" or the agreed localized label.
 6. Verify pending review operations appear as cards.
-7. Open a card and verify:
+7. Compare the page against `specs/006-financial-review-workbench/ui-content-map.md` and verify all visible labels, fields, buttons, tabs, dialogs, and states match the map.
+8. Open a card and verify:
    - operation id
    - user/customer
    - card number
@@ -33,16 +34,16 @@ npm run build
    - latest card verification result, if present
    - plain-language reason
    - recommendation
-8. Run "check card now" on a staging record and verify:
+9. Run "check card now" on a staging record and verify:
    - no renewal or payment is submitted
    - no refund or user-balance change is created
    - the result is stored with checked time and admin identity
    - the card shows a readable outcome: likely renewed, not confirmed, or could not verify
-9. Try "Keep under review" with a note and verify the item remains visible.
-10. Try "beIN executed - no refund" on a staging record and verify no refund transaction is created.
-11. Try "Refund customer" on a staging record and verify exactly one operation-linked refund transaction is created.
-12. Refresh and repeat the refund submit. Expected: duplicate refund is blocked.
-13. Open Integrity Reports and verify it still works and links to Financial Review for pending review operations.
+10. Try "Keep under review" with a note and verify the item remains visible.
+11. Try "beIN executed - no refund" on a staging record and verify no refund transaction is created.
+12. Try "Refund customer" on a staging record and verify exactly one operation-linked refund transaction is created.
+13. Refresh and repeat the refund submit. Expected: duplicate refund is blocked.
+14. Open Integrity Reports and verify it still works and links to Financial Review for pending review operations.
 
 ## Production Safety Gate
 
@@ -53,6 +54,7 @@ Before deploying:
 - Confirm duplicate refund protection.
 - Confirm card verification cannot charge beIN or mutate balances.
 - Confirm primary UI text is readable without internal issue-code knowledge.
+- Confirm all visible copy matches `ui-content-map.md`.
 - Confirm the new decision action writes an audit trail.
 - Confirm `npm run build` succeeds.
 - Confirm no database migration is applied without a backup plan.

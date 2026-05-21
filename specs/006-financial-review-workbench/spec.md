@@ -121,6 +121,8 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 - **FR-016**: Card verification results MUST store checked time, checked by, outcome, readable evidence summary, and any error/unclear reason.
 - **FR-017**: The review card MUST show a recommendation based on combined evidence: provider balance/message, user deduction/refund state, and latest card verification result.
 - **FR-018**: Recommendations MUST never automatically refund or close a review operation without an explicit admin decision.
+- **FR-019**: The implementation MUST follow `ui-content-map.md` for component structure, visible labels, buttons, fields, dialogs, empty states, and warnings.
+- **FR-020**: Any visible copy change MUST update `ui-content-map.md` before implementation so design and code stay aligned.
 
 ### Key Entities
 
@@ -141,6 +143,7 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 - **SC-004**: At least 90% of pending review operations show a plain-language recommended next action.
 - **SC-005**: Admin can run card verification from a review card and see a readable result in under 30 seconds when beIN responds normally.
 - **SC-006**: Integrity Reports remains available for analytics while financial decisions move to the dedicated review page.
+- **SC-007**: A reviewer can compare the implemented page against `ui-content-map.md` and find no missing primary buttons, fields, states, or dialog texts.
 
 ## Assumptions
 

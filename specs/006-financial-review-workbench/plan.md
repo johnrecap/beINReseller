@@ -41,6 +41,7 @@ specs/006-financial-review-workbench/
 |-- plan.md
 |-- research.md
 |-- data-model.md
+|-- ui-content-map.md
 |-- quickstart.md
 |-- contracts/
 |   `-- review-workbench-contract.md
@@ -61,6 +62,10 @@ src/components/admin/financial-review/ReviewEvidencePanel.tsx
 src/components/admin/financial-review/ReviewReasonText.tsx
 src/components/admin/financial-review/CardVerificationPanel.tsx
 src/components/admin/financial-review/ReviewDecisionDialog.tsx
+src/components/admin/financial-review/ReviewHeader.tsx
+src/components/admin/financial-review/ReviewSummaryCards.tsx
+src/components/admin/financial-review/ReviewFilters.tsx
+src/components/admin/financial-review/ReviewQueueTabs.tsx
 src/lib/financial-review/types.ts
 src/lib/financial-review/evidence.ts
 src/lib/financial-review/plain-language.ts
@@ -75,7 +80,7 @@ prisma/migrations/[timestamp]_add_financial_review_workbench/migration.sql
 worker/prisma/migrations/[timestamp]_add_financial_review_workbench/migration.sql
 ```
 
-**Structure Decision**: Add a small admin workflow next to the existing dashboard. Keep evidence parsing, plain-language labels, card verification, and decision logic in `src/lib/financial-review/*` so API routes and UI share one meaning of "refund safe", "already refunded", "card likely renewed", and "beIN likely charged".
+**Structure Decision**: Add a small admin workflow next to the existing dashboard. Keep evidence parsing, plain-language labels, card verification, and decision logic in `src/lib/financial-review/*` so API routes and UI share one meaning of "refund safe", "already refunded", "card likely renewed", and "beIN likely charged". All visible UI labels, buttons, fields, dialogs, empty states, and warnings must match `ui-content-map.md`.
 
 ## Phase 0: Research Summary
 
@@ -83,7 +88,7 @@ See `research.md`.
 
 ## Phase 1: Design Summary
 
-See `data-model.md`, `contracts/review-workbench-contract.md`, and `quickstart.md`.
+See `data-model.md`, `ui-content-map.md`, `contracts/review-workbench-contract.md`, and `quickstart.md`.
 
 ## Complexity Tracking
 
@@ -91,4 +96,5 @@ See `data-model.md`, `contracts/review-workbench-contract.md`, and `quickstart.m
 |-----------|------------|--------------------------------------|
 | New decision audit record | Financial decisions need reviewer, note, action, timestamp, and refund transaction linkage | Storing only in `operation.responseData` is harder to query and audit safely |
 | New card verification record | Admins need to see when the card was checked, by whom, and what beIN showed at decision time | Relying on transient check output would leave no audit trail for disputes |
+| Explicit UI content map | The user wants every component, button, field, and word defined before implementation | Letting implementers invent copy during coding would recreate confusion |
 | Dedicated page instead of editing Integrity Reports only | The current page is too dense and analytics-focused | Adding more controls to the same page would make the confusion worse |

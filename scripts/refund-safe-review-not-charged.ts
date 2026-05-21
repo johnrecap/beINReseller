@@ -85,8 +85,9 @@ async function main() {
         for (const operation of operations) {
             scanned++
             const snapshot = getAuditSnapshot(operation.responseData)
-            const before = toNumber(snapshot.beinBalanceBefore)
-            const after = toNumber(snapshot.beinBalanceAfter)
+            const responseData = parseJsonRecord(operation.responseData)
+            const before = toNumber(snapshot.beinBalanceBefore) ?? toNumber(responseData.dealerBalanceBefore) ?? toNumber(responseData.dealerBalance)
+            const after = toNumber(snapshot.beinBalanceAfter) ?? toNumber(responseData.dealerBalanceAfter)
             const userDeducted = hasTransaction(operation.transactions, 'OPERATION_DEDUCT')
             const userRefunded = hasTransaction(operation.transactions, 'REFUND')
 
@@ -124,8 +125,12 @@ async function main() {
                 if (lockedOperation.chargedBeinSpendLedger) return
 
                 const latestSnapshot = getAuditSnapshot(lockedOperation.responseData)
-                const latestBefore = toNumber(latestSnapshot.beinBalanceBefore)
-                const latestAfter = toNumber(latestSnapshot.beinBalanceAfter)
+                const latestResponseData = parseJsonRecord(lockedOperation.responseData)
+                const latestBefore =
+                    toNumber(latestSnapshot.beinBalanceBefore) ??
+                    toNumber(latestResponseData.dealerBalanceBefore) ??
+                    toNumber(latestResponseData.dealerBalance)
+                const latestAfter = toNumber(latestSnapshot.beinBalanceAfter) ?? toNumber(latestResponseData.dealerBalanceAfter)
                 if (latestBefore === null || latestAfter === null || latestAfter < latestBefore) return
 
                 if (lockedOperation.userId) {

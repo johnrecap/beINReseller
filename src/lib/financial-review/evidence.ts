@@ -138,8 +138,12 @@ export function buildFinancialReviewItem(
                 ? auditSnapshot.reviewSource
                 : null
     const chargedLedger = operation.chargedBeinSpendLedger
-    const auditBeinBalanceBefore = toNullableNumber(auditSnapshot?.beinBalanceBefore)
-    const auditBeinBalanceAfter = toNullableNumber(auditSnapshot?.beinBalanceAfter)
+    const responseBeinBalanceBefore =
+        toNullableNumber(responseData?.dealerBalanceBefore) ??
+        toNullableNumber(responseData?.dealerBalance)
+    const responseBeinBalanceAfter = toNullableNumber(responseData?.dealerBalanceAfter)
+    const auditBeinBalanceBefore = toNullableNumber(auditSnapshot?.beinBalanceBefore) ?? responseBeinBalanceBefore
+    const auditBeinBalanceAfter = toNullableNumber(auditSnapshot?.beinBalanceAfter) ?? responseBeinBalanceAfter
     const auditBeinDelta = toNullableNumber(auditSnapshot?.beinDelta)
     const ledgerDebitAmount = chargedLedger ? Math.abs(chargedLedger.spendAmount) : null
     const derivedAuditDebitAmount =

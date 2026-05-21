@@ -96,6 +96,8 @@ function mergeOperationPhaseData(
         jobType: string;
         finalPaySubmitted?: boolean;
         finalPaySubmittedAt?: string;
+        dealerBalanceBefore?: number | null;
+        dealerBalanceAfter?: number | null;
     }
 ): Prisma.InputJsonObject {
     return {
@@ -1774,6 +1776,10 @@ async function attemptPurchaseWithAccount(
                 heartbeatExpiry: heartbeatExpiry,
                 responseData: JSON.stringify({
                     dealerBalance: dealerBalance,
+                    dealerBalanceBefore: dealerBalance,
+                    operationPhase: 'FINAL_CONFIRMATION_REQUESTED',
+                    jobType: 'COMPLETE_PURCHASE',
+                    finalPaySubmitted: false,
                     savedAt: new Date().toISOString()
                 })
             }, 'COMPLETE_PURCHASE final confirm update')) {
@@ -1899,6 +1905,7 @@ async function handleConfirmPurchaseHttp(
 
     try {
         const client = await createOperationClient(account);
+        let preFinalBeinBalance: number | null = null;
 
         // CRITICAL: Set STB number on client for confirmPurchase
         if (operation.stbNumber) {
@@ -1913,6 +1920,9 @@ async function handleConfirmPurchaseHttp(
         if (operation.responseData) {
             try {
                 const savedData = parseResponseDataObject(operation.responseData);
+                preFinalBeinBalance =
+                    toNullableNumber(savedData.dealerBalanceBefore) ??
+                    toNullableNumber(savedData.dealerBalance);
 
                 // AUDIT FIX 4.2: Use helper function for session age validation
                 if (typeof savedData.savedAt === 'string') {
@@ -1938,16 +1948,21 @@ async function handleConfirmPurchaseHttp(
         }
 
         await updateProgress(operationId, 'Sending final confirmation...');
-        const result = await client.confirmPurchase(operation.amount ?? undefined, async () => {
+        const rawResult = await client.confirmPurchase(operation.amount ?? undefined, async () => {
             await updateOperationIfActive(operationId, {
                 responseData: mergeOperationPhaseData(operation.responseData, {
                     operationPhase: 'FINAL_PAY_SUBMITTED',
                     jobType: 'CONFIRM_PURCHASE',
                     finalPaySubmitted: true,
-                    finalPaySubmittedAt: new Date().toISOString()
+                    finalPaySubmittedAt: new Date().toISOString(),
+                    dealerBalanceBefore: preFinalBeinBalance
                 })
             }, 'CONFIRM_PURCHASE final Pay evidence update');
         });
+        const result = {
+            ...rawResult,
+            beinBalanceBefore: toNullableNumber(rawResult.beinBalanceBefore) ?? preFinalBeinBalance ?? undefined
+        };
         const outcomeDecision = decideFinalPayRefundSafety(result, result.finalPaySubmitted === true);
 
         const selectedPackage = operation.selectedPackage as { name: string } | null;
@@ -3112,6 +3127,10 @@ async function handleStartInstallmentHttp(
             installment: installmentResult.installment || null,
             subscriber: installmentResult.subscriber || null,
             dealerBalance: installmentResult.dealerBalance || null,
+            dealerBalanceBefore: installmentResult.dealerBalance || null,
+            operationPhase: 'FINAL_CONFIRMATION_REQUESTED',
+            jobType: 'START_INSTALLMENT',
+            finalPaySubmitted: false,
             isInstallment: true // Flag to identify installment operations
         }),
         stbNumber: installmentResult.subscriber?.stbModel || null,
@@ -3248,7 +3267,16 @@ async function handleConfirmInstallmentHttp(
     // Execute payment
     await updateProgress(operationId, 'Processing payment...');
     console.log(`[HTTP] Executing installment payment...`);
-    const payResult = await client.payInstallment();
+    const operationResponseData = parseResponseDataObject(operation.responseData);
+    const preFinalInstallmentBalance =
+        toNullableNumber(loadResult.dealerBalance) ??
+        toNullableNumber(operationResponseData.dealerBalanceBefore) ??
+        toNullableNumber(operationResponseData.dealerBalance);
+    const rawPayResult = await client.payInstallment();
+    const payResult = {
+        ...rawPayResult,
+        beinBalanceBefore: toNullableNumber(rawPayResult.beinBalanceBefore) ?? preFinalInstallmentBalance ?? undefined
+    };
     const payOutcomeDecision = decideFinalPayRefundSafety(payResult, true);
 
     if (payResult.success) {

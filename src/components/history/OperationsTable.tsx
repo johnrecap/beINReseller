@@ -30,15 +30,28 @@ const statusColors: Record<string, string> = {
     PENDING: 'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30',
     PROCESSING: 'bg-[#06B6D4]/10 text-[#06B6D4] border border-[#06B6D4]/30',
     AWAITING_CAPTCHA: 'bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/30',
+    AWAITING_PACKAGE: 'bg-[#8B5CF6]/10 text-[#C4B5FD] border border-[#8B5CF6]/30',
+    AWAITING_FINAL_CONFIRM: 'bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/30',
+    COMPLETING: 'bg-[#06B6D4]/10 text-[#06B6D4] border border-[#06B6D4]/30',
     COMPLETED: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
     FAILED: 'bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/30',
     CANCELLED: 'bg-gray-500/10 text-gray-500 border border-gray-500/30',
+    EXPIRED: 'bg-gray-500/10 text-gray-400 border border-gray-500/30',
+    REVIEW_REQUIRED: 'bg-amber-500/10 text-amber-300 border border-amber-500/30',
 }
 
 const typeColors: Record<string, string> = {
     RENEW: 'bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30',
     CHECK_BALANCE: 'bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/30',
     SIGNAL_REFRESH: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
+}
+
+const statusFallbackLabels: Record<string, string> = {
+    REVIEW_REQUIRED: 'قيد مراجعة الإدارة',
+    AWAITING_PACKAGE: 'Awaiting Package',
+    AWAITING_FINAL_CONFIRM: 'Awaiting Final Confirm',
+    COMPLETING: 'Completing',
+    EXPIRED: 'Expired',
 }
 
 // Statuses that can be cancelled (FAILED is excluded - auto-refunded by worker)
@@ -63,6 +76,11 @@ export default function OperationsTable({
             default: return enUS
         }
     }
+
+    const getStatusLabel = (status: string) =>
+        (t.status as Record<string, string>)?.[
+        status === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : status.toLowerCase()
+        ] ?? statusFallbackLabels[status] ?? status ?? 'Unknown'
 
     const handleSort = (key: keyof Operation | 'date') => {
         setSortConfig(current => ({
@@ -225,7 +243,7 @@ export default function OperationsTable({
                                 </td>
                                 <td className="px-6 py-4">
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusColors[op.status] || 'bg-gray-100 dark:bg-gray-800'} transition-transform hover:scale-105`}>
-                                        {(t.status as Record<string, string>)?.[op.status === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : (typeof op.status === 'string' ? op.status.toLowerCase() : 'pending')] ?? op.status ?? 'Unknown'}
+                                        {getStatusLabel(op.status)}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-sm text-muted-foreground">
@@ -282,7 +300,7 @@ export default function OperationsTable({
                                     {(t.operations as Record<string, string>)[op.type === 'CHECK_BALANCE' ? 'checkBalance' : op.type === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || op.type}
                                 </span>
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${statusColors[op.status] || 'bg-gray-100 dark:bg-gray-800'}`}>
-                                    {(t.status as Record<string, string>)?.[op.status === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : (typeof op.status === 'string' ? op.status.toLowerCase() : 'pending')] ?? op.status ?? 'Unknown'}
+                                    {getStatusLabel(op.status)}
                                 </span>
                             </div>
                         </div>

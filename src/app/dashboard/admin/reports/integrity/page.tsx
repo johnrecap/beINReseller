@@ -53,6 +53,12 @@ interface SummaryData {
         deductedTotal: number
         operationsCount: number
     }>
+    reviewRequired?: {
+        total: number
+        withBeinBalanceEvidence: number
+        withUserDeductionEvidence: number
+        refundAlreadyExists: number
+    }
 }
 
 const statusOptions: IssueStatus[] = ['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'FALSE_POSITIVE', 'IGNORED']
@@ -221,6 +227,27 @@ export default function IntegrityReportsPage() {
                     <p className="text-2xl font-bold">{summary?.totals?.deductedTotal?.toFixed(2) ?? '0.00'}</p>
                 </div>
             </div>
+
+            {summary?.reviewRequired && summary.reviewRequired.total > 0 && (
+                <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-sm font-semibold text-amber-200">
+                                يوجد {summary.reviewRequired.total} عملية مشكوك فيها تحتاج قرار مالي
+                            </p>
+                            <p className="mt-1 text-xs text-amber-100/80">
+                                دي عمليات REVIEW_REQUIRED فقط وفيها خصم/دليل مالي. مكان مراجعتها ورد الفلوس بقى في صفحة مراجعة العمليات.
+                            </p>
+                        </div>
+                        <a
+                            href="/dashboard/admin/financial-review"
+                            className="inline-flex items-center justify-center rounded-lg border border-amber-300/40 bg-background px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-400/10"
+                        >
+                            فتح مراجعة العمليات
+                        </a>
+                    </div>
+                </div>
+            )}
 
             <div className="rounded-xl border border-border bg-card p-4 flex flex-col md:flex-row gap-3">
                 <input

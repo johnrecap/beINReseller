@@ -24,6 +24,7 @@ import {
     Megaphone,
     Activity,
     AlertTriangle,
+    ShieldCheck,
     DollarSign,
     WalletCards,
 } from 'lucide-react'
@@ -106,6 +107,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         ...(sidebarSettings.sidebar_show_low_balance ? [{ href: '/dashboard/admin/bein-accounts/low-balance', label: 'Balance Alert Monitor', icon: DollarSign }] : []),
         { href: '/dashboard/admin/proxies', label: t.sidebar.proxyManagement, icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
+        { href: '/dashboard/admin/financial-review', label: 'مراجعة العمليات', icon: ShieldCheck },
         { href: '/dashboard/admin/reports/integrity', label: t.sidebar.integrityReports || 'Integrity Reports', icon: AlertTriangle },
         { href: '/dashboard/admin/reports/bein-spend', label: t.sidebar.beinSpendReport || 'beIN Spend Report', icon: WalletCards },
         { href: '/dashboard/admin/bein-config', label: t.sidebar.beinConfig, icon: Bot },

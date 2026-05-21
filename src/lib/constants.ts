@@ -31,9 +31,14 @@ export const OPERATION_STATUSES = {
     PENDING: 'PENDING',
     PROCESSING: 'PROCESSING',
     AWAITING_CAPTCHA: 'AWAITING_CAPTCHA',
+    AWAITING_PACKAGE: 'AWAITING_PACKAGE',
+    AWAITING_FINAL_CONFIRM: 'AWAITING_FINAL_CONFIRM',
+    COMPLETING: 'COMPLETING',
     COMPLETED: 'COMPLETED',
     FAILED: 'FAILED',
     CANCELLED: 'CANCELLED',
+    EXPIRED: 'EXPIRED',
+    REVIEW_REQUIRED: 'REVIEW_REQUIRED',
 } as const
 
 // UI Constants
@@ -73,7 +78,12 @@ export const OPERATION_STATUS_LABELS: Record<string, string> = {
     PENDING: 'Pending',
     PROCESSING: 'Processing',
     AWAITING_CAPTCHA: 'Awaiting Captcha',
+    AWAITING_PACKAGE: 'Awaiting Package Selection',
+    AWAITING_FINAL_CONFIRM: 'Awaiting Final Confirmation',
+    COMPLETING: 'Completing',
     COMPLETED: 'Completed',
     FAILED: 'Failed',
     CANCELLED: 'Cancelled',
+    EXPIRED: 'Expired',
+    REVIEW_REQUIRED: 'قيد مراجعة الإدارة',
 }

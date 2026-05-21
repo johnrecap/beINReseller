@@ -18,7 +18,18 @@ export interface User {
 
 // Operation types
 export type OperationType = 'RENEW' | 'CHECK' | 'SIGNAL_REFRESH'
-export type OperationStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+export type OperationStatus =
+    | 'PENDING'
+    | 'PROCESSING'
+    | 'AWAITING_CAPTCHA'
+    | 'AWAITING_PACKAGE'
+    | 'AWAITING_FINAL_CONFIRM'
+    | 'COMPLETING'
+    | 'COMPLETED'
+    | 'FAILED'
+    | 'CANCELLED'
+    | 'EXPIRED'
+    | 'REVIEW_REQUIRED'
 
 export interface Operation {
     id: string

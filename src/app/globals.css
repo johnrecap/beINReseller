@@ -179,6 +179,20 @@
   }
 }
 
+@layer components {
+  .review-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground transition hover:bg-secondary disabled:pointer-events-none disabled:opacity-60;
+  }
+
+  .review-button-success {
+    @apply border-[#9ffb06]/40 bg-[#9ffb06]/10 text-[#9ffb06] hover:bg-[#9ffb06]/15;
+  }
+
+  .review-button-danger {
+    @apply border-red-400/40 bg-red-500/10 text-red-200 hover:bg-red-500/15;
+  }
+}
+
 /* 
  * 🎯 Desh Panel - Clean Login Theme 🎯
  * Performance-optimized, no heavy effects

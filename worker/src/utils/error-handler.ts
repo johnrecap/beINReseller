@@ -72,6 +72,7 @@ function decideRefundSafety(params: {
     amount: number
     responseData: unknown
     existingRefund: boolean
+    allowFinalPayRefund?: boolean
 }): { refundAllowed: boolean; reason: string; finalPayMayHaveStarted: boolean } {
     const finalPayStarted = finalPayMayHaveStarted(params.status, params.responseData)
     if (params.status === 'COMPLETED' || params.status === 'REVIEW_REQUIRED') {
@@ -84,12 +85,21 @@ function decideRefundSafety(params: {
         return { refundAllowed: false, reason: 'no_amount', finalPayMayHaveStarted: finalPayStarted }
     }
     if (finalPayStarted) {
+        if (params.allowFinalPayRefund) {
+            return { refundAllowed: true, reason: 'confirmed_not_charged_after_final_pay', finalPayMayHaveStarted: true }
+        }
         return { refundAllowed: false, reason: 'final_pay_may_have_started', finalPayMayHaveStarted: true }
     }
     return { refundAllowed: true, reason: 'pre_final_payment', finalPayMayHaveStarted: false }
 }
 
-export async function refundUser(operationId: string, userId: string, amount: number, reason: string): Promise<boolean> {
+export async function refundUser(
+    operationId: string,
+    userId: string,
+    amount: number,
+    reason: string,
+    options: { allowFinalPayRefund?: boolean } = {}
+): Promise<boolean> {
     // Guard: skip if no money to refund
     if (!amount || amount <= 0) {
         console.log(`⚠️ Skipping refund for operation ${operationId}: amount is ${amount}`)
@@ -119,7 +129,8 @@ export async function refundUser(operationId: string, userId: string, amount: nu
                 status: operation.status,
                 amount,
                 responseData: operation.responseData,
-                existingRefund: !!existingRefund
+                existingRefund: !!existingRefund,
+                allowFinalPayRefund: options.allowFinalPayRefund === true
             })
 
             if (!refundDecision.refundAllowed) {

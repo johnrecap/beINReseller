@@ -2113,7 +2113,9 @@ async function handleConfirmPurchaseHttp(
             return;
         } else {
             if (operation.userId && operation.amount && operation.amount > 0) {
-                await refundUser(operationId, operation.userId, operation.amount, result.message);
+                await refundUser(operationId, operation.userId, operation.amount, result.message, {
+                    allowFinalPayRefund: outcomeDecision.outcomeCategory === 'CONFIRMED_NOT_CHARGED'
+                });
             }
             await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1);
             await deleteOperationSessionFromCache(operationId);
@@ -3434,7 +3436,9 @@ async function handleConfirmInstallmentHttp(
     }
 
     if (operation.userId && operation.amount && operation.amount > 0) {
-        await refundUser(operationId, operation.userId, operation.amount, payResult.message);
+        await refundUser(operationId, operation.userId, operation.amount, payResult.message, {
+            allowFinalPayRefund: payOutcomeDecision.outcomeCategory === 'CONFIRMED_NOT_CHARGED'
+        });
     }
     await markOperationFailed(operationId, { type: 'UNKNOWN', message: payResult.message, recoverable: false }, 1);
     return;

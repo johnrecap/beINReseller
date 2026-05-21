@@ -50,9 +50,25 @@ worker/logs/*.log
 worker/src/http/*.bak_*
 
 # Agent
+.agents/
 .agent
 .opencode
 .claude
 .osgrep
 .memsearch
 .worktrees/
+
+# Planning, specs, mockups, and local tool metadata
+/docs/
+/specs/
+/.specify/
+/.vscode/
+/testsprite_tests/
+
+# Local/project prompt notes and non-runtime handoff docs
+/BEIN_OFFICIAL_FIELDS_AND_FLOWS.md
+/CHAT_CHANGES_SUMMARY.md
+/CODEX_ANTIGRAVITY_PLAYBOOK.md
+/CODEX_SKILLS_SETUP_PROMPT.md
+/CODEX_UPDATE_BRIDGE_SKILLS_PROMPT.md
+/DASHBOARD_PROMPTS.md

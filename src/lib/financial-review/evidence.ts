@@ -22,6 +22,16 @@ type ReviewOperation = {
     user: { id: string; username: string } | null
     customer: { id: string; name: string; email: string } | null
     beinAccount: { id: string; username: string | null; label: string | null } | null
+    chargedBeinSpendLedger: {
+        id: string
+        beinAccountId: string
+        dealerBalanceBefore: number
+        dealerBalanceAfter: number
+        spendAmount: number
+        evidenceConfidence: string
+        beinUsernameSnapshot: string
+        beinLabelSnapshot: string | null
+    } | null
     transactions: Array<{ type: string; amount: number }>
 }
 
@@ -127,6 +137,24 @@ export function buildFinancialReviewItem(
             : typeof auditSnapshot?.reviewSource === 'string'
                 ? auditSnapshot.reviewSource
                 : null
+    const chargedLedger = operation.chargedBeinSpendLedger
+    const auditBeinBalanceBefore = toNullableNumber(auditSnapshot?.beinBalanceBefore)
+    const auditBeinBalanceAfter = toNullableNumber(auditSnapshot?.beinBalanceAfter)
+    const auditBeinDelta = toNullableNumber(auditSnapshot?.beinDelta)
+    const ledgerDebitAmount = chargedLedger ? Math.abs(chargedLedger.spendAmount) : null
+    const derivedAuditDebitAmount =
+        auditBeinBalanceBefore !== null && auditBeinBalanceAfter !== null && auditBeinBalanceBefore > auditBeinBalanceAfter
+            ? auditBeinBalanceBefore - auditBeinBalanceAfter
+            : null
+    const auditDebitAmount = typeof auditBeinDelta === 'number' && auditBeinDelta > 0 ? auditBeinDelta : derivedAuditDebitAmount
+    const beinDebitAmount = ledgerDebitAmount ?? auditDebitAmount
+    const beinDebitSource = chargedLedger ? 'ledger' : auditDebitAmount !== null ? 'audit_snapshot' : 'none'
+    const beinDebitConfirmed = beinDebitSource !== 'none'
+    const resolvedBeinAccount = chargedLedger ? {
+        id: chargedLedger.beinAccountId,
+        username: chargedLedger.beinUsernameSnapshot,
+        label: chargedLedger.beinLabelSnapshot,
+    } : operation.beinAccount
 
     const financiallyImpacted =
         hasUserDeduction ||
@@ -146,10 +174,19 @@ export function buildFinancialReviewItem(
         userDeductTotal,
         userBalanceBefore: toNullableNumber(auditSnapshot?.userBalanceBefore),
         userBalanceAfter: toNullableNumber(auditSnapshot?.userBalanceAfter),
-        beinBalanceBefore: toNullableNumber(auditSnapshot?.beinBalanceBefore),
-        beinBalanceAfter: toNullableNumber(auditSnapshot?.beinBalanceAfter),
-        beinDelta: toNullableNumber(auditSnapshot?.beinDelta),
-        beinUsername: typeof auditSnapshot?.beinUsername === 'string' ? auditSnapshot.beinUsername : operation.beinAccount?.username || null,
+        beinBalanceBefore: auditBeinBalanceBefore ?? chargedLedger?.dealerBalanceBefore ?? null,
+        beinBalanceAfter: auditBeinBalanceAfter ?? chargedLedger?.dealerBalanceAfter ?? null,
+        beinDelta: auditBeinDelta ?? ledgerDebitAmount,
+        beinUsername: typeof auditSnapshot?.beinUsername === 'string'
+            ? auditSnapshot.beinUsername
+            : chargedLedger?.beinUsernameSnapshot || operation.beinAccount?.username || null,
+        beinAccountId: resolvedBeinAccount?.id || null,
+        beinAccountLabel: resolvedBeinAccount?.label || null,
+        beinDebitConfirmed,
+        beinDebitAmount,
+        beinDebitSource,
+        beinLedgerId: chargedLedger?.id || null,
+        beinEvidenceConfidence: chargedLedger?.evidenceConfidence || null,
         selectedPackageName: packageInfo.name,
         selectedPackagePrice: packageInfo.price,
         capturedAt: typeof auditSnapshot?.capturedAt === 'string' ? auditSnapshot.capturedAt : null,
@@ -172,7 +209,7 @@ export function buildFinancialReviewItem(
         updatedAt: operation.updatedAt.toISOString(),
         user: operation.user ? { ...operation.user, kind: 'reseller' } : null,
         customer: operation.customer ? { id: operation.customer.id, username: operation.customer.name || operation.customer.email, kind: 'customer' } : null,
-        beinAccount: operation.beinAccount,
+        beinAccount: resolvedBeinAccount,
         state,
         stateLabel: getStateLabel(state),
         packageName: packageInfo.name,

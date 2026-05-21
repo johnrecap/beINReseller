@@ -48,6 +48,13 @@ export interface FinancialReviewEvidence {
     beinBalanceAfter: number | null
     beinDelta: number | null
     beinUsername: string | null
+    beinAccountId: string | null
+    beinAccountLabel: string | null
+    beinDebitConfirmed: boolean
+    beinDebitAmount: number | null
+    beinDebitSource: 'ledger' | 'audit_snapshot' | 'none'
+    beinLedgerId: string | null
+    beinEvidenceConfidence: string | null
     selectedPackageName: string | null
     selectedPackagePrice: number | null
     capturedAt: string | null

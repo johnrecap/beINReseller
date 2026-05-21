@@ -55,6 +55,22 @@ function shortId(id: string) {
     return `${id.slice(0, 8)}...${id.slice(-4)}`
 }
 
+function formatUsd(value: number | null | undefined) {
+    const amount = formatAmount(value)
+    return amount === '-' ? '-' : `USD ${amount}`
+}
+
+function getBeinDebitSourceLabel(source: FinancialReviewItem['evidence']['beinDebitSource']) {
+    switch (source) {
+        case 'ledger':
+            return 'سجل خصم beIN مؤكد'
+        case 'audit_snapshot':
+            return 'لقطة العملية'
+        case 'none':
+            return 'لا يوجد دليل خصم'
+    }
+}
+
 export default function FinancialReviewClient() {
     const [state, setState] = useState<FinancialReviewState | 'all'>('needs_decision')
     const [search, setSearch] = useState('')
@@ -253,6 +269,13 @@ function ReviewCard({
     const [expanded, setExpanded] = useState(false)
     const owner = item.user || item.customer
     const latestCheck = item.review.latestCardVerification
+    const beinAccountName =
+        item.evidence.beinAccountLabel ||
+        item.evidence.beinUsername ||
+        item.beinAccount?.label ||
+        item.beinAccount?.username ||
+        '-'
+    const beinDebitStatus = item.evidence.beinDebitConfirmed ? 'نعم - يوجد دليل خصم' : 'لا يوجد دليل خصم'
 
     return (
         <article className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -277,7 +300,9 @@ function ReviewCard({
                         <Info label="العميل" value={owner?.username || '-'} />
                         <Info label="المبلغ المخصوم" value={`${formatAmount(item.amount)} USD`} />
                         <Info label="الباقة المختارة" value={item.packageName || '-'} />
-                        <Info label="حساب beIN" value={item.beinAccount?.label || item.beinAccount?.username || '-'} />
+                        <Info label="حساب beIN المستخدم" value={beinAccountName} />
+                        <Info label="هل اتخصم من beIN؟" value={beinDebitStatus} />
+                        <Info label="قيمة خصم beIN" value={formatUsd(item.evidence.beinDebitAmount)} />
                     </div>
                 </div>
 
@@ -307,6 +332,12 @@ function ReviewCard({
                 </div>
             )}
 
+            {!item.evidence.beinDebitConfirmed && (
+                <div className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">
+                    لا يوجد دليل واضح أن حساب beIN اتخصم في هذه العملية. راجع الكارت أو موقع beIN قبل رد الفلوس أو تأكيد التجديد.
+                </div>
+            )}
+
             <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
                 <button onClick={() => setExpanded((value) => !value)} className="review-button">
                     {expanded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -331,8 +362,13 @@ function ReviewCard({
                     <Info label="تم رد سابق؟" value={item.evidence.hasRefund ? 'نعم' : 'لا'} />
                     <Info label="خصم المستخدم" value={formatAmount(item.evidence.userDeductTotal)} />
                     <Info label="رصيد المستخدم قبل/بعد" value={`${formatAmount(item.evidence.userBalanceBefore)} -> ${formatAmount(item.evidence.userBalanceAfter)}`} />
-                    <Info label="رصيد beIN قبل/بعد" value={`${formatAmount(item.evidence.beinBalanceBefore)} -> ${formatAmount(item.evidence.beinBalanceAfter)}`} />
-                    <Info label="فرق beIN" value={formatAmount(item.evidence.beinDelta)} />
+                    <Info label="حساب beIN المستخدم" value={beinAccountName} />
+                    <Info label="رصيد beIN قبل" value={formatUsd(item.evidence.beinBalanceBefore)} />
+                    <Info label="رصيد beIN بعد" value={formatUsd(item.evidence.beinBalanceAfter)} />
+                    <Info label="هل اتخصم من beIN؟" value={beinDebitStatus} />
+                    <Info label="قيمة خصم beIN" value={formatUsd(item.evidence.beinDebitAmount)} />
+                    <Info label="مصدر دليل beIN" value={getBeinDebitSourceLabel(item.evidence.beinDebitSource)} />
+                    <Info label="ثقة الدليل" value={item.evidence.beinEvidenceConfidence || '-'} />
                     <Info label="رسالة النظام" value={item.evidence.responseMessage || '-'} />
                     <Info label="وقت الدليل" value={item.evidence.capturedAt ? new Date(item.evidence.capturedAt).toLocaleString('ar-EG') : '-'} />
                 </div>

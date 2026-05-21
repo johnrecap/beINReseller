@@ -38,6 +38,8 @@ export async function GET(request: NextRequest) {
                         { customer: { email: { contains: q, mode: 'insensitive' } } },
                         { beinAccount: { username: { contains: q, mode: 'insensitive' } } },
                         { beinAccount: { label: { contains: q, mode: 'insensitive' } } },
+                        { chargedBeinSpendLedger: { is: { beinUsernameSnapshot: { contains: q, mode: 'insensitive' } } } },
+                        { chargedBeinSpendLedger: { is: { beinLabelSnapshot: { contains: q, mode: 'insensitive' } } } },
                     ]
                 } : {}),
             },
@@ -55,6 +57,18 @@ export async function GET(request: NextRequest) {
                 user: { select: { id: true, username: true } },
                 customer: { select: { id: true, name: true, email: true } },
                 beinAccount: { select: { id: true, username: true, label: true } },
+                chargedBeinSpendLedger: {
+                    select: {
+                        id: true,
+                        beinAccountId: true,
+                        dealerBalanceBefore: true,
+                        dealerBalanceAfter: true,
+                        spendAmount: true,
+                        evidenceConfidence: true,
+                        beinUsernameSnapshot: true,
+                        beinLabelSnapshot: true,
+                    },
+                },
                 transactions: { select: { type: true, amount: true } },
             },
             orderBy: { updatedAt: 'desc' },

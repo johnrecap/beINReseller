@@ -23,7 +23,9 @@ Relevant fields:
 
 Review-specific rules:
 
-- `status = REVIEW_REQUIRED` means the operation needs admin financial review.
+- `status = REVIEW_REQUIRED` is the first eligibility gate, but the operation also needs financial impact before it appears in the review queue.
+- Financial impact means user/customer deduction, held/refund-blocked money, an operation-linked debit/refund concern, or uncertain final provider payment after deduction.
+- Completed operations, active normal operations, cancelled operations, and failures with no deduction/held balance are excluded from the review queue.
 - `responseData.auditSnapshot` may contain user deduction and beIN balance evidence.
 - `responseData` may be object-shaped or a legacy JSON string and must be parsed safely.
 

@@ -9,14 +9,15 @@
 - Add another section to Integrity Reports: rejected because the user already finds the page confusing.
 - Replace Integrity Reports entirely: rejected because scans and analytics are still useful.
 
-## Decision: Use `REVIEW_REQUIRED` operations as the primary queue
+## Decision: Use financially impacted `REVIEW_REQUIRED` operations as the primary queue
 
-**Rationale**: The worker and cron safety paths already move uncertain financial outcomes to `REVIEW_REQUIRED`. The summary API already extracts these operations and their audit evidence.
+**Rationale**: The worker and cron safety paths already move uncertain financial outcomes to `REVIEW_REQUIRED`, but the admin review page must not become an all-operations log. A case belongs in the queue only when the outcome is suspicious/incomplete and there is user/customer money deducted, held, refund-blocked, or final provider payment uncertainty after deduction.
 
 **Alternatives considered**:
 
 - Use `OperationIntegrityIssue` rows as the queue: rejected because they describe mismatch analytics and may not map cleanly to refund decisions.
 - Use transactions only: rejected because missing beIN evidence and response messages live on operations.
+- Include every operation: rejected because normal operations belong in history/reports, not the financial review workbench.
 
 ## Decision: Create operation-linked review decisions
 

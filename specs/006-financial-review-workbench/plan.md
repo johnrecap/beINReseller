@@ -5,7 +5,7 @@
 
 ## Summary
 
-Build a dedicated admin Financial Review workbench for `REVIEW_REQUIRED` operations so refund/no-refund decisions are no longer buried inside Integrity Reports. The implementation should reuse existing operation, transaction, audit snapshot, integrity summary, and beIN card-check concepts, but separate action workflow from analytics and show plain-language explanations before any money decision.
+Build a dedicated admin Financial Review workbench for financially impacted `REVIEW_REQUIRED` operations only, so refund/no-refund decisions are no longer buried inside Integrity Reports. This is not an all-operations log. The implementation should reuse existing operation, transaction, audit snapshot, integrity summary, and beIN card-check concepts, but separate action workflow from analytics and show plain-language explanations before any money decision.
 
 ## Technical Context
 
@@ -17,7 +17,7 @@ Build a dedicated admin Financial Review workbench for `REVIEW_REQUIRED` operati
 **Project Type**: Web application with API routes and server-rendered dashboard pages  
 **Performance Goals**: Pending review list should load within normal dashboard expectations and avoid blocking full integrity scans. Card verification can be slower because it contacts beIN, but it must show progress and never block the whole queue.
 **Constraints**: Financial actions must be idempotent, admin-only, operation-linked, and safe when evidence is incomplete.  
-**Scale/Scope**: Small admin workflow over recent `REVIEW_REQUIRED` operations, not a replacement for all reporting.
+**Scale/Scope**: Small admin workflow over recent suspicious/incomplete `REVIEW_REQUIRED` operations with user/customer deduction, held money, refund-blocking evidence, or uncertain final provider payment. It is not a replacement for all operation history or all reporting.
 
 ## Constitution Check
 

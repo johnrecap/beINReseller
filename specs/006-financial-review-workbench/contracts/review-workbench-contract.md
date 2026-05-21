@@ -2,7 +2,7 @@
 
 ## GET `/api/admin/financial-review`
 
-Returns review operations for the admin workbench.
+Returns financially impacted review operations for the admin workbench. This endpoint must not return all operations.
 
 ### Query Parameters
 
@@ -60,6 +60,20 @@ Returns review operations for the admin workbench.
   ]
 }
 ```
+
+### Eligibility Rules
+
+The response must include only operations that meet all required gates:
+
+- Operation is in a reviewable/suspicious state such as `REVIEW_REQUIRED`.
+- Operation has user/customer deduction, held money, refund-blocking evidence, or uncertain final provider payment after deduction.
+
+The response must exclude:
+
+- Normal completed operations.
+- Normal pending/active operations.
+- Cancelled operations.
+- Failed operations where no user/customer money was deducted or held.
 
 ### Error Responses
 

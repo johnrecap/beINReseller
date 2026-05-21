@@ -62,8 +62,8 @@
 - [ ] T008 Add evidence extraction helpers in `src/lib/financial-review/evidence.ts`.
   - Reason: `responseData` can be an object, legacy JSON string, incomplete, or malformed.
   - Benefit: The page can safely show consistent evidence without crashing.
-  - Expected: Safe parsing for user deduction, beIN balance before/after, beIN delta, refund state, response message, and worker review reason.
-  - Risks to avoid: Do not call unsafe `JSON.parse` on unknown values without guards.
+  - Expected: Safe parsing for review eligibility, user deduction, held money, beIN balance before/after, beIN delta, refund state, response message, and worker review reason.
+  - Risks to avoid: Do not include all operations; exclude operations with no user/customer deduction, no held money, and no uncertain final provider payment.
 
 - [ ] T009 Add `FinancialReviewDecision` and `FinancialReviewCardCheck` models to `prisma/schema.prisma` and mirror them in `worker/prisma/schema.prisma`.
   - Reason: Decisions and card checks need an audit trail that survives page reloads and disputes.
@@ -88,8 +88,8 @@
 - [ ] T011 [P] [US1] Add `GET /api/admin/financial-review` in `src/app/api/admin/financial-review/route.ts`.
   - Reason: The workbench needs a focused endpoint instead of loading the full Integrity Reports table.
   - Benefit: Faster, cleaner queue data for admins.
-  - Expected: Endpoint returns summary counts, filtered operations, normalized evidence, latest decision, and latest card verification.
-  - Risks to avoid: Do not allow non-admin access or leak full user/account data beyond what the workbench needs.
+  - Expected: Endpoint returns only financially impacted suspicious/incomplete review operations, summary counts, normalized evidence, latest decision, and latest card verification.
+  - Risks to avoid: Do not return normal completed operations, normal active operations, cancelled operations, or failed operations with no deducted/held money.
 
 - [ ] T012 [P] [US1] Add route-level access and shape checks for `src/app/api/admin/financial-review/route.ts`.
   - Reason: This endpoint exposes financial cases and customer identifiers.

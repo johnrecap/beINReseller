@@ -3,13 +3,13 @@
 **Feature Branch**: `codex/fix-renewal-confirm-session-safety`  
 **Created**: 2026-05-20  
 **Status**: Draft  
-**Input**: User needs a clear Spec Kit plan for replacing the confusing Integrity Reports workflow with a focused admin screen for operations that need manual financial review, including refund/no-refund decisions, plain-language reasons, and a way to verify the card before deciding.
+**Input**: User needs a clear Spec Kit plan for replacing the confusing Integrity Reports workflow with a focused admin screen for suspicious or incomplete operations only: cases where money was deducted or financially held and the beIN outcome is uncertain. Normal completed operations and failed operations with no deduction must not appear in the review page.
 
 ## User Scenarios & Testing
 
 ### User Story 1 - Review Required Queue (Priority: P1)
 
-An admin opens a dedicated financial review page and immediately sees only operations that need a decision, separated from the technical Integrity Reports page.
+An admin opens a dedicated financial review page and immediately sees only financially impacted operations that need a decision, separated from normal operations and from the technical Integrity Reports page.
 
 **Why this priority**: The current Integrity Reports screen mixes analytics, mismatch rows, scans, and financial risk in one dense table. The admin cannot quickly answer "who needs money back?" or "which beIN operation probably succeeded?".
 
@@ -17,9 +17,10 @@ An admin opens a dedicated financial review page and immediately sees only opera
 
 **Acceptance Scenarios**:
 
-1. **Given** an admin has at least one `REVIEW_REQUIRED` operation, **When** they open Financial Review, **Then** the operation appears in the "Needs decision" view.
+1. **Given** an admin has at least one `REVIEW_REQUIRED` operation with user/customer money deducted or held, **When** they open Financial Review, **Then** the operation appears in the "Needs decision" view.
 2. **Given** there are no pending review operations, **When** the admin opens Financial Review, **Then** the page shows an empty state that says there is nothing awaiting decision.
 3. **Given** the admin searches by operation id, card number, username, or beIN account, **When** matching records exist, **Then** the list narrows to those records.
+4. **Given** an operation completed normally or failed before any user/customer deduction, **When** the admin opens Financial Review, **Then** that operation does not appear.
 
 ---
 
@@ -89,6 +90,7 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 ### Edge Cases
 
 - A `REVIEW_REQUIRED` operation has no user id, no amount, or no selected package.
+- A `REVIEW_REQUIRED` operation exists but has no user/customer deduction and no held balance.
 - A review operation has no card number or the selected package no longer appears in beIN.
 - Card verification returns a timeout, login error, proxy error, or unclear subscription data.
 - A refund transaction already exists for the same operation.
@@ -103,7 +105,7 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST provide a dedicated admin-only Financial Review page for operations with `REVIEW_REQUIRED` status.
+- **FR-001**: The system MUST provide a dedicated admin-only Financial Review page for financially impacted operations with `REVIEW_REQUIRED` status.
 - **FR-002**: The page MUST list operation id, operation type, customer/user, card number, requested amount, selected package, beIN account, updated time, and current review state.
 - **FR-003**: The page MUST show evidence fields in plain language: user deduction total, beIN balance before, beIN balance after, beIN delta, refund status, response message, and review reason.
 - **FR-004**: The page MUST support filtering by pending/resolved/follow-up state, date range, operation type, evidence completeness, refund state, beIN account, and search text.
@@ -123,10 +125,12 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 - **FR-018**: Recommendations MUST never automatically refund or close a review operation without an explicit admin decision.
 - **FR-019**: The implementation MUST follow `ui-content-map.md` for component structure, visible labels, buttons, fields, dialogs, empty states, and warnings.
 - **FR-020**: Any visible copy change MUST update `ui-content-map.md` before implementation so design and code stay aligned.
+- **FR-021**: The review queue MUST include only suspicious or incomplete operations with financial impact: user/customer deduction, held/refund-blocked money, or final provider payment uncertainty after deduction.
+- **FR-022**: The review queue MUST exclude normal completed operations, normal pending/active operations, cancelled operations, and failures where no user/customer money was deducted or held.
 
 ### Key Entities
 
-- **Review Operation**: Existing operation requiring manual decision because beIN outcome or refund safety is uncertain.
+- **Review Operation**: Existing financially impacted operation requiring manual decision because beIN outcome or refund safety is uncertain.
 - **Review Evidence**: Parsed business evidence from operation data, transactions, beIN ledger, and audit snapshots.
 - **Card Verification Result**: Latest safe check of the customer's current beIN card/subscription state.
 - **Review Decision**: Admin action that resolves or annotates the review operation.
@@ -148,7 +152,7 @@ An admin can still use Integrity Reports for analytics and mismatch scanning, bu
 ## Assumptions
 
 - Existing admin authentication and role checks remain the source of access control.
-- Existing `REVIEW_REQUIRED` operation status remains the entry point for financial review.
+- Existing `REVIEW_REQUIRED` operation status remains the entry point for financial review, but it is not enough by itself; the operation must also have user/customer deduction, held money, or uncertain final provider payment evidence.
 - A dedicated review-decision record is preferred for auditability, but the final implementation may reuse operation response metadata if migration risk must be avoided.
 - Refunds should be operation-linked and idempotent.
 - This feature is for the admin dashboard only; manager and customer views are out of scope.

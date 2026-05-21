@@ -61,7 +61,7 @@ FinancialReviewPage
 Visible copy:
 
 - Page title: `مراجعة العمليات`
-- Subtitle: `راجع العمليات اللي اتخصم فيها رصيد ومحتاجين نتأكد هل التجديد تم ولا لا.`
+- Subtitle: `راجع بس العمليات المشكوك فيها أو غير المكتملة اللي اتخصم فيها رصيد ومحتاجين نتأكد هل التجديد تم ولا لا.`
 - Last refresh label: `آخر تحديث`
 - Refresh button: `تحديث`
 - Refresh loading text: `جاري التحديث...`
@@ -101,7 +101,7 @@ Tabs:
 - `تم التأكيد بدون رد`
 - `الكل`
 
-Each tab displays count badge when count is greater than zero.
+Each tab displays count badge when count is greater than zero. `الكل` means all review-eligible cases only, not all system operations.
 
 ### ReviewFilters
 
@@ -345,7 +345,7 @@ Loading:
 No pending reviews:
 
 - Title: `مفيش عمليات محتاجة قرار`
-- Body: `لو ظهرت عملية غير مؤكدة هتظهر هنا تلقائيا.`
+- Body: `لو ظهرت عملية مشكوك فيها واتخصم فيها رصيد هتظهر هنا تلقائيا.`
 - Button: `تحديث`
 
 No filter results:

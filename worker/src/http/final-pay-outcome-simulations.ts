@@ -31,7 +31,7 @@ const scenarios: Scenario[] = [
         expected: 'CONFIRMED_SUCCESS'
     },
     {
-        name: 'transaction busy after final Pay',
+        name: 'transaction busy after final Pay with unchanged readable balance',
         input: {
             success: false,
             message: 'Transaction is busy on beIN - please check the card status manually',
@@ -39,7 +39,18 @@ const scenarios: Scenario[] = [
             beinBalanceBefore: 100,
             beinBalanceAfter: 100
         },
-        expected: 'UNCERTAIN_REVIEW_REQUIRED'
+        expected: 'CONFIRMED_NOT_CHARGED'
+    },
+    {
+        name: 'no success text and unchanged readable balance',
+        input: {
+            success: false,
+            message: 'No success confirmation found from beIN',
+            finalPaySubmitted: true,
+            beinBalanceBefore: 100,
+            beinBalanceAfter: 100
+        },
+        expected: 'CONFIRMED_NOT_CHARGED'
     },
     {
         name: 'timeout after final Pay',

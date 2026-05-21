@@ -61,6 +61,15 @@ export function classifyFinalPayOutcome(input: {
         return 'CONFIRMED_SUCCESS';
     }
 
+    if (
+        input.finalPaySubmitted &&
+        typeof input.beinBalanceBefore === 'number' &&
+        typeof input.beinBalanceAfter === 'number' &&
+        input.beinBalanceAfter >= input.beinBalanceBefore
+    ) {
+        return 'CONFIRMED_NOT_CHARGED';
+    }
+
     const normalized = (input.message || '').toLowerCase();
     if (
         normalized.includes('insufficient balance') ||

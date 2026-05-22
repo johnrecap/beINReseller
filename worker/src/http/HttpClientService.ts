@@ -2901,6 +2901,7 @@ export class HttpClientService {
      */
     private extractContractsTable($: cheerio.CheerioAPI): Array<{ type: string; status: string; package: string; startDate: string; expiryDate: string; invoiceNo: string; }> {
         const contracts: Array<{ type: string; status: string; package: string; startDate: string; expiryDate: string; invoiceNo: string; }> = [];
+        const skippedRows: Record<string, number> = {};
 
         try {
             // Find the contracts table - try multiple selectors based on beIN HTML structure
@@ -2943,11 +2944,26 @@ export class HttpClientService {
 
             console.log(`[HTTP] Found ${rows.length} rows in contracts table`);
 
+            const validTypes = ['package', 'purchase', 'payinstallment', 'addonevent', 'dependent'];
+            const dateLikePattern = /^\d{1,2}\/\d{1,2}\/\d{4}$|^\d{4}-\d{1,2}-\d{1,2}$/;
+            const trackSkip = (reason: string) => {
+                skippedRows[reason] = (skippedRows[reason] || 0) + 1;
+            };
+            const hasKnownType = (type: string) => validTypes.some(t => type.toLowerCase().includes(t));
+            const hasContractShape = (contract: { type: string; status: string; package: string; startDate: string; expiryDate: string; }) =>
+                Boolean(
+                    contract.type &&
+                    contract.status &&
+                    contract.package &&
+                    (dateLikePattern.test(contract.startDate) || dateLikePattern.test(contract.expiryDate))
+                );
+
             rows.each((index, row) => {
                 const cells = $(row).find('td');
 
                 // Skip if this looks like a header row or paging row
                 if (cells.length < 5) {
+                    trackSkip('too_few_cells');
                     return;
                 }
 
@@ -2980,15 +2996,21 @@ export class HttpClientService {
                         invoiceNo: remainingCells >= 6 ? $(cells[startIndex + 5]).text().trim() : ''
                     };
 
-                    // Only add if has valid data (type must be a known type)
-                    const validTypes = ['package', 'purchase', 'payinstallment', 'addonevent'];
-                    if (contract.type && validTypes.some(t => contract.type.toLowerCase().includes(t))) {
+                    // Include known beIN contract types and future valid-looking contract rows.
+                    if (hasKnownType(contract.type) || hasContractShape(contract)) {
                         contracts.push(contract);
+                    } else {
+                        trackSkip('invalid_contract_shape');
                     }
+                } else {
+                    trackSkip('not_enough_contract_columns');
                 }
             });
 
             console.log(`[HTTP] Extracted ${contracts.length} contracts from table`);
+            if (Object.keys(skippedRows).length > 0) {
+                console.log(`[HTTP] Skipped contract rows: ${JSON.stringify(skippedRows)}`);
+            }
         } catch (error: any) {
             console.error('[HTTP] Error extracting contracts:', error.message);
         }

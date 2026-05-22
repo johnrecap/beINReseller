@@ -106,7 +106,7 @@ export interface SignalRefreshResult {
  * Used in two-step signal refresh flow
  */
 export interface Contract {
-    type: string;        // Purchase, PayInstallment, AddonEvent, Package
+    type: string;        // Purchase, PayInstallment, AddonEvent, Package, Dependent
     status: string;      // Active, Canceled, Expired
     package: string;     // Package name
     startDate: string;   // Start date

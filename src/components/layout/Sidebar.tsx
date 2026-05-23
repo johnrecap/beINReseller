@@ -47,6 +47,12 @@ type SidebarLink = {
     icon: typeof Home
 }
 
+type SidebarSection = {
+    title: string
+    links: SidebarLink[]
+    exact?: boolean
+}
+
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname()
     const { data: session, status } = useSession()
@@ -76,6 +82,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     // Permission-based visibility
     const canRenew = canAccessSubscription(userRole)
+    const sectionLabel = (ar: string, en: string) => dir === 'rtl' ? ar : en
     // Base links for all authenticated users
     const baseLinks = [
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
@@ -108,7 +115,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/agent', label: 'Agent Dashboard', icon: BarChart3 },
     ] : []
 
-    const adminCreditAgentLinks = isAdmin ? [
+    const adminLinks = [
+        { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
+        { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
         ...(adminCreditRequestsReady ? [{ href: '/dashboard/admin/credit-requests', label: 'Credit Requests', icon: ShieldCheck }] : []),
         ...(creditAgentAdminNavigationReady ? [
             { href: '/dashboard/admin/agents', label: 'Agents', icon: Users },
@@ -117,12 +126,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         ...(creditRewardsNavigationReady ? [
             { href: '/dashboard/admin/rewards', label: 'Rewards', icon: WalletCards },
         ] : []),
-    ] : []
-
-    const adminLinks = [
-        { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
-        { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
-        ...adminCreditAgentLinks,
         { href: '/dashboard/admin/users/activity', label: t.sidebar.activityMonitoring || 'Activity Monitoring', icon: Activity },
         { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
@@ -138,6 +141,76 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/admin/settings', label: t.sidebar.settings, icon: Settings },
         { href: '/dashboard/admin/settings/announcements', label: t.sidebar.announcements || 'Announcements', icon: Megaphone },
         { href: '/dashboard/admin/logs', label: t.sidebar.logs, icon: FileText },
+    ]
+
+    const adminLinkLabels: Record<string, string> = {
+        '/dashboard/admin/credit-requests': sectionLabel('طلبات الرصيد', 'Credit Requests'),
+        '/dashboard/admin/agents': sectionLabel('المناديب', 'Agents'),
+        '/dashboard/admin/points': sectionLabel('إعدادات النقاط', 'Points Settings'),
+        '/dashboard/admin/rewards': sectionLabel('المكافآت', 'Rewards'),
+        '/dashboard/admin/financial-review': sectionLabel('مراجعة العمليات', 'Financial Review'),
+        '/dashboard/admin/recovery-health': sectionLabel('صحة الاسترداد', 'Recovery Health'),
+    }
+
+    const pickAdminLinks = (hrefs: string[]): SidebarLink[] => hrefs
+        .map((href) => adminLinks.find((link) => link.href === href))
+        .filter((link): link is SidebarLink => Boolean(link))
+        .map((link) => ({
+            ...link,
+            label: adminLinkLabels[link.href] || link.label,
+        }))
+
+    const adminSections: SidebarSection[] = [
+        {
+            title: sectionLabel('لوحة الإدارة', 'Admin Overview'),
+            exact: true,
+            links: pickAdminLinks(['/dashboard/admin']),
+        },
+        {
+            title: sectionLabel('المستخدمين والمناديب', 'People & Agents'),
+            links: pickAdminLinks([
+                '/dashboard/admin/users',
+                '/dashboard/admin/users/activity',
+                '/dashboard/admin/deleted-users',
+                '/dashboard/admin/agents',
+                '/dashboard/admin/points',
+            ]),
+        },
+        {
+            title: sectionLabel('طلبات ومراجعة العمليات', 'Requests & Reviews'),
+            links: pickAdminLinks([
+                '/dashboard/admin/credit-requests',
+                '/dashboard/admin/financial-review',
+                '/dashboard/admin/recovery-health',
+                '/dashboard/admin/logs',
+            ]),
+        },
+        {
+            title: sectionLabel('beIN والتشغيل', 'beIN Operations'),
+            links: pickAdminLinks([
+                '/dashboard/admin/bein-accounts',
+                '/dashboard/admin/bein-accounts/login-failures',
+                '/dashboard/admin/bein-accounts/low-balance',
+                '/dashboard/admin/proxies',
+                '/dashboard/admin/bein-config',
+            ]),
+        },
+        {
+            title: sectionLabel('التقارير والمراقبة', 'Reports & Monitoring'),
+            links: pickAdminLinks([
+                '/dashboard/admin/analytics',
+                '/dashboard/admin/reports/integrity',
+                '/dashboard/admin/reports/bein-spend',
+            ]),
+        },
+        {
+            title: sectionLabel('النظام والمحتوى', 'System & Content'),
+            links: pickAdminLinks([
+                '/dashboard/admin/settings',
+                '/dashboard/admin/settings/announcements',
+                '/dashboard/admin/rewards',
+            ]),
+        },
     ]
 
 
@@ -173,16 +246,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         )
     }
 
-    const renderSection = (title: string, links: SidebarLink[], exact = false) => (
-        <div>
-            <h4 className="mb-2 px-6 stitch-label text-[#c0caae]/70">
+    const renderSection = (title: string, links: SidebarLink[], exact = false) => links.length > 0 ? (
+        <section className="space-y-2">
+            <h4 className="px-6 stitch-label text-[#c0caae]/70">
                 {title}
             </h4>
-            <div className="flex flex-col">
+            <div className="flex flex-col border-y border-white/[0.03] bg-black/[0.06] py-1">
                 {links.map((link) => renderNavLink(link, exact))}
             </div>
-        </div>
-    )
+        </section>
+    ) : null
 
     // Sidebar Skeleton
     if (status === 'loading') {
@@ -289,7 +362,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                         {/* Admin Menu */}
                         {isAdmin && (
-                            renderSection(t.sidebar.admin, adminLinks)
+                            adminSections.map((section) => (
+                                <div key={section.title}>
+                                    {renderSection(section.title, section.links, section.exact)}
+                                </div>
+                            ))
                         )}
 
                     </div>

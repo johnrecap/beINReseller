@@ -1,61 +1,64 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { classifyRecovery } from '@/lib/operations/recovery-classifier'
+import {
+    RECOVERY_EXPIRED_AT,
+    RECOVERY_TEST_NOW,
+    finalPaySubmittedPhase,
+    preFinalPhase,
+    recoveryInput,
+} from '../helpers/operation-recovery-fixtures'
+
+const STALE_PROCESSING_AT = new Date('2026-05-24T09:55:00.000Z')
 
 test('expires abandoned package selection with no customer deduction', () => {
-    const result = classifyRecovery({
+    const result = classifyRecovery(recoveryInput({
         status: 'AWAITING_PACKAGE',
         amount: 0,
-        finalConfirmExpiry: new Date('2026-05-24T10:00:00.000Z'),
-        now: new Date('2026-05-24T10:02:00.000Z'),
+        finalConfirmExpiry: RECOVERY_EXPIRED_AT,
+        now: RECOVERY_TEST_NOW,
         customerDeductTransactionExists: false,
-    })
+    }))
 
     assert.equal(result.decision, 'EXPIRE')
     assert.equal(result.financialImpact, 'NONE')
 })
 
 test('expires abandoned final confirmation before customer deduction', () => {
-    const result = classifyRecovery({
+    const result = classifyRecovery(recoveryInput({
         status: 'AWAITING_FINAL_CONFIRM',
         amount: 0,
-        finalConfirmExpiry: new Date('2026-05-24T10:00:00.000Z'),
-        now: new Date('2026-05-24T10:02:00.000Z'),
+        finalConfirmExpiry: RECOVERY_EXPIRED_AT,
+        now: RECOVERY_TEST_NOW,
         customerDeductTransactionExists: false,
-    })
+    }))
 
     assert.equal(result.decision, 'EXPIRE')
     assert.equal(result.refundAllowed, false)
 })
 
 test('retries completing operation when dispatch is pending before final pay', () => {
-    const result = classifyRecovery({
+    const result = classifyRecovery(recoveryInput({
         status: 'COMPLETING',
         amount: 92,
         customerDeductTransactionExists: true,
         dispatchPending: true,
-        responseData: {
-            operationPhase: 'DISPATCH_PENDING',
-            finalPaySubmitted: false,
-        },
-    })
+        responseData: preFinalPhase('DISPATCH_PENDING'),
+    }))
 
     assert.equal(result.decision, 'RETRY_DISPATCH')
     assert.equal(result.reviewRequired, false)
 })
 
 test('safe-refunds completing operation when dispatch retries are exhausted before final pay', () => {
-    const result = classifyRecovery({
+    const result = classifyRecovery(recoveryInput({
         status: 'COMPLETING',
         amount: 92,
         customerDeductTransactionExists: true,
         dispatchFailed: true,
         dispatchExhausted: true,
-        responseData: {
-            operationPhase: 'DISPATCH_FAILED',
-            finalPaySubmitted: false,
-        },
-    })
+        responseData: preFinalPhase('DISPATCH_FAILED'),
+    }))
 
     assert.equal(result.decision, 'SAFE_REFUND')
     assert.equal(result.refundAllowed, true)
@@ -63,18 +66,73 @@ test('safe-refunds completing operation when dispatch retries are exhausted befo
 })
 
 test('moves completing operation to review when final pay evidence is incomplete', () => {
-    const result = classifyRecovery({
+    const result = classifyRecovery(recoveryInput({
         status: 'COMPLETING',
         amount: 92,
         customerDeductTransactionExists: true,
-        responseData: {
-            operationPhase: 'FINAL_PAY_SUBMITTED',
-            finalPaySubmitted: true,
-        },
-        heartbeatExpiry: new Date('2026-05-24T10:00:00.000Z'),
-        now: new Date('2026-05-24T10:02:00.000Z'),
-    })
+        responseData: finalPaySubmittedPhase(),
+        heartbeatExpiry: RECOVERY_EXPIRED_AT,
+        now: RECOVERY_TEST_NOW,
+    }))
 
     assert.equal(result.decision, 'REVIEW_REQUIRED')
     assert.equal(result.reviewRequired, true)
+})
+
+test('expires stale processing operation with no customer deduction', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'PROCESSING',
+        amount: 0,
+        customerDeductTransactionExists: false,
+        updatedAt: STALE_PROCESSING_AT,
+        now: RECOVERY_TEST_NOW,
+    }))
+
+    assert.equal(result.decision, 'EXPIRE')
+    assert.equal(result.financialImpact, 'NONE')
+    assert.equal(result.reviewRequired, false)
+})
+
+test('safe-refunds stale processing operation with deduction before final pay', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'PROCESSING',
+        amount: 92,
+        customerDeductTransactionExists: true,
+        responseData: preFinalPhase('CUSTOMER_DEDUCTED'),
+        updatedAt: STALE_PROCESSING_AT,
+        now: RECOVERY_TEST_NOW,
+    }))
+
+    assert.equal(result.decision, 'SAFE_REFUND')
+    assert.equal(result.refundAllowed, true)
+    assert.equal(result.financialImpact, 'CUSTOMER_DEDUCTED')
+})
+
+test('moves stale processing operation to review when final pay may have started', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'PROCESSING',
+        amount: 92,
+        customerDeductTransactionExists: true,
+        responseData: finalPaySubmittedPhase(),
+        updatedAt: STALE_PROCESSING_AT,
+        now: RECOVERY_TEST_NOW,
+    }))
+
+    assert.equal(result.decision, 'REVIEW_REQUIRED')
+    assert.equal(result.reviewRequired, true)
+    assert.equal(result.financialImpact, 'UNCERTAIN')
+})
+
+test('moves stale processing operation with legacy deduction evidence to review', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'PROCESSING',
+        amount: 92,
+        customerDeductTransactionExists: true,
+        updatedAt: STALE_PROCESSING_AT,
+        now: RECOVERY_TEST_NOW,
+    }))
+
+    assert.equal(result.decision, 'REVIEW_REQUIRED')
+    assert.equal(result.reviewRequired, true)
+    assert.equal(result.refundAllowed, false)
 })

@@ -1,4 +1,4 @@
-import { Prisma, type OperationStatus } from '@prisma/client'
+import type { OperationStatus } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
 import { refundUser } from '@/lib/refund'
@@ -10,8 +10,11 @@ import {
 } from '@/lib/operations/recovery-classifier'
 import { acquireRecoveryLock, releaseRecoveryLock } from '@/lib/operations/recovery-locks'
 import { parseOperationResponseData } from '@/lib/operation-safety'
-
-const ACCOUNT_LOCK_PREFIX = 'bein:account:lock:'
+import {
+    releaseAccountLockSafely,
+    type AccountLockReleaseEvidence,
+} from '@/lib/operations/account-lock-release'
+import { mergeRecoveryEvidence } from '@/lib/operations/recovery-evidence'
 
 export interface RecoverOperationResult {
     operationId: string
@@ -25,6 +28,7 @@ export interface RecoverOperationResult {
     reviewRequired: boolean
     refundApplied: boolean
     lockReleased: boolean
+    lockRelease?: AccountLockReleaseEvidence
 }
 
 function getRecoveryStatus(decision: RecoveryDecision): OperationStatus | null {
@@ -63,31 +67,10 @@ function getRecoveryMessage(decision: RecoveryDecision, reason: string): string 
     }
 }
 
-function mergeRecoveryEvidence(
-    responseData: unknown,
-    input: {
-        source: RecoverySource
-        decision: RecoveryDecision
-        reason: string
-        financialImpact: RecoveryFinancialImpact
-        at: Date
-    }
-): Prisma.InputJsonObject {
-    const base = parseOperationResponseData(responseData)
-    return {
-        ...base,
-        lastRecoveryDecision: input.decision,
-        lastRecoveryReason: input.reason,
-        lastRecoverySource: input.source,
-        lastRecoveryFinancialImpact: input.financialImpact,
-        lastRecoveryAt: input.at.toISOString(),
-    } as Prisma.InputJsonObject
-}
-
-async function releaseAccountLock(beinAccountId: string | null): Promise<boolean> {
-    if (!beinAccountId) return false
-    await redis.del(`${ACCOUNT_LOCK_PREFIX}${beinAccountId}`)
-    return true
+function getExpectedAccountLockOwner(responseData: unknown): string | null {
+    const data = parseOperationResponseData(responseData)
+    const owner = data.accountLockOwner ?? data.beinAccountLockOwner
+    return typeof owner === 'string' && owner.trim() ? owner : null
 }
 
 export async function recoverOperationIfNeeded(
@@ -298,9 +281,31 @@ export async function recoverOperationIfNeeded(
         if (shouldReleaseAccountLock) {
             const operation = await prisma.operation.findUnique({
                 where: { id: operationId },
-                select: { beinAccountId: true },
+                select: { beinAccountId: true, responseData: true },
             })
-            result.lockReleased = await releaseAccountLock(operation?.beinAccountId ?? null)
+            const lockRelease = await releaseAccountLockSafely(
+                redis,
+                operation?.beinAccountId ?? null,
+                getExpectedAccountLockOwner(operation?.responseData)
+            )
+            result.lockReleased = lockRelease.released
+            result.lockRelease = lockRelease
+
+            if (operation) {
+                await prisma.operation.update({
+                    where: { id: operationId },
+                    data: {
+                        responseData: mergeRecoveryEvidence(operation.responseData, {
+                            source,
+                            decision: result.decision,
+                            reason: result.reason,
+                            financialImpact: result.financialImpact,
+                            at: now,
+                            lockRelease,
+                        }),
+                    },
+                })
+            }
         }
 
         return result

@@ -1,29 +1,49 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyFinalPayOutcome } from '../src/http/HttpClientService';
+import {
+    FINAL_PAY_BALANCE_BEFORE,
+    FINAL_PAY_EXPECTED_COST,
+    balanceAfterDecrease,
+    classifyFinalPay,
+} from './helpers/final-pay-fixtures';
 
-test('classifies explicit success as confirmed success', () => {
+test('classifies explicit success with matching balance delta as confirmed success', () => {
     assert.equal(
-        classifyFinalPayOutcome({
+        classifyFinalPay({
             success: true,
-            finalPaySubmitted: true,
-            expectedCost: 92,
-            beinBalanceBefore: 500,
-            beinBalanceAfter: 408,
+            beinBalanceAfter: balanceAfterDecrease(FINAL_PAY_EXPECTED_COST),
         }),
         'CONFIRMED_SUCCESS'
     );
 });
 
+test('does not classify explicit success with unchanged balance as confirmed success', () => {
+    assert.equal(
+        classifyFinalPay({
+            success: true,
+            message: 'Contract Created Successfully',
+            beinBalanceAfter: FINAL_PAY_BALANCE_BEFORE,
+        }),
+        'CONFIRMED_NOT_CHARGED'
+    );
+});
+
+test('moves explicit success with missing balance evidence to review', () => {
+    assert.equal(
+        classifyFinalPay({
+            success: true,
+            message: 'Contract Created Successfully',
+            beinBalanceAfter: undefined,
+        }),
+        'UNCERTAIN_REVIEW_REQUIRED'
+    );
+});
+
 test('classifies matching balance delta as confirmed success', () => {
     assert.equal(
-        classifyFinalPayOutcome({
-            success: false,
+        classifyFinalPay({
             message: 'Server Error',
-            finalPaySubmitted: true,
-            expectedCost: 92,
-            beinBalanceBefore: 500,
-            beinBalanceAfter: 408,
+            beinBalanceAfter: balanceAfterDecrease(FINAL_PAY_EXPECTED_COST),
         }),
         'CONFIRMED_SUCCESS'
     );
@@ -31,13 +51,9 @@ test('classifies matching balance delta as confirmed success', () => {
 
 test('classifies unchanged balance after final pay as not charged', () => {
     assert.equal(
-        classifyFinalPayOutcome({
-            success: false,
+        classifyFinalPay({
             message: 'No success confirmation found from beIN',
-            finalPaySubmitted: true,
-            expectedCost: 92,
-            beinBalanceBefore: 500,
-            beinBalanceAfter: 500,
+            beinBalanceAfter: FINAL_PAY_BALANCE_BEFORE,
         }),
         'CONFIRMED_NOT_CHARGED'
     );
@@ -45,13 +61,9 @@ test('classifies unchanged balance after final pay as not charged', () => {
 
 test('classifies mismatched balance delta as review required', () => {
     assert.equal(
-        classifyFinalPayOutcome({
-            success: false,
+        classifyFinalPay({
             message: 'Server Error',
-            finalPaySubmitted: true,
-            expectedCost: 92,
-            beinBalanceBefore: 500,
-            beinBalanceAfter: 450,
+            beinBalanceAfter: balanceAfterDecrease(50),
         }),
         'UNCERTAIN_REVIEW_REQUIRED'
     );
@@ -59,11 +71,9 @@ test('classifies mismatched balance delta as review required', () => {
 
 test('classifies missing balance evidence after pay submit as review required', () => {
     assert.equal(
-        classifyFinalPayOutcome({
-            success: false,
+        classifyFinalPay({
             message: 'Server Error',
-            finalPaySubmitted: true,
-            expectedCost: 92,
+            beinBalanceBefore: undefined,
         }),
         'UNCERTAIN_REVIEW_REQUIRED'
     );

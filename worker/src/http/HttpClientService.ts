@@ -43,6 +43,19 @@ function shouldAllowInsecureProxyTls(): boolean {
     return process.env.WORKER_ALLOW_INSECURE_PROXY_TLS === 'true';
 }
 
+export const FINAL_PAY_FALLBACK_BALANCE_DELAY_MS = 3000;
+export const FINAL_PAY_BUSY_RETRY_DELAY_MS = 3000;
+
+export function getFinalPayBalanceDelayMs(path: 'fallback' | 'busy-retry'): number {
+    return path === 'fallback'
+        ? FINAL_PAY_FALLBACK_BALANCE_DELAY_MS
+        : FINAL_PAY_BUSY_RETRY_DELAY_MS;
+}
+
+function wait(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export function classifyFinalPayOutcome(input: {
     success: boolean;
     message?: string | null;
@@ -51,7 +64,6 @@ export function classifyFinalPayOutcome(input: {
     beinBalanceBefore?: number | null;
     beinBalanceAfter?: number | null;
 }): FinalPayOutcomeCategory {
-    if (input.success) return 'CONFIRMED_SUCCESS';
     if (!input.finalPaySubmitted) return 'CONFIRMED_NOT_CHARGED';
 
     const balanceDecrease = getBalanceDecrease(input.beinBalanceBefore, input.beinBalanceAfter);
@@ -127,17 +139,20 @@ function withFinalPayOutcome<T extends PurchaseResult | PayInstallmentResult>(
     finalPaySubmitted: boolean,
     expectedCost?: number | null
 ): T {
+    const outcomeCategory = result.outcomeCategory ?? classifyFinalPayOutcome({
+        success: result.success,
+        message: result.message,
+        finalPaySubmitted,
+        expectedCost,
+        beinBalanceBefore: result.beinBalanceBefore,
+        beinBalanceAfter: result.beinBalanceAfter
+    });
+
     return {
         ...result,
         finalPaySubmitted,
-        outcomeCategory: result.outcomeCategory ?? classifyFinalPayOutcome({
-            success: result.success,
-            message: result.message,
-            finalPaySubmitted,
-            expectedCost,
-            beinBalanceBefore: result.beinBalanceBefore,
-            beinBalanceAfter: result.beinBalanceAfter
-        })
+        success: finalPaySubmitted ? outcomeCategory === 'CONFIRMED_SUCCESS' : result.success,
+        outcomeCategory
     };
 }
 
@@ -2417,7 +2432,7 @@ export class HttpClientService {
                         newBalance: balanceAfter || undefined,
                         beinBalanceBefore: balanceBefore || undefined,
                         beinBalanceAfter: balanceAfter || undefined
-                    }, true);
+                    }, true, expectedCost);
                 }
             }
 
@@ -2430,7 +2445,7 @@ export class HttpClientService {
                 // Retry up to 5 times with 3-second delays
                 for (let retry = 1; retry <= 5; retry++) {
                     console.log(`[HTTP] ⏳ Retry ${retry}/5 - waiting 3 seconds...`);
-                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    await wait(getFinalPayBalanceDelayMs('busy-retry'));
 
                     // Check balance page to see if transaction completed
                     const retryBalance = await this.getBalanceFromSellPackagesPage();
@@ -2454,7 +2469,7 @@ export class HttpClientService {
                                     newBalance: retryBalance || undefined,
                                     beinBalanceBefore: balanceBefore || undefined,
                                     beinBalanceAfter: retryBalance || undefined
-                                }, true);
+                                }, true, expectedCost);
                             }
                         }
 
@@ -2528,7 +2543,7 @@ export class HttpClientService {
             console.log('[HTTP] 💰 No success message found, checking balance...');
 
             // Small delay to ensure beIN has processed
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await wait(getFinalPayBalanceDelayMs('fallback'));
 
             const balanceAfter = await this.getBalanceFromSellPackagesPage();
             const finalDecrease = getBalanceDecrease(balanceBefore, balanceAfter);

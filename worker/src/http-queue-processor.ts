@@ -2034,6 +2034,7 @@ async function handleConfirmPurchaseHttp(
                 beinUsername: account.username,
                 beinBalanceBefore: toNullableNumber(result.beinBalanceBefore),
                 beinBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                outcomeCategory: outcomeDecision.outcomeCategory,
                 chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
             });
             await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);

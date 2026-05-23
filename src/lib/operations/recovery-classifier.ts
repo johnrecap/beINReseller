@@ -64,6 +64,12 @@ function isPast(value: Date | string | null | undefined, now: Date): boolean {
     return !Number.isNaN(date.getTime()) && date < now
 }
 
+function isOlderThan(value: Date | string | null | undefined, now: Date, ageMs: number): boolean {
+    if (!value) return false
+    const date = value instanceof Date ? value : new Date(value)
+    return !Number.isNaN(date.getTime()) && now.getTime() - date.getTime() >= ageMs
+}
+
 function getProviderOutcome(input: RecoveryClassifierInput, phaseEvidence: OperationPhaseEvidence | null): string | null {
     return input.providerOutcomeCategory || phaseEvidence?.outcomeCategory || null
 }
@@ -162,6 +168,39 @@ export function classifyRecovery(input: RecoveryClassifierInput): RecoveryClassi
             reviewRequired: false,
             refundAllowed: false,
             financialImpact: 'NONE',
+        }
+    }
+
+    if (input.status === 'PROCESSING' && isOlderThan(input.updatedAt, now, 5 * 60 * 1000)) {
+        if (safetyDecision.finalPayMayHaveStarted) {
+            return {
+                ...base,
+                decision: 'REVIEW_REQUIRED',
+                reason: 'processing_timeout_after_final_pay_started',
+                reviewRequired: true,
+                refundAllowed: false,
+                financialImpact: 'UNCERTAIN',
+            }
+        }
+
+        if (safetyDecision.customerWasDeducted && !phaseEvidence) {
+            return {
+                ...base,
+                decision: 'REVIEW_REQUIRED',
+                reason: 'processing_timeout_legacy_deduction_evidence',
+                reviewRequired: true,
+                refundAllowed: false,
+                financialImpact: 'CUSTOMER_DEDUCTED',
+            }
+        }
+
+        return {
+            ...base,
+            decision: safetyDecision.refundAllowed ? 'SAFE_REFUND' : 'EXPIRE',
+            reason: 'processing_timeout',
+            reviewRequired: safetyDecision.reviewRequired,
+            refundAllowed: safetyDecision.refundAllowed,
+            financialImpact: financialImpactFor(input, safetyDecision.finalPayMayHaveStarted),
         }
     }
 

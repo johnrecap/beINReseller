@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth"
+import type { Role } from "@/lib/permissions"
 import { SECURITY_CONFIG } from "@/lib/config"
 
 export const authConfig = {
@@ -36,7 +37,7 @@ export const authConfig = {
             if (user) {
                 token.id = user.id as string
                 token.username = (user as { username?: string }).username ?? ''
-                token.role = (user as { role?: string }).role ?? ''
+                token.role = (user as { role?: Role }).role ?? 'USER'
                 token.balance = (user as { balance?: number }).balance ?? 0
                 token.passwordChangedAt = (user as { passwordChangedAt?: number }).passwordChangedAt ?? 0
             }
@@ -51,7 +52,7 @@ export const authConfig = {
             if (token) {
                 session.user.id = token.id as string
                 session.user.username = token.username as string
-                session.user.role = token.role as string
+                session.user.role = token.role as Role
                 session.user.balance = token.balance as number
                 session.user.passwordChangedAt = token.passwordChangedAt as number
             }

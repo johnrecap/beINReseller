@@ -4,7 +4,10 @@
  * Helper functions for creating and managing notifications.
  */
 
+import type { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
+
+type NotificationClient = Pick<Prisma.TransactionClient, 'notification'>
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning'
 
@@ -25,8 +28,8 @@ export async function createNotification({
     message,
     type = 'info',
     link,
-}: CreateNotificationOptions) {
-    return prisma.notification.create({
+}: CreateNotificationOptions, client: NotificationClient = prisma) {
+    return client.notification.create({
         data: {
             userId,
             title,

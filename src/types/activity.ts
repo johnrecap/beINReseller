@@ -134,6 +134,7 @@ export interface InactivityMetrics {
     byRole: {
         ADMIN: RoleMetrics
         MANAGER: RoleMetrics
+        AGENT: RoleMetrics
         USER: RoleMetrics
     }
 }

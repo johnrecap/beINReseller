@@ -87,5 +87,5 @@ The following bridge skills wrap external CLI tools for auto-discovery:
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/006-financial-review-workbench/plan.md`
+`specs/011-panel-brand-redesign/plan.md`
 <!-- SPECKIT END -->

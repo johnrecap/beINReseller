@@ -64,6 +64,7 @@ worker/src/http/*.bak_*
 /.specify/
 /.vscode/
 /testsprite_tests/
+/tmp/
 
 # Local/project prompt notes and non-runtime handoff docs
 /BEIN_OFFICIAL_FIELDS_AND_FLOWS.md

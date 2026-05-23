@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { NextRequest } from 'next/server'
 import {
     Permission,
+    Role,
     roleHasPermission,
     roleHasAnyPermission,
     PERMISSIONS
@@ -17,7 +18,7 @@ export interface AuthenticatedUser {
     id: string
     username: string
     email?: string | null
-    role: string
+    role: Role
     balance: number
 }
 
@@ -53,7 +54,7 @@ async function getDbAuthenticatedUser(
         id: dbUser.id,
         username: dbUser.username,
         email: dbUser.email,
-        role: dbUser.role,
+        role: dbUser.role as Role,
         balance: dbUser.balance,
     }
 }
@@ -112,6 +113,21 @@ export async function requireAuth() {
 }
 
 /**
+ * Check exact role membership without hierarchy inheritance.
+ * Use this for AGENT and other non-privilege role boundaries.
+ */
+export function hasExactRole(userRole: string | undefined, role: Role): boolean {
+    return userRole?.toUpperCase() === role
+}
+
+/**
+ * Check if a user is an agent. Agents must not inherit manager/admin access.
+ */
+export function isAgentRole(userRole: string | undefined): boolean {
+    return hasExactRole(userRole, 'AGENT')
+}
+
+/**
  * Require admin role - redirect if not admin
  */
 export async function requireAdmin() {
@@ -141,6 +157,21 @@ export async function requireManager() {
 }
 
 /**
+ * Require exact agent role - redirect if not agent
+ */
+export async function requireAgent() {
+    const user = await getAuthUser()
+    if (!user) {
+        redirect('/login')
+    }
+
+    if (!hasExactRole(user.role, 'AGENT')) {
+        redirect('/dashboard')
+    }
+    return user
+}
+
+/**
  * Require specific role for API routes (returns error object instead of redirect)
  */
 export async function requireRoleAPI(requiredRole: RoleLevel) {
@@ -151,6 +182,23 @@ export async function requireRoleAPI(requiredRole: RoleLevel) {
     }
 
     if (!hasRole(user.role, requiredRole)) {
+        return { error: 'Insufficient permissions', status: 403 }
+    }
+
+    return { user }
+}
+
+/**
+ * Require an exact role for API routes.
+ */
+export async function requireExactRoleAPI(requiredRole: Role) {
+    const user = await getAuthUser()
+
+    if (!user) {
+        return { error: 'Unauthorized', status: 401 }
+    }
+
+    if (!hasExactRole(user.role, requiredRole)) {
         return { error: 'Insufficient permissions', status: 403 }
     }
 
@@ -336,6 +384,23 @@ export async function requireRoleAPIWithMobile(request: NextRequest, requiredRol
     }
 
     if (!hasRole(user.role, requiredRole)) {
+        return { error: 'Insufficient permissions', status: 403 }
+    }
+
+    return { user }
+}
+
+/**
+ * Require an exact role for API routes - works with both web session and mobile token.
+ */
+export async function requireExactRoleAPIWithMobile(request: NextRequest, requiredRole: Role) {
+    const user = await getAuthenticatedUser(request)
+
+    if (!user) {
+        return { error: 'Unauthorized', status: 401 }
+    }
+
+    if (!hasExactRole(user.role, requiredRole)) {
         return { error: 'Insufficient permissions', status: 403 }
     }
 

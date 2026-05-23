@@ -6,7 +6,7 @@
  */
 
 // Valid Roles
-export type Role = 'ADMIN' | 'MANAGER' | 'USER'
+export type Role = 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER'
 
 // All Permission Keys
 export const PERMISSIONS = {
@@ -33,6 +33,19 @@ export const PERMISSIONS = {
 
     // Notifications
     NOTIFICATIONS_VIEW: 'notifications.view',
+
+    // Credit Request / Points / Rewards
+    CREDIT_REQUEST_CREATE: 'credit_request.create',
+    CREDIT_REQUEST_VIEW_OWN: 'credit_request.view_own',
+    POINTS_VIEW: 'points.view',
+    REWARDS_VIEW: 'rewards.view',
+    REWARDS_REDEEM: 'rewards.redeem',
+
+    // Agent Features
+    AGENT_DASHBOARD: 'agent.dashboard',
+    AGENT_USERS_VIEW: 'agent.users.view',
+    AGENT_CREDIT_REQUESTS_VIEW: 'agent.credit_requests.view',
+    AGENT_POINTS_VIEW: 'agent.points.view',
 
     // Manager Features
     MANAGER_DASHBOARD: 'manager.dashboard',
@@ -70,12 +83,26 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
         PERMISSIONS.PROFILE_EDIT,
         PERMISSIONS.TRANSACTIONS_VIEW,
         PERMISSIONS.NOTIFICATIONS_VIEW,
+        PERMISSIONS.POINTS_VIEW,
         // Manager-specific
         PERMISSIONS.MANAGER_DASHBOARD,
         PERMISSIONS.MANAGER_USERS_VIEW,
         PERMISSIONS.MANAGER_USERS_CREATE,
         PERMISSIONS.MANAGER_USERS_EDIT,
         PERMISSIONS.MANAGER_USERS_DELETE,
+    ],
+
+    // AGENT: read-only agent workspace (NO manager, renewal, signal, or admin mutations)
+    AGENT: [
+        PERMISSIONS.DASHBOARD_VIEW,
+        PERMISSIONS.PROFILE_VIEW,
+        PERMISSIONS.TRANSACTIONS_VIEW,
+        PERMISSIONS.NOTIFICATIONS_VIEW,
+        PERMISSIONS.POINTS_VIEW,
+        PERMISSIONS.AGENT_DASHBOARD,
+        PERMISSIONS.AGENT_USERS_VIEW,
+        PERMISSIONS.AGENT_CREDIT_REQUESTS_VIEW,
+        PERMISSIONS.AGENT_POINTS_VIEW,
     ],
 
     // USER: Renewals, signals, operations (NO user management)
@@ -90,6 +117,11 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, Permission[]> = {
         PERMISSIONS.PROFILE_EDIT,
         PERMISSIONS.TRANSACTIONS_VIEW,
         PERMISSIONS.NOTIFICATIONS_VIEW,
+        PERMISSIONS.CREDIT_REQUEST_CREATE,
+        PERMISSIONS.CREDIT_REQUEST_VIEW_OWN,
+        PERMISSIONS.POINTS_VIEW,
+        PERMISSIONS.REWARDS_VIEW,
+        PERMISSIONS.REWARDS_REDEEM,
     ],
 }
 
@@ -161,6 +193,13 @@ export function canAccessAdminFeatures(role: string | undefined): boolean {
 }
 
 /**
+ * Check if user can access agent read-only workspace
+ */
+export function canAccessAgentFeatures(role: string | undefined): boolean {
+    return roleHasPermission(role, PERMISSIONS.AGENT_DASHBOARD)
+}
+
+/**
  * Permission groups for common use cases
  */
 export const PERMISSION_GROUPS = {
@@ -186,6 +225,14 @@ export const PERMISSION_GROUPS = {
         PERMISSIONS.MANAGER_USERS_CREATE,
         PERMISSIONS.MANAGER_USERS_EDIT,
         PERMISSIONS.MANAGER_USERS_DELETE,
+    ],
+
+    // All agent read-only permissions
+    AGENT_ALL: [
+        PERMISSIONS.AGENT_DASHBOARD,
+        PERMISSIONS.AGENT_USERS_VIEW,
+        PERMISSIONS.AGENT_CREDIT_REQUESTS_VIEW,
+        PERMISSIONS.AGENT_POINTS_VIEW,
     ],
 
     // All admin permissions

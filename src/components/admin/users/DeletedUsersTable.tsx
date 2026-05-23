@@ -108,6 +108,7 @@ export default function DeletedUsersTable() {
         const badges: Record<string, string> = {
             ADMIN: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
             MANAGER: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+            AGENT: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
             USER: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
         }
         return badges[role] || badges.USER

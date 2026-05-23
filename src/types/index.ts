@@ -1,7 +1,7 @@
 // User types
 // Note: Role is now primarily defined in src/lib/permissions.ts
 // This is kept for backward compatibility
-export type Role = 'ADMIN' | 'MANAGER' | 'USER'
+export type Role = 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER'
 
 export interface User {
     id: string

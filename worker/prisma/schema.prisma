@@ -12,6 +12,7 @@ datasource db {
 enum Role {
   ADMIN
   MANAGER
+  AGENT
   USER
 }
 
@@ -71,6 +72,68 @@ enum WalletTransactionType {
   REFUND // استرداد (عملية فاشلة)
 }
 
+enum CreditRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PointRuleOwnerType {
+  USER_GLOBAL
+  AGENT_DEFAULT
+  AGENT_OVERRIDE
+  MANAGER_DEFAULT
+  MANAGER_OVERRIDE
+}
+
+enum PointLedgerSourceType {
+  CREDIT_REQUEST
+  MANAGER_TOPUP
+  REWARD_REDEMPTION
+  ADMIN_RELEASE
+  ADMIN_ADJUSTMENT
+}
+
+enum PointLedgerStatus {
+  PENDING
+  AVAILABLE
+  REDEEMED
+  CANCELLED
+}
+
+enum RewardRedemptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum WhatsAppProvider {
+  WHAPI
+  TELEGRAM
+  MANUAL
+}
+
+enum WhatsAppNotificationEventType {
+  CREDIT_REQUEST_CREATED
+  CREDIT_REQUEST_ESCALATED
+}
+
+enum WhatsAppNotificationTargetType {
+  GROUP
+  TELEGRAM_CHAT
+  WHATSAPP_GROUP
+  WHATSAPP_PHONE
+}
+
+enum WhatsAppNotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  DISABLED
+}
+
 model User {
   id                String    @id @default(cuid())
   username          String    @unique
@@ -112,6 +175,24 @@ model User {
   managerLink             ManagerUser[]             @relation("UserToManager")
   managerActions          UserAction[]              @relation("ManagerActions")
   userActions             UserAction[]              @relation("UserActions")
+  agentProfile            AgentProfile?             @relation("AgentProfileOwner")
+  agentAssignmentsAsAgent AgentAssignment[]          @relation("AgentAssignmentsAgent")
+  agentAssignmentAsUser   AgentAssignment[]          @relation("AgentAssignmentsUser")
+  agentAssignmentsCreated AgentAssignment[]          @relation("AgentAssignmentsAdmin")
+  creditRequests          CreditRequest[]            @relation("CreditRequestUser")
+  creditRequestsAsAgent   CreditRequest[]            @relation("CreditRequestAgent")
+  creditRequestDecisions  CreditRequest[]            @relation("CreditRequestDecider")
+  creditRequestHistory    CreditRequestStatusHistory[] @relation("CreditRequestHistoryActor")
+  pointRulesOwned         PointRule[]                @relation("PointRuleOwner")
+  pointRulesUpdated       PointRule[]                @relation("PointRuleUpdater")
+  pointLedgerEntries      PointLedgerEntry[]         @relation("PointLedgerOwner")
+  pointLedgerCreated      PointLedgerEntry[]         @relation("PointLedgerCreator")
+  pointLedgerReleased     PointLedgerEntry[]         @relation("PointLedgerReleaser")
+  rewardsCreated          Reward[]                   @relation("RewardCreator")
+  rewardRedemptions       RewardRedemption[]         @relation("RewardRedemptionOwner")
+  rewardRedemptionDecisions RewardRedemption[]       @relation("RewardRedemptionDecider")
+  whatsappNotificationsAsAgent WhatsAppNotificationLog[] @relation("WhatsAppNotificationAgent")
+  whatsappHandoffsAsAgent      WhatsAppHandoffSnapshot[] @relation("WhatsAppHandoffAgent")
   integrityIssues         OperationIntegrityIssue[] @relation("IntegrityIssueUser")
   reviewedIntegrityIssues OperationIntegrityIssue[] @relation("IntegrityIssueReviewer")
   beinSpendLedger         BeinAccountSpendLedger[]  @relation("BeinSpendLedgerUser")
@@ -135,6 +216,256 @@ model ManagerUser {
   @@index([managerId])
   @@index([userId])
   @@map("manager_users")
+}
+
+model AgentProfile {
+  agentId                      String           @id @map("agent_id")
+  displayName                  String?          @map("display_name")
+  whatsappProvider             WhatsAppProvider @default(WHAPI) @map("whatsapp_provider")
+  whapiGroupId                 String?          @map("whapi_group_id")
+  whapiGroupName               String?          @map("whapi_group_name")
+  whatsappNotificationsEnabled Boolean          @default(false) @map("whatsapp_notifications_enabled")
+  whatsappHandoffGroupUrl      String?          @map("whatsapp_handoff_group_url")
+  whatsappHandoffPhone         String?          @map("whatsapp_handoff_phone")
+  whatsappHandoffLabel         String?          @map("whatsapp_handoff_label")
+  defaultSourceGroup           String?          @map("default_source_group")
+  pointsPerThousandOverride    Float?           @map("points_per_thousand_override")
+  isActive                     Boolean          @default(true) @map("is_active")
+  createdAt                    DateTime         @default(now()) @map("created_at")
+  updatedAt                    DateTime         @updatedAt @map("updated_at")
+
+  agent User @relation("AgentProfileOwner", fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([isActive])
+  @@map("agent_profiles")
+}
+
+model AgentAssignment {
+  id                String    @id @default(cuid())
+  agentId           String    @map("agent_id")
+  userId            String    @map("user_id")
+  sourceGroup       String    @map("source_group")
+  isActive          Boolean   @default(true) @map("is_active")
+  assignedByAdminId String?   @map("assigned_by_admin_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  endedAt           DateTime? @map("ended_at")
+
+  agent           User  @relation("AgentAssignmentsAgent", fields: [agentId], references: [id])
+  user            User  @relation("AgentAssignmentsUser", fields: [userId], references: [id])
+  assignedByAdmin User? @relation("AgentAssignmentsAdmin", fields: [assignedByAdminId], references: [id])
+
+  @@index([agentId, isActive])
+  @@index([userId, isActive])
+  @@index([createdAt])
+  @@map("agent_assignments")
+}
+
+model CreditRequest {
+  id                  String              @id @default(cuid())
+  requestNumber       String              @unique @map("request_number")
+  userId              String              @map("user_id")
+  usernameSnapshot    String              @map("username_snapshot")
+  amountUsd           Float               @map("amount_usd")
+  paymentMethod       String              @map("payment_method")
+  notes               String?
+  agentIdSnapshot     String?             @map("agent_id_snapshot")
+  agentNameSnapshot   String?             @map("agent_name_snapshot")
+  sourceGroupSnapshot String?             @map("source_group_snapshot")
+  status              CreditRequestStatus @default(PENDING)
+  escalated           Boolean             @default(false)
+  escalationNote      String?             @map("escalation_note")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  decidedAt           DateTime?           @map("decided_at")
+  decidedByAdminId    String?             @map("decided_by_admin_id")
+  decisionNote        String?             @map("decision_note")
+  transactionId       String?             @unique @map("transaction_id")
+
+  user           User                         @relation("CreditRequestUser", fields: [userId], references: [id])
+  agent          User?                        @relation("CreditRequestAgent", fields: [agentIdSnapshot], references: [id], onDelete: SetNull)
+  decidedByAdmin User?                        @relation("CreditRequestDecider", fields: [decidedByAdminId], references: [id])
+  transaction    Transaction?                 @relation("CreditRequestTransaction", fields: [transactionId], references: [id])
+  history        CreditRequestStatusHistory[]
+  pointEntries   PointLedgerEntry[]
+  notifications  WhatsAppNotificationLog[]
+  whatsappHandoff WhatsAppHandoffSnapshot?
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([agentIdSnapshot, status])
+  @@map("credit_requests")
+}
+
+model CreditRequestStatusHistory {
+  id              String               @id @default(cuid())
+  creditRequestId String               @map("credit_request_id")
+  fromStatus      CreditRequestStatus? @map("from_status")
+  toStatus        CreditRequestStatus? @map("to_status")
+  actorId         String?              @map("actor_id")
+  actorRole       String?              @map("actor_role")
+  note            String?
+  createdAt       DateTime             @default(now()) @map("created_at")
+
+  creditRequest CreditRequest @relation(fields: [creditRequestId], references: [id], onDelete: Cascade)
+  actor         User?         @relation("CreditRequestHistoryActor", fields: [actorId], references: [id])
+
+  @@index([creditRequestId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("credit_request_status_history")
+}
+
+model PointRule {
+  id                String             @id @default(cuid())
+  ownerType         PointRuleOwnerType  @map("owner_type")
+  ownerUserId       String?            @map("owner_user_id")
+  pointsPerThousand Float              @map("points_per_thousand")
+  isActive          Boolean            @default(true) @map("is_active")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  updatedByAdminId  String?            @map("updated_by_admin_id")
+
+  ownerUser      User? @relation("PointRuleOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  updatedByAdmin User? @relation("PointRuleUpdater", fields: [updatedByAdminId], references: [id])
+
+  @@index([ownerType, ownerUserId, isActive])
+  @@map("point_rules")
+}
+
+model PointLedgerEntry {
+  id                      String                @id @default(cuid())
+  ownerUserId             String                @map("owner_user_id")
+  ownerRoleAtTime         Role                  @map("owner_role_at_time")
+  sourceType              PointLedgerSourceType @map("source_type")
+  sourceId                String                @map("source_id")
+  creditRequestId         String?               @map("credit_request_id")
+  points                  Float
+  status                  PointLedgerStatus     @default(PENDING)
+  ratePerThousandSnapshot Float?                @map("rate_per_thousand_snapshot")
+  amountUsdSnapshot       Float?                @map("amount_usd_snapshot")
+  createdById             String?               @map("created_by_id")
+  createdAt               DateTime              @default(now()) @map("created_at")
+  releasedAt              DateTime?             @map("released_at")
+  releasedByAdminId       String?               @map("released_by_admin_id")
+  notes                   String?
+
+  owner            User              @relation("PointLedgerOwner", fields: [ownerUserId], references: [id])
+  creditRequest    CreditRequest?    @relation(fields: [creditRequestId], references: [id], onDelete: SetNull)
+  createdBy        User?             @relation("PointLedgerCreator", fields: [createdById], references: [id])
+  releasedByAdmin  User?             @relation("PointLedgerReleaser", fields: [releasedByAdminId], references: [id])
+  rewardRedemption RewardRedemption? @relation("RewardRedemptionLedger")
+
+  @@unique([ownerUserId, sourceType, sourceId])
+  @@index([ownerUserId, status])
+  @@index([sourceType, sourceId])
+  @@index([creditRequestId])
+  @@map("point_ledger_entries")
+}
+
+model Reward {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  pointsCost       Float    @map("points_cost")
+  isActive         Boolean  @default(true) @map("is_active")
+  fulfillmentNotes String?  @map("fulfillment_notes")
+  createdByAdminId String?  @map("created_by_admin_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  createdByAdmin User?              @relation("RewardCreator", fields: [createdByAdminId], references: [id])
+  redemptions    RewardRedemption[]
+
+  @@index([isActive])
+  @@map("rewards")
+}
+
+model RewardRedemption {
+  id                 String                 @id @default(cuid())
+  rewardId           String                 @map("reward_id")
+  rewardNameSnapshot String                 @map("reward_name_snapshot")
+  pointsCostSnapshot Float                  @map("points_cost_snapshot")
+  ownerUserId        String                 @map("owner_user_id")
+  status             RewardRedemptionStatus @default(PENDING)
+  requestedAt        DateTime               @default(now()) @map("requested_at")
+  decidedAt          DateTime?              @map("decided_at")
+  decidedByAdminId   String?                @map("decided_by_admin_id")
+  decisionNote       String?                @map("decision_note")
+  ledgerEntryId      String?                @unique @map("ledger_entry_id")
+
+  reward         Reward            @relation(fields: [rewardId], references: [id])
+  owner          User              @relation("RewardRedemptionOwner", fields: [ownerUserId], references: [id])
+  decidedByAdmin User?             @relation("RewardRedemptionDecider", fields: [decidedByAdminId], references: [id])
+  ledgerEntry    PointLedgerEntry? @relation("RewardRedemptionLedger", fields: [ledgerEntryId], references: [id])
+
+  @@index([ownerUserId, status])
+  @@index([rewardId])
+  @@index([requestedAt])
+  @@map("reward_redemptions")
+}
+
+model WhatsAppNotificationLog {
+  id                      String                         @id @default(cuid())
+  eventType               WhatsAppNotificationEventType  @map("event_type")
+  provider                WhatsAppProvider               @default(WHAPI)
+  targetType              WhatsAppNotificationTargetType @default(GROUP) @map("target_type")
+  targetGroupId           String?                        @map("target_group_id")
+  targetGroupNameSnapshot String?                        @map("target_group_name_snapshot")
+  creditRequestId         String?                        @map("credit_request_id")
+  agentId                 String?                        @map("agent_id")
+  payloadSummary          String?                        @map("payload_summary")
+  status                  WhatsAppNotificationStatus     @default(PENDING)
+  providerMessageId       String?                        @map("provider_message_id")
+  providerResponse        Json?                          @map("provider_response")
+  error                   String?
+  attemptCount            Int                            @default(0) @map("attempt_count")
+  createdAt               DateTime                       @default(now()) @map("created_at")
+  lastAttemptAt           DateTime?                      @map("last_attempt_at")
+  sentAt                  DateTime?                      @map("sent_at")
+
+  creditRequest CreditRequest? @relation(fields: [creditRequestId], references: [id], onDelete: Cascade)
+  agent         User?          @relation("WhatsAppNotificationAgent", fields: [agentId], references: [id])
+
+  @@index([creditRequestId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([status, createdAt])
+  @@map("whatsapp_notification_logs")
+}
+
+model NotificationSetting {
+  id                         String   @id @default(cuid())
+  singletonKey               String   @unique @default("default") @map("singleton_key")
+  telegramEnabled            Boolean  @default(false) @map("telegram_enabled")
+  telegramBotTokenEncrypted  String?  @map("telegram_bot_token_encrypted")
+  telegramTargetId           String?  @map("telegram_target_id")
+  telegramTargetLabel        String?  @map("telegram_target_label")
+  defaultWhatsappGroupUrl    String?  @map("default_whatsapp_group_url")
+  defaultWhatsappPhone       String?  @map("default_whatsapp_phone")
+  defaultWhatsappLabel       String?  @map("default_whatsapp_label")
+  updatedByAdminId           String?  @map("updated_by_admin_id")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_settings")
+}
+
+model WhatsAppHandoffSnapshot {
+  id                      String   @id @default(cuid())
+  creditRequestId         String   @unique @map("credit_request_id")
+  agentId                 String?  @map("agent_id")
+  destinationLabel        String?  @map("destination_label")
+  whatsappGroupUrl        String?  @map("whatsapp_group_url")
+  whatsappPhone           String?  @map("whatsapp_phone")
+  messageText             String   @map("message_text")
+  groupOpenAvailable      Boolean  @default(false) @map("group_open_available")
+  phoneOpenAvailable      Boolean  @default(false) @map("phone_open_available")
+  createdByAdminId        String?  @map("created_by_admin_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  creditRequest CreditRequest @relation(fields: [creditRequestId], references: [id], onDelete: Cascade)
+  agent         User?         @relation("WhatsAppHandoffAgent", fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, createdAt])
+  @@map("whatsapp_handoff_snapshots")
 }
 
 model UserAction {
@@ -256,6 +587,7 @@ model Transaction {
   user      User       @relation("UserTransactions", fields: [userId], references: [id])
   admin     User?      @relation("AdminTransactions", fields: [adminId], references: [id])
   operation Operation? @relation("OperationTransactions", fields: [operationId], references: [id])
+  creditRequest CreditRequest? @relation("CreditRequestTransaction")
 
   @@index([userId, createdAt])
   @@index([operationId, type])

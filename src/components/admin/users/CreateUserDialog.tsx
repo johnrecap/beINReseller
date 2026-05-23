@@ -10,7 +10,7 @@ interface CreateUserDialogProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
-    defaultRole?: 'USER' | 'MANAGER' | 'ADMIN'
+    defaultRole?: 'USER' | 'MANAGER' | 'AGENT' | 'ADMIN'
 }
 
 export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRole = 'USER' }: CreateUserDialogProps) {
@@ -167,11 +167,12 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                             name="role"
                             required
                             value={role}
-                            onChange={(e) => setRole(e.target.value as 'USER' | 'MANAGER' | 'ADMIN')}
+                            onChange={(e) => setRole(e.target.value as 'USER' | 'MANAGER' | 'AGENT' | 'ADMIN')}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         >
                             <option value="USER">{t.admin?.users?.dialogs?.roleUser || 'User'}</option>
                             <option value="MANAGER">{t.admin?.users?.dialogs?.roleManager || 'Manager'}</option>
+                            <option value="AGENT">{(t.admin?.users?.dialogs as { roleAgent?: string } | undefined)?.roleAgent || 'Agent'}</option>
                             <option value="ADMIN">{t.admin?.users?.dialogs?.roleAdmin || 'Admin'}</option>
                         </select>
                     </div>

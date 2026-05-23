@@ -2,6 +2,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import SettingsForm from '@/components/admin/SettingsForm'
+import NotificationSettingsForm from '@/components/admin/NotificationSettingsForm'
 import { Settings } from 'lucide-react'
 
 export const metadata = {
@@ -29,6 +30,7 @@ export default async function AdminSettingsPage() {
                 </div>
             </div>
 
+            <NotificationSettingsForm />
             <SettingsForm />
         </div>
     )

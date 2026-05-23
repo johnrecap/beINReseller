@@ -269,6 +269,7 @@ export default function UserActivityPage() {
                             byRole: {
                                 ADMIN: { total: 0, active: 0, recent: 0, warning: 0, inactive: 0, critical: 0 },
                                 MANAGER: { total: 0, active: 0, recent: 0, warning: 0, inactive: 0, critical: 0 },
+                                AGENT: { total: 0, active: 0, recent: 0, warning: 0, inactive: 0, critical: 0 },
                                 USER: { total: 0, active: 0, recent: 0, warning: 0, inactive: 0, critical: 0 }
                             }
                         }}
@@ -325,6 +326,7 @@ export default function UserActivityPage() {
                                 byRole: {
                                     ADMIN: { total: 0, active: 0, recent: 0, warning: 0, inactive: 0, critical: 0 },
                                     MANAGER: { total: 0, active: 0, recent: 0, warning: 0, inactive: 0, critical: 0 },
+                                    AGENT: { total: 0, active: 0, recent: 0, warning: 0, inactive: 0, critical: 0 },
                                     USER: { total: 0, active: 0, recent: 0, warning: 0, inactive: 0, critical: 0 }
                                 }
                             }}

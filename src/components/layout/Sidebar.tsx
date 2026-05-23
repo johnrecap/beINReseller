@@ -27,6 +27,7 @@ import {
     ShieldCheck,
     DollarSign,
     WalletCards,
+    Gift,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -52,6 +53,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const userRole = session?.user?.role
     const isAdmin = userRole === 'ADMIN'
     const isManager = userRole === 'MANAGER'
+    const isAgent = userRole === 'AGENT'
+    const creditAgentAdminNavigationReady = true
+    const creditRewardsNavigationReady = true
+    const adminCreditRequestsReady = true
 
     // Sidebar visibility settings
     const [sidebarSettings, setSidebarSettings] = useState<Record<string, boolean>>({
@@ -85,6 +90,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     // Common links for all users
     const commonLinks = [
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
+        ...(creditRewardsNavigationReady ? [{ href: '/dashboard/rewards', label: 'Rewards', icon: Gift }] : []),
         { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },
     ]
 
@@ -97,9 +103,25 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/manager/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
     ]
 
+    const agentLinks = isAgent ? [
+        { href: '/dashboard/agent', label: 'Agent Dashboard', icon: BarChart3 },
+    ] : []
+
+    const adminCreditAgentLinks = isAdmin ? [
+        ...(adminCreditRequestsReady ? [{ href: '/dashboard/admin/credit-requests', label: 'Credit Requests', icon: ShieldCheck }] : []),
+        ...(creditAgentAdminNavigationReady ? [
+            { href: '/dashboard/admin/agents', label: 'Agents', icon: Users },
+            { href: '/dashboard/admin/points', label: 'Points Settings', icon: DollarSign },
+        ] : []),
+        ...(creditRewardsNavigationReady ? [
+            { href: '/dashboard/admin/rewards', label: 'Rewards', icon: WalletCards },
+        ] : []),
+    ] : []
+
     const adminLinks = [
         { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
         { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
+        ...adminCreditAgentLinks,
         { href: '/dashboard/admin/users/activity', label: t.sidebar.activityMonitoring || 'Activity Monitoring', icon: Activity },
         { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
@@ -256,6 +278,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         {/* Manager Menu */}
                         {isManager && (
                             renderSection(t.sidebar.managerPanel, managerLinks)
+                        )}
+
+                        {/* Agent Menu: planned routes stay hidden until server guards and pages exist. */}
+                        {agentLinks.length > 0 && (
+                            renderSection('Agent Panel', agentLinks)
                         )}
 
                         {/* Admin Menu */}

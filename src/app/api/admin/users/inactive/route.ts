@@ -6,7 +6,7 @@
  * 
  * Query params:
  * - days: Inactivity threshold in days (default: 30)
- * - role: Filter by role (ADMIN, MANAGER, USER)
+ * - role: Filter by role (ADMIN, MANAGER, AGENT, USER)
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 20)
  * - sortBy: Sort field (lastLogin, lastOperation, createdAt)
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         
         const days = Math.max(1, parseInt(searchParams.get('days') || '30'))
         const roleParam = searchParams.get('role')
-        const role = roleParam && ['ADMIN', 'MANAGER', 'USER'].includes(roleParam) 
+        const role = roleParam && ['ADMIN', 'MANAGER', 'AGENT', 'USER'].includes(roleParam)
             ? roleParam as Role 
             : undefined
         const page = Math.max(1, parseInt(searchParams.get('page') || '1'))

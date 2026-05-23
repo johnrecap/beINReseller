@@ -6,6 +6,7 @@ import StatsCards from '@/components/dashboard/StatsCards'
 import RecentOperations from '@/components/dashboard/RecentOperations'
 import QuickActionTile from '@/components/dashboard/QuickActionTile'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
+import RequestCreditEntry from '@/components/credit-requests/RequestCreditEntry'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Zap, RefreshCw } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -32,7 +33,7 @@ export default function DashboardContent({ user }: DashboardContentProps) {
             {/* Header Section */}
             <DashboardHeader
                 username={user.username}
-                role={user.role as 'ADMIN' | 'MANAGER' | 'USER'}
+                role={user.role as 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER'}
             />
 
             {/* Announcement Banner */}
@@ -84,6 +85,7 @@ export default function DashboardContent({ user }: DashboardContentProps) {
                                 title={t.dashboard.refreshSignal}
                                 description={t.dashboard.refreshSignalDesc}
                             />
+                            <RequestCreditEntry userRole={user.role} />
                         </CardContent>
                     </Card>
                 </motion.div>

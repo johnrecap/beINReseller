@@ -650,6 +650,7 @@ export const en = {
                 role: 'Account Type',
                 roleUser: 'User',
                 roleManager: 'Manager',
+                roleAgent: 'Agent',
                 roleAdmin: 'System Admin',
                 depositBalance: 'Deposit Balance',
                 withdrawBalance: 'Withdraw Balance',

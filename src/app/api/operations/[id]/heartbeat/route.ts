@@ -17,8 +17,7 @@ import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
 import { OperationStatus } from '@prisma/client'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
-import { refundUser } from '@/lib/refund'
-import { decideRefundSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
+import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
 
 // Configuration
 const HEARTBEAT_TTL_SECONDS = 15  // Operation expires after 15s without heartbeat
@@ -77,46 +76,27 @@ export async function POST(
 
         // Check hard deadline (e.g., 2 min for package selection, 30s for payment confirm)
         if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-            const refundDecision = decideRefundSafety({
-                operationId: id,
-                operationStatus: operation.status,
-                operationAmount: operation.amount,
-                operationResponseData: operation.responseData,
-                phaseEvidence: getOperationPhaseEvidence(operation.responseData),
-                customerDeductTransactionExists: operation.amount > 0,
-                refundTransactionExists: false,
-            })
-            const moveToReview = operation.amount > 0 && refundDecision.reviewRequired
-
-            // Auto-cancel with state guard (don't overwrite newer terminal states).
-            const timeoutUpdate = await prisma.operation.updateMany({
-                where: {
-                    id,
-                    userId: authUser.id,
-                    status: { in: HEARTBEAT_REQUIRED_STATUSES },
-                },
-                data: {
-                    status: moveToReview ? 'REVIEW_REQUIRED' : 'CANCELLED',
-                    responseMessage: moveToReview
-                        ? 'Timed out while payment may require manual review'
-                        : 'Timed out - please try again',
-                    finalConfirmExpiry: null
-                }
-            })
-
-            if (timeoutUpdate.count === 0) {
+            const recovery = await recoverOperationIfNeeded(id, 'heartbeat')
+            if (recovery.skipped && recovery.reason === 'recovery_lock_held') {
                 return NextResponse.json(
-                    { error: 'Operation state changed' },
+                    {
+                        error: 'Operation recovery in progress',
+                        expired: true,
+                        recoveryPending: true,
+                        status: operation.status,
+                    },
                     { status: 409 }
                 )
             }
 
-            if (!moveToReview && refundDecision.refundAllowed && operation.amount > 0) {
-                await refundUser(id, authUser.id, operation.amount, 'Final confirmation timeout')
-            }
-
             return NextResponse.json(
-                { error: 'Operation timed out', expired: true, reviewRequired: moveToReview },
+                {
+                    error: 'Operation timed out',
+                    expired: true,
+                    reviewRequired: recovery.reviewRequired,
+                    status: recovery.newStatus,
+                    recovery,
+                },
                 { status: 410 }
             )
         }

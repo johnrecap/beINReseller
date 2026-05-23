@@ -48,6 +48,8 @@ import {
 
 // Heartbeat configuration
 const HEARTBEAT_TTL_SECONDS = 15;  // Operation expires after 15s without heartbeat
+const FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS = 30_000;
+const FINAL_CONFIRM_LOCK_TTL_SECONDS = 120;
 
 interface OperationJobData {
     operationId: string;
@@ -1903,7 +1905,28 @@ async function handleConfirmPurchaseHttp(
     }).then(a => a ? decryptAccountPassword(a) : null);
     if (!account) throw new Error('Account not found');
 
+    const redis = accountPool.getRedis();
+    let confirmLockAcquired = false;
+
     try {
+        const lockStartTime = Date.now();
+        while (Date.now() - lockStartTime < FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS) {
+            confirmLockAcquired = await lockAccount(
+                redis,
+                operation.beinAccountId,
+                WORKER_ID,
+                FINAL_CONFIRM_LOCK_TTL_SECONDS
+            );
+            if (confirmLockAcquired) break;
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        if (!confirmLockAcquired) {
+            throw new Error('Timed out waiting for beIN account lock during final confirmation');
+        }
+
+        console.log(`[HTTP] Account lock acquired for CONFIRM_PURCHASE: ${operation.beinAccountId}`);
+
         const client = await createOperationClient(account);
         let preFinalBeinBalance: number | null = null;
 
@@ -2122,7 +2145,14 @@ async function handleConfirmPurchaseHttp(
             throw new Error(result.message);
         }
     } finally {
-        // No lock cleanup needed - operations are independent
+        if (confirmLockAcquired) {
+            try {
+                await unlockAccount(redis, operation.beinAccountId, WORKER_ID);
+                console.log(`[HTTP] Account lock released after CONFIRM_PURCHASE: ${operation.beinAccountId}`);
+            } catch (releaseError: unknown) {
+                console.error(`[HTTP] Failed to release CONFIRM_PURCHASE account lock: ${getErrMsg(releaseError)}`);
+            }
+        }
     }
 }
 

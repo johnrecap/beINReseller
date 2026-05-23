@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { refundUser } from '@/lib/refund'
-import { decideRefundSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
+import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
+import { runDispatchWatchdog } from '@/lib/operation-dispatch'
 
 // This endpoint should be called by a cron job every 5 minutes
 // Example: Vercel Cron, or external service like cron-job.org
@@ -28,6 +28,11 @@ export async function GET(request: Request) {
                 { status: 401 }
             )
         }
+
+        const dispatchWatchdog = await runDispatchWatchdog({
+            maxAttempts: 3,
+            limit: 50,
+        })
 
         // Timeout settings (in minutes)
         const PROCESSING_TIMEOUT = 5        // 5 minutes for PROCESSING
@@ -71,104 +76,41 @@ export async function GET(request: Request) {
 
         console.log(`Found ${stuckOperations.length} stuck/expired operations`)
 
-        let refundedCount = 0
+        let changedCount = 0
+        let refundedCount = dispatchWatchdog.refunded
+        let reviewCount = dispatchWatchdog.review
+        let skippedCount = dispatchWatchdog.skipped
+        let retryCount = dispatchWatchdog.retried
         const errors: string[] = []
 
         for (const operation of stuckOperations) {
             try {
-                // Determine timeout reason based on status
-                let timeoutMessage = 'Operation timeout'
-                if (operation.status === 'AWAITING_PACKAGE') {
-                    timeoutMessage = `Package selection timeout (${AWAITING_PACKAGE_TIMEOUT} minutes)`
-                } else if (operation.status === 'COMPLETING') {
-                    timeoutMessage = 'Purchase completion timeout'
-                } else if (operation.status === 'PROCESSING') {
-                    timeoutMessage = 'Operation processing timeout expired'
-                } else if (operation.status === 'AWAITING_FINAL_CONFIRM') {
-                    timeoutMessage = 'Final confirmation timeout (2 minutes)'
-                }
-
-                const refundDecision = decideRefundSafety({
-                    operationId: operation.id,
-                    operationStatus: operation.status,
-                    operationAmount: operation.amount,
-                    operationResponseData: operation.responseData,
-                    phaseEvidence: getOperationPhaseEvidence(operation.responseData),
-                    customerDeductTransactionExists: operation.amount > 0,
-                    refundTransactionExists: false,
+                const recovery = await recoverOperationIfNeeded(operation.id, 'timeout', {
+                    now: nowDate,
                 })
-                const requiresReview = operation.amount > 0 && refundDecision.reviewRequired
-                const shouldRefund = operation.amount > 0 && refundDecision.refundAllowed
-
-                const result = await prisma.$transaction(async (tx) => {
-                    // Guard: only fail if operation is still in the same stale state.
-                    const staleWhere = operation.status === 'AWAITING_FINAL_CONFIRM'
-                        ? {
-                            id: operation.id,
-                            status: operation.status,
-                            finalConfirmExpiry: { lt: nowDate },
-                        }
-                        : {
-                            id: operation.id,
-                            status: operation.status,
-                            updatedAt: operation.updatedAt,
-                        }
-
-                    const timeoutGuard = await tx.operation.updateMany({
-                        where: staleWhere,
-                        data: {
-                            status: requiresReview ? 'REVIEW_REQUIRED' : 'FAILED',
-                            responseMessage: requiresReview
-                                ? `${timeoutMessage} - manual review required before any refund (${refundDecision.reason})`
-                                : shouldRefund
-                                ? `${timeoutMessage} - amount auto-refunded`
-                                : timeoutMessage,
-                            finalConfirmExpiry: null,
-                        },
-                    })
-
-                    if (timeoutGuard.count === 0) {
-                        return { processed: false }
-                    }
-
-                    // Log activity (only if userId exists - not store customer)
-                    if (operation.userId) {
-                        await tx.activityLog.create({
-                            data: {
-                                userId: operation.userId,
-                                action: 'OPERATION_TIMEOUT',
-                                details: requiresReview
-                                    ? `${timeoutMessage} - moved to review without refund (${refundDecision.reason})`
-                                    : shouldRefund
-                                        ? `${timeoutMessage} - ${operation.amount} SAR refunded`
-                                        : timeoutMessage,
-                                ipAddress: 'cron-job',
-                            },
-                        })
-                    }
-
-                    return { processed: true }
-                })
-
-                if (!result.processed) {
-                    console.log(`Skip ${operation.id} - state changed while processing timeout`)
-                    continue
-                }
-
-                if (shouldRefund && operation.userId && await refundUser(operation.id, operation.userId, operation.amount, timeoutMessage)) {
-                    refundedCount++
-                }
+                if (recovery.changed) changedCount++
+                if (recovery.refundApplied) refundedCount++
+                if (recovery.reviewRequired) reviewCount++
+                if (recovery.decision === 'RETRY_DISPATCH') retryCount++
+                if (recovery.skipped || !recovery.changed) skippedCount++
             } catch (err) {
-                console.error(`Failed to refund operation ${operation.id}:`, err)
+                console.error(`Failed to recover operation ${operation.id}:`, err)
                 errors.push(operation.id)
             }
         }
 
         return NextResponse.json({
             success: true,
-            processed: stuckOperations.length,
+            processed: stuckOperations.length + dispatchWatchdog.scanned,
+            changed: changedCount + dispatchWatchdog.recovered,
+            retried: retryCount,
+            reviewRequired: reviewCount,
             refunded: refundedCount,
-            errors: errors.length > 0 ? errors : undefined,
+            skipped: skippedCount,
+            dispatchWatchdog,
+            errors: errors.length > 0 || dispatchWatchdog.errors.length > 0
+                ? [...errors, ...dispatchWatchdog.errors]
+                : undefined,
             timestamp: new Date().toISOString(),
         })
 

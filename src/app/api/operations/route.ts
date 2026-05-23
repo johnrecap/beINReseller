@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { withAuth } from '@/lib/api-middleware'
 import prisma from '@/lib/prisma'
 import { Prisma, OperationType, OperationStatus } from '@prisma/client'
+import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
 
 export const GET = withAuth(async (request: Request, session) => {
     try {
@@ -46,7 +47,7 @@ export const GET = withAuth(async (request: Request, session) => {
         }
 
         // Get operations with pagination
-        const [operations, total] = await Promise.all([
+        let [operations, total] = await Promise.all([
             prisma.operation.findMany({
                 where,
                 orderBy: { createdAt: 'desc' },
@@ -65,10 +66,39 @@ export const GET = withAuth(async (request: Request, session) => {
                     selectedPackage: true,
                     stbNumber: true,
                     finalConfirmExpiry: true,
+                    heartbeatExpiry: true,
                 },
             }),
             prisma.operation.count({ where }),
         ])
+
+        if (status === 'active') {
+            const now = new Date()
+            const staleOperations = operations.filter(operation =>
+                (
+                    operation.status === 'AWAITING_PACKAGE' ||
+                    operation.status === 'AWAITING_FINAL_CONFIRM'
+                ) &&
+                (
+                    (operation.finalConfirmExpiry && operation.finalConfirmExpiry < now) ||
+                    (operation.heartbeatExpiry && operation.heartbeatExpiry < now)
+                )
+            )
+
+            if (staleOperations.length > 0) {
+                await Promise.all(
+                    staleOperations.map(operation =>
+                        recoverOperationIfNeeded(operation.id, 'maintenance').catch(error => {
+                            console.error(`Failed to recover stale active operation ${operation.id}:`, error)
+                        })
+                    )
+                )
+
+                const staleIds = new Set(staleOperations.map(operation => operation.id))
+                operations = operations.filter(operation => !staleIds.has(operation.id))
+                total = Math.max(0, total - staleIds.size)
+            }
+        }
 
         return NextResponse.json({
             operations,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -120,10 +121,12 @@ export async function GET(
         // Handle AWAITING_FINAL_CONFIRM - return package info for confirmation dialog
         if (operation.status === 'AWAITING_FINAL_CONFIRM') {
             if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+                const recovery = await recoverOperationIfNeeded(operation.id, 'packages-poll')
                 return NextResponse.json({
                     success: false,
-                    status: 'EXPIRED',
-                    message: 'Final confirmation timed out. Please start a new operation.',
+                    status: recovery.newStatus || 'EXPIRED',
+                    message: recovery.reason || 'Final confirmation timed out. Please start a new operation.',
+                    recovery,
                 })
             }
 
@@ -147,10 +150,12 @@ export async function GET(
         }
 
         if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+            const recovery = await recoverOperationIfNeeded(operation.id, 'packages-poll')
             return NextResponse.json({
                 success: false,
-                status: 'EXPIRED',
-                message: 'Package selection timed out. Please start a new operation.',
+                status: recovery.newStatus || 'EXPIRED',
+                message: recovery.reason || 'Package selection timed out. Please start a new operation.',
+                recovery,
             })
         }
 

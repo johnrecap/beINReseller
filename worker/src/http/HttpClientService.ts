@@ -47,16 +47,17 @@ export function classifyFinalPayOutcome(input: {
     success: boolean;
     message?: string | null;
     finalPaySubmitted: boolean;
+    expectedCost?: number | null;
     beinBalanceBefore?: number | null;
     beinBalanceAfter?: number | null;
 }): FinalPayOutcomeCategory {
     if (input.success) return 'CONFIRMED_SUCCESS';
     if (!input.finalPaySubmitted) return 'CONFIRMED_NOT_CHARGED';
 
+    const balanceDecrease = getBalanceDecrease(input.beinBalanceBefore, input.beinBalanceAfter);
     if (
-        typeof input.beinBalanceBefore === 'number' &&
-        typeof input.beinBalanceAfter === 'number' &&
-        input.beinBalanceAfter < input.beinBalanceBefore
+        typeof balanceDecrease === 'number' &&
+        balanceDecreaseMatchesExpected(balanceDecrease, input.expectedCost)
     ) {
         return 'CONFIRMED_SUCCESS';
     }
@@ -68,6 +69,10 @@ export function classifyFinalPayOutcome(input: {
         input.beinBalanceAfter >= input.beinBalanceBefore
     ) {
         return 'CONFIRMED_NOT_CHARGED';
+    }
+
+    if (typeof balanceDecrease === 'number' && balanceDecrease > 0) {
+        return 'UNCERTAIN_REVIEW_REQUIRED';
     }
 
     const normalized = (input.message || '').toLowerCase();
@@ -97,9 +102,30 @@ export function classifyFinalPayOutcome(input: {
     return 'UNCERTAIN_REVIEW_REQUIRED';
 }
 
+function getBalanceDecrease(
+    beinBalanceBefore?: number | null,
+    beinBalanceAfter?: number | null
+): number | null {
+    if (typeof beinBalanceBefore !== 'number' || typeof beinBalanceAfter !== 'number') {
+        return null;
+    }
+    return Number((beinBalanceBefore - beinBalanceAfter).toFixed(3));
+}
+
+function balanceDecreaseMatchesExpected(
+    decrease: number,
+    expectedCost?: number | null
+): boolean {
+    if (typeof expectedCost !== 'number' || expectedCost <= 0) {
+        return decrease > 0;
+    }
+    return Math.abs(decrease - expectedCost) <= 0.01;
+}
+
 function withFinalPayOutcome<T extends PurchaseResult | PayInstallmentResult>(
     result: T,
-    finalPaySubmitted: boolean
+    finalPaySubmitted: boolean,
+    expectedCost?: number | null
 ): T {
     return {
         ...result,
@@ -108,6 +134,7 @@ function withFinalPayOutcome<T extends PurchaseResult | PayInstallmentResult>(
             success: result.success,
             message: result.message,
             finalPaySubmitted,
+            expectedCost,
             beinBalanceBefore: result.beinBalanceBefore,
             beinBalanceAfter: result.beinBalanceAfter
         })
@@ -2312,16 +2339,25 @@ export class HttpClientService {
 
             console.log('[HTTP] POST Pay (Direct Payment)...');
             finalPaySubmitted = true;
+            let finalPayEvidencePromise: Promise<void> | null = null;
             if (onFinalPaySubmitted) {
-                await onFinalPaySubmitted();
+                finalPayEvidencePromise = onFinalPaySubmitted().catch((error: unknown) => {
+                    console.warn(`[HTTP] Failed to persist final Pay evidence before POST completion: ${error instanceof Error ? error.message : String(error)}`);
+                });
             }
-            res = await this.axios.post(
-                renewUrl,
-                this.buildFormData(payFormData),
-                {
-                    headers: this.buildPostHeaders(renewUrl)
+            try {
+                res = await this.axios.post(
+                    renewUrl,
+                    this.buildFormData(payFormData),
+                    {
+                        headers: this.buildPostHeaders(renewUrl)
+                    }
+                );
+            } finally {
+                if (finalPayEvidencePromise) {
+                    await finalPayEvidencePromise;
                 }
-            );
+            }
 
             // Check for immediate errors
             const payError = this.checkForErrors(res.data);
@@ -2331,7 +2367,7 @@ export class HttpClientService {
                     success: false,
                     message: payError,
                     beinBalanceBefore: balanceBefore || undefined
-                }, true);
+                }, true, expectedCost);
             }
 
             const $result = cheerio.load(res.data);
@@ -2428,25 +2464,35 @@ export class HttpClientService {
 
                             // CRITICAL FIX: Only return success if balance ACTUALLY decreased
                             // Previously returned success just because balance was readable (false positive!)
-                            if (balanceBefore !== null && retryBalance !== null && retryBalance < balanceBefore) {
-                                const decrease = balanceBefore - retryBalance;
+                            const retryDecrease = getBalanceDecrease(balanceBefore, retryBalance);
+                            if (retryDecrease !== null && balanceDecreaseMatchesExpected(retryDecrease, expectedCost)) {
+                                const decrease = retryDecrease;
                                 console.log(`[HTTP] ✅ Balance decreased by $${decrease} (${balanceBefore} → ${retryBalance}) — transaction succeeded`);
                                 return withFinalPayOutcome({
                                     success: true,
                                     message: `Transaction completed (balance decreased by $${decrease})`,
-                                    newBalance: retryBalance,
+                                    newBalance: retryBalance ?? undefined,
                                     beinBalanceBefore: balanceBefore || undefined,
                                     beinBalanceAfter: retryBalance || undefined
-                                }, true);
+                                }, true, expectedCost);
+                            } else if (retryDecrease !== null && retryDecrease > 0) {
+                                console.log(`[HTTP] Balance decreased by $${retryDecrease}, expected $${expectedCost} - manual review required`);
+                                return withFinalPayOutcome({
+                                    success: false,
+                                    message: `Transaction status uncertain - balance decreased by $${retryDecrease}, expected $${expectedCost}`,
+                                    newBalance: retryBalance ?? undefined,
+                                    beinBalanceBefore: balanceBefore || undefined,
+                                    beinBalanceAfter: retryBalance || undefined
+                                }, true, expectedCost);
                             } else if (balanceBefore !== null && retryBalance !== null && retryBalance >= balanceBefore) {
                                 console.log(`[HTTP] ❌ Balance did NOT decrease (${balanceBefore} → ${retryBalance}) — transaction failed on beIN`);
                                 return withFinalPayOutcome({
                                     success: false,
                                     message: `Transaction failed on beIN - balance unchanged ($${retryBalance})`,
-                                    newBalance: retryBalance,
+                                    newBalance: retryBalance ?? undefined,
                                     beinBalanceBefore: balanceBefore || undefined,
                                     beinBalanceAfter: retryBalance || undefined
-                                }, true);
+                                }, true, expectedCost);
                             } else {
                                 // Can't determine balance — don't assume success
                                 console.log(`[HTTP] ⚠️ Cannot verify balance change — failing safe`);
@@ -2456,7 +2502,7 @@ export class HttpClientService {
                                     newBalance: retryBalance || undefined,
                                     beinBalanceBefore: balanceBefore || undefined,
                                     beinBalanceAfter: retryBalance || undefined
-                                }, true);
+                                }, true, expectedCost);
                             }
                         }
                     } catch (retryErr: any) {
@@ -2473,7 +2519,7 @@ export class HttpClientService {
                     newBalance: finalBalance || undefined,
                     beinBalanceBefore: balanceBefore || undefined,
                     beinBalanceAfter: finalBalance || undefined
-                }, true);
+                }, true, expectedCost);
             }
 
             // ===============================================
@@ -2485,15 +2531,25 @@ export class HttpClientService {
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             const balanceAfter = await this.getBalanceFromSellPackagesPage();
-            if (balanceBefore !== null && balanceAfter !== null && balanceAfter < balanceBefore) {
-                const decrease = balanceBefore - balanceAfter;
+            const finalDecrease = getBalanceDecrease(balanceBefore, balanceAfter);
+            if (finalDecrease !== null && balanceDecreaseMatchesExpected(finalDecrease, expectedCost)) {
+                const decrease = finalDecrease;
                 return withFinalPayOutcome({
                     success: true,
                     message: `Transaction completed (balance decreased by $${decrease})`,
-                    newBalance: balanceAfter,
-                    beinBalanceBefore: balanceBefore,
-                    beinBalanceAfter: balanceAfter
-                }, true);
+                    newBalance: balanceAfter ?? undefined,
+                    beinBalanceBefore: balanceBefore ?? undefined,
+                    beinBalanceAfter: balanceAfter ?? undefined
+                }, true, expectedCost);
+            }
+            if (finalDecrease !== null && finalDecrease > 0) {
+                return withFinalPayOutcome({
+                    success: false,
+                    message: `Transaction status uncertain - balance decreased by $${finalDecrease}, expected $${expectedCost}`,
+                    newBalance: balanceAfter || undefined,
+                    beinBalanceBefore: balanceBefore || undefined,
+                    beinBalanceAfter: balanceAfter || undefined
+                }, true, expectedCost);
             }
             console.log(`[HTTP] 💰 Balance AFTER: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
 
@@ -2505,11 +2561,11 @@ export class HttpClientService {
                 newBalance: balanceAfter || undefined,
                 beinBalanceBefore: balanceBefore || undefined,
                 beinBalanceAfter: balanceAfter || undefined
-            }, true);
+            }, true, expectedCost);
 
         } catch (error: any) {
             console.error('[HTTP] Confirm error:', error.message);
-            return withFinalPayOutcome({ success: false, message: `Confirm failed: ${error.message}` }, finalPaySubmitted);
+            return withFinalPayOutcome({ success: false, message: `Confirm failed: ${error.message}` }, finalPaySubmitted, expectedCost);
         }
     }
 

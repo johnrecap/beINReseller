@@ -12,9 +12,13 @@ export const OPERATION_PHASES = [
     'PACKAGE_PREPARATION',
     'FINAL_CONFIRMATION',
     'FINAL_CONFIRMATION_REQUESTED',
+    'CUSTOMER_DEDUCTED',
+    'DISPATCH_PENDING',
+    'DISPATCH_FAILED',
     'CANCELLATION_CONFIRM',
     'FINAL_PAY_SUBMITTED',
     'POST_FINAL_PAY_REVIEW',
+    'RECOVERY_TIMEOUT',
 ] as const
 
 export type OperationPhase = (typeof OPERATION_PHASES)[number]
@@ -149,7 +153,11 @@ export function hasFinalPayStarted(input: OperationSafetyInput): boolean {
         phaseEvidence?.phase === 'PACKAGE_PREPARATION' ||
         phaseEvidence?.phase === 'CANCELLATION_CONFIRM' ||
         phaseEvidence?.phase === 'FINAL_CONFIRMATION' ||
-        phaseEvidence?.phase === 'FINAL_CONFIRMATION_REQUESTED'
+        phaseEvidence?.phase === 'FINAL_CONFIRMATION_REQUESTED' ||
+        phaseEvidence?.phase === 'CUSTOMER_DEDUCTED' ||
+        phaseEvidence?.phase === 'DISPATCH_PENDING' ||
+        phaseEvidence?.phase === 'DISPATCH_FAILED' ||
+        phaseEvidence?.phase === 'RECOVERY_TIMEOUT'
     ) {
         return false
     }

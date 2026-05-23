@@ -38,6 +38,29 @@ module.exports = {
         },
 
         // ----------------------------
+        // OPERATION MAINTENANCE
+        // ----------------------------
+        {
+            name: 'bein-maintenance',
+            script: 'node_modules/.bin/tsx',
+            args: 'src/scripts/operation-maintenance.ts',
+            cwd: './',
+            instances: 1,
+            exec_mode: 'fork',
+            max_memory_restart: '200M',
+            autorestart: true,
+            max_restarts: 10,
+            restart_delay: 5000,
+            merge_logs: true,
+            time: true,
+            env: {
+                NODE_ENV: 'production',
+            },
+            error_file: './logs/maintenance-error.log',
+            out_file: './logs/maintenance-out.log',
+        },
+
+        // ----------------------------
         // ⚙️ WORKER PROCESSES
         // ----------------------------
         ...createWorkers()

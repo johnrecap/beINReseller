@@ -26,6 +26,7 @@ interface Operation {
     stbNumber?: string | null
     selectedPackage?: SelectedPackage | null
     finalConfirmExpiry?: string | null
+    heartbeatExpiry?: string | null
 }
 
 const getStatusConfig = (t: ReturnType<typeof useTranslation>['t']) => ({
@@ -334,8 +335,16 @@ export default function ActiveOperationsPage() {
 
             if (data.operations) {
                 // Filter only active operations (including AWAITING_FINAL_CONFIRM)
+                const now = Date.now()
                 const activeOps = data.operations.filter((op: Operation) =>
-                    ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'].includes(op.status)
+                    ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'].includes(op.status) &&
+                    !(
+                        ['AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM'].includes(op.status) &&
+                        (
+                            (op.finalConfirmExpiry && new Date(op.finalConfirmExpiry).getTime() <= now) ||
+                            (op.heartbeatExpiry && new Date(op.heartbeatExpiry).getTime() <= now)
+                        )
+                    )
                 )
                 setOperations(activeOps)
             }

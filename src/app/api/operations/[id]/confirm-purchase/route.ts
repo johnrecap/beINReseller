@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import {
+    createOperationDispatch,
+    dispatchPendingOperationJobs,
+    recordOperationDispatchEvidence,
+} from '@/lib/operation-dispatch'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { Prisma } from '@prisma/client'
@@ -117,7 +121,7 @@ export async function POST(
                 status: 'COMPLETING',
                 responseMessage: 'Confirming payment...',
                 responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                    phase: 'FINAL_CONFIRMATION',
+                    phase: 'FINAL_CONFIRMATION_REQUESTED',
                     jobType: 'CONFIRM_PURCHASE',
                     finalPaySubmitted: false,
                 }),
@@ -147,7 +151,7 @@ export async function POST(
                     data: {
                         amount: dealerPrice,
                         responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                            phase: 'FINAL_CONFIRMATION',
+                            phase: 'DISPATCH_PENDING',
                             jobType: 'CONFIRM_PURCHASE',
                             finalPaySubmitted: false,
                         }),
@@ -209,7 +213,7 @@ export async function POST(
                     },
                     data: {
                         responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                            phase: 'FINAL_CONFIRMATION',
+                            phase: 'DISPATCH_PENDING',
                             jobType: 'CONFIRM_PURCHASE',
                             finalPaySubmitted: false,
                         }),
@@ -231,6 +235,10 @@ export async function POST(
         })
         if (dispatchResult.failed > 0) {
             console.error('Failed to dispatch confirm-purchase job; saved for retry:', id)
+            await recordOperationDispatchEvidence(id, {
+                phase: 'DISPATCH_FAILED',
+                message: 'Confirm purchase dispatch failed; saved for retry.',
+            })
         }
         // 5. Return success
         return NextResponse.json({

@@ -126,14 +126,22 @@ export function buildFinancialReviewItem(
     const hasRefund = operation.transactions.some((transaction) => transaction.type === 'REFUND')
     const hasCustomerWalletDebit = customerWalletDebitLookup.get(operation.id) === true
     const userDeductTotal = toNullableNumber(auditSnapshot?.userDeductTotal)
+    const recoveryFinancialImpact =
+        typeof responseData?.lastRecoveryFinancialImpact === 'string'
+            ? responseData.lastRecoveryFinancialImpact
+            : null
     const refundBlocked = auditSnapshot?.refundBlocked === true
     const reason =
         typeof auditSnapshot?.reviewReason === 'string'
             ? auditSnapshot.reviewReason
+            : typeof responseData?.lastRecoveryReason === 'string'
+                ? responseData.lastRecoveryReason
             : operation.responseMessage || 'عملية غير مكتملة بعد خصم/حجز رصيد وتحتاج قرار يدوي.'
     const reasonCode =
         typeof auditSnapshot?.outcomeCategory === 'string'
             ? auditSnapshot.outcomeCategory
+            : typeof responseData?.lastRecoveryDecision === 'string'
+                ? responseData.lastRecoveryDecision
             : typeof auditSnapshot?.reviewSource === 'string'
                 ? auditSnapshot.reviewSource
                 : null
@@ -164,6 +172,8 @@ export function buildFinancialReviewItem(
         hasUserDeduction ||
         hasCustomerWalletDebit ||
         refundBlocked ||
+        recoveryFinancialImpact === 'CUSTOMER_DEDUCTED' ||
+        recoveryFinancialImpact === 'UNCERTAIN' ||
         (typeof userDeductTotal === 'number' && userDeductTotal > 0) ||
         (operation.amount > 0 && Boolean(operation.user || operation.customer))
 

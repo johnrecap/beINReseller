@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import { dispatchPendingOperationJobs, runDispatchWatchdog } from '@/lib/operation-dispatch'
 
 export async function GET(request: Request) {
     try {
@@ -21,8 +21,9 @@ export async function GET(request: Request) {
             )
         }
 
-        const result = await dispatchPendingOperationJobs({ limit: 50 })
-        return NextResponse.json({ success: true, ...result })
+        const result = await dispatchPendingOperationJobs({ limit: 50, maxAttempts: 3 })
+        const watchdog = await runDispatchWatchdog({ limit: 50, maxAttempts: 3 })
+        return NextResponse.json({ success: true, ...result, watchdog })
     } catch (error) {
         console.error('[Dispatch Cron] Failed to dispatch pending operation jobs:', error)
         return NextResponse.json(

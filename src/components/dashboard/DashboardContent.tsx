@@ -7,6 +7,7 @@ import RecentOperations from '@/components/dashboard/RecentOperations'
 import QuickActionTile from '@/components/dashboard/QuickActionTile'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
 import RequestCreditEntry from '@/components/credit-requests/RequestCreditEntry'
+import EidRewardPopup from '@/components/eid-rewards/EidRewardPopup'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Zap, RefreshCw } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -30,6 +31,8 @@ export default function DashboardContent({ user }: DashboardContentProps) {
             transition={{ duration: 0.3 }}
             className="space-y-8"
         >
+            <EidRewardPopup />
+
             {/* Header Section */}
             <DashboardHeader
                 username={user.username}

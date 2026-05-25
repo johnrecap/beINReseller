@@ -7,7 +7,7 @@ import { getConversionReadiness, getPointProgramSettings } from '@/lib/points/se
 
 export type CashRedemptionWriteInput = {
     ownerUserId: string
-    ownerRole: 'USER' | 'AGENT' | 'MANAGER'
+    ownerRole: 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN'
     balanceBefore: number
     availablePoints: number
     pointsToConvert: number
@@ -21,7 +21,7 @@ export type CashRedemptionWritePlan =
         ownerUserId: string
         ledgerEntry: {
             ownerUserId: string
-            ownerRoleAtTime: 'USER' | 'AGENT' | 'MANAGER'
+            ownerRoleAtTime: 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN'
             sourceType: 'POINT_CASH_REDEMPTION'
             points: number
             status: 'REDEEMED'
@@ -90,6 +90,7 @@ export class PointCashRedemptionError extends Error {
 export async function redeemPointsForBalance(input: {
     ownerUserId: string
     pointsToConvert: number
+    notesPrefix?: string
 }): Promise<RedeemPointsForBalanceResult> {
     return prisma.$transaction(async (tx) => {
         const owner = await tx.user.findUnique({
@@ -101,7 +102,7 @@ export async function redeemPointsForBalance(input: {
             throw new PointCashRedemptionError('Inactive owner cannot convert points', 'INACTIVE_OWNER')
         }
 
-        if (!['USER', 'AGENT', 'MANAGER'].includes(owner.role)) {
+        if (!['USER', 'AGENT', 'MANAGER', 'ADMIN'].includes(owner.role)) {
             throw new PointCashRedemptionError('Role cannot convert points', 'UNSUPPORTED_ROLE')
         }
 
@@ -119,7 +120,7 @@ export async function redeemPointsForBalance(input: {
 
         const writePlan = buildCashRedemptionWrites({
             ownerUserId: owner.id,
-            ownerRole: owner.role as Extract<Role, 'USER' | 'AGENT' | 'MANAGER'>,
+            ownerRole: owner.role as Extract<Role, 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN'>,
             balanceBefore: owner.balance,
             availablePoints,
             pointsToConvert: input.pointsToConvert,
@@ -149,7 +150,7 @@ export async function redeemPointsForBalance(input: {
                 type: 'DEPOSIT',
                 amount: writePlan.transaction.amount,
                 balanceAfter: updatedOwner.balance,
-                notes: `Point cash conversion: ${input.pointsToConvert} points`,
+                notes: `${input.notesPrefix ?? 'Point cash conversion'}: ${input.pointsToConvert} points`,
             },
             select: { id: true },
         })
@@ -164,7 +165,7 @@ export async function redeemPointsForBalance(input: {
                 points: writePlan.ledgerEntry.points,
                 status: 'REDEEMED',
                 amountUsdSnapshot: writePlan.ledgerEntry.amountUsdSnapshot,
-                notes: `Converted ${input.pointsToConvert} points to $${writePlan.transaction.amount.toFixed(2)} balance`,
+                notes: `${input.notesPrefix ?? 'Converted'} ${input.pointsToConvert} points to $${writePlan.transaction.amount.toFixed(2)} balance`,
             },
         })
 

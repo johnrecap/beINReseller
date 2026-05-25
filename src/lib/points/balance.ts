@@ -1,5 +1,6 @@
 export type PointLedgerSummarySource =
     | 'OPERATION_SPEND'
+    | 'EID_REWARD'
     | 'POINT_CASH_REDEMPTION'
     | 'POINT_REVERSAL'
     | 'CREDIT_REQUEST'
@@ -52,7 +53,7 @@ export function summarizePointBalance(entries: PointLedgerSummaryEntry[]): Spend
     for (const entry of entries) {
         if (entry.status === 'CANCELLED') continue
 
-        if (entry.sourceType === 'OPERATION_SPEND' && entry.points > 0) {
+        if ((entry.sourceType === 'OPERATION_SPEND' || entry.sourceType === 'EID_REWARD') && entry.points > 0) {
             summary.lifetimeEarned += entry.points
             summary.available += entry.points
             continue

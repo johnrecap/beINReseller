@@ -126,6 +126,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         ...(creditRewardsNavigationReady ? [
             { href: '/dashboard/admin/rewards', label: 'Rewards', icon: WalletCards },
         ] : []),
+        { href: '/dashboard/admin/eid-rewards', label: 'Eid Rewards', icon: Gift },
         { href: '/dashboard/admin/users/activity', label: t.sidebar.activityMonitoring || 'Activity Monitoring', icon: Activity },
         { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
@@ -148,6 +149,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         '/dashboard/admin/agents': sectionLabel('المناديب', 'Agents'),
         '/dashboard/admin/points': sectionLabel('إعدادات النقاط', 'Points Settings'),
         '/dashboard/admin/rewards': sectionLabel('المكافآت', 'Rewards'),
+        '/dashboard/admin/eid-rewards': sectionLabel('عيدية العيد', 'Eid Rewards'),
         '/dashboard/admin/financial-review': sectionLabel('مراجعة العمليات', 'Financial Review'),
         '/dashboard/admin/recovery-health': sectionLabel('صحة الاسترداد', 'Recovery Health'),
     }
@@ -209,6 +211,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 '/dashboard/admin/settings',
                 '/dashboard/admin/settings/announcements',
                 '/dashboard/admin/rewards',
+                '/dashboard/admin/eid-rewards',
             ]),
         },
     ]

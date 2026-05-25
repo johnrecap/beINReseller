@@ -93,14 +93,15 @@ test('rejects cash conversion when requested points exceed available points', ()
 test('summarizes spend-earned, converted, reversed, and legacy point totals separately', () => {
     const summary = summarizePointBalance([
         { sourceType: 'OPERATION_SPEND', status: 'AVAILABLE', points: 100 },
+        { sourceType: 'EID_REWARD', status: 'AVAILABLE', points: 25 },
         { sourceType: 'POINT_CASH_REDEMPTION', status: 'REDEEMED', points: -30 },
         { sourceType: 'POINT_REVERSAL', status: 'REDEEMED', points: -20 },
         { sourceType: 'CREDIT_REQUEST', status: 'AVAILABLE', points: 50 },
     ])
 
     assert.deepEqual(summary, {
-        available: 50,
-        lifetimeEarned: 100,
+        available: 75,
+        lifetimeEarned: 125,
         converted: 30,
         reversed: 20,
         legacy: 50,

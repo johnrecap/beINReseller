@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/eid-rewards/datetime-local'
 
 type TierDraft = {
     points: number
@@ -69,14 +70,6 @@ const defaultSettings: SettingsDraft = {
 function toNumber(value: string, fallback = 0) {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : fallback
-}
-
-function toDateTimeLocal(value: string | null) {
-    return value ? value.slice(0, 16) : ''
-}
-
-function fromDateTimeLocal(value: string) {
-    return value ? new Date(value).toISOString() : null
 }
 
 export default function AdminEidRewardsClient() {
@@ -144,8 +137,6 @@ export default function AdminEidRewardsClient() {
         try {
             const payload = {
                 ...settings,
-                startsAt: fromDateTimeLocal(toDateTimeLocal(settings.startsAt)),
-                endsAt: fromDateTimeLocal(toDateTimeLocal(settings.endsAt)),
                 tiers,
             }
             const response = await fetch('/api/admin/eid-rewards/settings', {
@@ -222,11 +213,11 @@ export default function AdminEidRewardsClient() {
                                 </label>
                                 <label className="block space-y-2">
                                     <span className="text-sm text-muted-foreground">بداية الحدث</span>
-                                    <Input type="datetime-local" value={toDateTimeLocal(settings.startsAt)} onChange={(event) => setSettings((draft) => ({ ...draft, startsAt: fromDateTimeLocal(event.target.value) }))} />
+                                    <Input type="datetime-local" value={toDateTimeLocalValue(settings.startsAt)} onChange={(event) => setSettings((draft) => ({ ...draft, startsAt: fromDateTimeLocalValue(event.target.value) }))} />
                                 </label>
                                 <label className="block space-y-2">
                                     <span className="text-sm text-muted-foreground">نهاية الحدث</span>
-                                    <Input type="datetime-local" value={toDateTimeLocal(settings.endsAt)} onChange={(event) => setSettings((draft) => ({ ...draft, endsAt: fromDateTimeLocal(event.target.value) }))} />
+                                    <Input type="datetime-local" value={toDateTimeLocalValue(settings.endsAt)} onChange={(event) => setSettings((draft) => ({ ...draft, endsAt: fromDateTimeLocalValue(event.target.value) }))} />
                                 </label>
                                 <label className="block space-y-2">
                                     <span className="text-sm text-muted-foreground">أقل نقاط للتحويل</span>

@@ -63,6 +63,19 @@ function sameLedgerInput(
         Math.abs(existing.dealerBalanceAfter - input.dealerBalanceAfter) < BALANCE_EPSILON;
 }
 
+async function flagOperationAccountConflict(operationId: string): Promise<void> {
+    await prisma.operation.updateMany({
+        where: {
+            id: operationId,
+            status: { notIn: [OperationStatus.COMPLETED, OperationStatus.CANCELLED, OperationStatus.FAILED, OperationStatus.EXPIRED] },
+        },
+        data: {
+            status: OperationStatus.REVIEW_REQUIRED,
+            responseMessage: 'Confirmed beIN spend account conflicts with operation account. Manual review required.',
+        },
+    });
+}
+
 export async function recordConfirmedBeinSpend(
     input: RecordConfirmedBeinSpendInput
 ): Promise<BeinSpendLedgerResult> {
@@ -131,6 +144,7 @@ export async function recordConfirmedBeinSpend(
                 type: true,
                 status: true,
                 cardNumber: true,
+                beinAccountId: true,
                 selectedPackage: true,
             },
         }),
@@ -152,7 +166,21 @@ export async function recordConfirmedBeinSpend(
         };
     }
 
+    const accountConflict = Boolean(operation.beinAccountId && operation.beinAccountId !== input.beinAccountId);
+
     try {
+        if (!operation.beinAccountId) {
+            await prisma.operation.updateMany({
+                where: {
+                    id: input.operationId,
+                    beinAccountId: null,
+                },
+                data: {
+                    beinAccountId: input.beinAccountId,
+                },
+            });
+        }
+
         const packageName =
             selectedPackageText(operation.selectedPackage, 'name') ??
             selectedPackageText(operation.selectedPackage, 'package') ??
@@ -181,6 +209,15 @@ export async function recordConfirmedBeinSpend(
                 chargedAt: input.chargedAt ?? new Date(),
             },
         });
+
+        if (accountConflict) {
+            await flagOperationAccountConflict(input.operationId);
+            return {
+                status: 'conflict_review_required',
+                ledgerId: row.id,
+                reason: 'Operation beIN account differs from confirmed spend account.',
+            };
+        }
 
         return { status: 'created', ledgerId: row.id, spendAmount: row.spendAmount };
     } catch (error: unknown) {

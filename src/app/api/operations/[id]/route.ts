@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import {
+    buildChargedBeinAccountAudit,
+    redactOperationResponseData,
+} from '@/lib/operation-detail-audit'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -10,42 +14,6 @@ async function getAuthUser(request: NextRequest) {
     const session = await auth()
     if (session?.user?.id) return session.user
     return getMobileUserFromRequest(request)
-}
-
-const SENSITIVE_RESPONSE_KEYS = new Set([
-    'sessionData',
-    'cookies',
-    'storageState',
-    'viewState',
-    '__VIEWSTATE',
-    '__VIEWSTATEGENERATOR',
-    '__EVENTVALIDATION',
-])
-
-function redactOperationResponseData(value: unknown): unknown {
-    if (!value) return value
-
-    if (typeof value === 'string') {
-        try {
-            return redactOperationResponseData(JSON.parse(value))
-        } catch {
-            return value
-        }
-    }
-
-    if (Array.isArray(value)) {
-        return value.map(item => redactOperationResponseData(item))
-    }
-
-    if (typeof value === 'object') {
-        return Object.fromEntries(
-            Object.entries(value as Record<string, unknown>)
-                .filter(([key]) => !SENSITIVE_RESPONSE_KEYS.has(key))
-                .map(([key, entry]) => [key, redactOperationResponseData(entry)])
-        )
-    }
-
-    return value
 }
 
 export async function GET(
@@ -92,6 +60,13 @@ export async function GET(
                         evidenceSource: true,
                     },
                 },
+                beinAccount: {
+                    select: {
+                        id: true,
+                        username: true,
+                        label: true,
+                    },
+                },
             },
         })
 
@@ -113,22 +88,11 @@ export async function GET(
         // Remove userId from response
         const operationData = {
             ...operation,
-            chargedBeinAccount: operation.chargedBeinSpendLedger
-                ? {
-                    ledgerId: operation.chargedBeinSpendLedger.id,
-                    beinAccountId: operation.chargedBeinSpendLedger.beinAccountId,
-                    username: operation.chargedBeinSpendLedger.beinUsernameSnapshot,
-                    label: operation.chargedBeinSpendLedger.beinLabelSnapshot,
-                    spendAmount: operation.chargedBeinSpendLedger.spendAmount,
-                    dealerBalanceBefore: operation.chargedBeinSpendLedger.dealerBalanceBefore,
-                    dealerBalanceAfter: operation.chargedBeinSpendLedger.dealerBalanceAfter,
-                    chargedAt: operation.chargedBeinSpendLedger.chargedAt,
-                    evidenceSource: operation.chargedBeinSpendLedger.evidenceSource,
-                }
-                : null,
+            chargedBeinAccount: buildChargedBeinAccountAudit(operation, authUser.role === 'ADMIN'),
         }
         delete (operationData as { userId?: string }).userId
         delete (operationData as { chargedBeinSpendLedger?: unknown }).chargedBeinSpendLedger
+        delete (operationData as { beinAccount?: unknown }).beinAccount
 
         return NextResponse.json({
             ...operationData,

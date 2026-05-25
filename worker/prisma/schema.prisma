@@ -831,6 +831,7 @@ model BeinAccountSpendLedger {
   @@index([beinAccountId, chargedAt])
   @@index([userId, chargedAt])
   @@index([operationType, chargedAt])
+  @@index([cardNumberSnapshot, chargedAt])
   @@index([chargedAt])
   @@map("bein_account_spend_ledger")
 }

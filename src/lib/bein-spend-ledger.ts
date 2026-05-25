@@ -10,6 +10,7 @@ export interface BeinSpendReportFilters {
     beinAccountId?: string
     userId?: string
     operationType?: OperationType
+    cardNumber?: string
     includeUnconfirmed: boolean
 }
 
@@ -70,6 +71,11 @@ export interface BeinSpendOperationsResult {
     total: number
 }
 
+export function normalizeCardSearch(value: string | null | undefined): string | undefined {
+    const normalized = value?.replace(/\D/g, '')
+    return normalized || undefined
+}
+
 export function parseBeinSpendReportFilters(searchParams: URLSearchParams): BeinSpendReportFilters {
     const fromRaw = searchParams.get('from')
     const toRaw = searchParams.get('to')
@@ -110,6 +116,7 @@ export function parseBeinSpendReportFilters(searchParams: URLSearchParams): Bein
         beinAccountId: searchParams.get('beinAccountId') || undefined,
         userId: searchParams.get('userId') || undefined,
         operationType,
+        cardNumber: normalizeCardSearch(searchParams.get('cardNumber')),
         includeUnconfirmed: searchParams.get('includeUnconfirmed') !== 'false',
     }
 }
@@ -123,7 +130,7 @@ export function parsePagination(searchParams: URLSearchParams): { page: number; 
     return { page, pageSize }
 }
 
-function ledgerWhere(filters: BeinSpendReportFilters): Prisma.BeinAccountSpendLedgerWhereInput {
+export function buildBeinSpendLedgerWhere(filters: BeinSpendReportFilters): Prisma.BeinAccountSpendLedgerWhereInput {
     return {
         chargedAt: {
             gte: filters.from,
@@ -132,11 +139,12 @@ function ledgerWhere(filters: BeinSpendReportFilters): Prisma.BeinAccountSpendLe
         ...(filters.beinAccountId ? { beinAccountId: filters.beinAccountId } : {}),
         ...(filters.userId ? { userId: filters.userId } : {}),
         ...(filters.operationType ? { operationType: filters.operationType } : {}),
+        ...(filters.cardNumber ? { cardNumberSnapshot: { contains: filters.cardNumber } } : {}),
         evidenceConfidence: 'CONFIRMED',
     }
 }
 
-function reviewWhere(filters: BeinSpendReportFilters): Prisma.OperationWhereInput {
+export function buildBeinSpendReviewWhere(filters: BeinSpendReportFilters): Prisma.OperationWhereInput {
     return {
         status: 'REVIEW_REQUIRED',
         updatedAt: {
@@ -146,6 +154,7 @@ function reviewWhere(filters: BeinSpendReportFilters): Prisma.OperationWhereInpu
         ...(filters.beinAccountId ? { beinAccountId: filters.beinAccountId } : {}),
         ...(filters.userId ? { userId: filters.userId } : {}),
         ...(filters.operationType ? { type: filters.operationType } : {}),
+        ...(filters.cardNumber ? { cardNumber: { contains: filters.cardNumber } } : {}),
     }
 }
 
@@ -196,7 +205,7 @@ function toDetailRow(row: Prisma.BeinAccountSpendLedgerGetPayload<{
 }
 
 export async function getBeinSpendSummary(filters: BeinSpendReportFilters): Promise<BeinSpendSummary> {
-    const where = ledgerWhere(filters)
+    const where = buildBeinSpendLedgerWhere(filters)
     const [rows, reviewCount, reviewByAccount] = await Promise.all([
         prisma.beinAccountSpendLedger.findMany({
             where,
@@ -209,11 +218,11 @@ export async function getBeinSpendSummary(filters: BeinSpendReportFilters): Prom
                 chargedAt: true,
             },
         }),
-        filters.includeUnconfirmed ? prisma.operation.count({ where: reviewWhere(filters) }) : Promise.resolve(0),
+        filters.includeUnconfirmed ? prisma.operation.count({ where: buildBeinSpendReviewWhere(filters) }) : Promise.resolve(0),
         filters.includeUnconfirmed
             ? prisma.operation.groupBy({
                 by: ['beinAccountId'],
-                where: reviewWhere(filters),
+                where: buildBeinSpendReviewWhere(filters),
                 _count: true,
             })
             : Promise.resolve([]),
@@ -284,7 +293,7 @@ export async function getBeinSpendOperations(
     filters: BeinSpendReportFilters,
     pagination: { page: number; pageSize: number }
 ): Promise<BeinSpendOperationsResult> {
-    const where = ledgerWhere(filters)
+    const where = buildBeinSpendLedgerWhere(filters)
     const [items, total] = await Promise.all([
         prisma.beinAccountSpendLedger.findMany({
             where,

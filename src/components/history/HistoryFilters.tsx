@@ -13,6 +13,7 @@ interface HistoryFiltersProps {
 export interface FilterValues {
     type: string
     status: string
+    cardNumber: string
     from: string
     to: string
 }
@@ -20,6 +21,7 @@ export interface FilterValues {
 const initialFilters: FilterValues = {
     type: '',
     status: '',
+    cardNumber: '',
     from: '',
     to: '',
 }
@@ -44,7 +46,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
 
     return (
         <form onSubmit={handleSubmit} className="bg-[#1a1d26] rounded-xl shadow-sm border border-border/50 p-4 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 {/* Type Filter */}
                 <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-2 px-1">{t.history.type}</label>
@@ -75,6 +77,19 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                             <option key={value} value={value}>{(t.status as Record<string, string>)?.[value === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : (typeof value === 'string' ? value.toLowerCase() : value)] ?? value}</option>
                         ))}
                     </select>
+                </div>
+
+                {/* Card Number */}
+                <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-2 px-1">{t.history.cardNumber}</label>
+                    <input
+                        type="search"
+                        inputMode="numeric"
+                        value={filters.cardNumber}
+                        onChange={(e) => handleChange('cardNumber', e.target.value)}
+                        aria-label={t.history.cardNumber}
+                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] focus:outline-none text-sm transition-all"
+                    />
                 </div>
 
                 {/* From Date */}

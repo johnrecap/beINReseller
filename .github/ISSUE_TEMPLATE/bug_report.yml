@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible defect in the panel, worker, or mobile/store APIs.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What failed, and what should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the exact page/API/worker flow and relevant card/account context without secrets.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Web dashboard
+        - Worker automation
+        - Prisma/database
+        - beIN account pool
+        - Payments/balances
+        - Mobile/store API
+        - GitHub/CI
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, screenshots, operation IDs, or CI links.
+    validations:
+      required: false

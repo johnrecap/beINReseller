@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, RefreshCw, WalletCards } from 'lucide-react'
 
-type Preset = 'today' | 'week' | 'month' | 'custom'
+export type Preset = 'today' | 'week' | 'month' | 'custom'
 
 interface SummaryResponse {
     totals: {
@@ -32,6 +32,7 @@ interface OperationsResponse {
         panelUsername: string | null
         beinAccountId: string
         beinUsernameSnapshot: string
+        beinLabelSnapshot: string | null
         operationType: string
         cardNumber: string
         selectedPackageName: string | null
@@ -44,6 +45,17 @@ interface OperationsResponse {
     page: number
     pageSize: number
     total: number
+}
+
+export interface BeinSpendReportFilterState {
+    from: string
+    to: string
+    preset: Preset
+    beinAccountId: string
+    userId: string
+    operationType: string
+    cardNumber: string
+    page: number
 }
 
 function toDateInputValue(date: Date): string {
@@ -84,6 +96,27 @@ function formatDate(value: string): string {
     return new Date(value).toLocaleString()
 }
 
+function accountDisplay(username: string | null, label: string | null): string {
+    return label ? `${label} (${username || '-'})` : username || '-'
+}
+
+export function buildBeinSpendReportParams(filters: BeinSpendReportFilterState, includePagination: boolean): URLSearchParams {
+    const params = new URLSearchParams({
+        from: new Date(`${filters.from}T00:00:00.000`).toISOString(),
+        to: new Date(`${filters.to}T23:59:59.999`).toISOString(),
+        groupBy: filters.preset === 'custom' ? 'day' : filters.preset === 'week' ? 'day' : filters.preset,
+    })
+    if (filters.beinAccountId.trim()) params.set('beinAccountId', filters.beinAccountId.trim())
+    if (filters.userId.trim()) params.set('userId', filters.userId.trim())
+    if (filters.operationType) params.set('operationType', filters.operationType)
+    if (filters.cardNumber.trim()) params.set('cardNumber', filters.cardNumber.trim())
+    if (includePagination) {
+        params.set('page', String(filters.page))
+        params.set('pageSize', '25')
+    }
+    return params
+}
+
 export default function BeinSpendReportClient() {
     const [preset, setPreset] = useState<Preset>('month')
     const initialRange = useMemo(() => rangeForPreset('month'), [])
@@ -92,6 +125,7 @@ export default function BeinSpendReportClient() {
     const [beinAccountId, setBeinAccountId] = useState('')
     const [userId, setUserId] = useState('')
     const [operationType, setOperationType] = useState('')
+    const [cardNumber, setCardNumber] = useState('')
     const [page, setPage] = useState(1)
     const [summary, setSummary] = useState<SummaryResponse | null>(null)
     const [operations, setOperations] = useState<OperationsResponse | null>(null)
@@ -99,20 +133,17 @@ export default function BeinSpendReportClient() {
     const [error, setError] = useState<string | null>(null)
 
     const buildParams = useCallback((includePagination: boolean) => {
-        const params = new URLSearchParams({
-            from: new Date(`${from}T00:00:00.000`).toISOString(),
-            to: new Date(`${to}T23:59:59.999`).toISOString(),
-            groupBy: preset === 'custom' ? 'day' : preset === 'week' ? 'day' : preset,
-        })
-        if (beinAccountId.trim()) params.set('beinAccountId', beinAccountId.trim())
-        if (userId.trim()) params.set('userId', userId.trim())
-        if (operationType) params.set('operationType', operationType)
-        if (includePagination) {
-            params.set('page', String(page))
-            params.set('pageSize', '25')
-        }
-        return params
-    }, [beinAccountId, from, operationType, page, preset, to, userId])
+        return buildBeinSpendReportParams({
+            from,
+            to,
+            preset,
+            beinAccountId,
+            userId,
+            operationType,
+            cardNumber,
+            page,
+        }, includePagination)
+    }, [beinAccountId, cardNumber, from, operationType, page, preset, to, userId])
 
     const fetchReports = useCallback(async () => {
         setLoading(true)
@@ -211,7 +242,11 @@ export default function BeinSpendReportClient() {
                         <span className="mb-1 block text-muted-foreground">beIN account id</span>
                         <input className="h-10 w-full rounded-md border border-border bg-background px-3" value={beinAccountId} onChange={(e) => { setBeinAccountId(e.target.value); setPage(1) }} />
                     </label>
-                    <label className="text-sm xl:col-span-2">
+                    <label className="text-sm">
+                        <span className="mb-1 block text-muted-foreground">Card number</span>
+                        <input className="h-10 w-full rounded-md border border-border bg-background px-3" inputMode="numeric" value={cardNumber} onChange={(e) => { setCardNumber(e.target.value); setPage(1) }} />
+                    </label>
+                    <label className="text-sm">
                         <span className="mb-1 block text-muted-foreground">Panel user id</span>
                         <input className="h-10 w-full rounded-md border border-border bg-background px-3" value={userId} onChange={(e) => { setUserId(e.target.value); setPage(1) }} />
                     </label>
@@ -257,7 +292,7 @@ export default function BeinSpendReportClient() {
                         <tbody>
                             {(summary?.accounts || []).map((account) => (
                                 <tr key={account.beinAccountId} className="border-t border-border">
-                                    <td className="px-4 py-3">{account.beinUsernameSnapshot}</td>
+                                    <td className="px-4 py-3">{accountDisplay(account.beinUsernameSnapshot, account.beinLabelSnapshot)}</td>
                                     <td className="px-4 py-3">{account.beinLabelSnapshot || '-'}</td>
                                     <td className="px-4 py-3 text-right">{formatMoney(account.confirmedSpend, currency)}</td>
                                     <td className="px-4 py-3 text-right">{account.confirmedOperationCount}</td>
@@ -266,7 +301,7 @@ export default function BeinSpendReportClient() {
                                 </tr>
                             ))}
                             {summary?.accounts.length === 0 && (
-                                <tr><td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>No confirmed spend rows.</td></tr>
+                                <tr><td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>No confirmed spend rows match the selected filters.</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -279,11 +314,12 @@ export default function BeinSpendReportClient() {
                     <span className="text-sm text-muted-foreground">{operations?.total || 0} rows</span>
                 </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1100px] text-sm">
+                    <table className="w-full min-w-[1200px] text-sm">
                         <thead className="bg-muted/50 text-muted-foreground">
                             <tr>
                                 <th className="px-4 py-3 text-left">Operation</th>
                                 <th className="px-4 py-3 text-left">Panel user</th>
+                                <th className="px-4 py-3 text-left">beIN account</th>
                                 <th className="px-4 py-3 text-left">Card</th>
                                 <th className="px-4 py-3 text-left">Package</th>
                                 <th className="px-4 py-3 text-right">Before</th>
@@ -298,6 +334,7 @@ export default function BeinSpendReportClient() {
                                 <tr key={item.ledgerId} className="border-t border-border">
                                     <td className="px-4 py-3 font-mono text-xs">{item.operationId}</td>
                                     <td className="px-4 py-3">{item.panelUsername || item.panelUserId}</td>
+                                    <td className="px-4 py-3">{accountDisplay(item.beinUsernameSnapshot, item.beinLabelSnapshot)}</td>
                                     <td className="px-4 py-3">{item.cardNumber}</td>
                                     <td className="px-4 py-3">{item.selectedPackageName || item.operationType}</td>
                                     <td className="px-4 py-3 text-right">{item.dealerBalanceBefore.toFixed(2)}</td>
@@ -308,7 +345,7 @@ export default function BeinSpendReportClient() {
                                 </tr>
                             ))}
                             {operations?.items.length === 0 && (
-                                <tr><td className="px-4 py-8 text-center text-muted-foreground" colSpan={9}>No operation rows.</td></tr>
+                                <tr><td className="px-4 py-8 text-center text-muted-foreground" colSpan={10}>No operation rows match the selected filters.</td></tr>
                             )}
                         </tbody>
                     </table>

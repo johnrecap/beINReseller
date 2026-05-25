@@ -25,6 +25,7 @@ export default function HistoryPageClient() {
     const [filters, setFilters] = useState<FilterValues>({
         type: '',
         status: '',
+        cardNumber: '',
         from: '',
         to: '',
     })
@@ -39,6 +40,7 @@ export default function HistoryPageClient() {
 
             if (filters.type) params.append('type', filters.type)
             if (filters.status) params.append('status', filters.status)
+            if (filters.cardNumber.trim()) params.append('cardNumber', filters.cardNumber.trim())
             if (filters.from) params.append('from', filters.from)
             if (filters.to) params.append('to', filters.to)
 

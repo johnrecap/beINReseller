@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { withAuth } from '@/lib/api-middleware'
 import prisma from '@/lib/prisma'
-import { Prisma, OperationType, OperationStatus } from '@prisma/client'
 import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
+import { buildOperationListWhere } from '@/lib/operation-list-filters'
 
 export const GET = withAuth(async (request: Request, session) => {
     try {
@@ -13,38 +13,8 @@ export const GET = withAuth(async (request: Request, session) => {
         const { searchParams } = new URL(request.url)
         const page = parseInt(searchParams.get('page') || '1')
         const limit = parseInt(searchParams.get('limit') || '10')
-        const type = searchParams.get('type') as OperationType | null
         const status = searchParams.get('status') // Can be OperationStatus or 'active'
-        const from = searchParams.get('from')
-        const to = searchParams.get('to')
-
-        // Build where clause
-        const where: Prisma.OperationWhereInput = {
-            userId: session.user.id,
-        }
-
-        if (type) {
-            where.type = type
-        }
-
-        // Handle 'active' as a special case - filter by multiple active statuses
-        if (status === 'active') {
-            where.status = {
-                in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING']
-            }
-        } else if (status) {
-            where.status = status as OperationStatus
-        }
-
-        if (from || to) {
-            where.createdAt = {}
-            if (from) {
-                where.createdAt.gte = new Date(from)
-            }
-            if (to) {
-                where.createdAt.lte = new Date(to)
-            }
-        }
+        const where = buildOperationListWhere(session.user.id, searchParams)
 
         // Get operations with pagination
         let [operations, total] = await Promise.all([

@@ -58,10 +58,8 @@ worker/src/http/*.bak_*
 .memsearch
 .worktrees/
 
-# Planning, specs, mockups, and local tool metadata
+# Planning, mockups, and local tool metadata
 /docs/
-/specs/
-/.specify/
 /.vscode/
 /testsprite_tests/
 /tmp/

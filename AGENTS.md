@@ -85,7 +85,8 @@ The following bridge skills wrap external CLI tools for auto-discovery:
 3. Keep descriptions specific; vague descriptions cause false triggers
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan:
-`specs/013-recovery-hardening-fixes/plan.md`
+For the current Spec Kit workflow, read
+`specs/013-operation-bein-account-card-search/plan.md`,
+`specs/013-operation-bein-account-card-search/spec.md`, and
+`specs/013-operation-bein-account-card-search/tasks.md` before editing.
 <!-- SPECKIT END -->

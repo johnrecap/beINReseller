@@ -1,0 +1,74 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {
+    buildBeinSpendReportParams,
+    type BeinSpendReportFilterState,
+} from '@/components/admin/reports/BeinSpendReportClient'
+import {
+    buildBeinSpendLedgerWhere,
+    buildBeinSpendReviewWhere,
+    parseBeinSpendReportFilters,
+} from '@/lib/bein-spend-ledger'
+
+function baseUiFilters(overrides: Partial<BeinSpendReportFilterState> = {}): BeinSpendReportFilterState {
+    return {
+        from: '2026-05-01',
+        to: '2026-05-25',
+        preset: 'month',
+        beinAccountId: '',
+        userId: '',
+        operationType: '',
+        cardNumber: '',
+        page: 1,
+        ...overrides,
+    }
+}
+
+test('adds card number to summary and detail report request params', () => {
+    const filters = baseUiFilters({ cardNumber: ' 7518-695 237 ', page: 3 })
+    const summaryParams = buildBeinSpendReportParams(filters, false)
+    const detailParams = buildBeinSpendReportParams(filters, true)
+
+    assert.equal(summaryParams.get('cardNumber'), '7518-695 237')
+    assert.equal(summaryParams.has('page'), false)
+    assert.equal(detailParams.get('cardNumber'), '7518-695 237')
+    assert.equal(detailParams.get('page'), '3')
+    assert.equal(detailParams.get('pageSize'), '25')
+})
+
+test('omits empty card number from report request params', () => {
+    const params = buildBeinSpendReportParams(baseUiFilters({ cardNumber: '   ' }), false)
+
+    assert.equal(params.has('cardNumber'), false)
+})
+
+test('combines card, account, and operation type filters in query builders', () => {
+    const params = buildBeinSpendReportParams(baseUiFilters({
+        cardNumber: '7518-695 237',
+        beinAccountId: 'bein-account-1',
+        operationType: 'RENEW',
+    }), false)
+    const filters = parseBeinSpendReportFilters(params)
+    const ledgerWhere = buildBeinSpendLedgerWhere(filters)
+    const reviewWhere = buildBeinSpendReviewWhere(filters)
+
+    assert.equal(filters.cardNumber, '7518695237')
+    assert.deepEqual(ledgerWhere.cardNumberSnapshot, { contains: '7518695237' })
+    assert.equal(ledgerWhere.beinAccountId, 'bein-account-1')
+    assert.equal(ledgerWhere.operationType, 'RENEW')
+    assert.deepEqual(reviewWhere.cardNumber, { contains: '7518695237' })
+    assert.equal(reviewWhere.beinAccountId, 'bein-account-1')
+    assert.equal(reviewWhere.type, 'RENEW')
+})
+
+test('combines card and panel user filters in query builders', () => {
+    const params = buildBeinSpendReportParams(baseUiFilters({
+        cardNumber: '7518695237',
+        userId: 'panel-user-1',
+    }), false)
+    const filters = parseBeinSpendReportFilters(params)
+    const ledgerWhere = buildBeinSpendLedgerWhere(filters)
+
+    assert.deepEqual(ledgerWhere.cardNumberSnapshot, { contains: '7518695237' })
+    assert.equal(ledgerWhere.userId, 'panel-user-1')
+})

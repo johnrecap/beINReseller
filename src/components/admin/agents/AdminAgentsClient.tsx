@@ -30,12 +30,13 @@ type UserItem = {
     balance: number
     isActive: boolean
     managerOwned: boolean
-    activeAssignment: { id: string; agentId: string; sourceGroup: string } | null
+    activeAssignment: { id: string; agentId: string; sourceGroup: string; whatsappGroupUrl: string | null } | null
 }
 
 type AssignmentItem = {
     id: string
     sourceGroup: string
+    whatsappGroupUrl: string | null
     createdAt: string
     agent: { id: string; username: string; displayName: string }
     user: { id: string; username: string; balance: number; isActive: boolean; managerOwned: boolean }
@@ -78,6 +79,7 @@ export default function AdminAgentsClient() {
     const [selectedAgentId, setSelectedAgentId] = useState('')
     const [selectedUserId, setSelectedUserId] = useState('')
     const [sourceGroup, setSourceGroup] = useState('')
+    const [whatsappGroupUrl, setWhatsappGroupUrl] = useState('')
     const [profileDraft, setProfileDraft] = useState<ProfileDraft>(emptyProfile())
     const [busy, setBusy] = useState<string | null>(null)
 
@@ -130,6 +132,7 @@ export default function AdminAgentsClient() {
             isActive: selectedAgent.profile.isActive,
         })
         setSourceGroup((current) => current || selectedAgent.profile.defaultSourceGroup)
+        setWhatsappGroupUrl((current) => current || selectedAgent.profile.whatsappHandoffGroupUrl)
     }, [selectedAgent])
 
     async function saveProfile(event: FormEvent) {
@@ -176,6 +179,7 @@ export default function AdminAgentsClient() {
                     agentId: selectedAgentId,
                     userId: selectedUserId,
                     sourceGroup,
+                    whatsappGroupUrl,
                     replaceExisting: true,
                 }),
             })
@@ -187,6 +191,7 @@ export default function AdminAgentsClient() {
             const mode = payload?.transfer?.mode
             setSuccess(mode === 'transferred' ? 'User transferred to agent.' : 'User assigned to agent.')
             setSelectedUserId('')
+            setWhatsappGroupUrl(selectedAgent?.profile.whatsappHandoffGroupUrl || '')
             await loadData()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to assign user')
@@ -279,7 +284,13 @@ export default function AdminAgentsClient() {
                             <span className="text-sm text-muted-foreground">Agent</span>
                             <select
                                 value={selectedAgentId}
-                                onChange={(event) => setSelectedAgentId(event.target.value)}
+                                onChange={(event) => {
+                                    const nextAgentId = event.target.value
+                                    const nextAgent = data?.agents.find((agent) => agent.id === nextAgentId)
+                                    setSelectedAgentId(nextAgentId)
+                                    setSourceGroup(nextAgent?.profile.defaultSourceGroup || '')
+                                    setWhatsappGroupUrl(nextAgent?.profile.whatsappHandoffGroupUrl || '')
+                                }}
                                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             >
                                 <option value="">Select agent</option>
@@ -354,7 +365,7 @@ export default function AdminAgentsClient() {
 
                 <section className="rounded-lg border border-border bg-card p-4">
                     <h2 className="text-xl font-semibold">Assign User</h2>
-                    <form className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto]" onSubmit={assignUser}>
+                    <form className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={assignUser}>
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">User</span>
                             <select
@@ -375,6 +386,14 @@ export default function AdminAgentsClient() {
                             <span className="text-sm text-muted-foreground">Source Group</span>
                             <Input value={sourceGroup} onChange={(event) => setSourceGroup(event.target.value)} />
                         </label>
+                        <label className="block space-y-2">
+                            <span className="text-sm text-muted-foreground">WhatsApp Group Link</span>
+                            <Input
+                                value={whatsappGroupUrl}
+                                onChange={(event) => setWhatsappGroupUrl(event.target.value)}
+                                placeholder="https://chat.whatsapp.com/..."
+                            />
+                        </label>
                         <div className="flex items-end">
                             <Button type="submit" disabled={!selectedAgentId || !selectedUserId || !sourceGroup || busy === 'assignment'}>
                                 Assign
@@ -389,6 +408,7 @@ export default function AdminAgentsClient() {
                                     <th className="px-4 py-3 text-left font-medium">User</th>
                                     <th className="px-4 py-3 text-left font-medium">Agent</th>
                                     <th className="px-4 py-3 text-left font-medium">Group</th>
+                                    <th className="px-4 py-3 text-left font-medium">WhatsApp Link</th>
                                     <th className="px-4 py-3 text-left font-medium">Assigned</th>
                                     <th className="px-4 py-3 text-left font-medium">Action</th>
                                 </tr>
@@ -399,6 +419,18 @@ export default function AdminAgentsClient() {
                                         <td className="px-4 py-3 font-semibold">{assignment.user.username}</td>
                                         <td className="px-4 py-3">{assignment.agent.displayName}</td>
                                         <td className="px-4 py-3 text-muted-foreground">{assignment.sourceGroup}</td>
+                                        <td className="px-4 py-3 text-muted-foreground">
+                                            {assignment.whatsappGroupUrl ? (
+                                                <a
+                                                    href={assignment.whatsappGroupUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-sky-300 underline"
+                                                >
+                                                    Open
+                                                </a>
+                                            ) : '-'}
+                                        </td>
                                         <td className="px-4 py-3 text-muted-foreground">{formatDate(assignment.createdAt)}</td>
                                         <td className="px-4 py-3">
                                             <Button

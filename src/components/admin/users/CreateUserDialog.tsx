@@ -15,6 +15,7 @@ interface CreateUserDialogProps {
         id: string
         username: string
         defaultSourceGroup?: string | null
+        defaultWhatsAppGroupUrl?: string | null
     } | null
 }
 
@@ -27,6 +28,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
     const [email, setEmail] = useState("")
     const [role, setRole] = useState(defaultRole)
     const [sourceGroup, setSourceGroup] = useState(agentContext?.defaultSourceGroup || "")
+    const [whatsappGroupUrl, setWhatsappGroupUrl] = useState(agentContext?.defaultWhatsAppGroupUrl || "")
     const emailInputRef = useRef<HTMLInputElement>(null)
 
     // Reset role when dialog opens with a new defaultRole
@@ -34,6 +36,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
         if (isOpen) {
             setRole(agentContext ? 'USER' : defaultRole)
             setSourceGroup(agentContext?.defaultSourceGroup || "")
+            setWhatsappGroupUrl(agentContext?.defaultWhatsAppGroupUrl || "")
         }
     }, [isOpen, defaultRole, agentContext])
 
@@ -76,7 +79,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
             password: formData.get('password') as string,
             role: role,
             balance: parseFloat(formData.get('balance') as string) || 0,
-            ...(agentContext ? { agentId: agentContext.id, sourceGroup } : {}),
+            ...(agentContext ? { agentId: agentContext.id, sourceGroup, whatsappGroupUrl } : {}),
         }
 
         try {
@@ -99,6 +102,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
             setEmail("")
             setRole(agentContext ? 'USER' : defaultRole)
             setSourceGroup(agentContext?.defaultSourceGroup || "")
+            setWhatsappGroupUrl(agentContext?.defaultWhatsAppGroupUrl || "")
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
@@ -203,6 +207,20 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                                     value={sourceGroup}
                                     onChange={(e) => setSourceGroup(e.target.value)}
                                     placeholder={agentContext.defaultSourceGroup || 'main-group'}
+                                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="whatsappGroupUrl" className="block text-sm font-medium text-foreground mb-1">
+                                    WhatsApp Group Link
+                                </label>
+                                <input
+                                    id="whatsappGroupUrl"
+                                    name="whatsappGroupUrl"
+                                    type="text"
+                                    value={whatsappGroupUrl}
+                                    onChange={(e) => setWhatsappGroupUrl(e.target.value)}
+                                    placeholder="https://chat.whatsapp.com/..."
                                     className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                                 />
                             </div>

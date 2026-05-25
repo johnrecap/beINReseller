@@ -8,6 +8,7 @@ const assignmentSchema = z.object({
     userId: z.string().min(1),
     agentId: z.string().min(1),
     sourceGroup: z.string().trim().max(120).optional().nullable(),
+    whatsappGroupUrl: z.string().trim().max(500).optional().nullable(),
     replaceExisting: z.boolean().optional().default(true),
 })
 
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
                     agentAssignmentAsUser: {
                         where: { isActive: true },
                         take: 1,
-                        select: { id: true, agentId: true, sourceGroup: true },
+                        select: { id: true, agentId: true, sourceGroup: true, whatsappGroupUrl: true },
                     },
                 },
             }),
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
                 select: {
                     id: true,
                     sourceGroup: true,
+                    whatsappGroupUrl: true,
                     createdAt: true,
                     agent: {
                         select: {
@@ -124,6 +126,7 @@ export async function GET(request: NextRequest) {
             assignments: assignments.map((assignment) => ({
                 id: assignment.id,
                 sourceGroup: assignment.sourceGroup,
+                whatsappGroupUrl: assignment.whatsappGroupUrl,
                 createdAt: assignment.createdAt.toISOString(),
                 agent: {
                     id: assignment.agent.id,
@@ -161,11 +164,12 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const { userId, agentId, sourceGroup, replaceExisting } = parsed.data
+        const { userId, agentId, sourceGroup, whatsappGroupUrl, replaceExisting } = parsed.data
         const result = await transferUserToAgent({
             userId,
             agentId,
             sourceGroup,
+            whatsappGroupUrl,
             replaceExisting,
             adminUserId: authResult.user.id,
             ipAddress: request.headers.get('x-forwarded-for') || 'unknown',

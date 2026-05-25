@@ -15,6 +15,7 @@ type AgentOption = {
     profile: {
         displayName: string
         defaultSourceGroup: string
+        whatsappHandoffGroupUrl: string
         isActive: boolean
     }
 }
@@ -30,6 +31,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
     const [agents, setAgents] = useState<AgentOption[]>([])
     const [agentId, setAgentId] = useState('')
     const [sourceGroup, setSourceGroup] = useState('')
+    const [whatsappGroupUrl, setWhatsappGroupUrl] = useState('')
     const [loadingAgents, setLoadingAgents] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -59,6 +61,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                 setAgents(activeAgents)
                 setAgentId(activeAgents[0]?.id || '')
                 setSourceGroup(activeAgents[0]?.profile?.defaultSourceGroup || '')
+                setWhatsappGroupUrl(activeAgents[0]?.profile?.whatsappHandoffGroupUrl || '')
             } catch (err) {
                 if (!cancelled) {
                     setError(err instanceof Error ? err.message : 'Failed to load agents')
@@ -77,6 +80,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
     useEffect(() => {
         if (!selectedAgent) return
         setSourceGroup((current) => current || selectedAgent.profile.defaultSourceGroup || '')
+        setWhatsappGroupUrl((current) => current || selectedAgent.profile.whatsappHandoffGroupUrl || '')
     }, [selectedAgent])
 
     async function submitTransfer(event: React.FormEvent<HTMLFormElement>) {
@@ -94,6 +98,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                     userId: user.id,
                     agentId,
                     sourceGroup,
+                    whatsappGroupUrl,
                     replaceExisting: true,
                 }),
             })
@@ -133,6 +138,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                                 const nextAgent = agents.find((agent) => agent.id === nextAgentId)
                                 setAgentId(nextAgentId)
                                 setSourceGroup(nextAgent?.profile.defaultSourceGroup || '')
+                                setWhatsappGroupUrl(nextAgent?.profile.whatsappHandoffGroupUrl || '')
                             }}
                             disabled={loadingAgents}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
@@ -152,6 +158,16 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                             value={sourceGroup}
                             onChange={(event) => setSourceGroup(event.target.value)}
                             placeholder={selectedAgent?.profile.defaultSourceGroup || 'main-group'}
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
+                        />
+                    </label>
+
+                    <label className="block space-y-2">
+                        <span className="text-sm font-medium text-foreground">WhatsApp Group Link</span>
+                        <input
+                            value={whatsappGroupUrl}
+                            onChange={(event) => setWhatsappGroupUrl(event.target.value)}
+                            placeholder="https://chat.whatsapp.com/..."
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                         />
                     </label>

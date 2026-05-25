@@ -174,33 +174,33 @@ model User {
   notifications Notification[]
 
   // RBAC Relations
-  managedUsers            ManagerUser[]             @relation("ManagerToUsers")
-  managerLink             ManagerUser[]             @relation("UserToManager")
-  managerActions          UserAction[]              @relation("ManagerActions")
-  userActions             UserAction[]              @relation("UserActions")
-  agentProfile            AgentProfile?             @relation("AgentProfileOwner")
-  agentAssignmentsAsAgent AgentAssignment[]          @relation("AgentAssignmentsAgent")
-  agentAssignmentAsUser   AgentAssignment[]          @relation("AgentAssignmentsUser")
-  agentAssignmentsCreated AgentAssignment[]          @relation("AgentAssignmentsAdmin")
-  creditRequests          CreditRequest[]            @relation("CreditRequestUser")
-  creditRequestsAsAgent   CreditRequest[]            @relation("CreditRequestAgent")
-  creditRequestDecisions  CreditRequest[]            @relation("CreditRequestDecider")
-  creditRequestHistory    CreditRequestStatusHistory[] @relation("CreditRequestHistoryActor")
-  pointRulesOwned         PointRule[]                @relation("PointRuleOwner")
-  pointRulesUpdated       PointRule[]                @relation("PointRuleUpdater")
-  pointLedgerEntries      PointLedgerEntry[]         @relation("PointLedgerOwner")
-  pointLedgerCreated      PointLedgerEntry[]         @relation("PointLedgerCreator")
-  pointLedgerReleased     PointLedgerEntry[]         @relation("PointLedgerReleaser")
-  pointProgramSettingsUpdated PointProgramSettings[] @relation("PointProgramSettingsUpdater")
-  pointCashRedemptions    PointCashRedemption[]      @relation("PointCashRedemptionOwner")
-  rewardsCreated          Reward[]                   @relation("RewardCreator")
-  rewardRedemptions       RewardRedemption[]         @relation("RewardRedemptionOwner")
-  rewardRedemptionDecisions RewardRedemption[]       @relation("RewardRedemptionDecider")
-  whatsappNotificationsAsAgent WhatsAppNotificationLog[] @relation("WhatsAppNotificationAgent")
-  whatsappHandoffsAsAgent      WhatsAppHandoffSnapshot[] @relation("WhatsAppHandoffAgent")
-  integrityIssues         OperationIntegrityIssue[] @relation("IntegrityIssueUser")
-  reviewedIntegrityIssues OperationIntegrityIssue[] @relation("IntegrityIssueReviewer")
-  beinSpendLedger         BeinAccountSpendLedger[]  @relation("BeinSpendLedgerUser")
+  managedUsers                 ManagerUser[]                @relation("ManagerToUsers")
+  managerLink                  ManagerUser[]                @relation("UserToManager")
+  managerActions               UserAction[]                 @relation("ManagerActions")
+  userActions                  UserAction[]                 @relation("UserActions")
+  agentProfile                 AgentProfile?                @relation("AgentProfileOwner")
+  agentAssignmentsAsAgent      AgentAssignment[]            @relation("AgentAssignmentsAgent")
+  agentAssignmentAsUser        AgentAssignment[]            @relation("AgentAssignmentsUser")
+  agentAssignmentsCreated      AgentAssignment[]            @relation("AgentAssignmentsAdmin")
+  creditRequests               CreditRequest[]              @relation("CreditRequestUser")
+  creditRequestsAsAgent        CreditRequest[]              @relation("CreditRequestAgent")
+  creditRequestDecisions       CreditRequest[]              @relation("CreditRequestDecider")
+  creditRequestHistory         CreditRequestStatusHistory[] @relation("CreditRequestHistoryActor")
+  pointRulesOwned              PointRule[]                  @relation("PointRuleOwner")
+  pointRulesUpdated            PointRule[]                  @relation("PointRuleUpdater")
+  pointLedgerEntries           PointLedgerEntry[]           @relation("PointLedgerOwner")
+  pointLedgerCreated           PointLedgerEntry[]           @relation("PointLedgerCreator")
+  pointLedgerReleased          PointLedgerEntry[]           @relation("PointLedgerReleaser")
+  pointProgramSettingsUpdated  PointProgramSettings[]       @relation("PointProgramSettingsUpdater")
+  pointCashRedemptions         PointCashRedemption[]        @relation("PointCashRedemptionOwner")
+  rewardsCreated               Reward[]                     @relation("RewardCreator")
+  rewardRedemptions            RewardRedemption[]           @relation("RewardRedemptionOwner")
+  rewardRedemptionDecisions    RewardRedemption[]           @relation("RewardRedemptionDecider")
+  whatsappNotificationsAsAgent WhatsAppNotificationLog[]    @relation("WhatsAppNotificationAgent")
+  whatsappHandoffsAsAgent      WhatsAppHandoffSnapshot[]    @relation("WhatsAppHandoffAgent")
+  integrityIssues              OperationIntegrityIssue[]    @relation("IntegrityIssueUser")
+  reviewedIntegrityIssues      OperationIntegrityIssue[]    @relation("IntegrityIssueReviewer")
+  beinSpendLedger              BeinAccountSpendLedger[]     @relation("BeinSpendLedgerUser")
 
   @@index([lastLoginAt])
   @@index([lastOperationAt])
@@ -250,6 +250,7 @@ model AgentAssignment {
   agentId           String    @map("agent_id")
   userId            String    @map("user_id")
   sourceGroup       String    @map("source_group")
+  whatsappGroupUrl  String?   @map("whatsapp_group_url")
   isActive          Boolean   @default(true) @map("is_active")
   assignedByAdminId String?   @map("assigned_by_admin_id")
   createdAt         DateTime  @default(now()) @map("created_at")
@@ -267,32 +268,33 @@ model AgentAssignment {
 }
 
 model CreditRequest {
-  id                  String              @id @default(cuid())
-  requestNumber       String              @unique @map("request_number")
-  userId              String              @map("user_id")
-  usernameSnapshot    String              @map("username_snapshot")
-  amountUsd           Float               @map("amount_usd")
-  paymentMethod       String              @map("payment_method")
-  notes               String?
-  agentIdSnapshot     String?             @map("agent_id_snapshot")
-  agentNameSnapshot   String?             @map("agent_name_snapshot")
-  sourceGroupSnapshot String?             @map("source_group_snapshot")
-  status              CreditRequestStatus @default(PENDING)
-  escalated           Boolean             @default(false)
-  escalationNote      String?             @map("escalation_note")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  decidedAt           DateTime?           @map("decided_at")
-  decidedByAdminId    String?             @map("decided_by_admin_id")
-  decisionNote        String?             @map("decision_note")
-  transactionId       String?             @unique @map("transaction_id")
+  id                       String              @id @default(cuid())
+  requestNumber            String              @unique @map("request_number")
+  userId                   String              @map("user_id")
+  usernameSnapshot         String              @map("username_snapshot")
+  amountUsd                Float               @map("amount_usd")
+  paymentMethod            String              @map("payment_method")
+  notes                    String?
+  agentIdSnapshot          String?             @map("agent_id_snapshot")
+  agentNameSnapshot        String?             @map("agent_name_snapshot")
+  sourceGroupSnapshot      String?             @map("source_group_snapshot")
+  whatsappGroupUrlSnapshot String?             @map("whatsapp_group_url_snapshot")
+  status                   CreditRequestStatus @default(PENDING)
+  escalated                Boolean             @default(false)
+  escalationNote           String?             @map("escalation_note")
+  createdAt                DateTime            @default(now()) @map("created_at")
+  decidedAt                DateTime?           @map("decided_at")
+  decidedByAdminId         String?             @map("decided_by_admin_id")
+  decisionNote             String?             @map("decision_note")
+  transactionId            String?             @unique @map("transaction_id")
 
-  user           User                         @relation("CreditRequestUser", fields: [userId], references: [id])
-  agent          User?                        @relation("CreditRequestAgent", fields: [agentIdSnapshot], references: [id], onDelete: SetNull)
-  decidedByAdmin User?                        @relation("CreditRequestDecider", fields: [decidedByAdminId], references: [id])
-  transaction    Transaction?                 @relation("CreditRequestTransaction", fields: [transactionId], references: [id])
-  history        CreditRequestStatusHistory[]
-  pointEntries   PointLedgerEntry[]
-  notifications  WhatsAppNotificationLog[]
+  user            User                         @relation("CreditRequestUser", fields: [userId], references: [id])
+  agent           User?                        @relation("CreditRequestAgent", fields: [agentIdSnapshot], references: [id], onDelete: SetNull)
+  decidedByAdmin  User?                        @relation("CreditRequestDecider", fields: [decidedByAdminId], references: [id])
+  transaction     Transaction?                 @relation("CreditRequestTransaction", fields: [transactionId], references: [id])
+  history         CreditRequestStatusHistory[]
+  pointEntries    PointLedgerEntry[]
+  notifications   WhatsAppNotificationLog[]
   whatsappHandoff WhatsAppHandoffSnapshot?
 
   @@index([status, createdAt])
@@ -321,7 +323,7 @@ model CreditRequestStatusHistory {
 
 model PointRule {
   id                String             @id @default(cuid())
-  ownerType         PointRuleOwnerType  @map("owner_type")
+  ownerType         PointRuleOwnerType @map("owner_type")
   ownerUserId       String?            @map("owner_user_id")
   pointsPerThousand Float              @map("points_per_thousand")
   isActive          Boolean            @default(true) @map("is_active")
@@ -337,14 +339,14 @@ model PointRule {
 }
 
 model PointProgramSettings {
-  id                      String   @id @default("default")
-  pointsEnabled           Boolean  @default(false) @map("points_enabled")
+  id                      String    @id @default("default")
+  pointsEnabled           Boolean   @default(false) @map("points_enabled")
   pointsStartAt           DateTime? @map("points_start_at")
-  cashConversionPoints    Float    @default(0) @map("cash_conversion_points")
-  cashConversionAmountUsd Float    @default(0) @map("cash_conversion_amount_usd")
-  updatedByAdminId        String?  @map("updated_by_admin_id")
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @updatedAt @map("updated_at")
+  cashConversionPoints    Float     @default(0) @map("cash_conversion_points")
+  cashConversionAmountUsd Float     @default(0) @map("cash_conversion_amount_usd")
+  updatedByAdminId        String?   @map("updated_by_admin_id")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
   updatedByAdmin User? @relation("PointProgramSettingsUpdater", fields: [updatedByAdminId], references: [id])
 
@@ -369,12 +371,12 @@ model PointLedgerEntry {
   releasedByAdminId       String?               @map("released_by_admin_id")
   notes                   String?
 
-  owner            User              @relation("PointLedgerOwner", fields: [ownerUserId], references: [id])
-  creditRequest    CreditRequest?    @relation(fields: [creditRequestId], references: [id], onDelete: SetNull)
-  operation        Operation?        @relation("OperationPointLedgerEntries", fields: [operationId], references: [id], onDelete: SetNull)
-  createdBy        User?             @relation("PointLedgerCreator", fields: [createdById], references: [id])
-  releasedByAdmin  User?             @relation("PointLedgerReleaser", fields: [releasedByAdminId], references: [id])
-  rewardRedemption RewardRedemption? @relation("RewardRedemptionLedger")
+  owner               User                 @relation("PointLedgerOwner", fields: [ownerUserId], references: [id])
+  creditRequest       CreditRequest?       @relation(fields: [creditRequestId], references: [id], onDelete: SetNull)
+  operation           Operation?           @relation("OperationPointLedgerEntries", fields: [operationId], references: [id], onDelete: SetNull)
+  createdBy           User?                @relation("PointLedgerCreator", fields: [createdById], references: [id])
+  releasedByAdmin     User?                @relation("PointLedgerReleaser", fields: [releasedByAdminId], references: [id])
+  rewardRedemption    RewardRedemption?    @relation("RewardRedemptionLedger")
   pointCashRedemption PointCashRedemption? @relation("PointCashRedemptionLedger")
 
   @@unique([ownerUserId, sourceType, sourceId])
@@ -387,15 +389,15 @@ model PointLedgerEntry {
 }
 
 model PointCashRedemption {
-  id                         String   @id @default(cuid())
-  ownerUserId                String   @map("owner_user_id")
-  pointsConverted            Float    @map("points_converted")
-  balanceAmountUsd           Float    @map("balance_amount_usd")
-  conversionPointsSnapshot   Float    @map("conversion_points_snapshot")
-  conversionAmountUsdSnapshot Float   @map("conversion_amount_usd_snapshot")
-  ledgerEntryId              String   @unique @map("ledger_entry_id")
-  transactionId              String   @unique @map("transaction_id")
-  requestedAt                DateTime @default(now()) @map("requested_at")
+  id                          String   @id @default(cuid())
+  ownerUserId                 String   @map("owner_user_id")
+  pointsConverted             Float    @map("points_converted")
+  balanceAmountUsd            Float    @map("balance_amount_usd")
+  conversionPointsSnapshot    Float    @map("conversion_points_snapshot")
+  conversionAmountUsdSnapshot Float    @map("conversion_amount_usd_snapshot")
+  ledgerEntryId               String   @unique @map("ledger_entry_id")
+  transactionId               String   @unique @map("transaction_id")
+  requestedAt                 DateTime @default(now()) @map("requested_at")
 
   owner       User             @relation("PointCashRedemptionOwner", fields: [ownerUserId], references: [id])
   ledgerEntry PointLedgerEntry @relation("PointCashRedemptionLedger", fields: [ledgerEntryId], references: [id])
@@ -476,34 +478,34 @@ model WhatsAppNotificationLog {
 }
 
 model NotificationSetting {
-  id                         String   @id @default(cuid())
-  singletonKey               String   @unique @default("default") @map("singleton_key")
-  telegramEnabled            Boolean  @default(false) @map("telegram_enabled")
-  telegramBotTokenEncrypted  String?  @map("telegram_bot_token_encrypted")
-  telegramTargetId           String?  @map("telegram_target_id")
-  telegramTargetLabel        String?  @map("telegram_target_label")
-  defaultWhatsappGroupUrl    String?  @map("default_whatsapp_group_url")
-  defaultWhatsappPhone       String?  @map("default_whatsapp_phone")
-  defaultWhatsappLabel       String?  @map("default_whatsapp_label")
-  updatedByAdminId           String?  @map("updated_by_admin_id")
-  createdAt                  DateTime @default(now()) @map("created_at")
-  updatedAt                  DateTime @updatedAt @map("updated_at")
+  id                        String   @id @default(cuid())
+  singletonKey              String   @unique @default("default") @map("singleton_key")
+  telegramEnabled           Boolean  @default(false) @map("telegram_enabled")
+  telegramBotTokenEncrypted String?  @map("telegram_bot_token_encrypted")
+  telegramTargetId          String?  @map("telegram_target_id")
+  telegramTargetLabel       String?  @map("telegram_target_label")
+  defaultWhatsappGroupUrl   String?  @map("default_whatsapp_group_url")
+  defaultWhatsappPhone      String?  @map("default_whatsapp_phone")
+  defaultWhatsappLabel      String?  @map("default_whatsapp_label")
+  updatedByAdminId          String?  @map("updated_by_admin_id")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
 
   @@map("notification_settings")
 }
 
 model WhatsAppHandoffSnapshot {
-  id                      String   @id @default(cuid())
-  creditRequestId         String   @unique @map("credit_request_id")
-  agentId                 String?  @map("agent_id")
-  destinationLabel        String?  @map("destination_label")
-  whatsappGroupUrl        String?  @map("whatsapp_group_url")
-  whatsappPhone           String?  @map("whatsapp_phone")
-  messageText             String   @map("message_text")
-  groupOpenAvailable      Boolean  @default(false) @map("group_open_available")
-  phoneOpenAvailable      Boolean  @default(false) @map("phone_open_available")
-  createdByAdminId        String?  @map("created_by_admin_id")
-  createdAt               DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(cuid())
+  creditRequestId    String   @unique @map("credit_request_id")
+  agentId            String?  @map("agent_id")
+  destinationLabel   String?  @map("destination_label")
+  whatsappGroupUrl   String?  @map("whatsapp_group_url")
+  whatsappPhone      String?  @map("whatsapp_phone")
+  messageText        String   @map("message_text")
+  groupOpenAvailable Boolean  @default(false) @map("group_open_available")
+  phoneOpenAvailable Boolean  @default(false) @map("phone_open_available")
+  createdByAdminId   String?  @map("created_by_admin_id")
+  createdAt          DateTime @default(now()) @map("created_at")
 
   creditRequest CreditRequest @relation(fields: [creditRequestId], references: [id], onDelete: Cascade)
   agent         User?         @relation("WhatsAppHandoffAgent", fields: [agentId], references: [id], onDelete: SetNull)
@@ -574,14 +576,14 @@ model Operation {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
 
-  user            User?                     @relation(fields: [userId], references: [id])
-  customer        Customer?                 @relation(fields: [customerId], references: [id])
-  beinAccount     BeinAccount?              @relation(fields: [beinAccountId], references: [id])
-  transactions    Transaction[]             @relation("OperationTransactions")
-  pointLedgerEntries PointLedgerEntry[]      @relation("OperationPointLedgerEntries")
-  integrityIssues OperationIntegrityIssue[]
-  dispatches      OperationDispatch[]
-  chargedBeinSpendLedger BeinAccountSpendLedger? @relation("OperationChargedBeinSpendLedger")
+  user                   User?                     @relation(fields: [userId], references: [id])
+  customer               Customer?                 @relation(fields: [customerId], references: [id])
+  beinAccount            BeinAccount?              @relation(fields: [beinAccountId], references: [id])
+  transactions           Transaction[]             @relation("OperationTransactions")
+  pointLedgerEntries     PointLedgerEntry[]        @relation("OperationPointLedgerEntries")
+  integrityIssues        OperationIntegrityIssue[]
+  dispatches             OperationDispatch[]
+  chargedBeinSpendLedger BeinAccountSpendLedger?   @relation("OperationChargedBeinSpendLedger")
 
   // Store App - Links to customer subscription purchase
   storeSubscription StoreSubscription?
@@ -629,10 +631,10 @@ model Transaction {
   notes        String?
   createdAt    DateTime        @default(now()) @map("created_at")
 
-  user      User       @relation("UserTransactions", fields: [userId], references: [id])
-  admin     User?      @relation("AdminTransactions", fields: [adminId], references: [id])
-  operation Operation? @relation("OperationTransactions", fields: [operationId], references: [id])
-  creditRequest CreditRequest? @relation("CreditRequestTransaction")
+  user                User                 @relation("UserTransactions", fields: [userId], references: [id])
+  admin               User?                @relation("AdminTransactions", fields: [adminId], references: [id])
+  operation           Operation?           @relation("OperationTransactions", fields: [operationId], references: [id])
+  creditRequest       CreditRequest?       @relation("CreditRequestTransaction")
   pointCashRedemption PointCashRedemption? @relation("PointCashRedemptionTransaction")
 
   @@index([userId, createdAt])
@@ -775,7 +777,7 @@ model BeinAccount {
   operations      Operation[]
   sessions        BeinAccountSession[]
   integrityIssues OperationIntegrityIssue[]
-  spendLedger     BeinAccountSpendLedger[] @relation("BeinSpendLedgerAccount")
+  spendLedger     BeinAccountSpendLedger[]  @relation("BeinSpendLedgerAccount")
 
   // ===== Proxy Assignment =====
   proxyId String? @map("proxy_id")
@@ -837,7 +839,7 @@ model Proxy {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // ===== Relations =====
-  accounts BeinAccount[]
+  accounts    BeinAccount[]
   spendLedger BeinAccountSpendLedger[] @relation("BeinSpendLedgerProxy")
 
   // ===== Unique constraint on host:port =====

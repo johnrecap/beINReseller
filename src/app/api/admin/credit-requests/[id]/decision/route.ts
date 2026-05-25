@@ -74,6 +74,8 @@ export async function POST(
                     transactionId: true,
                     agentIdSnapshot: true,
                     agentNameSnapshot: true,
+                    sourceGroupSnapshot: true,
+                    whatsappGroupUrlSnapshot: true,
                     user: {
                         select: {
                             id: true,
@@ -162,6 +164,9 @@ export async function POST(
                     amountUsd: creditRequest.amountUsd,
                     agentId: creditRequest.agentIdSnapshot,
                     agentName: creditRequest.agentNameSnapshot,
+                    sourceGroup: creditRequest.sourceGroupSnapshot,
+                    whatsappGroupUrl: creditRequest.whatsappGroupUrlSnapshot,
+                    userId: creditRequest.userId,
                     adminId: authResult.user.id,
                 })
 

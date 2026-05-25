@@ -62,6 +62,7 @@ interface Agent {
     profile: {
         displayName: string
         defaultSourceGroup: string
+        whatsappHandoffGroupUrl: string
         isActive: boolean
     }
     points?: PointSummary
@@ -852,6 +853,7 @@ export default function UsersTable() {
                     id: createAgent.id,
                     username: createAgent.profile.displayName || createAgent.username,
                     defaultSourceGroup: createAgent.profile.defaultSourceGroup,
+                    defaultWhatsAppGroupUrl: createAgent.profile.whatsappHandoffGroupUrl,
                 } : null}
             />
             <EditUserDialog

@@ -7,8 +7,11 @@ type CreateHandoffInput = {
     requestNumber: string
     username: string
     amountUsd: number
+    userId: string
     agentId: string | null
     agentName: string | null
+    sourceGroup: string | null
+    whatsappGroupUrl: string | null
     adminId: string
     approvedAt?: Date
 }
@@ -22,6 +25,18 @@ type HandoffDestination = {
 function clean(value: string | null | undefined): string | null {
     const trimmed = value?.trim()
     return trimmed ? trimmed : null
+}
+
+function cleanHttpUrl(value: string | null | undefined): string | null {
+    const trimmed = clean(value)
+    if (!trimmed) return null
+
+    try {
+        const url = new URL(trimmed)
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null
+    } catch {
+        return null
+    }
 }
 
 function normalizePhone(value: string | null): string | null {
@@ -62,12 +77,31 @@ export function buildWhatsAppPhoneUrl(phone: string | null, message: string): st
 
 export async function resolveWhatsAppHandoffDestination(
     tx: HandoffTx,
-    agentId: string | null
+    input: {
+        agentId: string | null
+        userId?: string | null
+        sourceGroup?: string | null
+        whatsappGroupUrl?: string | null
+    }
 ): Promise<HandoffDestination> {
-    const [agentProfile, globalSettings] = await Promise.all([
-        agentId
+    const [activeAssignment, agentProfile, globalSettings] = await Promise.all([
+        input.userId
+            ? tx.agentAssignment.findFirst({
+                where: {
+                    userId: input.userId,
+                    isActive: true,
+                    ...(input.agentId ? { agentId: input.agentId } : {}),
+                },
+                orderBy: { createdAt: 'desc' },
+                select: {
+                    sourceGroup: true,
+                    whatsappGroupUrl: true,
+                },
+            })
+            : null,
+        input.agentId
             ? tx.agentProfile.findUnique({
-                where: { agentId },
+                where: { agentId: input.agentId },
                 select: {
                     whatsappHandoffGroupUrl: true,
                     whatsappHandoffPhone: true,
@@ -87,10 +121,16 @@ export async function resolveWhatsAppHandoffDestination(
         }),
     ])
 
+    const sourceGroup = clean(input.sourceGroup) || clean(activeAssignment?.sourceGroup)
+
     return {
-        groupUrl: clean(agentProfile?.whatsappHandoffGroupUrl) || clean(globalSettings?.defaultWhatsappGroupUrl),
+        groupUrl: cleanHttpUrl(input.whatsappGroupUrl)
+            || cleanHttpUrl(activeAssignment?.whatsappGroupUrl)
+            || cleanHttpUrl(agentProfile?.whatsappHandoffGroupUrl)
+            || cleanHttpUrl(globalSettings?.defaultWhatsappGroupUrl),
         phone: normalizePhone(clean(agentProfile?.whatsappHandoffPhone) || clean(globalSettings?.defaultWhatsappPhone)),
-        label: clean(agentProfile?.whatsappHandoffLabel)
+        label: sourceGroup
+            || clean(agentProfile?.whatsappHandoffLabel)
             || clean(agentProfile?.whapiGroupName)
             || clean(agentProfile?.defaultSourceGroup)
             || clean(globalSettings?.defaultWhatsappLabel),
@@ -108,7 +148,12 @@ export async function createWhatsAppHandoffSnapshot(
         requestNumber: input.requestNumber,
         approvedAt,
     })
-    const destination = await resolveWhatsAppHandoffDestination(tx, input.agentId)
+    const destination = await resolveWhatsAppHandoffDestination(tx, {
+        agentId: input.agentId,
+        userId: input.userId,
+        sourceGroup: input.sourceGroup,
+        whatsappGroupUrl: input.whatsappGroupUrl,
+    })
 
     const handoff = await tx.whatsAppHandoffSnapshot.upsert({
         where: { creditRequestId: input.creditRequestId },

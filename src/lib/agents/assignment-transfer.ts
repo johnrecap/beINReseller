@@ -35,6 +35,7 @@ export type ActiveAgentAssignment = {
     id: string
     agentId: string
     sourceGroup: string
+    whatsappGroupUrl?: string | null
 }
 
 export type AgentTransferPlan = {
@@ -53,6 +54,7 @@ export type AgentTransferResult = {
         userId: string
         agentId: string
         sourceGroup: string
+        whatsappGroupUrl: string | null
         createdAt: string
     }
     transfer: AgentTransferPlan
@@ -64,6 +66,11 @@ type TransferDbClient = Pick<
 >
 
 function cleanSourceGroup(value: string | null | undefined) {
+    const trimmed = value?.trim()
+    return trimmed ? trimmed : null
+}
+
+function cleanOptionalUrl(value: string | null | undefined) {
     const trimmed = value?.trim()
     return trimmed ? trimmed : null
 }
@@ -137,6 +144,7 @@ export async function transferUserToAgentInTransaction(input: {
     userId: string
     agentId: string
     sourceGroup?: string | null
+    whatsappGroupUrl?: string | null
     replaceExisting?: boolean
     adminUserId: string
     ipAddress?: string | null
@@ -167,7 +175,7 @@ export async function transferUserToAgentInTransaction(input: {
         }),
         db.agentAssignment.findMany({
             where: { userId: input.userId, isActive: true },
-            select: { id: true, agentId: true, sourceGroup: true },
+            select: { id: true, agentId: true, sourceGroup: true, whatsappGroupUrl: true },
             orderBy: { createdAt: 'asc' },
         }),
     ])
@@ -200,6 +208,7 @@ export async function transferUserToAgentInTransaction(input: {
     const transferPlan = transfer as AgentTransferPlan
 
     const now = new Date()
+    const whatsappGroupUrl = cleanOptionalUrl(input.whatsappGroupUrl)
 
     await db.agentAssignment.updateMany({
         where: { userId: input.userId, isActive: true },
@@ -215,6 +224,7 @@ export async function transferUserToAgentInTransaction(input: {
             userId: input.userId,
             agentId: input.agentId,
             sourceGroup: sourceGroup.sourceGroup,
+            whatsappGroupUrl,
             assignedByAdminId: input.adminUserId,
         },
         select: {
@@ -222,6 +232,7 @@ export async function transferUserToAgentInTransaction(input: {
             userId: true,
             agentId: true,
             sourceGroup: true,
+            whatsappGroupUrl: true,
             createdAt: true,
         },
     })
@@ -236,6 +247,7 @@ export async function transferUserToAgentInTransaction(input: {
                 userId: input.userId,
                 agentId: input.agentId,
                 sourceGroup: sourceGroup.sourceGroup,
+                whatsappGroupUrl,
                 mode: transferPlan.mode,
                 previousManagerOwnerIds: transferPlan.previousManagerOwnerIds,
                 previousAgentAssignmentIds: transferPlan.previousAgentAssignmentIds,
@@ -251,6 +263,7 @@ export async function transferUserToAgentInTransaction(input: {
             userId: assignment.userId,
             agentId: assignment.agentId,
             sourceGroup: assignment.sourceGroup,
+            whatsappGroupUrl: assignment.whatsappGroupUrl,
             createdAt: assignment.createdAt.toISOString(),
         },
         transfer: transferPlan,
@@ -261,6 +274,7 @@ export async function transferUserToAgent(input: {
     userId: string
     agentId: string
     sourceGroup?: string | null
+    whatsappGroupUrl?: string | null
     replaceExisting?: boolean
     adminUserId: string
     ipAddress?: string | null

@@ -96,6 +96,7 @@ type WhatsAppHandoff = {
     groupOpenAvailable: boolean
     phoneOpenAvailable: boolean
     createdAt: string
+    autoCopyStatus?: string | null
 }
 
 const statusOptions: Array<{ value: CreditRequestStatus | 'ALL'; label: string }> = [
@@ -239,22 +240,40 @@ export default function AdminCreditRequestsClient() {
 
     async function submitDecision(note: string) {
         if (!dialog) return
-        setBusyId(dialog.item.id)
+        const currentDialog = dialog
+        const handoffWindow = currentDialog.decision === 'APPROVE'
+            ? window.open('about:blank', '_blank')
+            : null
+
+        setBusyId(currentDialog.item.id)
         setError(null)
         try {
-            const response = await fetch(`/api/admin/credit-requests/${dialog.item.id}/decision`, {
+            const response = await fetch(`/api/admin/credit-requests/${currentDialog.item.id}/decision`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ decision: dialog.decision, note }),
+                body: JSON.stringify({ decision: currentDialog.decision, note }),
             })
             const payload = await response.json().catch(() => ({}))
             if (!response.ok) throw new Error(payload.error || 'Failed to save decision')
             if (payload.whatsappHandoff) {
-                setHandoffResult(payload.whatsappHandoff)
+                const autoCopyStatus = await copyHandoffMessage(payload.whatsappHandoff.messageText)
+                if (payload.whatsappHandoff.groupUrl) {
+                    if (handoffWindow) {
+                        handoffWindow.location.href = payload.whatsappHandoff.groupUrl
+                    } else {
+                        window.open(payload.whatsappHandoff.groupUrl, '_blank', 'noopener,noreferrer')
+                    }
+                } else {
+                    handoffWindow?.close()
+                }
+                setHandoffResult({ ...payload.whatsappHandoff, autoCopyStatus })
+            } else {
+                handoffWindow?.close()
             }
             setDialog(null)
             await loadData()
         } catch (err) {
+            handoffWindow?.close()
             setError(err instanceof Error ? err.message : 'Failed to save decision')
         } finally {
             setBusyId(null)
@@ -532,12 +551,26 @@ export default function AdminCreditRequestsClient() {
             )}
             {handoffResult && (
                 <WhatsAppHandoffDialog
+                    key={handoffResult.id}
                     handoff={handoffResult}
                     onClose={() => setHandoffResult(null)}
                 />
             )}
         </div>
     )
+}
+
+async function copyHandoffMessage(messageText: string) {
+    if (!navigator.clipboard?.writeText) {
+        return 'Clipboard is not available. Select the text and copy it manually.'
+    }
+
+    try {
+        await navigator.clipboard.writeText(messageText)
+        return 'Copied automatically. Paste it in the opened WhatsApp group.'
+    } catch {
+        return 'Automatic copy failed. Select the text and copy it manually.'
+    }
 }
 
 function WhatsAppHandoffDialog({
@@ -547,7 +580,7 @@ function WhatsAppHandoffDialog({
     handoff: WhatsAppHandoff
     onClose: () => void
 }) {
-    const [copyStatus, setCopyStatus] = useState<string | null>(null)
+    const [copyStatus, setCopyStatus] = useState<string | null>(handoff.autoCopyStatus || null)
 
     async function copyMessage() {
         try {

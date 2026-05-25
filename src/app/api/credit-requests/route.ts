@@ -86,6 +86,7 @@ async function getCreditRequestContext(userId: string) {
                 agentId: true,
                 userId: true,
                 sourceGroup: true,
+                whatsappGroupUrl: true,
                 isActive: true,
                 agent: {
                     select: {
@@ -244,6 +245,7 @@ export async function POST(request: NextRequest) {
                         agentIdSnapshot: activeAgentAssignment.agentId,
                         agentNameSnapshot: agentName,
                         sourceGroupSnapshot: activeAgentAssignment.sourceGroup,
+                        whatsappGroupUrlSnapshot: activeAgentAssignment.whatsappGroupUrl,
                         status: 'PENDING',
                     },
                 })

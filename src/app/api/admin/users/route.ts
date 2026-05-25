@@ -16,6 +16,7 @@ const createUserSchema = z.object({
     balance: z.number().optional().default(0),
     agentId: z.string().min(1).optional().nullable(),
     sourceGroup: z.string().trim().max(120).optional().nullable(),
+    whatsappGroupUrl: z.string().trim().max(500).optional().nullable(),
 })
 
 export async function GET(request: NextRequest) {
@@ -162,6 +163,7 @@ export async function GET(request: NextRequest) {
                             select: {
                                 displayName: true,
                                 defaultSourceGroup: true,
+                                whatsappHandoffGroupUrl: true,
                                 isActive: true,
                             },
                         },
@@ -199,6 +201,7 @@ export async function GET(request: NextRequest) {
                     profile: {
                         displayName: u.agentProfile?.displayName || '',
                         defaultSourceGroup: u.agentProfile?.defaultSourceGroup || '',
+                        whatsappHandoffGroupUrl: u.agentProfile?.whatsappHandoffGroupUrl || '',
                         isActive: u.agentProfile?.isActive ?? u.isActive,
                     },
                     points: pointSummaries.get(u.id) ?? emptyPointSummary(),
@@ -369,7 +372,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const { username, email, password, role, balance, agentId, sourceGroup } = result.data
+        const { username, email, password, role, balance, agentId, sourceGroup, whatsappGroupUrl } = result.data
 
         if (agentId && role !== 'USER') {
             return NextResponse.json(
@@ -411,6 +414,7 @@ export async function POST(request: NextRequest) {
                         userId: newUser.id,
                         agentId,
                         sourceGroup,
+                        whatsappGroupUrl,
                         replaceExisting: true,
                         adminUserId: user.id,
                         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
@@ -420,7 +424,13 @@ export async function POST(request: NextRequest) {
                         data: {
                             userId: user.id,
                             action: 'ADMIN_CREATE_AGENT_USER',
-                            details: { createdUserId: newUser.id, username: newUser.username, agentId, sourceGroup: transfer.assignment.sourceGroup },
+                            details: {
+                                createdUserId: newUser.id,
+                                username: newUser.username,
+                                agentId,
+                                sourceGroup: transfer.assignment.sourceGroup,
+                                whatsappGroupUrl: transfer.assignment.whatsappGroupUrl,
+                            },
                             ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
                         }
                     })

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw } from 'lucide-react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw, UserPlus, Shuffle } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
@@ -9,6 +9,7 @@ import EditUserDialog from './EditUserDialog'
 import AddBalanceDialog from './AddBalanceDialog'
 import ResetPasswordDialog from './ResetPasswordDialog'
 import UserStatsDialog from './UserStatsDialog'
+import TransferToAgentDialog from './TransferToAgentDialog'
 import { useTranslation } from '@/hooks/useTranslation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
@@ -48,6 +49,24 @@ interface Distributor {
     points?: PointSummary
 }
 
+interface Agent {
+    id: string
+    username: string
+    email: string
+    role: string
+    balance: number
+    isActive: boolean
+    createdAt: string
+    lastLoginAt: string | null
+    assignedUsersCount: number
+    profile: {
+        displayName: string
+        defaultSourceGroup: string
+        isActive: boolean
+    }
+    points?: PointSummary
+}
+
 interface PointSummary {
     available: number
     lifetimeEarned: number
@@ -58,22 +77,25 @@ interface PointSummary {
 
 interface TabCounts {
     distributors: number
+    agents: number
     users: number
 }
 
-type TabType = 'distributors' | 'users'
+type TabType = 'distributors' | 'agents' | 'users'
+type AccountRow = User | Distributor | Agent
 
 export default function UsersTable() {
     const { t, language } = useTranslation()
     const [activeTab, setActiveTab] = useState<TabType>('distributors')
     const [users, setUsers] = useState<User[]>([])
     const [distributors, setDistributors] = useState<Distributor[]>([])
+    const [agents, setAgents] = useState<Agent[]>([])
     const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [search, setSearch] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
-    const [counts, setCounts] = useState<TabCounts>({ distributors: 0, users: 0 })
+    const [counts, setCounts] = useState<TabCounts>({ distributors: 0, agents: 0, users: 0 })
     const [refreshing, setRefreshing] = useState(false)
 
     // Filter users by specific distributor
@@ -82,10 +104,12 @@ export default function UsersTable() {
 
     // Dialog States
     const [isCreateOpen, setCreateOpen] = useState(false)
-    const [editUser, setEditUser] = useState<User | Distributor | null>(null)
-    const [balanceUser, setBalanceUser] = useState<User | Distributor | null>(null)
-    const [resetUser, setResetUser] = useState<User | Distributor | null>(null)
-    const [statsUser, setStatsUser] = useState<User | Distributor | null>(null)
+    const [editUser, setEditUser] = useState<AccountRow | null>(null)
+    const [balanceUser, setBalanceUser] = useState<AccountRow | null>(null)
+    const [resetUser, setResetUser] = useState<AccountRow | null>(null)
+    const [statsUser, setStatsUser] = useState<AccountRow | null>(null)
+    const [createAgent, setCreateAgent] = useState<Agent | null>(null)
+    const [transferUser, setTransferUser] = useState<User | null>(null)
 
     const localeMap = {
         ar: ar,
@@ -138,6 +162,8 @@ export default function UsersTable() {
             if (res.ok) {
                 if (activeTab === 'distributors') {
                     setDistributors(data.users)
+                } else if (activeTab === 'agents') {
+                    setAgents(data.users)
                 } else {
                     setUsers(data.users)
                 }
@@ -167,7 +193,7 @@ export default function UsersTable() {
         }
     }
 
-    const handleToggleStatus = async (user: User | Distributor) => {
+    const handleToggleStatus = async (user: AccountRow) => {
         if (!confirm(user.isActive ? t.admin.users.actions.disableConfirm : t.admin.users.actions.enableConfirm)) return
 
         try {
@@ -185,7 +211,7 @@ export default function UsersTable() {
         }
     }
 
-    const handleDeleteUser = async (user: User | Distributor) => {
+    const handleDeleteUser = async (user: AccountRow) => {
         const confirmMessage = `${t.admin?.users?.messages?.deleteConfirmFull || 'Are you sure you want to permanently delete'} "${user.username}"? ${t.admin?.users?.messages?.deleteDataWarning || 'All associated data will be deleted.'}`
         if (!confirm(confirmMessage)) return
 
@@ -222,7 +248,9 @@ export default function UsersTable() {
 
     // Get default role for create dialog based on active tab
     const getDefaultRole = () => {
-        return activeTab === 'distributors' ? 'MANAGER' : 'USER'
+        if (activeTab === 'distributors') return 'MANAGER'
+        if (activeTab === 'agents') return 'AGENT'
+        return 'USER'
     }
 
     const renderPointSummary = (points?: PointSummary) => (
@@ -326,6 +354,108 @@ export default function UsersTable() {
         </tr>
     )
 
+    const renderAgentRow = (agent: Agent) => (
+        <tr key={agent.id} className="hover:bg-secondary transition-colors group">
+            <td className="px-4 py-3">
+                <div>
+                    <p className="font-semibold text-foreground">{agent.profile.displayName || agent.username}</p>
+                    <p className="text-xs text-muted-foreground">{agent.username}</p>
+                    <p className="text-xs text-muted-foreground dir-ltr text-right">{agent.email}</p>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400">
+                        {(t.admin?.users?.roles as { agent?: string } | undefined)?.agent || 'مندوب'}
+                    </span>
+                </div>
+            </td>
+            <td className="px-4 py-3">
+                <p className="font-bold text-foreground dir-ltr text-right">{(agent.balance ?? 0).toLocaleString()} {t.header.currency}</p>
+                {renderPointSummary(agent.points)}
+            </td>
+            <td className="px-4 py-3">
+                <div className="space-y-1">
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${agent.isActive && agent.profile.isActive
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        }`}>
+                        {agent.isActive && agent.profile.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
+                        {agent.isActive && agent.profile.isActive ? t.admin.users.table.active : t.admin.users.table.inactive}
+                    </span>
+                    {agent.profile.defaultSourceGroup && (
+                        <p className="text-xs text-muted-foreground">{agent.profile.defaultSourceGroup}</p>
+                    )}
+                </div>
+            </td>
+            <td className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-semibold text-foreground">{agent.assignedUsersCount}</span>
+                    <span className="text-xs text-muted-foreground">{t.admin?.users?.tabs?.users || 'users'}</span>
+                </div>
+            </td>
+            <td className="px-4 py-3 text-xs text-muted-foreground">
+                {format(new Date(agent.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
+            </td>
+            <td className="px-4 py-3">
+                <div className="flex items-center gap-2 justify-end">
+                    <button
+                        onClick={() => {
+                            setCreateAgent(agent)
+                            setCreateOpen(true)
+                        }}
+                        className="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-cyan-600 rounded-lg transition-colors"
+                        title="Add user under agent"
+                    >
+                        <UserPlus className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => setStatsUser(agent)}
+                        className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"
+                        title={t.admin?.users?.actions?.viewStats || 'User Statistics'}
+                    >
+                        <BarChart2 className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => setBalanceUser(agent)}
+                        className="p-1.5 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
+                        title={t.admin.users.actions.addBalance}
+                    >
+                        <Wallet className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => setResetUser(agent)}
+                        className="p-1.5 hover:bg-amber-50 text-amber-600 rounded-lg transition-colors"
+                        title={t.admin.users.actions.resetPassword}
+                    >
+                        <KeyRound className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => setEditUser(agent)}
+                        className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                        title={t.admin.users.actions.edit}
+                    >
+                        <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => handleToggleStatus(agent)}
+                        className={`p-1.5 rounded-lg transition-colors ${agent.isActive
+                            ? 'hover:bg-red-50 text-red-600'
+                            : 'hover:bg-green-50 text-green-600'
+                            }`}
+                        title={agent.isActive ? t.admin.users.actions.disable : t.admin.users.actions.enable}
+                    >
+                        {agent.isActive ? <Ban className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                    </button>
+                    <button
+                        onClick={() => handleDeleteUser(agent)}
+                        className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-700 rounded-lg transition-colors"
+                        title={t.admin?.users?.actions?.permanentDelete || 'Permanent Delete'}
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
+            </td>
+        </tr>
+    )
+
     // Render user row
     const renderUserRow = (user: User) => (
         <tr key={user.id} className="hover:bg-secondary transition-colors group">
@@ -384,6 +514,13 @@ export default function UsersTable() {
             </td>
             <td className="px-4 py-3">
                 <div className="flex items-center gap-2 justify-end">
+                    <button
+                        onClick={() => setTransferUser(user)}
+                        className="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-cyan-600 rounded-lg transition-colors"
+                        title="Transfer to agent"
+                    >
+                        <Shuffle className="w-4 h-4" />
+                    </button>
                     <button
                         onClick={() => setStatsUser(user)}
                         className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"
@@ -463,6 +600,12 @@ export default function UsersTable() {
                                 {counts.users}
                             </span>
                         </TabsTrigger>
+                        <TabsTrigger value="agents" className="gap-2">
+                            {(t.admin?.users?.tabs as { agents?: string } | undefined)?.agents || 'مندوبين'}
+                            <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400">
+                                {counts.agents}
+                            </span>
+                        </TabsTrigger>
                     </TabsList>
 
                     {/* Header Actions */}
@@ -494,6 +637,8 @@ export default function UsersTable() {
                             <span>
                                 {activeTab === 'distributors'
                                     ? (t.admin?.users?.actions?.addDistributor || 'Add New Distributor')
+                                    : activeTab === 'agents'
+                                        ? ((t.admin?.users?.actions as { addAgent?: string } | undefined)?.addAgent || 'Add New Agent')
                                     : (t.admin?.users?.actions?.addUser || 'Add New User')
                                 }
                             </span>
@@ -547,6 +692,62 @@ export default function UsersTable() {
                         </div>
 
                         {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                                <p className="text-sm text-muted-foreground">
+                                    {t.admin.logs.pagination.page} {page} {t.admin.logs.pagination.of} {totalPages}
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                                        disabled={page <= 1}
+                                        className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={t.pagination?.previousPage || 'Previous Page'}
+                                    >
+                                        <ArrowRight className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={page >= totalPages}
+                                        className="p-2 rounded-lg border border-border hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={t.pagination?.nextPage || 'Next Page'}
+                                    >
+                                        <ArrowLeft className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="agents">
+                    <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-secondary border-b border-border">
+                                    <tr>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</th>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</th>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.managedUsersCount || 'Users Count'}</th>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {loading ? (
+                                        renderLoadingSkeleton(6)
+                                    ) : agents.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-8 text-center text-muted-foreground">{(t.admin?.users?.table as { noAgents?: string } | undefined)?.noAgents || 'No agents found'}</td>
+                                        </tr>
+                                    ) : (
+                                        agents.map(renderAgentRow)
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
                         {totalPages > 1 && (
                             <div className="flex items-center justify-between px-4 py-3 border-t border-border">
                                 <p className="text-sm text-muted-foreground">
@@ -638,12 +839,20 @@ export default function UsersTable() {
             {/* Dialogs */}
             <CreateUserDialog
                 isOpen={isCreateOpen}
-                onClose={() => setCreateOpen(false)}
+                onClose={() => {
+                    setCreateOpen(false)
+                    setCreateAgent(null)
+                }}
                 onSuccess={() => {
                     fetchData()
                     fetchCounts()
                 }}
                 defaultRole={getDefaultRole()}
+                agentContext={createAgent ? {
+                    id: createAgent.id,
+                    username: createAgent.profile.displayName || createAgent.username,
+                    defaultSourceGroup: createAgent.profile.defaultSourceGroup,
+                } : null}
             />
             <EditUserDialog
                 isOpen={!!editUser}
@@ -672,6 +881,15 @@ export default function UsersTable() {
                 onClose={() => setStatsUser(null)}
                 userId={statsUser?.id || null}
                 username={statsUser?.username || null}
+            />
+            <TransferToAgentDialog
+                isOpen={!!transferUser}
+                onClose={() => setTransferUser(null)}
+                onSuccess={() => {
+                    fetchData()
+                    fetchCounts()
+                }}
+                user={transferUser}
             />
         </div>
     )

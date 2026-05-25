@@ -128,7 +128,7 @@ pm2 logs --lines 20
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/014-points-rewards-spend-ledger/plan.md`,
-`specs/014-points-rewards-spend-ledger/spec.md`, and
-`specs/014-points-rewards-spend-ledger/tasks.md` before editing.
+`specs/015-agent-user-management/plan.md`,
+`specs/015-agent-user-management/spec.md`, and
+`specs/015-agent-user-management/tasks.md` before editing.
 <!-- SPECKIT END -->

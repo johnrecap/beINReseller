@@ -6,6 +6,7 @@ import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
+import { getAgentTransferErrorResponse, transferUserToAgentInTransaction } from '@/lib/agents/assignment-transfer'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -13,6 +14,8 @@ const createUserSchema = z.object({
     password: z.string().min(6, 'Password must be at least 6 characters'),
     role: z.enum(['ADMIN', 'MANAGER', 'AGENT', 'USER']).optional().default('USER'),
     balance: z.number().optional().default(0),
+    agentId: z.string().min(1).optional().nullable(),
+    sourceGroup: z.string().trim().max(120).optional().nullable(),
 })
 
 export async function GET(request: NextRequest) {
@@ -40,7 +43,7 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1')
         const limit = parseInt(searchParams.get('limit') || '10')
         const search = searchParams.get('search') || ''
-        const roleFilter = searchParams.get('roleFilter') as 'distributors' | 'users' | null
+        const roleFilter = searchParams.get('roleFilter') as 'distributors' | 'agents' | 'users' | null
         const managerId = searchParams.get('managerId') || ''
 
         // Build where clause based on roleFilter
@@ -51,6 +54,8 @@ export async function GET(request: NextRequest) {
         if (roleFilter === 'distributors') {
             // ADMIN and MANAGER are considered distributors
             where.role = { in: ['ADMIN', 'MANAGER'] }
+        } else if (roleFilter === 'agents') {
+            where.role = 'AGENT'
         } else if (roleFilter === 'users') {
             // Only USER role
             where.role = 'USER'
@@ -133,6 +138,69 @@ export async function GET(request: NextRequest) {
                     ...u,
                     // Count of users managed via ManagerUser
                     managedUsersCount: u._count.managedUsers,
+                    points: pointSummaries.get(u.id) ?? emptyPointSummary(),
+                })),
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            })
+        } else if (roleFilter === 'agents') {
+            const [users, total] = await Promise.all([
+                prisma.user.findMany({
+                    where,
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        role: true,
+                        balance: true,
+                        isActive: true,
+                        createdAt: true,
+                        lastLoginAt: true,
+                        agentProfile: {
+                            select: {
+                                displayName: true,
+                                defaultSourceGroup: true,
+                                isActive: true,
+                            },
+                        },
+                        _count: {
+                            select: {
+                                agentAssignmentsAsAgent: {
+                                    where: {
+                                        isActive: true,
+                                        user: { deletedAt: null },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    skip: (page - 1) * limit,
+                    take: limit,
+                }),
+                prisma.user.count({ where }),
+            ])
+
+            const pointSummaries = await getPointSummaries(users.map((u) => u.id))
+
+            return NextResponse.json({
+                users: users.map(u => ({
+                    id: u.id,
+                    username: u.username,
+                    email: u.email,
+                    role: u.role,
+                    balance: u.balance,
+                    isActive: u.isActive,
+                    createdAt: u.createdAt,
+                    lastLoginAt: u.lastLoginAt,
+                    assignedUsersCount: u._count.agentAssignmentsAsAgent,
+                    profile: {
+                        displayName: u.agentProfile?.displayName || '',
+                        defaultSourceGroup: u.agentProfile?.defaultSourceGroup || '',
+                        isActive: u.agentProfile?.isActive ?? u.isActive,
+                    },
                     points: pointSummaries.get(u.id) ?? emptyPointSummary(),
                 })),
                 total,
@@ -301,7 +369,14 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const { username, email, password, role, balance } = result.data
+        const { username, email, password, role, balance, agentId, sourceGroup } = result.data
+
+        if (agentId && role !== 'USER') {
+            return NextResponse.json(
+                { error: 'Agent ownership can only be assigned to USER accounts' },
+                { status: 400 }
+            )
+        }
 
         // Check existing
         const existing = await prisma.user.findFirst({
@@ -317,7 +392,55 @@ export async function POST(request: NextRequest) {
 
         const hashedPassword = await hash(password, 12)
 
-        // Create user with createdById tracking
+        if (agentId && role === 'USER') {
+            try {
+                const created = await prisma.$transaction(async (tx) => {
+                    const newUser = await tx.user.create({
+                        data: {
+                            username,
+                            email,
+                            passwordHash: hashedPassword,
+                            role: role as Role,
+                            balance,
+                            isActive: true,
+                            createdById: user.id
+                        }
+                    })
+
+                    const transfer = await transferUserToAgentInTransaction({
+                        userId: newUser.id,
+                        agentId,
+                        sourceGroup,
+                        replaceExisting: true,
+                        adminUserId: user.id,
+                        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                    }, tx)
+
+                    await tx.activityLog.create({
+                        data: {
+                            userId: user.id,
+                            action: 'ADMIN_CREATE_AGENT_USER',
+                            details: { createdUserId: newUser.id, username: newUser.username, agentId, sourceGroup: transfer.assignment.sourceGroup },
+                            ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+                        }
+                    })
+
+                    return { user: newUser, assignment: transfer.assignment }
+                })
+
+                return NextResponse.json({ success: true, user: created.user, assignment: created.assignment })
+            } catch (error) {
+                const transferError = getAgentTransferErrorResponse(error)
+                if (transferError) {
+                    return NextResponse.json({
+                        error: transferError.code,
+                        reason: transferError.code,
+                    }, { status: transferError.status })
+                }
+                throw error
+            }
+        }
+
         const newUser = await prisma.user.create({
             data: {
                 username,
@@ -326,11 +449,10 @@ export async function POST(request: NextRequest) {
                 role: role as Role,
                 balance,
                 isActive: true,
-                createdById: user.id // Track who created this user
+                createdById: user.id
             }
         })
 
-        // If creating a USER, also create ManagerUser link for backwards compatibility
         if (role === 'USER') {
             await prisma.managerUser.create({
                 data: {
@@ -340,7 +462,6 @@ export async function POST(request: NextRequest) {
             })
         }
 
-        // Log activity
         await prisma.activityLog.create({
             data: {
                 userId: user.id,

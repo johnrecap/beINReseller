@@ -38,6 +38,21 @@ test('routes agent-owned user spend to both user and agent', () => {
     ])
 })
 
+test('routes transferred user future spend to user and agent when manager link is removed', () => {
+    const recipients = resolveOperationPointRecipients({
+        operationUser: { id: 'user-1', role: 'USER', isActive: true, deletedAt: null },
+        managerOwnership: null,
+        agentAssignment: {
+            agent: { id: 'agent-2', role: 'AGENT', isActive: true, deletedAt: null },
+        },
+    })
+
+    assert.deepEqual(recipients, [
+        { ownerUserId: 'user-1', ownerRole: 'USER', ownerKind: 'USER' },
+        { ownerUserId: 'agent-2', ownerRole: 'AGENT', ownerKind: 'AGENT' },
+    ])
+})
+
 test('routes direct user spend to the user only', () => {
     const recipients = resolveOperationPointRecipients({
         operationUser: { id: 'user-1', role: 'USER', isActive: true, deletedAt: null },

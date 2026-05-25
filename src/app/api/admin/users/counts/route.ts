@@ -9,12 +9,17 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        // Count distributors (ADMIN + MANAGER) and users (USER)
-        const [distributors, users] = await Promise.all([
+        const [distributors, agents, users] = await Promise.all([
             prisma.user.count({
                 where: {
                     deletedAt: null,
                     role: { in: ['ADMIN', 'MANAGER'] }
+                }
+            }),
+            prisma.user.count({
+                where: {
+                    deletedAt: null,
+                    role: 'AGENT'
                 }
             }),
             prisma.user.count({
@@ -25,7 +30,7 @@ export async function GET(request: NextRequest) {
             })
         ])
 
-        return NextResponse.json({ distributors, users })
+        return NextResponse.json({ distributors, agents, users })
 
     } catch (error) {
         console.error('Counts API error:', error)

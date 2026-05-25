@@ -11,9 +11,14 @@ interface CreateUserDialogProps {
     onClose: () => void
     onSuccess: () => void
     defaultRole?: 'USER' | 'MANAGER' | 'AGENT' | 'ADMIN'
+    agentContext?: {
+        id: string
+        username: string
+        defaultSourceGroup?: string | null
+    } | null
 }
 
-export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRole = 'USER' }: CreateUserDialogProps) {
+export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRole = 'USER', agentContext = null }: CreateUserDialogProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -21,14 +26,16 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
     const [username, setUsername] = useState("")
     const [email, setEmail] = useState("")
     const [role, setRole] = useState(defaultRole)
+    const [sourceGroup, setSourceGroup] = useState(agentContext?.defaultSourceGroup || "")
     const emailInputRef = useRef<HTMLInputElement>(null)
 
     // Reset role when dialog opens with a new defaultRole
     useEffect(() => {
         if (isOpen) {
-            setRole(defaultRole)
+            setRole(agentContext ? 'USER' : defaultRole)
+            setSourceGroup(agentContext?.defaultSourceGroup || "")
         }
-    }, [isOpen, defaultRole])
+    }, [isOpen, defaultRole, agentContext])
 
     // Generate email from username when user finishes typing
     const handleUsernameBlur = () => {
@@ -69,6 +76,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
             password: formData.get('password') as string,
             role: role,
             balance: parseFloat(formData.get('balance') as string) || 0,
+            ...(agentContext ? { agentId: agentContext.id, sourceGroup } : {}),
         }
 
         try {
@@ -89,7 +97,8 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
             // Reset form
             setUsername("")
             setEmail("")
-            setRole(defaultRole)
+            setRole(agentContext ? 'USER' : defaultRole)
+            setSourceGroup(agentContext?.defaultSourceGroup || "")
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
@@ -168,6 +177,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                             required
                             value={role}
                             onChange={(e) => setRole(e.target.value as 'USER' | 'MANAGER' | 'AGENT' | 'ADMIN')}
+                            disabled={Boolean(agentContext)}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                         >
                             <option value="USER">{t.admin?.users?.dialogs?.roleUser || 'User'}</option>
@@ -176,6 +186,28 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                             <option value="ADMIN">{t.admin?.users?.dialogs?.roleAdmin || 'Admin'}</option>
                         </select>
                     </div>
+
+                    {agentContext && (
+                        <div className="p-3 bg-secondary rounded-lg space-y-3">
+                            <p className="text-sm font-medium text-foreground">
+                                {(t.admin?.users?.roles as { agent?: string } | undefined)?.agent || 'Agent'}: {agentContext.username}
+                            </p>
+                            <div>
+                                <label htmlFor="sourceGroup" className="block text-sm font-medium text-foreground mb-1">
+                                    Source Group
+                                </label>
+                                <input
+                                    id="sourceGroup"
+                                    name="sourceGroup"
+                                    type="text"
+                                    value={sourceGroup}
+                                    onChange={(e) => setSourceGroup(e.target.value)}
+                                    placeholder={agentContext.defaultSourceGroup || 'main-group'}
+                                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     <div>
                         <label htmlFor="balance" className="block text-sm font-medium text-foreground mb-1">{t.manager?.dialogs?.createUser?.initialBalance || 'Initial Balance'}</label>

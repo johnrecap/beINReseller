@@ -87,7 +87,7 @@ export default function AdminAgentsClient() {
     )
 
     const eligibleUsers = useMemo(
-        () => data?.users.filter((user) => !user.managerOwned) || [],
+        () => data?.users || [],
         [data?.users]
     )
 
@@ -184,7 +184,8 @@ export default function AdminAgentsClient() {
                 throw new Error(payload?.error || 'Failed to assign user')
             }
 
-            setSuccess('User assigned to agent.')
+            const mode = payload?.transfer?.mode
+            setSuccess(mode === 'transferred' ? 'User transferred to agent.' : 'User assigned to agent.')
             setSelectedUserId('')
             await loadData()
         } catch (err) {
@@ -364,7 +365,8 @@ export default function AdminAgentsClient() {
                                 <option value="">Select user</option>
                                 {eligibleUsers.map((user) => (
                                     <option key={user.id} value={user.id}>
-                                        {user.username}{user.activeAssignment ? ' (assigned)' : ''}
+                                        {user.username}
+                                        {user.managerOwned ? ' (manager-owned)' : user.activeAssignment ? ' (assigned)' : ' (direct)'}
                                     </option>
                                 ))}
                             </select>

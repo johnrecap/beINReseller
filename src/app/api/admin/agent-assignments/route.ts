@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
+import { getAgentTransferErrorResponse, transferUserToAgent } from '@/lib/agents/assignment-transfer'
 
 const assignmentSchema = z.object({
     userId: z.string().min(1),
     agentId: z.string().min(1),
-    sourceGroup: z.string().trim().min(1).max(120),
+    sourceGroup: z.string().trim().max(120).optional().nullable(),
     replaceExisting: z.boolean().optional().default(true),
 })
 
@@ -162,81 +162,27 @@ export async function POST(request: NextRequest) {
         }
 
         const { userId, agentId, sourceGroup, replaceExisting } = parsed.data
-        const [user, agent, managerOwnership, activeAssignment] = await Promise.all([
-            prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, role: true, deletedAt: true } }),
-            prisma.user.findUnique({ where: { id: agentId }, select: { id: true, username: true, role: true, deletedAt: true } }),
-            prisma.managerUser.findFirst({ where: { userId }, select: { managerId: true } }),
-            prisma.agentAssignment.findFirst({ where: { userId, isActive: true }, select: { id: true, agentId: true } }),
-        ])
-
-        if (!user || user.deletedAt || user.role !== 'USER') {
-            return NextResponse.json({ error: 'Target account must be an active USER' }, { status: 400 })
-        }
-
-        if (!agent || agent.deletedAt || agent.role !== 'AGENT') {
-            return NextResponse.json({ error: 'Assigned account must be an active AGENT' }, { status: 400 })
-        }
-
-        if (managerOwnership) {
-            return NextResponse.json(
-                {
-                    error: 'This user is owned by a manager. Resolve manager ownership before enabling Request Credit.',
-                    reason: 'MANAGER_OWNED',
-                },
-                { status: 409 }
-            )
-        }
-
-        if (activeAssignment && !replaceExisting) {
-            return NextResponse.json(
-                { error: 'User already has an active agent assignment', assignmentId: activeAssignment.id },
-                { status: 409 }
-            )
-        }
-
-        const created = await prisma.$transaction(async (tx) => {
-            await tx.agentAssignment.updateMany({
-                where: { userId, isActive: true },
-                data: { isActive: false, endedAt: new Date() },
-            })
-
-            const assignment = await tx.agentAssignment.create({
-                data: {
-                    userId,
-                    agentId,
-                    sourceGroup,
-                    assignedByAdminId: authResult.user.id,
-                },
-                select: { id: true, createdAt: true },
-            })
-
-            await tx.activityLog.create({
-                data: {
-                    userId: authResult.user.id,
-                    action: 'ADMIN_AGENT_ASSIGNMENT_CREATED',
-                    targetId: assignment.id,
-                    targetType: 'AgentAssignment',
-                    details: { userId, agentId, sourceGroup, replacedAssignmentId: activeAssignment?.id || null },
-                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-                },
-            })
-
-            return assignment
+        const result = await transferUserToAgent({
+            userId,
+            agentId,
+            sourceGroup,
+            replaceExisting,
+            adminUserId: authResult.user.id,
+            ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
         })
 
         return NextResponse.json({
             success: true,
-            assignment: {
-                id: created.id,
-                createdAt: created.createdAt.toISOString(),
-            },
+            assignment: result.assignment,
+            transfer: result.transfer,
         })
     } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            return NextResponse.json(
-                { error: 'User already has an active agent assignment. Please refresh and try again.' },
-                { status: 409 }
-            )
+        const transferError = getAgentTransferErrorResponse(error)
+        if (transferError) {
+            return NextResponse.json({
+                error: transferError.code,
+                reason: transferError.code,
+            }, { status: transferError.status })
         }
 
         console.error('Admin create agent assignment error:', error)

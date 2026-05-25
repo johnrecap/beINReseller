@@ -5,6 +5,11 @@ import { Gift, Loader2, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import EidRewardEnvelope from '@/components/eid-rewards/EidRewardEnvelope'
+import {
+    EID_REWARD_POPUP_HIDE_KEY,
+    shouldRememberPopupClosed,
+    type EidRewardPopupCloseReason,
+} from '@/lib/eid-rewards/popup-visibility'
 
 type EidStatus = {
     enabled: boolean
@@ -52,8 +57,6 @@ type ViewState =
     | 'redeemedSuccess'
     | 'error'
 
-const SESSION_HIDE_KEY = 'eid-reward-popup-hidden'
-
 export default function EidRewardPopup() {
     const [status, setStatus] = useState<EidStatus | null>(null)
     const [claim, setClaim] = useState<ClaimResult | null>(null)
@@ -70,7 +73,7 @@ export default function EidRewardPopup() {
             if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل عيدية العيد')
 
             setStatus(payload)
-            const hidden = typeof window !== 'undefined' && sessionStorage.getItem(SESSION_HIDE_KEY) === '1'
+            const hidden = typeof window !== 'undefined' && sessionStorage.getItem(EID_REWARD_POPUP_HIDE_KEY) === '1'
             if (payload.eligible && payload.popup.show && !hidden) {
                 setViewState('eligible')
                 setVisible(true)
@@ -135,15 +138,22 @@ export default function EidRewardPopup() {
             const payload = await response.json().catch(() => null)
             if (!response.ok) throw new Error(payload?.error || 'تعذر تحويل النقاط إلى رصيد')
             setViewState('redeemedSuccess')
+            closePopup('redeemed')
         } catch (err) {
             setError(err instanceof Error ? err.message : 'تعذر تحويل النقاط إلى رصيد')
             setViewState('claimedSuccess')
         }
     }
 
-    function dismissLater() {
-        sessionStorage.setItem(SESSION_HIDE_KEY, '1')
+    function closePopup(reason: EidRewardPopupCloseReason) {
+        if (shouldRememberPopupClosed(reason)) {
+            sessionStorage.setItem(EID_REWARD_POPUP_HIDE_KEY, '1')
+        }
         setVisible(false)
+    }
+
+    function dismissLater() {
+        closePopup('later')
     }
 
     if (!visible || !status) return null

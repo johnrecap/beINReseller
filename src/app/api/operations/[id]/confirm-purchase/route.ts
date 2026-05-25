@@ -10,6 +10,7 @@ import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { Prisma } from '@prisma/client'
 import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
+import { processCompletedOperationPoints } from '@/lib/points/operation-awards'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -238,6 +239,15 @@ export async function POST(
             await recordOperationDispatchEvidence(id, {
                 phase: 'DISPATCH_FAILED',
                 message: 'Confirm purchase dispatch failed; saved for retry.',
+            })
+        }
+        const completedOperation = await prisma.operation.findUnique({
+            where: { id },
+            select: { status: true },
+        })
+        if (completedOperation?.status === 'COMPLETED') {
+            await processCompletedOperationPoints(id).catch((error) => {
+                console.error('Confirm purchase point award error:', error)
             })
         }
         // 5. Return success

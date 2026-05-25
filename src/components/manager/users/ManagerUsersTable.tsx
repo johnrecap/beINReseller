@@ -26,6 +26,13 @@ interface User {
     balance: number
     isActive: boolean
     createdAt: string
+    points?: {
+        available: number
+        lifetimeEarned: number
+        converted: number
+        reversed: number
+        legacy: number
+    }
 }
 
 interface ManagerUsersTableProps {
@@ -194,6 +201,10 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                         </td>
                                         <td className="px-4 py-3">
                                             <p className="font-bold text-foreground dir-ltr text-right">${(user.balance ?? 0).toFixed(2)}</p>
+                                            <div className="mt-1 text-xs text-muted-foreground">
+                                                <p className="font-semibold text-foreground">{(user.points?.available ?? 0).toLocaleString()} pts</p>
+                                                <p>{(user.points?.lifetimeEarned ?? 0).toLocaleString()} earned / {(user.points?.converted ?? 0).toLocaleString()} converted</p>
+                                            </div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.isActive

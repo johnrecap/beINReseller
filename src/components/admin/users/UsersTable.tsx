@@ -31,6 +31,7 @@ interface User {
     creatorRole?: string | null
     // Proxy status (for users tab)
     hasProxyLinked?: boolean
+    points?: PointSummary
 }
 
 // Distributor type (for distributors tab)
@@ -44,6 +45,15 @@ interface Distributor {
     createdAt: string
     lastLoginAt: string | null
     managedUsersCount: number
+    points?: PointSummary
+}
+
+interface PointSummary {
+    available: number
+    lifetimeEarned: number
+    converted: number
+    reversed: number
+    legacy: number
 }
 
 interface TabCounts {
@@ -215,6 +225,13 @@ export default function UsersTable() {
         return activeTab === 'distributors' ? 'MANAGER' : 'USER'
     }
 
+    const renderPointSummary = (points?: PointSummary) => (
+        <div className="text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">{(points?.available ?? 0).toLocaleString()} pts</p>
+            <p>{(points?.lifetimeEarned ?? 0).toLocaleString()} earned / {(points?.converted ?? 0).toLocaleString()} converted</p>
+        </div>
+    )
+
     // Render distributor row
     const renderDistributorRow = (distributor: Distributor) => (
         <tr
@@ -236,6 +253,7 @@ export default function UsersTable() {
             </td>
             <td className="px-4 py-3">
                 <p className="font-bold text-foreground dir-ltr text-right">{(distributor.balance ?? 0).toLocaleString()} {t.header.currency}</p>
+                {renderPointSummary(distributor.points)}
             </td>
             <td className="px-4 py-3">
                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${distributor.isActive
@@ -334,6 +352,7 @@ export default function UsersTable() {
             </td>
             <td className="px-4 py-3">
                 <p className="font-bold text-foreground dir-ltr text-right">{(user.balance ?? 0).toLocaleString()} {t.header.currency}</p>
+                {renderPointSummary(user.points)}
             </td>
             <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">

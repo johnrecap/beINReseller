@@ -13,6 +13,7 @@
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { decideRefundSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
+import { createOperationPointReversalsInTransaction } from '@/lib/points/reversals'
 
 /**
  * Atomically refund a reseller user's balance.
@@ -98,6 +99,12 @@ export async function refundUser(
                     type: 'info',
                     link: '/dashboard/transactions'
                 }
+            })
+
+            await createOperationPointReversalsInTransaction({
+                db: tx,
+                operationId,
+                reason: 'refund',
             })
 
             console.log(`Refunded ${amount} to user ${userId} for operation ${operationId}`)

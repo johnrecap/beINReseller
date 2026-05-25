@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
 import { RATE_LIMITS, rateLimitHeaders, withRateLimit } from '@/lib/rate-limiter'
+import { summarizePointBalance } from '@/lib/points/balance'
 
 function startOfToday() {
     const date = new Date()
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
             requestsToday,
             pendingRequests,
             approvedRequests,
-            pointGroups,
+            pointEntries,
         ] = await Promise.all([
             prisma.agentProfile.findUnique({
                 where: { agentId: agent.id },
@@ -114,18 +115,13 @@ export async function GET(request: NextRequest) {
                     status: 'APPROVED',
                 },
             }),
-            prisma.pointLedgerEntry.groupBy({
-                by: ['status'],
+            prisma.pointLedgerEntry.findMany({
                 where: { ownerUserId: agent.id },
-                _sum: { points: true },
+                select: { sourceType: true, status: true, points: true },
             }),
         ])
 
-        const pointsByStatus = new Map(pointGroups.map((group) => [group.status, group._sum.points ?? 0]))
-        const availablePoints = Math.max(
-            0,
-            (pointsByStatus.get('AVAILABLE') ?? 0) + (pointsByStatus.get('REDEEMED') ?? 0)
-        )
+        const pointSummary = summarizePointBalance(pointEntries)
 
         return NextResponse.json({
             agent: {
@@ -142,8 +138,9 @@ export async function GET(request: NextRequest) {
                 requestsToday,
                 pendingRequests,
                 approvedRequests,
-                pendingPoints: pointsByStatus.get('PENDING') ?? 0,
-                availablePoints,
+                pendingPoints: 0,
+                availablePoints: pointSummary.available,
+                convertedPoints: pointSummary.converted,
             },
             assignedUsers: assignments.map((assignment) => ({
                 id: assignment.user.id,

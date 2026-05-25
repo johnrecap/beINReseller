@@ -4,6 +4,7 @@ import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { z } from 'zod'
 import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -88,12 +89,26 @@ export async function GET(request: NextRequest) {
 
         // Filter out deleted users
         const activeUsers = users.filter(record => !record.user.deletedAt)
+        const activeUserIds = activeUsers.map((record) => record.user.id)
+        const pointEntries = activeUserIds.length > 0
+            ? await prisma.pointLedgerEntry.findMany({
+                where: { ownerUserId: { in: activeUserIds } },
+                select: {
+                    ownerUserId: true,
+                    sourceType: true,
+                    status: true,
+                    points: true,
+                },
+            })
+            : []
+        const pointSummaries = groupPointSummariesByOwner(pointEntries)
 
         return NextResponse.json({
             users: activeUsers.map(record => ({
                 ...record.user,
                 linkedAt: record.createdAt,
-                operationsCount: record.user._count.operations
+                operationsCount: record.user._count.operations,
+                points: pointSummaries.get(record.user.id) ?? emptyPointSummary(),
             })),
             total,
             page,

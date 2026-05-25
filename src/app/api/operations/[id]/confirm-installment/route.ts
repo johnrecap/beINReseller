@@ -5,6 +5,7 @@ import { addOperationJob } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { Prisma } from '@prisma/client'
 import { parseOperationResponseData } from '@/lib/operation-safety'
+import { processCompletedOperationPoints } from '@/lib/points/operation-awards'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -208,6 +209,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 { error: 'Failed to confirm payment, amount refunded' },
                 { status: 500 }
             )
+        }
+
+        const completedOperation = await prisma.operation.findUnique({
+            where: { id: operationId },
+            select: { status: true },
+        })
+        if (completedOperation?.status === 'COMPLETED') {
+            await processCompletedOperationPoints(operationId).catch((error) => {
+                console.error('Confirm installment point award error:', error)
+            })
         }
 
         return NextResponse.json({

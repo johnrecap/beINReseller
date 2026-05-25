@@ -4,11 +4,6 @@ import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { z } from 'zod'
 import { createNotification } from '@/lib/notification'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
-import {
-    calculatePoints,
-    getManagerTopupRate,
-    hasPositivePoints,
-} from '@/lib/credit-requests/points'
 
 const balanceSchema = z.object({
     amount: z.number().refine(val => val !== 0, 'Amount must be greater or less than zero'),
@@ -141,7 +136,7 @@ export async function PATCH(
                 }
 
                 // 5. Create transaction for user
-                const userTransaction = await tx.transaction.create({
+                await tx.transaction.create({
                     data: {
                         userId: id,
                         type: isDeposit ? 'DEPOSIT' : 'WITHDRAW',
@@ -165,32 +160,6 @@ export async function PATCH(
                             : `Balance refund from user: ${targetUser.username}`,
                     }
                 })
-
-                if (isDeposit) {
-                    const managerRate = await getManagerTopupRate(tx, manager.id)
-                    const managerPoints = calculatePoints({
-                        ownerKind: 'MANAGER',
-                        amountUsd: absAmount,
-                        pointsPerThousand: managerRate,
-                    })
-
-                    if (hasPositivePoints(managerPoints)) {
-                        await tx.pointLedgerEntry.create({
-                            data: {
-                                ownerUserId: manager.id,
-                                ownerRoleAtTime: 'MANAGER',
-                                sourceType: 'MANAGER_TOPUP',
-                                sourceId: userTransaction.id,
-                                points: managerPoints.points,
-                                status: 'PENDING',
-                                ratePerThousandSnapshot: managerPoints.ratePerThousandSnapshot,
-                                amountUsdSnapshot: managerPoints.amountUsdSnapshot,
-                                createdById: manager.id,
-                                notes: `Pending manager points for top-up to ${targetUser.username}`,
-                            },
-                        })
-                    }
-                }
 
                 // 7. Log activity
                 await tx.activityLog.create({

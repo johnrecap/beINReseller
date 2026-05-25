@@ -1,55 +1,48 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Gift, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { RefreshCw, WalletCards } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 
-type Reward = {
-    id: string
-    name: string
-    description: string | null
-    pointsCost: number
-    fulfillmentNotes: string | null
-    canRedeem: boolean
-}
-
-type Redemption = {
-    id: string
-    rewardName: string
-    pointsCost: number
-    status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
-    requestedAt: string
-    decidedAt: string | null
-    decisionNote: string | null
-}
-
-type RewardsData = {
+type WalletData = {
     points: {
-        pending: number
         available: number
-        redeemed: number
-        cancelled: number
+        lifetimeEarned: number
+        converted: number
+        reversed: number
+        legacy: number
     }
-    rewards: Reward[]
-    redemptions: Redemption[]
+    conversion: {
+        enabled: boolean
+        points: number
+        amountUsd: number
+        disabledReason: string | null
+    }
+    recentConversions: Array<{
+        id: string
+        pointsConverted: number
+        balanceAmountUsd: number
+        requestedAt: string
+        transactionId: string
+    }>
 }
 
 function formatPoints(value: number) {
     return value.toLocaleString(undefined, { maximumFractionDigits: 4 })
 }
 
-function statusVariant(status: Redemption['status']) {
-    if (status === 'APPROVED') return 'success' as const
-    if (status === 'PENDING') return 'warning' as const
-    if (status === 'REJECTED' || status === 'CANCELLED') return 'destructive' as const
-    return 'secondary' as const
+function formatMoney(value: number) {
+    return value.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })
 }
 
 export default function RewardsClient() {
-    const [data, setData] = useState<RewardsData | null>(null)
+    const [data, setData] = useState<WalletData | null>(null)
+    const [points, setPoints] = useState('')
     const [loading, setLoading] = useState(true)
-    const [redeemingId, setRedeemingId] = useState<string | null>(null)
+    const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
@@ -58,14 +51,14 @@ export default function RewardsClient() {
         setError(null)
 
         try {
-            const response = await fetch('/api/rewards', { cache: 'no-store' })
+            const response = await fetch('/api/points/wallet', { cache: 'no-store' })
             const payload = await response.json().catch(() => null)
             if (!response.ok) {
-                throw new Error(payload?.error || 'Failed to load rewards')
+                throw new Error(payload?.error || 'Failed to load points wallet')
             }
             setData(payload)
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load rewards')
+            setError(err instanceof Error ? err.message : 'Failed to load points wallet')
         } finally {
             setLoading(false)
         }
@@ -75,39 +68,51 @@ export default function RewardsClient() {
         loadData()
     }, [loadData])
 
-    async function redeem(rewardId: string) {
-        setRedeemingId(rewardId)
+    const pointsNumber = Number(points)
+    const estimatedCredit = useMemo(() => {
+        if (!data?.conversion.enabled || !Number.isFinite(pointsNumber) || pointsNumber <= 0) return 0
+        return (pointsNumber / data.conversion.points) * data.conversion.amountUsd
+    }, [data, pointsNumber])
+
+    async function convertPoints() {
+        setSubmitting(true)
         setError(null)
         setSuccess(null)
 
         try {
-            const response = await fetch('/api/rewards/redemptions', {
+            const response = await fetch('/api/points/cash-redemptions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rewardId }),
+                body: JSON.stringify({ points: pointsNumber }),
             })
             const payload = await response.json().catch(() => null)
             if (!response.ok) {
-                throw new Error(payload?.error || 'Failed to request redemption')
+                throw new Error(payload?.error || 'Failed to convert points')
             }
-            setSuccess('Reward redemption request created.')
+            setSuccess(`Converted ${formatPoints(payload.redemption.pointsConverted)} points to $${formatMoney(payload.redemption.balanceAmountUsd)} balance.`)
+            setPoints('')
             await loadData()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to request redemption')
+            setError(err instanceof Error ? err.message : 'Failed to convert points')
         } finally {
-            setRedeemingId(null)
+            setSubmitting(false)
         }
     }
+
+    const canSubmit = Boolean(
+        data?.conversion.enabled
+        && Number.isFinite(pointsNumber)
+        && pointsNumber > 0
+        && pointsNumber <= (data?.points.available ?? 0)
+        && !submitting
+    )
 
     return (
         <div className="mx-auto max-w-7xl space-y-6 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
-                    <p className="text-sm text-muted-foreground">Points rewards</p>
+                    <p className="text-sm text-muted-foreground">Points wallet</p>
                     <h1 className="text-3xl font-bold text-foreground">Rewards</h1>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                        Pending points must be released by admin before they can be redeemed.
-                    </p>
                 </div>
                 <Button type="button" variant="outline" onClick={loadData} disabled={loading} className="gap-2">
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -126,81 +131,72 @@ export default function RewardsClient() {
                 </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
                 <div className="rounded-lg border border-border bg-card p-4">
                     <div className="text-sm text-muted-foreground">Available Points</div>
                     <div className="mt-2 text-3xl font-bold">{formatPoints(data?.points.available || 0)}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-card p-4">
-                    <div className="text-sm text-muted-foreground">Pending Points</div>
-                    <div className="mt-2 text-3xl font-bold">{formatPoints(data?.points.pending || 0)}</div>
+                    <div className="text-sm text-muted-foreground">Lifetime Earned</div>
+                    <div className="mt-2 text-3xl font-bold">{formatPoints(data?.points.lifetimeEarned || 0)}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-card p-4">
-                    <div className="text-sm text-muted-foreground">Redeemed Points</div>
-                    <div className="mt-2 text-3xl font-bold">{formatPoints(data?.points.redeemed || 0)}</div>
+                    <div className="text-sm text-muted-foreground">Converted</div>
+                    <div className="mt-2 text-3xl font-bold">{formatPoints(data?.points.converted || 0)}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-card p-4">
+                    <div className="text-sm text-muted-foreground">Reversed</div>
+                    <div className="mt-2 text-3xl font-bold">{formatPoints(data?.points.reversed || 0)}</div>
                 </div>
             </div>
 
             <section className="rounded-lg border border-border bg-card p-4">
                 <h2 className="flex items-center gap-2 text-xl font-semibold">
-                    <Gift className="h-5 w-5" />
-                    Available Rewards
+                    <WalletCards className="h-5 w-5" />
+                    Convert Points
                 </h2>
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                    {data?.rewards.length === 0 && (
-                        <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                            No active rewards are available.
-                        </div>
-                    )}
-                    {data?.rewards.map((reward) => (
-                        <div key={reward.id} className="rounded-lg border border-border p-4">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                <div>
-                                    <h3 className="font-semibold">{reward.name}</h3>
-                                    <p className="mt-1 text-sm text-muted-foreground">{reward.description || 'No description'}</p>
-                                </div>
-                                <span className="font-mono text-sm">{formatPoints(reward.pointsCost)} pts</span>
-                            </div>
-                            {reward.fulfillmentNotes && (
-                                <p className="mt-3 text-xs text-muted-foreground">{reward.fulfillmentNotes}</p>
-                            )}
-                            <div className="mt-4">
-                                <Button
-                                    type="button"
-                                    disabled={!reward.canRedeem || redeemingId === reward.id}
-                                    onClick={() => redeem(reward.id)}
-                                >
-                                    Request Redemption
-                                </Button>
-                                {!reward.canRedeem && (
-                                    <p className="mt-2 text-xs text-muted-foreground">
-                                        Not enough available points for this reward.
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    ))}
+                <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+                    <label className="space-y-2">
+                        <span className="text-sm text-muted-foreground">Points to convert</span>
+                        <input
+                            type="number"
+                            min="0"
+                            step="0.0001"
+                            value={points}
+                            onChange={(event) => setPoints(event.target.value)}
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground outline-none focus:border-purple-500"
+                        />
+                    </label>
+                    <Button type="button" onClick={convertPoints} disabled={!canSubmit}>
+                        Convert
+                    </Button>
+                </div>
+                <div className="mt-3 text-sm text-muted-foreground">
+                    {data?.conversion.enabled
+                        ? `${formatPoints(data.conversion.points)} points = $${formatMoney(data.conversion.amountUsd)}. Estimated credit: $${formatMoney(estimatedCredit)}`
+                        : `Conversion unavailable: ${data?.conversion.disabledReason || 'settings disabled'}`
+                    }
                 </div>
             </section>
 
             <section className="rounded-lg border border-border bg-card p-4">
-                <h2 className="text-xl font-semibold">My Redemptions</h2>
+                <h2 className="text-xl font-semibold">Recent Conversions</h2>
                 <div className="mt-4 space-y-3">
-                    {data?.redemptions.length === 0 && (
+                    {data?.recentConversions.length === 0 && (
                         <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                            No redemption requests yet.
+                            No point conversions yet.
                         </div>
                     )}
-                    {data?.redemptions.map((redemption) => (
-                        <div key={redemption.id} className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+                    {data?.recentConversions.map((conversion) => (
+                        <div key={conversion.id} className="grid gap-2 rounded-lg border border-border p-3 md:grid-cols-[1fr_auto_auto] md:items-center">
                             <div>
-                                <div className="font-semibold">{redemption.rewardName}</div>
+                                <div className="font-semibold">${formatMoney(conversion.balanceAmountUsd)} credited</div>
                                 <div className="text-xs text-muted-foreground">
-                                    Requested {new Date(redemption.requestedAt).toLocaleString()}
+                                    {new Date(conversion.requestedAt).toLocaleString()}
                                 </div>
                             </div>
-                            <span className="font-mono text-sm">{formatPoints(redemption.pointsCost)} pts</span>
-                            <Badge variant={statusVariant(redemption.status)}>{redemption.status}</Badge>
+                            <span className="font-mono text-sm">{formatPoints(conversion.pointsConverted)} pts</span>
+                            <span className="font-mono text-xs text-muted-foreground">{conversion.transactionId}</span>
                         </div>
                     ))}
                 </div>

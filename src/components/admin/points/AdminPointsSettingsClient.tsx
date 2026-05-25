@@ -14,6 +14,12 @@ type PersonRate = {
 }
 
 type PointsSettingsData = {
+    settings: {
+        pointsEnabled: boolean
+        pointsStartAt: string | null
+        cashConversionPoints: number
+        cashConversionAmountUsd: number
+    }
     defaults: {
         userGlobalPointsPerThousand: number
         agentDefaultPointsPerThousand: number
@@ -24,6 +30,7 @@ type PointsSettingsData = {
 }
 
 type DefaultsDraft = PointsSettingsData['defaults']
+type ProgramDraft = PointsSettingsData['settings']
 type OverrideDraft = Record<string, string>
 
 function toRate(value: string) {
@@ -37,6 +44,12 @@ export default function AdminPointsSettingsClient() {
         userGlobalPointsPerThousand: 0,
         agentDefaultPointsPerThousand: 0,
         managerDefaultPointsPerThousand: 0,
+    })
+    const [program, setProgram] = useState<ProgramDraft>({
+        pointsEnabled: false,
+        pointsStartAt: null,
+        cashConversionPoints: 100,
+        cashConversionAmountUsd: 10,
     })
     const [agentOverrides, setAgentOverrides] = useState<OverrideDraft>({})
     const [managerOverrides, setManagerOverrides] = useState<OverrideDraft>({})
@@ -58,11 +71,25 @@ export default function AdminPointsSettingsClient() {
 
             setData(payload)
             setDefaults(payload.defaults)
+            setProgram({
+                pointsEnabled: payload.settings?.pointsEnabled ?? false,
+                pointsStartAt: payload.settings?.pointsStartAt
+                    ? payload.settings.pointsStartAt.slice(0, 16)
+                    : null,
+                cashConversionPoints: payload.settings?.cashConversionPoints ?? 100,
+                cashConversionAmountUsd: payload.settings?.cashConversionAmountUsd ?? 10,
+            })
             setAgentOverrides(Object.fromEntries(
-                payload.agents.map((agent: PersonRate) => [agent.id, agent.overridePointsPerThousand?.toString() || ''])
+                payload.agents.map((agent: PersonRate) => [
+                    agent.id,
+                    agent.overridePointsPerThousand === null ? '' : agent.overridePointsPerThousand.toString(),
+                ])
             ))
             setManagerOverrides(Object.fromEntries(
-                payload.managers.map((manager: PersonRate) => [manager.id, manager.overridePointsPerThousand?.toString() || ''])
+                payload.managers.map((manager: PersonRate) => [
+                    manager.id,
+                    manager.overridePointsPerThousand === null ? '' : manager.overridePointsPerThousand.toString(),
+                ])
             ))
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load point settings')
@@ -84,6 +111,10 @@ export default function AdminPointsSettingsClient() {
         try {
             const payload = {
                 ...defaults,
+                pointsEnabled: program.pointsEnabled,
+                pointsStartAt: program.pointsStartAt ? new Date(program.pointsStartAt).toISOString() : null,
+                cashConversionPoints: program.cashConversionPoints,
+                cashConversionAmountUsd: program.cashConversionAmountUsd,
                 agentOverrides: Object.entries(agentOverrides)
                     .filter(([, value]) => value.trim() !== '')
                     .map(([agentId, value]) => ({ agentId, pointsPerThousand: toRate(value) })),
@@ -118,7 +149,7 @@ export default function AdminPointsSettingsClient() {
                     <p className="text-sm text-muted-foreground">Admin configuration</p>
                     <h1 className="text-3xl font-bold text-foreground">Points Settings</h1>
                     <p className="mt-2 text-sm text-muted-foreground">
-                        Configure points per 1000 USD. Approved requests and manager top-ups keep rate snapshots.
+                        Configure spend-based points and instant point-to-balance conversion.
                     </p>
                 </div>
                 <Button type="button" variant="outline" onClick={loadData} disabled={loading} className="gap-2">
@@ -139,6 +170,61 @@ export default function AdminPointsSettingsClient() {
             )}
 
             <form className="space-y-6" onSubmit={saveSettings}>
+                <section className="rounded-lg border border-border bg-card p-4">
+                    <h2 className="text-xl font-semibold">Program</h2>
+                    <div className="mt-4 grid gap-4 md:grid-cols-4">
+                        <label className="flex items-center gap-3 rounded-lg border border-border p-3">
+                            <input
+                                type="checkbox"
+                                checked={program.pointsEnabled}
+                                onChange={(event) => setProgram((draft) => ({
+                                    ...draft,
+                                    pointsEnabled: event.target.checked,
+                                }))}
+                                className="h-4 w-4"
+                            />
+                            <span className="text-sm font-medium">Enabled</span>
+                        </label>
+                        <label className="block space-y-2">
+                            <span className="text-sm text-muted-foreground">Start date</span>
+                            <Input
+                                type="datetime-local"
+                                value={program.pointsStartAt ?? ''}
+                                onChange={(event) => setProgram((draft) => ({
+                                    ...draft,
+                                    pointsStartAt: event.target.value || null,
+                                }))}
+                            />
+                        </label>
+                        <label className="block space-y-2">
+                            <span className="text-sm text-muted-foreground">Conversion points</span>
+                            <Input
+                                type="number"
+                                min="0.0001"
+                                step="0.0001"
+                                value={program.cashConversionPoints}
+                                onChange={(event) => setProgram((draft) => ({
+                                    ...draft,
+                                    cashConversionPoints: toRate(event.target.value),
+                                }))}
+                            />
+                        </label>
+                        <label className="block space-y-2">
+                            <span className="text-sm text-muted-foreground">Conversion balance USD</span>
+                            <Input
+                                type="number"
+                                min="0.0001"
+                                step="0.0001"
+                                value={program.cashConversionAmountUsd}
+                                onChange={(event) => setProgram((draft) => ({
+                                    ...draft,
+                                    cashConversionAmountUsd: toRate(event.target.value),
+                                }))}
+                            />
+                        </label>
+                    </div>
+                </section>
+
                 <section className="rounded-lg border border-border bg-card p-4">
                     <h2 className="text-xl font-semibold">Default Rules</h2>
                     <div className="mt-4 grid gap-4 md:grid-cols-3">

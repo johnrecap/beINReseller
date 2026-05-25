@@ -93,6 +93,9 @@ enum PointLedgerSourceType {
   REWARD_REDEMPTION
   ADMIN_RELEASE
   ADMIN_ADJUSTMENT
+  OPERATION_SPEND
+  POINT_CASH_REDEMPTION
+  POINT_REVERSAL
 }
 
 enum PointLedgerStatus {
@@ -188,6 +191,8 @@ model User {
   pointLedgerEntries      PointLedgerEntry[]         @relation("PointLedgerOwner")
   pointLedgerCreated      PointLedgerEntry[]         @relation("PointLedgerCreator")
   pointLedgerReleased     PointLedgerEntry[]         @relation("PointLedgerReleaser")
+  pointProgramSettingsUpdated PointProgramSettings[] @relation("PointProgramSettingsUpdater")
+  pointCashRedemptions    PointCashRedemption[]      @relation("PointCashRedemptionOwner")
   rewardsCreated          Reward[]                   @relation("RewardCreator")
   rewardRedemptions       RewardRedemption[]         @relation("RewardRedemptionOwner")
   rewardRedemptionDecisions RewardRedemption[]       @relation("RewardRedemptionDecider")
@@ -331,6 +336,21 @@ model PointRule {
   @@map("point_rules")
 }
 
+model PointProgramSettings {
+  id                      String   @id @default("default")
+  pointsEnabled           Boolean  @default(false) @map("points_enabled")
+  pointsStartAt           DateTime? @map("points_start_at")
+  cashConversionPoints    Float    @default(0) @map("cash_conversion_points")
+  cashConversionAmountUsd Float    @default(0) @map("cash_conversion_amount_usd")
+  updatedByAdminId        String?  @map("updated_by_admin_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  updatedByAdmin User? @relation("PointProgramSettingsUpdater", fields: [updatedByAdminId], references: [id])
+
+  @@map("point_program_settings")
+}
+
 model PointLedgerEntry {
   id                      String                @id @default(cuid())
   ownerUserId             String                @map("owner_user_id")
@@ -338,6 +358,7 @@ model PointLedgerEntry {
   sourceType              PointLedgerSourceType @map("source_type")
   sourceId                String                @map("source_id")
   creditRequestId         String?               @map("credit_request_id")
+  operationId             String?               @map("operation_id")
   points                  Float
   status                  PointLedgerStatus     @default(PENDING)
   ratePerThousandSnapshot Float?                @map("rate_per_thousand_snapshot")
@@ -350,15 +371,38 @@ model PointLedgerEntry {
 
   owner            User              @relation("PointLedgerOwner", fields: [ownerUserId], references: [id])
   creditRequest    CreditRequest?    @relation(fields: [creditRequestId], references: [id], onDelete: SetNull)
+  operation        Operation?        @relation("OperationPointLedgerEntries", fields: [operationId], references: [id], onDelete: SetNull)
   createdBy        User?             @relation("PointLedgerCreator", fields: [createdById], references: [id])
   releasedByAdmin  User?             @relation("PointLedgerReleaser", fields: [releasedByAdminId], references: [id])
   rewardRedemption RewardRedemption? @relation("RewardRedemptionLedger")
+  pointCashRedemption PointCashRedemption? @relation("PointCashRedemptionLedger")
 
   @@unique([ownerUserId, sourceType, sourceId])
   @@index([ownerUserId, status])
+  @@index([ownerUserId, status, sourceType])
   @@index([sourceType, sourceId])
   @@index([creditRequestId])
+  @@index([operationId])
   @@map("point_ledger_entries")
+}
+
+model PointCashRedemption {
+  id                         String   @id @default(cuid())
+  ownerUserId                String   @map("owner_user_id")
+  pointsConverted            Float    @map("points_converted")
+  balanceAmountUsd           Float    @map("balance_amount_usd")
+  conversionPointsSnapshot   Float    @map("conversion_points_snapshot")
+  conversionAmountUsdSnapshot Float   @map("conversion_amount_usd_snapshot")
+  ledgerEntryId              String   @unique @map("ledger_entry_id")
+  transactionId              String   @unique @map("transaction_id")
+  requestedAt                DateTime @default(now()) @map("requested_at")
+
+  owner       User             @relation("PointCashRedemptionOwner", fields: [ownerUserId], references: [id])
+  ledgerEntry PointLedgerEntry @relation("PointCashRedemptionLedger", fields: [ledgerEntryId], references: [id])
+  transaction Transaction      @relation("PointCashRedemptionTransaction", fields: [transactionId], references: [id])
+
+  @@index([ownerUserId, requestedAt])
+  @@map("point_cash_redemptions")
 }
 
 model Reward {
@@ -534,6 +578,7 @@ model Operation {
   customer        Customer?                 @relation(fields: [customerId], references: [id])
   beinAccount     BeinAccount?              @relation(fields: [beinAccountId], references: [id])
   transactions    Transaction[]             @relation("OperationTransactions")
+  pointLedgerEntries PointLedgerEntry[]      @relation("OperationPointLedgerEntries")
   integrityIssues OperationIntegrityIssue[]
   dispatches      OperationDispatch[]
   chargedBeinSpendLedger BeinAccountSpendLedger? @relation("OperationChargedBeinSpendLedger")
@@ -588,6 +633,7 @@ model Transaction {
   admin     User?      @relation("AdminTransactions", fields: [adminId], references: [id])
   operation Operation? @relation("OperationTransactions", fields: [operationId], references: [id])
   creditRequest CreditRequest? @relation("CreditRequestTransaction")
+  pointCashRedemption PointCashRedemption? @relation("PointCashRedemptionTransaction")
 
   @@index([userId, createdAt])
   @@index([operationId, type])

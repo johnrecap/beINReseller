@@ -7,9 +7,16 @@ import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
 const rateSchema = z.number().min(0).max(100000)
 
 const settingsSchema = z.object({
-    userGlobalPointsPerThousand: rateSchema,
-    agentDefaultPointsPerThousand: rateSchema,
-    managerDefaultPointsPerThousand: rateSchema,
+    pointsEnabled: z.boolean().optional().default(false),
+    pointsStartAt: z.string().datetime().nullable().optional().default(null),
+    userPointsPerThousand: rateSchema.optional(),
+    agentPointsPerThousand: rateSchema.optional(),
+    managerPointsPerThousand: rateSchema.optional(),
+    userGlobalPointsPerThousand: rateSchema.optional(),
+    agentDefaultPointsPerThousand: rateSchema.optional(),
+    managerDefaultPointsPerThousand: rateSchema.optional(),
+    cashConversionPoints: z.number().positive(),
+    cashConversionAmountUsd: z.number().positive(),
     agentOverrides: z.array(z.object({
         agentId: z.string().min(1),
         pointsPerThousand: rateSchema,
@@ -18,6 +25,28 @@ const settingsSchema = z.object({
         managerId: z.string().min(1),
         pointsPerThousand: rateSchema,
     })).optional().default([]),
+}).superRefine((value, ctx) => {
+    if (value.pointsEnabled && !value.pointsStartAt) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['pointsStartAt'],
+            message: 'pointsStartAt is required when points are enabled',
+        })
+    }
+
+    const userRate = value.userPointsPerThousand ?? value.userGlobalPointsPerThousand
+    const agentRate = value.agentPointsPerThousand ?? value.agentDefaultPointsPerThousand
+    const managerRate = value.managerPointsPerThousand ?? value.managerDefaultPointsPerThousand
+
+    if (userRate === undefined) {
+        ctx.addIssue({ code: 'custom', path: ['userPointsPerThousand'], message: 'User point rate is required' })
+    }
+    if (agentRate === undefined) {
+        ctx.addIssue({ code: 'custom', path: ['agentPointsPerThousand'], message: 'Agent point rate is required' })
+    }
+    if (managerRate === undefined) {
+        ctx.addIssue({ code: 'custom', path: ['managerPointsPerThousand'], message: 'Manager point rate is required' })
+    }
 })
 
 type RuleKey = `${PointRuleOwnerType}:${string}`
@@ -33,7 +62,16 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        const [rules, agents, managers] = await Promise.all([
+        const [settings, rules, agents, managers] = await Promise.all([
+            prisma.pointProgramSettings.findUnique({
+                where: { id: 'default' },
+                select: {
+                    pointsEnabled: true,
+                    pointsStartAt: true,
+                    cashConversionPoints: true,
+                    cashConversionAmountUsd: true,
+                },
+            }),
             prisma.pointRule.findMany({
                 where: { isActive: true },
                 orderBy: { updatedAt: 'desc' },
@@ -71,10 +109,19 @@ export async function GET(request: NextRequest) {
         }
 
         return NextResponse.json({
+            settings: {
+                pointsEnabled: settings?.pointsEnabled ?? false,
+                pointsStartAt: settings?.pointsStartAt?.toISOString() ?? null,
+                cashConversionPoints: settings?.cashConversionPoints ?? 0,
+                cashConversionAmountUsd: settings?.cashConversionAmountUsd ?? 0,
+            },
             defaults: {
                 userGlobalPointsPerThousand: ruleMap.get(makeRuleKey('USER_GLOBAL', null))?.pointsPerThousand ?? 0,
                 agentDefaultPointsPerThousand: ruleMap.get(makeRuleKey('AGENT_DEFAULT', null))?.pointsPerThousand ?? 0,
                 managerDefaultPointsPerThousand: ruleMap.get(makeRuleKey('MANAGER_DEFAULT', null))?.pointsPerThousand ?? 0,
+                userPointsPerThousand: ruleMap.get(makeRuleKey('USER_GLOBAL', null))?.pointsPerThousand ?? 0,
+                agentPointsPerThousand: ruleMap.get(makeRuleKey('AGENT_DEFAULT', null))?.pointsPerThousand ?? 0,
+                managerPointsPerThousand: ruleMap.get(makeRuleKey('MANAGER_DEFAULT', null))?.pointsPerThousand ?? 0,
             },
             agents: agents.map((agent) => ({
                 id: agent.id,
@@ -112,6 +159,10 @@ export async function PUT(request: NextRequest) {
             )
         }
 
+        const userRate = parsed.data.userPointsPerThousand ?? parsed.data.userGlobalPointsPerThousand ?? 0
+        const agentRate = parsed.data.agentPointsPerThousand ?? parsed.data.agentDefaultPointsPerThousand ?? 0
+        const managerRate = parsed.data.managerPointsPerThousand ?? parsed.data.managerDefaultPointsPerThousand ?? 0
+        const pointsStartAt = parsed.data.pointsStartAt ? new Date(parsed.data.pointsStartAt) : null
         const agentIds = parsed.data.agentOverrides.map((item) => item.agentId)
         const managerIds = parsed.data.managerOverrides.map((item) => item.managerId)
         const [validAgents, validManagers] = await Promise.all([
@@ -142,6 +193,25 @@ export async function PUT(request: NextRequest) {
         }
 
         await prisma.$transaction(async (tx) => {
+            await tx.pointProgramSettings.upsert({
+                where: { id: 'default' },
+                create: {
+                    id: 'default',
+                    pointsEnabled: parsed.data.pointsEnabled,
+                    pointsStartAt,
+                    cashConversionPoints: parsed.data.cashConversionPoints,
+                    cashConversionAmountUsd: parsed.data.cashConversionAmountUsd,
+                    updatedByAdminId: authResult.user.id,
+                },
+                update: {
+                    pointsEnabled: parsed.data.pointsEnabled,
+                    pointsStartAt,
+                    cashConversionPoints: parsed.data.cashConversionPoints,
+                    cashConversionAmountUsd: parsed.data.cashConversionAmountUsd,
+                    updatedByAdminId: authResult.user.id,
+                },
+            })
+
             await tx.pointRule.updateMany({
                 where: {
                     isActive: true,
@@ -161,21 +231,21 @@ export async function PUT(request: NextRequest) {
                     {
                         ownerType: 'USER_GLOBAL',
                         ownerUserId: null,
-                        pointsPerThousand: parsed.data.userGlobalPointsPerThousand,
+                        pointsPerThousand: userRate,
                         updatedByAdminId: authResult.user.id,
                         isActive: true,
                     },
                     {
                         ownerType: 'AGENT_DEFAULT',
                         ownerUserId: null,
-                        pointsPerThousand: parsed.data.agentDefaultPointsPerThousand,
+                        pointsPerThousand: agentRate,
                         updatedByAdminId: authResult.user.id,
                         isActive: true,
                     },
                     {
                         ownerType: 'MANAGER_DEFAULT',
                         ownerUserId: null,
-                        pointsPerThousand: parsed.data.managerDefaultPointsPerThousand,
+                        pointsPerThousand: managerRate,
                         updatedByAdminId: authResult.user.id,
                         isActive: true,
                     },
@@ -202,9 +272,13 @@ export async function PUT(request: NextRequest) {
                     action: 'ADMIN_POINT_RULES_UPDATED',
                     targetType: 'PointRule',
                     details: {
-                        userGlobal: parsed.data.userGlobalPointsPerThousand,
-                        agentDefault: parsed.data.agentDefaultPointsPerThousand,
-                        managerDefault: parsed.data.managerDefaultPointsPerThousand,
+                        pointsEnabled: parsed.data.pointsEnabled,
+                        pointsStartAt: pointsStartAt?.toISOString() ?? null,
+                        userGlobal: userRate,
+                        agentDefault: agentRate,
+                        managerDefault: managerRate,
+                        cashConversionPoints: parsed.data.cashConversionPoints,
+                        cashConversionAmountUsd: parsed.data.cashConversionAmountUsd,
                         agentOverrides: parsed.data.agentOverrides.length,
                         managerOverrides: parsed.data.managerOverrides.length,
                     },

@@ -58,7 +58,7 @@ async function getActiveRuleRate(
     db: PointRuleReader,
     ownerType: PointRuleOwnerType,
     ownerUserId?: string | null
-): Promise<number> {
+): Promise<number | null> {
     const rule = await db.pointRule.findFirst({
         where: {
             ownerType,
@@ -69,11 +69,11 @@ async function getActiveRuleRate(
         select: { pointsPerThousand: true },
     })
 
-    return rule?.pointsPerThousand ?? 0
+    return rule?.pointsPerThousand ?? null
 }
 
 export async function getUserCreditRequestRate(db: PointRuleReader): Promise<number> {
-    return getActiveRuleRate(db, 'USER_GLOBAL')
+    return (await getActiveRuleRate(db, 'USER_GLOBAL')) ?? 0
 }
 
 export async function getAgentCreditRequestRate(
@@ -82,10 +82,10 @@ export async function getAgentCreditRequestRate(
 ): Promise<number> {
     if (agentId) {
         const overrideRate = await getActiveRuleRate(db, 'AGENT_OVERRIDE', agentId)
-        if (overrideRate > 0) return overrideRate
+        if (overrideRate !== null) return overrideRate
     }
 
-    return getActiveRuleRate(db, 'AGENT_DEFAULT')
+    return (await getActiveRuleRate(db, 'AGENT_DEFAULT')) ?? 0
 }
 
 export async function getManagerTopupRate(
@@ -94,8 +94,8 @@ export async function getManagerTopupRate(
 ): Promise<number> {
     if (managerId) {
         const overrideRate = await getActiveRuleRate(db, 'MANAGER_OVERRIDE', managerId)
-        if (overrideRate > 0) return overrideRate
+        if (overrideRate !== null) return overrideRate
     }
 
-    return getActiveRuleRate(db, 'MANAGER_DEFAULT')
+    return (await getActiveRuleRate(db, 'MANAGER_DEFAULT')) ?? 0
 }

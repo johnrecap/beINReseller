@@ -86,7 +86,7 @@ The following bridge skills wrap external CLI tools for auto-discovery:
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/013-operation-bein-account-card-search/plan.md`,
-`specs/013-operation-bein-account-card-search/spec.md`, and
-`specs/013-operation-bein-account-card-search/tasks.md` before editing.
+`specs/014-points-rewards-spend-ledger/plan.md`,
+`specs/014-points-rewards-spend-ledger/spec.md`, and
+`specs/014-points-rewards-spend-ledger/tasks.md` before editing.
 <!-- SPECKIT END -->

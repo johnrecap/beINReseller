@@ -21,6 +21,7 @@ import { trackOperationComplete } from './lib/activity-tracker';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
 import { decryptAccountPassword } from './lib/crypto';
 import { recordConfirmedBeinSpend } from './lib/bein-spend-ledger';
+import { processCompletedOperationPoints } from './lib/points';
 import {
     getSessionFromCache,
     saveSessionToCache,
@@ -83,6 +84,14 @@ const TERMINAL_STATUSES = new Set<string>(TERMINAL_STATUS_LIST);
 
 function isTerminalStatus(status: string | null | undefined): boolean {
     return !!status && TERMINAL_STATUSES.has(status);
+}
+
+async function awardCompletedOperationPointsSafely(operationId: string): Promise<void> {
+    try {
+        await processCompletedOperationPoints(prisma, operationId);
+    } catch (error) {
+        console.error(`[HTTP] Point award failed for completed operation ${operationId}:`, error);
+    }
 }
 
 function getOperationPhase(responseData: unknown): string | null {
@@ -1812,6 +1821,7 @@ async function attemptPurchaseWithAccount(
                 await accountPool.markAccountUsed(accountId);
                 return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
             }
+            await awardCompletedOperationPointsSafely(operationId);
             await accountPool.markAccountUsed(accountId);
             return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
         }
@@ -2012,6 +2022,7 @@ async function handleConfirmPurchaseHttp(
                 console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId} due to terminal transition race`);
                 return;
             }
+            await awardCompletedOperationPointsSafely(operationId);
 
             const ledgerResult = operation.userId
                 ? await recordConfirmedBeinSpend({
@@ -3329,6 +3340,7 @@ async function handleConfirmInstallmentHttp(
             console.warn(`[HTTP] CONFIRM_INSTALLMENT completion skipped for ${operationId} due to terminal transition race`);
             return;
         }
+        await awardCompletedOperationPointsSafely(operationId);
 
         const ledgerResult = operation.userId
             ? await recordConfirmedBeinSpend({

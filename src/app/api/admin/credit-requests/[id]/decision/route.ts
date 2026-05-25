@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
-import {
-    calculatePoints,
-    getAgentCreditRequestRate,
-    getUserCreditRequestRate,
-    hasPositivePoints,
-} from '@/lib/credit-requests/points'
 import { createWhatsAppHandoffSnapshot } from '@/lib/credit-requests/whatsapp-handoff'
 
 const decisionSchema = z.object({
@@ -160,72 +154,6 @@ export async function POST(
                         note: buildDecisionNote(parsed.data.decision, creditRequest.requestNumber, note),
                     },
                 })
-
-                const userRate = await getUserCreditRequestRate(tx)
-                const userPoints = calculatePoints({
-                    ownerKind: 'USER',
-                    amountUsd: creditRequest.amountUsd,
-                    pointsPerThousand: userRate,
-                })
-
-                if (hasPositivePoints(userPoints)) {
-                    await tx.pointLedgerEntry.create({
-                        data: {
-                            ownerUserId: creditRequest.userId,
-                            ownerRoleAtTime: 'USER',
-                            sourceType: 'CREDIT_REQUEST',
-                            sourceId: creditRequest.id,
-                            creditRequestId: creditRequest.id,
-                            points: userPoints.points,
-                            status: 'PENDING',
-                            ratePerThousandSnapshot: userPoints.ratePerThousandSnapshot,
-                            amountUsdSnapshot: userPoints.amountUsdSnapshot,
-                            createdById: authResult.user.id,
-                            notes: `Pending user points for ${creditRequest.requestNumber}`,
-                        },
-                    })
-                    pointsCreated.push({
-                        ownerRole: 'USER',
-                        ownerUserId: creditRequest.userId,
-                        points: userPoints.points,
-                        status: 'PENDING',
-                        ratePerThousandSnapshot: userPoints.ratePerThousandSnapshot,
-                    })
-                }
-
-                if (creditRequest.agentIdSnapshot) {
-                    const agentRate = await getAgentCreditRequestRate(tx, creditRequest.agentIdSnapshot)
-                    const agentPoints = calculatePoints({
-                        ownerKind: 'AGENT',
-                        amountUsd: creditRequest.amountUsd,
-                        pointsPerThousand: agentRate,
-                    })
-
-                    if (hasPositivePoints(agentPoints)) {
-                        await tx.pointLedgerEntry.create({
-                            data: {
-                                ownerUserId: creditRequest.agentIdSnapshot,
-                                ownerRoleAtTime: 'AGENT',
-                                sourceType: 'CREDIT_REQUEST',
-                                sourceId: creditRequest.id,
-                                creditRequestId: creditRequest.id,
-                                points: agentPoints.points,
-                                status: 'PENDING',
-                                ratePerThousandSnapshot: agentPoints.ratePerThousandSnapshot,
-                                amountUsdSnapshot: agentPoints.amountUsdSnapshot,
-                                createdById: authResult.user.id,
-                                notes: `Pending agent points for ${creditRequest.requestNumber}`,
-                            },
-                        })
-                        pointsCreated.push({
-                            ownerRole: 'AGENT',
-                            ownerUserId: creditRequest.agentIdSnapshot,
-                            points: agentPoints.points,
-                            status: 'PENDING',
-                            ratePerThousandSnapshot: agentPoints.ratePerThousandSnapshot,
-                        })
-                    }
-                }
 
                 const whatsappHandoff = await createWhatsAppHandoffSnapshot(tx, {
                     creditRequestId: creditRequest.id,

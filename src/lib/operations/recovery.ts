@@ -15,6 +15,7 @@ import {
     type AccountLockReleaseEvidence,
 } from '@/lib/operations/account-lock-release'
 import { mergeRecoveryEvidence } from '@/lib/operations/recovery-evidence'
+import { processCompletedOperationPoints } from '@/lib/points/operation-awards'
 
 export interface RecoverOperationResult {
     operationId: string
@@ -276,6 +277,12 @@ export async function recoverOperationIfNeeded(
                 result.newStatus = 'REVIEW_REQUIRED'
                 result.reviewRequired = true
             }
+        }
+
+        if (result.newStatus === 'COMPLETED') {
+            await processCompletedOperationPoints(operationId).catch((error) => {
+                console.error('Recovery point award error:', error)
+            })
         }
 
         if (shouldReleaseAccountLock) {

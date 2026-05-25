@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -81,6 +82,20 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        async function getPointSummaries(userIds: string[]) {
+            if (userIds.length === 0) return new Map()
+            const entries = await prisma.pointLedgerEntry.findMany({
+                where: { ownerUserId: { in: userIds } },
+                select: {
+                    ownerUserId: true,
+                    sourceType: true,
+                    status: true,
+                    points: true,
+                },
+            })
+            return groupPointSummariesByOwner(entries)
+        }
+
         // Different select based on roleFilter
         if (roleFilter === 'distributors') {
             const [users, total] = await Promise.all([
@@ -111,11 +126,14 @@ export async function GET(request: NextRequest) {
                 prisma.user.count({ where }),
             ])
 
+            const pointSummaries = await getPointSummaries(users.map((u) => u.id))
+
             return NextResponse.json({
                 users: users.map(u => ({
                     ...u,
                     // Count of users managed via ManagerUser
-                    managedUsersCount: u._count.managedUsers
+                    managedUsersCount: u._count.managedUsers,
+                    points: pointSummaries.get(u.id) ?? emptyPointSummary(),
                 })),
                 total,
                 page,
@@ -185,6 +203,8 @@ export async function GET(request: NextRequest) {
                 prisma.user.count({ where }),
             ])
 
+            const pointSummaries = await getPointSummaries(users.map((u) => u.id))
+
             return NextResponse.json({
                 users: users.map(u => {
                     // Prefer createdBy, fallback to managerLink for legacy data
@@ -206,7 +226,8 @@ export async function GET(request: NextRequest) {
                         creatorEmail: creator?.email || null,
                         creatorRole: creator?.role || null,
                         // Proxy status (based on user_proxy_limit setting)
-                        hasProxyLinked: proxyLinkedUserIds.includes(u.id)
+                        hasProxyLinked: proxyLinkedUserIds.includes(u.id),
+                        points: pointSummaries.get(u.id) ?? emptyPointSummary(),
                     }
                 }),
                 total,
@@ -238,11 +259,14 @@ export async function GET(request: NextRequest) {
             prisma.user.count({ where }),
         ])
 
+        const pointSummaries = await getPointSummaries(users.map((u) => u.id))
+
         return NextResponse.json({
             users: users.map(u => ({
                 ...u,
                 transactionCount: u._count.transactions,
-                operationCount: u._count.operations
+                operationCount: u._count.operations,
+                points: pointSummaries.get(u.id) ?? emptyPointSummary(),
             })),
             total,
             page,

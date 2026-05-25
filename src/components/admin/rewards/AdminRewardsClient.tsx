@@ -216,9 +216,9 @@ export default function AdminRewardsClient() {
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                     <p className="text-sm text-muted-foreground">Admin configuration</p>
-                    <h1 className="text-3xl font-bold text-foreground">Rewards</h1>
+                    <h1 className="text-3xl font-bold text-foreground">Legacy Rewards</h1>
                     <p className="mt-2 text-sm text-muted-foreground">
-                        Release pending points, manage redeemable rewards, and approve point deductions.
+                        Manage the legacy catalog flow. Point-to-balance conversion is now immediate from the user wallet.
                     </p>
                 </div>
                 <Button type="button" variant="outline" onClick={loadData} disabled={loading} className="gap-2">
@@ -346,7 +346,7 @@ export default function AdminRewardsClient() {
             </div>
 
             <section className="rounded-lg border border-border bg-card p-4">
-                <h2 className="text-xl font-semibold">Rewards Catalog</h2>
+                <h2 className="text-xl font-semibold">Legacy Rewards Catalog</h2>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                     {data?.rewards.length === 0 && (
                         <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
@@ -376,7 +376,7 @@ export default function AdminRewardsClient() {
             </section>
 
             <section className="rounded-lg border border-border bg-card p-4">
-                <h2 className="text-xl font-semibold">Redemption Review</h2>
+                <h2 className="text-xl font-semibold">Legacy Redemption Review</h2>
                 <div className="mt-3">
                     <Input
                         placeholder="Decision note"

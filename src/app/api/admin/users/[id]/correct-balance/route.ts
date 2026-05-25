@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
+import { createOperationPointReversalsInTransaction } from '@/lib/points/reversals'
 
 /**
  * POST /api/admin/users/[id]/correct-balance
@@ -230,6 +231,11 @@ export async function POST(
                 await tx.operation.update({
                     where: { id: operationToCorrect },
                     data: { corrected: true, correctedAt: new Date() }
+                })
+                await createOperationPointReversalsInTransaction({
+                    db: tx,
+                    operationId: operationToCorrect,
+                    reason: 'correction',
                 })
             }
 

@@ -21,7 +21,7 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
                 <img
                     src="/images/brand/logo_big1.png"
                     alt={title}
-                    className="h-8 w-24 object-contain object-right min-[390px]:w-32 sm:h-10 sm:w-52 lg:h-11 lg:w-64"
+                    className="h-9 w-32 rounded-md object-cover object-center min-[390px]:w-40 sm:h-11 sm:w-60 lg:h-12 lg:w-80"
                 />
             </div>
 

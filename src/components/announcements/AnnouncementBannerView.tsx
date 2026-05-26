@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useMemo, type ComponentType } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
     TEXT_SIZE_CLASSES,
@@ -76,7 +76,6 @@ export interface AnnouncementBannerViewProps {
     /** When true, renders in a compact preview frame (no position/animation entrance) */
     previewMode?: boolean
     className?: string
-    onDismiss?: () => void
 }
 
 /* ── Animation Sub-components ───────────────────────── */
@@ -442,7 +441,6 @@ export default function AnnouncementBannerView({
     banner,
     previewMode = false,
     className,
-    onDismiss,
 }: AnnouncementBannerViewProps) {
     const TextComponent = TEXT_COMPONENTS[banner.animationType] || StaticText
     const reducedMotion = useReducedMotionPreference()
@@ -466,21 +464,10 @@ export default function AnnouncementBannerView({
     const ticker = banner.ticker?.enabled ? banner.ticker : null
     const showTickerTop = ticker?.position === 'top'
     const showTickerBottom = ticker?.position === 'bottom' || ticker?.position === 'below'
-    const showDismissButton = Boolean(banner.isDismissable && onDismiss)
     const messageBlock = hasMessage ? (
         <div className="w-full text-center">
             <TextComponent text={banner.message} colors={colors} />
         </div>
-    ) : null
-    const dismissButton = showDismissButton ? (
-        <button
-            type="button"
-            aria-label="Dismiss announcement"
-            onClick={onDismiss}
-            className="absolute end-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white shadow-lg backdrop-blur transition hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white/70"
-        >
-            <X className="h-4 w-4" aria-hidden="true" />
-        </button>
     ) : null
 
     /* ── Preview mode: simplified frame ──────────────── */
@@ -496,7 +483,6 @@ export default function AnnouncementBannerView({
                     className
                 )}
             >
-                {dismissButton}
                 {ticker && showTickerTop && <TickerStrip ticker={ticker} reducedMotion={reducedMotion} />}
                 <div className={cn(
                     shouldRenderLegacyImage || shouldRenderSlider ? "w-full" : "flex items-center justify-center"
@@ -561,7 +547,6 @@ export default function AnnouncementBannerView({
                 className
             )}
         >
-            {dismissButton}
             {ticker && showTickerTop && <TickerStrip ticker={ticker} reducedMotion={reducedMotion} />}
             <div className={cn(
                 shouldRenderLegacyImage || shouldRenderSlider ? "w-full" : "container mx-auto flex items-center justify-center"

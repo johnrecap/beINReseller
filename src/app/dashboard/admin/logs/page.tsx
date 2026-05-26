@@ -1,8 +1,5 @@
-import { Suspense } from 'react'
-import { redirect } from 'next/navigation'
-import { auth } from '@/lib/auth'
-import LogsTable from '@/components/admin/LogsTable'
-import { ShieldAlert } from 'lucide-react'
+import { requireAdmin } from '@/lib/auth-utils'
+import LogsReportPanel from '@/components/admin/report-center/LogsReportPanel'
 
 export const metadata = {
     title: 'Activity Logs | Desh Panel',
@@ -10,28 +7,7 @@ export const metadata = {
 }
 
 export default async function AdminLogsPage() {
-    const session = await auth()
+    await requireAdmin()
 
-    if (!session?.user || session.user.role !== 'ADMIN') {
-        redirect('/dashboard')
-    }
-
-    return (
-        <div className="space-y-6" dir="rtl">
-            {/* Page Header */}
-            <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-lg">
-                    <ShieldAlert className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Activity Logs</h1>
-                    <p className="text-muted-foreground text-sm">Track all operations and actions in the system</p>
-                </div>
-            </div>
-
-            <Suspense fallback={<div>Loading...</div>}>
-                <LogsTable />
-            </Suspense>
-        </div>
-    )
+    return <LogsReportPanel />
 }

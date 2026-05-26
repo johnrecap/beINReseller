@@ -1,6 +1,5 @@
-import { ReportPlaceholderPanel } from './ReportPlaceholderPanel'
-import { getReportCenterTab } from './report-tabs'
+import BeinSpendReportClient from '@/components/admin/reports/BeinSpendReportClient'
 
 export default function BeinSpendReportPanel() {
-    return <ReportPlaceholderPanel tab={getReportCenterTab('bein-spend')} />
+    return <BeinSpendReportClient />
 }

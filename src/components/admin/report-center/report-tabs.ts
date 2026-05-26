@@ -2,30 +2,44 @@ export const REPORT_CENTER_HREF = '/dashboard/admin/reports'
 
 export const DEFAULT_REPORT_TAB_KEY = 'analytics'
 
+export type ReportCenterVisibilitySetting = 'sidebar_show_login_failures' | 'sidebar_show_low_balance'
+
+type ReportCenterTabDefinition = {
+    key: string
+    label: string
+    description: string
+    legacyHref: string
+    visibilitySetting?: ReportCenterVisibilitySetting
+}
+
 export const REPORT_CENTER_TABS = [
     {
         key: 'analytics',
         label: 'Analytics',
         description: 'Operations analytics and dashboard trends',
         legacyHref: '/dashboard/admin/analytics',
+        visibilitySetting: undefined,
     },
     {
         key: 'activity',
         label: 'Activity Monitoring',
         description: 'User activity and inactivity monitoring',
         legacyHref: '/dashboard/admin/users/activity',
+        visibilitySetting: undefined,
     },
     {
         key: 'integrity',
         label: 'Integrity Reports',
         description: 'Operation integrity review and recovery checks',
         legacyHref: '/dashboard/admin/reports/integrity',
+        visibilitySetting: undefined,
     },
     {
         key: 'bein-spend',
         label: 'beIN Spend Report',
         description: 'beIN spend ledger and operation charge reports',
         legacyHref: '/dashboard/admin/reports/bein-spend',
+        visibilitySetting: undefined,
     },
     {
         key: 'login-monitor',
@@ -46,26 +60,41 @@ export const REPORT_CENTER_TABS = [
         label: 'Activity Logs',
         description: 'Admin and system activity logs',
         legacyHref: '/dashboard/admin/logs',
+        visibilitySetting: undefined,
     },
-] as const
+] as const satisfies readonly ReportCenterTabDefinition[]
 
 export type ReportCenterTab = (typeof REPORT_CENTER_TABS)[number]
-export type ReportCenterTabKey = ReportCenterTab['key']
+export type ReportCenterTabKey = (typeof REPORT_CENTER_TABS)[number]['key']
 
 const REPORT_TAB_KEYS = new Set<string>(
     REPORT_CENTER_TABS.map((tab) => tab.key)
 )
 
-export function resolveReportTabKey(value: unknown): ReportCenterTabKey {
+export type ReportCenterVisibilitySettings = Partial<Record<ReportCenterVisibilitySetting, boolean>>
+
+export function getVisibleReportCenterTabs(settings: ReportCenterVisibilitySettings = {}): ReportCenterTab[] {
+    return REPORT_CENTER_TABS.filter((tab) => {
+        if (!tab.visibilitySetting) return true
+        return settings[tab.visibilitySetting] !== false
+    })
+}
+
+export function resolveReportTabKey(
+    value: unknown,
+    visibleTabs: readonly ReportCenterTab[] = REPORT_CENTER_TABS
+): ReportCenterTabKey {
     if (typeof value !== 'string') {
         return DEFAULT_REPORT_TAB_KEY
     }
 
-    if (REPORT_TAB_KEYS.has(value)) {
+    const visibleKeys = new Set(visibleTabs.map((tab) => tab.key))
+
+    if (REPORT_TAB_KEYS.has(value) && visibleKeys.has(value as ReportCenterTabKey)) {
         return value as ReportCenterTabKey
     }
 
-    return DEFAULT_REPORT_TAB_KEY
+    return visibleTabs[0]?.key ?? DEFAULT_REPORT_TAB_KEY
 }
 
 export function buildReportCenterHref(value: unknown): string {

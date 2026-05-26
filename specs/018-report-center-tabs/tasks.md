@@ -79,7 +79,7 @@
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] Add URL state tests in `tests/unit/report-center-tabs.test.ts`
+- [X] T008 [P] [US1] Add URL state tests in `tests/unit/report-center-tabs.test.ts`
   - Reason: The MVP must support shareable tab URLs.
   - Expected: Tests cover default tab, known tab, hidden or unknown tab fallback.
   - Possible bugs: A hidden monitor tab can still be selected by direct URL.
@@ -88,21 +88,21 @@
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Wire visible tab filtering in `src/components/admin/report-center/AdminReportCenterClient.tsx`
+- [X] T009 [US1] Wire visible tab filtering in `src/components/admin/report-center/AdminReportCenterClient.tsx`
   - Reason: Existing login and balance monitor settings must still control visibility.
   - Expected: Hidden monitor tabs do not appear and cannot be activated through query string.
   - Possible bugs: Settings fetch failure can hide tabs unexpectedly or show disabled monitors.
   - Fix/Mitigation: Use the same default settings behavior currently used by `Sidebar.tsx`.
   - Verification: Toggle sidebar settings and verify monitor tabs match them.
 
-- [ ] T010 [US1] Add report center title and summary in `src/components/admin/report-center/AdminReportCenterClient.tsx`
+- [X] T010 [US1] Add report center title and summary in `src/components/admin/report-center/AdminReportCenterClient.tsx`
   - Reason: Admins need clear context after entering the new grouped page.
   - Expected: Header explains this is the central reports and monitoring area without instructional clutter.
   - Possible bugs: Header can look like a marketing hero and waste dashboard space.
   - Fix/Mitigation: Keep compact dashboard typography and no large decorative hero.
   - Verification: Desktop screenshot shows content above the fold with tabs visible.
 
-- [ ] T011 [US1] Update sidebar active-path logic in `src/components/layout/Sidebar.tsx`
+- [X] T011 [US1] Update sidebar active-path logic in `src/components/layout/Sidebar.tsx`
   - Reason: The reports center should highlight when the new route or old report routes are active.
   - Expected: `/dashboard/admin/reports` and legacy report URLs highlight the same grouped entry.
   - Possible bugs: Active matching can accidentally highlight reports for unrelated admin pages.
@@ -121,7 +121,7 @@
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] Add import smoke tests for report panels in `tests/unit/report-center-tabs.test.ts`
+- [X] T012 [P] [US2] Add import smoke tests for report panels in `tests/unit/report-center-tabs.test.ts`
   - Reason: Moving page content into panels must not leave missing exports or broken imports.
   - Expected: Tests can import the registry and each panel module without executing report data requests.
   - Possible bugs: Importing client panels in a Node test can fail if browser-only globals run at module load.
@@ -130,91 +130,91 @@
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] Extract analytics content into `src/components/admin/report-center/AnalyticsReportPanel.tsx`
+- [X] T013 [US2] Extract analytics content into `src/components/admin/report-center/AnalyticsReportPanel.tsx`
   - Reason: Analytics must be reusable from the new tab and the old analytics route.
   - Expected: `/dashboard/admin/analytics` and the analytics tab render the same analytics controls.
   - Possible bugs: Route-level auth or document title logic can run twice when nested.
   - Fix/Mitigation: Keep access checks in route wrappers and move only report UI/data logic into the panel.
   - Verification: Change the analytics period in both old route and tab.
 
-- [ ] T014 [US2] Update `src/app/dashboard/admin/analytics/page.tsx` to render `AnalyticsReportPanel`
+- [X] T014 [US2] Update `src/app/dashboard/admin/analytics/page.tsx` to render `AnalyticsReportPanel`
   - Reason: The old route must remain available while sharing one implementation.
   - Expected: Old analytics URL still works with the extracted panel.
   - Possible bugs: The old page can lose metadata, redirects, or layout spacing.
   - Fix/Mitigation: Keep the wrapper structure and only replace the inner report body.
   - Verification: Open `/dashboard/admin/analytics` and run period filter.
 
-- [ ] T015 [US2] Extract activity monitoring content into `src/components/admin/report-center/ActivityReportPanel.tsx`
+- [X] T015 [US2] Extract activity monitoring content into `src/components/admin/report-center/ActivityReportPanel.tsx`
   - Reason: Activity monitoring currently lives under users but belongs in monitoring tabs.
   - Expected: Activity overview and inactive-user controls render inside the report center.
   - Possible bugs: The activity page has its own internal tabs that can conflict visually with report center tabs.
   - Fix/Mitigation: Keep internal activity tabs inside the panel body and visually separate them from top-level tabs.
   - Verification: Open activity tab and switch its internal overview/inactive controls.
 
-- [ ] T016 [US2] Update `src/app/dashboard/admin/users/activity/page.tsx` to render `ActivityReportPanel`
+- [X] T016 [US2] Update `src/app/dashboard/admin/users/activity/page.tsx` to render `ActivityReportPanel`
   - Reason: Old support links to activity monitoring must remain valid.
   - Expected: Old route still shows the same activity monitoring experience.
   - Possible bugs: `useRouter` actions can navigate relative to the wrong base route.
   - Fix/Mitigation: Use absolute dashboard routes for navigation actions.
   - Verification: Open `/dashboard/admin/users/activity` and use filters.
 
-- [ ] T017 [US2] Extract integrity report content into `src/components/admin/report-center/IntegrityReportPanel.tsx`
+- [X] T017 [US2] Extract integrity report content into `src/components/admin/report-center/IntegrityReportPanel.tsx`
   - Reason: Integrity reports are one of the main monitoring pages to group.
   - Expected: Scan, filter, resolve, backfill, and pagination behavior remain available inside the tab.
   - Possible bugs: Destructive review actions can be triggered from an incorrectly scoped state.
   - Fix/Mitigation: Preserve existing confirmation and API calls exactly; do not change action semantics.
   - Verification: Open the tab, run a non-destructive filter, and verify scan button state.
 
-- [ ] T018 [US2] Update `src/app/dashboard/admin/reports/integrity/page.tsx` to render `IntegrityReportPanel`
+- [X] T018 [US2] Update `src/app/dashboard/admin/reports/integrity/page.tsx` to render `IntegrityReportPanel`
   - Reason: Legacy integrity route must remain functional.
   - Expected: Existing URL continues to render the same integrity interface.
   - Possible bugs: Server/client boundary can change if the old page was a server wrapper.
   - Fix/Mitigation: Keep a thin route wrapper and place client behavior only in the panel.
   - Verification: Open `/dashboard/admin/reports/integrity` and paginate.
 
-- [ ] T019 [US2] Create `src/components/admin/report-center/BeinSpendReportPanel.tsx`
+- [X] T019 [US2] Create `src/components/admin/report-center/BeinSpendReportPanel.tsx`
   - Reason: beIN spend already has a reusable `BeinSpendReportClient`, but the report center needs a tab panel wrapper.
   - Expected: Tab renders the existing beIN spend report client without duplicating logic.
   - Possible bugs: The component can fetch twice if mounted both in placeholder and active body.
   - Fix/Mitigation: Render it only when `bein-spend` is active.
   - Verification: Open `/dashboard/admin/reports?tab=bein-spend` and confirm filters work.
 
-- [ ] T020 [US2] Extract login monitor content into `src/components/admin/report-center/LoginMonitorPanel.tsx`
+- [X] T020 [US2] Extract login monitor content into `src/components/admin/report-center/LoginMonitorPanel.tsx`
   - Reason: Login monitor should be accessible from the report center while respecting current settings.
   - Expected: Accounts with login failures and reset actions appear in the tab.
   - Possible bugs: Reset action could run while tab unmounts, losing feedback.
   - Fix/Mitigation: Preserve current loading and toast handling inside the panel.
   - Verification: Open login monitor tab and refresh the list.
 
-- [ ] T021 [US2] Update `src/app/dashboard/admin/bein-accounts/login-failures/page.tsx` to render `LoginMonitorPanel`
+- [X] T021 [US2] Update `src/app/dashboard/admin/bein-accounts/login-failures/page.tsx` to render `LoginMonitorPanel`
   - Reason: The old login monitor route must remain valid.
   - Expected: Old route still shows the same monitor and actions.
   - Possible bugs: Hidden sidebar setting can hide the tab but should not necessarily break direct admin route access.
   - Fix/Mitigation: Keep old route behavior unchanged; visibility setting only controls navigation/tab visibility.
   - Verification: Open `/dashboard/admin/bein-accounts/login-failures` directly.
 
-- [ ] T022 [US2] Extract balance monitor content into `src/components/admin/report-center/BalanceMonitorPanel.tsx`
+- [X] T022 [US2] Extract balance monitor content into `src/components/admin/report-center/BalanceMonitorPanel.tsx`
   - Reason: Low balance monitoring should be grouped with reporting and monitoring.
   - Expected: Low balance accounts, threshold, refresh, and reactivate actions work in the tab.
   - Possible bugs: Balance formatting can differ from old route.
   - Fix/Mitigation: Move existing formatting helper with the panel unchanged.
   - Verification: Open balance monitor tab and refresh accounts.
 
-- [ ] T023 [US2] Update `src/app/dashboard/admin/bein-accounts/low-balance/page.tsx` to render `BalanceMonitorPanel`
+- [X] T023 [US2] Update `src/app/dashboard/admin/bein-accounts/low-balance/page.tsx` to render `BalanceMonitorPanel`
   - Reason: Existing low balance route must remain a fallback.
   - Expected: Old route still loads after extraction.
   - Possible bugs: Active account actions can be lost if props are not carried over.
   - Fix/Mitigation: Move all current state and handlers into the panel before changing the page wrapper.
   - Verification: Open `/dashboard/admin/bein-accounts/low-balance` directly.
 
-- [ ] T024 [US2] Extract logs content into `src/components/admin/report-center/LogsReportPanel.tsx`
+- [X] T024 [US2] Extract logs content into `src/components/admin/report-center/LogsReportPanel.tsx`
   - Reason: Activity logs are part of support monitoring and should live in the reports center.
   - Expected: Logs search, filters, table, and pagination work inside the tab.
   - Possible bugs: The logs table can render too wide inside a tab layout.
   - Fix/Mitigation: Preserve existing table container width and overflow behavior.
   - Verification: Open logs tab, search, filter, and paginate.
 
-- [ ] T025 [US2] Update `src/app/dashboard/admin/logs/page.tsx` to render `LogsReportPanel`
+- [X] T025 [US2] Update `src/app/dashboard/admin/logs/page.tsx` to render `LogsReportPanel`
   - Reason: Old logs route must remain available.
   - Expected: `/dashboard/admin/logs` continues to show activity logs.
   - Possible bugs: Metadata or title changes can regress old route display.

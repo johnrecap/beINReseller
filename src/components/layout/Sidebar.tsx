@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from '@/hooks/useTranslation'
 import { Button } from '@/components/ui/button'
 import { canAccessSubscription } from '@/lib/permissions'
+import { REPORT_CENTER_HREF, REPORT_CENTER_TABS } from '@/components/admin/report-center/report-tabs'
 
 interface SidebarProps {
     isOpen: boolean
@@ -127,6 +128,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             { href: '/dashboard/admin/rewards', label: 'Rewards', icon: WalletCards },
         ] : []),
         { href: '/dashboard/admin/eid-rewards', label: 'Eid Rewards', icon: Gift },
+        { href: REPORT_CENTER_HREF, label: 'Reports Center', icon: BarChart3 },
         { href: '/dashboard/admin/users/activity', label: t.sidebar.activityMonitoring || 'Activity Monitoring', icon: Activity },
         { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
@@ -201,6 +203,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {
             title: sectionLabel('التقارير والمراقبة', 'Reports & Monitoring'),
             links: pickAdminLinks([
+                REPORT_CENTER_HREF,
                 '/dashboard/admin/analytics',
                 '/dashboard/admin/reports/integrity',
                 '/dashboard/admin/reports/bein-spend',
@@ -224,9 +227,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const activeBorderClass = dir === 'rtl' ? 'border-l-2' : 'border-r-2'
     const activeOffsetClass = dir === 'rtl' ? '-translate-x-1' : 'translate-x-1'
+    const reportCenterActiveRoutes: string[] = REPORT_CENTER_TABS.map((tab) => tab.legacyHref)
     const renderNavLink = (link: SidebarLink, exact = false) => {
         const Icon = link.icon
-        const isActive = exact ? pathname === link.href : pathname === link.href || pathname.startsWith(link.href + '/')
+        const reportCenterActive = link.href === REPORT_CENTER_HREF && (
+            pathname === REPORT_CENTER_HREF ||
+            reportCenterActiveRoutes.some((href) => pathname === href || pathname.startsWith(href + '/'))
+        )
+        const isLegacyReportLink = reportCenterActiveRoutes.includes(link.href)
+        const isActive = reportCenterActive || (!isLegacyReportLink && (exact ? pathname === link.href : pathname === link.href || pathname.startsWith(link.href + '/')))
 
         return (
             <Link

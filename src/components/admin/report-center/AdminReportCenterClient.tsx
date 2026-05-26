@@ -1,11 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { BarChart3 } from 'lucide-react'
 import { ReportCenterTabs } from './ReportCenterTabs'
 import {
-    REPORT_CENTER_TABS,
+    getVisibleReportCenterTabs,
     type ReportCenterTabKey,
     getReportCenterTab,
     resolveReportTabKey,
@@ -36,12 +36,33 @@ function ActivePanel({ tabKey }: { tabKey: ReportCenterTabKey }) {
 export default function AdminReportCenterClient({ initialTab }: AdminReportCenterClientProps) {
     const router = useRouter()
     const pathname = usePathname()
+    const [sidebarSettings, setSidebarSettings] = useState<Record<string, boolean>>({
+        sidebar_show_login_failures: true,
+        sidebar_show_low_balance: true,
+    })
+    const visibleTabs = useMemo(() => getVisibleReportCenterTabs(sidebarSettings), [sidebarSettings])
     const [activeTab, setActiveTab] = useState<ReportCenterTabKey>(() => resolveReportTabKey(initialTab))
     const activeTabDetails = useMemo(() => getReportCenterTab(activeTab), [activeTab])
 
+    useEffect(() => {
+        fetch('/api/admin/sidebar-settings')
+            .then((res) => res.json())
+            .then((data) => setSidebarSettings(data))
+            .catch(() => { /* keep defaults */ })
+    }, [])
+
+    useEffect(() => {
+        const resolvedTab = resolveReportTabKey(activeTab, visibleTabs)
+        if (resolvedTab !== activeTab) {
+            setActiveTab(resolvedTab)
+            router.replace(`${pathname}?tab=${encodeURIComponent(resolvedTab)}`, { scroll: false })
+        }
+    }, [activeTab, pathname, router, visibleTabs])
+
     function handleTabChange(nextTab: ReportCenterTabKey) {
-        setActiveTab(nextTab)
-        router.replace(`${pathname}?tab=${encodeURIComponent(nextTab)}`, { scroll: false })
+        const resolvedTab = resolveReportTabKey(nextTab, visibleTabs)
+        setActiveTab(resolvedTab)
+        router.replace(`${pathname}?tab=${encodeURIComponent(resolvedTab)}`, { scroll: false })
     }
 
     return (
@@ -64,7 +85,7 @@ export default function AdminReportCenterClient({ initialTab }: AdminReportCente
 
             <ReportCenterTabs
                 activeTab={activeTab}
-                tabs={REPORT_CENTER_TABS}
+                tabs={visibleTabs}
                 onTabChange={handleTabChange}
             />
 

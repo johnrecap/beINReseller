@@ -304,14 +304,14 @@
 
 **Purpose**: Verify UI quality, safety, and deploy readiness.
 
-- [ ] T033 Run focused unit tests and TypeScript
+- [X] T033 Run focused unit tests and TypeScript
   - Reason: Registry, route imports, and component props must compile before build.
   - Expected: Unit tests and TypeScript pass.
   - Possible bugs: Existing unrelated type errors can obscure this feature's issues.
   - Fix/Mitigation: Run focused tests first, then full type check; document unrelated failures if any.
   - Verification: `npx tsx --test tests/unit/report-center-tabs.test.ts && npx tsc --noEmit --pretty false`.
 
-- [ ] T034 Run production build
+- [X] T034 Run production build
   - Reason: Next.js route composition and dynamic imports must work in optimized build.
   - Expected: Build completes.
   - Possible bugs: Client/server boundary errors can pass unit tests but fail build.
@@ -324,15 +324,16 @@
   - Possible bugs: Report tables can overflow the tab container.
   - Fix/Mitigation: Preserve existing table overflow containers and add responsive tab scrolling.
   - Verification: Browser screenshot at desktop and mobile widths.
+  - Status: Blocked in this environment. Browser plugin returned `ERR_BLOCKED_BY_CLIENT` for local URLs, and local Playwright was unavailable without downloading dependencies.
 
-- [ ] T036 Scan changed text files for mojibake patterns
+- [X] T036 Scan changed text files for mojibake patterns
   - Reason: Repository rules require encoding safety and existing files contain Arabic text.
   - Expected: No new mojibake signatures are introduced by this feature.
   - Possible bugs: Copying Arabic labels with unsafe encodings can corrupt source.
   - Fix/Mitigation: Use `apply_patch` for manual edits and avoid risky PowerShell text writers.
   - Verification: Search changed files for `â`, `ï؟½`, `Ã`, and `Â`, treating pre-existing occurrences separately.
 
-- [ ] T037 Prepare deployment notes
+- [X] T037 Prepare deployment notes
   - Reason: Production has a live database and this feature should not use schema push.
   - Expected: Final deploy commands skip migrations unless implementation later adds one.
   - Possible bugs: Running unnecessary migrations can slow or risk production deploy.

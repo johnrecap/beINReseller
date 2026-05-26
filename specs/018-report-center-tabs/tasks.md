@@ -12,21 +12,21 @@
 
 **Purpose**: Establish a tested tab registry and reusable route definitions before moving page content.
 
-- [ ] T001 Create failing tab registry tests in `tests/unit/report-center-tabs.test.ts`
+- [X] T001 Create failing tab registry tests in `tests/unit/report-center-tabs.test.ts`
   - Reason: The report center depends on stable tab keys, labels, legacy routes, and unknown-tab fallback behavior.
   - Expected: Tests assert the required tab keys, unique keys, legacy hrefs, and default fallback.
   - Possible bugs: Tests can overfit implementation details and make harmless label changes fail.
   - Fix/Mitigation: Assert stable keys and routes, not exact styling or component implementation.
   - Verification: `npx tsx --test tests/unit/report-center-tabs.test.ts` fails because the registry does not exist yet.
 
-- [ ] T002 Create `src/components/admin/report-center/report-tabs.ts`
+- [X] T002 Create `src/components/admin/report-center/report-tabs.ts`
   - Reason: One registry prevents duplicated tab definitions across sidebar, page, tests, and deep links.
   - Expected: File exports tab keys, default tab key, legacy route mapping, and `resolveReportTabKey`.
   - Possible bugs: A missing tab or duplicate key can hide a report.
   - Fix/Mitigation: Keep the T001 uniqueness and required-key tests as a guard.
   - Verification: `npx tsx --test tests/unit/report-center-tabs.test.ts` passes.
 
-- [ ] T003 Add report center route contract checks to `tests/unit/report-center-tabs.test.ts`
+- [X] T003 Add report center route contract checks to `tests/unit/report-center-tabs.test.ts`
   - Reason: Deep links must remain predictable and unknown values must not crash the page.
   - Expected: Tests cover `analytics`, `bein-spend`, and unknown tab fallback.
   - Possible bugs: Query parsing can treat empty string or array values as valid keys.

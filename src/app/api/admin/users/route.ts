@@ -7,6 +7,8 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
 import { getAgentTransferErrorResponse, transferUserToAgentInTransaction } from '@/lib/agents/assignment-transfer'
+import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
+import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -361,6 +363,11 @@ export async function POST(request: NextRequest) {
         }
 
         const { user } = authResult
+
+        const permissionResult = await requirePermissionAPIWithMobile(request, PERMISSION_KEYS.USERS_CREATE)
+        if ('response' in permissionResult) {
+            return permissionResult.response
+        }
 
         const body = await request.json()
         const result = createUserSchema.safeParse(body)

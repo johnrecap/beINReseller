@@ -98,6 +98,7 @@ export default function UsersTable() {
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [counts, setCounts] = useState<TabCounts>({ distributors: 0, agents: 0, users: 0 })
     const [refreshing, setRefreshing] = useState(false)
+    const [userCreationDisabled, setUserCreationDisabled] = useState(false)
 
     // Filter users by specific distributor
     const [filterManagerId, setFilterManagerId] = useState<string | null>(null)
@@ -148,6 +149,22 @@ export default function UsersTable() {
         fetchCounts()
     }, [fetchCounts])
 
+    const fetchPermissionState = useCallback(async () => {
+        try {
+            const res = await fetch('/api/permissions/global')
+            const data = await res.json()
+            if (res.ok) {
+                setUserCreationDisabled(Boolean(data.panelUserCreation?.blocked))
+            }
+        } catch (error) {
+            console.error('Failed to fetch permission state', error)
+        }
+    }, [])
+
+    useEffect(() => {
+        fetchPermissionState()
+    }, [fetchPermissionState])
+
     const fetchData = useCallback(async () => {
         setLoading(true)
         try {
@@ -188,7 +205,7 @@ export default function UsersTable() {
     const handleRefresh = async () => {
         setRefreshing(true)
         try {
-            await Promise.all([fetchData(), fetchCounts()])
+            await Promise.all([fetchData(), fetchCounts(), fetchPermissionState()])
         } finally {
             setRefreshing(false)
         }
@@ -399,11 +416,13 @@ export default function UsersTable() {
                 <div className="flex items-center gap-2 justify-end">
                     <button
                         onClick={() => {
+                            if (userCreationDisabled) return
                             setCreateAgent(agent)
                             setCreateOpen(true)
                         }}
-                        className="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-cyan-600 rounded-lg transition-colors"
-                        title="Add user under agent"
+                        disabled={userCreationDisabled}
+                        className="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-cyan-600 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={userCreationDisabled ? 'User creation is currently disabled' : 'Add user under agent'}
                     >
                         <UserPlus className="w-4 h-4" />
                     </button>
@@ -631,12 +650,18 @@ export default function UsersTable() {
                             <span>{t.common?.refresh || 'Refresh'}</span>
                         </button>
                         <button
-                            onClick={() => setCreateOpen(true)}
-                            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
+                            onClick={() => {
+                                if (!userCreationDisabled) setCreateOpen(true)
+                            }}
+                            disabled={userCreationDisabled}
+                            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600"
+                            title={userCreationDisabled ? 'User creation is currently disabled' : undefined}
                         >
                             <Plus className="w-5 h-5" />
                             <span>
-                                {activeTab === 'distributors'
+                                {userCreationDisabled
+                                    ? 'User creation disabled'
+                                    : activeTab === 'distributors'
                                     ? (t.admin?.users?.actions?.addDistributor || 'Add New Distributor')
                                     : activeTab === 'agents'
                                         ? ((t.admin?.users?.actions as { addAgent?: string } | undefined)?.addAgent || 'Add New Agent')

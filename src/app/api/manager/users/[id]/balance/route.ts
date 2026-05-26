@@ -4,6 +4,8 @@ import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { z } from 'zod'
 import { createNotification } from '@/lib/notification'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
+import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
 
 const balanceSchema = z.object({
     amount: z.number().refine(val => val !== 0, 'Amount must be greater or less than zero'),
@@ -70,6 +72,11 @@ export async function PATCH(
         const { amount, notes } = result.data
         const isDeposit = amount > 0
         const absAmount = Math.abs(amount)
+        const permissionKey = isDeposit ? PERMISSION_KEYS.BALANCE_ADD : PERMISSION_KEYS.BALANCE_WITHDRAW
+        const permissionResult = await requirePermissionAPIWithMobile(request, permissionKey)
+        if ('response' in permissionResult) {
+            return permissionResult.response
+        }
 
         // Transactional update with balance checks INSIDE transaction (prevents race conditions)
         try {

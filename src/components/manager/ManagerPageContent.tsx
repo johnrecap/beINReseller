@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from "react"
 import { ManagerStats } from "@/components/manager/ManagerStats"
 import { ManagerUsersList } from "@/components/manager/ManagerUsersList"
 import { ManagerActionsLog } from "@/components/manager/ManagerActionsLog"
@@ -17,6 +18,29 @@ interface ManagerPageContentProps {
 
 export function ManagerPageContent({ data }: ManagerPageContentProps) {
     const { t } = useTranslation()
+    const [userCreationDisabled, setUserCreationDisabled] = useState(false)
+
+    useEffect(() => {
+        let active = true
+
+        async function fetchPermissionState() {
+            try {
+                const res = await fetch('/api/permissions/global')
+                const data = await res.json()
+                if (active && res.ok) {
+                    setUserCreationDisabled(Boolean(data.panelUserCreation?.blocked))
+                }
+            } catch (error) {
+                console.error('Failed to fetch permission state', error)
+            }
+        }
+
+        fetchPermissionState()
+
+        return () => {
+            active = false
+        }
+    }, [])
 
     if (!data) {
         return <div className="p-8 text-center text-red-500">{t.common?.error || 'Failed to load data'}</div>
@@ -29,7 +53,18 @@ export function ManagerPageContent({ data }: ManagerPageContentProps) {
             <div className="flex items-center justify-between space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">{t.manager?.dashboard?.title || 'Manager Dashboard'}</h2>
                 <div className="flex items-center space-x-2">
-                    <CreateUserDialog />
+                    {userCreationDisabled ? (
+                        <button
+                            type="button"
+                            disabled
+                            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground opacity-70 cursor-not-allowed"
+                            title="User creation is currently disabled"
+                        >
+                            User creation disabled
+                        </button>
+                    ) : (
+                        <CreateUserDialog />
+                    )}
                 </div>
             </div>
 

@@ -117,6 +117,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const adminLinks = [
         { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
         { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
+        { href: '/dashboard/admin/permissions', label: 'Permission Controls', icon: ShieldCheck },
         ...(adminCreditRequestsReady ? [{ href: '/dashboard/admin/credit-requests', label: 'Credit Requests', icon: ShieldCheck }] : []),
         ...(creditAgentAdminNavigationReady ? [
             { href: '/dashboard/admin/agents', label: 'Agents', icon: Users },
@@ -171,6 +172,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             title: sectionLabel('المستخدمين والمناديب', 'People & Agents'),
             links: pickAdminLinks([
                 '/dashboard/admin/users',
+                '/dashboard/admin/permissions',
                 '/dashboard/admin/users/activity',
                 '/dashboard/admin/deleted-users',
                 '/dashboard/admin/agents',

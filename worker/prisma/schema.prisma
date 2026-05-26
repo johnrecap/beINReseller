@@ -756,6 +756,82 @@ model Setting {
   @@map("settings")
 }
 
+model RolePermissionSetting {
+  id              String   @id @default(cuid())
+  role            Role
+  permissionKey   String   @map("permission_key")
+  effect          String
+  reason          String?
+  updatedByUserId String?  @map("updated_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([role, permissionKey])
+  @@index([permissionKey])
+  @@index([updatedByUserId])
+  @@map("role_permission_settings")
+}
+
+model UserPermissionOverride {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  permissionKey   String   @map("permission_key")
+  effect          String
+  reason          String?
+  updatedByUserId String?  @map("updated_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, permissionKey])
+  @@index([permissionKey])
+  @@index([updatedByUserId])
+  @@map("user_permission_overrides")
+}
+
+model GlobalPermissionSetting {
+  id              String   @id @default(cuid())
+  key             String   @unique
+  enabled         Boolean  @default(false)
+  reason          String?
+  updatedByUserId String?  @map("updated_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([updatedByUserId])
+  @@map("global_permission_settings")
+}
+
+model ProtectedAdmin {
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  protected       Boolean  @default(true)
+  createdByUserId String?  @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([protected])
+  @@index([createdByUserId])
+  @@map("protected_admins")
+}
+
+model PermissionAuditEvent {
+  id            String   @id @default(cuid())
+  actorUserId   String?  @map("actor_user_id")
+  targetType    String   @map("target_type")
+  targetId      String   @map("target_id")
+  permissionKey String?  @map("permission_key")
+  oldValue      Json?    @map("old_value")
+  newValue      Json?    @map("new_value")
+  result        String
+  reason        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([permissionKey])
+  @@map("permission_audit_events")
+}
+
 model ActivityLog {
   id        String  @id @default(cuid())
   userId    String  @map("user_id")

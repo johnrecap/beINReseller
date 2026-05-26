@@ -16,7 +16,16 @@ WHERE role = 'ADMIN' AND is_active = true AND deleted_at IS NULL;
 
 2. Choose one protected admin account for rollout.
 
-3. Confirm current manager create-user and balance flows work before enabling restrictions.
+3. Register at least one protected admin before changing `permissions.manage`:
+
+```sql
+INSERT INTO protected_admins (id, user_id, protected, created_at, updated_at)
+VALUES (gen_random_uuid()::text, '<admin-user-id>', true, NOW(), NOW())
+ON CONFLICT (user_id) DO UPDATE
+SET protected = true, updated_at = NOW();
+```
+
+4. Confirm current manager create-user and balance flows work before enabling restrictions.
 
 ## Manual Verification Flow
 
@@ -27,11 +36,12 @@ WHERE role = 'ADMIN' AND is_active = true AND deleted_at IS NULL;
 5. Attempt to create a user from manager dashboard.
 6. Confirm both requests fail with a clear disabled message.
 7. Disable global freeze.
-8. Deny manager create-user permission at role level.
-9. Log in as manager and confirm create-user is unavailable and API rejects direct submit.
-10. Add a user-specific deny override for balance withdraw.
-11. Confirm only that account is blocked from withdraw while another account with same role follows role rules.
-12. Try to remove permission-management access from the last protected admin and confirm the system rejects it.
+8. Open `/dashboard/admin/permissions`.
+9. Deny manager create-user permission at role level.
+10. Log in as manager and confirm create-user is unavailable and API rejects direct submit.
+11. Add a user-specific deny override for balance withdraw.
+12. Confirm only that account is blocked from withdraw while another account with same role follows role rules.
+13. Try to remove permission-management access from the last protected admin and confirm the system rejects it.
 
 ## Verification Commands
 

@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
+import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
+import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -130,6 +132,11 @@ export async function POST(request: NextRequest) {
         }
 
         const { user: manager } = authResult
+
+        const permissionResult = await requirePermissionAPIWithMobile(request, PERMISSION_KEYS.MANAGER_USERS_CREATE)
+        if ('response' in permissionResult) {
+            return permissionResult.response
+        }
 
         // Rate Limit
         const { allowed, result: limitResult } = await withRateLimit(

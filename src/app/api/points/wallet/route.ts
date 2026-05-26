@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireAuthAPI } from '@/lib/auth-utils'
+import { canAccessPointsWallet } from '@/lib/points/access'
 import { summarizePointBalance } from '@/lib/points/balance'
 import { getConversionReadiness, getPointProgramSettings } from '@/lib/points/settings'
 
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        if (!['USER', 'AGENT', 'MANAGER'].includes(authResult.user.role)) {
+        if (!canAccessPointsWallet(authResult.user.role)) {
             return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
         }
 

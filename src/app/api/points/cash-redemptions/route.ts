@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuthAPI } from '@/lib/auth-utils'
+import { canAccessPointsWallet } from '@/lib/points/access'
 import { PointCashRedemptionError, redeemPointsForBalance } from '@/lib/points/cash-redemption'
 
 const cashRedemptionSchema = z.object({
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        if (!['USER', 'AGENT', 'MANAGER'].includes(authResult.user.role)) {
+        if (!canAccessPointsWallet(authResult.user.role)) {
             return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
         }
 

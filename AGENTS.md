@@ -128,7 +128,7 @@ pm2 logs --lines 20
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/015-agent-user-management/plan.md`,
-`specs/015-agent-user-management/spec.md`, and
-`specs/015-agent-user-management/tasks.md` before editing.
+`specs/017-admin-permission-controls/plan.md`,
+`specs/017-admin-permission-controls/spec.md`, and
+`specs/017-admin-permission-controls/tasks.md` before editing.
 <!-- SPECKIT END -->

@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { RefreshCw, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/eid-rewards/datetime-local'
+import { cairoDateTimeLocalToUtcIso, utcIsoToCairoDateTimeLocal } from '@/lib/egypt-time'
 
 type PersonRate = {
     id: string
@@ -74,7 +74,7 @@ export default function AdminPointsSettingsClient() {
             setDefaults(payload.defaults)
             setProgram({
                 pointsEnabled: payload.settings?.pointsEnabled ?? false,
-                pointsStartAt: toDateTimeLocalValue(payload.settings?.pointsStartAt ?? null) || null,
+                pointsStartAt: utcIsoToCairoDateTimeLocal(payload.settings?.pointsStartAt ?? null) || null,
                 cashConversionPoints: payload.settings?.cashConversionPoints ?? 100,
                 cashConversionAmountUsd: payload.settings?.cashConversionAmountUsd ?? 10,
             })
@@ -111,7 +111,7 @@ export default function AdminPointsSettingsClient() {
             const payload = {
                 ...defaults,
                 pointsEnabled: program.pointsEnabled,
-                pointsStartAt: program.pointsStartAt ? fromDateTimeLocalValue(program.pointsStartAt) : null,
+                pointsStartAt: program.pointsStartAt ? cairoDateTimeLocalToUtcIso(program.pointsStartAt) : null,
                 cashConversionPoints: program.cashConversionPoints,
                 cashConversionAmountUsd: program.cashConversionAmountUsd,
                 agentOverrides: Object.entries(agentOverrides)

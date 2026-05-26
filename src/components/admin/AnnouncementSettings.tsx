@@ -29,6 +29,7 @@ import {
 } from '@/lib/announcement/constants'
 import { resolveUploadedImageSrc } from '@/lib/announcement/helpers'
 import AnnouncementBannerView from '@/components/announcements/AnnouncementBannerView'
+import { cairoDateInputToUtcIso, utcIsoToCairoDateInput } from '@/lib/egypt-time'
 
 interface AnnouncementSlideForm {
     id?: string
@@ -179,8 +180,8 @@ export default function AnnouncementSettings() {
         setTextSize(banner.textSize)
         setPosition(banner.position)
         setIsActive(banner.isActive)
-        setStartDate(banner.startDate ? banner.startDate.split('T')[0] : '')
-        setEndDate(banner.endDate ? banner.endDate.split('T')[0] : '')
+        setStartDate(utcIsoToCairoDateInput(banner.startDate))
+        setEndDate(utcIsoToCairoDateInput(banner.endDate))
         setImageUrl(banner.imageUrl || '')
         setImageAlt(banner.imageAlt || '')
         setIsDismissable(banner.isDismissable ?? true)
@@ -320,8 +321,8 @@ export default function AnnouncementSettings() {
                 tickerBackgroundColor,
                 tickerTextColor,
                 dismissalVersion,
-                startDate: startDate || null,
-                endDate: endDate || null,
+                startDate: startDate ? cairoDateInputToUtcIso(startDate, 'start') : null,
+                endDate: endDate ? cairoDateInputToUtcIso(endDate, 'end') : null,
                 imageUrl: imageUrl || null,
                 imageAlt: imageAlt.trim() || null,
                 slides: normalizedSlides,

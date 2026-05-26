@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { OperationType, OperationStatus } from '@prisma/client'
+import { utcIsoToCairoDateInput } from '@/lib/egypt-time'
 
 /**
  * GET /api/admin/analytics - Get comprehensive analytics data
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
 
         // Process operations by day for chart
         const dailyData = operationsByDay.map((row: { date: Date; count: bigint; revenue: number }) => ({
-            date: row.date.toISOString().split('T')[0],
+            date: utcIsoToCairoDateInput(row.date.toISOString()),
             operations: Number(row.count),
             revenue: Number(row.revenue) || 0,
         }))

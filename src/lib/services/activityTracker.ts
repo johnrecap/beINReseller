@@ -9,6 +9,7 @@
 
 import prisma from '@/lib/prisma'
 import { Prisma, Role } from '@prisma/client'
+import { utcIsoToCairoDateInput } from '@/lib/egypt-time'
 
 // Re-export types from shared types file for convenience
 export type {
@@ -478,11 +479,11 @@ export async function getActivityTrends(days: number = 30): Promise<{
     
     return {
         loginsByDay: loginsByDay.map(r => ({
-            date: r.date.toISOString().split('T')[0],
+            date: utcIsoToCairoDateInput(r.date.toISOString()),
             count: Number(r.count)
         })),
         operationsByDay: operationsByDay.map(r => ({
-            date: r.date.toISOString().split('T')[0],
+            date: utcIsoToCairoDateInput(r.date.toISOString()),
             count: Number(r.count)
         })),
         topActiveUsers

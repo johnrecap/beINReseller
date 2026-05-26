@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, RefreshCw, WalletCards } from 'lucide-react'
+import {
+    addDaysToCairoDateInput,
+    cairoDateRangeToUtcIso,
+    currentCairoDateInput,
+    startOfCairoMonthDateInput,
+} from '@/lib/egypt-time'
 
 export type Preset = 'today' | 'week' | 'month' | 'custom'
 
@@ -58,31 +64,15 @@ export interface BeinSpendReportFilterState {
     page: number
 }
 
-function toDateInputValue(date: Date): string {
-    return date.toISOString().slice(0, 10)
-}
-
-function startOfToday(): Date {
-    const date = new Date()
-    date.setHours(0, 0, 0, 0)
-    return date
-}
-
-function endOfToday(): Date {
-    const date = new Date()
-    date.setHours(23, 59, 59, 999)
-    return date
-}
-
-function rangeForPreset(preset: Preset): { from: Date; to: Date } {
-    const to = endOfToday()
-    const from = startOfToday()
+function rangeForPreset(preset: Preset): { from: string; to: string } {
+    const to = currentCairoDateInput()
+    let from = to
 
     if (preset === 'week') {
-        from.setDate(from.getDate() - 6)
+        from = addDaysToCairoDateInput(to, -6)
     }
     if (preset === 'month') {
-        from.setDate(1)
+        from = startOfCairoMonthDateInput(to)
     }
 
     return { from, to }
@@ -101,9 +91,10 @@ function accountDisplay(username: string | null, label: string | null): string {
 }
 
 export function buildBeinSpendReportParams(filters: BeinSpendReportFilterState, includePagination: boolean): URLSearchParams {
+    const range = cairoDateRangeToUtcIso(filters.from, filters.to)
     const params = new URLSearchParams({
-        from: new Date(`${filters.from}T00:00:00.000`).toISOString(),
-        to: new Date(`${filters.to}T23:59:59.999`).toISOString(),
+        from: range.from ?? '',
+        to: range.to ?? '',
         groupBy: filters.preset === 'custom' ? 'day' : filters.preset === 'week' ? 'day' : filters.preset,
     })
     if (filters.beinAccountId.trim()) params.set('beinAccountId', filters.beinAccountId.trim())
@@ -120,8 +111,8 @@ export function buildBeinSpendReportParams(filters: BeinSpendReportFilterState, 
 export default function BeinSpendReportClient() {
     const [preset, setPreset] = useState<Preset>('month')
     const initialRange = useMemo(() => rangeForPreset('month'), [])
-    const [from, setFrom] = useState(toDateInputValue(initialRange.from))
-    const [to, setTo] = useState(toDateInputValue(initialRange.to))
+    const [from, setFrom] = useState(initialRange.from)
+    const [to, setTo] = useState(initialRange.to)
     const [beinAccountId, setBeinAccountId] = useState('')
     const [userId, setUserId] = useState('')
     const [operationType, setOperationType] = useState('')
@@ -172,8 +163,8 @@ export default function BeinSpendReportClient() {
         setPreset(nextPreset)
         if (nextPreset !== 'custom') {
             const range = rangeForPreset(nextPreset)
-            setFrom(toDateInputValue(range.from))
-            setTo(toDateInputValue(range.to))
+            setFrom(range.from)
+            setTo(range.to)
         }
         setPage(1)
     }

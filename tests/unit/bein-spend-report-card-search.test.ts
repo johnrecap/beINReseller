@@ -42,6 +42,16 @@ test('omits empty card number from report request params', () => {
     assert.equal(params.has('cardNumber'), false)
 })
 
+test('builds report date range using Egypt day boundaries', () => {
+    const params = buildBeinSpendReportParams(baseUiFilters({
+        from: '2026-05-26',
+        to: '2026-05-27',
+    }), false)
+
+    assert.equal(params.get('from'), '2026-05-25T21:00:00.000Z')
+    assert.equal(params.get('to'), '2026-05-27T20:59:59.999Z')
+})
+
 test('combines card, account, and operation type filters in query builders', () => {
     const params = buildBeinSpendReportParams(baseUiFilters({
         cardNumber: '7518-695 237',

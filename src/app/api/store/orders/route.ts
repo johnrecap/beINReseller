@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getStoreCustomerFromRequest } from '@/lib/store-auth'
 import { toStripeAmount, CURRENCY_CONFIG, getStripeSecretKey } from '@/lib/store-pricing'
+import { currentCairoDateInput } from '@/lib/egypt-time'
 import Stripe from 'stripe'
 
 /**
@@ -267,8 +268,7 @@ export async function POST(request: NextRequest) {
         const total = subtotal + shippingCost
 
         // Generate order number
-        const today = new Date()
-        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '')
+        const dateStr = currentCairoDateInput().replace(/-/g, '')
         const random = Math.random().toString(36).substring(2, 6).toUpperCase()
         const orderNumber = `ORD-${dateStr}-${random}`
 

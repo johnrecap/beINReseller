@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
+import { utcIsoToCairoDateInput } from '@/lib/egypt-time'
 
 export async function GET(request: NextRequest) {
     try {
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             claims: claims.map((claim) => ({
                 ...claim,
-                claimDate: claim.claimDate.toISOString().slice(0, 10),
+                claimDate: utcIsoToCairoDateInput(claim.claimDate.toISOString()),
                 createdAt: claim.createdAt.toISOString(),
             })),
             pagination: {

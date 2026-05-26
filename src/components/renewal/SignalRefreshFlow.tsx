@@ -8,6 +8,7 @@ import { BeINExportTable } from './BeINExportTable'
 import { Loader2, Zap, CreditCard, CheckCircle, XCircle, RefreshCw, Search, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { toPng } from 'html-to-image'
+import { currentCairoDateInput } from '@/lib/egypt-time'
 
 interface Contract {
     type: string
@@ -220,7 +221,7 @@ export function SignalRefreshFlow() {
                 cacheBust: true,
             })
 
-            const date = new Date().toISOString().split('T')[0]
+            const date = currentCairoDateInput()
             const link = document.createElement('a')
             link.download = `beIN-${cardNumber}-${date}.png`
             link.href = dataUrl

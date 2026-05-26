@@ -9,6 +9,7 @@ import { ImageUpload } from '@/components/ui/ImageUpload'
 import AnnouncementBannerView from '@/components/announcements/AnnouncementBannerView'
 import { cn } from '@/lib/utils'
 import { resolveUploadedImageSrc } from '@/lib/announcement/helpers'
+import { cairoDateInputToUtcIso, utcIsoToCairoDateInput } from '@/lib/egypt-time'
 import {
     MAX_ANNOUNCEMENT_SLIDES,
     MESSAGE_MAX_LENGTH,
@@ -155,8 +156,8 @@ export default function SimpleAnnouncementSettings() {
         setSliderIntervalMs(banner.sliderIntervalMs || 4800)
         setIsActive(banner.isActive)
         setIsDismissable(banner.isDismissable ?? true)
-        setStartDate(banner.startDate ? banner.startDate.split('T')[0] : '')
-        setEndDate(banner.endDate ? banner.endDate.split('T')[0] : '')
+        setStartDate(utcIsoToCairoDateInput(banner.startDate))
+        setEndDate(utcIsoToCairoDateInput(banner.endDate))
     }
 
     const replaceSlidesFromUrls = (urls: string[]) => {
@@ -270,8 +271,8 @@ export default function SimpleAnnouncementSettings() {
                 tickerBackgroundColor: '#090d12',
                 tickerTextColor: '#d8ff72',
                 dismissalVersion: 1,
-                startDate: startDate || null,
-                endDate: endDate || null,
+                startDate: startDate ? cairoDateInputToUtcIso(startDate, 'start') : null,
+                endDate: endDate ? cairoDateInputToUtcIso(endDate, 'end') : null,
                 imageUrl: imageUrl || null,
                 imageAlt: null,
                 slides: normalizedSlides,

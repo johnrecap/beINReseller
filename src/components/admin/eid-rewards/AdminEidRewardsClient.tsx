@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { fromDateTimeLocalValue, toDateTimeLocalValue } from '@/lib/eid-rewards/datetime-local'
+import { cairoDateTimeLocalToUtcIso, utcIsoToCairoDateTimeLocal } from '@/lib/egypt-time'
 
 type TierDraft = {
     points: number
@@ -213,11 +213,11 @@ export default function AdminEidRewardsClient() {
                                 </label>
                                 <label className="block space-y-2">
                                     <span className="text-sm text-muted-foreground">بداية الحدث</span>
-                                    <Input type="datetime-local" value={toDateTimeLocalValue(settings.startsAt)} onChange={(event) => setSettings((draft) => ({ ...draft, startsAt: fromDateTimeLocalValue(event.target.value) }))} />
+                                    <Input type="datetime-local" value={utcIsoToCairoDateTimeLocal(settings.startsAt)} onChange={(event) => setSettings((draft) => ({ ...draft, startsAt: cairoDateTimeLocalToUtcIso(event.target.value) }))} />
                                 </label>
                                 <label className="block space-y-2">
                                     <span className="text-sm text-muted-foreground">نهاية الحدث</span>
-                                    <Input type="datetime-local" value={toDateTimeLocalValue(settings.endsAt)} onChange={(event) => setSettings((draft) => ({ ...draft, endsAt: fromDateTimeLocalValue(event.target.value) }))} />
+                                    <Input type="datetime-local" value={utcIsoToCairoDateTimeLocal(settings.endsAt)} onChange={(event) => setSettings((draft) => ({ ...draft, endsAt: cairoDateTimeLocalToUtcIso(event.target.value) }))} />
                                 </label>
                                 <label className="block space-y-2">
                                     <span className="text-sm text-muted-foreground">أقل نقاط للتحويل</span>

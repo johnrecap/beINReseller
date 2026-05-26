@@ -284,7 +284,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <div className="flex h-full flex-col animate-pulse">
                         {/* Header */}
                         <div className="flex h-24 items-center px-6 border-b border-sidebar-border">
-                            <BrandLogo className="h-16 w-full" compact />
+                            <BrandLogo className="h-16 w-full" compact src="/images/brand/logo_big2.png" />
                         </div>
 
                         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6">
@@ -340,7 +340,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 </Button>
                             </div>
                         </div>
-                        <BrandLogo className="h-24 w-full rounded-2xl" compact />
+                        <BrandLogo className="h-24 w-full rounded-2xl" compact src="/images/brand/logo_big2.png" />
                         <p className="mt-1 text-sm text-[#c0caae]">
                             {session?.user?.role?.toLowerCase() || 'user'} active
                         </p>

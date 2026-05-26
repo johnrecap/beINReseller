@@ -4,9 +4,15 @@ interface BrandLogoProps {
     className?: string
     imageClassName?: string
     compact?: boolean
+    src?: string
 }
 
-export default function BrandLogo({ className, imageClassName, compact = false }: BrandLogoProps) {
+export default function BrandLogo({
+    className,
+    imageClassName,
+    compact = false,
+    src = '/images/desh-panel-brand.jpeg',
+}: BrandLogoProps) {
     return (
         <div
             className={cn(
@@ -17,7 +23,7 @@ export default function BrandLogo({ className, imageClassName, compact = false }
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#a3ff12]/10 via-transparent to-[#8f2cff]/15" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-                src="/images/desh-panel-brand.jpeg"
+                src={src}
                 alt="Desh Panel"
                 className={cn(
                     'relative h-full w-full object-cover',

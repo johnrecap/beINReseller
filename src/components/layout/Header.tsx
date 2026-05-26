@@ -16,7 +16,13 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
             {/* Right Side - Menu + Title */}
             <div className="flex items-center gap-3">
                 <MobileMenuButton onClick={onMenuClick} />
-                <h1 className="text-lg lg:text-xl font-bold text-foreground">{title}</h1>
+                <h1 className="sr-only">{title}</h1>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                    src="/images/brand/logo_big1.png"
+                    alt={title}
+                    className="h-8 w-24 object-contain object-right min-[390px]:w-32 sm:h-10 sm:w-52 lg:h-11 lg:w-64"
+                />
             </div>
 
             {/* Left Side */}

@@ -233,7 +233,7 @@
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Add lazy-render behavior test in `tests/unit/report-center-tabs.test.ts`
+- [X] T026 [P] [US3] Add lazy-render behavior test in `tests/unit/report-center-tabs.test.ts`
   - Reason: The most important performance rule is active-tab-only rendering.
   - Expected: Test proves inactive tab loaders are not called before selection.
   - Possible bugs: The test can require React DOM complexity beyond the current test setup.
@@ -242,21 +242,21 @@
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Lazy-load tab panels in `src/components/admin/report-center/AdminReportCenterClient.tsx`
+- [X] T027 [US3] Lazy-load tab panels in `src/components/admin/report-center/AdminReportCenterClient.tsx`
   - Reason: Rendering all report panels at once would trigger multiple API requests and slow the admin dashboard.
   - Expected: Only the active tab panel mounts.
   - Possible bugs: Switching tabs can lose state every time if panels always unmount.
   - Fix/Mitigation: Accept state reset for first release, or cache only lightweight panel state after measuring need.
   - Verification: Browser network panel shows only active tab requests on initial load.
 
-- [ ] T028 [US3] Add tab-scoped error boundaries or error state in `src/components/admin/report-center/AdminReportCenterClient.tsx`
+- [X] T028 [US3] Add tab-scoped error boundaries or error state in `src/components/admin/report-center/AdminReportCenterClient.tsx`
   - Reason: One failing report should not blank the whole reports center.
   - Expected: Active tab errors show inside the content area while tab navigation remains usable.
   - Possible bugs: Errors thrown inside child effects may not be caught by a simple wrapper.
   - Fix/Mitigation: Preserve each panel's existing error state and add a lightweight fallback for import/loading errors.
   - Verification: Temporarily force a bad tab import in development and confirm shell remains usable, then revert.
 
-- [ ] T029 [US3] Preserve admin authorization checks in all route wrappers
+- [X] T029 [US3] Preserve admin authorization checks in all route wrappers
   - Reason: Consolidation must not weaken access to logs, monitoring, or beIN account health.
   - Expected: New route and old routes are admin-only.
   - Possible bugs: Extracted panels can be imported somewhere without route auth.
@@ -275,21 +275,21 @@
 
 ### Implementation for User Story 4
 
-- [ ] T030 [US4] Update tab change URL behavior in `src/components/admin/report-center/AdminReportCenterClient.tsx`
+- [X] T030 [US4] Update tab change URL behavior in `src/components/admin/report-center/AdminReportCenterClient.tsx`
   - Reason: Support staff need to copy the current tab URL.
   - Expected: Selecting a tab updates `?tab=` without a full page reload.
   - Possible bugs: Browser back button can behave unexpectedly if every tab click pushes history.
   - Fix/Mitigation: Use replace behavior unless user testing shows back-button tab history is desired.
   - Verification: Select `beIN Spend`, copy URL, reload, and confirm same tab opens.
 
-- [ ] T031 [US4] Add legacy route helper text or link in each tab panel header
+- [X] T031 [US4] Add legacy route helper text or link in each tab panel header
   - Reason: During rollout, admins may need to open the old full-page route for support comparison.
   - Expected: Each tab can expose a small "Open full page" link to its legacy route.
   - Possible bugs: Extra links can clutter compact dashboards.
   - Fix/Mitigation: Use a compact icon/text link in the tab header, not a large button.
   - Verification: Click the full-page link from each tab and confirm old route opens.
 
-- [ ] T032 [US4] Update `src/components/layout/Sidebar.tsx` to replace grouped report links with one Reports Center link
+- [X] T032 [US4] Update `src/components/layout/Sidebar.tsx` to replace grouped report links with one Reports Center link
   - Reason: This is the user-visible sidebar cleanup requested.
   - Expected: Sidebar shows one grouped reports entry instead of separate analytics, integrity, spend, login monitor, balance monitor, activity monitoring, and logs links.
   - Possible bugs: Removing links too early can hide a page that is not yet available in tabs.

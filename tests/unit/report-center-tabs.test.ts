@@ -8,6 +8,7 @@ import {
     getVisibleReportCenterTabs,
     resolveReportTabKey,
 } from '@/components/admin/report-center/report-tabs'
+import { getReportPanelLoader, type ReportPanelLoaderMap } from '@/components/admin/report-center/report-panel-loaders'
 
 const REQUIRED_TAB_KEYS = [
     'analytics',
@@ -82,4 +83,19 @@ test('report center panel modules are importable', async () => {
     for (const module of modules) {
         assert.equal(typeof module.default, 'function')
     }
+})
+
+test('report center selects only the active panel loader', async () => {
+    const calls: string[] = []
+    const makeLoader = (key: string) => async () => {
+        calls.push(key)
+        return { default: () => null }
+    }
+    const loaders = Object.fromEntries(
+        REQUIRED_TAB_KEYS.map((key) => [key, makeLoader(key)])
+    ) as unknown as ReportPanelLoaderMap
+
+    await getReportPanelLoader('bein-spend', loaders)()
+
+    assert.deepEqual(calls, ['bein-spend'])
 })

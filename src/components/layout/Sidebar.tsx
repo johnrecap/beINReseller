@@ -175,7 +175,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             links: pickAdminLinks([
                 '/dashboard/admin/users',
                 '/dashboard/admin/permissions',
-                '/dashboard/admin/users/activity',
                 '/dashboard/admin/deleted-users',
                 '/dashboard/admin/agents',
                 '/dashboard/admin/points',
@@ -187,15 +186,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 '/dashboard/admin/credit-requests',
                 '/dashboard/admin/financial-review',
                 '/dashboard/admin/recovery-health',
-                '/dashboard/admin/logs',
             ]),
         },
         {
             title: sectionLabel('beIN والتشغيل', 'beIN Operations'),
             links: pickAdminLinks([
                 '/dashboard/admin/bein-accounts',
-                '/dashboard/admin/bein-accounts/login-failures',
-                '/dashboard/admin/bein-accounts/low-balance',
                 '/dashboard/admin/proxies',
                 '/dashboard/admin/bein-config',
             ]),
@@ -204,9 +200,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             title: sectionLabel('التقارير والمراقبة', 'Reports & Monitoring'),
             links: pickAdminLinks([
                 REPORT_CENTER_HREF,
-                '/dashboard/admin/analytics',
-                '/dashboard/admin/reports/integrity',
-                '/dashboard/admin/reports/bein-spend',
             ]),
         },
         {

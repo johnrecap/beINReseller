@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Component, type ComponentType, type ErrorInfo, type ReactNode, useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, ExternalLink } from 'lucide-react'
 import { ReportCenterTabs } from './ReportCenterTabs'
 import {
     getVisibleReportCenterTabs,
@@ -10,27 +12,71 @@ import {
     getReportCenterTab,
     resolveReportTabKey,
 } from './report-tabs'
-import AnalyticsReportPanel from './AnalyticsReportPanel'
-import ActivityReportPanel from './ActivityReportPanel'
-import IntegrityReportPanel from './IntegrityReportPanel'
-import BeinSpendReportPanel from './BeinSpendReportPanel'
-import LoginMonitorPanel from './LoginMonitorPanel'
-import BalanceMonitorPanel from './BalanceMonitorPanel'
-import LogsReportPanel from './LogsReportPanel'
+import { REPORT_PANEL_LOADERS } from './report-panel-loaders'
 
 type AdminReportCenterClientProps = {
     initialTab?: string
 }
 
-function ActivePanel({ tabKey }: { tabKey: ReportCenterTabKey }) {
-    if (tabKey === 'activity') return <ActivityReportPanel />
-    if (tabKey === 'integrity') return <IntegrityReportPanel />
-    if (tabKey === 'bein-spend') return <BeinSpendReportPanel />
-    if (tabKey === 'login-monitor') return <LoginMonitorPanel />
-    if (tabKey === 'balance-monitor') return <BalanceMonitorPanel />
-    if (tabKey === 'logs') return <LogsReportPanel />
+function ReportPanelLoading() {
+    return (
+        <section className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
+            Loading report...
+        </section>
+    )
+}
 
-    return <AnalyticsReportPanel />
+const REPORT_PANEL_COMPONENTS: Record<ReportCenterTabKey, ComponentType<object>> = {
+    analytics: dynamic(REPORT_PANEL_LOADERS.analytics, { loading: ReportPanelLoading }),
+    activity: dynamic(REPORT_PANEL_LOADERS.activity, { loading: ReportPanelLoading }),
+    integrity: dynamic(REPORT_PANEL_LOADERS.integrity, { loading: ReportPanelLoading }),
+    'bein-spend': dynamic(REPORT_PANEL_LOADERS['bein-spend'], { loading: ReportPanelLoading }),
+    'login-monitor': dynamic(REPORT_PANEL_LOADERS['login-monitor'], { loading: ReportPanelLoading }),
+    'balance-monitor': dynamic(REPORT_PANEL_LOADERS['balance-monitor'], { loading: ReportPanelLoading }),
+    logs: dynamic(REPORT_PANEL_LOADERS.logs, { loading: ReportPanelLoading }),
+}
+
+class ReportPanelErrorBoundary extends Component<
+    { resetKey: string; children: ReactNode },
+    { hasError: boolean }
+> {
+    state = { hasError: false }
+
+    static getDerivedStateFromError() {
+        return { hasError: true }
+    }
+
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        console.error('Report center panel failed', error, errorInfo)
+    }
+
+    componentDidUpdate(previousProps: { resetKey: string }) {
+        if (previousProps.resetKey !== this.props.resetKey && this.state.hasError) {
+            this.setState({ hasError: false })
+        }
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <section className="rounded-lg border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive">
+                    This report failed to load. Choose another tab or refresh the page.
+                </section>
+            )
+        }
+
+        return this.props.children
+    }
+}
+
+function ActivePanel({ tabKey }: { tabKey: ReportCenterTabKey }) {
+    const Panel = REPORT_PANEL_COMPONENTS[tabKey] ?? REPORT_PANEL_COMPONENTS.analytics
+
+    return (
+        <ReportPanelErrorBoundary resetKey={tabKey}>
+            <Panel />
+        </ReportPanelErrorBoundary>
+    )
 }
 
 export default function AdminReportCenterClient({ initialTab }: AdminReportCenterClientProps) {
@@ -80,6 +126,13 @@ export default function AdminReportCenterClient({ initialTab }: AdminReportCente
                 </div>
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
                     Active: <span className="font-medium text-foreground">{activeTabDetails.label}</span>
+                    <Link
+                        href={activeTabDetails.legacyHref}
+                        className="mt-2 flex items-center gap-2 text-primary hover:text-primary/80"
+                    >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Open full page
+                    </Link>
                 </div>
             </header>
 

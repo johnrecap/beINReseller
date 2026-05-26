@@ -128,7 +128,7 @@ pm2 logs --lines 20
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/017-admin-permission-controls/plan.md`,
-`specs/017-admin-permission-controls/spec.md`, and
-`specs/017-admin-permission-controls/tasks.md` before editing.
+`specs/018-report-center-tabs/plan.md`,
+`specs/018-report-center-tabs/spec.md`, and
+`specs/018-report-center-tabs/tasks.md` before editing.
 <!-- SPECKIT END -->

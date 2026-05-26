@@ -20,6 +20,8 @@ export interface AuthenticatedUser {
     email?: string | null
     role: Role
     balance: number
+    isActive: boolean
+    deletedAt?: Date | null
 }
 
 const authenticatedUserSelect = {
@@ -29,6 +31,7 @@ const authenticatedUserSelect = {
     role: true,
     balance: true,
     isActive: true,
+    deletedAt: true,
     passwordChangedAt: true,
 } as const
 
@@ -56,6 +59,8 @@ async function getDbAuthenticatedUser(
         email: dbUser.email,
         role: dbUser.role as Role,
         balance: dbUser.balance,
+        isActive: dbUser.isActive,
+        deletedAt: dbUser.deletedAt,
     }
 }
 

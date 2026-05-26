@@ -39,28 +39,28 @@
 
 **Purpose**: Create the report center shell without changing old report pages yet.
 
-- [ ] T004 Create `src/components/admin/report-center/ReportCenterTabs.tsx`
+- [X] T004 Create `src/components/admin/report-center/ReportCenterTabs.tsx`
   - Reason: The tabs need one reusable UI surface that is responsive and consistent with the current dashboard style.
   - Expected: Component renders tab buttons, active state, and accessible labels from the registry.
   - Possible bugs: Long labels can overlap on mobile or resize the layout.
   - Fix/Mitigation: Use fixed-height controls, horizontal overflow on small screens, and no viewport-scaled fonts.
   - Verification: Manual viewport check at desktop and mobile widths.
 
-- [ ] T005 Create `src/components/admin/report-center/AdminReportCenterClient.tsx`
+- [X] T005 Create `src/components/admin/report-center/AdminReportCenterClient.tsx`
   - Reason: The report center needs a client controller for query-based tab state and lazy panel rendering.
   - Expected: Component reads `tab`, resolves the active tab, updates URL on tab change, and renders only the active panel placeholder.
   - Possible bugs: Switching tabs can add duplicate history entries or lose back-button behavior.
   - Fix/Mitigation: Use route replacement for tab changes unless a product decision requires full history.
   - Verification: Open `/dashboard/admin/reports?tab=unknown` and confirm it falls back to the default tab.
 
-- [ ] T006 Create new route `src/app/dashboard/admin/reports/page.tsx`
+- [X] T006 Create new route `src/app/dashboard/admin/reports/page.tsx`
   - Reason: Admins need one URL for the consolidated reports center.
   - Expected: Route enforces admin access and renders `AdminReportCenterClient`.
   - Possible bugs: A non-admin can briefly see the shell if access checks are only client-side.
   - Fix/Mitigation: Match the strongest existing route access pattern used by current admin pages.
   - Verification: Manual non-admin access attempt redirects or blocks access.
 
-- [ ] T007 Add placeholder panels in `src/components/admin/report-center/*Panel.tsx`
+- [X] T007 Add placeholder panels in `src/components/admin/report-center/*Panel.tsx`
   - Reason: The shell should be demonstrable before extracting every old page.
   - Expected: Each required tab renders a clear placeholder naming the legacy route it will replace.
   - Possible bugs: Placeholder text can ship accidentally if extraction is incomplete.

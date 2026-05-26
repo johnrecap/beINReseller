@@ -72,3 +72,8 @@ export function buildReportCenterHref(value: unknown): string {
     const tabKey = resolveReportTabKey(value)
     return `${REPORT_CENTER_HREF}?tab=${encodeURIComponent(tabKey)}`
 }
+
+export function getReportCenterTab(value: unknown): ReportCenterTab {
+    const tabKey = resolveReportTabKey(value)
+    return REPORT_CENTER_TABS.find((tab) => tab.key === tabKey) ?? REPORT_CENTER_TABS[0]
+}

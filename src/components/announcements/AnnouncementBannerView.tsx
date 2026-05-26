@@ -372,20 +372,15 @@ function AnnouncementSlider({
                                     className={cn(
                                         'absolute inset-0 h-full w-full',
                                         getImageFitClass(slide.imageFit),
-                                        index === 0 ? 'opacity-80' : 'opacity-60 mix-blend-luminosity'
+                                        index === 0 ? 'opacity-100' : 'opacity-50 mix-blend-luminosity'
                                     )}
                                     loading={index === 0 ? 'eager' : 'lazy'}
                                 />
                             )}
-                            <div className="absolute inset-0 z-10 bg-gradient-to-t from-[#0e0e14] via-[#0e0e14]/80 to-transparent" />
+                            <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/20 via-black/5 to-transparent" />
                             <div className="absolute left-0 top-0 z-20 h-1 w-full bg-[#571bc1]" />
-                            {(slide.title || slide.description || slide.linkLabel) && (
+                            {(slide.title || slide.description) && (
                                 <div className="absolute inset-0 z-20 flex flex-col justify-end p-8 text-start">
-                                    {slide.title && (
-                                        <div className="mb-4 w-fit rounded border border-[#571bc1]/50 bg-[#571bc1]/20 px-3 py-1">
-                                            <span className="stitch-label text-[#d0bcff]">Announcement</span>
-                                        </div>
-                                    )}
                                     {slide.title && (
                                         <h3 className={cn(
                                             'mb-3 font-bold leading-tight text-white drop-shadow-lg',
@@ -402,18 +397,6 @@ function AnnouncementSlider({
                                             {slide.description}
                                         </p>
                                     )}
-                                    {slide.linkLabel && slide.linkUrl && (
-                                        <span className="inline-flex w-fit items-center rounded border border-[#9ffb06]/50 bg-[#1f1f26] px-6 py-3 stitch-label text-[#9ffb06] transition hover:bg-[#9ffb06]/10">
-                                            {slide.linkLabel}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-                            {!slide.title && !slide.description && !slide.linkLabel && (
-                                <div className="absolute inset-0 z-20 flex items-end p-8">
-                                    <div className="w-fit rounded border border-[#571bc1]/50 bg-[#571bc1]/20 px-3 py-1">
-                                        <span className="stitch-label text-[#d0bcff]">Announcement</span>
-                                    </div>
                                 </div>
                             )}
                         </article>

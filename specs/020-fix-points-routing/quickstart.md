@@ -39,6 +39,35 @@ npm run build
 3. Apply reversals only after review.
 4. Do not run `prisma db push` in production.
 
+### Dry-run candidate query shape
+
+Use this only as a review query before any correction script. It intentionally reads
+candidate rows and does not update balances or ledger entries.
+
+```sql
+SELECT
+  ple.id AS ledger_entry_id,
+  ple.operation_id,
+  ple.owner_user_id AS wrong_owner_user_id,
+  u.username AS wrong_owner_username,
+  ple.points,
+  ple.status,
+  ple.created_at,
+  CASE WHEN pcr.id IS NULL THEN false ELSE true END AS converted_risk
+FROM point_ledger_entries ple
+JOIN users u ON u.id = ple.owner_user_id
+LEFT JOIN point_cash_redemptions pcr ON pcr.ledger_entry_id = ple.id
+WHERE ple.source_type = 'OPERATION_SPEND'
+  AND ple.owner_role_at_time = 'USER'
+  AND ple.points > 0;
+```
+
+Review each candidate against current `manager_users`, active `agent_assignments`,
+and `users.created_by_id`. Safe correction must create `POINT_REVERSAL` rows for
+wrong available user awards and matching `OPERATION_SPEND` owner rows only after
+manual approval. Converted candidates stay review-required and must not be
+auto-debited.
+
 ## Production Deployment
 
 No schema migration is expected for the forward fix.

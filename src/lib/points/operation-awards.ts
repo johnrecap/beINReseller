@@ -3,19 +3,21 @@ import prisma from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { getPointProgramSettings, getSpendPointRate } from '@/lib/points/settings'
 
-export type AwardableRole = 'USER' | 'AGENT' | 'MANAGER'
+export type AwardableRateKind = 'USER' | 'AGENT' | 'MANAGER'
+export type AwardableOwnerRole = AwardableRateKind | 'ADMIN'
 
 export type AwardableUser = {
     id: string
-    role: AwardableRole | string
+    role: AwardableOwnerRole | string
     isActive: boolean
     deletedAt: Date | string | null
+    createdBy?: AwardableUser | null
 }
 
 export type OperationPointRecipient = {
     ownerUserId: string
-    ownerRole: AwardableRole
-    ownerKind: AwardableRole
+    ownerRole: AwardableOwnerRole
+    ownerKind: AwardableRateKind
 }
 
 export type RatedOperationPointRecipient = OperationPointRecipient & {
@@ -24,7 +26,7 @@ export type RatedOperationPointRecipient = OperationPointRecipient & {
 
 export type OperationSpendAwardEntry = {
     ownerUserId: string
-    ownerRoleAtTime: AwardableRole
+    ownerRoleAtTime: AwardableOwnerRole
     sourceType: 'OPERATION_SPEND'
     sourceId: string
     points: number
@@ -58,8 +60,12 @@ export type OperationSpendEligibility =
         | 'BEFORE_POINTS_START'
     }
 
-function isReceivableOwner(user: AwardableUser | null | undefined, role: AwardableRole): user is AwardableUser {
+function isReceivableOwner(user: AwardableUser | null | undefined, role: AwardableOwnerRole): user is AwardableUser {
     return Boolean(user && user.role === role && user.isActive && !user.deletedAt)
+}
+
+function isReceivableAdmin(user: AwardableUser | null | undefined): user is AwardableUser {
+    return isReceivableOwner(user, 'ADMIN')
 }
 
 export function resolveOperationPointRecipients(input: {
@@ -95,11 +101,11 @@ export function resolveOperationPointRecipients(input: {
         return recipients
     }
 
-    if (isReceivableOwner(input.operationUser, 'USER')) {
+    if (isReceivableAdmin(input.operationUser.createdBy)) {
         return [{
-            ownerUserId: input.operationUser.id,
-            ownerRole: 'USER',
-            ownerKind: 'USER',
+            ownerUserId: input.operationUser.createdBy.id,
+            ownerRole: 'ADMIN',
+            ownerKind: 'MANAGER',
         }]
     }
 
@@ -193,6 +199,14 @@ export async function processCompletedOperationPointsInTransaction(
                     role: true,
                     isActive: true,
                     deletedAt: true,
+                    createdBy: {
+                        select: {
+                            id: true,
+                            role: true,
+                            isActive: true,
+                            deletedAt: true,
+                        },
+                    },
                     managerLink: {
                         take: 1,
                         select: {

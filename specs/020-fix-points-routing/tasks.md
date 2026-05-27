@@ -12,21 +12,21 @@
 
 **Purpose**: Lock the current bug into tests before changing behavior.
 
-- [ ] T001 Add failing admin-created direct user routing test in `tests/unit/points-operation-awards.test.ts`
+- [x] T001 Add failing admin-created direct user routing test in `tests/unit/points-operation-awards.test.ts`
   - Reason: The current bug is that direct admin-created users fall back to USER points.
   - Expected: Test expects ADMIN-only recipient and fails before implementation.
   - Possible bugs: Test can omit the no-agent/no-manager condition and pass for the wrong reason.
   - Fix/Mitigation: Fixture must explicitly set `managerOwnership: null`, `agentAssignment: null`, and `createdBy` as active ADMIN.
   - Verification: `npx tsx --test tests/unit/points-operation-awards.test.ts` fails on this new case.
 
-- [ ] T002 Add failing no-valid-owner test in `tests/unit/points-operation-awards.test.ts`
+- [x] T002 Add failing no-valid-owner test in `tests/unit/points-operation-awards.test.ts`
   - Reason: The old fallback to USER must be removed when there is no valid ownership path.
   - Expected: Test expects an empty recipient list.
   - Possible bugs: Test could block agent-owned users if too broad.
   - Fix/Mitigation: Keep this test separate from the agent-owned case.
   - Verification: `npx tsx --test tests/unit/points-operation-awards.test.ts` fails before implementation.
 
-- [ ] T003 Add failing admin role ledger entry test in `tests/unit/points-operation-awards.test.ts`
+- [x] T003 Add failing admin role ledger entry test in `tests/unit/points-operation-awards.test.ts`
   - Reason: Admin recipient must be stored as ADMIN, not MANAGER, while using manager rate bucket.
   - Expected: Build award entries preserve `ownerRoleAtTime: ADMIN`.
   - Possible bugs: Type changes can accidentally allow invalid role/rate combinations.
@@ -39,14 +39,14 @@
 
 **Purpose**: Make the internal model capable of actual ADMIN ledger role and manager rate kind.
 
-- [ ] T004 Update recipient types in `src/lib/points/operation-awards.ts`
+- [x] T004 Update recipient types in `src/lib/points/operation-awards.ts`
   - Reason: Existing `AwardableRole` excludes ADMIN and conflates actual role with rate bucket.
   - Expected: Actual owner role supports ADMIN; ownerKind remains USER/AGENT/MANAGER for rate lookup.
   - Possible bugs: Changing types can break manager/agent tests or Prisma `Role` assignment.
   - Fix/Mitigation: Keep user/agent/manager cases unchanged and add focused type aliases.
   - Verification: `npx tsc --noEmit`.
 
-- [ ] T005 Add admin owner validation helper in `src/lib/points/operation-awards.ts`
+- [x] T005 Add admin owner validation helper in `src/lib/points/operation-awards.ts`
   - Reason: Admin fallback must only use active, not-deleted ADMIN accounts.
   - Expected: A direct admin creator is receivable only if role ADMIN, active, and not deleted.
   - Possible bugs: Inactive admin could still get points.
@@ -65,7 +65,7 @@
 
 ### Tests for User Story 1
 
-- [ ] T006 [P] [US1] Strengthen agent and manager precedence tests in `tests/unit/points-operation-awards.test.ts`
+- [x] T006 [P] [US1] Strengthen agent and manager precedence tests in `tests/unit/points-operation-awards.test.ts`
   - Reason: Fixing admin fallback must not break existing correct branches.
   - Expected: Manager-only and USER+AGENT tests still pass and manager wins when both links exist.
   - Possible bugs: Admin fallback could run before agent/manager checks.
@@ -74,14 +74,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Update `resolveOperationPointRecipients` in `src/lib/points/operation-awards.ts`
+- [x] T007 [US1] Update `resolveOperationPointRecipients` in `src/lib/points/operation-awards.ts`
   - Reason: This is the root cause of wrong USER awards.
   - Expected: Routing order is manager link, agent assignment, admin creator fallback, then no recipients.
   - Possible bugs: Direct users not created by admin could silently stop earning points.
   - Fix/Mitigation: This is intended by the clarified rule; verify with explicit no-owner test.
   - Verification: `npx tsx --test tests/unit/points-operation-awards.test.ts`.
 
-- [ ] T008 [US1] Include `createdBy` in operation user fetch in `src/lib/points/operation-awards.ts`
+- [x] T008 [US1] Include `createdBy` in operation user fetch in `src/lib/points/operation-awards.ts`
   - Reason: Recipient resolution needs the admin creator for direct admin-owned users.
   - Expected: `processCompletedOperationPointsInTransaction` selects operation user creator role, activity, and deletion state.
   - Possible bugs: Nested select can increase query size or miss null creator.
@@ -100,7 +100,7 @@
 
 ### Tests for User Story 2
 
-- [ ] T009 [P] [US2] Add rate bucket test for admin-as-manager in `tests/unit/points-operation-awards.test.ts`
+- [x] T009 [P] [US2] Add rate bucket test for admin-as-manager in `tests/unit/points-operation-awards.test.ts`
   - Reason: Admin has no separate point rule owner type, so this mapping must be explicit.
   - Expected: Admin recipient has `ownerRole: ADMIN` and `ownerKind: MANAGER`.
   - Possible bugs: Future refactor could add admin ownerKind accidentally.
@@ -109,14 +109,14 @@
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Update award entry typing in `src/lib/points/operation-awards.ts`
+- [x] T010 [US2] Update award entry typing in `src/lib/points/operation-awards.ts`
   - Reason: `OperationSpendAwardEntry.ownerRoleAtTime` must allow ADMIN.
   - Expected: `pointLedgerEntry.createMany` receives actual owner role including ADMIN.
   - Possible bugs: Prisma type mismatch if actual role is not a valid `Role`.
   - Fix/Mitigation: Use Prisma `Role` compatible union and run `npx tsc --noEmit`.
   - Verification: `npx tsc --noEmit`.
 
-- [ ] T011 [US2] Verify `getSpendPointRate` calls use manager ownerKind for admin in `src/lib/points/operation-awards.ts`
+- [x] T011 [US2] Verify `getSpendPointRate` calls use manager ownerKind for admin in `src/lib/points/operation-awards.ts`
   - Reason: Admin-as-manager points must use the existing manager settings.
   - Expected: Rate lookup receives `ownerKind: MANAGER` and `ownerUserId: adminId`.
   - Possible bugs: Admin-specific override does not exist, so override may be null and default manager rate applies.
@@ -135,7 +135,7 @@
 
 ### Tests for User Story 3
 
-- [ ] T012 [P] [US3] Add historical routing audit tests in `tests/unit/points-routing-audit.test.ts`
+- [x] T012 [P] [US3] Add historical routing audit tests in `tests/unit/points-routing-audit.test.ts`
   - Reason: Historical detection must be explainable before any data correction is considered.
   - Expected: Tests classify safe available-only candidates and converted review-required candidates.
   - Possible bugs: Audit can over-select legitimate agent-owned user points.
@@ -144,14 +144,14 @@
 
 ### Implementation for User Story 3
 
-- [ ] T013 [US3] Add read-only audit helper in `src/lib/points/historical-routing-audit.ts`
+- [x] T013 [US3] Add read-only audit helper in `src/lib/points/historical-routing-audit.ts`
   - Reason: Admin needs a safe list of likely wrong historical awards before remediation.
   - Expected: Helper returns candidates, expected owner, points at risk, and converted review flag.
   - Possible bugs: Current ownership may not match historical ownership at award time.
   - Fix/Mitigation: Mark ambiguous records as review-required when point-in-time evidence is missing.
   - Verification: Unit tests and dry-run review.
 
-- [ ] T014 [US3] Document remediation SQL/script steps in `specs/020-fix-points-routing/quickstart.md`
+- [x] T014 [US3] Document remediation SQL/script steps in `specs/020-fix-points-routing/quickstart.md`
   - Reason: Production correction must be deliberate and reviewable.
   - Expected: Quickstart includes dry-run first, backup, review converted candidates, then apply reversals only where approved.
   - Possible bugs: Operators might run correction before backup.
@@ -164,28 +164,28 @@
 
 ## Final Phase: Polish & Cross-Cutting Concerns
 
-- [ ] T015 Run point routing and analysis unit tests
+- [x] T015 Run point routing and analysis unit tests
   - Reason: Routing affects point balances and the analysis page displays them.
   - Expected: Relevant tests pass.
   - Possible bugs: Analysis summaries may expose historical wrong points differently after route changes.
   - Fix/Mitigation: Keep analysis read-only and verify summaries still reflect ledger data.
   - Verification: `npx tsx --test tests/unit/points-operation-awards.test.ts` and `npx tsx --test tests/unit/points-analysis.test.ts`.
 
-- [ ] T016 Run TypeScript and production build
+- [x] T016 Run TypeScript and production build
   - Reason: Type changes can break Prisma/Next build boundaries.
   - Expected: TypeScript and build pass.
   - Possible bugs: Build can uncover route imports or server/client boundary issues.
   - Fix/Mitigation: Fix compiler/build errors before deploy.
   - Verification: `npx tsc --noEmit` and `npm run build`.
 
-- [ ] T017 Perform mojibake and diff checks
+- [x] T017 Perform mojibake and diff checks
   - Reason: Repository has strict encoding safety rules.
   - Expected: No new mojibake patterns and no whitespace errors.
   - Possible bugs: PowerShell editing can introduce encoding artifacts.
   - Fix/Mitigation: Use `apply_patch` only and run checks.
   - Verification: `rg -n "â|Ã|Â" changed-files` and `git diff --check`.
 
-- [ ] T018 Prepare deployment and post-deploy validation notes
+- [x] T018 Prepare deployment and post-deploy validation notes
   - Reason: Production has live database and PM2 workers.
   - Expected: Notes state no migration expected unless audit index added, and include branch deploy commands.
   - Possible bugs: Forgetting worker build/restart can leave old point routing in background flows.

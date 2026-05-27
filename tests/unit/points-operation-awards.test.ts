@@ -53,15 +53,87 @@ test('routes transferred user future spend to user and agent when manager link i
     ])
 })
 
-test('routes direct user spend to the user only', () => {
+test('routes direct admin-created user spend to the admin only', () => {
+    const recipients = resolveOperationPointRecipients({
+        operationUser: {
+            id: 'user-1',
+            role: 'USER',
+            isActive: true,
+            deletedAt: null,
+            createdBy: { id: 'admin-1', role: 'ADMIN', isActive: true, deletedAt: null },
+        },
+        managerOwnership: null,
+        agentAssignment: null,
+    })
+
+    assert.deepEqual(recipients, [
+        { ownerUserId: 'admin-1', ownerRole: 'ADMIN', ownerKind: 'MANAGER' },
+    ])
+})
+
+test('does not fall back to user points without a valid owner path', () => {
     const recipients = resolveOperationPointRecipients({
         operationUser: { id: 'user-1', role: 'USER', isActive: true, deletedAt: null },
         managerOwnership: null,
         agentAssignment: null,
     })
 
-    assert.deepEqual(recipients, [
-        { ownerUserId: 'user-1', ownerRole: 'USER', ownerKind: 'USER' },
+    assert.deepEqual(recipients, [])
+})
+
+test('does not route direct user spend to inactive or deleted admin creator', () => {
+    const inactiveAdminRecipients = resolveOperationPointRecipients({
+        operationUser: {
+            id: 'user-1',
+            role: 'USER',
+            isActive: true,
+            deletedAt: null,
+            createdBy: { id: 'admin-1', role: 'ADMIN', isActive: false, deletedAt: null },
+        },
+        managerOwnership: null,
+        agentAssignment: null,
+    })
+
+    const deletedAdminRecipients = resolveOperationPointRecipients({
+        operationUser: {
+            id: 'user-2',
+            role: 'USER',
+            isActive: true,
+            deletedAt: null,
+            createdBy: { id: 'admin-2', role: 'ADMIN', isActive: true, deletedAt: new Date('2026-05-01T00:00:00.000Z') },
+        },
+        managerOwnership: null,
+        agentAssignment: null,
+    })
+
+    assert.deepEqual(inactiveAdminRecipients, [])
+    assert.deepEqual(deletedAdminRecipients, [])
+})
+
+test('preserves admin ledger role while using manager rate bucket', () => {
+    const entries = buildOperationSpendAwardEntries({
+        operationId: 'operation-admin',
+        amountUsd: 1000,
+        recipients: [
+            {
+                ownerUserId: 'admin-1',
+                ownerRole: 'ADMIN',
+                ownerKind: 'MANAGER',
+                ratePerThousand: 10,
+            },
+        ],
+    })
+
+    assert.deepEqual(entries.map((entry) => ({
+        ownerUserId: entry.ownerUserId,
+        ownerRoleAtTime: entry.ownerRoleAtTime,
+        points: entry.points,
+    })), [
+        {
+            ownerUserId: 'admin-1',
+            ownerRoleAtTime: 'ADMIN',
+            points: 10,
+        },
     ])
 })
 

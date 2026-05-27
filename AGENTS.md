@@ -98,15 +98,19 @@ Use these details when giving deployment commands for this project.
   - `bein-worker-10`
 - PM2 ecosystem file: `ecosystem.config.js`
 - Production has a live database. Prefer `npx prisma migrate deploy` when migrations exist. Do not suggest `npx prisma db push` for normal production deploys unless the user explicitly asks for a schema push workaround.
+- Next.js production builds must not run while `bein-web` is serving traffic from the same `.next` directory. Stop `bein-web`, remove the old `.next`, build, then start/restart `bein-web`. This prevents `ChunkLoadError: Cannot find module ... .next/server/chunks/ssr/...` and stale Server Action errors after deploys.
 - Standard deployment order:
   1. Fetch/pull the intended branch.
   2. Install dependencies only if package files changed or a clean install is needed.
   3. Run Prisma migration deploy.
   4. Generate Prisma client.
-  5. Build web app.
-  6. Build worker.
-  7. Restart PM2 processes.
-  8. Check PM2 status and recent logs.
+  5. Stop `bein-web`.
+  6. Remove old `.next`.
+  7. Build web app.
+  8. Restart `bein-web`.
+  9. Build worker.
+  10. Restart worker/maintenance PM2 processes.
+  11. Check PM2 status and recent logs.
 
 Preferred command shape for feature branch deploys:
 
@@ -119,11 +123,14 @@ npm ci
 npm --prefix worker ci
 npx prisma migrate deploy
 npx prisma generate
+pm2 stop bein-web
+rm -rf .next
 npm run build
+pm2 restart bein-web --update-env
 cd worker && npm run build && cd ..
-pm2 restart all
+pm2 restart bein-maintenance bein-worker-1 bein-worker-2 bein-worker-3 bein-worker-4 bein-worker-5 bein-worker-6 bein-worker-7 bein-worker-8 bein-worker-9 bein-worker-10
 pm2 status
-pm2 logs --lines 20
+pm2 logs bein-web --lines 80
 ```
 
 <!-- SPECKIT START -->

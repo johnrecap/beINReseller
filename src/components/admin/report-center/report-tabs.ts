@@ -42,6 +42,13 @@ export const REPORT_CENTER_TABS = [
         visibilitySetting: undefined,
     },
     {
+        key: 'points-analysis',
+        label: 'Points Analysis',
+        description: 'Trace point sources, conversions, reversals, and owner balances',
+        legacyHref: '/dashboard/admin/reports?tab=points-analysis',
+        visibilitySetting: undefined,
+    },
+    {
         key: 'login-monitor',
         label: 'Account Login Monitor',
         description: 'beIN account login failure monitoring',

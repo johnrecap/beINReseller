@@ -46,7 +46,7 @@ npm run build
 
 ## Production Deployment Note
 
-If implementation does not add a Prisma migration:
+This implementation does not add a Prisma migration. It adds read-only APIs and UI only, so deploy with Prisma client generation and build:
 
 ```bash
 cd /www/wwwroot/deshpanel.com
@@ -63,4 +63,4 @@ pm2 status
 pm2 logs --lines 20
 ```
 
-If implementation adds an index migration after query review, run `npx prisma migrate deploy` before `npx prisma generate`.
+If a later performance pass adds an index migration, run `npx prisma migrate deploy` before `npx prisma generate`.

@@ -128,7 +128,7 @@ pm2 logs --lines 20
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/019-points-analysis-report/plan.md`,
-`specs/019-points-analysis-report/spec.md`, and
-`specs/019-points-analysis-report/tasks.md` before editing.
+`specs/020-fix-points-routing/plan.md`,
+`specs/020-fix-points-routing/spec.md`, and
+`specs/020-fix-points-routing/tasks.md` before editing.
 <!-- SPECKIT END -->

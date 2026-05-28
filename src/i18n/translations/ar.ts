@@ -988,6 +988,25 @@ export const ar = {
         subtitle: 'إدارة عناوين IP واتصالات beIN',
         addProxy: 'إضافة بروكسي',
         refresh: 'تحديث',
+        import: {
+            button: 'استيراد جماعي',
+            title: 'استيراد بروكسيات دفعة واحدة',
+            textareaLabel: 'قائمة البروكسيات',
+            placeholder: 'host:port:username:password\nhost:port',
+            hint: 'الصق بروكسي واحد في كل سطر. الصيغ المدعومة: host:port أو host:port:username:password.',
+            preview: 'معاينة',
+            previewing: 'جاري المعاينة...',
+            import: 'استيراد',
+            importing: 'جاري الاستيراد...',
+            valid: 'صالح',
+            duplicates: 'مكرر',
+            invalid: 'غير صحيح',
+            blank: 'فارغ',
+            assignedLabels: 'الأسماء التي سيتم إنشاؤها',
+            invalidRows: 'سطور غير صحيحة',
+            duplicateRows: 'سطور مكررة',
+            line: 'سطر'
+        },
         stats: {
             totalServers: 'إجمالي السيرفرات',
             activeServers: 'السيرفرات النشطة',
@@ -1052,7 +1071,10 @@ export const ar = {
             statusChangeFailed: 'فشل تغيير الحالة',
             deleteConfirm: 'هل أنت متأكد من حذف هذا البروكسي؟',
             deleteSuccess: 'تم حذف البروكسي بنجاح',
-            deleteFailed: 'فشل في حذف البروكسي'
+            deleteFailed: 'فشل في حذف البروكسي',
+            importSuccess: 'تم استيراد البروكسيات',
+            importFailed: 'فشل استيراد البروكسيات',
+            importPreviewFailed: 'فشلت معاينة الاستيراد'
         }
     },
     manager: {

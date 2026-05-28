@@ -14,7 +14,8 @@ import {
     Globe,
     Network,
     Activity,
-    Server
+    Server,
+    Upload
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,6 +58,36 @@ interface Proxy {
     createdAt: string
 }
 
+interface ProxyImportPreview {
+    summary: {
+        totalLines: number
+        blankLines: number
+        validCount: number
+        duplicateCount: number
+        invalidCount: number
+        nextLabelStart: number
+    }
+    validRows: Array<{
+        lineNumber: number
+        host: string
+        port: number
+        username: string | null
+        hasPassword: boolean
+        label: string
+    }>
+    duplicates: Array<{
+        lineNumber: number
+        host: string
+        port: number
+        reason: string
+    }>
+    invalidRows: Array<{
+        lineNumber: number
+        rawLine: string
+        reason: string
+    }>
+}
+
 const initialFormData = {
     host: '',
     port: '',
@@ -76,6 +107,11 @@ export default function ProxiesPage() {
     const [editProxy, setEditProxy] = useState<Proxy | null>(null)
     const [testingProxyId, setTestingProxyId] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
+    const [importDialogOpen, setImportDialogOpen] = useState(false)
+    const [importText, setImportText] = useState('')
+    const [importPreview, setImportPreview] = useState<ProxyImportPreview | null>(null)
+    const [previewingImport, setPreviewingImport] = useState(false)
+    const [committingImport, setCommittingImport] = useState(false)
 
     // Set dynamic page title
     useEffect(() => {
@@ -138,6 +174,81 @@ export default function ProxiesPage() {
             toast.error(t.adminProxies?.messages?.addFailed || 'Failed to add proxy')
         } finally {
             setSubmitting(false)
+        }
+    }
+
+    const resetImportDialog = () => {
+        setImportText('')
+        setImportPreview(null)
+        setPreviewingImport(false)
+        setCommittingImport(false)
+    }
+
+    const handleImportDialogChange = (open: boolean) => {
+        setImportDialogOpen(open)
+        if (!open) {
+            resetImportDialog()
+        }
+    }
+
+    const handlePreviewImport = async () => {
+        setPreviewingImport(true)
+        try {
+            const res = await fetch('/api/admin/proxies/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: 'preview',
+                    text: importText,
+                    isActive: true,
+                }),
+            })
+            const data = await res.json()
+            if (data.success) {
+                setImportPreview({
+                    summary: data.summary,
+                    validRows: data.validRows || [],
+                    duplicates: data.duplicates || [],
+                    invalidRows: data.invalidRows || [],
+                })
+            } else {
+                setImportPreview(null)
+                toast.error(data.error || t.adminProxies?.messages?.importPreviewFailed || 'Failed to preview import')
+            }
+        } catch {
+            setImportPreview(null)
+            toast.error(t.adminProxies?.messages?.importPreviewFailed || 'Failed to preview import')
+        } finally {
+            setPreviewingImport(false)
+        }
+    }
+
+    const handleCommitImport = async () => {
+        setCommittingImport(true)
+        try {
+            const res = await fetch('/api/admin/proxies/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: 'commit',
+                    text: importText,
+                    isActive: true,
+                }),
+            })
+            const data = await res.json()
+            if (data.success) {
+                toast.success(
+                    `${t.adminProxies?.messages?.importSuccess || 'Imported proxies'}: ${data.summary?.importedCount || 0}`
+                )
+                handleImportDialogChange(false)
+                fetchProxies()
+            } else {
+                toast.error(data.error || t.adminProxies?.messages?.importFailed || 'Failed to import proxies')
+            }
+        } catch {
+            toast.error(t.adminProxies?.messages?.importFailed || 'Failed to import proxies')
+        } finally {
+            setCommittingImport(false)
         }
     }
 
@@ -274,6 +385,128 @@ export default function ProxiesPage() {
                         <RefreshCw className="h-4 w-4 ml-2" />
                         {t.adminProxies?.refresh || t.common?.refresh || 'Refresh'}
                     </Button>
+                    <Dialog open={importDialogOpen} onOpenChange={handleImportDialogChange}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline">
+                                <Upload className="h-4 w-4 ml-2" />
+                                {t.adminProxies?.import?.button || 'Bulk Import'}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent dir="rtl" className="max-w-3xl">
+                            <DialogHeader>
+                                <DialogTitle>{t.adminProxies?.import?.title || 'Bulk Proxy Import'}</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="proxy-import-text">
+                                        {t.adminProxies?.import?.textareaLabel || 'Proxy list'}
+                                    </Label>
+                                    <textarea
+                                        id="proxy-import-text"
+                                        value={importText}
+                                        onChange={(e) => {
+                                            setImportText(e.target.value)
+                                            setImportPreview(null)
+                                        }}
+                                        placeholder={t.adminProxies?.import?.placeholder || 'host:port:username:password'}
+                                        className="min-h-56 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono dir-ltr shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        {t.adminProxies?.import?.hint || 'Paste one proxy per line. Supported formats: host:port or host:port:username:password.'}
+                                    </p>
+                                </div>
+
+                                {importPreview && (
+                                    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                                            <div>
+                                                <div className="text-xs text-muted-foreground">{t.adminProxies?.import?.valid || 'Valid'}</div>
+                                                <div className="text-xl font-semibold text-green-600">{importPreview.summary.validCount}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-muted-foreground">{t.adminProxies?.import?.duplicates || 'Duplicates'}</div>
+                                                <div className="text-xl font-semibold text-yellow-600">{importPreview.summary.duplicateCount}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-muted-foreground">{t.adminProxies?.import?.invalid || 'Invalid'}</div>
+                                                <div className="text-xl font-semibold text-red-600">{importPreview.summary.invalidCount}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-muted-foreground">{t.adminProxies?.import?.blank || 'Blank'}</div>
+                                                <div className="text-xl font-semibold">{importPreview.summary.blankLines}</div>
+                                            </div>
+                                        </div>
+
+                                        {importPreview.validRows.length > 0 && (
+                                            <div className="space-y-2">
+                                                <div className="text-sm font-medium">{t.adminProxies?.import?.assignedLabels || 'Assigned labels'}</div>
+                                                <div className="max-h-28 overflow-auto rounded border bg-background">
+                                                    {importPreview.validRows.slice(0, 8).map(row => (
+                                                        <div key={`${row.lineNumber}-${row.label}`} className="flex items-center justify-between gap-3 border-b px-3 py-2 text-xs last:border-b-0">
+                                                            <span className="font-medium">{row.label}</span>
+                                                            <span className="font-mono dir-ltr">{row.host}:{row.port}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {(importPreview.invalidRows.length > 0 || importPreview.duplicates.length > 0) && (
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                                {importPreview.invalidRows.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <div className="text-sm font-medium text-red-600">{t.adminProxies?.import?.invalidRows || 'Invalid rows'}</div>
+                                                        <div className="max-h-28 overflow-auto rounded border bg-background">
+                                                            {importPreview.invalidRows.slice(0, 5).map(row => (
+                                                                <div key={`invalid-${row.lineNumber}`} className="border-b px-3 py-2 text-xs last:border-b-0">
+                                                                    <div>{t.adminProxies?.import?.line || 'Line'} {row.lineNumber}: {row.reason}</div>
+                                                                    <div className="mt-1 font-mono text-muted-foreground dir-ltr">{row.rawLine}</div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {importPreview.duplicates.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <div className="text-sm font-medium text-yellow-600">{t.adminProxies?.import?.duplicateRows || 'Duplicate rows'}</div>
+                                                        <div className="max-h-28 overflow-auto rounded border bg-background">
+                                                            {importPreview.duplicates.slice(0, 5).map(row => (
+                                                                <div key={`duplicate-${row.lineNumber}`} className="border-b px-3 py-2 text-xs last:border-b-0">
+                                                                    <span>{t.adminProxies?.import?.line || 'Line'} {row.lineNumber}: </span>
+                                                                    <span className="font-mono dir-ltr">{row.host}:{row.port}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" onClick={() => handleImportDialogChange(false)}>
+                                        {t.common?.cancel || 'Cancel'}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handlePreviewImport}
+                                        disabled={previewingImport || committingImport || importText.trim().length === 0}
+                                    >
+                                        {previewingImport ? t.adminProxies?.import?.previewing || 'Previewing...' : t.adminProxies?.import?.preview || 'Preview'}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={handleCommitImport}
+                                        disabled={committingImport || !importPreview || importPreview.summary.validCount === 0}
+                                    >
+                                        {committingImport ? t.adminProxies?.import?.importing || 'Importing...' : t.adminProxies?.import?.import || 'Import'}
+                                    </Button>
+                                </DialogFooter>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                     <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                         <DialogTrigger asChild>
                             <Button>

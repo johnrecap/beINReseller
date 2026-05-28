@@ -986,6 +986,25 @@ export const bn = {
         subtitle: 'IP ঠিকানা এবং beIN সংযোগ পরিচালনা করুন',
         addProxy: 'প্রক্সি যোগ করুন',
         refresh: 'রিফ্রেশ',
+        import: {
+            button: 'Bulk Import',
+            title: 'Bulk Proxy Import',
+            textareaLabel: 'Proxy list',
+            placeholder: 'host:port:username:password\nhost:port',
+            hint: 'Paste one proxy per line. Supported formats: host:port or host:port:username:password.',
+            preview: 'Preview',
+            previewing: 'Previewing...',
+            import: 'Import',
+            importing: 'Importing...',
+            valid: 'Valid',
+            duplicates: 'Duplicates',
+            invalid: 'Invalid',
+            blank: 'Blank',
+            assignedLabels: 'Assigned labels',
+            invalidRows: 'Invalid rows',
+            duplicateRows: 'Duplicate rows',
+            line: 'Line'
+        },
         stats: {
             totalServers: 'মোট সার্ভার',
             activeServers: 'সক্রিয় সার্ভার',
@@ -1050,7 +1069,10 @@ export const bn = {
             statusChangeFailed: 'অবস্থা পরিবর্তন করতে ব্যর্থ',
             deleteConfirm: 'আপনি কি নিশ্চিত যে এই প্রক্সি মুছতে চান?',
             deleteSuccess: 'প্রক্সি সফলভাবে মুছে ফেলা হয়েছে',
-            deleteFailed: 'প্রক্সি মুছতে ব্যর্থ'
+            deleteFailed: 'প্রক্সি মুছতে ব্যর্থ',
+            importSuccess: 'Imported proxies',
+            importFailed: 'Failed to import proxies',
+            importPreviewFailed: 'Failed to preview import'
         }
     },
     manager: {

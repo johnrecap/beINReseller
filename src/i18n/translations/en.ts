@@ -989,6 +989,25 @@ export const en = {
         subtitle: 'Manage IP addresses and beIN connections',
         addProxy: 'Add Proxy',
         refresh: 'Refresh',
+        import: {
+            button: 'Bulk Import',
+            title: 'Bulk Proxy Import',
+            textareaLabel: 'Proxy list',
+            placeholder: 'host:port:username:password\nhost:port',
+            hint: 'Paste one proxy per line. Supported formats: host:port or host:port:username:password.',
+            preview: 'Preview',
+            previewing: 'Previewing...',
+            import: 'Import',
+            importing: 'Importing...',
+            valid: 'Valid',
+            duplicates: 'Duplicates',
+            invalid: 'Invalid',
+            blank: 'Blank',
+            assignedLabels: 'Assigned labels',
+            invalidRows: 'Invalid rows',
+            duplicateRows: 'Duplicate rows',
+            line: 'Line'
+        },
         stats: {
             totalServers: 'Total Servers',
             activeServers: 'Active Servers',
@@ -1053,7 +1072,10 @@ export const en = {
             statusChangeFailed: 'Failed to change status',
             deleteConfirm: 'Are you sure you want to delete this proxy?',
             deleteSuccess: 'Proxy deleted successfully',
-            deleteFailed: 'Failed to delete proxy'
+            deleteFailed: 'Failed to delete proxy',
+            importSuccess: 'Imported proxies',
+            importFailed: 'Failed to import proxies',
+            importPreviewFailed: 'Failed to preview import'
         }
     },
     manager: {

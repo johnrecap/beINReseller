@@ -11,5 +11,5 @@ export interface ProxyConfig {
     port: number;
     username?: string | null;
     password?: string | null;
-    proxyType?: ProxyType; // Default: 'socks5' for CherryProxy compatibility
+    proxyType?: ProxyType; // Default: 'http' for manually imported proxy lists
 }

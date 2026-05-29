@@ -221,7 +221,7 @@ export class HttpClientService {
             // PROXY MODE: Use createCookieAgent to wrap proxy agent with cookie support
             const proxyManager = getProxyManager();
             const proxyUrl = proxyManager.buildProxyUrlFromConfig(proxyConfig);
-            const proxyType = proxyConfig.proxyType || 'socks5';
+            const proxyType = proxyConfig.proxyType || 'http';
             const proxyTlsOptions = shouldAllowInsecureProxyTls() ? { rejectUnauthorized: false } : {};
 
             // Create a cookie-aware agent that wraps the proxy agent
@@ -831,7 +831,7 @@ export class HttpClientService {
                 // PROXY MODE: Use createCookieAgent to wrap proxy agent with cookie support
                 const proxyManager = getProxyManager();
                 const proxyUrl = proxyManager.buildProxyUrlFromConfig(this.proxyConfig);
-                const proxyType = this.proxyConfig.proxyType || 'socks5';
+                const proxyType = this.proxyConfig.proxyType || 'http';
                 const proxyTlsOptions = shouldAllowInsecureProxyTls() ? { rejectUnauthorized: false } : {};
 
                 // Create a cookie-aware agent that wraps the proxy agent
@@ -910,7 +910,7 @@ export class HttpClientService {
         if (this.proxyConfig) {
             const proxyManager = getProxyManager();
             const proxyUrl = proxyManager.buildProxyUrlFromConfig(this.proxyConfig);
-            const proxyType = this.proxyConfig.proxyType || 'socks5';
+            const proxyType = this.proxyConfig.proxyType || 'http';
 
             if (proxyType === 'socks5') {
                 const SocksCookieAgent = createCookieAgent(SocksProxyAgent);

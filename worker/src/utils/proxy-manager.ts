@@ -3,7 +3,7 @@ import { SocksProxyAgent } from 'socks-proxy-agent';
 import { ProxyConfig, ProxyType } from '../types/proxy';
 
 // Re-export for convenience
-export { ProxyConfig, ProxyType };
+export type { ProxyConfig, ProxyType };
 
 // Legacy interface for SuperProxy (kept for backward compatibility)
 export interface LegacyProxyConfig {
@@ -52,7 +52,7 @@ export class ProxyManager {
         const validTypes: ProxyType[] = ['http', 'socks5'];
         const safeType: ProxyType = validTypes.includes(proxyType as ProxyType)
             ? (proxyType as ProxyType)
-            : 'socks5';
+            : 'http';
 
         if (proxyType && !validTypes.includes(proxyType as ProxyType)) {
             console.warn(`[Proxy] Invalid proxyType "${proxyType}", defaulting to socks5`);
@@ -61,7 +61,7 @@ export class ProxyManager {
         const protocol = safeType === 'socks5' ? 'socks5' : 'http';
 
         if (username && password) {
-            return `${protocol}://${username}:${password}@${host}:${port}`;
+            return `${protocol}://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`;
         }
         return `${protocol}://${host}:${port}`;
     }
@@ -73,7 +73,7 @@ export class ProxyManager {
      */
     getProxyAgentFromConfig(config: ProxyConfig): SocksProxyAgent | HttpsProxyAgent<string> {
         const proxyUrl = this.buildProxyUrlFromConfig(config);
-        const proxyType = config.proxyType || 'socks5'; // Default to SOCKS5
+        const proxyType = config.proxyType || 'http'; // Default to HTTP for imported proxy lists
 
         if (proxyType === 'socks5') {
             return new SocksProxyAgent(proxyUrl);
@@ -86,7 +86,7 @@ export class ProxyManager {
      * @param config - ProxyConfig from database
      */
     getMaskedProxyUrlFromConfig(config: ProxyConfig): string {
-        const { host, port, username, proxyType = 'socks5' } = config;
+        const { host, port, username, proxyType = 'http' } = config;
         const protocol = proxyType === 'socks5' ? 'socks5' : 'http';
         if (username) {
             return `${protocol}://${username}:****@${host}:${port}`;

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { decryptSecret } from '@/lib/crypto'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import axios from 'axios'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -55,21 +56,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
             const agent = new HttpsProxyAgent(proxyUrl)
 
-            // Use AbortController for timeout instead of shell --max-time
-            const controller = new AbortController()
-            const timeout = setTimeout(() => controller.abort(), 15000)
+            const response = await axios.get<{ ip: string }>('https://api.ipify.org?format=json', {
+                httpsAgent: agent,
+                proxy: false,
+                timeout: 15000,
+                validateStatus: status => status < 500,
+            })
 
-            const response = await fetch('https://api.ipify.org?format=json', {
-                agent,
-                signal: controller.signal,
-            } as RequestInit)
-            clearTimeout(timeout)
-
-            if (!response.ok) {
+            if (response.status < 200 || response.status >= 300) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`)
             }
 
-            const data = await response.json() as { ip: string }
+            const data = response.data
             const duration = Date.now() - start
             const ip = data.ip
 

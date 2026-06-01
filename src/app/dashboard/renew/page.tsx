@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import MaintenanceOverlay from '@/components/shared/MaintenanceOverlay'
 import { SignalRefreshFlow, InstallmentPaymentFlow } from '@/components/renewal'
 import { Zap } from 'lucide-react'
+import { requestPrePayOperationExpiry } from '@/lib/operations/client-timeout'
 import { OPERATION_WARNING_THRESHOLD_SECONDS } from '@/lib/operations/timing'
 
 // Renewal Mode Type
@@ -405,15 +406,19 @@ export default function RenewWizardPage() {
         if (isAutoCancelling) return
 
         if (step === 'packages') {
-            // No money deducted during package selection; just show timeout.
-            // Server-side heartbeat or cleanup releases the account lock.
+            // No money was deducted yet, so expire immediately and release the account lock.
+            if (operationId) {
+                requestPrePayOperationExpiry(operationId).catch((error) => {
+                    console.error('[Package Timeout] Failed to expire operation:', error)
+                })
+            }
             setResult({ success: false, message: 'Package selection timed out — please try again' })
             setStep('result')
         } else if (step === 'awaiting-final-confirm') {
             handleCancelConfirm(true)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAutoCancelling, step])
+    }, [isAutoCancelling, operationId, step])
 
     // Start renewal
     const handleStartRenewal = async () => {

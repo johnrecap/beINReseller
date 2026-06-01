@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
 import BrandLogo from '@/components/brand/BrandLogo'
@@ -44,10 +44,10 @@ function CountdownCell({ value, label, accent = false }: { value: number; label:
  */
 export default function MaintenanceOverlay({ message, pauseUntil }: MaintenanceOverlayProps) {
     const { t } = useTranslation()
-    const [nowTick, setNowTick] = useState(0)
+    const [, setNowTick] = useState(0)
 
     const defaultMessage = (t.maintenance as { message?: string })?.message || 'System is under maintenance, please try again later'
-    const remaining = useMemo(() => getRemainingParts(pauseUntil), [pauseUntil, nowTick])
+    const remaining = getRemainingParts(pauseUntil)
 
     useEffect(() => {
         const timer = window.setInterval(() => setNowTick((current) => current + 1), 1000)
@@ -95,7 +95,7 @@ export default function MaintenanceOverlay({ message, pauseUntil }: MaintenanceO
                         <RefreshCw className="h-5 w-5 text-[#d0bcff]" />
                         <span className="text-sm text-[#c0caae]">
                             {remaining.ended && pauseUntil
-                                ? 'Service resume time has passed. Waiting for admin confirmation.'
+                                ? 'Service resume time has passed. Checking service status.'
                                 : 'Service will resume automatically when the timer ends.'}
                         </span>
                     </div>

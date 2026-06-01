@@ -50,6 +50,22 @@ export function useMaintenance(): MaintenanceStatus {
         return () => clearInterval(interval)
     }, [checkMaintenance])
 
+    useEffect(() => {
+        if (!isMaintenanceMode || !maintenancePauseUntil) {
+            return
+        }
+
+        const resumeAt = new Date(maintenancePauseUntil).getTime()
+        if (!Number.isFinite(resumeAt)) {
+            return
+        }
+
+        const delay = Math.max(0, resumeAt - Date.now() + 1000)
+        const timeout = window.setTimeout(checkMaintenance, delay)
+
+        return () => window.clearTimeout(timeout)
+    }, [checkMaintenance, isMaintenanceMode, maintenancePauseUntil])
+
     return {
         isMaintenanceMode,
         maintenanceMessage,

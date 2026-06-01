@@ -7,6 +7,10 @@ import {
     BEIN_LOGIN_FAILURE_THRESHOLD_SETTING_KEY,
     validateBeinLoginFailureThreshold,
 } from '@/lib/bein-login-failure-threshold'
+import {
+    normalizeMaintenanceSettingsForAdmin,
+    normalizeMaintenanceSettingsUpdate,
+} from '@/lib/maintenance/effective-status'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
             return acc
         }, {} as Record<string, string>)
 
-        return NextResponse.json(settingsMap)
+        return NextResponse.json(normalizeMaintenanceSettingsForAdmin(settingsMap))
 
     } catch (error) {
         console.error('Get settings error:', error)
@@ -69,7 +73,7 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
         }
 
-        const normalizedBody = { ...(body as Record<string, unknown>) }
+        const normalizedBody = normalizeMaintenanceSettingsUpdate(body as Record<string, unknown>)
 
         if (BEIN_LOGIN_FAILURE_THRESHOLD_SETTING_KEY in normalizedBody) {
             const validation = validateBeinLoginFailureThreshold(

@@ -26,6 +26,7 @@ import {
     type AnnouncementTickerSpeed,
 } from '@/lib/announcement/constants'
 import { resolveUploadedImageSrc } from '@/lib/announcement/helpers'
+import { getAnnouncementSliderFrame } from '@/lib/announcement/slider-performance'
 
 /* ── Props ──────────────────────────────────────────── */
 
@@ -306,18 +307,16 @@ function AnnouncementSlider({
 }) {
     const [activeIndex, setActiveIndex] = useState(0)
     const [isPaused, setIsPaused] = useState(false)
-    const canNavigate = slides.length > 1
     const safeIntervalMs = clampSliderInterval(intervalMs)
-
-    const visibleSlides = useMemo(() => {
-        if (slides.length === 0) {
-            return []
-        }
-
-        return Array.from({ length: Math.min(3, slides.length) }, (_, offset) => (
-            slides[(activeIndex + offset) % slides.length]
-        ))
+    const frame = useMemo(() => {
+        return getAnnouncementSliderFrame(
+            slides,
+            activeIndex,
+            (slide) => resolveUploadedImageSrc(slide.imageUrl)
+        )
     }, [activeIndex, slides])
+    const { activeSlide, canNavigate, preloadSlides } = frame
+    const activeImageSrc = activeSlide ? resolveUploadedImageSrc(activeSlide.imageUrl) : ''
 
     useEffect(() => {
         if (!autoplay || reducedMotion || isPaused || !canNavigate) {
@@ -339,82 +338,84 @@ function AnnouncementSlider({
         setActiveIndex((current) => (current + 1) % slides.length)
     }
 
+    if (!activeSlide || !activeImageSrc) {
+        return null
+    }
+
     return (
         <section
-            className="relative w-full stitch-announcement-stage"
+            className="relative w-full"
             aria-roledescription="carousel"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
             onFocus={() => setIsPaused(true)}
             onBlur={() => setIsPaused(false)}
         >
-            <div className={cn('relative w-full pr-12', previewMode ? 'aspect-[21/10]' : 'aspect-[21/9]')}>
-                {visibleSlides.map((slide, index) => {
-                    const imageSrc = resolveUploadedImageSrc(slide.imageUrl)
-                    const layerClass = index === 0
-                        ? 'stitch-card-front'
-                        : index === 1
-                            ? 'stitch-card-middle'
-                            : 'stitch-card-back'
-                    const card = (
-                        <article
-                            className={cn(
-                                'stitch-announcement-card overflow-hidden rounded-xl border border-white/10 bg-[#131319]/60 shadow-2xl backdrop-blur-xl',
-                                layerClass
-                            )}
+            <div className={cn('relative w-full', canNavigate && 'pr-12', previewMode ? 'aspect-[21/10]' : 'aspect-[21/9]')}>
+                <article className="absolute inset-0 overflow-hidden rounded-xl border border-white/10 bg-[#131319] shadow-lg">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={activeImageSrc}
+                        alt={activeSlide.imageAlt || activeSlide.title || 'Announcement slide'}
+                        className={cn('absolute inset-0 h-full w-full', getImageFitClass(activeSlide.imageFit))}
+                        loading="eager"
+                        decoding="async"
+                    />
+                    <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/20 via-black/5 to-transparent" />
+                    <div className="absolute left-0 top-0 z-30 h-1 w-full bg-[#571bc1]" />
+                    {activeSlide.linkUrl && (
+                        <a
+                            href={activeSlide.linkUrl}
+                            className="absolute inset-0 z-20 focus:outline-none focus:ring-2 focus:ring-[#9ffb06]/70"
                         >
-                            {imageSrc && (
-                                /* eslint-disable-next-line @next/next/no-img-element */
-                                <img
-                                    src={imageSrc}
-                                    alt={slide.imageAlt || slide.title || 'Announcement slide'}
-                                    className={cn(
-                                        'absolute inset-0 h-full w-full',
-                                        getImageFitClass(slide.imageFit),
-                                        index === 0 ? 'opacity-100' : 'opacity-50 mix-blend-luminosity'
-                                    )}
-                                    loading={index === 0 ? 'eager' : 'lazy'}
-                                />
+                            <span className="sr-only">
+                                {activeSlide.linkLabel || activeSlide.title || 'Open announcement slide'}
+                            </span>
+                        </a>
+                    )}
+                    {(activeSlide.title || activeSlide.description) && (
+                        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col justify-end p-8 text-start">
+                            {activeSlide.title && (
+                                <h3 className={cn(
+                                    'mb-3 font-bold leading-tight text-white drop-shadow-lg',
+                                    previewMode ? 'text-2xl' : 'text-4xl'
+                                )}>
+                                    {activeSlide.title}
+                                </h3>
                             )}
-                            <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/20 via-black/5 to-transparent" />
-                            <div className="absolute left-0 top-0 z-20 h-1 w-full bg-[#571bc1]" />
-                            {(slide.title || slide.description) && (
-                                <div className="absolute inset-0 z-20 flex flex-col justify-end p-8 text-start">
-                                    {slide.title && (
-                                        <h3 className={cn(
-                                            'mb-3 font-bold leading-tight text-white drop-shadow-lg',
-                                            previewMode ? 'text-2xl' : 'text-4xl'
-                                        )}>
-                                            {slide.title}
-                                        </h3>
-                                    )}
-                                    {slide.description && (
-                                        <p className={cn(
-                                            'mb-6 max-w-3xl leading-relaxed text-[#c0caae]',
-                                            previewMode ? 'line-clamp-2 text-sm' : 'text-lg'
-                                        )}>
-                                            {slide.description}
-                                        </p>
-                                    )}
-                                </div>
+                            {activeSlide.description && (
+                                <p className={cn(
+                                    'mb-6 max-w-3xl leading-relaxed text-[#c0caae]',
+                                    previewMode ? 'line-clamp-2 text-sm' : 'text-lg'
+                                )}>
+                                    {activeSlide.description}
+                                </p>
                             )}
-                        </article>
-                    )
+                        </div>
+                    )}
+                </article>
+                <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0">
+                    {preloadSlides.map((slide) => {
+                        const preloadSrc = resolveUploadedImageSrc(slide.imageUrl)
+                        if (!preloadSrc) return null
 
-                    if (slide.linkUrl && index === 0) {
                         return (
-                            <a key={`${slide.id}-${index}`} href={slide.linkUrl} className="block focus:outline-none focus:ring-2 focus:ring-[#9ffb06]/70">
-                                {card}
-                            </a>
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                key={`${slide.id}-${preloadSrc}`}
+                                src={preloadSrc}
+                                alt=""
+                                loading="eager"
+                                decoding="async"
+                                className="h-px w-px opacity-0"
+                            />
                         )
-                    }
-
-                    return <div key={`${slide.id}-${index}`}>{card}</div>
-                })}
+                    })}
+                </div>
             </div>
 
             {canNavigate && (
-                <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-30 flex items-center justify-between px-3">
+                <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-40 flex items-center justify-between px-3">
                     <button
                         type="button"
                         aria-label="Previous announcement slide"

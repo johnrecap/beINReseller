@@ -8,6 +8,7 @@ import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import redis from '@/lib/redis'
+import { computeEffectiveMaintenanceStatus } from '@/lib/maintenance/effective-status'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -60,15 +61,20 @@ export async function POST(request: NextRequest) {
 
         // 2.5 Check maintenance mode - block non-admin users
         if (authUser.role !== 'ADMIN') {
-            const maintenanceSetting = await prisma.setting.findUnique({
-                where: { key: 'maintenance_mode' }
+            const [maintenanceSetting, msgSetting, pauseUntilSetting] = await Promise.all([
+                prisma.setting.findUnique({ where: { key: 'maintenance_mode' } }),
+                prisma.setting.findUnique({ where: { key: 'maintenance_message' } }),
+                prisma.setting.findUnique({ where: { key: 'maintenance_pause_until' } }),
+            ])
+            const effectiveMaintenance = computeEffectiveMaintenanceStatus({
+                maintenanceMode: maintenanceSetting?.value,
+                maintenanceMessage: msgSetting?.value,
+                maintenancePauseUntil: pauseUntilSetting?.value,
             })
-            if (maintenanceSetting?.value === 'true') {
-                const msgSetting = await prisma.setting.findUnique({
-                    where: { key: 'maintenance_message' }
-                })
+
+            if (effectiveMaintenance.blocksUsers) {
                 return NextResponse.json(
-                    { error: msgSetting?.value || 'System under maintenance, please try again later' },
+                    { error: effectiveMaintenance.message },
                     { status: 503 }
                 )
             }

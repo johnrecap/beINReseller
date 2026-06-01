@@ -15,75 +15,13 @@ import {
     type AnnouncementImagePurpose,
 } from '@/lib/announcement/constants'
 import { validateAnnouncementImageDimensions } from '@/lib/announcement/helpers'
+import {
+    detectSafeImage,
+    extensionForDetectedImage,
+    isSupportedUploadMime,
+} from '@/lib/uploads/image-validation'
 
-// Allowed file types
-const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-
-function readUInt24LE(buffer: Buffer, offset: number): number {
-    return buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16)
-}
-
-function getImageDimensions(buffer: Buffer, mimeType: string): { width: number; height: number } | null {
-    if (mimeType === 'image/png' && buffer.length >= 24) {
-        return {
-            width: buffer.readUInt32BE(16),
-            height: buffer.readUInt32BE(20),
-        }
-    }
-
-    if (mimeType === 'image/gif' && buffer.length >= 10) {
-        return {
-            width: buffer.readUInt16LE(6),
-            height: buffer.readUInt16LE(8),
-        }
-    }
-
-    if ((mimeType === 'image/jpeg' || mimeType === 'image/jpg') && buffer.length > 4) {
-        let offset = 2
-        while (offset < buffer.length) {
-            if (buffer[offset] !== 0xff) return null
-            const marker = buffer[offset + 1]
-            const length = buffer.readUInt16BE(offset + 2)
-
-            if (marker >= 0xc0 && marker <= 0xc3 && offset + 8 < buffer.length) {
-                return {
-                    height: buffer.readUInt16BE(offset + 5),
-                    width: buffer.readUInt16BE(offset + 7),
-                }
-            }
-
-            offset += 2 + length
-        }
-    }
-
-    if (mimeType === 'image/webp' && buffer.length >= 30 && buffer.toString('ascii', 0, 4) === 'RIFF') {
-        const format = buffer.toString('ascii', 12, 16)
-        if (format === 'VP8X' && buffer.length >= 30) {
-            return {
-                width: readUInt24LE(buffer, 24) + 1,
-                height: readUInt24LE(buffer, 27) + 1,
-            }
-        }
-
-        if (format === 'VP8 ' && buffer.length >= 30) {
-            return {
-                width: buffer.readUInt16LE(26) & 0x3fff,
-                height: buffer.readUInt16LE(28) & 0x3fff,
-            }
-        }
-
-        if (format === 'VP8L' && buffer.length >= 25) {
-            const bits = buffer.readUInt32LE(21)
-            return {
-                width: (bits & 0x3fff) + 1,
-                height: ((bits >> 14) & 0x3fff) + 1,
-            }
-        }
-    }
-
-    return null
-}
 
 function parseAnnouncementPurpose(value: FormDataEntryValue | null): AnnouncementImagePurpose | null {
     if (typeof value !== 'string') return null
@@ -93,11 +31,30 @@ function parseAnnouncementPurpose(value: FormDataEntryValue | null): Announcemen
 }
 
 // Generate unique filename
-function generateFilename(originalName: string): string {
+function generateFilename(extension: string): string {
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 8)
-    const ext = path.extname(originalName).toLowerCase() || '.jpg'
-    return `${timestamp}-${random}${ext}`
+    return `${timestamp}-${random}${extension}`
+}
+
+async function writeUniqueUploadFile(uploadDir: string, buffer: Buffer, extension: string): Promise<string> {
+    for (let attempt = 0; attempt < 10; attempt++) {
+        const filename = generateFilename(extension)
+        const filePath = path.join(uploadDir, filename)
+
+        try {
+            await writeFile(filePath, buffer, { flag: 'wx' })
+            return filename
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+                continue
+            }
+
+            throw error
+        }
+    }
+
+    throw new Error('Could not allocate upload filename')
 }
 
 export async function POST(request: NextRequest) {
@@ -118,13 +75,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 })
         }
 
-        // Validate file type
-        if (!ALLOWED_TYPES.includes(file.type)) {
-            return NextResponse.json({
-                error: 'Invalid file type. Allowed: JPG, PNG, WebP, GIF'
-            }, { status: 400 })
-        }
-
         // Validate file size
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json({
@@ -135,17 +85,23 @@ export async function POST(request: NextRequest) {
         // Convert file to buffer once so validation and save use the same bytes
         const bytes = await file.arrayBuffer()
         const buffer = Buffer.from(bytes)
-        const dimensions = getImageDimensions(buffer, file.type)
+        const detectedImage = detectSafeImage(buffer)
+        if (!isSupportedUploadMime(file.type, detectedImage)) {
+            return NextResponse.json({
+                error: 'Invalid file type. Allowed: JPG, PNG, WebP, GIF'
+            }, { status: 400 })
+        }
+
         const dimensionResult =
-            type === 'announcement' && purpose && dimensions
-                ? validateAnnouncementImageDimensions(purpose, dimensions.width, dimensions.height)
+            type === 'announcement' && purpose && detectedImage
+                ? validateAnnouncementImageDimensions(purpose, detectedImage.width, detectedImage.height)
                 : null
 
         if (dimensionResult?.status === 'rejected') {
             return NextResponse.json({
                 error: dimensionResult.reason,
-                width: dimensions?.width,
-                height: dimensions?.height,
+                width: detectedImage?.width,
+                height: detectedImage?.height,
                 dimensionStatus: dimensionResult.status,
             }, { status: 400 })
         }
@@ -164,11 +120,11 @@ export async function POST(request: NextRequest) {
             await mkdir(uploadDir, { recursive: true })
         }
 
-        // Generate unique filename
-        const filename = generateFilename(file.name)
-        const filePath = path.join(uploadDir, filename)
-
-        await writeFile(filePath, buffer)
+        const filename = await writeUniqueUploadFile(
+            uploadDir,
+            buffer,
+            extensionForDetectedImage(detectedImage)
+        )
 
         // Generate public URL
         const url = `/uploads/${folder}/${filename}`
@@ -178,9 +134,9 @@ export async function POST(request: NextRequest) {
             url,
             filename,
             size: file.size,
-            type: file.type,
-            width: dimensions?.width ?? null,
-            height: dimensions?.height ?? null,
+            type: detectedImage?.mimeType ?? file.type,
+            width: detectedImage?.width ?? null,
+            height: detectedImage?.height ?? null,
             purpose,
             dimensionStatus: dimensionResult?.status ?? null,
             dimensionMessage: dimensionResult?.reason ?? null,

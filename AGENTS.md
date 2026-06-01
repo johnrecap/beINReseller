@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/024-operation-lock-timeouts/plan.md`,
-`specs/024-operation-lock-timeouts/spec.md`, and
-`specs/024-operation-lock-timeouts/tasks.md` before editing.
+`specs/026-announcement-gpu-performance/plan.md`,
+`specs/026-announcement-gpu-performance/spec.md`, and
+`specs/026-announcement-gpu-performance/tasks.md` before editing.
 <!-- SPECKIT END -->

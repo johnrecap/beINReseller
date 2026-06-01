@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { computeEffectiveMaintenanceStatus } from '@/lib/maintenance/effective-status'
 
 /**
  * GET /api/maintenance-status
@@ -18,10 +19,16 @@ export async function GET() {
             prisma.setting.findUnique({ where: { key: 'installment_dev_mode' } })
         ])
 
+        const effectiveMaintenance = computeEffectiveMaintenanceStatus({
+            maintenanceMode: maintenanceMode?.value,
+            maintenanceMessage: maintenanceMessage?.value,
+            maintenancePauseUntil: maintenancePauseUntil?.value,
+        })
+
         return NextResponse.json({
-            maintenance_mode: maintenanceMode?.value === 'true',
-            maintenance_message: maintenanceMessage?.value || 'System under maintenance, please try again later',
-            maintenance_pause_until: maintenancePauseUntil?.value || null,
+            maintenance_mode: effectiveMaintenance.maintenanceMode,
+            maintenance_message: effectiveMaintenance.message,
+            maintenance_pause_until: effectiveMaintenance.pauseUntil,
             installment_dev_mode: installmentDevMode?.value === 'true'
         })
 

@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { existsSync } from 'fs'
-import { readFile } from 'fs/promises'
+import { readFile, stat } from 'fs/promises'
 import path from 'path'
+import {
+    UPLOAD_CACHE_CONTROL,
+    buildMediaCacheHeaders,
+    createFileCacheMetadata,
+    isRequestNotModified,
+} from '@/lib/uploads/media-cache'
+import { contentTypeForUploadPath, isAllowedUploadExtension } from '@/lib/uploads/image-validation'
 
 interface RouteParams {
     params: Promise<{ path: string[] }>
 }
 
 const ALLOWED_FOLDERS = new Set(['products', 'categories', 'announcements'])
-
-function getContentType(filename: string): string {
-    const ext = path.extname(filename).toLowerCase()
-    if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
-    if (ext === '.png') return 'image/png'
-    if (ext === '.webp') return 'image/webp'
-    if (ext === '.gif') return 'image/gif'
-    if (ext === '.svg') return 'image/svg+xml'
-    return 'application/octet-stream'
-}
 
 function resolveUploadRoots(): string[] {
     const cwd = process.cwd()
@@ -33,7 +30,7 @@ function resolveUploadRoots(): string[] {
     return roots.length > 0 ? Array.from(new Set(roots)) : [cwd]
 }
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
         const { path: parts } = await params
 
@@ -49,6 +46,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: 'Invalid upload folder' }, { status: 400 })
         }
 
+        const requestedFile = parts[parts.length - 1]
+        if (!isAllowedUploadExtension(requestedFile)) {
+            return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 })
+        }
+
         const roots = resolveUploadRoots()
         for (const root of roots) {
             const baseDir = path.join(root, 'public', 'uploads')
@@ -60,17 +62,36 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
                 continue
             }
 
-            if (!existsSync(normalizedCandidate)) {
+            const fileStats = await stat(normalizedCandidate).catch(() => null)
+            if (!fileStats) {
                 continue
             }
 
-            const buffer = await readFile(normalizedCandidate)
-            return new NextResponse(buffer, {
-                headers: {
-                    'Content-Type': getContentType(normalizedCandidate),
-                    'Cache-Control': 'public, max-age=3600'
-                }
+            if (!fileStats.isFile()) {
+                continue
+            }
+
+            const contentType = contentTypeForUploadPath(normalizedCandidate)
+            if (!contentType) {
+                return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 })
+            }
+
+            const metadata = createFileCacheMetadata({
+                size: fileStats.size,
+                mtime: fileStats.mtime,
             })
+            const headers = buildMediaCacheHeaders({
+                contentType,
+                metadata,
+                cacheControl: UPLOAD_CACHE_CONTROL,
+            })
+
+            if (isRequestNotModified(request.headers, metadata)) {
+                return new NextResponse(null, { status: 304, headers })
+            }
+
+            const buffer = await readFile(normalizedCandidate)
+            return new NextResponse(buffer, { headers })
         }
 
         return NextResponse.json({ error: 'File not found' }, { status: 404 })

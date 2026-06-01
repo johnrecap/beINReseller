@@ -61,13 +61,17 @@ function finalPayMayHaveStarted(status: string, responseData: unknown): boolean 
         phase === 'PACKAGE_PREPARATION' ||
         phase === 'CANCELLATION_CONFIRM' ||
         phase === 'FINAL_CONFIRMATION' ||
-        phase === 'FINAL_CONFIRMATION_REQUESTED'
+        phase === 'FINAL_CONFIRMATION_REQUESTED' ||
+        phase === 'CUSTOMER_DEDUCTED' ||
+        phase === 'DISPATCH_PENDING' ||
+        phase === 'DISPATCH_FAILED' ||
+        phase === 'RECOVERY_TIMEOUT'
     ) return false
 
     return status === 'COMPLETING'
 }
 
-function decideRefundSafety(params: {
+export function decideWorkerRefundSafety(params: {
     status: string
     amount: number
     responseData: unknown
@@ -75,6 +79,15 @@ function decideRefundSafety(params: {
     allowFinalPayRefund?: boolean
 }): { refundAllowed: boolean; reason: string; finalPayMayHaveStarted: boolean } {
     const finalPayStarted = finalPayMayHaveStarted(params.status, params.responseData)
+    const data = parseResponseData(params.responseData)
+    const auditSnapshot = data.auditSnapshot && typeof data.auditSnapshot === 'object'
+        ? data.auditSnapshot as Record<string, unknown>
+        : {}
+    const confirmedNonCharge =
+        params.allowFinalPayRefund === true ||
+        data.outcomeCategory === 'CONFIRMED_NOT_CHARGED' ||
+        auditSnapshot.outcomeCategory === 'CONFIRMED_NOT_CHARGED'
+
     if (params.status === 'COMPLETED' || params.status === 'REVIEW_REQUIRED') {
         return { refundAllowed: false, reason: 'terminal_status', finalPayMayHaveStarted: finalPayStarted }
     }
@@ -85,7 +98,7 @@ function decideRefundSafety(params: {
         return { refundAllowed: false, reason: 'no_amount', finalPayMayHaveStarted: finalPayStarted }
     }
     if (finalPayStarted) {
-        if (params.allowFinalPayRefund) {
+        if (confirmedNonCharge) {
             return { refundAllowed: true, reason: 'confirmed_not_charged_after_final_pay', finalPayMayHaveStarted: true }
         }
         return { refundAllowed: false, reason: 'final_pay_may_have_started', finalPayMayHaveStarted: true }
@@ -108,6 +121,8 @@ export async function refundUser(
 
     try {
         await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "operations" WHERE id = ${operationId} FOR UPDATE`
+
             const operation = await tx.operation.findUnique({
                 where: { id: operationId },
                 select: { status: true, responseData: true }
@@ -125,7 +140,7 @@ export async function refundUser(
                 select: { id: true }
             })
 
-            const refundDecision = decideRefundSafety({
+            const refundDecision = decideWorkerRefundSafety({
                 status: operation.status,
                 amount,
                 responseData: operation.responseData,

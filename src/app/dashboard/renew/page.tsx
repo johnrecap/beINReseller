@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import MaintenanceOverlay from '@/components/shared/MaintenanceOverlay'
 import { SignalRefreshFlow, InstallmentPaymentFlow } from '@/components/renewal'
 import { Zap } from 'lucide-react'
+import { OPERATION_WARNING_THRESHOLD_SECONDS } from '@/lib/operations/timing'
 
 // Renewal Mode Type
 type RenewalMode = 'signal-refresh' | 'package-renewal' | 'installment'
@@ -114,7 +115,7 @@ function FinalConfirmTimer({
     expiry,
     onExpire,
     onWarning,
-    warningThreshold = 10
+    warningThreshold = OPERATION_WARNING_THRESHOLD_SECONDS
 }: {
     expiry: string
     onExpire?: () => void
@@ -373,8 +374,8 @@ export default function RenewWizardPage() {
 
             if (res.ok) {
                 const message = isAutoCancel
-                    ? 'Operation auto-cancelled due to timeout, amount refunded'
-                    : 'Operation cancelled, amount refunded'
+                    ? 'Operation auto-cancelled due to timeout'
+                    : 'Operation cancelled'
                 setResult({ success: false, message })
                 setStep('result')
                 refetchBalance()
@@ -391,11 +392,11 @@ export default function RenewWizardPage() {
         }
     }
 
-    // Handle expiry warning (10 seconds before auto-cancel)
+    // Handle expiry warning shortly before auto-cancel
     const handleExpiryWarning = useCallback(() => {
         setShowExpiryWarning(true)
-        toast.warning('⚠️ Operation will be auto-cancelled in 10 seconds!', {
-            duration: 10000,
+        toast.warning('Operation will be auto-cancelled soon.', {
+            duration: OPERATION_WARNING_THRESHOLD_SECONDS * 1000,
         })
     }, [])
 
@@ -404,8 +405,8 @@ export default function RenewWizardPage() {
         if (isAutoCancelling) return
 
         if (step === 'packages') {
-            // No money deducted during package selection — just show timeout
-            // Server-side heartbeat API already set status=CANCELLED
+            // No money deducted during package selection; just show timeout.
+            // Server-side heartbeat or cleanup releases the account lock.
             setResult({ success: false, message: 'Package selection timed out — please try again' })
             setStep('result')
         } else if (step === 'awaiting-final-confirm') {
@@ -830,7 +831,7 @@ export default function RenewWizardPage() {
                                         expiry={finalConfirmExpiry}
                                         onWarning={handleExpiryWarning}
                                         onExpire={handleAutoExpire}
-                                        warningThreshold={15}
+                                        warningThreshold={OPERATION_WARNING_THRESHOLD_SECONDS}
                                     />
                                 )}
                                 {packages.length > 0 && (

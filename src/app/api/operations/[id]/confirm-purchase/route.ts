@@ -9,7 +9,7 @@ import {
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { Prisma } from '@prisma/client'
-import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
+import { buildRenewalFinalConfirmationEvidence } from '@/lib/operation-final-confirmation'
 import { processCompletedOperationPoints } from '@/lib/points/operation-awards'
 
 /**
@@ -69,6 +69,7 @@ export async function POST(
                 finalConfirmExpiry: true,
                 amount: true,
                 responseData: true,
+                heartbeatExpiry: true,
             },
         })
 
@@ -95,14 +96,6 @@ export async function POST(
             )
         }
 
-        // Check if expired
-        if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-            return NextResponse.json(
-                { error: 'Confirmation timeout - please start a new operation' },
-                { status: 400 }
-            )
-        }
-
         // Get price from selectedPackage
         const selectedPkg = operation.selectedPackage as { price: number; name: string } | null
         const dealerPrice = selectedPkg?.price
@@ -114,29 +107,14 @@ export async function POST(
             )
         }
 
-        // 3. CRITICAL: Atomically change status to prevent duplicate confirm jobs
-        // Must run BEFORE money deduction to prevent double-charging
-        const confirmGuard = await prisma.operation.updateMany({
-            where: { id, status: 'AWAITING_FINAL_CONFIRM' },
-            data: {
-                status: 'COMPLETING',
-                responseMessage: 'Confirming payment...',
-                responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                    phase: 'FINAL_CONFIRMATION_REQUESTED',
-                    jobType: 'CONFIRM_PURCHASE',
-                    finalPaySubmitted: false,
-                }),
-            }
-        })
-
-        if (confirmGuard.count === 0) {
+        if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
             return NextResponse.json(
-                { error: 'Operation is already being confirmed' },
-                { status: 409 }
+                { error: 'Final confirmation timed out. Please start again.' },
+                { status: 400 }
             )
         }
 
-        // Deduct balance NOW — only if not already deducted (deployment safety)
+        // Deduct balance NOW - only if not already deducted (deployment safety)
         let finalAmount = dealerPrice
         if (operation.amount === 0) {
             // NEW flow: deferred payment — deduct at confirm time
@@ -146,16 +124,20 @@ export async function POST(
                     where: {
                         id,
                         userId: authUser.id,
-                        status: 'COMPLETING',
+                        status: 'AWAITING_FINAL_CONFIRM',
                         amount: 0,
+                        OR: [
+                            { finalConfirmExpiry: null },
+                            { finalConfirmExpiry: { gt: new Date() } },
+                        ],
                     },
                     data: {
+                        status: 'COMPLETING',
                         amount: dealerPrice,
-                        responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                            phase: 'DISPATCH_PENDING',
-                            jobType: 'CONFIRM_PURCHASE',
-                            finalPaySubmitted: false,
-                        }),
+                        responseMessage: 'Confirming payment...',
+                        responseData: buildRenewalFinalConfirmationEvidence(operation.responseData, 'CONFIRM_PURCHASE'),
+                        finalConfirmExpiry: null,
+                        heartbeatExpiry: null,
                     }
                 })
 
@@ -206,20 +188,29 @@ export async function POST(
             console.log(`Operation ${id} already has amount ${operation.amount} - skipping deduction (legacy flow)`)
             finalAmount = operation.amount
             await prisma.$transaction(async (tx) => {
-                await tx.operation.updateMany({
+                const operationGuard = await tx.operation.updateMany({
                     where: {
                         id,
                         userId: authUser.id,
-                        status: 'COMPLETING',
+                        status: 'AWAITING_FINAL_CONFIRM',
+                        OR: [
+                            { finalConfirmExpiry: null },
+                            { finalConfirmExpiry: { gt: new Date() } },
+                        ],
                     },
                     data: {
-                        responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                            phase: 'DISPATCH_PENDING',
-                            jobType: 'CONFIRM_PURCHASE',
-                            finalPaySubmitted: false,
-                        }),
+                        status: 'COMPLETING',
+                        amount: finalAmount,
+                        responseMessage: 'Confirming payment...',
+                        responseData: buildRenewalFinalConfirmationEvidence(operation.responseData, 'CONFIRM_PURCHASE'),
+                        finalConfirmExpiry: null,
+                        heartbeatExpiry: null,
                     },
                 })
+
+                if (operationGuard.count === 0) {
+                    throw new Error('OPERATION_NOT_CONFIRMABLE')
+                }
 
                 await createOperationDispatch(tx, {
                     operationId: id,
@@ -267,18 +258,6 @@ export async function POST(
         }
         const msg = error instanceof Error ? error.message : ''
         if (msg === 'INSUFFICIENT_BALANCE') {
-            // Revert status — money was NOT deducted ($transaction rolled back)
-            // but status was already changed to COMPLETING at line 113
-            try {
-                await prisma.operation.updateMany({
-                    where: {
-                        id: (await params).id,
-                        status: 'COMPLETING',
-                        amount: 0,
-                    },
-                    data: { status: 'AWAITING_FINAL_CONFIRM', responseMessage: 'Insufficient balance - please top up' }
-                })
-            } catch { /* best effort */ }
             return NextResponse.json(
                 { error: 'Insufficient balance' },
                 { status: 400 }

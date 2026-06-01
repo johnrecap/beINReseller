@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/021-bulk-proxy-import/plan.md`,
-`specs/021-bulk-proxy-import/spec.md`, and
-`specs/021-bulk-proxy-import/tasks.md` before editing.
+`specs/024-operation-lock-timeouts/plan.md`,
+`specs/024-operation-lock-timeouts/spec.md`, and
+`specs/024-operation-lock-timeouts/tasks.md` before editing.
 <!-- SPECKIT END -->

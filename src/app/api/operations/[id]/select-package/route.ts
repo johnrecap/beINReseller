@@ -5,7 +5,9 @@ import { z } from 'zod'
 import { addOperationJob, operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
-import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
+import { planRenewalPackageSelection } from '@/lib/operations/lock-timeouts'
+import { releaseAccountLockSafely } from '@/lib/operations/account-lock-release'
+import redis from '@/lib/redis'
 
 // Validation schema
 const selectPackageSchema = z.object({
@@ -97,6 +99,7 @@ export async function POST(
                     availablePackages: true,
                     finalConfirmExpiry: true,
                     responseData: true,
+                    beinAccountId: true,
                 },
             })
 
@@ -112,10 +115,6 @@ export async function POST(
             // Check status
             if (operation.status !== 'AWAITING_PACKAGE') {
                 throw new Error('INVALID_STATUS')
-            }
-
-            if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-                throw new Error('SELECTION_EXPIRED')
             }
 
             // Parse and validate package selection
@@ -140,9 +139,32 @@ export async function POST(
             }
 
             // Check balance (don't deduct yet — deduction at CONFIRM_PURCHASE)
-            const price = selectedPackage.price
-            if (user.balance < price) {
+            const selectionPlan = planRenewalPackageSelection({
+                operation,
+                selectedPackage,
+                userBalance: user.balance,
+                promoCode,
+            })
+
+            if (selectionPlan.kind === 'expired') {
+                await tx.operation.updateMany({
+                    where: { id: operation.id, status: 'AWAITING_PACKAGE' },
+                    data: selectionPlan.operationUpdate,
+                })
+
+                return {
+                    expired: true as const,
+                    releaseAccountId: operation.beinAccountId,
+                    releaseExpectedOwner: operation.id,
+                }
+            }
+
+            if (selectionPlan.kind === 'insufficient_balance') {
                 throw new Error('INSUFFICIENT_BALANCE')
+            }
+
+            if (selectionPlan.kind !== 'select') {
+                throw new Error('INVALID_STATUS')
             }
 
             // Update operation (amount=0 until confirm-purchase deducts)
@@ -155,17 +177,7 @@ export async function POST(
                         { finalConfirmExpiry: { gt: new Date() } },
                     ],
                 },
-                data: {
-                    status: 'COMPLETING',
-                    amount: 0,
-                    selectedPackage: JSON.parse(JSON.stringify(selectedPackage)),
-                    promoCode: promoCode || null,
-                    responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                        phase: 'PACKAGE_PREPARATION',
-                        jobType: 'COMPLETE_PURCHASE',
-                        finalPaySubmitted: false,
-                    }),
-                },
+                data: selectionPlan.operationUpdate,
             })
 
             if (transition.count === 0) {
@@ -175,6 +187,7 @@ export async function POST(
             // No transaction record yet — created at confirm-purchase
 
             return {
+                expired: false as const,
                 operation: {
                     cardNumber: operation.cardNumber,
                 },
@@ -182,6 +195,14 @@ export async function POST(
                 newBalance: user.balance,
             }
         })
+
+        if (result.expired) {
+            await releaseAccountLockSafely(redis, result.releaseAccountId, result.releaseExpectedOwner)
+            return NextResponse.json(
+                { error: 'Package selection timed out. Please start again.' },
+                { status: 400 }
+            )
+        }
 
         // 4. Add job to queue to complete purchase
         const completeJobId = `COMPLETE_PURCHASE--${id}`

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, RefreshCw, ExternalLink, XCircle, Clock, AlertCircle, CheckCircle, Package, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
+import { OPERATION_WARNING_THRESHOLD_SECONDS } from '@/lib/operations/timing'
 
 type OperationStatus = 'PENDING' | 'PROCESSING' | 'AWAITING_CAPTCHA' | 'AWAITING_PACKAGE' | 'AWAITING_FINAL_CONFIRM' | 'COMPLETING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED'
 
@@ -174,7 +175,7 @@ function FinalConfirmDialog({
     const [showWarning, setShowWarning] = useState(false)
     const hasWarned = useRef(false)
     const hasExpired = useRef(false)
-    const WARNING_THRESHOLD = 10
+    const WARNING_THRESHOLD = OPERATION_WARNING_THRESHOLD_SECONDS
 
     useEffect(() => {
         if (!operation.finalConfirmExpiry) return
@@ -437,7 +438,7 @@ export default function ActiveOperationsPage() {
                 setConfirmingOperation(null)
                 fetchOperations()
                 if (isAutoCancel) {
-                    alert(t.activeOperations?.messages?.autoCancel || 'Operation auto-cancelled due to timeout. Amount refunded.')
+                    alert(t.activeOperations?.messages?.autoCancel || 'Operation auto-cancelled due to timeout.')
                 }
             } else {
                 alert(data.error || t.activeOperations?.messages?.cancelFailed || 'Failed to cancel operation')

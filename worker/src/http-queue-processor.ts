@@ -47,9 +47,11 @@ import {
     shouldCountAsCredentialFailure,
 } from './lib/bein-login-tracking';
 
-// Heartbeat configuration
-const HEARTBEAT_TTL_SECONDS = 15;  // Operation expires after 15s without heartbeat
-const FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS = 30_000;
+// Renewal decision windows
+const HEARTBEAT_TTL_SECONDS = 5;
+const PACKAGE_SELECTION_TIMEOUT_MS = 30_000;
+const CONFIRMATION_TIMEOUT_MS = 10_000;
+const FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS = 10_000;
 const FINAL_CONFIRM_LOCK_TTL_SECONDS = 120;
 
 interface OperationJobData {
@@ -109,6 +111,8 @@ function mergeOperationPhaseData(
         finalPaySubmittedAt?: string;
         dealerBalanceBefore?: number | null;
         dealerBalanceAfter?: number | null;
+        expectedCost?: number | null;
+        outcomeCategory?: FinalPayOutcomeCategory;
     }
 ): Prisma.InputJsonObject {
     return {
@@ -130,12 +134,43 @@ function hasFinalPaymentStarted(
         phase === 'PACKAGE_PREPARATION' ||
         phase === 'CANCELLATION_CONFIRM' ||
         phase === 'FINAL_CONFIRMATION' ||
-        phase === 'FINAL_CONFIRMATION_REQUESTED'
+        phase === 'FINAL_CONFIRMATION_REQUESTED' ||
+        phase === 'DISPATCH_PENDING' ||
+        phase === 'DISPATCH_FAILED'
     ) {
         return false;
     }
 
     return status === OperationStatus.COMPLETING;
+}
+
+function hasRenewalFinalPayDispatchEvidence(
+    status: OperationStatus | string | null | undefined,
+    responseData?: unknown
+): boolean {
+    const data = parseResponseDataObject(responseData);
+    const phase = getOperationPhase(responseData);
+
+    if (data.finalPaySubmitted === true) return true;
+    if (phase === 'DISPATCH_PENDING' || phase === 'DISPATCH_FAILED') return true;
+    return hasFinalPaymentStarted(status, responseData);
+}
+
+function shouldSubmitRenewalFinalPay(operation: {
+    status: OperationStatus | string | null | undefined;
+    amount: number | null | undefined;
+    responseData?: unknown;
+} | null): { allowed: boolean; reason: string } {
+    if (!operation) return { allowed: false, reason: 'missing_operation' };
+    if (isTerminalStatus(operation.status)) return { allowed: false, reason: `terminal_${operation.status}` };
+    if (operation.status !== OperationStatus.COMPLETING && operation.status !== OperationStatus.AWAITING_FINAL_CONFIRM) {
+        return { allowed: false, reason: `invalid_status_${operation.status}` };
+    }
+    if (!operation.amount || operation.amount <= 0) return { allowed: false, reason: 'missing_amount' };
+    if (!hasRenewalFinalPayDispatchEvidence(operation.status, operation.responseData)) {
+        return { allowed: false, reason: 'missing_dispatch_evidence' };
+    }
+    return { allowed: true, reason: 'allowed' };
 }
 
 async function updateOperationIfActive(
@@ -788,11 +823,12 @@ export async function processOperationHttp(
         const opUserId = op?.userId || userId;
         const opAmount = op?.amount || 0;
         selectedAccountId = op?.beinAccountId || null;
+        const finalPayStarted = hasFinalPaymentStarted(op?.status, op?.responseData);
         const genericDecision = decideFinalPayRefundSafety({
             success: false,
             message: getErrMsg(error)
-        }, hasFinalPaymentStarted(op?.status, op?.responseData));
-        if (hasFinalPaymentStarted(op?.status, op?.responseData) && genericDecision.reviewRequired) {
+        }, finalPayStarted);
+        if (finalPayStarted && !genericDecision.refundSafe) {
             await prisma.operation.updateMany({
                 where: {
                     id: operationId,
@@ -823,12 +859,14 @@ export async function processOperationHttp(
 
         // Mark failed and refund (only if money was actually deducted)
         if (opUserId && opAmount && opAmount > 0) {
-            await refundUser(operationId, opUserId, opAmount, getErrMsg(error));
+            await refundUser(operationId, opUserId, opAmount, getErrMsg(error), {
+                allowFinalPayRefund: finalPayStarted && genericDecision.refundSafe
+            });
         }
         await markOperationFailed(operationId, { type: 'UNKNOWN', message: getErrMsg(error), recoverable: false }, 1);
     } finally {
         if (selectedAccountId) {
-            await accountPool.releaseLock(selectedAccountId).catch((releaseError: unknown) => {
+            await accountPool.releaseLock(selectedAccountId, operationId).catch((releaseError: unknown) => {
                 console.warn(`[HTTP] Failed to release account lock for ${selectedAccountId}: ${getErrMsg(releaseError)}`);
             });
         }
@@ -879,7 +917,7 @@ async function handleStartRenewalHttp(
     }
 
     if (!await updateOperationIfActive(operationId, { beinAccountId: selectedAccount.id }, 'START_RENEWAL account update')) {
-        await accountPool.markAccountUsed(selectedAccount.id);
+        await accountPool.markAccountUsed(selectedAccount.id, operationId);
         return;
     }
 
@@ -975,7 +1013,7 @@ async function handleStartRenewalHttp(
                     heartbeatExpiry: heartbeatExpiry
                 }, 'START_RENEWAL captcha update')) {
                     await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                    await accountPool.markAccountUsed(selectedAccount.id);
+                    await accountPool.markAccountUsed(selectedAccount.id, operationId);
                     return;
                 }
 
@@ -1155,8 +1193,7 @@ async function handleStartRenewalHttp(
         captchaImage: null,
         captchaSolution: null,
         captchaExpiry: null,
-        // Hard deadline: 2 minutes to select a package, then auto-cancel
-        finalConfirmExpiry: new Date(now.getTime() + 120_000),  // 2 minutes
+        finalConfirmExpiry: new Date(now.getTime() + PACKAGE_SELECTION_TIMEOUT_MS),
         // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
         lastHeartbeat: now,
         heartbeatExpiry: heartbeatExpiry,
@@ -1164,14 +1201,17 @@ async function handleStartRenewalHttp(
         responseData: JSON.stringify({
             dealerBalance: packagesResult.dealerBalance,  // For balance validation
             savedAt: new Date().toISOString(),
-            smartcardType: smartcardType || 'CISCO'  // Persist for COMPLETE_PURCHASE retry
+            smartcardType: smartcardType || 'CISCO',
+            operationPhase: 'PACKAGE_PREPARATION',
+            jobType: 'START_RENEWAL',
+            finalPaySubmitted: false,
+            accountLockOwner: operationId
         })
     }, 'START_RENEWAL package update')) {
-        await accountPool.markAccountUsed(selectedAccount.id);
+        await accountPool.markAccountUsed(selectedAccount.id, operationId);
         return;
     }
 
-    await accountPool.markAccountUsed(selectedAccount.id);
 
     console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
 }
@@ -1253,7 +1293,7 @@ async function handleApplyPromoHttp(
     let lockAcquired = false;
 
     while (Date.now() - lockStartTime < LOCK_WAIT_TIMEOUT) {
-        lockAcquired = await lockAccount(redis, operation.beinAccountId, WORKER_ID, LOCK_TTL);
+        lockAcquired = await lockAccount(redis, operation.beinAccountId, WORKER_ID, LOCK_TTL, operationId);
         if (lockAcquired) break;
         await new Promise(resolve => setTimeout(resolve, 500));
     }
@@ -1405,7 +1445,7 @@ async function handleApplyPromoHttp(
             console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
         }
     } finally {
-        await unlockAccount(redis, operation.beinAccountId, WORKER_ID).catch((releaseError: unknown) => {
+        await unlockAccount(redis, operation.beinAccountId, WORKER_ID, operationId).catch((releaseError: unknown) => {
             const releaseMessage = releaseError instanceof Error ? releaseError.message : String(releaseError);
             console.warn(`[HTTP] Failed to release promo lock for ${operationId}: ${releaseMessage}`);
         });
@@ -1507,7 +1547,8 @@ async function handleCompletePurchaseHttp(
         const minBalance = attemptResult.isBalanceError ? selectedPackage.price : undefined;
         const nextAccount = await accountPool.getNextAvailableAccountExcluding(
             triedAccountIds,
-            minBalance
+            minBalance,
+            operationId
         );
 
         if (!nextAccount) {
@@ -1523,7 +1564,7 @@ async function handleCompletePurchaseHttp(
 
         // Update operation with new account
         if (!await updateOperationIfActive(operationId, { beinAccountId: nextAccount.id }, 'COMPLETE_PURCHASE account update')) {
-            await accountPool.markAccountUsed(nextAccount.id);
+            await accountPool.markAccountUsed(nextAccount.id, operationId);
             return;
         }
 
@@ -1565,6 +1606,22 @@ async function attemptPurchaseWithAccount(
     error?: string;
 }> {
     try {
+        const preparedLock = await lockAccount(
+            accountPool.getRedis(),
+            accountId,
+            WORKER_ID,
+            FINAL_CONFIRM_LOCK_TTL_SECONDS,
+            operationId
+        );
+        if (!preparedLock) {
+            return {
+                success: false,
+                shouldRetryDifferentAccount: true,
+                isBalanceError: false,
+                error: 'beIN account is busy with another operation'
+            };
+        }
+
         // Get account (decrypt password from DB)
         const account = await prisma.beinAccount.findUnique({
             where: { id: accountId },
@@ -1630,7 +1687,7 @@ async function attemptPurchaseWithAccount(
                 const captchaApiKey = await getCaptchaApiKey();
 
                 if (!captchaApiKey) {
-                    await accountPool.markAccountFailed(accountId, 'CAPTCHA required but no API key');
+                    await accountPool.markAccountFailed(accountId, 'CAPTCHA required but no API key', operationId);
                     return {
                         success: false,
                         shouldRetryDifferentAccount: true,
@@ -1655,7 +1712,7 @@ async function attemptPurchaseWithAccount(
                             accountId,
                             loginWithCaptcha.error || 'Login failed after CAPTCHA'
                         );
-                        await accountPool.markAccountFailed(accountId, `CAPTCHA login failed: ${loginWithCaptcha.error}`);
+                        await accountPool.markAccountFailed(accountId, `CAPTCHA login failed: ${loginWithCaptcha.error}`, operationId);
                         return {
                             success: false,
                             shouldRetryDifferentAccount: true,
@@ -1664,7 +1721,7 @@ async function attemptPurchaseWithAccount(
                         };
                     }
                 } catch (captchaError: unknown) {
-                    await accountPool.markAccountFailed(accountId, `CAPTCHA solve failed: ${getErrMsg(captchaError)}`);
+                    await accountPool.markAccountFailed(accountId, `CAPTCHA solve failed: ${getErrMsg(captchaError)}`, operationId);
                     return {
                         success: false,
                         shouldRetryDifferentAccount: true,
@@ -1674,7 +1731,7 @@ async function attemptPurchaseWithAccount(
                 }
             } else if (!loginResult.success) {
                 await trackCredentialLoginFailure(accountId, loginResult.error || 'Login failed');
-                await accountPool.markAccountFailed(accountId, `Login failed: ${loginResult.error}`);
+                await accountPool.markAccountFailed(accountId, `Login failed: ${loginResult.error}`, operationId);
                 return {
                     success: false,
                     shouldRetryDifferentAccount: true,
@@ -1697,7 +1754,7 @@ async function attemptPurchaseWithAccount(
             if (!packagesResult.success) {
                 // Check if it's a session error that was already retried
                 if (isSessionExpiredError(packagesResult.error)) {
-                    await accountPool.markAccountFailed(accountId, `Session error: ${packagesResult.error}`);
+                    await accountPool.markAccountFailed(accountId, `Session error: ${packagesResult.error}`, operationId);
                     return {
                         success: false,
                         shouldRetryDifferentAccount: true,
@@ -1730,7 +1787,8 @@ async function attemptPurchaseWithAccount(
             // Mark account for cooldown
             await accountPool.markAccountFailed(
                 accountId,
-                `INSUFFICIENT_BALANCE: ${dealerBalance} < ${selectedPackage.price}`
+                `INSUFFICIENT_BALANCE: ${dealerBalance} < ${selectedPackage.price}`,
+                operationId
             );
 
             // Notify admins
@@ -1781,7 +1839,7 @@ async function attemptPurchaseWithAccount(
 
             if (!await updateOperationIfActive(operationId, {
                 status: 'AWAITING_FINAL_CONFIRM',
-                finalConfirmExpiry: new Date(Date.now() + 30000),  // 30 seconds
+                finalConfirmExpiry: new Date(now.getTime() + CONFIRMATION_TIMEOUT_MS),
                 responseMessage: result.message,
                 lastHeartbeat: now,
                 heartbeatExpiry: heartbeatExpiry,
@@ -1791,6 +1849,7 @@ async function attemptPurchaseWithAccount(
                     operationPhase: 'FINAL_CONFIRMATION_REQUESTED',
                     jobType: 'COMPLETE_PURCHASE',
                     finalPaySubmitted: false,
+                    accountLockOwner: operationId,
                     savedAt: new Date().toISOString()
                 })
             }, 'COMPLETE_PURCHASE final confirm update')) {
@@ -1818,11 +1877,11 @@ async function attemptPurchaseWithAccount(
                 responseMessage: result.message,
                 completedAt: new Date()
             }, 'COMPLETE_PURCHASE direct completion update')) {
-                await accountPool.markAccountUsed(accountId);
+                await accountPool.markAccountUsed(accountId, operationId);
                 return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
             }
             await awardCompletedOperationPointsSafely(operationId);
-            await accountPool.markAccountUsed(accountId);
+            await accountPool.markAccountUsed(accountId, operationId);
             return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
         }
 
@@ -1832,6 +1891,10 @@ async function attemptPurchaseWithAccount(
     } catch (error: unknown) {
         const errorMessage = getErrMsg(error) || 'Unknown error';
         console.log(`[HTTP] ❌ attemptPurchaseWithAccount failed: ${errorMessage}`);
+
+        await accountPool.releaseLock(accountId, operationId).catch((releaseError: unknown) => {
+            console.warn(`[HTTP] Failed to release account lock after purchase attempt failure: ${getErrMsg(releaseError)}`);
+        });
 
         // Determine if we should retry with different account
         const isRecoverableError =
@@ -1896,12 +1959,18 @@ async function handleConfirmPurchaseHttp(
         throw new Error(`Invalid status: ${operation.status}`);
     }
 
-    if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+    if (
+        operation.finalConfirmExpiry &&
+        new Date() > operation.finalConfirmExpiry &&
+        !hasRenewalFinalPayDispatchEvidence(operation.status, operation.responseData)
+    ) {
         if (operation.userId && operation.amount && operation.amount > 0) {
             await refundUser(operationId, operation.userId, operation.amount, 'Confirmation timeout');
         }
         await markOperationFailed(operationId, { type: 'TIMEOUT', message: 'Confirmation timeout', recoverable: false }, 1);
         throw new Error('Confirmation timeout');
+    } else if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
+        console.log(`[HTTP] Ignoring stale final confirmation deadline for dispatched CONFIRM_PURCHASE ${operationId}`);
     }
 
     if (!await updateOperationIfActive(operationId, {
@@ -1925,7 +1994,8 @@ async function handleConfirmPurchaseHttp(
                 redis,
                 operation.beinAccountId,
                 WORKER_ID,
-                FINAL_CONFIRM_LOCK_TTL_SECONDS
+                FINAL_CONFIRM_LOCK_TTL_SECONDS,
+                operationId
             );
             if (confirmLockAcquired) break;
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -1981,22 +2051,54 @@ async function handleConfirmPurchaseHttp(
         }
 
         await updateProgress(operationId, 'Sending final confirmation...');
+        let finalPayResponseData: Prisma.InputJsonObject | null = null;
         const rawResult = await client.confirmPurchase(operation.amount ?? undefined, async () => {
-            await updateOperationIfActive(operationId, {
-                responseData: mergeOperationPhaseData(operation.responseData, {
-                    operationPhase: 'FINAL_PAY_SUBMITTED',
-                    jobType: 'CONFIRM_PURCHASE',
-                    finalPaySubmitted: true,
-                    finalPaySubmittedAt: new Date().toISOString(),
-                    dealerBalanceBefore: preFinalBeinBalance
-                })
+            const currentOperation = await prisma.operation.findUnique({
+                where: { id: operationId },
+                select: {
+                    status: true,
+                    amount: true,
+                    responseData: true
+                }
+            });
+            if (!currentOperation) {
+                throw new Error('Operation missing before final Pay provider submission');
+            }
+            const finalPayCheck = shouldSubmitRenewalFinalPay(currentOperation);
+            if (!finalPayCheck.allowed) {
+                throw new Error(`Final Pay blocked before provider submission: ${finalPayCheck.reason}`);
+            }
+
+            finalPayResponseData = mergeOperationPhaseData(currentOperation.responseData, {
+                operationPhase: 'FINAL_PAY_SUBMITTED',
+                jobType: 'CONFIRM_PURCHASE',
+                finalPaySubmitted: true,
+                finalPaySubmittedAt: new Date().toISOString(),
+                dealerBalanceBefore: preFinalBeinBalance,
+                expectedCost: operation.amount ?? null
+            });
+
+            const persisted = await updateOperationIfActive(operationId, {
+                responseData: finalPayResponseData
             }, 'CONFIRM_PURCHASE final Pay evidence update');
+            if (!persisted) {
+                throw new Error('Final Pay evidence was not persisted before provider submission');
+            }
         });
         const result = {
             ...rawResult,
             beinBalanceBefore: toNullableNumber(rawResult.beinBalanceBefore) ?? preFinalBeinBalance ?? undefined
         };
         const outcomeDecision = decideFinalPayRefundSafety(result, result.finalPaySubmitted === true);
+        const postPayResponseData = mergeOperationPhaseData(finalPayResponseData ?? operation.responseData, {
+            operationPhase: outcomeDecision.reviewRequired ? 'POST_FINAL_PAY_REVIEW' : 'FINAL_PAY_SUBMITTED',
+            jobType: 'CONFIRM_PURCHASE',
+            finalPaySubmitted: result.finalPaySubmitted === true,
+            dealerBalanceBefore: toNullableNumber(result.beinBalanceBefore) ?? preFinalBeinBalance,
+            dealerBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+            expectedCost: operation.amount ?? null,
+            outcomeCategory: outcomeDecision.outcomeCategory
+        });
 
         const selectedPackage = operation.selectedPackage as { name: string } | null;
 
@@ -2048,9 +2150,9 @@ async function handleConfirmPurchaseHttp(
                 outcomeCategory: outcomeDecision.outcomeCategory,
                 chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
             });
-            await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+            await persistOperationAuditSnapshot(operationId, postPayResponseData, auditSnapshot);
 
-            await accountPool.markAccountUsed(operation.beinAccountId);
+            await accountPool.markAccountUsed(operation.beinAccountId, operationId);
             await deleteOperationSessionFromCache(operationId);
 
             // Track activity for user engagement metrics
@@ -2136,10 +2238,10 @@ async function handleConfirmPurchaseHttp(
                 refundBlocked: true,
                 chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
             });
-            await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+            await persistOperationAuditSnapshot(operationId, postPayResponseData, auditSnapshot);
 
             try {
-                await accountPool.markAccountUsed(operation.beinAccountId);
+                await accountPool.markAccountUsed(operation.beinAccountId, operationId);
             } catch (e: unknown) {
                 console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
             }
@@ -2147,6 +2249,20 @@ async function handleConfirmPurchaseHttp(
             console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED (${outcomeDecision.outcomeCategory}): ${result.message}`);
             return;
         } else {
+            const auditSnapshot = await buildOperationAuditSnapshot({
+                operationId,
+                userId: operation.userId || null,
+                beinAccountId: operation.beinAccountId,
+                beinUsername: account.username,
+                beinBalanceBefore: toNullableNumber(result.beinBalanceBefore),
+                beinBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                outcomeCategory: outcomeDecision.outcomeCategory,
+                reviewReason: result.message,
+                reviewSource: 'confirm-purchase',
+                refundBlocked: false
+            });
+            await persistOperationAuditSnapshot(operationId, postPayResponseData, auditSnapshot);
+
             if (operation.userId && operation.amount && operation.amount > 0) {
                 await refundUser(operationId, operation.userId, operation.amount, result.message, {
                     allowFinalPayRefund: outcomeDecision.outcomeCategory === 'CONFIRMED_NOT_CHARGED'
@@ -2159,7 +2275,7 @@ async function handleConfirmPurchaseHttp(
     } finally {
         if (confirmLockAcquired) {
             try {
-                await unlockAccount(redis, operation.beinAccountId, WORKER_ID);
+                await unlockAccount(redis, operation.beinAccountId, WORKER_ID, operationId);
                 console.log(`[HTTP] Account lock released after CONFIRM_PURCHASE: ${operation.beinAccountId}`);
             } catch (releaseError: unknown) {
                 console.error(`[HTTP] Failed to release CONFIRM_PURCHASE account lock: ${getErrMsg(releaseError)}`);
@@ -2227,6 +2343,11 @@ async function handleCancelConfirmHttp(
             refundBlocked: true
         });
         await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+        if (operation.beinAccountId) {
+            await accountPool.releaseLock(operation.beinAccountId, operationId).catch((releaseError: unknown) => {
+                console.warn(`[HTTP] Failed to release account lock after cancel review handoff: ${getErrMsg(releaseError)}`);
+            });
+        }
         console.warn(`[HTTP] Cancellation for ${operationId} moved to REVIEW_REQUIRED because final payment may have started`);
         return;
     }
@@ -2288,7 +2409,7 @@ async function handleCancelConfirmHttp(
     }
 
     if (operation.beinAccountId) {
-        await accountPool.markAccountUsed(operation.beinAccountId);
+        await accountPool.markAccountUsed(operation.beinAccountId, operationId);
         // Force-unlock: markAccountUsed uses unlockAccount which checks worker ID ownership,
         // but cancels often run on a different worker than the one that locked the account.
         // Force-unlock guarantees the lock is released after cancellation.
@@ -3316,12 +3437,34 @@ async function handleConfirmInstallmentHttp(
         toNullableNumber(loadResult.dealerBalance) ??
         toNullableNumber(operationResponseData.dealerBalanceBefore) ??
         toNullableNumber(operationResponseData.dealerBalance);
+    const finalPayResponseData = mergeOperationPhaseData(operation.responseData, {
+        operationPhase: 'FINAL_PAY_SUBMITTED',
+        jobType: 'CONFIRM_INSTALLMENT',
+        finalPaySubmitted: true,
+        finalPaySubmittedAt: new Date().toISOString(),
+        dealerBalanceBefore: preFinalInstallmentBalance,
+        expectedCost: operation.amount ?? null
+    });
+    if (!await updateOperationIfActive(operationId, {
+        responseData: finalPayResponseData
+    }, 'CONFIRM_INSTALLMENT final Pay evidence update')) {
+        return;
+    }
     const rawPayResult = await client.payInstallment();
     const payResult = {
         ...rawPayResult,
         beinBalanceBefore: toNullableNumber(rawPayResult.beinBalanceBefore) ?? preFinalInstallmentBalance ?? undefined
     };
     const payOutcomeDecision = decideFinalPayRefundSafety(payResult, true);
+    const installmentPostPayResponseData = mergeOperationPhaseData(finalPayResponseData, {
+        operationPhase: payOutcomeDecision.reviewRequired ? 'POST_FINAL_PAY_REVIEW' : 'FINAL_PAY_SUBMITTED',
+        jobType: 'CONFIRM_INSTALLMENT',
+        finalPaySubmitted: true,
+        dealerBalanceBefore: toNullableNumber(payResult.beinBalanceBefore) ?? preFinalInstallmentBalance,
+        dealerBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+        expectedCost: operation.amount ?? null,
+        outcomeCategory: payOutcomeDecision.outcomeCategory
+    });
 
     if (payResult.success) {
         const completed = await prisma.operation.updateMany({
@@ -3365,7 +3508,7 @@ async function handleConfirmInstallmentHttp(
             beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
             chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
         });
-        await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+        await persistOperationAuditSnapshot(operationId, installmentPostPayResponseData, auditSnapshot);
 
         try {
             await accountPool.markAccountUsed(selectedAccount.id);
@@ -3467,7 +3610,7 @@ async function handleConfirmInstallmentHttp(
             refundBlocked: true,
             chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
         });
-        await persistOperationAuditSnapshot(operationId, operation.responseData, auditSnapshot);
+        await persistOperationAuditSnapshot(operationId, installmentPostPayResponseData, auditSnapshot);
 
         try {
             await accountPool.markAccountUsed(selectedAccount.id);
@@ -3477,6 +3620,20 @@ async function handleConfirmInstallmentHttp(
         console.warn(`[HTTP] Installment payment for ${operationId} moved to REVIEW_REQUIRED (${payOutcomeDecision.outcomeCategory}): ${payResult.message}`);
         return;
     }
+
+    const auditSnapshot = await buildOperationAuditSnapshot({
+        operationId,
+        userId: operation.userId || null,
+        beinAccountId: selectedAccount.id,
+        beinUsername: selectedAccount.username,
+        beinBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
+        beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+        outcomeCategory: payOutcomeDecision.outcomeCategory,
+        reviewReason: payResult.message,
+        reviewSource: 'confirm-installment',
+        refundBlocked: false
+    });
+    await persistOperationAuditSnapshot(operationId, installmentPostPayResponseData, auditSnapshot);
 
     if (operation.userId && operation.amount && operation.amount > 0) {
         await refundUser(operationId, operation.userId, operation.amount, payResult.message, {

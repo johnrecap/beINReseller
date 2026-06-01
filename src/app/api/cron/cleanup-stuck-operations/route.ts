@@ -3,7 +3,7 @@
  * 
  * This cron job runs every 10 seconds and:
  * 1. Finds operations where heartbeatExpiry < now (frontend stopped sending heartbeats)
- * 2. Finds operations in AWAITING_* states without any heartbeat for > 30 seconds
+ * 2. Finds operations in AWAITING_* states without any heartbeat for > 5 seconds
  * 3. For each stuck operation:
  *    - Marks status as EXPIRED
  *    - Refunds user (if amount > 0)
@@ -22,11 +22,12 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
 import { refundUser } from '@/lib/refund'
-import { decideRefundSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
+import { decideRefundSafety, getOperationPhaseEvidence, mergeOperationPhaseEvidence } from '@/lib/operation-safety'
+import { HEARTBEAT_STALE_SECONDS } from '@/lib/operations/timing'
+import { releaseAccountLockSafely } from '@/lib/operations/account-lock-release'
 
 // Configuration
-const LOCK_PREFIX = 'bein:account:lock:'
-const HEARTBEAT_GRACE_PERIOD_SECONDS = 30  // Grace period for operations without heartbeat
+const HEARTBEAT_GRACE_PERIOD_SECONDS = HEARTBEAT_STALE_SECONDS
 
 // Statuses that require heartbeat monitoring
 const HEARTBEAT_REQUIRED_STATUSES = [
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
 
         // Find operations that:
         // 1. Have expired heartbeat (heartbeatExpiry < now)
-        // 2. OR are in AWAITING_* state without any heartbeat for > 30s
+        // 2. OR are in AWAITING_* state without any heartbeat for the stale threshold
         const stuckOperations = await prisma.operation.findMany({
             where: {
                 OR: [
@@ -151,6 +152,10 @@ export async function GET(request: Request) {
                             completedAt: now,
                             finalConfirmExpiry: null,
                             heartbeatExpiry: null,
+                            responseData: mergeOperationPhaseEvidence(operation.responseData, {
+                                phase: 'RECOVERY_TIMEOUT',
+                                finalPaySubmitted: refundDecision.finalPayMayHaveStarted,
+                            }),
                         }
                     })
 
@@ -211,10 +216,13 @@ export async function GET(request: Request) {
                 // 5. Release beIN account lock in Redis (outside transaction)
                 if (operation.beinAccountId) {
                     try {
-                        const lockKey = `${LOCK_PREFIX}${operation.beinAccountId}`
-                        await redis.del(lockKey)
-                        accountsReleased++
-                        console.log(`[Cleanup Cron] Released lock for beIN account ${operation.beinAccountId}`)
+                        const release = await releaseAccountLockSafely(redis, operation.beinAccountId, operation.id)
+                        if (release.released || release.reason === 'no_lock') {
+                            accountsReleased++
+                            console.log(`[Cleanup Cron] Released lock for beIN account ${operation.beinAccountId}`)
+                        } else {
+                            console.warn(`[Cleanup Cron] Lock not released for ${operation.beinAccountId}: ${release.reason}`)
+                        }
                     } catch (lockError) {
                         console.error(`[Cleanup Cron] Failed to release lock for account ${operation.beinAccountId}:`, lockError)
                     }

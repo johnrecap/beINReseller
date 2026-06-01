@@ -95,7 +95,7 @@ export default function RecoveryHealthClient() {
                         </div>
                         <h1 className="mt-3 text-3xl font-bold text-foreground">Recovery Health</h1>
                         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-                            Server-owned timeout cleanup, dispatch recovery, and review visibility.
+                            Tracks 30s package windows, 10s confirmation windows, 5s heartbeat exits, dispatch recovery, and review visibility.
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -129,7 +129,7 @@ export default function RecoveryHealthClient() {
                 </section>
 
                 <section className="grid gap-3 md:grid-cols-3">
-                    <MetricCard label="Expired waiting" value={data?.counts.waitingExpired ?? 0} />
+                    <MetricCard label="Timed out before Pay" value={data?.counts.waitingExpired ?? 0} />
                     <MetricCard label="Stuck completing" value={data?.counts.completingStuck ?? 0} tone="text-red-300" />
                     <MetricCard label="Stuck processing" value={data?.counts.processingStuck ?? 0} />
                     <MetricCard label="Pending dispatch" value={data?.counts.pendingDispatch ?? 0} />

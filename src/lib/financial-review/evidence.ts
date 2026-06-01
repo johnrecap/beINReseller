@@ -94,10 +94,14 @@ export function withFinancialReviewMetadata(
 
 function deriveState(review: FinancialReviewMetadata, evidence: FinancialReviewEvidence): FinancialReviewState {
     const latestDecision = review.latestDecision
-    if (latestDecision?.action === 'REFUND_CUSTOMER' || evidence.hasRefund) return 'refunded'
-    if (latestDecision?.action === 'BEIN_EXECUTED_NO_REFUND') return 'bein_executed'
+    if (latestDecision?.action === 'REFUND_CUSTOMER' && latestDecision.refundApplied !== false && evidence.hasRefund) return 'refunded'
+    if (latestDecision?.action === 'BEIN_EXECUTED_NO_REFUND' && evidence.beinDebitConfirmed) return 'bein_executed'
     if (latestDecision?.action === 'KEEP_UNDER_REVIEW') return 'follow_up'
     return 'needs_decision'
+}
+
+function isClosedState(state: FinancialReviewState): boolean {
+    return state === 'refunded' || state === 'bein_executed'
 }
 
 export function getStateLabel(state: FinancialReviewState): string {
@@ -212,6 +216,7 @@ export function buildFinancialReviewItem(
 
     const review = extractFinancialReviewMetadata(operation.responseData)
     const state = deriveState(review, evidence)
+    if (isClosedState(state)) return null
 
     return {
         id: operation.id,

@@ -16,7 +16,9 @@ import {
     AlertTriangle,
     Users,
     Loader2,
-    DollarSign
+    DollarSign,
+    Lock,
+    Unlock
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -70,6 +72,15 @@ interface BeinAccount {
         port: number
         label: string
     }
+    lockStatus?: {
+        locked: boolean
+        stale: boolean
+        ownerWorkerId: string | null
+        ownerOperationId: string | null
+        ageSeconds: number | null
+        ttlSeconds: number | null
+        legacy: boolean
+    }
 }
 
 interface Proxy {
@@ -99,6 +110,9 @@ export default function BeinAccountsPage() {
     const [loading, setLoading] = useState(true)
     const [addDialogOpen, setAddDialogOpen] = useState(false)
     const [editAccount, setEditAccount] = useState<BeinAccount | null>(null)
+    const [unlockAccount, setUnlockAccount] = useState<BeinAccount | null>(null)
+    const [unlockReason, setUnlockReason] = useState('')
+    const [unlockingId, setUnlockingId] = useState<string | null>(null)
 
     // Set dynamic page title
     useEffect(() => {
@@ -238,6 +252,37 @@ export default function BeinAccountsPage() {
         }
     }
 
+    const handleForceUnlock = async () => {
+        if (!unlockAccount) return
+        const reason = unlockReason.trim()
+        if (!reason) {
+            toast.error('Unlock reason is required')
+            return
+        }
+
+        setUnlockingId(unlockAccount.id)
+        try {
+            const res = await fetch(`/api/admin/bein-accounts/${unlockAccount.id}/unlock`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason }),
+            })
+            const data = await res.json()
+            if (data.success) {
+                toast.success(data.message || 'Account lock released')
+                setUnlockAccount(null)
+                setUnlockReason('')
+                fetchAccounts()
+            } else {
+                toast.error(data.error || 'Failed to release account lock')
+            }
+        } catch {
+            toast.error('Failed to release account lock')
+        } finally {
+            setUnlockingId(null)
+        }
+    }
+
     const handleDeleteAccount = async (account: BeinAccount) => {
         if (!confirm(t.adminBeinAccounts?.messages?.deleteConfirm || 'Are you sure you want to delete this account?')) return
         try {
@@ -290,6 +335,30 @@ export default function BeinAccountsPage() {
             return <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />{t.adminBeinAccounts?.status?.error || 'Error'}</Badge>
         }
         return <Badge variant="default" className="gap-1 bg-green-600"><CheckCircle className="h-3 w-3" />{t.adminBeinAccounts?.status?.active || 'Active'}</Badge>
+    }
+
+    const getLockBadge = (account: BeinAccount) => {
+        const status = account.lockStatus
+        if (!status?.locked) {
+            return <Badge variant="outline" className="gap-1"><Unlock className="h-3 w-3" />Unlocked</Badge>
+        }
+
+        return (
+            <div className="space-y-1">
+                <Badge variant={status.stale ? 'destructive' : 'secondary'} className="gap-1">
+                    <Lock className="h-3 w-3" />
+                    {status.stale ? 'Stale lock' : 'Locked'}
+                </Badge>
+                <div className="text-[11px] text-muted-foreground font-mono">
+                    {status.ownerOperationId || status.ownerWorkerId || 'unknown'}
+                </div>
+                {typeof status.ageSeconds === 'number' && (
+                    <div className="text-[11px] text-muted-foreground">
+                        {Math.floor(status.ageSeconds / 60)}m {status.ageSeconds % 60}s
+                    </div>
+                )}
+            </div>
+        )
     }
 
     if (status === 'loading' || loading) {
@@ -470,6 +539,7 @@ export default function BeinAccountsPage() {
                                 <TableHead>{t.adminBeinAccounts?.table?.account || 'Account'}</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.proxy || 'Proxy'}</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.status || 'Status'}</TableHead>
+                                <TableHead className="text-center">Lock</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.priority || 'Priority'}</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.balance || 'beIN Balance'}</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.successRate || 'Success Rate'}</TableHead>
@@ -481,7 +551,7 @@ export default function BeinAccountsPage() {
                         <TableBody>
                             {accounts.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                                         {t.adminBeinAccounts?.table?.noAccounts || 'No accounts. Add your first account!'}
                                     </TableCell>
                                 </TableRow>
@@ -506,6 +576,7 @@ export default function BeinAccountsPage() {
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">{getStatusBadge(account)}</TableCell>
+                                        <TableCell className="text-center">{getLockBadge(account)}</TableCell>
                                         <TableCell className="text-center">{account.priority}</TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex items-center justify-center gap-1">
@@ -574,6 +645,18 @@ export default function BeinAccountsPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => {
+                                                        setUnlockAccount(account)
+                                                        setUnlockReason('')
+                                                    }}
+                                                    disabled={!account.lockStatus?.locked}
+                                                    title="Force unlock"
+                                                >
+                                                    <Unlock className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
                                                         setEditAccount(account)
                                                         setFormData({
                                                             username: account.username,
@@ -607,6 +690,55 @@ export default function BeinAccountsPage() {
                     </Table>
                 </CardContent>
             </Card>
+
+            {/* Force Unlock Dialog */}
+            <Dialog open={!!unlockAccount} onOpenChange={(open) => {
+                if (!open) {
+                    setUnlockAccount(null)
+                    setUnlockReason('')
+                }
+            }}>
+                <DialogContent dir="rtl">
+                    <DialogHeader>
+                        <DialogTitle>Force unlock beIN account</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="rounded-md border p-3 text-sm">
+                            <div className="font-medium">{unlockAccount?.label || unlockAccount?.username}</div>
+                            <div className="text-muted-foreground font-mono">
+                                {unlockAccount?.lockStatus?.ownerOperationId || unlockAccount?.lockStatus?.ownerWorkerId || 'unknown owner'}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="unlock-reason">Reason *</Label>
+                            <Input
+                                id="unlock-reason"
+                                value={unlockReason}
+                                onChange={(e) => setUnlockReason(e.target.value)}
+                                placeholder="Why is this lock stuck?"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button
+                            type="button"
+                            variant="danger"
+                            onClick={handleForceUnlock}
+                            disabled={!unlockReason.trim() || unlockingId === unlockAccount?.id}
+                        >
+                            {unlockingId === unlockAccount?.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                            ) : (
+                                <Unlock className="h-4 w-4 ml-2" />
+                            )}
+                            Force unlock
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Edit Dialog */}
             <Dialog open={!!editAccount} onOpenChange={(open) => !open && setEditAccount(null)}>

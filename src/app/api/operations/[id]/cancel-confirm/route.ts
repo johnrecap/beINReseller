@@ -3,7 +3,8 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { addOperationJob, operationsQueue } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
-import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
+import { hasFinalPayStarted, mergeOperationPhaseEvidence } from '@/lib/operation-safety'
+import type { OperationStatus } from '@prisma/client'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -77,6 +78,17 @@ export async function POST(
             return NextResponse.json(
                 { error: 'Operation is not in final confirmation stage' },
                 { status: 400 }
+            )
+        }
+
+        if (hasFinalPayStarted({
+            operationStatus: operation.status as OperationStatus,
+            operationAmount: operation.amount ?? 0,
+            operationResponseData: operation.responseData,
+        })) {
+            return NextResponse.json(
+                { error: 'Final payment may have started. Manual review is required.' },
+                { status: 409 }
             )
         }
 

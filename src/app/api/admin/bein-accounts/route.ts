@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { encryptSecret } from '@/lib/crypto'
 import Redis from 'ioredis'
+import { buildAccountLockStatus, readAccountLockStatus } from '@/lib/operations/account-lock-release'
 
 // Initialize Redis for pool status
 const getRedis = () => {
@@ -33,42 +34,7 @@ export async function GET(request: NextRequest) {
             }
         })
 
-        // Calculate success rate for each account
-        const accountsWithStats = accounts.map(account => {
-            const total = account.totalSuccess + account.totalFailures
-            const successRate = total > 0 ? (account.totalSuccess / total) * 100 : 100
-
-            return {
-                id: account.id,
-                username: account.username,
-                label: account.label,
-                isActive: account.isActive,
-                priority: account.priority,
-                lastUsedAt: account.lastUsedAt,
-                usageCount: account.usageCount,
-                cooldownUntil: account.cooldownUntil,
-                consecutiveFailures: account.consecutiveFailures,
-                consecutiveLoginFailures: account.consecutiveLoginFailures,
-                totalFailures: account.totalFailures,
-                totalSuccess: account.totalSuccess,
-                lastError: account.lastError,
-                lastErrorAt: account.lastErrorAt,
-                lastLoginAttemptAt: account.lastLoginAttemptAt,
-                lastLoginFailureAt: account.lastLoginFailureAt,
-                lastLoginFailureReason: account.lastLoginFailureReason,
-                lastSuccessfulLoginAt: account.lastSuccessfulLoginAt,
-                createdAt: account.createdAt,
-                updatedAt: account.updatedAt,
-                dealerBalance: (account as unknown as Record<string, unknown>).dealerBalance ?? null,
-                balanceUpdatedAt: (account as unknown as Record<string, unknown>).balanceUpdatedAt ?? null,
-                successRate: Math.round(successRate * 100) / 100,
-                operationsCount: account._count.operations,
-                proxyId: account.proxyId,
-                proxy: account.proxy,
-                customerOnly: account.customerOnly,
-                hasTotpSecret: !!account.totpSecret // Indicate if TOTP is configured
-            }
-        })
+        const lockStatusByAccountId = new Map<string, ReturnType<typeof buildAccountLockStatus>>()
 
         // Get pool status from Redis
         const poolStatus = {
@@ -83,7 +49,11 @@ export async function GET(request: NextRequest) {
             const redis = getRedis()
 
             for (const account of accounts) {
+                const lockStatus = await readAccountLockStatus(redis, account.id)
+                lockStatusByAccountId.set(account.id, lockStatus)
+
                 if (!account.isActive) continue
+                if (lockStatus.locked) continue
 
                 // Check cooldown
                 const cooldownKey = `bein:account:cooldown:${account.id}`
@@ -116,6 +86,43 @@ export async function GET(request: NextRequest) {
                 a.isActive && (!a.cooldownUntil || a.cooldownUntil < new Date())
             ).length
         }
+
+        const accountsWithStats = accounts.map(account => {
+            const total = account.totalSuccess + account.totalFailures
+            const successRate = total > 0 ? (account.totalSuccess / total) * 100 : 100
+
+            return {
+                id: account.id,
+                username: account.username,
+                label: account.label,
+                isActive: account.isActive,
+                priority: account.priority,
+                lastUsedAt: account.lastUsedAt,
+                usageCount: account.usageCount,
+                cooldownUntil: account.cooldownUntil,
+                consecutiveFailures: account.consecutiveFailures,
+                consecutiveLoginFailures: account.consecutiveLoginFailures,
+                totalFailures: account.totalFailures,
+                totalSuccess: account.totalSuccess,
+                lastError: account.lastError,
+                lastErrorAt: account.lastErrorAt,
+                lastLoginAttemptAt: account.lastLoginAttemptAt,
+                lastLoginFailureAt: account.lastLoginFailureAt,
+                lastLoginFailureReason: account.lastLoginFailureReason,
+                lastSuccessfulLoginAt: account.lastSuccessfulLoginAt,
+                createdAt: account.createdAt,
+                updatedAt: account.updatedAt,
+                dealerBalance: (account as unknown as Record<string, unknown>).dealerBalance ?? null,
+                balanceUpdatedAt: (account as unknown as Record<string, unknown>).balanceUpdatedAt ?? null,
+                successRate: Math.round(successRate * 100) / 100,
+                operationsCount: account._count.operations,
+                proxyId: account.proxyId,
+                proxy: account.proxy,
+                customerOnly: account.customerOnly,
+                hasTotpSecret: !!account.totpSecret, // Indicate if TOTP is configured
+                lockStatus: lockStatusByAccountId.get(account.id) ?? buildAccountLockStatus(null),
+            }
+        })
 
         return NextResponse.json({
             success: true,

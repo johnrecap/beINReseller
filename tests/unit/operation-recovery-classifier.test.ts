@@ -79,6 +79,38 @@ test('moves completing operation to review when final pay evidence is incomplete
     assert.equal(result.reviewRequired, true)
 })
 
+test('completes recovery when provider charge evidence is confirmed', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'COMPLETING',
+        amount: 92,
+        customerDeductTransactionExists: true,
+        responseData: {
+            ...finalPaySubmittedPhase(),
+            outcomeCategory: 'CONFIRMED_SUCCESS',
+        },
+    }))
+
+    assert.equal(result.decision, 'COMPLETE')
+    assert.equal(result.financialImpact, 'PROVIDER_CHARGED')
+    assert.equal(result.reviewRequired, false)
+})
+
+test('safe-refunds recovery when provider no-charge evidence is confirmed', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'COMPLETING',
+        amount: 92,
+        customerDeductTransactionExists: true,
+        responseData: {
+            ...finalPaySubmittedPhase(),
+            outcomeCategory: 'CONFIRMED_NOT_CHARGED',
+        },
+    }))
+
+    assert.equal(result.decision, 'SAFE_REFUND')
+    assert.equal(result.refundAllowed, true)
+    assert.equal(result.reviewRequired, false)
+})
+
 test('expires stale processing operation with no customer deduction', () => {
     const result = classifyRecovery(recoveryInput({
         status: 'PROCESSING',

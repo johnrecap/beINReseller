@@ -72,7 +72,7 @@ export class AccountQueueManager {
         console.log(`[Queue] Operation ${operationId} requesting account (priority: ${priority})`)
 
         // First, try immediate acquisition
-        let account = await this.poolManager.getNextAvailableAccount()
+        let account = await this.poolManager.getNextAvailableAccount(operationId)
         if (account) {
             console.log(`[Queue] Operation ${operationId} got account immediately: ${account.username}`)
             return {
@@ -125,7 +125,7 @@ export class AccountQueueManager {
 
                 // Only try to acquire if we're at the front of queue (or near front)
                 if (position <= 2) {
-                    account = await this.poolManager.getNextAvailableAccount()
+                    account = await this.poolManager.getNextAvailableAccount(operationId)
                     if (account) {
                         console.log(`[Queue] Operation ${operationId} acquired account ${account.username} after ${retriesAttempted} retries`)
                         return {

@@ -45,11 +45,19 @@ function shouldAllowInsecureProxyTls(): boolean {
 
 export const FINAL_PAY_FALLBACK_BALANCE_DELAY_MS = 3000;
 export const FINAL_PAY_BUSY_RETRY_DELAY_MS = 3000;
+export const FINAL_PAY_FALLBACK_BALANCE_CHECKS = 3;
+export const FINAL_PAY_BUSY_RETRY_CHECKS = 5;
 
 export function getFinalPayBalanceDelayMs(path: 'fallback' | 'busy-retry'): number {
     return path === 'fallback'
         ? FINAL_PAY_FALLBACK_BALANCE_DELAY_MS
         : FINAL_PAY_BUSY_RETRY_DELAY_MS;
+}
+
+export function getFinalPayBalanceCheckCount(path: 'fallback' | 'busy-retry'): number {
+    return path === 'fallback'
+        ? FINAL_PAY_FALLBACK_BALANCE_CHECKS
+        : FINAL_PAY_BUSY_RETRY_CHECKS;
 }
 
 function wait(ms: number): Promise<void> {
@@ -112,6 +120,64 @@ export function classifyFinalPayOutcome(input: {
     }
 
     return 'UNCERTAIN_REVIEW_REQUIRED';
+}
+
+export function classifyFinalPayBalanceReadings(input: {
+    success: boolean;
+    message?: string | null;
+    finalPaySubmitted: boolean;
+    expectedCost?: number | null;
+    beinBalanceBefore?: number | null;
+    balanceReadings: Array<number | null>;
+    requiredChecks?: number;
+}): {
+    outcomeCategory: FinalPayOutcomeCategory;
+    beinBalanceAfter: number | null;
+    balanceDecrease: number | null;
+    checksPerformed: number;
+} {
+    const checksPerformed = input.balanceReadings.length;
+    const requiredChecks = input.requiredChecks ?? checksPerformed;
+    let latestBalance: number | null = null;
+    let latestDecrease: number | null = null;
+
+    for (const reading of input.balanceReadings) {
+        if (typeof reading !== 'number' || Number.isNaN(reading)) continue;
+        latestBalance = reading;
+        const decrease = getBalanceDecrease(input.beinBalanceBefore, reading);
+        latestDecrease = decrease;
+        if (decrease !== null && balanceDecreaseMatchesExpected(decrease, input.expectedCost)) {
+            return {
+                outcomeCategory: 'CONFIRMED_SUCCESS',
+                beinBalanceAfter: reading,
+                balanceDecrease: decrease,
+                checksPerformed,
+            };
+        }
+    }
+
+    if (checksPerformed < requiredChecks) {
+        return {
+            outcomeCategory: 'UNCERTAIN_REVIEW_REQUIRED',
+            beinBalanceAfter: latestBalance,
+            balanceDecrease: latestDecrease,
+            checksPerformed,
+        };
+    }
+
+    return {
+        outcomeCategory: classifyFinalPayOutcome({
+            success: input.success,
+            message: input.message,
+            finalPaySubmitted: input.finalPaySubmitted,
+            expectedCost: input.expectedCost,
+            beinBalanceBefore: input.beinBalanceBefore,
+            beinBalanceAfter: latestBalance,
+        }),
+        beinBalanceAfter: latestBalance,
+        balanceDecrease: latestDecrease,
+        checksPerformed,
+    };
 }
 
 function getBalanceDecrease(
@@ -2353,26 +2419,17 @@ export class HttpClientService {
             };
 
             console.log('[HTTP] POST Pay (Direct Payment)...');
-            finalPaySubmitted = true;
-            let finalPayEvidencePromise: Promise<void> | null = null;
             if (onFinalPaySubmitted) {
-                finalPayEvidencePromise = onFinalPaySubmitted().catch((error: unknown) => {
-                    console.warn(`[HTTP] Failed to persist final Pay evidence before POST completion: ${error instanceof Error ? error.message : String(error)}`);
-                });
+                await onFinalPaySubmitted();
             }
-            try {
-                res = await this.axios.post(
-                    renewUrl,
-                    this.buildFormData(payFormData),
-                    {
-                        headers: this.buildPostHeaders(renewUrl)
-                    }
-                );
-            } finally {
-                if (finalPayEvidencePromise) {
-                    await finalPayEvidencePromise;
+            finalPaySubmitted = true;
+            res = await this.axios.post(
+                renewUrl,
+                this.buildFormData(payFormData),
+                {
+                    headers: this.buildPostHeaders(renewUrl)
                 }
-            }
+            );
 
             // Check for immediate errors
             const payError = this.checkForErrors(res.data);
@@ -2404,7 +2461,11 @@ export class HttpClientService {
             for (const pattern of errorPatterns) {
                 if (resultPageText.toLowerCase().includes(pattern.toLowerCase())) {
                     console.log(`[HTTP] ❌ Purchase failed: Page contains "${pattern}"`);
-                    return { success: false, message: `Purchase failed - ${pattern}` };
+                    return withFinalPayOutcome({
+                        success: false,
+                        message: `Purchase failed - ${pattern}`,
+                        beinBalanceBefore: balanceBefore || undefined
+                    }, true, expectedCost);
                 }
             }
 
@@ -2442,8 +2503,8 @@ export class HttpClientService {
             if (resultPageText.includes('Transaction is busy') || resultPageText.includes('wait for sometime')) {
                 console.log('[HTTP] ⏳ Transaction is busy - beIN is processing, will retry...');
 
-                // Retry up to 5 times with 3-second delays
-                for (let retry = 1; retry <= 5; retry++) {
+                const busyRetryChecks = getFinalPayBalanceCheckCount('busy-retry');
+                for (let retry = 1; retry <= busyRetryChecks; retry++) {
                     console.log(`[HTTP] ⏳ Retry ${retry}/5 - waiting 3 seconds...`);
                     await wait(getFinalPayBalanceDelayMs('busy-retry'));
 
@@ -2501,23 +2562,11 @@ export class HttpClientService {
                                 }, true, expectedCost);
                             } else if (balanceBefore !== null && retryBalance !== null && retryBalance >= balanceBefore) {
                                 console.log(`[HTTP] ❌ Balance did NOT decrease (${balanceBefore} → ${retryBalance}) — transaction failed on beIN`);
-                                return withFinalPayOutcome({
-                                    success: false,
-                                    message: `Transaction failed on beIN - balance unchanged ($${retryBalance})`,
-                                    newBalance: retryBalance ?? undefined,
-                                    beinBalanceBefore: balanceBefore || undefined,
-                                    beinBalanceAfter: retryBalance || undefined
-                                }, true, expectedCost);
+                                console.log(`[HTTP] Continuing delayed verification after unchanged retry ${retry}/${busyRetryChecks}`);
                             } else {
                                 // Can't determine balance — don't assume success
                                 console.log(`[HTTP] ⚠️ Cannot verify balance change — failing safe`);
-                                return withFinalPayOutcome({
-                                    success: false,
-                                    message: 'Transaction status unknown - could not verify balance change',
-                                    newBalance: retryBalance || undefined,
-                                    beinBalanceBefore: balanceBefore || undefined,
-                                    beinBalanceAfter: retryBalance || undefined
-                                }, true, expectedCost);
+                                console.log(`[HTTP] Continuing delayed verification after unreadable retry ${retry}/${busyRetryChecks}`);
                             }
                         }
                     } catch (retryErr: any) {
@@ -2542,25 +2591,50 @@ export class HttpClientService {
             // ===============================================
             console.log('[HTTP] 💰 No success message found, checking balance...');
 
-            // Small delay to ensure beIN has processed
-            await wait(getFinalPayBalanceDelayMs('fallback'));
+            const fallbackReadings: Array<number | null> = [];
+            const fallbackChecks = getFinalPayBalanceCheckCount('fallback');
+            let verification = classifyFinalPayBalanceReadings({
+                success: false,
+                message: 'No success confirmation found from beIN',
+                finalPaySubmitted: true,
+                expectedCost,
+                beinBalanceBefore: balanceBefore,
+                balanceReadings: fallbackReadings,
+                requiredChecks: fallbackChecks
+            });
 
-            const balanceAfter = await this.getBalanceFromSellPackagesPage();
-            const finalDecrease = getBalanceDecrease(balanceBefore, balanceAfter);
-            if (finalDecrease !== null && balanceDecreaseMatchesExpected(finalDecrease, expectedCost)) {
-                const decrease = finalDecrease;
-                return withFinalPayOutcome({
-                    success: true,
-                    message: `Transaction completed (balance decreased by $${decrease})`,
-                    newBalance: balanceAfter ?? undefined,
-                    beinBalanceBefore: balanceBefore ?? undefined,
-                    beinBalanceAfter: balanceAfter ?? undefined
-                }, true, expectedCost);
+            for (let check = 1; check <= fallbackChecks; check++) {
+                await wait(getFinalPayBalanceDelayMs('fallback'));
+                const balanceAfterCheck = await this.getBalanceFromSellPackagesPage();
+                fallbackReadings.push(balanceAfterCheck);
+                verification = classifyFinalPayBalanceReadings({
+                    success: false,
+                    message: 'No success confirmation found from beIN',
+                    finalPaySubmitted: true,
+                    expectedCost,
+                    beinBalanceBefore: balanceBefore,
+                    balanceReadings: fallbackReadings,
+                    requiredChecks: fallbackChecks
+                });
+                console.log(`[HTTP] Delayed balance check ${check}/${fallbackChecks}: ${balanceAfterCheck !== null ? balanceAfterCheck + ' USD' : 'unknown'} (${verification.outcomeCategory})`);
+
+                if (verification.outcomeCategory === 'CONFIRMED_SUCCESS') {
+                    const decrease = verification.balanceDecrease;
+                    return withFinalPayOutcome({
+                        success: true,
+                        message: `Transaction completed (balance decreased by $${decrease})`,
+                        newBalance: verification.beinBalanceAfter ?? undefined,
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: verification.beinBalanceAfter ?? undefined
+                    }, true, expectedCost);
+                }
             }
-            if (finalDecrease !== null && finalDecrease > 0) {
+
+            const balanceAfter = verification.beinBalanceAfter;
+            if (verification.balanceDecrease !== null && verification.balanceDecrease > 0) {
                 return withFinalPayOutcome({
                     success: false,
-                    message: `Transaction status uncertain - balance decreased by $${finalDecrease}, expected $${expectedCost}`,
+                    message: `Transaction status uncertain - balance decreased by $${verification.balanceDecrease}, expected $${expectedCost}`,
                     newBalance: balanceAfter || undefined,
                     beinBalanceBefore: balanceBefore || undefined,
                     beinBalanceAfter: balanceAfter || undefined

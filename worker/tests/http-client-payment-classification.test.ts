@@ -5,6 +5,11 @@ import {
     FINAL_PAY_EXPECTED_COST,
     balanceAfterDecrease,
     classifyFinalPay,
+    classifyFinalPayReadings,
+    delayedExpectedDecreaseReadings,
+    delayedMismatchedDecreaseReadings,
+    unchangedFinalPayReadings,
+    unreadableFinalPayReadings,
 } from './helpers/final-pay-fixtures';
 
 test('classifies explicit success with matching balance delta as confirmed success', () => {
@@ -77,4 +82,24 @@ test('classifies missing balance evidence after pay submit as review required', 
         }),
         'UNCERTAIN_REVIEW_REQUIRED'
     );
+});
+
+test('classifies delayed expected balance decrease as confirmed success', () => {
+    assert.equal(classifyFinalPayReadings(delayedExpectedDecreaseReadings, 3), 'CONFIRMED_SUCCESS');
+});
+
+test('does not treat first unchanged delayed balance read as confirmed no-charge', () => {
+    assert.equal(classifyFinalPayReadings([FINAL_PAY_BALANCE_BEFORE], 3), 'UNCERTAIN_REVIEW_REQUIRED');
+});
+
+test('classifies unchanged balance after all delayed checks as confirmed no-charge', () => {
+    assert.equal(classifyFinalPayReadings(unchangedFinalPayReadings, 3), 'CONFIRMED_NOT_CHARGED');
+});
+
+test('classifies delayed mismatched balance decrease as review required', () => {
+    assert.equal(classifyFinalPayReadings(delayedMismatchedDecreaseReadings, 3), 'UNCERTAIN_REVIEW_REQUIRED');
+});
+
+test('classifies unreadable delayed balance checks as review required', () => {
+    assert.equal(classifyFinalPayReadings(unreadableFinalPayReadings, 3), 'UNCERTAIN_REVIEW_REQUIRED');
 });

@@ -12,7 +12,7 @@
 
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
-import { decideRefundSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
+import { decideRefundSafety, getOperationPhaseEvidence, parseOperationResponseData } from '@/lib/operation-safety'
 import { createOperationPointReversalsInTransaction } from '@/lib/points/reversals'
 
 /**
@@ -34,10 +34,17 @@ export async function refundUser(
 
     try {
         await prisma.$transaction(async (tx) => {
+            await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "operations" WHERE id = ${operationId} FOR UPDATE`
+
             const operation = await tx.operation.findUnique({
                 where: { id: operationId },
                 select: { status: true, amount: true, responseData: true }
             })
+
+            if (!operation) {
+                console.error(`[MONITOR] Refund blocked for missing operation ${operationId}: reason=${reason}`)
+                throw new Error('REFUND_BLOCKED_MISSING_OPERATION')
+            }
 
             const existingRefund = await tx.transaction.findFirst({
                 where: {
@@ -55,17 +62,26 @@ export async function refundUser(
                 select: { id: true }
             })
 
-            const refundDecision = operation ? decideRefundSafety({
+            const phaseEvidence = getOperationPhaseEvidence(operation.responseData)
+            const responseData = parseOperationResponseData(operation.responseData)
+            const auditSnapshot = responseData.auditSnapshot && typeof responseData.auditSnapshot === 'object'
+                ? responseData.auditSnapshot as Record<string, unknown>
+                : {}
+            const refundDecision = decideRefundSafety({
                 operationId,
                 operationStatus: operation.status,
                 operationAmount: operation.amount || amount,
                 operationResponseData: operation.responseData,
-                phaseEvidence: getOperationPhaseEvidence(operation.responseData),
+                phaseEvidence,
                 customerDeductTransactionExists: !!deductTx || amount > 0,
                 refundTransactionExists: !!existingRefund,
-            }) : null
+                confirmedNonChargeEvidence:
+                    phaseEvidence?.outcomeCategory === 'CONFIRMED_NOT_CHARGED' ||
+                    responseData.outcomeCategory === 'CONFIRMED_NOT_CHARGED' ||
+                    auditSnapshot.outcomeCategory === 'CONFIRMED_NOT_CHARGED',
+            })
 
-            if (refundDecision && !refundDecision.refundAllowed) {
+            if (!refundDecision.refundAllowed) {
                 console.error(
                     `[MONITOR] Refund blocked for operation ${operationId}: status=${operation?.status || 'missing'}, decision=${refundDecision.reason}, reason=${reason}`
                 )
@@ -113,6 +129,7 @@ export async function refundUser(
         return true
     } catch (error: unknown) {
         if (error instanceof Error && error.message === 'REFUND_BLOCKED_TERMINAL') return false
+        if (error instanceof Error && error.message === 'REFUND_BLOCKED_MISSING_OPERATION') return false
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
         throw error
     }

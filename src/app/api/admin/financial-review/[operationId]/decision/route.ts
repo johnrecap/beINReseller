@@ -3,6 +3,7 @@ import { OperationStatus, Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import {
+    buildFinancialReviewItem,
     extractFinancialReviewMetadata,
     withFinancialReviewMetadata,
 } from '@/lib/financial-review/evidence'
@@ -134,9 +135,31 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 where: { id: operationId },
                 select: {
                     id: true,
+                    type: true,
+                    cardNumber: true,
                     status: true,
                     amount: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    responseMessage: true,
                     responseData: true,
+                    selectedPackage: true,
+                    user: { select: { id: true, username: true } },
+                    customer: { select: { id: true, name: true, email: true } },
+                    beinAccount: { select: { id: true, username: true, label: true } },
+                    chargedBeinSpendLedger: {
+                        select: {
+                            id: true,
+                            beinAccountId: true,
+                            dealerBalanceBefore: true,
+                            dealerBalanceAfter: true,
+                            spendAmount: true,
+                            evidenceConfidence: true,
+                            beinUsernameSnapshot: true,
+                            beinLabelSnapshot: true,
+                        },
+                    },
+                    transactions: { select: { type: true, amount: true } },
                 },
             })
 
@@ -144,9 +167,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 throw new Error('OPERATION_NOT_REVIEWABLE')
             }
 
+            const reviewItem = buildFinancialReviewItem(operation, new Map())
+            if (action === 'BEIN_EXECUTED_NO_REFUND' && !reviewItem?.evidence.beinDebitConfirmed) {
+                throw new Error('MISSING_PROVIDER_CHARGE_EVIDENCE')
+            }
+            if (action === 'REFUND_CUSTOMER' && reviewItem?.evidence.beinDebitConfirmed) {
+                throw new Error('PROVIDER_CHARGE_EVIDENCE_CONFLICT')
+            }
+
             let refundApplied = false
             if (action === 'REFUND_CUSTOMER') {
-                refundApplied = await applyAdminRefund(tx, operationId, operation.amount, note)
+                await applyAdminRefund(tx, operationId, operation.amount, note)
+                refundApplied = true
             }
 
             const decision = {
@@ -166,7 +198,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
             await tx.operation.update({
                 where: { id: operationId },
-                data: { responseData },
+                data: {
+                    responseData,
+                    ...(action === 'BEIN_EXECUTED_NO_REFUND'
+                        ? {
+                            status: OperationStatus.COMPLETED,
+                            completedAt: new Date(),
+                            responseMessage: 'Financial review closed: beIN charge confirmed.',
+                        }
+                        : {}),
+                    ...(action === 'REFUND_CUSTOMER'
+                        ? {
+                            status: OperationStatus.FAILED,
+                            responseMessage: 'Financial review closed: no beIN charge confirmed and reseller refund closed.',
+                        }
+                        : {}),
+                },
             })
 
             return {
@@ -184,6 +231,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
             }
             if (error.message === 'INVALID_REFUND_AMOUNT' || error.message === 'NO_REFUND_TARGET') {
                 return NextResponse.json({ error: error.message }, { status: 400 })
+            }
+            if (error.message === 'MISSING_PROVIDER_CHARGE_EVIDENCE') {
+                return NextResponse.json({ error: 'Provider charge evidence is required before closing as charged' }, { status: 400 })
+            }
+            if (error.message === 'PROVIDER_CHARGE_EVIDENCE_CONFLICT') {
+                return NextResponse.json({ error: 'Refund cannot be applied while provider charge evidence exists' }, { status: 400 })
             }
         }
         return NextResponse.json({ error: 'Server error' }, { status: 500 })

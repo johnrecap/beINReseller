@@ -55,7 +55,7 @@ export class AccountPoolManager {
      * Get the next available account using Round Robin
      * Skips accounts that are rate-limited, in cooldown, or locked
      */
-    async getNextAvailableAccount(): Promise<BeinAccount | null> {
+    async getNextAvailableAccount(operationId?: string): Promise<BeinAccount | null> {
         if (!this.configLoaded) {
             await this.loadConfig()
         }
@@ -108,7 +108,7 @@ export class AccountPoolManager {
 
 
             console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`)
-            const locked = await lockAccount(this.redis, account.id, this.workerId, ACCOUNT_LOCK_TTL_SECONDS)
+            const locked = await lockAccount(this.redis, account.id, this.workerId, ACCOUNT_LOCK_TTL_SECONDS, operationId)
             if (!locked) {
                 console.log(`Skipping ${account.label || account.username}: lock was taken`)
                 continue
@@ -125,7 +125,7 @@ export class AccountPoolManager {
      * Mark an account as successfully used
      * Records the usage and resets consecutive failures
      */
-    async markAccountUsed(accountId: string): Promise<void> {
+    async markAccountUsed(accountId: string, operationId?: string): Promise<void> {
         try {
         // Record request for rate limiting
         await recordRequest(this.redis, accountId, this.config.rateLimitWindowSeconds)
@@ -144,7 +144,7 @@ export class AccountPoolManager {
 
         console.log(`📊 Account ${accountId} marked as used`)
         } finally {
-            await this.releaseLock(accountId)
+            await this.releaseLock(accountId, operationId)
         }
     }
 
@@ -152,7 +152,7 @@ export class AccountPoolManager {
      * Mark an account as failed
      * Tracks failures and applies cooldown if threshold reached
      */
-    async markAccountFailed(accountId: string, error: string): Promise<void> {
+    async markAccountFailed(accountId: string, error: string, operationId?: string): Promise<void> {
         try {
         const account = await prisma.beinAccount.update({
             where: { id: accountId },
@@ -185,7 +185,7 @@ export class AccountPoolManager {
 
         console.log(`❌ Account ${accountId} marked as failed: ${error}`)
         } finally {
-            await this.releaseLock(accountId)
+            await this.releaseLock(accountId, operationId)
         }
     }
 
@@ -360,8 +360,8 @@ export class AccountPoolManager {
     /**
      * Release a lock for a specific account (cleanup)
      */
-    async releaseLock(accountId: string): Promise<void> {
-        const released = await unlockAccount(this.redis, accountId, this.workerId)
+    async releaseLock(accountId: string, operationId?: string): Promise<void> {
+        const released = await unlockAccount(this.redis, accountId, this.workerId, operationId)
         if (released) {
             console.log(`Released lock for account ${accountId}`)
         }
@@ -371,8 +371,8 @@ export class AccountPoolManager {
      * Extend the lock TTL (heartbeat keep-alive)
      * Call this periodically during long operations to prevent expiry
      */
-    async renewLock(accountId: string): Promise<void> {
-        const renewed = await extendLock(this.redis, accountId, this.workerId, ACCOUNT_LOCK_TTL_SECONDS)
+    async renewLock(accountId: string, operationId?: string): Promise<void> {
+        const renewed = await extendLock(this.redis, accountId, this.workerId, ACCOUNT_LOCK_TTL_SECONDS, operationId)
         if (!renewed) {
             console.warn(`Failed to renew lock for account ${accountId}`)
         }
@@ -401,12 +401,13 @@ export class AccountPoolManager {
     async getNextAvailableAccountWithRetry(
         maxRetries: number = 5,
         initialDelayMs: number = 1000,
-        maxDelayMs: number = 10000
+        maxDelayMs: number = 10000,
+        operationId?: string
     ): Promise<BeinAccount | null> {
         let delay = initialDelayMs
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            const account = await this.getNextAvailableAccount()
+            const account = await this.getNextAvailableAccount(operationId)
             if (account) {
                 if (attempt > 0) {
                     console.log(`✅ Got account on retry ${attempt}: ${account.username}`)
@@ -438,7 +439,8 @@ export class AccountPoolManager {
      */
     async getNextAvailableAccountExcluding(
         excludeAccountIds: string[],
-        minBalance?: number
+        minBalance?: number,
+        operationId?: string
     ): Promise<BeinAccount | null> {
         if (!this.configLoaded) {
             await this.loadConfig()
@@ -491,7 +493,7 @@ export class AccountPoolManager {
 
 
             console.log(`✅ Selected alternative account: ${account.label || account.username} (Balance: ${account.dealerBalance || 'unknown'} USD)`)
-            const locked = await lockAccount(this.redis, account.id, this.workerId, ACCOUNT_LOCK_TTL_SECONDS)
+            const locked = await lockAccount(this.redis, account.id, this.workerId, ACCOUNT_LOCK_TTL_SECONDS, operationId)
             if (!locked) {
                 console.log(`Skipping ${account.label || account.username}: lock was taken`)
                 continue

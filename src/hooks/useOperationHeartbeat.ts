@@ -3,14 +3,14 @@
 import { useEffect, useRef, useCallback } from 'react'
 
 /**
- * useOperationHeartbeat - Sends heartbeat to server every 5 seconds
+ * useOperationHeartbeat - Sends heartbeat to server every 2 seconds
  * 
  * This hook keeps the operation alive while the user is on the page.
  * If heartbeats stop (browser close, tab close, network disconnect),
- * the server will auto-cancel the operation after 15 seconds.
+ * the server will auto-cancel the operation after 5 seconds.
  * 
  * Features:
- * - Sends heartbeat every 5 seconds
+ * - Sends heartbeat every 2 seconds
  * - Pauses when tab is hidden (reduces server load)
  * - Uses navigator.sendBeacon on page unload for reliable delivery
  * - Cleans up on unmount
@@ -34,7 +34,7 @@ interface UseOperationHeartbeatOptions {
     onExpired?: () => void
     /** Callback when heartbeat fails repeatedly (optional) */
     onError?: (error: string) => void
-    /** Heartbeat interval in ms (default: 5000) */
+    /** Heartbeat interval in ms (default: 2000) */
     intervalMs?: number
 }
 
@@ -45,7 +45,7 @@ interface HeartbeatState {
     failureCount: number
 }
 
-const DEFAULT_INTERVAL_MS = 5000  // 5 seconds
+const DEFAULT_INTERVAL_MS = 2000
 const MAX_FAILURES = 3  // After 3 consecutive failures, stop trying
 
 export function useOperationHeartbeat({
@@ -106,7 +106,7 @@ export function useOperationHeartbeat({
         const handleVisibilityChange = () => {
             if (document.hidden) {
                 // Tab hidden - pause heartbeat but don't stop it completely
-                // The server has 15 second timeout, so we have some buffer
+                // The server will expire the operation quickly if the page stays hidden.
                 console.log('[Heartbeat] Tab hidden, pausing heartbeat')
             } else {
                 // Tab visible again - send immediate heartbeat

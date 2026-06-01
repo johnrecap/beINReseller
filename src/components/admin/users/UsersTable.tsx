@@ -140,8 +140,7 @@ export default function UsersTable() {
             if (res.ok) {
                 setCounts(data)
             }
-        } catch (error) {
-            console.error('Failed to fetch counts', error)
+        } catch {
         }
     }, [])
 
@@ -156,8 +155,7 @@ export default function UsersTable() {
             if (res.ok) {
                 setUserCreationDisabled(Boolean(data.panelUserCreation?.blocked))
             }
-        } catch (error) {
-            console.error('Failed to fetch permission state', error)
+        } catch {
         }
     }, [])
 
@@ -191,8 +189,7 @@ export default function UsersTable() {
                     setPage(nextTotalPages)
                 }
             }
-        } catch (error) {
-            console.error('Failed to fetch data', error)
+        } catch {
         } finally {
             setLoading(false)
         }
@@ -224,8 +221,7 @@ export default function UsersTable() {
                 fetchData()
                 fetchCounts()
             }
-        } catch (error) {
-            console.error('Failed to update status', error)
+        } catch {
         }
     }
 
@@ -245,8 +241,7 @@ export default function UsersTable() {
             } else {
                 alert(data.error || t.admin?.users?.messages?.deleteFailed || 'Failed to delete user')
             }
-        } catch (error) {
-            console.error('Failed to delete user', error)
+        } catch {
             alert(t.admin?.users?.messages?.deleteError || 'An error occurred while deleting user')
         }
     }

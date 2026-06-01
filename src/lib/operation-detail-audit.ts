@@ -70,6 +70,8 @@ type OperationAccountAuditSource = {
 }
 
 export function buildChargedBeinAccountAudit(operation: OperationAccountAuditSource, isAdmin: boolean) {
+    if (!isAdmin) return null
+
     if (operation.chargedBeinSpendLedger) {
         return {
             ledgerId: operation.chargedBeinSpendLedger.id,
@@ -84,7 +86,7 @@ export function buildChargedBeinAccountAudit(operation: OperationAccountAuditSou
         }
     }
 
-    if (!isAdmin || !operation.beinAccount) return null
+    if (!operation.beinAccount) return null
 
     return {
         ledgerId: null,

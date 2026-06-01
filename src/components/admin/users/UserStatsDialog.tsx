@@ -253,7 +253,6 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                 alert(result.message)
             }
         } catch (err) {
-            console.error('Correction error:', err)
             alert(err instanceof Error ? err.message : t.common?.error || 'Error')
         } finally {
             setCorrecting(null)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { redactActivityLogDetails } from '@/lib/activity-log-redaction'
 
 export async function GET(request: NextRequest) {
     try {
@@ -75,6 +76,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             logs: logs.map(log => ({
                 ...log,
+                details: redactActivityLogDetails(log.details),
                 username: log.user.username,
                 email: log.user.email
             })),

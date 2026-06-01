@@ -10,6 +10,7 @@
 import prisma from '@/lib/prisma'
 import { Prisma, Role } from '@prisma/client'
 import { utcIsoToCairoDateInput } from '@/lib/egypt-time'
+import { redactActivityLogDetails } from '@/lib/activity-log-redaction'
 
 // Re-export types from shared types file for convenience
 export type {
@@ -228,7 +229,10 @@ export async function getUserActivitySummary(userId: string): Promise<UserActivi
         daysSinceLastOperation,
         daysSinceLastActivity,
         activityStatus: getActivityStatus(daysSinceLastActivity),
-        recentActivities: recentLogs
+        recentActivities: recentLogs.map(log => ({
+            ...log,
+            details: redactActivityLogDetails(log.details) as Prisma.JsonValue,
+        }))
     }
 }
 

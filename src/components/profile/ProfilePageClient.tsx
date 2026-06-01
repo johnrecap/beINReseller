@@ -28,8 +28,7 @@ export default function ProfilePageClient() {
             if (res.ok) {
                 setUser(data.user)
             }
-        } catch (error) {
-            console.error('Failed to fetch profile', error)
+        } catch {
         } finally {
             setLoading(false)
         }

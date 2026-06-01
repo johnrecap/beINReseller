@@ -107,10 +107,8 @@ export function useOperationHeartbeat({
             if (document.hidden) {
                 // Tab hidden - pause heartbeat but don't stop it completely
                 // The server will expire the operation quickly if the page stays hidden.
-                console.log('[Heartbeat] Tab hidden, pausing heartbeat')
             } else {
                 // Tab visible again - send immediate heartbeat
-                console.log('[Heartbeat] Tab visible, resuming heartbeat')
                 sendHeartbeat()
             }
         }
@@ -134,10 +132,9 @@ export function useOperationHeartbeat({
                 // But it's the most reliable way to send data during page unload
                 if (navigator.sendBeacon) {
                     navigator.sendBeacon(url, new Blob([data], { type: 'application/json' }))
-                    console.log('[Heartbeat] Sent beacon on unload')
                 }
-            } catch (error) {
-                console.error('[Heartbeat] Failed to send beacon:', error)
+            } catch {
+                // Unload is best-effort only.
             }
         }
 
@@ -168,15 +165,12 @@ export function useOperationHeartbeat({
             }
         }, intervalMs)
 
-        console.log(`[Heartbeat] Started for operation ${operationId} (interval: ${intervalMs}ms)`)
-
         // Cleanup on unmount or when disabled
         return () => {
             if (intervalRef.current) {
                 clearInterval(intervalRef.current)
                 intervalRef.current = null
             }
-            console.log(`[Heartbeat] Stopped for operation ${operationId}`)
         }
     }, [enabled, operationId, intervalMs, sendHeartbeat])
 
@@ -199,8 +193,6 @@ export function useKeepOperationAlive(
     useOperationHeartbeat({
         operationId,
         enabled,
-        onExpired: () => console.log('[Heartbeat] Operation expired'),
-        onError: (error) => console.error('[Heartbeat] Error:', error)
     })
 }
 

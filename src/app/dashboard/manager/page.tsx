@@ -27,8 +27,7 @@ async function getManagerDashboardData() {
         }
 
         return res.json()
-    } catch (error) {
-        console.error("Error fetching manager data:", error)
+    } catch {
         return null
     }
 }

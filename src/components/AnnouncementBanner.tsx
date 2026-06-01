@@ -26,8 +26,7 @@ export default function AnnouncementBanner() {
                 if (data.success && data.banner) {
                     setBanner(data.banner)
                 }
-            } catch (error) {
-                console.error('Failed to fetch banner:', error)
+            } catch {
             } finally {
                 setIsLoading(false)
             }

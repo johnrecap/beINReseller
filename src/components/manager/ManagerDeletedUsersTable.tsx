@@ -42,8 +42,7 @@ export default function ManagerDeletedUsersTable() {
                 setUsers(data.users)
                 setTotalPages(data.totalPages)
             }
-        } catch (error) {
-            console.error('Failed to fetch deleted users', error)
+        } catch {
         } finally {
             setLoading(false)
         }

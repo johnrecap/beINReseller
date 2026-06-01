@@ -78,8 +78,7 @@ export function CreateUserDialog() {
                 const data = await response.json()
                 setManagerBalance(data.stats?.managerBalance || 0)
             }
-        } catch (error) {
-            console.error("Failed to fetch manager balance:", error)
+        } catch {
         } finally {
             setLoadingBalance(false)
         }

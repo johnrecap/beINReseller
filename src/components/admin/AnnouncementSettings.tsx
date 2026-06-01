@@ -130,8 +130,7 @@ export default function AnnouncementSettings() {
             if (data.success) {
                 setBanners(data.banners)
             }
-        } catch (error) {
-            console.error('Failed to fetch banners:', error)
+        } catch {
             toast.error('Failed to load announcements')
         } finally {
             setLoading(false)
@@ -348,8 +347,7 @@ export default function AnnouncementSettings() {
             } else {
                 toast.error(data.error || 'Failed to save announcement')
             }
-        } catch (error) {
-            console.error('Failed to save banner:', error)
+        } catch {
             toast.error('Failed to save announcement')
         } finally {
             setSaving(false)
@@ -367,8 +365,7 @@ export default function AnnouncementSettings() {
                 toast.success('Announcement status updated')
                 fetchBanners()
             }
-        } catch (error) {
-            console.error('Failed to toggle banner:', error)
+        } catch {
             toast.error('Failed to update status')
         }
     }
@@ -386,8 +383,7 @@ export default function AnnouncementSettings() {
                 toast.success('Announcement deleted')
                 fetchBanners()
             }
-        } catch (error) {
-            console.error('Failed to delete banner:', error)
+        } catch {
             toast.error('Failed to delete announcement')
         }
     }

@@ -79,8 +79,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                 setUsers(data.users)
                 setTotalPages(data.totalPages)
             }
-        } catch (error) {
-            console.error('Failed to fetch users', error)
+        } catch {
         } finally {
             setLoading(false)
         }
@@ -106,8 +105,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                 const data = await res.json()
                 alert(data.error || t.admin?.users?.messages?.error || 'Failed to update status')
             }
-        } catch (error) {
-            console.error('Failed to update status', error)
+        } catch {
         }
     }
 
@@ -130,8 +128,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
             } else {
                 setDeleteError(data.error || t.admin?.users?.messages?.deleteFailed || 'Failed to delete user')
             }
-        } catch (error) {
-            console.error('Failed to delete user', error)
+        } catch {
             setDeleteError(t.admin?.users?.messages?.deleteError || 'An error occurred while deleting user')
         } finally {
             setDeleteLoading(false)

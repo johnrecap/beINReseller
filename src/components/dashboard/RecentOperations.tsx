@@ -62,8 +62,7 @@ export default function RecentOperations() {
                 const res = await fetch('/api/user/recent-operations')
                 const data = await res.json()
                 setOperations(data.operations || [])
-            } catch (error) {
-                console.error('Failed to fetch operations:', error)
+            } catch {
             } finally {
                 setLoading(false)
             }

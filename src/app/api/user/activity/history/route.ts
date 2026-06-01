@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { redactActivityLogDetails } from '@/lib/activity-log-redaction'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -57,7 +58,10 @@ export async function GET(request: NextRequest) {
         ])
         
         return NextResponse.json({
-            logs,
+            logs: logs.map(log => ({
+                ...log,
+                details: redactActivityLogDetails(log.details),
+            })),
             total,
             page,
             limit,

@@ -95,8 +95,7 @@ export default function TransactionsTable() {
                     setStats(data.stats)
                 }
             }
-        } catch (error) {
-            console.error('Failed to fetch transactions:', error)
+        } catch {
         } finally {
             setLoading(false)
         }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { redactActivityLogDetails } from '@/lib/activity-log-redaction'
 
 const MAINTENANCE_HEALTH_KEY = 'operation-maintenance:health'
 
@@ -139,7 +140,7 @@ export async function GET(request: NextRequest) {
                 id: decision.id,
                 operationId: decision.targetId,
                 createdAt: decision.createdAt.toISOString(),
-                details: decision.details,
+                details: redactActivityLogDetails(decision.details),
             })),
         })
     } catch (error) {

@@ -22,8 +22,7 @@ export default function ManagerUsersPage() {
             if (res.ok) {
                 setManagerBalance(data.stats?.managerBalance || 0)
             }
-        } catch (error) {
-            console.error('Failed to fetch manager balance', error)
+        } catch {
         } finally {
             setLoading(false)
         }

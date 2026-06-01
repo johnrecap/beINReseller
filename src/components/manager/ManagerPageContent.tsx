@@ -30,8 +30,7 @@ export function ManagerPageContent({ data }: ManagerPageContentProps) {
                 if (active && res.ok) {
                     setUserCreationDisabled(Boolean(data.panelUserCreation?.blocked))
                 }
-            } catch (error) {
-                console.error('Failed to fetch permission state', error)
+            } catch {
             }
         }
 

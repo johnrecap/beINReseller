@@ -154,8 +154,7 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 setProxies(data.proxies)
             }
-        } catch (e) {
-            console.error(e)
+        } catch {
         }
     }, [])
 

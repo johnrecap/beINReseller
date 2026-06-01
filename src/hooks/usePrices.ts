@@ -18,8 +18,7 @@ export function usePrices() {
                 const data = await res.json()
                 setPrices(data)
                 setLoading(false)
-            } catch (err) {
-                console.error('Error fetching prices:', err)
+            } catch {
                 setError('Failed to load prices')
                 setLoading(false)
             }

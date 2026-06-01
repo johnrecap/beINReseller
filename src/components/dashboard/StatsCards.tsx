@@ -66,8 +66,7 @@ export default function StatsCards() {
             try {
                 const res = await fetch('/api/user/stats')
                 setStats(await res.json())
-            } catch (error) {
-                console.error(error)
+            } catch {
             } finally {
                 setLoading(false)
             }

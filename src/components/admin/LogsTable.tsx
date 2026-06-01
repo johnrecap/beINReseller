@@ -78,8 +78,7 @@ export default function LogsTable() {
                     setPage(nextTotalPages)
                 }
             }
-        } catch (error) {
-            console.error('Failed to fetch logs', error)
+        } catch {
         } finally {
             setLoading(false)
         }

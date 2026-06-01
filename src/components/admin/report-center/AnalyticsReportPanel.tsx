@@ -90,8 +90,7 @@ export default function AnalyticsReportPanel() {
                 const result = await res.json()
                 setData(result)
             }
-        } catch (error) {
-            console.error('Failed to fetch analytics:', error)
+        } catch {
         } finally {
             setLoading(false)
         }

@@ -116,8 +116,7 @@ export default function SimpleAnnouncementSettings() {
             if (data.success) {
                 setBanners(data.banners)
             }
-        } catch (error) {
-            console.error('Failed to fetch announcements:', error)
+        } catch {
             toast.error('Failed to load announcements')
         } finally {
             setLoading(false)
@@ -195,8 +194,7 @@ export default function SimpleAnnouncementSettings() {
             } else {
                 toast.error(data.error || 'Failed to update announcement')
             }
-        } catch (error) {
-            console.error('Failed to toggle announcement:', error)
+        } catch {
             toast.error('Failed to update announcement')
         }
     }
@@ -214,8 +212,7 @@ export default function SimpleAnnouncementSettings() {
             } else {
                 toast.error(data.error || 'Failed to delete announcement')
             }
-        } catch (error) {
-            console.error('Failed to delete announcement:', error)
+        } catch {
             toast.error('Failed to delete announcement')
         }
     }
@@ -293,8 +290,7 @@ export default function SimpleAnnouncementSettings() {
             } else {
                 toast.error(data.error || 'Failed to save announcement')
             }
-        } catch (error) {
-            console.error('Failed to save announcement:', error)
+        } catch {
             toast.error('Failed to save announcement')
         } finally {
             setSaving(false)

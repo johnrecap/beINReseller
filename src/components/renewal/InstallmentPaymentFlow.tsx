@@ -283,8 +283,7 @@ export function InstallmentPaymentFlow() {
                     setError(data.message || inst.failed)
                     setStep('error')
                 }
-            } catch (err) {
-                console.error('Poll error:', err)
+            } catch {
             }
         }, 2000)
 
@@ -312,8 +311,7 @@ export function InstallmentPaymentFlow() {
                     setStep('error')
                     refetchBalance()
                 }
-            } catch (err) {
-                console.error('Poll error:', err)
+            } catch {
             }
         }, 2000)
 

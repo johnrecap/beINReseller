@@ -102,8 +102,7 @@ export function SignalRefreshFlow() {
                     setStep('error')
                     return  // Stop polling
                 }
-            } catch (err: unknown) {
-                console.error('Poll error:', err)
+            } catch {
             }
 
             // Schedule next poll with adaptive interval
@@ -230,8 +229,7 @@ export function SignalRefreshFlow() {
             document.body.removeChild(link)
 
             toast.success(sr.downloadSuccess || 'Image downloaded successfully!')
-        } catch (error) {
-            console.error('Download failed:', error)
+        } catch {
             toast.error(sr.downloadFailed || 'Failed to download image')
         } finally {
             setIsDownloading(false)

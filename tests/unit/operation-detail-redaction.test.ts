@@ -59,6 +59,25 @@ test('prefers confirmed ledger account evidence over operation account fallback'
     })
 })
 
+test('hides confirmed beIN account evidence from non-admin operation owners', () => {
+    const audit = buildChargedBeinAccountAudit({
+        chargedBeinSpendLedger: {
+            id: 'ledger-1',
+            beinAccountId: 'charged-account',
+            beinUsernameSnapshot: 'charged@example.test',
+            beinLabelSnapshot: 'Charged',
+            spendAmount: 145,
+            dealerBalanceBefore: 500,
+            dealerBalanceAfter: 355,
+            chargedAt: new Date('2026-05-25T10:00:00.000Z'),
+            evidenceSource: 'BALANCE_DELTA',
+        },
+        beinAccount: null,
+    }, false)
+
+    assert.equal(audit, null)
+})
+
 test('returns operation account fallback only for admins', () => {
     const source = {
         chargedBeinSpendLedger: null,

@@ -45,8 +45,7 @@ export default function DeletedUsersTable() {
                 setUsers(data.users)
                 setTotalPages(data.totalPages)
             }
-        } catch (error) {
-            console.error('Failed to fetch deleted users', error)
+        } catch {
         } finally {
             setLoading(false)
         }
@@ -71,8 +70,7 @@ export default function DeletedUsersTable() {
             }
             alert(data.message || t.manager?.messages?.userRestored || 'User restored successfully')
             await fetchUsers()
-        } catch (error) {
-            console.error('Failed to restore user', error)
+        } catch {
             alert(t.manager?.messages?.error || 'An error occurred')
         } finally {
             setActionUserId(null)
@@ -95,8 +93,7 @@ export default function DeletedUsersTable() {
             }
             alert(data.message || t.admin?.users?.messages?.deleteSuccess || 'User permanently deleted')
             await fetchUsers()
-        } catch (error) {
-            console.error('Failed to permanently delete user', error)
+        } catch {
             alert(t.admin?.users?.messages?.deleteError || 'An error occurred while deleting user')
         } finally {
             setActionUserId(null)

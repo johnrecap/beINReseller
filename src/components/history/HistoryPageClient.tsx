@@ -51,8 +51,7 @@ export default function HistoryPageClient() {
                 setOperations(data.operations)
                 setTotalPages(data.totalPages)
             }
-        } catch (error) {
-            console.error('Failed to fetch operations:', error)
+        } catch {
         } finally {
             setLoading(false)
         }

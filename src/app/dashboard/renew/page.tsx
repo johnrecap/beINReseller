@@ -232,9 +232,6 @@ export default function RenewWizardPage() {
             setStep('result')
             refetchBalance()
         },
-        onError: (error) => {
-            console.error('[Heartbeat Error]', error)
-        }
     })
 
     // Check URL for existing operationId (for resuming operations)
@@ -315,8 +312,7 @@ export default function RenewWizardPage() {
             } else if (data.status === 'PENDING' || data.status === 'PROCESSING' || data.status === 'COMPLETING') {
                 setTimeout(pollStatus, getNextInterval())
             }
-        } catch (error) {
-            console.error('Poll error:', error)
+        } catch {
             pollErrorCountRef.current += 1
             if (pollErrorCountRef.current >= MAX_POLL_ERROR_RETRIES) {
                 setResult({
@@ -408,9 +404,7 @@ export default function RenewWizardPage() {
         if (step === 'packages') {
             // No money was deducted yet, so expire immediately and release the account lock.
             if (operationId) {
-                requestPrePayOperationExpiry(operationId).catch((error) => {
-                    console.error('[Package Timeout] Failed to expire operation:', error)
-                })
+                requestPrePayOperationExpiry(operationId).catch(() => undefined)
             }
             setResult({ success: false, message: 'Package selection timed out — please try again' })
             setStep('result')

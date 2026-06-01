@@ -47,8 +47,7 @@ class ReportPanelErrorBoundary extends Component<
         return { hasError: true }
     }
 
-    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error('Report center panel failed', error, errorInfo)
+    componentDidCatch() {
     }
 
     componentDidUpdate(previousProps: { resetKey: string }) {

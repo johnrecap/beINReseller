@@ -19,8 +19,7 @@ export function useBalance(): BalanceData {
                 const data = await res.json()
                 setBalance(data.balance || 0)
             }
-        } catch (error) {
-            console.error('Failed to fetch balance:', error)
+        } catch {
         } finally {
             setLoading(false)
         }

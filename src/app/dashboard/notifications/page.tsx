@@ -47,8 +47,7 @@ export default function NotificationsPage() {
                 setNotifications(data.notifications)
                 setTotalPages(data.totalPages || 1)
             }
-        } catch (error) {
-            console.error('Failed to fetch notifications:', error)
+        } catch {
         } finally {
             setLoading(false)
         }
@@ -68,8 +67,7 @@ export default function NotificationsPage() {
             setNotifications(prev =>
                 prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
             )
-        } catch (error) {
-            console.error('Failed to mark as read:', error)
+        } catch {
         }
     }
 
@@ -81,8 +79,7 @@ export default function NotificationsPage() {
                 body: JSON.stringify({ markAll: true }),
             })
             setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-        } catch (error) {
-            console.error('Failed to mark all as read:', error)
+        } catch {
         }
     }
 

@@ -32,8 +32,7 @@ export function useMaintenance(): MaintenanceStatus {
             setMaintenanceMessage(data.maintenance_message || 'System is under maintenance, please try again later')
             setMaintenancePauseUntil(data.maintenance_pause_until || null)
             setIsInstallmentDevMode(data.installment_dev_mode === true || data.installment_dev_mode === 'true')
-        } catch (error) {
-            console.error('Failed to check maintenance status:', error)
+        } catch {
             // On error, assume not in maintenance to avoid blocking users
             setIsMaintenanceMode(false)
         } finally {

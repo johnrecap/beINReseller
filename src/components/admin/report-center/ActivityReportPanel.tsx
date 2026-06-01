@@ -104,8 +104,7 @@ export default function ActivityReportPanel() {
                 const data = await res.json()
                 setAnalyticsData(data)
             }
-        } catch (error) {
-            console.error('Failed to fetch analytics:', error)
+        } catch {
         } finally {
             setAnalyticsLoading(false)
         }
@@ -130,8 +129,7 @@ export default function ActivityReportPanel() {
                 const data = await res.json()
                 setInactiveUsersData(data)
             }
-        } catch (error) {
-            console.error('Failed to fetch inactive users:', error)
+        } catch {
         } finally {
             setUsersLoading(false)
         }

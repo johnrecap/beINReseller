@@ -1,5 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import {
     getAnnouncementSliderFrame,
     normalizeAnnouncementSlideIndex,
@@ -64,4 +66,14 @@ test('deduplicates adjacent preload images by resolved image URL', () => {
     )
 
     assert.deepEqual(frame.preloadSlides.map((slide) => slide.id), ['slide-3'])
+})
+
+test('keeps hidden preload images inside the slider bounds to avoid horizontal page overflow', () => {
+    const source = readFileSync(
+        path.join(process.cwd(), 'src/components/announcements/AnnouncementBannerView.tsx'),
+        'utf8'
+    )
+
+    assert.equal(source.includes('-left-[9999px]'), false)
+    assert.match(source, /absolute left-0 top-0 h-px w-px/)
 })

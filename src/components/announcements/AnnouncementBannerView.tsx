@@ -394,7 +394,7 @@ function AnnouncementSlider({
                         </div>
                     )}
                 </article>
-                <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0">
+                <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-px w-px overflow-hidden opacity-0">
                     {preloadSlides.map((slide) => {
                         const preloadSrc = resolveUploadedImageSrc(slide.imageUrl)
                         if (!preloadSrc) return null

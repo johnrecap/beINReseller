@@ -30,8 +30,13 @@ import {
 import { isAccountLocked } from '../pool/account-locking';
 import { checkAndNotifyLowBalance } from '../utils/notification';
 import { BeinAccount, Proxy } from '@prisma/client';
-import { ProxyConfig } from '../types/proxy';
 import { decryptAccountPassword } from './crypto';
+import {
+    BEIN_CONNECTION_MODE_SETTING_KEY,
+    DEFAULT_BEIN_CONNECTION_MODE,
+    resolveBeinRoute,
+    type EffectiveBeinRoute,
+} from './bein-connection-mode';
 
 // Types
 interface AccountRefreshResult {
@@ -66,27 +71,54 @@ interface KeepAliveStats {
 // HTTP client cache (per account)
 const httpClients = new Map<string, HttpClientService>();
 
+async function getCurrentBeinConnectionMode(): Promise<string> {
+    try {
+        const setting = await prisma.setting.findUnique({
+            where: { key: BEIN_CONNECTION_MODE_SETTING_KEY },
+            select: { value: true }
+        });
+        return setting?.value || DEFAULT_BEIN_CONNECTION_MODE;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[KeepAlive] Failed to load beIN connection mode, using default: ${message}`);
+        return DEFAULT_BEIN_CONNECTION_MODE;
+    }
+}
+
+function safeRouteLogSuffix(route: EffectiveBeinRoute): string {
+    if (route.proxyId) {
+        return `mode=${route.mode} routeKey=${route.routeKey} using assigned proxy=${route.proxyLabel || route.proxyId}`;
+    }
+
+    if (route.mode === 'server_ip') {
+        return `mode=${route.mode} routeKey=${route.routeKey} using emergency server IP; assigned proxy ignored`;
+    }
+
+    return `mode=${route.mode} routeKey=${route.routeKey} using direct server IP; no assigned proxy`;
+}
+
+async function resolveKeepAliveRoute(account: BeinAccount & { proxy?: Proxy | null }): Promise<EffectiveBeinRoute> {
+    const mode = await getCurrentBeinConnectionMode();
+    const route = resolveBeinRoute(account, { mode });
+    console.log(`[KeepAlive] beIN route for ${account.username}: ${safeRouteLogSuffix(route)}`);
+    return route;
+}
+
 /**
  * Get or create HTTP client for an account
  */
-async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
-    const cacheKey = account.proxyId ? `${account.id}:${account.proxyId}` : account.id;
+async function getHttpClient(
+    account: BeinAccount & { proxy?: Proxy | null },
+    route: EffectiveBeinRoute
+): Promise<HttpClientService> {
+    const cacheKey = `${account.id}:${route.routeKey}`;
     let client = httpClients.get(cacheKey);
 
     if (!client) {
-        let proxyConfig: ProxyConfig | undefined;
-        if (account.proxy) {
-            proxyConfig = {
-                host: account.proxy.host,
-                port: account.proxy.port,
-                username: account.proxy.username,
-                password: account.proxy.password
-            };
-        }
-        client = new HttpClientService(proxyConfig);
+        client = new HttpClientService(route.proxyConfig);
         await client.initialize();
         httpClients.set(cacheKey, client);
-        console.log(`[KeepAlive] Created HTTP client for ${account.username}`);
+        console.log(`[KeepAlive] Created HTTP client for ${account.username}: ${safeRouteLogSuffix(route)}`);
     }
 
     // Try to restore session from Redis cache — but only if the client
@@ -95,7 +127,7 @@ async function getHttpClient(account: BeinAccount & { proxy?: Proxy | null }): P
     // in-flight request cookies on a shared client.
     if (!client.isSessionActive()) {
         try {
-            const cachedSession = await getSessionFromCache(account.id);
+            const cachedSession = await getSessionFromCache(account.id, route.routeKey);
             if (cachedSession) {
                 await client.importSession(cachedSession);
                 client.markSessionValidFromCache(cachedSession.expiresAt);
@@ -310,6 +342,7 @@ export class SessionKeepAliveService {
         const startTime = Date.now();
         const accountId = account.id;
         const username = account.username;
+        const route = await resolveKeepAliveRoute(account);
 
         console.log(`[KeepAlive] Processing: ${username}`);
 
@@ -326,14 +359,14 @@ export class SessionKeepAliveService {
         }
 
         // 2. Check existing session TTL in Redis
-        const ttl = await getSessionTTL(accountId);
+        const ttl = await getSessionTTL(accountId, route.routeKey);
         const ttlMinutes = ttl > 0 ? Math.floor(ttl / 60) : 0;
 
         // 3. Always validate with beIN server to keep the REAL session alive
         // Previously we skipped validation when TTL > 5 min, but that only extended
         // Redis TTL without touching the beIN server. The beIN server has its own
         // session timeout (~20 min) that expires independently of Redis.
-        const client = await getHttpClient(account);
+        const client = await getHttpClient(account, route);
         await client.reloadConfig();
 
         if (ttl > 0) {
@@ -347,7 +380,7 @@ export class SessionKeepAliveService {
                 const now = Date.now();
                 sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
                 sessionData.loginTimestamp = now;
-                await saveSessionToCache(accountId, sessionData, 16);
+                await saveSessionToCache(accountId, route.routeKey, sessionData, 16);
                 console.log(`[KeepAlive] ${username}: Session validated on beIN and extended`);
                 return {
                     accountId,
@@ -412,7 +445,7 @@ export class SessionKeepAliveService {
                         const now = Date.now();
                         sessionData.expiresAt = now + (15 * 60 * 1000);
                         sessionData.loginTimestamp = now;
-                        await saveSessionToCache(accountId, sessionData, 16);
+                        await saveSessionToCache(accountId, route.routeKey, sessionData, 16);
                         console.log(`[KeepAlive] ${username}: Login successful (CAPTCHA solved on attempt ${attempt})`);
                         return {
                             accountId,
@@ -495,7 +528,7 @@ export class SessionKeepAliveService {
             const now = Date.now();
             sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
             sessionData.loginTimestamp = now;
-            await saveSessionToCache(accountId, sessionData, 16);
+            await saveSessionToCache(accountId, route.routeKey, sessionData, 16);
             console.log(`[KeepAlive] ${username}: Login successful`);
             return {
                 accountId,

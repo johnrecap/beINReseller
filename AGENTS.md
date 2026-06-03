@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/026-announcement-gpu-performance/plan.md`,
-`specs/026-announcement-gpu-performance/spec.md`, and
-`specs/026-announcement-gpu-performance/tasks.md` before editing.
+`specs/027-bein-connection-mode/plan.md`,
+`specs/027-bein-connection-mode/spec.md`, and
+`specs/027-bein-connection-mode/tasks.md` before editing.
 <!-- SPECKIT END -->

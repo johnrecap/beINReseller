@@ -9,6 +9,12 @@ import {
     MAX_BEIN_LOGIN_FAILURE_THRESHOLD,
     MIN_BEIN_LOGIN_FAILURE_THRESHOLD,
 } from '@/lib/bein-login-failure-threshold'
+import {
+    BEIN_CONNECTION_MODE_ASSIGNED_PROXY,
+    BEIN_CONNECTION_MODE_SERVER_IP,
+    BEIN_CONNECTION_MODE_SETTING_KEY,
+    DEFAULT_BEIN_CONNECTION_MODE,
+} from '@/lib/bein-connection-mode'
 
 export default function SettingsForm() {
     const { t } = useTranslation()
@@ -56,6 +62,12 @@ export default function SettingsForm() {
         } else {
             data['installment_dev_mode'] = 'true'
         }
+
+        data[BEIN_CONNECTION_MODE_SETTING_KEY] = String(
+            formData.get(BEIN_CONNECTION_MODE_SETTING_KEY) ||
+            settings[BEIN_CONNECTION_MODE_SETTING_KEY] ||
+            DEFAULT_BEIN_CONNECTION_MODE
+        )
 
         try {
             const res = await fetch('/api/settings', {
@@ -165,6 +177,59 @@ export default function SettingsForm() {
                     <h3 className="font-bold text-foreground">{t.admin.settings.sections.features || 'Feature Toggles'}</h3>
                 </div>
                 <div className="p-6 space-y-6">
+                    <div className="space-y-3">
+                        <div>
+                            <h4 className="text-sm font-semibold text-foreground">
+                                {t.admin.settings.fields.beinConnectionMode}
+                            </h4>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                {t.admin.settings.fields.beinConnectionModeHelp}
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <label className="flex min-h-[116px] cursor-pointer gap-3 rounded-lg border border-border bg-background p-4 transition-colors hover:border-blue-500/60">
+                                <input
+                                    name={BEIN_CONNECTION_MODE_SETTING_KEY}
+                                    type="radio"
+                                    value={BEIN_CONNECTION_MODE_ASSIGNED_PROXY}
+                                    defaultChecked={
+                                        (settings[BEIN_CONNECTION_MODE_SETTING_KEY] || DEFAULT_BEIN_CONNECTION_MODE) ===
+                                        BEIN_CONNECTION_MODE_ASSIGNED_PROXY
+                                    }
+                                    className="mt-1 h-5 w-5 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="space-y-1">
+                                    <span className="block font-medium text-foreground">
+                                        {t.admin.settings.fields.beinAssignedProxyMode}
+                                    </span>
+                                    <span className="block text-sm text-muted-foreground">
+                                        {t.admin.settings.fields.beinAssignedProxyModeHelp}
+                                    </span>
+                                </span>
+                            </label>
+                            <label className="flex min-h-[116px] cursor-pointer gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 transition-colors hover:border-amber-500">
+                                <input
+                                    name={BEIN_CONNECTION_MODE_SETTING_KEY}
+                                    type="radio"
+                                    value={BEIN_CONNECTION_MODE_SERVER_IP}
+                                    defaultChecked={settings[BEIN_CONNECTION_MODE_SETTING_KEY] === BEIN_CONNECTION_MODE_SERVER_IP}
+                                    className="mt-1 h-5 w-5 text-amber-600 focus:ring-amber-500"
+                                />
+                                <span className="space-y-1">
+                                    <span className="block font-medium text-foreground">
+                                        {t.admin.settings.fields.beinServerIpMode}
+                                    </span>
+                                    <span className="block text-sm text-muted-foreground">
+                                        {t.admin.settings.fields.beinServerIpModeHelp}
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+                        <p className="rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-muted-foreground">
+                            {t.admin.settings.fields.beinConnectionModeWarning}
+                        </p>
+                    </div>
+
                     <div className="flex items-center gap-3 p-4 bg-secondary rounded-lg">
                         <input
                             name="installment_dev_mode"

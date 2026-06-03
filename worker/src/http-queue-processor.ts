@@ -16,7 +16,6 @@ import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount, OperationStatus, Prisma, Proxy } from '@prisma/client';
-import { ProxyConfig } from './types/proxy';
 import { trackOperationComplete } from './lib/activity-tracker';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
 import { decryptAccountPassword } from './lib/crypto';
@@ -46,6 +45,17 @@ import {
     recordLoginSuccess,
     shouldCountAsCredentialFailure,
 } from './lib/bein-login-tracking';
+import {
+    BEIN_CONNECTION_MODE_SETTING_KEY,
+    DEFAULT_BEIN_CONNECTION_MODE,
+    buildOperationRouteSnapshot,
+    getOperationRouteSnapshot,
+    mergeOperationRouteSnapshot,
+    prepareRetryAccountResponseData,
+    resolveBeinRoute,
+    resolveRetryAccountRoute,
+    type EffectiveBeinRoute,
+} from './lib/bein-connection-mode';
 
 // Renewal decision windows
 const HEARTBEAT_TTL_SECONDS = 5;
@@ -274,6 +284,68 @@ function parseResponseDataObject(responseData: unknown): Record<string, unknown>
     return {};
 }
 
+type OperationBeinAccount = BeinAccount & { proxy?: Proxy | null };
+
+async function getCurrentBeinConnectionMode(): Promise<string> {
+    try {
+        const setting = await prisma.setting.findUnique({
+            where: { key: BEIN_CONNECTION_MODE_SETTING_KEY },
+            select: { value: true }
+        });
+        return setting?.value || DEFAULT_BEIN_CONNECTION_MODE;
+    } catch (error) {
+        console.warn(`[HTTP] Failed to load beIN connection mode, using default: ${getErrMsg(error)}`);
+        return DEFAULT_BEIN_CONNECTION_MODE;
+    }
+}
+
+function safeRouteLogSuffix(route: EffectiveBeinRoute): string {
+    if (route.proxyId) {
+        return `mode=${route.mode} routeKey=${route.routeKey} using assigned proxy=${route.proxyLabel || route.proxyId}`;
+    }
+
+    if (route.mode === 'server_ip') {
+        return `mode=${route.mode} routeKey=${route.routeKey} using emergency server IP; assigned proxy ignored`;
+    }
+
+    return `mode=${route.mode} routeKey=${route.routeKey} using direct server IP; no assigned proxy`;
+}
+
+async function resolveOperationRoute(
+    account: OperationBeinAccount,
+    options: {
+        operationId: string;
+        responseData?: unknown;
+        legacyFallback?: boolean;
+        ignoreSnapshot?: boolean;
+    }
+): Promise<EffectiveBeinRoute> {
+    const mode = await getCurrentBeinConnectionMode();
+    const snapshot = options.ignoreSnapshot
+        ? null
+        : getOperationRouteSnapshot(options.responseData);
+    const route = resolveBeinRoute(account, {
+        mode,
+        operationId: options.operationId,
+        snapshot,
+        legacyFallback: options.legacyFallback
+    });
+    console.log(
+        `[HTTP] beIN route for ${options.operationId} (${account.label || account.username}): ${safeRouteLogSuffix(route)}`
+    );
+    return route;
+}
+
+function responseDataWithRoute(
+    responseData: unknown,
+    route: EffectiveBeinRoute
+): Prisma.InputJsonObject {
+    return mergeOperationRouteSnapshot(
+        responseData,
+        buildOperationRouteSnapshot(route)
+    ) as Prisma.InputJsonObject;
+}
+
 async function buildOperationAuditSnapshot(params: {
     operationId: string;
     userId: string | null;
@@ -391,9 +463,10 @@ function getLegacySessionData(responseData: unknown): Record<string, unknown> | 
 async function restoreOperationSession(
     operationId: string,
     responseData: unknown,
-    client: HttpClientService
+    client: HttpClientService,
+    route: EffectiveBeinRoute
 ): Promise<boolean> {
-    const cachedSession = await getOperationSessionFromCache(operationId);
+    const cachedSession = await getOperationSessionFromCache(operationId, route);
     if (cachedSession) {
         await client.importSession(cachedSession);
         client.markSessionValidFromCache(cachedSession.expiresAt);
@@ -401,6 +474,11 @@ async function restoreOperationSession(
     }
 
     const legacySession = getLegacySessionData(responseData);
+    if (legacySession && route.mode === 'server_ip') {
+        console.log(`[HTTP] Skipping legacy operation session for ${operationId}; route is server_ip`);
+        return false;
+    }
+
     if (legacySession) {
         await client.importSession(legacySession as unknown as Parameters<typeof client.importSession>[0]);
         const expiresAt = typeof legacySession.expiresAt === 'number' ? legacySession.expiresAt : undefined;
@@ -428,23 +506,13 @@ function prepareSharedSessionForCache<T extends { viewState?: unknown }>(session
  * Each operation gets its own CookieJar/ViewState chain while still
  * cloning cookies from the shared Redis session when available.
  */
-async function createOperationClient(account: BeinAccount & { proxy?: Proxy | null }): Promise<HttpClientService> {
-    let proxyConfig: ProxyConfig | undefined;
-    if (account.proxy) {
-        proxyConfig = {
-            host: account.proxy.host,
-            port: account.proxy.port,
-            username: account.proxy.username,
-            password: account.proxy.password
-        };
-    }
-
-    const client = new HttpClientService(proxyConfig);
+async function createOperationClient(account: OperationBeinAccount, route: EffectiveBeinRoute): Promise<HttpClientService> {
+    const client = new HttpClientService(route.proxyConfig);
     await client.initialize();
-    console.log(`[HTTP] Created operation client for ${account.username}${proxyConfig ? ` with proxy ${proxyConfig.host}:${proxyConfig.port}` : ' without proxy'}`);
+    console.log(`[HTTP] Created operation client for ${account.username}: ${safeRouteLogSuffix(route)}`);
 
     try {
-        const cachedSession = await getSessionFromCache(account.id);
+        const cachedSession = await getSessionFromCache(account.id, route.routeKey);
         if (cachedSession) {
             await client.importSession(cachedSession);
             client.markSessionValidFromCache(cachedSession.expiresAt);
@@ -457,7 +525,7 @@ async function createOperationClient(account: BeinAccount & { proxy?: Proxy | nu
         }
     } catch {
         console.log(`[HTTP] Failed to restore cached session for ${account.username}; will login fresh`);
-        await deleteSessionFromCache(account.id);
+        await deleteSessionFromCache(account.id, route.routeKey);
     }
 
     return client;
@@ -498,18 +566,20 @@ const LOGIN_RETRY_DELAY_MS = 2000;
 
 async function performReLogin(
     httpClient: HttpClientService,
-    account: BeinAccount & { proxy?: Proxy | null },
+    account: OperationBeinAccount,
+    route: EffectiveBeinRoute,
     operationName: string
 ): Promise<boolean> {
     let lastError: string = 'Login failed';
 
     for (let attempt = 1; attempt <= MAX_LOGIN_RETRIES; attempt++) {
         try {
+            console.log(`[HTTP] Re-login route for ${account.username}: ${safeRouteLogSuffix(route)}`);
             console.log(`[HTTP] 🔑 Login attempt ${attempt}/${MAX_LOGIN_RETRIES} for ${account.username} (${operationName})`);
 
             // Clear cached session on first attempt only
             if (attempt === 1) {
-                await deleteSessionFromCache(account.id);
+                await deleteSessionFromCache(account.id, route.routeKey);
                 httpClient.invalidateSession();
             }
 
@@ -588,7 +658,7 @@ async function performReLogin(
             const now = Date.now();
             newSession.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
             newSession.loginTimestamp = now;
-            await saveSessionToCache(account.id, prepareSharedSessionForCache(newSession), httpClient.getSessionTimeout());
+            await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(newSession), httpClient.getSessionTimeout());
             console.log(`[HTTP] ✅ Fresh login successful for ${operationName} (attempt ${attempt})`);
 
             return true;
@@ -625,7 +695,8 @@ async function performReLogin(
  */
 async function withSessionRetry<T>(
     httpClient: HttpClientService,
-    account: BeinAccount & { proxy?: Proxy | null },
+    account: OperationBeinAccount,
+    route: EffectiveBeinRoute,
     operation: () => Promise<T>,
     operationName: string
 ): Promise<T> {
@@ -640,7 +711,7 @@ async function withSessionRetry<T>(
         }
 
         console.log(`[HTTP] ⚠️ Session expired (thrown) during ${operationName}, performing fresh login...`);
-        await performReLogin(httpClient, account, operationName);
+        await performReLogin(httpClient, account, route, operationName);
 
         // Retry the operation once
         return await operation();
@@ -655,7 +726,7 @@ async function withSessionRetry<T>(
             console.log(`[HTTP] ⚠️ Session expired (returned) during ${operationName}, performing fresh login...`);
             console.log(`[HTTP] Error was: ${resultObj.error}`);
 
-            await performReLogin(httpClient, account, operationName);
+            await performReLogin(httpClient, account, route, operationName);
 
             // Retry the operation once
             console.log(`[HTTP] 🔄 Retrying ${operationName} after re-login...`);
@@ -916,7 +987,15 @@ async function handleStartRenewalHttp(
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
 
-    if (!await updateOperationIfActive(operationId, { beinAccountId: selectedAccount.id }, 'START_RENEWAL account update')) {
+    const route = await resolveOperationRoute(selectedAccount, {
+        operationId,
+        ignoreSnapshot: true
+    });
+
+    if (!await updateOperationIfActive(operationId, {
+        beinAccountId: selectedAccount.id,
+        responseData: JSON.stringify(responseDataWithRoute(null, route))
+    }, 'START_RENEWAL account update')) {
         await accountPool.markAccountUsed(selectedAccount.id, operationId);
         return;
     }
@@ -924,7 +1003,7 @@ async function handleStartRenewalHttp(
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
     // Get HTTP client for this account (also reloads config if cache expired)
-    const client = await createOperationClient(selectedAccount);
+    const client = await createOperationClient(selectedAccount, route);
 
     // Step 1: Login (with Redis session caching and login locking)
     await updateProgress(operationId, 'Logging in...');
@@ -943,7 +1022,7 @@ async function handleStartRenewalHttp(
         } else {
             console.log(`[HTTP] ⚠️ Session expired on beIN despite Redis cache — need fresh login`);
             // Delete stale session from Redis so other workers don't use it
-            await deleteSessionFromCache(selectedAccount.id);
+            await deleteSessionFromCache(selectedAccount.id, route.routeKey);
             needsFreshLogin = true;
         }
     }
@@ -959,7 +1038,7 @@ async function handleStartRenewalHttp(
 
             if (loginCompleted) {
                 // Try to get the session from cache now
-                const cachedSession = await getSessionFromCache(selectedAccount.id);
+                const cachedSession = await getSessionFromCache(selectedAccount.id, route.routeKey);
                 if (cachedSession) {
                     await client.importSession(cachedSession);
                     client.markSessionValidFromCache(cachedSession.expiresAt);
@@ -1058,7 +1137,7 @@ async function handleStartRenewalHttp(
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(selectedAccount.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
+            await saveSessionToCache(selectedAccount.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
             console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
         } catch (saveError) {
             console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
@@ -1094,6 +1173,7 @@ async function handleStartRenewalHttp(
         packagesResult = await withSessionRetry(
             client,
             selectedAccount,
+            route,
             () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
             'loadPackages'
         );
@@ -1106,12 +1186,14 @@ async function handleStartRenewalHttp(
             withSessionRetry(
                 client,
                 selectedAccount,
+                route,
                 () => client.checkCard(cardNumber),
                 'checkCard'
             ),
             withSessionRetry(
                 client,
                 selectedAccount,
+                route,
                 () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
                 'loadPackages'
             )
@@ -1178,7 +1260,7 @@ async function handleStartRenewalHttp(
     // Different PM2 workers have separate memory, so the operation-scoped
     // ViewState and cookies are stored server-side in Redis only.
     const sessionData = await client.exportSession();
-    await saveOperationSessionToCache(operationId, sessionData, 180);
+    await saveOperationSessionToCache(operationId, sessionData, 180, route);
 
     // Update operation with packages and safe user-facing metadata.
     // CRITICAL: Set heartbeatExpiry so cleanup cron knows when to auto-cancel
@@ -1198,7 +1280,7 @@ async function handleStartRenewalHttp(
         lastHeartbeat: now,
         heartbeatExpiry: heartbeatExpiry,
         // Operation session is stored server-side in Redis.
-        responseData: JSON.stringify({
+        responseData: JSON.stringify(responseDataWithRoute({
             dealerBalance: packagesResult.dealerBalance,  // For balance validation
             savedAt: new Date().toISOString(),
             smartcardType: smartcardType || 'CISCO',
@@ -1206,7 +1288,7 @@ async function handleStartRenewalHttp(
             jobType: 'START_RENEWAL',
             finalPaySubmitted: false,
             accountLockOwner: operationId
-        })
+        }, route))
     }, 'START_RENEWAL package update')) {
         await accountPool.markAccountUsed(selectedAccount.id, operationId);
         return;
@@ -1314,9 +1396,14 @@ async function handleApplyPromoHttp(
     }
 
     try {
-        const client = await createOperationClient(account);
+        const route = await resolveOperationRoute(account, {
+            operationId,
+            responseData: operation.responseData,
+            legacyFallback: true
+        });
+        const client = await createOperationClient(account, route);
         try {
-            const restored = await restoreOperationSession(operationId, operation.responseData, client);
+            const restored = await restoreOperationSession(operationId, operation.responseData, client, route);
             if (restored) console.log('[HTTP] Promo flow restored operation-scoped session snapshot');
         } catch (sessionImportError: unknown) {
             console.log(`[HTTP] Failed to import operation session snapshot: ${getErrMsg(sessionImportError)}`);
@@ -1325,7 +1412,7 @@ async function handleApplyPromoHttp(
         // Ensure session is active
         if (!client.isSessionActive()) {
             console.log(`[HTTP] ⚠️ Session expired for promo apply, restoring...`);
-            const cachedSession = await getSessionFromCache(account.id);
+            const cachedSession = await getSessionFromCache(account.id, route.routeKey);
             if (cachedSession) {
                 await client.importSession(cachedSession);
                 client.markSessionValidFromCache(cachedSession.expiresAt);
@@ -1341,12 +1428,12 @@ async function handleApplyPromoHttp(
                     await prisma.operation.update({
                         where: { id: operationId },
                         data: {
-                            responseData: JSON.stringify({
+                            responseData: JSON.stringify(responseDataWithRoute({
                                 ...existingResponseData,
                                 promoApplied: false,
                                 refreshing: false,
                                 error: 'Login requires CAPTCHA for promo apply'
-                            })
+                            }, route))
                         }
                     });
                     return;
@@ -1357,12 +1444,12 @@ async function handleApplyPromoHttp(
                     await prisma.operation.update({
                         where: { id: operationId },
                         data: {
-                            responseData: JSON.stringify({
+                            responseData: JSON.stringify(responseDataWithRoute({
                                 ...existingResponseData,
                                 promoApplied: false,
                                 refreshing: false,
                                 error: 'Login failed for promo apply'
-                            })
+                            }, route))
                         }
                     });
                     return;
@@ -1373,7 +1460,7 @@ async function handleApplyPromoHttp(
                 try {
                     const sessionData = await client.exportSession();
                     const sessionTimeout = client.getSessionTimeout();
-                    await saveSessionToCache(account.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
+                    await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
                 } catch (saveError) {
                     console.error('[HTTP] Failed to save session to cache:', saveError);
                 }
@@ -1391,7 +1478,7 @@ async function handleApplyPromoHttp(
             promoCode: promoCode || null,
         };
         if (latestSessionData) {
-            await saveOperationSessionToCache(operationId, latestSessionData, 180);
+            await saveOperationSessionToCache(operationId, latestSessionData, 180, route);
             mergedResponseBase.savedAt = new Date().toISOString();
         }
 
@@ -1409,12 +1496,12 @@ async function handleApplyPromoHttp(
                 where: { id: operationId },
                 data: {
                     availablePackages: JSON.parse(JSON.stringify(normalizedPackages)),
-                    responseData: JSON.stringify({
+                    responseData: JSON.stringify(responseDataWithRoute({
                         ...mergedResponseBase,
                         promoApplied: true,
                         error: null,
                         packages: normalizedPackages
-                    })
+                    }, route))
                 }
             });
             console.log(`✅ [HTTP] Promo code applied, ${result.packages.length} packages updated`);
@@ -1434,12 +1521,12 @@ async function handleApplyPromoHttp(
                     ...(normalizedPackages.length > 0
                         ? { availablePackages: JSON.parse(JSON.stringify(normalizedPackages)) }
                         : {}),
-                    responseData: JSON.stringify({
+                    responseData: JSON.stringify(responseDataWithRoute({
                         ...mergedResponseBase,
                         promoApplied: false,
                         error: result.error || 'Failed to apply promo code',
                         packages: normalizedPackages
-                    })
+                    }, route))
                 }
             });
             console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
@@ -1508,6 +1595,7 @@ async function handleCompletePurchaseHttp(
     // Track which accounts we've tried
     const triedAccountIds: string[] = [];
     let currentAccountId = operation.beinAccountId;
+    let currentResponseData: unknown = operation.responseData;
     let lastError = '';
 
     // Retry loop - try all available accounts
@@ -1517,7 +1605,10 @@ async function handleCompletePurchaseHttp(
 
         const attemptResult = await attemptPurchaseWithAccount(
             operationId,
-            operation,
+            {
+                ...operation,
+                responseData: currentResponseData
+            },
             currentAccountId,
             selectedPackage,
             promoCode,
@@ -1562,14 +1653,24 @@ async function handleCompletePurchaseHttp(
             throw new Error(finalError);
         }
 
-        // Update operation with new account
-        if (!await updateOperationIfActive(operationId, { beinAccountId: nextAccount.id }, 'COMPLETE_PURCHASE account update')) {
+        const nextRoute = resolveRetryAccountRoute(nextAccount, {
+            previousResponseData: currentResponseData
+        });
+        const nextResponseData = prepareRetryAccountResponseData(currentResponseData, nextRoute);
+
+        // Update operation with the new account and its route together.
+        if (!await updateOperationIfActive(operationId, {
+            beinAccountId: nextAccount.id,
+            responseData: JSON.stringify(nextResponseData)
+        }, 'COMPLETE_PURCHASE account update')) {
             await accountPool.markAccountUsed(nextAccount.id, operationId);
             return;
         }
+        await deleteOperationSessionFromCache(operationId);
 
         currentAccountId = nextAccount.id;
-        console.log(`[HTTP] 🔄 Retrying with account: ${nextAccount.label || nextAccount.username} (Balance: ${nextAccount.dealerBalance || 'unknown'} USD)`);
+        currentResponseData = nextResponseData;
+        console.log(`[HTTP] Retrying with account: ${nextAccount.label || nextAccount.username} (Balance: ${nextAccount.dealerBalance || 'unknown'} USD) ${safeRouteLogSuffix(nextRoute)}`);
     }
 }
 
@@ -1637,22 +1738,28 @@ async function attemptPurchaseWithAccount(
             };
         }
 
-        const client = await createOperationClient(account);
+        const savedData = parseResponseDataObject(operation.responseData);
+        const requiresFreshPackageLoad = savedData.requiresFreshPackageLoad === true;
+        const isOriginalAccount = triedAccountIds.length === 0;
+        const canReusePreparedOperation = isOriginalAccount && !requiresFreshPackageLoad;
+        const route = await resolveOperationRoute(account, {
+            operationId,
+            responseData: operation.responseData,
+            legacyFallback: canReusePreparedOperation
+        });
+        const client = await createOperationClient(account, route);
 
         // Try to restore session from database (for same-account retry from START_RENEWAL)
         let dealerBalance: number | undefined;
-        const isOriginalAccount = triedAccountIds.length === 0;
 
-        if (isOriginalAccount && operation.responseData) {
+        if (canReusePreparedOperation && operation.responseData) {
             try {
-                const savedData = parseResponseDataObject(operation.responseData);
-
                 // Validate session age
                 if (typeof savedData.savedAt === 'string') {
                     validateSessionAge(savedData.savedAt, 'completePurchase');
                 }
 
-                const restored = await restoreOperationSession(operationId, operation.responseData, client);
+                const restored = await restoreOperationSession(operationId, operation.responseData, client, route);
                 if (restored) console.log(`[HTTP] Restored operation-scoped session`);
 
                 dealerBalance = typeof savedData.dealerBalance === 'number' ? savedData.dealerBalance : undefined;
@@ -1665,15 +1772,14 @@ async function attemptPurchaseWithAccount(
         let savedSmartcardType = 'CISCO';
         try {
             if (operation.responseData) {
-                const savedData = parseResponseDataObject(operation.responseData);
                 savedSmartcardType = typeof savedData.smartcardType === 'string' ? savedData.smartcardType : 'CISCO';
             }
         } catch { /* ignore parse errors */ }
 
         // For non-original account or if session restore failed, need fresh login + loadPackages
-        if (!isOriginalAccount || !client.isSessionActive()) {
+        if (requiresFreshPackageLoad || !isOriginalAccount || !client.isSessionActive()) {
             await updateProgress(operationId, 'Logging in...');
-            console.log(`[HTTP] 🔑 New account - need fresh login and package load`);
+            console.log(`[HTTP] Fresh account preparation required before package load`);
 
             // Perform login
             const loginResult = await client.login(
@@ -1747,6 +1853,7 @@ async function attemptPurchaseWithAccount(
             const packagesResult = await withSessionRetry(
                 client,
                 account,
+                route,
                 () => client.loadPackages(operation.cardNumber, savedSmartcardType),
                 'loadPackages'
             );
@@ -1831,7 +1938,7 @@ async function attemptPurchaseWithAccount(
 
             // Export and save updated session for CONFIRM_PURCHASE
             const updatedSessionData = await client.exportSession();
-            await saveOperationSessionToCache(operationId, updatedSessionData, 90);
+            await saveOperationSessionToCache(operationId, updatedSessionData, 90, route);
 
             // Set heartbeat expiry
             const now = new Date();
@@ -1843,7 +1950,7 @@ async function attemptPurchaseWithAccount(
                 responseMessage: result.message,
                 lastHeartbeat: now,
                 heartbeatExpiry: heartbeatExpiry,
-                responseData: JSON.stringify({
+                responseData: JSON.stringify(responseDataWithRoute({
                     dealerBalance: dealerBalance,
                     dealerBalanceBefore: dealerBalance,
                     operationPhase: 'FINAL_CONFIRMATION_REQUESTED',
@@ -1851,7 +1958,7 @@ async function attemptPurchaseWithAccount(
                     finalPaySubmitted: false,
                     accountLockOwner: operationId,
                     savedAt: new Date().toISOString()
-                })
+                }, route))
             }, 'COMPLETE_PURCHASE final confirm update')) {
                 await accountPool.markAccountUsed(accountId);
                 return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
@@ -1984,6 +2091,12 @@ async function handleConfirmPurchaseHttp(
     }).then(a => a ? decryptAccountPassword(a) : null);
     if (!account) throw new Error('Account not found');
 
+    const route = await resolveOperationRoute(account, {
+        operationId,
+        responseData: operation.responseData,
+        legacyFallback: true
+    });
+
     const redis = accountPool.getRedis();
     let confirmLockAcquired = false;
 
@@ -2007,7 +2120,7 @@ async function handleConfirmPurchaseHttp(
 
         console.log(`[HTTP] Account lock acquired for CONFIRM_PURCHASE: ${operation.beinAccountId}`);
 
-        const client = await createOperationClient(account);
+        const client = await createOperationClient(account, route);
         let preFinalBeinBalance: number | null = null;
 
         // CRITICAL: Set STB number on client for confirmPurchase
@@ -2032,7 +2145,7 @@ async function handleConfirmPurchaseHttp(
                     validateSessionAge(savedData.savedAt, 'confirmPurchase');
                 }
 
-                const restored = await restoreOperationSession(operationId, operation.responseData, client);
+                const restored = await restoreOperationSession(operationId, operation.responseData, client, route);
                 if (!restored) {
                     throw new Error('No session data available - cannot confirm purchase');
                 }
@@ -2069,14 +2182,14 @@ async function handleConfirmPurchaseHttp(
                 throw new Error(`Final Pay blocked before provider submission: ${finalPayCheck.reason}`);
             }
 
-            finalPayResponseData = mergeOperationPhaseData(currentOperation.responseData, {
+            finalPayResponseData = responseDataWithRoute(mergeOperationPhaseData(currentOperation.responseData, {
                 operationPhase: 'FINAL_PAY_SUBMITTED',
                 jobType: 'CONFIRM_PURCHASE',
                 finalPaySubmitted: true,
                 finalPaySubmittedAt: new Date().toISOString(),
                 dealerBalanceBefore: preFinalBeinBalance,
                 expectedCost: operation.amount ?? null
-            });
+            }), route);
 
             const persisted = await updateOperationIfActive(operationId, {
                 responseData: finalPayResponseData
@@ -2090,7 +2203,7 @@ async function handleConfirmPurchaseHttp(
             beinBalanceBefore: toNullableNumber(rawResult.beinBalanceBefore) ?? preFinalBeinBalance ?? undefined
         };
         const outcomeDecision = decideFinalPayRefundSafety(result, result.finalPaySubmitted === true);
-        const postPayResponseData = mergeOperationPhaseData(finalPayResponseData ?? operation.responseData, {
+        const postPayResponseData = responseDataWithRoute(mergeOperationPhaseData(finalPayResponseData ?? operation.responseData, {
             operationPhase: outcomeDecision.reviewRequired ? 'POST_FINAL_PAY_REVIEW' : 'FINAL_PAY_SUBMITTED',
             jobType: 'CONFIRM_PURCHASE',
             finalPaySubmitted: result.finalPaySubmitted === true,
@@ -2098,7 +2211,7 @@ async function handleConfirmPurchaseHttp(
             dealerBalanceAfter: toNullableNumber(result.beinBalanceAfter),
             expectedCost: operation.amount ?? null,
             outcomeCategory: outcomeDecision.outcomeCategory
-        });
+        }), route);
 
         const selectedPackage = operation.selectedPackage as { name: string } | null;
 
@@ -2365,7 +2478,12 @@ async function handleCancelConfirmHttp(
                 include: { proxy: true }  // Include proxy for HTTP client
             }).then(a => a ? decryptAccountPassword(a) : null);
             if (account) {
-                const client = await createOperationClient(account);
+                const route = await resolveOperationRoute(account, {
+                    operationId,
+                    responseData: operation.responseData,
+                    legacyFallback: true
+                });
+                const client = await createOperationClient(account, route);
                 await client.cancelPurchase();
             }
         } catch (e: unknown) {
@@ -2459,14 +2577,22 @@ async function handleSignalRefreshHttp(
     }
     console.log(`✅ Selected account: ${account.label || account.username} (ID: ${account.id})`);
 
+    const route = await resolveOperationRoute(account, {
+        operationId,
+        ignoreSnapshot: true
+    });
+
     // Store account reference
-    if (!await updateOperationIfActive(operationId, { beinAccountId: account.id }, 'SIGNAL_REFRESH account update')) {
+    if (!await updateOperationIfActive(operationId, {
+        beinAccountId: account.id,
+        responseData: JSON.stringify(responseDataWithRoute(null, route))
+    }, 'SIGNAL_REFRESH account update')) {
         await accountPool.markAccountUsed(account.id);
         return;
     }
 
     // Get or create HTTP client for this account (includes session restore from Redis)
-    const httpClient = await createOperationClient(account);
+    const httpClient = await createOperationClient(account, route);
 
     try {
         // Step 1: Login with session caching (like other handlers)
@@ -2490,7 +2616,7 @@ async function handleSignalRefreshHttp(
 
                 if (loginCompleted) {
                     // Try to get the session from cache now
-                    const cachedSession = await getSessionFromCache(account.id);
+                    const cachedSession = await getSessionFromCache(account.id, route.routeKey);
                     if (cachedSession) {
                         await httpClient.importSession(cachedSession);
                         httpClient.markSessionValidFromCache(cachedSession.expiresAt);
@@ -2574,7 +2700,7 @@ async function handleSignalRefreshHttp(
             try {
                 const sessionData = await httpClient.exportSession();
                 const sessionTimeout = httpClient.getSessionTimeout();
-                await saveSessionToCache(account.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
+                await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
                 console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
             } catch (saveError) {
                 console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
@@ -2602,10 +2728,10 @@ async function handleSignalRefreshHttp(
             responseMessage: signalResult.activated
                 ? 'Signal activated successfully'
                 : signalResult.message || 'Card status retrieved',
-            responseData: {
+            responseData: responseDataWithRoute({
                 cardStatus: signalResult.cardStatus,
                 activated: signalResult.activated
-            }
+            }, route)
         }, 'SIGNAL_REFRESH completion update')) {
             await accountPool.markAccountUsed(account.id);
             return;
@@ -2673,13 +2799,21 @@ async function handleSignalCheckHttp(
     }
     console.log(`✅ Selected account: ${account.label || account.username}`);
 
+    const route = await resolveOperationRoute(account, {
+        operationId,
+        ignoreSnapshot: true
+    });
+
     // Store account reference
-    if (!await updateOperationIfActive(operationId, { beinAccountId: account.id }, 'SIGNAL_CHECK account update')) {
+    if (!await updateOperationIfActive(operationId, {
+        beinAccountId: account.id,
+        responseData: JSON.stringify(responseDataWithRoute(null, route))
+    }, 'SIGNAL_CHECK account update')) {
         await accountPool.markAccountUsed(account.id);
         return;
     }
 
-    const httpClient = await createOperationClient(account);
+    const httpClient = await createOperationClient(account, route);
 
     try {
         // Step 1: Login (with Redis session caching and login locking)
@@ -2702,7 +2836,7 @@ async function handleSignalCheckHttp(
 
                 if (loginCompleted) {
                     // Try to get the session from cache now
-                    const cachedSession = await getSessionFromCache(account.id);
+                    const cachedSession = await getSessionFromCache(account.id, route.routeKey);
                     if (cachedSession) {
                         await httpClient.importSession(cachedSession);
                         httpClient.markSessionValidFromCache(cachedSession.expiresAt);
@@ -2781,7 +2915,7 @@ async function handleSignalCheckHttp(
             try {
                 const loginSessionData = await httpClient.exportSession();
                 const sessionTimeout = httpClient.getSessionTimeout();
-                await saveSessionToCache(account.id, prepareSharedSessionForCache(loginSessionData), sessionTimeout);
+                await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(loginSessionData), sessionTimeout);
                 console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
             } catch (saveError) {
                 console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
@@ -2797,6 +2931,7 @@ async function handleSignalCheckHttp(
         const checkResult = await withSessionRetry(
             httpClient,
             account,
+            route,
             () => httpClient.checkCardForSignal(cardNumber),
             'checkCardForSignal'
         );
@@ -2807,7 +2942,7 @@ async function handleSignalCheckHttp(
 
         // Export session for activation step
         const sessionData = await httpClient.exportSession();
-        await saveOperationSessionToCache(operationId, sessionData, 900);
+        await saveOperationSessionToCache(operationId, sessionData, 900, route);
 
         // Store card status and await user to click activate.
         // Use 'COMPLETED' status with awaitingActivate flag to indicate waiting for user to click activate
@@ -2815,19 +2950,19 @@ async function handleSignalCheckHttp(
             status: 'COMPLETED',
             stbNumber: checkResult.cardStatus?.stbNumber,
             responseMessage: 'Card checked - ready for activation',
-            responseData: JSON.stringify({
+            responseData: JSON.stringify(responseDataWithRoute({
                 cardStatus: checkResult.cardStatus,
                 contracts: checkResult.contracts || [], // Include contracts table
                 awaitingActivate: true,
                 checkedAt: new Date().toISOString()
-            })
+            }, route))
         }, 'SIGNAL_CHECK completion update')) {
             await accountPool.markAccountUsed(account.id);
             return;
         }
 
         // Extend session TTL on successful operation
-        await extendSessionTTL(account.id, httpClient.getSessionTimeout());
+        await extendSessionTTL(account.id, route.routeKey, httpClient.getSessionTimeout());
 
         await accountPool.markAccountUsed(account.id);
         console.log(`✅ [HTTP] Signal check completed for ${operationId}`);
@@ -2837,7 +2972,7 @@ async function handleSignalCheckHttp(
 
         // Delete session from cache on session-related errors
         if (getErrMsg(error).includes('Session expired') || getErrMsg(error).includes('login')) {
-            await deleteSessionFromCache(account.id);
+            await deleteSessionFromCache(account.id, route.routeKey);
         }
 
         throw error;
@@ -2896,14 +3031,19 @@ async function handleSignalActivateHttp(
     }).then(a => a ? decryptAccountPassword(a) : null);
     if (!account) throw new Error('Account not found');
 
-    const httpClient = await createOperationClient(account);
+    const route = await resolveOperationRoute(account, {
+        operationId,
+        responseData: operation.responseData,
+        legacyFallback: true
+    });
+    const httpClient = await createOperationClient(account, route);
 
     try {
         // Session was parsed above as savedData - restore if available
         if (savedData.checkedAt) {
             validateSessionAge(savedData.checkedAt as string, 'signalActivate');
         }
-        const restored = await restoreOperationSession(operationId, operation.responseData, httpClient);
+        const restored = await restoreOperationSession(operationId, operation.responseData, httpClient, route);
         if (restored) console.log(`[HTTP] Restored operation-scoped session for activation`);
         // Use card number from operation or parameter
         const targetCardNumber = cardNumber || operation.cardNumber;
@@ -2922,13 +3062,13 @@ async function handleSignalActivateHttp(
             responseMessage: activateResult.activated
                 ? 'Signal activated successfully'
                 : activateResult.message || 'Activation not completed',
-            responseData: JSON.stringify({
+            responseData: JSON.stringify(responseDataWithRoute({
                 ...savedData,
                 cardStatus: activateResult.cardStatus,
                 activated: activateResult.activated,
                 awaitingActivate: false,  // Clear the flag
                 activatedAt: new Date().toISOString()
-            })
+            }, route))
         }, 'SIGNAL_ACTIVATE completion update')) {
             await accountPool.markAccountUsed(account.id);
             return;
@@ -3005,8 +3145,13 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
         throw new Error(`Account ${accountId} is not active`);
     }
 
+    const route = await resolveOperationRoute(account, {
+        operationId: `balance:${accountId}`,
+        ignoreSnapshot: true
+    });
+
     // Get or create HTTP client
-    const client = await createOperationClient(account);
+    const client = await createOperationClient(account, route);
 
     // Reload config
     await client.reloadConfig();
@@ -3035,7 +3180,7 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(account.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
+            await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
         } catch (saveError) {
             console.error('[HTTP] Failed to save session:', saveError);
         }
@@ -3126,7 +3271,15 @@ async function handleStartInstallmentHttp(
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
 
-    if (!await updateOperationIfActive(operationId, { beinAccountId: selectedAccount.id }, 'START_INSTALLMENT account update')) {
+    const route = await resolveOperationRoute(selectedAccount, {
+        operationId,
+        ignoreSnapshot: true
+    });
+
+    if (!await updateOperationIfActive(operationId, {
+        beinAccountId: selectedAccount.id,
+        responseData: JSON.stringify(responseDataWithRoute(null, route))
+    }, 'START_INSTALLMENT account update')) {
         await accountPool.markAccountUsed(selectedAccount.id);
         return;
     }
@@ -3134,7 +3287,7 @@ async function handleStartInstallmentHttp(
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
     // Get HTTP client for this account
-    const client = await createOperationClient(selectedAccount);
+    const client = await createOperationClient(selectedAccount, route);
     await client.reloadConfig();
 
     await checkIfCancelled(operationId);
@@ -3151,7 +3304,7 @@ async function handleStartInstallmentHttp(
             const loginCompleted = await waitForLoginComplete(selectedAccount.id);
 
             if (loginCompleted) {
-                const cachedSession = await getSessionFromCache(selectedAccount.id);
+                const cachedSession = await getSessionFromCache(selectedAccount.id, route.routeKey);
                 if (cachedSession) {
                     await client.importSession(cachedSession);
                     client.markSessionValidFromCache(cachedSession.expiresAt);
@@ -3243,7 +3396,7 @@ async function handleStartInstallmentHttp(
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(selectedAccount.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
+            await saveSessionToCache(selectedAccount.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
             console.log(`[HTTP] 💾 Session saved to Redis cache`);
         } catch (saveError) {
             console.error('[HTTP] Failed to save session to cache:', saveError);
@@ -3288,7 +3441,7 @@ async function handleStartInstallmentHttp(
     if (!await updateOperationIfActive(operationId, {
         status: 'AWAITING_FINAL_CONFIRM',
         // Store installment data in responseData
-        responseData: JSON.stringify({
+        responseData: JSON.stringify(responseDataWithRoute({
             installment: installmentResult.installment || null,
             subscriber: installmentResult.subscriber || null,
             dealerBalance: installmentResult.dealerBalance || null,
@@ -3297,7 +3450,7 @@ async function handleStartInstallmentHttp(
             jobType: 'START_INSTALLMENT',
             finalPaySubmitted: false,
             isInstallment: true // Flag to identify installment operations
-        }),
+        }, route)),
         stbNumber: installmentResult.subscriber?.stbModel || null,
         amount: 0, // CRITICAL: Set to 0 initially. Only set full amount AFTER user pays in confirm-installment API, to prevent free money refunds on timeout.
         finalConfirmExpiry: confirmExpiry,
@@ -3368,9 +3521,14 @@ async function handleConfirmInstallmentHttp(
     }
 
     const selectedAccount = operation.beinAccount;
+    const route = await resolveOperationRoute(selectedAccount, {
+        operationId,
+        responseData: operation.responseData,
+        legacyFallback: true
+    });
 
     // Get HTTP client
-    const client = await createOperationClient(selectedAccount);
+    const client = await createOperationClient(selectedAccount, route);
     await client.reloadConfig();
 
     // Ensure session is active — re-login if expired
@@ -3378,7 +3536,7 @@ async function handleConfirmInstallmentHttp(
         console.log(`[HTTP] ⚠️ Session expired for installment confirm, re-logging in...`);
 
         // Try to get session from cache first
-        const cachedSession = await getSessionFromCache(selectedAccount.id);
+        const cachedSession = await getSessionFromCache(selectedAccount.id, route.routeKey);
         if (cachedSession) {
             await client.importSession(cachedSession);
             client.markSessionValidFromCache(cachedSession.expiresAt);
@@ -3405,7 +3563,7 @@ async function handleConfirmInstallmentHttp(
             try {
                 const sessionData = await client.exportSession();
                 const sessionTimeout = client.getSessionTimeout();
-                await saveSessionToCache(selectedAccount.id, prepareSharedSessionForCache(sessionData), sessionTimeout);
+                await saveSessionToCache(selectedAccount.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
             } catch (saveError) {
                 console.error('[HTTP] Failed to save session to cache:', saveError);
             }
@@ -3437,14 +3595,14 @@ async function handleConfirmInstallmentHttp(
         toNullableNumber(loadResult.dealerBalance) ??
         toNullableNumber(operationResponseData.dealerBalanceBefore) ??
         toNullableNumber(operationResponseData.dealerBalance);
-    const finalPayResponseData = mergeOperationPhaseData(operation.responseData, {
+    const finalPayResponseData = responseDataWithRoute(mergeOperationPhaseData(operation.responseData, {
         operationPhase: 'FINAL_PAY_SUBMITTED',
         jobType: 'CONFIRM_INSTALLMENT',
         finalPaySubmitted: true,
         finalPaySubmittedAt: new Date().toISOString(),
         dealerBalanceBefore: preFinalInstallmentBalance,
         expectedCost: operation.amount ?? null
-    });
+    }), route);
     if (!await updateOperationIfActive(operationId, {
         responseData: finalPayResponseData
     }, 'CONFIRM_INSTALLMENT final Pay evidence update')) {
@@ -3456,7 +3614,7 @@ async function handleConfirmInstallmentHttp(
         beinBalanceBefore: toNullableNumber(rawPayResult.beinBalanceBefore) ?? preFinalInstallmentBalance ?? undefined
     };
     const payOutcomeDecision = decideFinalPayRefundSafety(payResult, true);
-    const installmentPostPayResponseData = mergeOperationPhaseData(finalPayResponseData, {
+    const installmentPostPayResponseData = responseDataWithRoute(mergeOperationPhaseData(finalPayResponseData, {
         operationPhase: payOutcomeDecision.reviewRequired ? 'POST_FINAL_PAY_REVIEW' : 'FINAL_PAY_SUBMITTED',
         jobType: 'CONFIRM_INSTALLMENT',
         finalPaySubmitted: true,
@@ -3464,7 +3622,7 @@ async function handleConfirmInstallmentHttp(
         dealerBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
         expectedCost: operation.amount ?? null,
         outcomeCategory: payOutcomeDecision.outcomeCategory
-    });
+    }), route);
 
     if (payResult.success) {
         const completed = await prisma.operation.updateMany({

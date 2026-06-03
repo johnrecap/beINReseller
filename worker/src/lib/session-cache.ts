@@ -19,6 +19,7 @@ import { gzipSync, gunzipSync } from 'zlib';
 
 // Redis key prefixes
 const SESSION_PREFIX = 'bein:session:';
+const ROUTE_AWARE_SESSION_PREFIX = 'bein:session:v2:';
 const OPERATION_SESSION_PREFIX = 'bein:operation-session:';
 const LOGIN_LOCK_PREFIX = 'bein:login-lock:';
 const KEEPALIVE_LOCK_PREFIX = 'bein:keepalive-lock:';
@@ -40,6 +41,55 @@ let cacheMisses = 0;
 let cacheExpired = 0;  // Track sessions that were in cache but expired
 let lastMetricsLogTime = Date.now();
 const METRICS_LOG_INTERVAL_MS = 5 * 60 * 1000; // Log every 5 minutes
+
+export interface SessionRouteContext {
+    accountId: string;
+    routeKey: string;
+    mode?: string;
+}
+
+export interface OperationSessionRouteMetadata extends SessionRouteContext {
+    savedAt: string;
+}
+
+export function buildLegacySessionCacheKey(accountId: string): string {
+    return `${SESSION_PREFIX}${accountId}`;
+}
+
+export function buildSessionCacheKey(accountId: string, routeKey: string): string {
+    return `${ROUTE_AWARE_SESSION_PREFIX}${accountId}:${routeKey}`;
+}
+
+export function isRouteAwareSessionKey(key: string): boolean {
+    return key.startsWith(ROUTE_AWARE_SESSION_PREFIX);
+}
+
+export function buildOperationSessionRouteMetadata(
+    route: SessionRouteContext,
+    now: Date = new Date()
+): OperationSessionRouteMetadata {
+    return {
+        accountId: route.accountId,
+        routeKey: route.routeKey,
+        ...(route.mode ? { mode: route.mode } : {}),
+        savedAt: now.toISOString(),
+    };
+}
+
+export function operationSessionRouteMatches(
+    metadata: OperationSessionRouteMetadata | null | undefined,
+    route: SessionRouteContext
+): boolean {
+    if (metadata?.accountId !== route.accountId || metadata.routeKey !== route.routeKey) {
+        return false;
+    }
+
+    if (metadata.mode || route.mode) {
+        return metadata.mode === route.mode;
+    }
+
+    return true;
+}
 
 /**
  * Log cache metrics periodically
@@ -104,10 +154,10 @@ function decompressViewState(data: string): HiddenFields {
  * @param accountId - beIN account ID
  * @returns SessionData or null if not found/expired
  */
-export async function getSessionFromCache(accountId: string): Promise<SessionData | null> {
+export async function getSessionFromCache(accountId: string, routeKey: string): Promise<SessionData | null> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
 
         const data = await redis.get(key);
         if (!data) {
@@ -217,12 +267,13 @@ export async function getSessionFromCache(accountId: string): Promise<SessionDat
  */
 export async function saveSessionToCache(
     accountId: string,
+    routeKey: string,
     session: SessionData,
     ttlMinutes: number = 16
 ): Promise<void> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
         const now = Date.now();
 
         // Compress ViewState if present and large
@@ -267,7 +318,8 @@ export async function saveSessionToCache(
 export async function saveOperationSessionToCache(
     operationId: string,
     session: SessionData,
-    ttlSeconds: number
+    ttlSeconds: number,
+    route?: SessionRouteContext
 ): Promise<void> {
     try {
         const redis = getRedisConnection();
@@ -284,7 +336,8 @@ export async function saveOperationSessionToCache(
             accountId: session.accountId,
             loginTimestamp: session.loginTimestamp || Date.now(),
             expiresAt: session.expiresAt,
-            lastLoginTime: session.lastLoginTime || new Date().toISOString()
+            lastLoginTime: session.lastLoginTime || new Date().toISOString(),
+            ...(route ? { route: buildOperationSessionRouteMetadata(route) } : {})
         };
 
         await redis.setex(key, ttlSeconds, JSON.stringify(sessionToSave));
@@ -298,7 +351,10 @@ export async function saveOperationSessionToCache(
 /**
  * Get operation-scoped session data for confirmation flows.
  */
-export async function getOperationSessionFromCache(operationId: string): Promise<SessionData | null> {
+export async function getOperationSessionFromCache(
+    operationId: string,
+    route?: SessionRouteContext
+): Promise<SessionData | null> {
     try {
         const redis = getRedisConnection();
         const key = `${OPERATION_SESSION_PREFIX}${operationId}`;
@@ -306,6 +362,18 @@ export async function getOperationSessionFromCache(operationId: string): Promise
         if (!data) return null;
 
         const rawSession = JSON.parse(data);
+        if (route) {
+            const routeMetadata =
+                rawSession.route && typeof rawSession.route === 'object'
+                    ? rawSession.route as OperationSessionRouteMetadata
+                    : null;
+
+            if (!operationSessionRouteMatches(routeMetadata, route)) {
+                console.log(`[Session Cache] Operation session route mismatch for operation ${operationId}`);
+                return null;
+            }
+        }
+
         let viewState: HiddenFields | undefined;
         if (rawSession.viewStateCompressed) {
             viewState = decompressViewState(rawSession.viewStateCompressed);
@@ -343,10 +411,10 @@ export async function deleteOperationSessionFromCache(operationId: string): Prom
  * Delete session from cache (on logout or error)
  * @param accountId - beIN account ID
  */
-export async function deleteSessionFromCache(accountId: string): Promise<void> {
+export async function deleteSessionFromCache(accountId: string, routeKey: string): Promise<void> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
 
         await redis.del(key);
         console.log(`[Session Cache] 🗑️ Deleted cached session for account ${accountId.substring(0, 8)}...`);
@@ -360,10 +428,10 @@ export async function deleteSessionFromCache(accountId: string): Promise<void> {
  * @param accountId - beIN account ID
  * @returns true if session exists and not expired
  */
-export async function hasValidSession(accountId: string): Promise<boolean> {
+export async function hasValidSession(accountId: string, routeKey: string): Promise<boolean> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
 
         const ttl = await redis.ttl(key);
         return ttl > 0;
@@ -378,10 +446,10 @@ export async function hasValidSession(accountId: string): Promise<boolean> {
  * @param accountId - beIN account ID
  * @returns TTL in seconds, or -1 if not found
  */
-export async function getSessionTTL(accountId: string): Promise<number> {
+export async function getSessionTTL(accountId: string, routeKey: string): Promise<number> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
 
         return await redis.ttl(key);
     } catch (error) {
@@ -400,11 +468,12 @@ export async function getSessionTTL(accountId: string): Promise<number> {
  */
 export async function extendSessionTTL(
     accountId: string,
+    routeKey: string,
     ttlMinutes: number = 600
 ): Promise<void> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
 
         // Read the session payload so we can update expiresAt inside it
         const data = await redis.get(key);
@@ -561,10 +630,10 @@ export function resetCacheMetrics(): void {
 export async function getAllCachedSessionIds(): Promise<string[]> {
     try {
         const redis = getRedisConnection();
-        const pattern = `${SESSION_PREFIX}*`;
+        const pattern = `${ROUTE_AWARE_SESSION_PREFIX}*`;
 
         const keys = await redis.keys(pattern);
-        return keys.map(key => key.replace(SESSION_PREFIX, ''));
+        return [...new Set(keys.map(key => key.replace(ROUTE_AWARE_SESSION_PREFIX, '').split(':')[0]))];
     } catch (error) {
         console.error(`[Session Cache] Error getting cached session IDs:`, error);
         return [];
@@ -579,11 +648,12 @@ export async function getAllCachedSessionIds(): Promise<string[]> {
  */
 export async function refreshSessionExpiry(
     accountId: string,
+    routeKey: string,
     sessionTimeoutMs: number = DEFAULT_SESSION_TIMEOUT_MS
 ): Promise<boolean> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
 
         const data = await redis.get(key);
         if (!data) {
@@ -622,11 +692,12 @@ export async function refreshSessionExpiry(
  */
 export async function sessionNeedsRefresh(
     accountId: string,
+    routeKey: string,
     thresholdMs: number = 3 * 60 * 1000
 ): Promise<boolean> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
 
         const data = await redis.get(key);
         if (!data) return false;
@@ -658,10 +729,10 @@ export async function sessionNeedsRefresh(
  * @param accountId - beIN account ID
  * @returns Remaining time in ms, or -1 if no session/expired
  */
-export async function getSessionRemainingTime(accountId: string): Promise<number> {
+export async function getSessionRemainingTime(accountId: string, routeKey: string): Promise<number> {
     try {
         const redis = getRedisConnection();
-        const key = `${SESSION_PREFIX}${accountId}`;
+        const key = buildSessionCacheKey(accountId, routeKey);
 
         const data = await redis.get(key);
         if (!data) return -1;

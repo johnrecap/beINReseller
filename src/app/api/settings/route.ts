@@ -8,6 +8,11 @@ import {
     validateBeinLoginFailureThreshold,
 } from '@/lib/bein-login-failure-threshold'
 import {
+    BEIN_CONNECTION_MODE_SETTING_KEY,
+    normalizeBeinConnectionSettingsForAdmin,
+    validateBeinConnectionMode,
+} from '@/lib/bein-connection-mode'
+import {
     normalizeMaintenanceSettingsForAdmin,
     normalizeMaintenanceSettingsUpdate,
 } from '@/lib/maintenance/effective-status'
@@ -41,7 +46,11 @@ export async function GET(request: NextRequest) {
             return acc
         }, {} as Record<string, string>)
 
-        return NextResponse.json(normalizeMaintenanceSettingsForAdmin(settingsMap))
+        return NextResponse.json(
+            normalizeBeinConnectionSettingsForAdmin(
+                normalizeMaintenanceSettingsForAdmin(settingsMap)
+            )
+        )
 
     } catch (error) {
         console.error('Get settings error:', error)
@@ -85,6 +94,18 @@ export async function PUT(request: NextRequest) {
             }
 
             normalizedBody[BEIN_LOGIN_FAILURE_THRESHOLD_SETTING_KEY] = validation.value
+        }
+
+        if (BEIN_CONNECTION_MODE_SETTING_KEY in normalizedBody) {
+            const validation = validateBeinConnectionMode(
+                normalizedBody[BEIN_CONNECTION_MODE_SETTING_KEY]
+            )
+
+            if ('error' in validation) {
+                return NextResponse.json({ error: validation.error }, { status: 400 })
+            }
+
+            normalizedBody[BEIN_CONNECTION_MODE_SETTING_KEY] = validation.value
         }
 
         // Body is expected to be { key: value, key2: value2 }

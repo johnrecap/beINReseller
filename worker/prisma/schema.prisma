@@ -118,6 +118,11 @@ enum EidRewardClaimPolicy {
   ONCE_PER_DAY
 }
 
+enum EidRewardAudienceOverrideEffect {
+  ALLOW
+  DENY
+}
+
 enum WhatsAppProvider {
   WHAPI
   TELEGRAM
@@ -200,6 +205,7 @@ model User {
   pointProgramSettingsUpdated  PointProgramSettings[]       @relation("PointProgramSettingsUpdater")
   pointCashRedemptions         PointCashRedemption[]        @relation("PointCashRedemptionOwner")
   eidRewardClaims              EidRewardClaim[]             @relation("EidRewardClaimOwner")
+  eidRewardAudienceOverrides   EidRewardAudienceOverride[]  @relation("EidRewardAudienceOverrideUser")
   rewardsCreated               Reward[]                     @relation("RewardCreator")
   rewardRedemptions            RewardRedemption[]           @relation("RewardRedemptionOwner")
   rewardRedemptionDecisions    RewardRedemption[]           @relation("RewardRedemptionDecider")
@@ -471,11 +477,14 @@ model EidRewardSettings {
   closeDelaySeconds   Int                  @default(0) @map("close_delay_seconds")
   beforeText          String               @default("عيديتك جاهزة! افتح الظرف واحصل على نقاط عشوائية تقدر تحولها لرصيد داخل حسابك.") @map("before_text")
   afterText           String               @default("يمكنك تحويل نقاطك إلى رصيد داخل الموقع.") @map("after_text")
+  audienceRoles       Role[]               @default([ADMIN, MANAGER, AGENT, USER]) @map("audience_roles")
+  popupTexts          Json?                @map("popup_texts")
   updatedByAdminId    String?              @map("updated_by_admin_id")
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
 
-  tiers EidRewardTier[]
+  tiers             EidRewardTier[]
+  audienceOverrides EidRewardAudienceOverride[]
 
   @@index([enabled, startsAt, endsAt])
   @@map("eid_reward_settings")
@@ -516,6 +525,23 @@ model EidRewardClaim {
   @@index([eventKey, claimDate])
   @@index([userId, createdAt])
   @@map("eid_reward_claims")
+}
+
+model EidRewardAudienceOverride {
+  id         String                           @id @default(cuid())
+  settingsId String                           @map("settings_id")
+  userId     String                           @map("user_id")
+  effect     EidRewardAudienceOverrideEffect
+  createdAt  DateTime                         @default(now()) @map("created_at")
+  updatedAt  DateTime                         @updatedAt @map("updated_at")
+
+  settings EidRewardSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+  user     User              @relation("EidRewardAudienceOverrideUser", fields: [userId], references: [id])
+
+  @@unique([settingsId, userId])
+  @@index([settingsId, effect])
+  @@index([userId])
+  @@map("eid_reward_audience_overrides")
 }
 
 model WhatsAppNotificationLog {

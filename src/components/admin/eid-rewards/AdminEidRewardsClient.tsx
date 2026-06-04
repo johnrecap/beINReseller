@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { Gift, Plus, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { Gift, Plus, RefreshCw, Save, Search, Trash2, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -14,6 +14,40 @@ type TierDraft = {
     probabilityWeight: number
     label: string
     isActive: boolean
+}
+
+type RoleValue = 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER'
+type OverrideEffect = 'ALLOW' | 'DENY'
+
+type PopupTextsDraft = {
+    title: string
+    beforeText: string
+    openButtonText: string
+    openingText: string
+    successTitle: string
+    pointsText: string
+    moneyPreviewText: string
+    afterText: string
+    redeemButtonText: string
+    redeemingText: string
+    redeemedSuccessText: string
+    laterButtonText: string
+    alreadyClaimedText: string
+    claimedTodayText: string
+    inactiveEventText: string
+    genericErrorText: string
+}
+
+type AudienceOverrideDraft = {
+    userId: string
+    effect: OverrideEffect
+    user?: {
+        id: string
+        username: string
+        email: string | null
+        role: RoleValue
+        isActive: boolean
+    }
 }
 
 type SettingsDraft = {
@@ -30,6 +64,9 @@ type SettingsDraft = {
     closeDelaySeconds: number
     beforeText: string
     afterText: string
+    audienceRoles: RoleValue[]
+    popupTexts: PopupTextsDraft
+    audienceOverrides: AudienceOverrideDraft[]
 }
 
 type ClaimRow = {
@@ -51,6 +88,59 @@ type TransactionRow = {
     transaction: { balanceAfter: number }
 }
 
+type UserSearchResult = {
+    id: string
+    username: string
+    email: string | null
+    role: RoleValue
+    isActive: boolean
+}
+
+const roleOptions: Array<{ value: RoleValue; label: string }> = [
+    { value: 'ADMIN', label: 'Admin' },
+    { value: 'MANAGER', label: 'Manager' },
+    { value: 'AGENT', label: 'Agent' },
+    { value: 'USER', label: 'User' },
+]
+
+const defaultPopupTexts: PopupTextsDraft = {
+    title: 'عيد مبارك',
+    beforeText: 'عيديتك جاهزة! افتح الظرف واحصل على نقاط عشوائية تقدر تحولها لرصيد داخل حسابك.',
+    openButtonText: 'افتح العيدية الآن',
+    openingText: 'جاري فتح العيدية...',
+    successTitle: 'مبروك!',
+    pointsText: 'حصلت على {points} نقطة',
+    moneyPreviewText: 'تعادل {amount} {currency} رصيد',
+    afterText: 'يمكنك تحويل نقاطك إلى رصيد داخل الموقع.',
+    redeemButtonText: 'تحويل النقاط إلى رصيد',
+    redeemingText: 'جاري التحويل...',
+    redeemedSuccessText: 'تم تحويل النقاط إلى رصيد بنجاح.',
+    laterButtonText: 'لاحقا',
+    alreadyClaimedText: 'استلمت عيديتك بالفعل',
+    claimedTodayText: 'استلمت عيديتك اليوم، ارجع بكرة لعيدية جديدة',
+    inactiveEventText: 'انتهت عروض العيد، تابعنا في المناسبات القادمة.',
+    genericErrorText: 'حدث خطأ أثناء فتح العيدية، حاول مرة أخرى.',
+}
+
+const popupTextFields: Array<{ key: keyof PopupTextsDraft; label: string; hint?: string; multiline?: boolean }> = [
+    { key: 'title', label: 'عنوان الكارت' },
+    { key: 'beforeText', label: 'النص قبل الفتح', multiline: true },
+    { key: 'openButtonText', label: 'زر الفتح' },
+    { key: 'openingText', label: 'نص جاري الفتح' },
+    { key: 'successTitle', label: 'عنوان النجاح' },
+    { key: 'pointsText', label: 'نص النقاط', hint: 'يدعم {points}' },
+    { key: 'moneyPreviewText', label: 'نص قيمة الرصيد', hint: 'يدعم {amount} و {currency}' },
+    { key: 'afterText', label: 'النص بعد ظهور النقاط', multiline: true },
+    { key: 'redeemButtonText', label: 'زر التحويل' },
+    { key: 'redeemingText', label: 'نص جاري التحويل' },
+    { key: 'redeemedSuccessText', label: 'رسالة نجاح التحويل' },
+    { key: 'laterButtonText', label: 'زر لاحقا' },
+    { key: 'alreadyClaimedText', label: 'رسالة تم الاستلام سابقا' },
+    { key: 'claimedTodayText', label: 'رسالة تم الاستلام اليوم' },
+    { key: 'inactiveEventText', label: 'رسالة انتهاء الحدث' },
+    { key: 'genericErrorText', label: 'رسالة الخطأ العامة' },
+]
+
 const defaultSettings: SettingsDraft = {
     enabled: false,
     eventKey: 'eid-2026',
@@ -65,6 +155,9 @@ const defaultSettings: SettingsDraft = {
     closeDelaySeconds: 0,
     beforeText: 'عيديتك جاهزة! افتح الظرف واحصل على نقاط عشوائية تقدر تحولها لرصيد داخل حسابك.',
     afterText: 'يمكنك تحويل نقاطك إلى رصيد داخل الموقع.',
+    audienceRoles: ['ADMIN', 'MANAGER', 'AGENT', 'USER'],
+    popupTexts: defaultPopupTexts,
+    audienceOverrides: [],
 }
 
 function toNumber(value: string, fallback = 0) {
@@ -83,6 +176,9 @@ export default function AdminEidRewardsClient() {
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
     const [conversion, setConversion] = useState<{ enabled: boolean; points: number; amount: number } | null>(null)
+    const [userSearch, setUserSearch] = useState('')
+    const [userResults, setUserResults] = useState<UserSearchResult[]>([])
+    const [searchingUsers, setSearchingUsers] = useState(false)
 
     const loadSettings = useCallback(async () => {
         setLoading(true)
@@ -91,10 +187,23 @@ export default function AdminEidRewardsClient() {
             const response = await fetch('/api/admin/eid-rewards/settings', { cache: 'no-store' })
             const payload = await response.json().catch(() => null)
             if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل إعدادات عيدية العيد')
+            const loadedSettings = payload.settings || {}
+            const popupTexts = {
+                ...defaultPopupTexts,
+                ...(loadedSettings.popupTexts || {}),
+                beforeText: loadedSettings.popupTexts?.beforeText || loadedSettings.beforeText || defaultPopupTexts.beforeText,
+                afterText: loadedSettings.popupTexts?.afterText || loadedSettings.afterText || defaultPopupTexts.afterText,
+            }
             setSettings({
-                ...payload.settings,
-                startsAt: payload.settings.startsAt,
-                endsAt: payload.settings.endsAt,
+                ...defaultSettings,
+                ...loadedSettings,
+                startsAt: loadedSettings.startsAt,
+                endsAt: loadedSettings.endsAt,
+                beforeText: popupTexts.beforeText,
+                afterText: popupTexts.afterText,
+                audienceRoles: Array.isArray(loadedSettings.audienceRoles) ? loadedSettings.audienceRoles : defaultSettings.audienceRoles,
+                popupTexts,
+                audienceOverrides: Array.isArray(loadedSettings.audienceOverrides) ? loadedSettings.audienceOverrides : [],
             })
             setTiers(payload.tiers.map((tier: TierDraft) => ({
                 points: tier.points,
@@ -153,6 +262,78 @@ export default function AdminEidRewardsClient() {
         } finally {
             setSaving(false)
         }
+    }
+
+    function toggleAudienceRole(role: RoleValue, checked: boolean) {
+        setSettings((draft) => ({
+            ...draft,
+            audienceRoles: checked
+                ? Array.from(new Set([...draft.audienceRoles, role])) as RoleValue[]
+                : draft.audienceRoles.filter((item) => item !== role),
+        }))
+    }
+
+    function updatePopupText(key: keyof PopupTextsDraft, value: string) {
+        setSettings((draft) => {
+            const popupTexts = { ...draft.popupTexts, [key]: value }
+            return {
+                ...draft,
+                beforeText: key === 'beforeText' ? value : draft.beforeText,
+                afterText: key === 'afterText' ? value : draft.afterText,
+                popupTexts,
+            }
+        })
+    }
+
+    async function searchAudienceUsers() {
+        const term = userSearch.trim()
+        if (term.length < 2) {
+            setError('اكتب حرفين على الأقل للبحث عن مستخدم.')
+            return
+        }
+
+        setSearchingUsers(true)
+        setError(null)
+        try {
+            const response = await fetch(`/api/admin/users?search=${encodeURIComponent(term)}&limit=8`, { cache: 'no-store' })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok) throw new Error(payload?.error || 'تعذر البحث عن المستخدمين')
+            setUserResults((payload.users || []).map((user: UserSearchResult) => ({
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                isActive: user.isActive,
+            })))
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'تعذر البحث عن المستخدمين')
+        } finally {
+            setSearchingUsers(false)
+        }
+    }
+
+    function addAudienceOverride(user: UserSearchResult, effect: OverrideEffect) {
+        setSettings((draft) => {
+            const nextOverride: AudienceOverrideDraft = {
+                userId: user.id,
+                effect,
+                user,
+            }
+            const withoutUser = draft.audienceOverrides.filter((override) => override.userId !== user.id)
+            return {
+                ...draft,
+                audienceOverrides: [...withoutUser, nextOverride],
+            }
+        })
+    }
+
+    function updateAudienceOverride(userId: string, effect: OverrideEffect) {
+        setSettings((draft) => ({
+            ...draft,
+            audienceOverrides: draft.audienceOverrides.map((override) =>
+                override.userId === userId ? { ...override, effect } : override
+            ),
+        }))
     }
 
     function addTier() {
@@ -248,15 +429,115 @@ export default function AdminEidRewardsClient() {
                                 </label>
                             </div>
 
-                            <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                <label className="block space-y-2">
-                                    <span className="text-sm text-muted-foreground">النص قبل الفتح</span>
-                                    <textarea className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={settings.beforeText} onChange={(event) => setSettings((draft) => ({ ...draft, beforeText: event.target.value }))} />
-                                </label>
-                                <label className="block space-y-2">
-                                    <span className="text-sm text-muted-foreground">النص بعد ظهور النقاط</span>
-                                    <textarea className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={settings.afterText} onChange={(event) => setSettings((draft) => ({ ...draft, afterText: event.target.value }))} />
-                                </label>
+                            <div className="mt-6 rounded-lg border border-border bg-background/40 p-4">
+                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                        <h2 className="text-lg font-semibold">ظهور المكافأة</h2>
+                                        <p className="text-sm text-muted-foreground">اختار الأدوار المسموح لها، أو أضف استثناء لمستخدم محدد.</p>
+                                    </div>
+                                    <Badge variant="outline">{settings.audienceRoles.length} أدوار مفعلة</Badge>
+                                </div>
+
+                                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                                    {roleOptions.map((role) => (
+                                        <label key={role.value} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+                                            <span className="text-sm font-medium">{role.label}</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={settings.audienceRoles.includes(role.value)}
+                                                onChange={(event) => toggleAudienceRole(role.value, event.target.checked)}
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
+
+                                {settings.audienceRoles.length === 0 && (
+                                    <p className="mt-3 rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">
+                                        كل الأدوار مقفولة. المكافأة هتظهر فقط للمستخدمين الموجودين في السماح اليدوي.
+                                    </p>
+                                )}
+
+                                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                                    <Input
+                                        value={userSearch}
+                                        onChange={(event) => setUserSearch(event.target.value)}
+                                        placeholder="ابحث بالاسم أو البريد لإضافة استثناء"
+                                    />
+                                    <Button type="button" variant="outline" onClick={searchAudienceUsers} disabled={searchingUsers} className="gap-2">
+                                        <Search className={`h-4 w-4 ${searchingUsers ? 'animate-spin' : ''}`} />
+                                        بحث
+                                    </Button>
+                                </div>
+
+                                {userResults.length > 0 && (
+                                    <div className="mt-3 space-y-2">
+                                        {userResults.map((user) => (
+                                            <div key={user.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 md:flex-row md:items-center md:justify-between">
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-semibold">{user.username}</p>
+                                                    <p className="truncate text-xs text-muted-foreground">{user.email || '-'} · {user.role} · {user.isActive ? 'نشط' : 'موقوف'}</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button type="button" size="sm" variant="outline" onClick={() => addAudienceOverride(user, 'ALLOW')} className="gap-2">
+                                                        <UserPlus className="h-4 w-4" />
+                                                        سماح
+                                                    </Button>
+                                                    <Button type="button" size="sm" variant="outline" onClick={() => addAudienceOverride(user, 'DENY')}>
+                                                        منع
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="mt-4 space-y-2">
+                                    {settings.audienceOverrides.length === 0 && (
+                                        <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">لا توجد استثناءات. سيتم استخدام قواعد الأدوار فقط.</p>
+                                    )}
+                                    {settings.audienceOverrides.map((override) => (
+                                        <div key={override.userId} className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-semibold">{override.user?.username || override.userId}</p>
+                                                <p className="truncate text-xs text-muted-foreground">
+                                                    {override.user?.email || 'User ID'} · {override.user?.role || '-'} · {override.user?.isActive === false ? 'موقوف' : 'نشط'}
+                                                </p>
+                                            </div>
+                                            <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={override.effect} onChange={(event) => updateAudienceOverride(override.userId, event.target.value as OverrideEffect)}>
+                                                <option value="ALLOW">سماح</option>
+                                                <option value="DENY">منع</option>
+                                            </select>
+                                            <Button type="button" variant="outline" onClick={() => setSettings((draft) => ({ ...draft, audienceOverrides: draft.audienceOverrides.filter((item) => item.userId !== override.userId) }))}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="mt-6 rounded-lg border border-border bg-background/40 p-4">
+                                <h2 className="text-lg font-semibold">نصوص كارت المكافأة</h2>
+                                <p className="mt-1 text-sm text-muted-foreground">كل النصوص الظاهرة للعميل قابلة للتعديل من هنا.</p>
+                                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                    {popupTextFields.map((field) => (
+                                        <label key={field.key} className="block space-y-2">
+                                            <span className="text-sm text-muted-foreground">{field.label}</span>
+                                            {field.multiline ? (
+                                                <textarea
+                                                    className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                    value={settings.popupTexts[field.key]}
+                                                    onChange={(event) => updatePopupText(field.key, event.target.value)}
+                                                />
+                                            ) : (
+                                                <Input
+                                                    value={settings.popupTexts[field.key]}
+                                                    onChange={(event) => updatePopupText(field.key, event.target.value)}
+                                                />
+                                            )}
+                                            {field.hint && <span className="text-xs text-muted-foreground">{field.hint}</span>}
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
 
                             {conversion && (

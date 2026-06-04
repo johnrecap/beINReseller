@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/027-bein-connection-mode/plan.md`,
-`specs/027-bein-connection-mode/spec.md`, and
-`specs/027-bein-connection-mode/tasks.md` before editing.
+`specs/028-eid-reward-audience-copy/plan.md`,
+`specs/028-eid-reward-audience-copy/spec.md`, and
+`specs/028-eid-reward-audience-copy/tasks.md` before editing.
 <!-- SPECKIT END -->

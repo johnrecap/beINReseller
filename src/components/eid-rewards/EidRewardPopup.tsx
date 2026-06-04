@@ -16,6 +16,7 @@ type EidStatus = {
     active: boolean
     eligible: boolean
     alreadyClaimed: boolean
+    claimPolicy: 'ONCE_PER_EVENT' | 'ONCE_PER_DAY'
     pointsBalance: number
     canRedeem: boolean
     minRedeemPoints: number
@@ -30,6 +31,24 @@ type EidStatus = {
         closeDelaySeconds: number
         beforeText: string
         afterText: string
+        texts?: {
+            title: string
+            beforeText: string
+            openButtonText: string
+            openingText: string
+            successTitle: string
+            pointsText: string
+            moneyPreviewText: string
+            afterText: string
+            redeemButtonText: string
+            redeemingText: string
+            redeemedSuccessText: string
+            laterButtonText: string
+            alreadyClaimedText: string
+            claimedTodayText: string
+            inactiveEventText: string
+            genericErrorText: string
+        }
     }
     message: string | null
 }
@@ -57,6 +76,16 @@ type ViewState =
     | 'redeemedSuccess'
     | 'error'
 
+function formatPopupText(
+    template: string,
+    values: { points?: number; amount?: number | string; currency?: string }
+) {
+    return template
+        .replaceAll('{points}', values.points == null ? '' : String(values.points))
+        .replaceAll('{amount}', values.amount == null ? '' : String(values.amount))
+        .replaceAll('{currency}', values.currency ?? '')
+}
+
 export default function EidRewardPopup() {
     const [status, setStatus] = useState<EidStatus | null>(null)
     const [claim, setClaim] = useState<ClaimResult | null>(null)
@@ -70,7 +99,7 @@ export default function EidRewardPopup() {
             const response = await fetch('/api/eid-rewards/status', { cache: 'no-store' })
             if (response.status === 401) return
             const payload = await response.json().catch(() => null)
-            if (!response.ok) throw new Error(payload?.error || 'تعذر تحميل عيدية العيد')
+            if (!response.ok) throw new Error(payload?.error || payload?.popup?.texts?.genericErrorText || 'تعذر تحميل عيدية العيد')
 
             setStatus(payload)
             const hidden = typeof window !== 'undefined' && sessionStorage.getItem(EID_REWARD_POPUP_HIDE_KEY) === '1'
@@ -109,7 +138,7 @@ export default function EidRewardPopup() {
         try {
             const response = await fetch('/api/eid-rewards/claim', { method: 'POST' })
             const payload = await response.json().catch(() => null)
-            if (!response.ok) throw new Error(payload?.error || 'حدث خطأ أثناء فتح العيدية، حاول مرة أخرى.')
+            if (!response.ok) throw new Error(payload?.error || status?.popup.texts?.genericErrorText || 'حدث خطأ أثناء فتح العيدية، حاول مرة أخرى.')
             setClaim(payload)
             setStatus((current) => current ? {
                 ...current,
@@ -119,7 +148,7 @@ export default function EidRewardPopup() {
             } : current)
             setTimeout(() => setViewState('claimedSuccess'), 750)
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'حدث خطأ أثناء فتح العيدية، حاول مرة أخرى.')
+            setError(err instanceof Error ? err.message : status?.popup.texts?.genericErrorText || 'حدث خطأ أثناء فتح العيدية، حاول مرة أخرى.')
             setViewState('error')
         }
     }
@@ -136,11 +165,11 @@ export default function EidRewardPopup() {
                 body: JSON.stringify({ points: pointsToRedeem }),
             })
             const payload = await response.json().catch(() => null)
-            if (!response.ok) throw new Error(payload?.error || 'تعذر تحويل النقاط إلى رصيد')
+            if (!response.ok) throw new Error(payload?.error || status?.popup.texts?.genericErrorText || 'تعذر تحويل النقاط إلى رصيد')
             setViewState('redeemedSuccess')
             closePopup('redeemed')
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'تعذر تحويل النقاط إلى رصيد')
+            setError(err instanceof Error ? err.message : status?.popup.texts?.genericErrorText || 'تعذر تحويل النقاط إلى رصيد')
             setViewState('claimedSuccess')
         }
     }
@@ -160,6 +189,24 @@ export default function EidRewardPopup() {
 
     const isBusy = viewState === 'claiming' || viewState === 'redeeming'
     const isSuccess = viewState === 'claimedSuccess' || viewState === 'redeeming' || viewState === 'redeemedSuccess'
+    const texts = status.popup.texts || {
+        title: 'عيد مبارك',
+        beforeText: status.popup.beforeText,
+        openButtonText: 'افتح العيدية الآن',
+        openingText: 'جاري فتح العيدية...',
+        successTitle: 'مبروك!',
+        pointsText: 'حصلت على {points} نقطة',
+        moneyPreviewText: 'تعادل {amount} {currency} رصيد',
+        afterText: status.popup.afterText,
+        redeemButtonText: 'تحويل النقاط إلى رصيد',
+        redeemingText: 'جاري التحويل...',
+        redeemedSuccessText: 'تم تحويل النقاط إلى رصيد بنجاح.',
+        laterButtonText: 'لاحقا',
+        alreadyClaimedText: 'استلمت عيديتك بالفعل',
+        claimedTodayText: 'استلمت عيديتك اليوم، ارجع بكرة لعيدية جديدة',
+        inactiveEventText: 'انتهت عروض العيد، تابعنا في المناسبات القادمة.',
+        genericErrorText: 'حدث خطأ أثناء فتح العيدية، حاول مرة أخرى.',
+    }
 
     return (
         <AnimatePresence>
@@ -194,63 +241,65 @@ export default function EidRewardPopup() {
                             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#F6C453]/15 text-[#F6C453]">
                                 <Gift className="h-5 w-5" />
                             </div>
-                            <h2 className="text-2xl font-bold">عيد مبارك 🎉</h2>
+                            <h2 className="text-2xl font-bold">{texts.title}</h2>
                             {!isSuccess && viewState !== 'alreadyClaimed' && (
-                                <p className="mt-3 text-sm leading-6 text-[#C9D3D0]">{status.popup.beforeText}</p>
+                                <p className="mt-3 text-sm leading-6 text-[#C9D3D0]">{texts.beforeText}</p>
                             )}
                         </div>
 
                         <EidRewardEnvelope state={viewState === 'claiming' ? 'opening' : isSuccess ? 'celebration' : 'idle'} />
 
                         {viewState === 'alreadyClaimed' && (
-                            <p className="text-center text-sm text-[#C9D3D0]">{status.message || 'استلمت عيديتك بالفعل 🎁'}</p>
+                            <p className="text-center text-sm text-[#C9D3D0]">
+                                {status.message || (status.claimPolicy === 'ONCE_PER_DAY' ? texts.claimedTodayText : texts.alreadyClaimedText)}
+                            </p>
                         )}
 
                         {viewState === 'error' && (
                             <p className="rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-center text-sm text-red-100">
-                                {error || 'حدث خطأ أثناء فتح العيدية، حاول مرة أخرى.'}
+                                {error || texts.genericErrorText}
                             </p>
                         )}
 
                         {isSuccess && claim && (
                             <div className="space-y-2 text-center">
-                                <p className="text-xl font-bold text-[#F6C453]">مبروك!</p>
-                                <p className="text-3xl font-black">{claim.claim.points} نقطة</p>
+                                <p className="text-xl font-bold text-[#F6C453]">{texts.successTitle}</p>
+                                <p className="text-3xl font-black">{formatPopupText(texts.pointsText, { points: claim.claim.points })}</p>
                                 {moneyPreview > 0 && (
                                     <p className="text-sm text-[#C9D3D0]">
-                                        تعادل {moneyPreview} {claim.conversion.currencyLabel} رصيد
+                                        {formatPopupText(texts.moneyPreviewText, { amount: moneyPreview, currency: claim.conversion.currencyLabel })}
                                     </p>
                                 )}
-                                <p className="text-sm text-[#C9D3D0]">{status.popup.afterText}</p>
+                                <p className="text-sm text-[#C9D3D0]">{texts.afterText}</p>
                             </div>
                         )}
 
                         {viewState === 'redeemedSuccess' && (
                             <p className="mt-4 rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-3 text-center text-sm text-emerald-100">
-                                تم تحويل النقاط إلى رصيد بنجاح.
+                                {texts.redeemedSuccessText}
                             </p>
                         )}
 
                         <div className="mt-6 flex flex-col gap-3">
                             {viewState === 'eligible' || viewState === 'error' ? (
                                 <Button onClick={claimReward} disabled={isBusy} className="bg-[#F6C453] text-[#071B2C] hover:bg-[#ffd976]">
-                                    افتح العيدية الآن
+                                    {texts.openButtonText}
                                 </Button>
                             ) : null}
                             {viewState === 'claiming' && (
                                 <Button disabled className="bg-[#F6C453] text-[#071B2C]">
                                     <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                                    جاري فتح العيدية...
+                                    {texts.openingText}
                                 </Button>
                             )}
                             {(viewState === 'claimedSuccess' || viewState === 'redeeming') && (
                                 <Button onClick={redeemPoints} disabled={isBusy || !status.conversion.enabled} className="bg-[#0F6B4F] text-white hover:bg-[#128461]">
                                     {viewState === 'redeeming' && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                                    تحويل النقاط إلى رصيد
+                                    {viewState === 'redeeming' ? texts.redeemingText : texts.redeemButtonText}
                                 </Button>
                             )}
                             <Button type="button" variant="outline" onClick={dismissLater} disabled={isBusy} className="border-white/20 bg-white/5 text-white hover:bg-white/10">
-                                لاحقًا
+                                {texts.laterButtonText}
                             </Button>
                         </div>
                     </div>

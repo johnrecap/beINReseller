@@ -4,6 +4,7 @@ import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
 import { getPointProgramSettings } from '@/lib/points/settings'
 import { EID_REWARD_SETTINGS_ID } from '@/lib/eid-rewards/calculation'
 import {
+    buildEidRewardSettingsPersistence,
     eidRewardSettingsSchema,
     getEidRewardSettings,
     serializeEidSettings,
@@ -16,13 +17,33 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        const [settings, conversion] = await Promise.all([
+        const [settings, conversion, audienceOverrides] = await Promise.all([
             getEidRewardSettings(prisma),
             getPointProgramSettings(prisma),
+            prisma.eidRewardAudienceOverride.findMany({
+                where: { settingsId: EID_REWARD_SETTINGS_ID },
+                orderBy: { createdAt: 'asc' },
+                select: {
+                    userId: true,
+                    effect: true,
+                    user: {
+                        select: {
+                            id: true,
+                            username: true,
+                            email: true,
+                            role: true,
+                            isActive: true,
+                        },
+                    },
+                },
+            }),
         ])
 
         return NextResponse.json({
-            settings: serializeEidSettings(settings),
+            settings: {
+                ...serializeEidSettings(settings),
+                audienceOverrides,
+            },
             conversion: {
                 points: conversion.cashConversionPoints,
                 amount: conversion.cashConversionAmountUsd,
@@ -60,55 +81,42 @@ export async function PUT(request: NextRequest) {
 
         const startsAt = parsed.data.startsAt ? new Date(parsed.data.startsAt) : null
         const endsAt = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null
+        const overrideUserIds = [...new Set(parsed.data.audienceOverrides.map((override) => override.userId))]
+        if (overrideUserIds.length > 0) {
+            const existingUsers = await prisma.user.count({ where: { id: { in: overrideUserIds } } })
+            if (existingUsers !== overrideUserIds.length) {
+                return NextResponse.json(
+                    { error: 'Invalid Eid reward audience users' },
+                    { status: 400 }
+                )
+            }
+        }
+        const persistence = buildEidRewardSettingsPersistence(parsed.data, {
+            adminUserId: authResult.user.id,
+            startsAt,
+            endsAt,
+        })
+        const settingsUpdateData = { ...persistence.settingsData } as Omit<typeof persistence.settingsData, 'id'> & { id?: string }
+        delete settingsUpdateData.id
 
         await prisma.$transaction(async (tx) => {
             await tx.eidRewardSettings.upsert({
                 where: { id: EID_REWARD_SETTINGS_ID },
-                create: {
-                    id: EID_REWARD_SETTINGS_ID,
-                    enabled: parsed.data.enabled,
-                    eventKey: parsed.data.eventKey,
-                    startsAt,
-                    endsAt,
-                    claimPolicy: parsed.data.claimPolicy,
-                    minPoints: parsed.data.minPoints,
-                    maxPoints: parsed.data.maxPoints,
-                    minRedeemPoints: parsed.data.minRedeemPoints,
-                    showPopupAfterLogin: parsed.data.showPopupAfterLogin,
-                    allowLaterDismiss: parsed.data.allowLaterDismiss,
-                    closeDelaySeconds: parsed.data.closeDelaySeconds,
-                    beforeText: parsed.data.beforeText,
-                    afterText: parsed.data.afterText,
-                    updatedByAdminId: authResult.user.id,
-                },
-                update: {
-                    enabled: parsed.data.enabled,
-                    eventKey: parsed.data.eventKey,
-                    startsAt,
-                    endsAt,
-                    claimPolicy: parsed.data.claimPolicy,
-                    minPoints: parsed.data.minPoints,
-                    maxPoints: parsed.data.maxPoints,
-                    minRedeemPoints: parsed.data.minRedeemPoints,
-                    showPopupAfterLogin: parsed.data.showPopupAfterLogin,
-                    allowLaterDismiss: parsed.data.allowLaterDismiss,
-                    closeDelaySeconds: parsed.data.closeDelaySeconds,
-                    beforeText: parsed.data.beforeText,
-                    afterText: parsed.data.afterText,
-                    updatedByAdminId: authResult.user.id,
-                },
+                create: persistence.settingsData,
+                update: settingsUpdateData,
             })
 
             await tx.eidRewardTier.deleteMany({ where: { settingsId: EID_REWARD_SETTINGS_ID } })
-            if (parsed.data.tiers.length > 0) {
+            if (persistence.tiers.length > 0) {
                 await tx.eidRewardTier.createMany({
-                    data: parsed.data.tiers.map((tier) => ({
-                        settingsId: EID_REWARD_SETTINGS_ID,
-                        points: tier.points,
-                        probabilityWeight: tier.probabilityWeight,
-                        label: tier.label?.trim() || null,
-                        isActive: tier.isActive,
-                    })),
+                    data: persistence.tiers,
+                })
+            }
+
+            await tx.eidRewardAudienceOverride.deleteMany({ where: { settingsId: EID_REWARD_SETTINGS_ID } })
+            if (persistence.audienceOverrides.length > 0) {
+                await tx.eidRewardAudienceOverride.createMany({
+                    data: persistence.audienceOverrides,
                 })
             }
 
@@ -122,7 +130,9 @@ export async function PUT(request: NextRequest) {
                         enabled: parsed.data.enabled,
                         eventKey: parsed.data.eventKey,
                         claimPolicy: parsed.data.claimPolicy,
-                        tiers: parsed.data.tiers.length,
+                        tiers: persistence.tiers.length,
+                        audienceRoles: persistence.settingsData.audienceRoles,
+                        audienceOverrides: persistence.audienceOverrides.length,
                     },
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },

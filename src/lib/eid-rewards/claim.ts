@@ -6,19 +6,48 @@ import {
     buildClaimScopeKey,
     calculateEidMoneyPreview,
     DEFAULT_CURRENCY_LABEL,
+    EID_REWARD_SETTINGS_ID,
     isEidEventActive,
     selectRangeReward,
     selectWeightedReward,
 } from '@/lib/eid-rewards/calculation'
-import { getEidRewardSettings } from '@/lib/eid-rewards/settings'
+import {
+    formatEidPopupText,
+    getEidRewardSettings,
+    normalizeEidPopupTexts,
+} from '@/lib/eid-rewards/settings'
+import {
+    evaluateEidRewardAudience,
+    type EidAudienceDecisionReason,
+} from '@/lib/eid-rewards/audience'
 import { Prisma } from '@prisma/client'
 
 export class EidRewardError extends Error {
     constructor(
         message: string,
-        readonly code: 'INACTIVE_EVENT' | 'ALREADY_CLAIMED' | 'INACTIVE_USER' | 'INVALID_SETTINGS'
+        readonly code: 'INACTIVE_EVENT' | 'ALREADY_CLAIMED' | 'INACTIVE_USER' | 'INVALID_SETTINGS' | 'NOT_ELIGIBLE_AUDIENCE'
     ) {
         super(message)
+    }
+}
+
+export function buildEidRewardStatusState(input: {
+    active: boolean
+    existingClaim: boolean
+    showPopupAfterLogin: boolean
+    audienceAllowed: boolean
+}) {
+    const eligible = input.active && !input.existingClaim && input.audienceAllowed
+
+    return {
+        eligible,
+        popupShow: input.showPopupAfterLogin && eligible,
+    }
+}
+
+export function assertEidRewardAudienceCanClaim(decision: { allowed: boolean; reason: EidAudienceDecisionReason }) {
+    if (!decision.allowed) {
+        throw new EidRewardError('Reward is not available for this account.', 'NOT_ELIGIBLE_AUDIENCE')
     }
 }
 
@@ -44,12 +73,20 @@ export function buildConversionState(input: {
 }
 
 export async function getEidRewardStatus(userId: string, now = new Date()) {
-    const [settings, conversionSettings, ledgerEntries] = await Promise.all([
+    const [settings, conversionSettings, ledgerEntries, user, audienceOverride] = await Promise.all([
         getEidRewardSettings(prisma),
         getPointProgramSettings(prisma),
         prisma.pointLedgerEntry.findMany({
             where: { ownerUserId: userId },
             select: { sourceType: true, status: true, points: true },
+        }),
+        prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, role: true, isActive: true, deletedAt: true },
+        }),
+        prisma.eidRewardAudienceOverride.findUnique({
+            where: { settingsId_userId: { settingsId: EID_REWARD_SETTINGS_ID, userId } },
+            select: { effect: true },
         }),
     ])
 
@@ -68,11 +105,28 @@ export async function getEidRewardStatus(userId: string, now = new Date()) {
         conversionAmountUsd: conversionSettings.cashConversionAmountUsd,
         enabled: readiness.ok,
     })
+    const audience = evaluateEidRewardAudience({
+        user,
+        audienceRoles: settings.audienceRoles,
+        override: audienceOverride,
+    })
+    const statusState = buildEidRewardStatusState({
+        active,
+        existingClaim: Boolean(existingClaim),
+        showPopupAfterLogin: settings.showPopupAfterLogin,
+        audienceAllowed: audience.allowed,
+    })
+    const popupTexts = normalizeEidPopupTexts({
+        popupTexts: settings.popupTexts,
+        beforeText: settings.beforeText,
+        afterText: settings.afterText,
+    })
 
     return {
         enabled: settings.enabled,
         active,
-        eligible: active && !existingClaim,
+        eligible: statusState.eligible,
+        audienceEligible: audience.allowed,
         alreadyClaimed: Boolean(existingClaim),
         claimPolicy: settings.claimPolicy,
         pointsBalance,
@@ -80,11 +134,12 @@ export async function getEidRewardStatus(userId: string, now = new Date()) {
         minRedeemPoints: settings.minRedeemPoints,
         conversion,
         popup: {
-            show: settings.showPopupAfterLogin && active && !existingClaim,
+            show: statusState.popupShow,
             allowLaterDismiss: settings.allowLaterDismiss,
             closeDelaySeconds: settings.closeDelaySeconds,
             beforeText: settings.beforeText,
             afterText: settings.afterText,
+            texts: popupTexts,
         },
         message: !settings.enabled || !active
             ? 'انتهت عروض العيد، تابعنا في المناسبات القادمة.'
@@ -106,13 +161,17 @@ export async function claimEidReward(input: {
 
     try {
         return await prisma.$transaction(async (tx) => {
-            const [user, settings, conversionSettings] = await Promise.all([
+            const [user, settings, conversionSettings, audienceOverride] = await Promise.all([
                 tx.user.findUnique({
                     where: { id: input.userId },
                     select: { id: true, role: true, isActive: true, deletedAt: true },
                 }),
                 getEidRewardSettings(tx),
                 getPointProgramSettings(tx),
+                tx.eidRewardAudienceOverride.findUnique({
+                    where: { settingsId_userId: { settingsId: EID_REWARD_SETTINGS_ID, userId: input.userId } },
+                    select: { effect: true },
+                }),
             ])
 
             if (!user || !user.isActive || user.deletedAt) {
@@ -121,6 +180,12 @@ export async function claimEidReward(input: {
             if (!isEidEventActive(settings, now)) {
                 throw new EidRewardError('Eid reward event is not active', 'INACTIVE_EVENT')
             }
+            const audience = evaluateEidRewardAudience({
+                user,
+                audienceRoles: settings.audienceRoles,
+                override: audienceOverride,
+            })
+            assertEidRewardAudienceCanClaim(audience)
 
             const claimDate = buildCairoClaimDate(now)
             const claimScopeKey = buildClaimScopeKey(settings.eventKey, settings.claimPolicy, now)
@@ -174,6 +239,11 @@ export async function claimEidReward(input: {
                 conversionAmountUsd: conversionSettings.cashConversionAmountUsd,
                 enabled: readiness.ok,
             })
+            const popupTexts = normalizeEidPopupTexts({
+                popupTexts: settings.popupTexts,
+                beforeText: settings.beforeText,
+                afterText: settings.afterText,
+            })
 
             return {
                 claim: {
@@ -185,6 +255,7 @@ export async function claimEidReward(input: {
                 },
                 pointsBalance,
                 conversion,
+                message: formatEidPopupText(popupTexts.pointsText, { points }),
             }
         })
     } catch (error) {

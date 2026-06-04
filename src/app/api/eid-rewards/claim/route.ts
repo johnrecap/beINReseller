@@ -36,13 +36,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             ...reward,
-            message: `مبروك! حصلت على ${reward.claim.points} نقطة`,
+            message: reward.message,
         }, { status: 201, headers: rateLimitHeaders(result) })
     } catch (error) {
         if (error instanceof EidRewardError) {
             const status = error.code === 'ALREADY_CLAIMED'
                 ? 409
                 : error.code === 'INACTIVE_USER'
+                    || error.code === 'NOT_ELIGIBLE_AUDIENCE'
                     ? 403
                     : 400
             return NextResponse.json({ error: error.message, code: error.code }, { status })

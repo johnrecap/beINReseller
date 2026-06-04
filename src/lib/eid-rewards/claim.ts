@@ -73,7 +73,7 @@ export function buildConversionState(input: {
 }
 
 export async function getEidRewardStatus(userId: string, now = new Date()) {
-    const [settings, conversionSettings, ledgerEntries, user, audienceOverride] = await Promise.all([
+    const [settings, conversionSettings, ledgerEntries, user, audienceOverride, allowOverrideCount] = await Promise.all([
         getEidRewardSettings(prisma),
         getPointProgramSettings(prisma),
         prisma.pointLedgerEntry.findMany({
@@ -87,6 +87,9 @@ export async function getEidRewardStatus(userId: string, now = new Date()) {
         prisma.eidRewardAudienceOverride.findUnique({
             where: { settingsId_userId: { settingsId: EID_REWARD_SETTINGS_ID, userId } },
             select: { effect: true },
+        }),
+        prisma.eidRewardAudienceOverride.count({
+            where: { settingsId: EID_REWARD_SETTINGS_ID, effect: 'ALLOW' },
         }),
     ])
 
@@ -109,6 +112,7 @@ export async function getEidRewardStatus(userId: string, now = new Date()) {
         user,
         audienceRoles: settings.audienceRoles,
         override: audienceOverride,
+        hasAllowOverrides: allowOverrideCount > 0,
     })
     const statusState = buildEidRewardStatusState({
         active,
@@ -161,7 +165,7 @@ export async function claimEidReward(input: {
 
     try {
         return await prisma.$transaction(async (tx) => {
-            const [user, settings, conversionSettings, audienceOverride] = await Promise.all([
+            const [user, settings, conversionSettings, audienceOverride, allowOverrideCount] = await Promise.all([
                 tx.user.findUnique({
                     where: { id: input.userId },
                     select: { id: true, role: true, isActive: true, deletedAt: true },
@@ -171,6 +175,9 @@ export async function claimEidReward(input: {
                 tx.eidRewardAudienceOverride.findUnique({
                     where: { settingsId_userId: { settingsId: EID_REWARD_SETTINGS_ID, userId: input.userId } },
                     select: { effect: true },
+                }),
+                tx.eidRewardAudienceOverride.count({
+                    where: { settingsId: EID_REWARD_SETTINGS_ID, effect: 'ALLOW' },
                 }),
             ])
 
@@ -184,6 +191,7 @@ export async function claimEidReward(input: {
                 user,
                 audienceRoles: settings.audienceRoles,
                 override: audienceOverride,
+                hasAllowOverrides: allowOverrideCount > 0,
             })
             assertEidRewardAudienceCanClaim(audience)
 

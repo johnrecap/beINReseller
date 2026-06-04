@@ -7,6 +7,7 @@ export type EidAudienceDecisionReason =
     | 'ROLE_DENIED'
     | 'USER_ALLOWED'
     | 'USER_DENIED'
+    | 'USER_NOT_ALLOWED'
     | 'INACTIVE_USER'
     | 'DELETED_USER'
 
@@ -41,6 +42,7 @@ export function evaluateEidRewardAudience(input: {
     user: EidAudienceUserLike | null
     audienceRoles: readonly string[]
     override: EidAudienceOverrideLike
+    hasAllowOverrides?: boolean
 }): { allowed: boolean; reason: EidAudienceDecisionReason } {
     if (!input.user || !input.user.isActive) {
         return { allowed: false, reason: 'INACTIVE_USER' }
@@ -56,6 +58,10 @@ export function evaluateEidRewardAudience(input: {
 
     if (input.override?.effect === 'ALLOW') {
         return { allowed: true, reason: 'USER_ALLOWED' }
+    }
+
+    if (input.hasAllowOverrides) {
+        return { allowed: false, reason: 'USER_NOT_ALLOWED' }
     }
 
     const roles = normalizeEidAudienceRoles(input.audienceRoles)

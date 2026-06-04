@@ -43,10 +43,23 @@ test('allow override permits a user whose role is not selected', () => {
         user: activeUser,
         audienceRoles: ['AGENT'],
         override: { effect: 'ALLOW' },
+        hasAllowOverrides: true,
     })
 
     assert.equal(result.allowed, true)
     assert.equal(result.reason, 'USER_ALLOWED')
+})
+
+test('manual allow list is exclusive when any allow override exists', () => {
+    const result = evaluateEidRewardAudience({
+        user: activeUser,
+        audienceRoles: ['USER'],
+        override: null,
+        hasAllowOverrides: true,
+    })
+
+    assert.equal(result.allowed, false)
+    assert.equal(result.reason, 'USER_NOT_ALLOWED')
 })
 
 test('deny override wins even when the user role is selected', () => {

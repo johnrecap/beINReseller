@@ -65,6 +65,12 @@ export const en = {
         enterPassword: 'Enter password',
         loggingIn: 'Logging in...',
         unexpectedError: 'Unexpected Error',
+        invalidLogin: 'Login name or password is not correct.',
+        invalidLoginAttemptsRemaining: '{message} {count} {attemptsLabel} remaining.',
+        loginAttemptSingular: 'attempt',
+        loginAttemptPlural: 'attempts',
+        loginCooldown: 'Too many unsuccessful attempts. Try again after {time}.',
+        tryAgain: 'Please try again.',
     },
     sidebar: {
         mainMenu: 'Main Menu',

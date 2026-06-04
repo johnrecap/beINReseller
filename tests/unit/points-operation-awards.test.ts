@@ -7,7 +7,7 @@ import {
 } from '@/lib/points/operation-awards'
 import { buildPointReversalEntries } from '@/lib/points/reversals'
 
-test('routes manager-owned user spend to the manager only', () => {
+test('routes manager-owned user spend to the manager only when manager-owned user points are disabled', () => {
     const recipients = resolveOperationPointRecipients({
         operationUser: { id: 'user-1', role: 'USER', isActive: true, deletedAt: null },
         managerOwnership: {
@@ -20,6 +20,55 @@ test('routes manager-owned user spend to the manager only', () => {
 
     assert.deepEqual(recipients, [
         { ownerUserId: 'manager-1', ownerRole: 'MANAGER', ownerKind: 'MANAGER' },
+    ])
+})
+
+test('routes manager-owned user spend to manager and user when manager-owned user points are enabled', () => {
+    const recipients = resolveOperationPointRecipients({
+        operationUser: { id: 'user-1', role: 'USER', isActive: true, deletedAt: null },
+        managerOwnership: {
+            manager: { id: 'manager-1', role: 'MANAGER', isActive: true, deletedAt: null },
+        },
+        agentAssignment: {
+            agent: { id: 'agent-1', role: 'AGENT', isActive: true, deletedAt: null },
+        },
+        managerOwnedUserPointsEnabled: true,
+    })
+
+    assert.deepEqual(recipients, [
+        { ownerUserId: 'manager-1', ownerRole: 'MANAGER', ownerKind: 'MANAGER' },
+        { ownerUserId: 'user-1', ownerRole: 'USER', ownerKind: 'MANAGER_OWNED_USER' },
+    ])
+})
+
+test('builds manager-owned user entries with a dedicated rate bucket', () => {
+    const entries = buildOperationSpendAwardEntries({
+        operationId: 'operation-manager-user',
+        amountUsd: 500,
+        recipients: [
+            { ownerUserId: 'manager-1', ownerRole: 'MANAGER', ownerKind: 'MANAGER', ratePerThousand: 10 },
+            { ownerUserId: 'user-1', ownerRole: 'USER', ownerKind: 'MANAGER_OWNED_USER', ratePerThousand: 4 },
+        ],
+    })
+
+    assert.deepEqual(entries.map((entry) => ({
+        ownerUserId: entry.ownerUserId,
+        ownerRoleAtTime: entry.ownerRoleAtTime,
+        points: entry.points,
+        ratePerThousandSnapshot: entry.ratePerThousandSnapshot,
+    })), [
+        {
+            ownerUserId: 'manager-1',
+            ownerRoleAtTime: 'MANAGER',
+            points: 5,
+            ratePerThousandSnapshot: 10,
+        },
+        {
+            ownerUserId: 'user-1',
+            ownerRoleAtTime: 'USER',
+            points: 2,
+            ratePerThousandSnapshot: 4,
+        },
     ])
 })
 

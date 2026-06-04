@@ -85,6 +85,7 @@ enum PointRuleOwnerType {
   AGENT_OVERRIDE
   MANAGER_DEFAULT
   MANAGER_OVERRIDE
+  MANAGER_OWNED_USER_DEFAULT
 }
 
 enum PointLedgerSourceType {
@@ -352,14 +353,15 @@ model PointRule {
 }
 
 model PointProgramSettings {
-  id                      String    @id @default("default")
-  pointsEnabled           Boolean   @default(false) @map("points_enabled")
-  pointsStartAt           DateTime? @map("points_start_at")
-  cashConversionPoints    Float     @default(0) @map("cash_conversion_points")
-  cashConversionAmountUsd Float     @default(0) @map("cash_conversion_amount_usd")
-  updatedByAdminId        String?   @map("updated_by_admin_id")
-  createdAt               DateTime  @default(now()) @map("created_at")
-  updatedAt               DateTime  @updatedAt @map("updated_at")
+  id                            String    @id @default("default")
+  pointsEnabled                 Boolean   @default(false) @map("points_enabled")
+  pointsStartAt                 DateTime? @map("points_start_at")
+  cashConversionPoints          Float     @default(0) @map("cash_conversion_points")
+  cashConversionAmountUsd       Float     @default(0) @map("cash_conversion_amount_usd")
+  managerOwnedUserPointsEnabled Boolean   @default(false) @map("manager_owned_user_points_enabled")
+  updatedByAdminId              String?   @map("updated_by_admin_id")
+  createdAt                     DateTime  @default(now()) @map("created_at")
+  updatedAt                     DateTime  @updatedAt @map("updated_at")
 
   updatedByAdmin User? @relation("PointProgramSettingsUpdater", fields: [updatedByAdminId], references: [id])
 

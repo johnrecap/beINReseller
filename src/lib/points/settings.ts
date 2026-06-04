@@ -8,6 +8,7 @@ export type PointProgramSettingsSnapshot = {
     pointsStartAt: Date | null
     cashConversionPoints: number
     cashConversionAmountUsd: number
+    managerOwnedUserPointsEnabled: boolean
 }
 
 export async function getPointProgramSettings(
@@ -20,6 +21,7 @@ export async function getPointProgramSettings(
             pointsStartAt: true,
             cashConversionPoints: true,
             cashConversionAmountUsd: true,
+            managerOwnedUserPointsEnabled: true,
         },
     })
 
@@ -28,6 +30,7 @@ export async function getPointProgramSettings(
         pointsStartAt: null,
         cashConversionPoints: 0,
         cashConversionAmountUsd: 0,
+        managerOwnedUserPointsEnabled: false,
     }
 }
 
@@ -51,11 +54,15 @@ async function findActiveRuleRate(
 
 export async function getSpendPointRate(input: {
     db: PointSettingsReader
-    ownerKind: 'USER' | 'AGENT' | 'MANAGER'
+    ownerKind: 'USER' | 'AGENT' | 'MANAGER' | 'MANAGER_OWNED_USER'
     ownerUserId: string
 }): Promise<number> {
     if (input.ownerKind === 'USER') {
         return findActiveRuleRate(input.db, 'USER_GLOBAL', null).then((rate) => rate ?? 0)
+    }
+
+    if (input.ownerKind === 'MANAGER_OWNED_USER') {
+        return findActiveRuleRate(input.db, 'MANAGER_OWNED_USER_DEFAULT', null).then((rate) => rate ?? 0)
     }
 
     if (input.ownerKind === 'AGENT') {

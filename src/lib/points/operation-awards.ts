@@ -3,8 +3,8 @@ import prisma from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { getPointProgramSettings, getSpendPointRate } from '@/lib/points/settings'
 
-export type AwardableRateKind = 'USER' | 'AGENT' | 'MANAGER'
-export type AwardableOwnerRole = AwardableRateKind | 'ADMIN'
+export type AwardableRateKind = 'USER' | 'AGENT' | 'MANAGER' | 'MANAGER_OWNED_USER'
+export type AwardableOwnerRole = 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN'
 
 export type AwardableUser = {
     id: string
@@ -72,13 +72,24 @@ export function resolveOperationPointRecipients(input: {
     operationUser: AwardableUser
     managerOwnership: { manager: AwardableUser } | null
     agentAssignment: { agent: AwardableUser } | null
+    managerOwnedUserPointsEnabled?: boolean
 }): OperationPointRecipient[] {
     if (isReceivableOwner(input.managerOwnership?.manager, 'MANAGER')) {
-        return [{
+        const recipients: OperationPointRecipient[] = [{
             ownerUserId: input.managerOwnership.manager.id,
             ownerRole: 'MANAGER',
             ownerKind: 'MANAGER',
         }]
+
+        if (input.managerOwnedUserPointsEnabled && isReceivableOwner(input.operationUser, 'USER')) {
+            recipients.push({
+                ownerUserId: input.operationUser.id,
+                ownerRole: 'USER',
+                ownerKind: 'MANAGER_OWNED_USER',
+            })
+        }
+
+        return recipients
     }
 
     if (isReceivableOwner(input.agentAssignment?.agent, 'AGENT')) {
@@ -265,6 +276,7 @@ export async function processCompletedOperationPointsInTransaction(
         operationUser: operation.user,
         managerOwnership: operation.user.managerLink[0] ?? null,
         agentAssignment: operation.user.agentAssignmentAsUser[0] ?? null,
+        managerOwnedUserPointsEnabled: settings.managerOwnedUserPointsEnabled,
     })
 
     const ratedRecipients = await Promise.all(recipients.map(async (recipient) => ({

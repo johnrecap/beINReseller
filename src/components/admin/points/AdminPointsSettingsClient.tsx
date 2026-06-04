@@ -20,9 +20,11 @@ type PointsSettingsData = {
         pointsStartAt: string | null
         cashConversionPoints: number
         cashConversionAmountUsd: number
+        managerOwnedUserPointsEnabled: boolean
     }
     defaults: {
         userGlobalPointsPerThousand: number
+        managerOwnedUserPointsPerThousand: number
         agentDefaultPointsPerThousand: number
         managerDefaultPointsPerThousand: number
     }
@@ -43,6 +45,7 @@ export default function AdminPointsSettingsClient() {
     const [data, setData] = useState<PointsSettingsData | null>(null)
     const [defaults, setDefaults] = useState<DefaultsDraft>({
         userGlobalPointsPerThousand: 0,
+        managerOwnedUserPointsPerThousand: 0,
         agentDefaultPointsPerThousand: 0,
         managerDefaultPointsPerThousand: 0,
     })
@@ -51,6 +54,7 @@ export default function AdminPointsSettingsClient() {
         pointsStartAt: null,
         cashConversionPoints: 100,
         cashConversionAmountUsd: 10,
+        managerOwnedUserPointsEnabled: false,
     })
     const [agentOverrides, setAgentOverrides] = useState<OverrideDraft>({})
     const [managerOverrides, setManagerOverrides] = useState<OverrideDraft>({})
@@ -59,7 +63,7 @@ export default function AdminPointsSettingsClient() {
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
-    const loadData = useCallback(async () => {
+    const loadData = useCallback(async (): Promise<boolean> => {
         setLoading(true)
         setError(null)
 
@@ -71,12 +75,24 @@ export default function AdminPointsSettingsClient() {
             }
 
             setData(payload)
-            setDefaults(payload.defaults)
+            setDefaults({
+                userGlobalPointsPerThousand: payload.defaults?.userGlobalPointsPerThousand
+                    ?? payload.defaults?.userPointsPerThousand
+                    ?? 0,
+                managerOwnedUserPointsPerThousand: payload.defaults?.managerOwnedUserPointsPerThousand ?? 0,
+                agentDefaultPointsPerThousand: payload.defaults?.agentDefaultPointsPerThousand
+                    ?? payload.defaults?.agentPointsPerThousand
+                    ?? 0,
+                managerDefaultPointsPerThousand: payload.defaults?.managerDefaultPointsPerThousand
+                    ?? payload.defaults?.managerPointsPerThousand
+                    ?? 0,
+            })
             setProgram({
                 pointsEnabled: payload.settings?.pointsEnabled ?? false,
                 pointsStartAt: utcIsoToCairoDateTimeLocal(payload.settings?.pointsStartAt ?? null) || null,
                 cashConversionPoints: payload.settings?.cashConversionPoints ?? 100,
                 cashConversionAmountUsd: payload.settings?.cashConversionAmountUsd ?? 10,
+                managerOwnedUserPointsEnabled: payload.settings?.managerOwnedUserPointsEnabled ?? false,
             })
             setAgentOverrides(Object.fromEntries(
                 payload.agents.map((agent: PersonRate) => [
@@ -90,8 +106,10 @@ export default function AdminPointsSettingsClient() {
                     manager.overridePointsPerThousand === null ? '' : manager.overridePointsPerThousand.toString(),
                 ])
             ))
+            return true
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load point settings')
+            return false
         } finally {
             setLoading(false)
         }
@@ -109,11 +127,15 @@ export default function AdminPointsSettingsClient() {
 
         try {
             const payload = {
-                ...defaults,
                 pointsEnabled: program.pointsEnabled,
                 pointsStartAt: program.pointsStartAt ? cairoDateTimeLocalToUtcIso(program.pointsStartAt) : null,
                 cashConversionPoints: program.cashConversionPoints,
                 cashConversionAmountUsd: program.cashConversionAmountUsd,
+                managerOwnedUserPointsEnabled: program.managerOwnedUserPointsEnabled,
+                userGlobalPointsPerThousand: defaults.userGlobalPointsPerThousand,
+                managerOwnedUserPointsPerThousand: defaults.managerOwnedUserPointsPerThousand,
+                agentDefaultPointsPerThousand: defaults.agentDefaultPointsPerThousand,
+                managerDefaultPointsPerThousand: defaults.managerDefaultPointsPerThousand,
                 agentOverrides: Object.entries(agentOverrides)
                     .filter(([, value]) => value.trim() !== '')
                     .map(([agentId, value]) => ({ agentId, pointsPerThousand: toRate(value) })),
@@ -132,8 +154,11 @@ export default function AdminPointsSettingsClient() {
                 throw new Error(result?.error || 'Failed to save point settings')
             }
 
+            const reloaded = await loadData()
+            if (!reloaded) {
+                throw new Error('Point settings saved, but failed to reload saved values.')
+            }
             setSuccess('Point settings saved.')
-            await loadData()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save point settings')
         } finally {
@@ -171,7 +196,7 @@ export default function AdminPointsSettingsClient() {
             <form className="space-y-6" onSubmit={saveSettings}>
                 <section className="rounded-lg border border-border bg-card p-4">
                     <h2 className="text-xl font-semibold">Program</h2>
-                    <div className="mt-4 grid gap-4 md:grid-cols-4">
+                    <div className="mt-4 grid gap-4 md:grid-cols-5">
                         <label className="flex items-center gap-3 rounded-lg border border-border p-3">
                             <input
                                 type="checkbox"
@@ -221,14 +246,26 @@ export default function AdminPointsSettingsClient() {
                                 }))}
                             />
                         </label>
+                        <label className="flex items-center gap-3 rounded-lg border border-border p-3">
+                            <input
+                                type="checkbox"
+                                checked={program.managerOwnedUserPointsEnabled}
+                                onChange={(event) => setProgram((draft) => ({
+                                    ...draft,
+                                    managerOwnedUserPointsEnabled: event.target.checked,
+                                }))}
+                                className="h-4 w-4"
+                            />
+                            <span className="text-sm font-medium">Manager-owned user points</span>
+                        </label>
                     </div>
                 </section>
 
                 <section className="rounded-lg border border-border bg-card p-4">
                     <h2 className="text-xl font-semibold">Default Rules</h2>
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div className="mt-4 grid gap-4 md:grid-cols-4">
                         <label className="block space-y-2">
-                            <span className="text-sm text-muted-foreground">User points per 1000 USD</span>
+                            <span className="text-sm text-muted-foreground">Normal user points per 1000 USD</span>
                             <Input
                                 type="number"
                                 min="0"
@@ -241,7 +278,20 @@ export default function AdminPointsSettingsClient() {
                             />
                         </label>
                         <label className="block space-y-2">
-                            <span className="text-sm text-muted-foreground">Default agent points per 1000 USD</span>
+                            <span className="text-sm text-muted-foreground">Manager-owned user points per 1000 USD</span>
+                            <Input
+                                type="number"
+                                min="0"
+                                step="0.0001"
+                                value={defaults.managerOwnedUserPointsPerThousand}
+                                onChange={(event) => setDefaults((draft) => ({
+                                    ...draft,
+                                    managerOwnedUserPointsPerThousand: toRate(event.target.value),
+                                }))}
+                            />
+                        </label>
+                        <label className="block space-y-2">
+                            <span className="text-sm text-muted-foreground">Agent points per 1000 USD</span>
                             <Input
                                 type="number"
                                 min="0"
@@ -254,7 +304,7 @@ export default function AdminPointsSettingsClient() {
                             />
                         </label>
                         <label className="block space-y-2">
-                            <span className="text-sm text-muted-foreground">Default manager points per 1000 USD</span>
+                            <span className="text-sm text-muted-foreground">Manager points per 1000 USD</span>
                             <Input
                                 type="number"
                                 min="0"

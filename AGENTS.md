@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/028-eid-reward-audience-copy/plan.md`,
-`specs/028-eid-reward-audience-copy/spec.md`, and
-`specs/028-eid-reward-audience-copy/tasks.md` before editing.
+`specs/029-points-manager-user-rewards/plan.md`,
+`specs/029-points-manager-user-rewards/spec.md`, and
+`specs/029-points-manager-user-rewards/tasks.md` before editing.
 <!-- SPECKIT END -->

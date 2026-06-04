@@ -1,53 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PointRuleOwnerType } from '@prisma/client'
-import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
-
-const rateSchema = z.number().min(0).max(100000)
-
-const settingsSchema = z.object({
-    pointsEnabled: z.boolean().optional().default(false),
-    pointsStartAt: z.string().datetime().nullable().optional().default(null),
-    userPointsPerThousand: rateSchema.optional(),
-    agentPointsPerThousand: rateSchema.optional(),
-    managerPointsPerThousand: rateSchema.optional(),
-    userGlobalPointsPerThousand: rateSchema.optional(),
-    agentDefaultPointsPerThousand: rateSchema.optional(),
-    managerDefaultPointsPerThousand: rateSchema.optional(),
-    cashConversionPoints: z.number().positive(),
-    cashConversionAmountUsd: z.number().positive(),
-    agentOverrides: z.array(z.object({
-        agentId: z.string().min(1),
-        pointsPerThousand: rateSchema,
-    })).optional().default([]),
-    managerOverrides: z.array(z.object({
-        managerId: z.string().min(1),
-        pointsPerThousand: rateSchema,
-    })).optional().default([]),
-}).superRefine((value, ctx) => {
-    if (value.pointsEnabled && !value.pointsStartAt) {
-        ctx.addIssue({
-            code: 'custom',
-            path: ['pointsStartAt'],
-            message: 'pointsStartAt is required when points are enabled',
-        })
-    }
-
-    const userRate = value.userPointsPerThousand ?? value.userGlobalPointsPerThousand
-    const agentRate = value.agentPointsPerThousand ?? value.agentDefaultPointsPerThousand
-    const managerRate = value.managerPointsPerThousand ?? value.managerDefaultPointsPerThousand
-
-    if (userRate === undefined) {
-        ctx.addIssue({ code: 'custom', path: ['userPointsPerThousand'], message: 'User point rate is required' })
-    }
-    if (agentRate === undefined) {
-        ctx.addIssue({ code: 'custom', path: ['agentPointsPerThousand'], message: 'Agent point rate is required' })
-    }
-    if (managerRate === undefined) {
-        ctx.addIssue({ code: 'custom', path: ['managerPointsPerThousand'], message: 'Manager point rate is required' })
-    }
-})
+import {
+    buildPointSettingsResponse,
+    normalizePointSettingsInput,
+} from '@/lib/points/admin-settings-normalization'
 
 type RuleKey = `${PointRuleOwnerType}:${string}`
 
@@ -70,6 +28,7 @@ export async function GET(request: NextRequest) {
                     pointsStartAt: true,
                     cashConversionPoints: true,
                     cashConversionAmountUsd: true,
+                    managerOwnedUserPointsEnabled: true,
                 },
             }),
             prisma.pointRule.findMany({
@@ -108,20 +67,13 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        return NextResponse.json({
-            settings: {
-                pointsEnabled: settings?.pointsEnabled ?? false,
-                pointsStartAt: settings?.pointsStartAt?.toISOString() ?? null,
-                cashConversionPoints: settings?.cashConversionPoints ?? 0,
-                cashConversionAmountUsd: settings?.cashConversionAmountUsd ?? 0,
-            },
-            defaults: {
+        return NextResponse.json(buildPointSettingsResponse({
+            settings,
+            rates: {
                 userGlobalPointsPerThousand: ruleMap.get(makeRuleKey('USER_GLOBAL', null))?.pointsPerThousand ?? 0,
+                managerOwnedUserPointsPerThousand: ruleMap.get(makeRuleKey('MANAGER_OWNED_USER_DEFAULT', null))?.pointsPerThousand ?? 0,
                 agentDefaultPointsPerThousand: ruleMap.get(makeRuleKey('AGENT_DEFAULT', null))?.pointsPerThousand ?? 0,
                 managerDefaultPointsPerThousand: ruleMap.get(makeRuleKey('MANAGER_DEFAULT', null))?.pointsPerThousand ?? 0,
-                userPointsPerThousand: ruleMap.get(makeRuleKey('USER_GLOBAL', null))?.pointsPerThousand ?? 0,
-                agentPointsPerThousand: ruleMap.get(makeRuleKey('AGENT_DEFAULT', null))?.pointsPerThousand ?? 0,
-                managerPointsPerThousand: ruleMap.get(makeRuleKey('MANAGER_DEFAULT', null))?.pointsPerThousand ?? 0,
             },
             agents: agents.map((agent) => ({
                 id: agent.id,
@@ -136,7 +88,7 @@ export async function GET(request: NextRequest) {
                 isActive: manager.isActive,
                 overridePointsPerThousand: ruleMap.get(makeRuleKey('MANAGER_OVERRIDE', manager.id))?.pointsPerThousand ?? null,
             })),
-        })
+        }))
     } catch (error) {
         console.error('Admin points settings list error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -151,20 +103,29 @@ export async function PUT(request: NextRequest) {
         }
 
         const body = await request.json().catch(() => null)
-        const parsed = settingsSchema.safeParse(body)
-        if (!parsed.success) {
+        const normalized = normalizePointSettingsInput(body)
+        if (!normalized.ok) {
+            if (normalized.error === 'Duplicate override owners') {
+                return NextResponse.json(
+                    {
+                        error: normalized.error,
+                        duplicateAgentIds: normalized.duplicateAgentIds,
+                        duplicateManagerIds: normalized.duplicateManagerIds,
+                    },
+                    { status: 400 }
+                )
+            }
+
             return NextResponse.json(
-                { error: 'Invalid points settings data', details: parsed.error.flatten() },
+                { error: normalized.error, details: normalized.details },
                 { status: 400 }
             )
         }
 
-        const userRate = parsed.data.userPointsPerThousand ?? parsed.data.userGlobalPointsPerThousand ?? 0
-        const agentRate = parsed.data.agentPointsPerThousand ?? parsed.data.agentDefaultPointsPerThousand ?? 0
-        const managerRate = parsed.data.managerPointsPerThousand ?? parsed.data.managerDefaultPointsPerThousand ?? 0
-        const pointsStartAt = parsed.data.pointsStartAt ? new Date(parsed.data.pointsStartAt) : null
-        const agentIds = parsed.data.agentOverrides.map((item) => item.agentId)
-        const managerIds = parsed.data.managerOverrides.map((item) => item.managerId)
+        const data = normalized.data
+        const pointsStartAt = data.pointsStartAt ? new Date(data.pointsStartAt) : null
+        const agentIds = data.agentOverrides.map((item) => item.agentId)
+        const managerIds = data.managerOverrides.map((item) => item.managerId)
         const [validAgents, validManagers] = await Promise.all([
             prisma.user.findMany({
                 where: { id: { in: agentIds }, role: 'AGENT', deletedAt: null },
@@ -197,17 +158,19 @@ export async function PUT(request: NextRequest) {
                 where: { id: 'default' },
                 create: {
                     id: 'default',
-                    pointsEnabled: parsed.data.pointsEnabled,
+                    pointsEnabled: data.pointsEnabled,
                     pointsStartAt,
-                    cashConversionPoints: parsed.data.cashConversionPoints,
-                    cashConversionAmountUsd: parsed.data.cashConversionAmountUsd,
+                    cashConversionPoints: data.cashConversionPoints,
+                    cashConversionAmountUsd: data.cashConversionAmountUsd,
+                    managerOwnedUserPointsEnabled: data.managerOwnedUserPointsEnabled,
                     updatedByAdminId: authResult.user.id,
                 },
                 update: {
-                    pointsEnabled: parsed.data.pointsEnabled,
+                    pointsEnabled: data.pointsEnabled,
                     pointsStartAt,
-                    cashConversionPoints: parsed.data.cashConversionPoints,
-                    cashConversionAmountUsd: parsed.data.cashConversionAmountUsd,
+                    cashConversionPoints: data.cashConversionPoints,
+                    cashConversionAmountUsd: data.cashConversionAmountUsd,
+                    managerOwnedUserPointsEnabled: data.managerOwnedUserPointsEnabled,
                     updatedByAdminId: authResult.user.id,
                 },
             })
@@ -217,6 +180,7 @@ export async function PUT(request: NextRequest) {
                     isActive: true,
                     OR: [
                         { ownerType: 'USER_GLOBAL', ownerUserId: null },
+                        { ownerType: 'MANAGER_OWNED_USER_DEFAULT', ownerUserId: null },
                         { ownerType: 'AGENT_DEFAULT', ownerUserId: null },
                         { ownerType: 'MANAGER_DEFAULT', ownerUserId: null },
                         { ownerType: 'AGENT_OVERRIDE' },
@@ -231,32 +195,39 @@ export async function PUT(request: NextRequest) {
                     {
                         ownerType: 'USER_GLOBAL',
                         ownerUserId: null,
-                        pointsPerThousand: userRate,
+                        pointsPerThousand: data.userGlobalPointsPerThousand,
+                        updatedByAdminId: authResult.user.id,
+                        isActive: true,
+                    },
+                    {
+                        ownerType: 'MANAGER_OWNED_USER_DEFAULT',
+                        ownerUserId: null,
+                        pointsPerThousand: data.managerOwnedUserPointsPerThousand,
                         updatedByAdminId: authResult.user.id,
                         isActive: true,
                     },
                     {
                         ownerType: 'AGENT_DEFAULT',
                         ownerUserId: null,
-                        pointsPerThousand: agentRate,
+                        pointsPerThousand: data.agentDefaultPointsPerThousand,
                         updatedByAdminId: authResult.user.id,
                         isActive: true,
                     },
                     {
                         ownerType: 'MANAGER_DEFAULT',
                         ownerUserId: null,
-                        pointsPerThousand: managerRate,
+                        pointsPerThousand: data.managerDefaultPointsPerThousand,
                         updatedByAdminId: authResult.user.id,
                         isActive: true,
                     },
-                    ...parsed.data.agentOverrides.map((item) => ({
+                    ...data.agentOverrides.map((item) => ({
                         ownerType: 'AGENT_OVERRIDE' as const,
                         ownerUserId: item.agentId,
                         pointsPerThousand: item.pointsPerThousand,
                         updatedByAdminId: authResult.user.id,
                         isActive: true,
                     })),
-                    ...parsed.data.managerOverrides.map((item) => ({
+                    ...data.managerOverrides.map((item) => ({
                         ownerType: 'MANAGER_OVERRIDE' as const,
                         ownerUserId: item.managerId,
                         pointsPerThousand: item.pointsPerThousand,
@@ -272,22 +243,43 @@ export async function PUT(request: NextRequest) {
                     action: 'ADMIN_POINT_RULES_UPDATED',
                     targetType: 'PointRule',
                     details: {
-                        pointsEnabled: parsed.data.pointsEnabled,
+                        pointsEnabled: data.pointsEnabled,
                         pointsStartAt: pointsStartAt?.toISOString() ?? null,
-                        userGlobal: userRate,
-                        agentDefault: agentRate,
-                        managerDefault: managerRate,
-                        cashConversionPoints: parsed.data.cashConversionPoints,
-                        cashConversionAmountUsd: parsed.data.cashConversionAmountUsd,
-                        agentOverrides: parsed.data.agentOverrides.length,
-                        managerOverrides: parsed.data.managerOverrides.length,
+                        userGlobal: data.userGlobalPointsPerThousand,
+                        managerOwnedUserEnabled: data.managerOwnedUserPointsEnabled,
+                        managerOwnedUserDefault: data.managerOwnedUserPointsPerThousand,
+                        agentDefault: data.agentDefaultPointsPerThousand,
+                        managerDefault: data.managerDefaultPointsPerThousand,
+                        cashConversionPoints: data.cashConversionPoints,
+                        cashConversionAmountUsd: data.cashConversionAmountUsd,
+                        agentOverrides: data.agentOverrides.length,
+                        managerOverrides: data.managerOverrides.length,
                     },
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                 },
             })
         })
 
-        return NextResponse.json({ success: true })
+        return NextResponse.json({
+            success: true,
+            ...buildPointSettingsResponse({
+                settings: {
+                    pointsEnabled: data.pointsEnabled,
+                    pointsStartAt,
+                    cashConversionPoints: data.cashConversionPoints,
+                    cashConversionAmountUsd: data.cashConversionAmountUsd,
+                    managerOwnedUserPointsEnabled: data.managerOwnedUserPointsEnabled,
+                },
+                rates: {
+                    userGlobalPointsPerThousand: data.userGlobalPointsPerThousand,
+                    managerOwnedUserPointsPerThousand: data.managerOwnedUserPointsPerThousand,
+                    agentDefaultPointsPerThousand: data.agentDefaultPointsPerThousand,
+                    managerDefaultPointsPerThousand: data.managerDefaultPointsPerThousand,
+                },
+                agents: [],
+                managers: [],
+            }),
+        })
     } catch (error) {
         console.error('Admin update points settings error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })

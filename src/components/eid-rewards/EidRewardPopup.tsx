@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button'
 import EidRewardEnvelope from '@/components/eid-rewards/EidRewardEnvelope'
 import {
     EID_REWARD_POPUP_HIDE_KEY,
+    getEidRewardSuccessAction,
+    isPopupHiddenByStorageValue,
+    popupClosedStorageValue,
     shouldRememberPopupClosed,
     type EidRewardPopupCloseReason,
 } from '@/lib/eid-rewards/popup-visibility'
@@ -102,7 +105,8 @@ export default function EidRewardPopup() {
             if (!response.ok) throw new Error(payload?.error || payload?.popup?.texts?.genericErrorText || 'تعذر تحميل عيدية العيد')
 
             setStatus(payload)
-            const hidden = typeof window !== 'undefined' && sessionStorage.getItem(EID_REWARD_POPUP_HIDE_KEY) === '1'
+            const hidden = typeof window !== 'undefined'
+                && isPopupHiddenByStorageValue(sessionStorage.getItem(EID_REWARD_POPUP_HIDE_KEY))
             if (payload.eligible && payload.popup.show && !hidden) {
                 setViewState('eligible')
                 setVisible(true)
@@ -176,7 +180,7 @@ export default function EidRewardPopup() {
 
     function closePopup(reason: EidRewardPopupCloseReason) {
         if (shouldRememberPopupClosed(reason)) {
-            sessionStorage.setItem(EID_REWARD_POPUP_HIDE_KEY, '1')
+            sessionStorage.setItem(EID_REWARD_POPUP_HIDE_KEY, popupClosedStorageValue(reason))
         }
         setVisible(false)
     }
@@ -189,6 +193,7 @@ export default function EidRewardPopup() {
 
     const isBusy = viewState === 'claiming' || viewState === 'redeeming'
     const isSuccess = viewState === 'claimedSuccess' || viewState === 'redeeming' || viewState === 'redeemedSuccess'
+    const successAction = getEidRewardSuccessAction(status.conversion.enabled)
     const texts = status.popup.texts || {
         title: 'عيد مبارك',
         beforeText: status.popup.beforeText,
@@ -292,11 +297,21 @@ export default function EidRewardPopup() {
                                     {texts.openingText}
                                 </Button>
                             )}
-                            {(viewState === 'claimedSuccess' || viewState === 'redeeming') && (
-                                <Button onClick={redeemPoints} disabled={isBusy || !status.conversion.enabled} className="bg-[#0F6B4F] text-white hover:bg-[#128461]">
+                            {(viewState === 'claimedSuccess' || viewState === 'redeeming') && successAction === 'convert-points' && (
+                                <Button onClick={redeemPoints} disabled={isBusy} className="bg-[#0F6B4F] text-white hover:bg-[#128461]">
                                     {viewState === 'redeeming' && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
                                     {viewState === 'redeeming' ? texts.redeemingText : texts.redeemButtonText}
                                 </Button>
+                            )}
+                            {viewState === 'claimedSuccess' && successAction === 'acknowledge-points' && (
+                                <>
+                                    <p className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 p-3 text-center text-sm text-emerald-100">
+                                        تمت إضافة النقاط إلى محفظتك. تحويل النقاط إلى رصيد يحتاج تفعيل إعدادات النقاط.
+                                    </p>
+                                    <Button onClick={() => closePopup('redeemed')} className="bg-[#0F6B4F] text-white hover:bg-[#128461]">
+                                        تم استلام الجائزة
+                                    </Button>
+                                </>
                             )}
                             <Button type="button" variant="outline" onClick={dismissLater} disabled={isBusy} className="border-white/20 bg-white/5 text-white hover:bg-white/10">
                                 {texts.laterButtonText}

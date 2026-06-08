@@ -1,14 +1,51 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Loader2, User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
+import {
+    getLoginFeedbackMessage,
+    mapAuthErrorToLoginFeedback,
+    type LoginFeedback,
+} from '@/components/auth/loginFeedback'
 
 import Link from 'next/link'
 import { FloatingInput } from '@/components/ui/FloatingInput'
+
+async function fetchLoginAttemptFeedback(loginName: string): Promise<LoginFeedback | null> {
+    try {
+        const response = await fetch('/api/auth/login-attempt-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loginName }),
+        })
+        if (!response.ok) {
+            return null
+        }
+
+        const data = await response.json()
+        if (data.status === 'cooldown_active') {
+            return {
+                status: 'cooldown_active',
+                cooldownSeconds: Number(data.cooldownSeconds) || 0,
+            }
+        }
+
+        if (data.status === 'invalid_credentials') {
+            return {
+                status: 'invalid_credentials',
+                remainingAttempts: typeof data.remainingAttempts === 'number' ? data.remainingAttempts : undefined,
+            }
+        }
+
+        return mapAuthErrorToLoginFeedback(data.status)
+    } catch {
+        return null
+    }
+}
 
 export default function LoginForm() {
     const { t } = useTranslation()
@@ -19,29 +56,61 @@ export default function LoginForm() {
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
-    const [error, setError] = useState('')
+    const [feedback, setFeedback] = useState<LoginFeedback | null>(null)
+    const [cooldownSeconds, setCooldownSeconds] = useState(0)
+    const [cooldownLoginName, setCooldownLoginName] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+    const submittedLoginName = username.trim()
+    const isCooldownActive = cooldownSeconds > 0 && submittedLoginName === cooldownLoginName
+    const visibleFeedback = feedback?.status === 'cooldown_active' && !isCooldownActive ? null : feedback
+
+    useEffect(() => {
+        if (cooldownSeconds <= 0) {
+            return
+        }
+
+        const timer = window.setInterval(() => {
+            setCooldownSeconds(previous => Math.max(0, previous - 1))
+        }, 1_000)
+
+        return () => window.clearInterval(timer)
+    }, [cooldownSeconds])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setError('')
+        setFeedback(null)
+
+        if (isCooldownActive) {
+            setFeedback({ status: 'cooldown_active', cooldownSeconds })
+            return
+        }
+
         setIsLoading(true)
 
         try {
             const result = await signIn('credentials', {
-                username,
+                username: submittedLoginName,
                 password,
                 redirect: false,
             })
 
             if (result?.error) {
-                setError(result.error)
+                const attemptFeedback = await fetchLoginAttemptFeedback(submittedLoginName)
+                const nextFeedback = attemptFeedback || mapAuthErrorToLoginFeedback(result.error)
+                setFeedback(nextFeedback)
+
+                if (nextFeedback.status === 'cooldown_active') {
+                    setCooldownSeconds(nextFeedback.cooldownSeconds || 0)
+                    setCooldownLoginName(submittedLoginName)
+                }
             } else {
+                setCooldownSeconds(0)
+                setCooldownLoginName('')
                 router.push(callbackUrl)
                 router.refresh()
             }
         } catch {
-            setError(t.auth?.unexpectedError || 'Unexpected error')
+            setFeedback({ status: 'unexpected_error' })
         } finally {
             setIsLoading(false)
         }
@@ -50,10 +119,15 @@ export default function LoginForm() {
     return (
         <form onSubmit={handleSubmit} className="space-y-6 w-full">
             {/* Error Alert */}
-            {error && (
+            {visibleFeedback && (
                 <div className="bg-red-500/10 border border-red-500/20 text-red-200 text-sm px-4 py-3 rounded-xl flex items-center gap-2 animate-in slide-in-from-top-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span>{error}</span>
+                    <span>{getLoginFeedbackMessage({
+                        ...visibleFeedback,
+                        cooldownSeconds: visibleFeedback.status === 'cooldown_active'
+                            ? cooldownSeconds
+                            : visibleFeedback.cooldownSeconds,
+                    }, t.auth)}</span>
                 </div>
             )}
 
@@ -94,7 +168,7 @@ export default function LoginForm() {
             {/* Submit Button */}
             <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || isCooldownActive}
                 className="simple-button w-full h-14 text-white font-bold text-lg"
             >
                 {isLoading ? (

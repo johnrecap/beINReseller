@@ -65,6 +65,12 @@ export const ar = {
         enterPassword: 'أدخل كلمة المرور',
         loggingIn: 'جاري تسجيل الدخول...',
         unexpectedError: 'خطأ غير متوقع',
+        invalidLogin: 'اسم الدخول أو كلمة المرور غير صحيحة.',
+        invalidLoginAttemptsRemaining: '{message} متبقي {count} {attemptsLabel}.',
+        loginAttemptSingular: 'محاولة',
+        loginAttemptPlural: 'محاولات',
+        loginCooldown: 'تم إدخال بيانات غير صحيحة عدة مرات. حاول مرة أخرى بعد {time}.',
+        tryAgain: 'حاول مرة أخرى.',
     },
     sidebar: {
         mainMenu: 'القائمة الرئيسية',

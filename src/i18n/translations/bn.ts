@@ -65,6 +65,12 @@ export const bn = {
         enterPassword: 'পাসওয়ার্ড লিখুন',
         loggingIn: 'লগইন করা হচ্ছে...',
         unexpectedError: 'অপ্রত্যাশিত ত্রুটি',
+        invalidLogin: 'লগইন নাম অথবা পাসওয়ার্ড সঠিক নয়।',
+        invalidLoginAttemptsRemaining: '{message} আর {count} {attemptsLabel} বাকি।',
+        loginAttemptSingular: 'চেষ্টা',
+        loginAttemptPlural: 'চেষ্টা',
+        loginCooldown: 'অনেকবার ভুল চেষ্টা হয়েছে। {time} পরে আবার চেষ্টা করুন।',
+        tryAgain: 'আবার চেষ্টা করুন।',
     },
     sidebar: {
         mainMenu: 'প্রধান মেনু',

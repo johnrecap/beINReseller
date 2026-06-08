@@ -7,6 +7,7 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
 import { getAgentTransferErrorResponse, transferUserToAgentInTransaction } from '@/lib/agents/assignment-transfer'
+import { buildManagerOwnedUserFilter } from '@/lib/admin/users-ownership-filter'
 import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
 import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
 
@@ -63,12 +64,9 @@ export async function GET(request: NextRequest) {
             // Only USER role
             where.role = 'USER'
 
-            // If managerId is provided, filter by creator or manager relationship
+            // If managerId is provided, use current ownership with a legacy creator fallback.
             if (managerId) {
-                where.OR = [
-                    { createdById: managerId },
-                    { managerLink: { some: { managerId: managerId } } }
-                ]
+                Object.assign(where, buildManagerOwnedUserFilter(managerId))
             }
         }
 

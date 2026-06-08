@@ -1,5 +1,11 @@
-import { AuthenticatedUser, hasExactRole } from '@/lib/auth-utils'
+import type { AuthenticatedUser } from '@/lib/auth-utils'
+import type { CurrentOwnerClassification } from '@/lib/users/ownership'
+import type { CreditRequestEligibilityReason } from '@/lib/credit-requests/types'
 import type { Prisma } from '@prisma/client'
+
+function hasExactRole(role: string | null | undefined, expected: string): boolean {
+    return role === expected
+}
 
 type PendingRequestClient = Pick<Prisma.TransactionClient, 'creditRequest'>
 
@@ -42,6 +48,25 @@ export function canRequestCredit(input: CreditRequestEligibilityInput): boolean 
     if (isManagerOwnedUser(input.activeManagerOwnership)) return false
 
     return isActiveAgentAssignment(input.activeAgentAssignment)
+}
+
+export function getEligibilityReasonForOwner(input: {
+    user: UserState
+    owner: CurrentOwnerClassification
+}): CreditRequestEligibilityReason {
+    if (input.user.role !== 'USER') return 'NOT_USER'
+    if (input.user.isActive === false || input.user.deletedAt) return 'INACTIVE_USER'
+    if (input.owner.ownerType === 'MANAGER') return 'MANAGER_OWNED'
+    if (input.owner.ownerType === 'UNOWNED') return 'UNOWNED'
+
+    return 'ELIGIBLE'
+}
+
+export function canRequestCreditForOwner(input: {
+    user: UserState
+    owner: CurrentOwnerClassification
+}): boolean {
+    return getEligibilityReasonForOwner(input) === 'ELIGIBLE'
 }
 
 export function canAdminDecide(actor: Pick<AuthenticatedUser, 'role'>): boolean {

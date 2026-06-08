@@ -11,9 +11,11 @@ type CreditRequestTelegramNotificationInput = {
     username: string
     amountUsd: number
     paymentMethod: string
-    agentId: string
-    agentName: string
-    sourceGroup: string
+    ownerType: string
+    ownerLabel: string | null
+    agentId: string | null
+    agentName: string | null
+    sourceGroup: string | null
 }
 
 type NotificationResult = {
@@ -78,7 +80,7 @@ export async function sendCreditRequestTelegramNotification(
             targetGroupId: targetId || null,
             targetGroupNameSnapshot: targetLabel,
             creditRequestId: input.creditRequestId,
-            agentId: input.agentId,
+            agentId: input.agentId || null,
             payloadSummary: message,
             status: 'PENDING',
         },

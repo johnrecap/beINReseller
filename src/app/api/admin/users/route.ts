@@ -10,6 +10,7 @@ import { getAgentTransferErrorResponse, transferUserToAgentInTransaction } from 
 import { buildManagerOwnedUserFilter } from '@/lib/admin/users-ownership-filter'
 import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
 import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
+import { classifyCurrentUserOwner } from '@/lib/users/ownership'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -249,23 +250,54 @@ export async function GET(request: NextRequest) {
                                 id: true,
                                 username: true,
                                 email: true,
-                                role: true
+                                role: true,
+                                isActive: true,
+                                deletedAt: true,
                             }
                         },
-                        // Include manager link (legacy relationship)
                         managerLink: {
                             select: {
+                                id: true,
+                                managerId: true,
                                 manager: {
                                     select: {
                                         id: true,
                                         username: true,
                                         email: true,
-                                        role: true
+                                        role: true,
+                                        isActive: true,
+                                        deletedAt: true,
                                     }
                                 }
                             },
-                            take: 1
-                        }
+                        },
+                        agentAssignmentAsUser: {
+                            where: { isActive: true },
+                            select: {
+                                id: true,
+                                agentId: true,
+                                sourceGroup: true,
+                                whatsappGroupUrl: true,
+                                isActive: true,
+                                agent: {
+                                    select: {
+                                        id: true,
+                                        username: true,
+                                        email: true,
+                                        role: true,
+                                        isActive: true,
+                                        deletedAt: true,
+                                        agentProfile: {
+                                            select: {
+                                                displayName: true,
+                                                isActive: true,
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                            orderBy: { createdAt: 'desc' },
+                        },
                     },
                     orderBy: { createdAt: 'desc' },
                     skip: (page - 1) * limit,
@@ -278,8 +310,17 @@ export async function GET(request: NextRequest) {
 
             return NextResponse.json({
                 users: users.map(u => {
-                    // Prefer createdBy, fallback to managerLink for legacy data
-                    const creator = u.createdBy || u.managerLink[0]?.manager || null
+                    const currentOwner = classifyCurrentUserOwner({
+                        user: u,
+                        managerLinks: u.managerLink,
+                        activeAssignments: u.agentAssignmentAsUser,
+                    })
+                    const creator = currentOwner.ownerType === 'LEGACY_ADMIN'
+                        ? u.createdBy
+                        : u.managerLink.find((link) => link.managerId === currentOwner.ownerId)?.manager
+                            || u.agentAssignmentAsUser.find((assignment) => assignment.agentId === currentOwner.ownerId)?.agent
+                            || u.createdBy
+                            || null
                     return {
                         id: u.id,
                         username: u.username,
@@ -296,6 +337,13 @@ export async function GET(request: NextRequest) {
                         creatorUsername: creator?.username || null,
                         creatorEmail: creator?.email || null,
                         creatorRole: creator?.role || null,
+                        currentOwner: {
+                            type: currentOwner.ownerType,
+                            id: currentOwner.ownerId,
+                            label: currentOwner.ownerLabel,
+                            isLegacyFallback: currentOwner.isLegacyFallback,
+                            hasConflict: currentOwner.conflicts.hasMixedCurrentOwners,
+                        },
                         // Proxy status (based on user_proxy_limit setting)
                         hasProxyLinked: proxyLinkedUserIds.includes(u.id),
                         points: pointSummaries.get(u.id) ?? emptyPointSummary(),

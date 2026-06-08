@@ -7,10 +7,12 @@ function createTxMock(input: {
     assignmentSourceGroup?: string | null
     agentGroupUrl?: string | null
     defaultGroupUrl?: string | null
+    onAssignmentLookup?: () => void
 }) {
     return {
         agentAssignment: {
             async findFirst() {
+                input.onAssignmentLookup?.()
                 return input.assignmentGroupUrl || input.assignmentSourceGroup
                     ? {
                         sourceGroup: input.assignmentSourceGroup ?? null,
@@ -90,4 +92,27 @@ test('ignores unsafe group URLs and falls back to configured defaults', async ()
 
     assert.equal(destination.groupUrl, 'https://chat.whatsapp.com/agent-group')
     assert.equal(destination.label, 'Unsafe group')
+})
+
+test('admin-owned requests skip current assignment lookup and use global defaults', async () => {
+    let assignmentLookupCount = 0
+    const destination = await resolveWhatsAppHandoffDestination(createTxMock({
+        assignmentGroupUrl: 'https://chat.whatsapp.com/current-agent-group',
+        assignmentSourceGroup: 'Current agent group',
+        agentGroupUrl: 'https://chat.whatsapp.com/agent-group',
+        defaultGroupUrl: 'https://chat.whatsapp.com/global-group',
+        onAssignmentLookup: () => {
+            assignmentLookupCount += 1
+        },
+    }) as never, {
+        ownerType: 'ADMIN',
+        agentId: null,
+        userId: 'user-1',
+        sourceGroup: null,
+        whatsappGroupUrl: null,
+    })
+
+    assert.equal(assignmentLookupCount, 0)
+    assert.equal(destination.groupUrl, 'https://chat.whatsapp.com/global-group')
+    assert.equal(destination.label, 'Global default')
 })

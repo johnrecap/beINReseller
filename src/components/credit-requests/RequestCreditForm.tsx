@@ -11,6 +11,8 @@ import type { CreditRequestListItem } from '@/lib/credit-requests/types'
 type Eligibility = {
     canRequest: boolean
     reason: string
+    ownerType: string | null
+    ownerLabel: string | null
     agentName: string | null
     sourceGroup: string | null
 }
@@ -24,7 +26,17 @@ const blockedMessages: Record<string, string> = {
     NOT_USER: 'Credit requests are available only for customer accounts.',
     INACTIVE_USER: 'This account cannot request credit right now.',
     MANAGER_OWNED: 'Credit requests are not available for users managed by a manager.',
+    UNOWNED: 'Credit requests are not available until this account is assigned to admin or an agent.',
     NO_ACTIVE_AGENT_ASSIGNMENT: 'Credit requests are available only for users assigned to an agent.',
+}
+
+function ownerDescription(eligibility: Eligibility | undefined) {
+    if (!eligibility) return ''
+    if (eligibility.ownerType === 'AGENT') {
+        return `Agent: ${eligibility.agentName || eligibility.ownerLabel || '-'} | Group: ${eligibility.sourceGroup || '-'}`
+    }
+
+    return `Owner: ${eligibility.ownerLabel || 'Admin direct'}`
 }
 
 function formatDate(value: string) {
@@ -175,7 +187,7 @@ export default function RequestCreditForm() {
                     <CardHeader>
                         <CardTitle>New Credit Request</CardTitle>
                         <CardDescription>
-                            Agent: {data?.eligibility.agentName || '-'} | Group: {data?.eligibility.sourceGroup || '-'}
+                            {ownerDescription(data?.eligibility)}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -239,6 +251,7 @@ export default function RequestCreditForm() {
                                         <th className="py-3 text-start">Order ID</th>
                                         <th className="py-3 text-start">Amount</th>
                                         <th className="py-3 text-start">Payment</th>
+                                        <th className="py-3 text-start">Owner</th>
                                         <th className="py-3 text-start">Status</th>
                                         <th className="py-3 text-start">Notification</th>
                                         <th className="py-3 text-start">Created</th>
@@ -250,6 +263,7 @@ export default function RequestCreditForm() {
                                             <td className="py-3 font-mono text-xs">{request.requestNumber}</td>
                                             <td className="py-3 font-semibold">USD {request.amountUsd.toFixed(2)}</td>
                                             <td className="py-3">{request.paymentMethod}</td>
+                                            <td className="py-3">{request.ownerLabel || request.agentName || '-'}</td>
                                             <td className="py-3"><StatusBadge status={request.status} /></td>
                                             <td className="py-3">{request.notificationStatus || '-'}</td>
                                             <td className="py-3 text-[var(--color-text-secondary)]">{formatDate(request.createdAt)}</td>

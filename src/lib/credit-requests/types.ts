@@ -38,6 +38,7 @@ export type CreditRequestEligibilityReason =
     | 'NOT_USER'
     | 'INACTIVE_USER'
     | 'MANAGER_OWNED'
+    | 'UNOWNED'
     | 'NO_ACTIVE_AGENT_ASSIGNMENT'
 
 export type CreditRequestListItem = {
@@ -46,6 +47,8 @@ export type CreditRequestListItem = {
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
     amountUsd: number
     paymentMethod: string
+    ownerType?: 'ADMIN' | 'MANAGER' | 'AGENT' | 'LEGACY_ADMIN' | 'UNOWNED' | null
+    ownerLabel?: string | null
     agentName: string | null
     sourceGroup: string | null
     createdAt: string

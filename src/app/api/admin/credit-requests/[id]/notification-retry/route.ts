@@ -23,6 +23,8 @@ export async function POST(
                 amountUsd: true,
                 paymentMethod: true,
                 status: true,
+                ownerTypeSnapshot: true,
+                ownerLabelSnapshot: true,
                 agentIdSnapshot: true,
                 agentNameSnapshot: true,
                 sourceGroupSnapshot: true,
@@ -46,9 +48,11 @@ export async function POST(
             username: creditRequest.usernameSnapshot,
             amountUsd: creditRequest.amountUsd,
             paymentMethod: creditRequest.paymentMethod,
-            agentId: creditRequest.agentIdSnapshot || '',
-            agentName: creditRequest.agentNameSnapshot || '-',
-            sourceGroup: creditRequest.sourceGroupSnapshot || '-',
+            ownerType: creditRequest.ownerTypeSnapshot || (creditRequest.agentIdSnapshot ? 'AGENT' : 'UNOWNED'),
+            ownerLabel: creditRequest.ownerLabelSnapshot || creditRequest.agentNameSnapshot || null,
+            agentId: creditRequest.agentIdSnapshot,
+            agentName: creditRequest.agentNameSnapshot,
+            sourceGroup: creditRequest.sourceGroupSnapshot,
         })
 
         await prisma.activityLog.create({

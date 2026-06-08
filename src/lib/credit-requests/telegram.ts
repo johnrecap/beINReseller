@@ -17,17 +17,28 @@ export function formatCreditRequestTelegramMessage(input: {
     username: string
     amountUsd: number
     paymentMethod: string
-    agentName: string
-    sourceGroup: string
+    ownerType?: string | null
+    ownerLabel?: string | null
+    agentName?: string | null
+    sourceGroup?: string | null
 }): string {
-    return [
+    const ownerLabel = input.ownerLabel?.trim() || input.agentName?.trim() || 'Unknown owner'
+    const lines = [
         'Credit request created',
         '',
         `Username: ${input.username}`,
         `Amount: ${input.amountUsd} USD`,
         `Payment: ${input.paymentMethod}`,
-        `Agent: ${input.agentName}`,
-        `Group: ${input.sourceGroup}`,
+        `Owner: ${ownerLabel}`,
+    ]
+
+    if (input.ownerType === 'AGENT') {
+        if (input.agentName?.trim()) lines.push(`Agent: ${input.agentName.trim()}`)
+        if (input.sourceGroup?.trim()) lines.push(`Group: ${input.sourceGroup.trim()}`)
+    }
+
+    return [
+        ...lines,
         `Order ID: #${input.requestNumber}`,
         'Status: Pending',
     ].join('\n')

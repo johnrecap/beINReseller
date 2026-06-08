@@ -33,6 +33,9 @@ type AdminCreditRequestItem = {
     amountUsd: number
     paymentMethod: string
     notes: string | null
+    ownerType: string | null
+    ownerId: string | null
+    ownerLabel: string | null
     agentId: string | null
     agentName: string | null
     sourceGroup: string | null
@@ -420,7 +423,7 @@ export default function AdminCreditRequestsClient() {
                                     <th className="px-3 py-3 text-start">User</th>
                                     <th className="px-3 py-3 text-start">Amount</th>
                                     <th className="px-3 py-3 text-start">Payment</th>
-                                    <th className="px-3 py-3 text-start">Agent</th>
+                                    <th className="px-3 py-3 text-start">Owner</th>
                                     <th className="px-3 py-3 text-start">Notification</th>
                                     <th className="px-3 py-3 text-start">Points Preview</th>
                                     <th className="px-3 py-3 text-start">Status</th>
@@ -453,8 +456,10 @@ export default function AdminCreditRequestsClient() {
                                             <td className="px-3 py-3 font-semibold text-foreground">{formatUsd(item.amountUsd)}</td>
                                             <td className="px-3 py-3 text-foreground">{item.paymentMethod}</td>
                                             <td className="px-3 py-3">
-                                                <div className="text-foreground">{item.agentName || '-'}</div>
-                                                <div className="text-xs text-muted-foreground">{item.sourceGroup || '-'}</div>
+                                                <div className="text-foreground">{item.ownerLabel || item.agentName || '-'}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {item.ownerType === 'AGENT' ? item.sourceGroup || '-' : item.ownerType || '-'}
+                                                </div>
                                             </td>
                                             <td className="px-3 py-3">
                                                 <div className="text-foreground">{item.notification?.status || '-'}</div>

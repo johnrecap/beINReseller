@@ -3,14 +3,15 @@ import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { requireAuthAPI } from '@/lib/auth-utils'
 import {
-    canRequestCredit,
+    canRequestCreditForOwner,
     findPendingCreditRequestForUser,
+    getEligibilityReasonForOwner,
 } from '@/lib/credit-requests/permissions'
 import {
-    CreditRequestEligibilityReason,
     createCreditRequestSchema,
 } from '@/lib/credit-requests/types'
 import { sendCreditRequestTelegramNotification } from '@/lib/credit-requests/notifications'
+import { classifyCurrentUserOwner } from '@/lib/users/ownership'
 
 function toDatePart(date: Date): string {
     const year = date.getFullYear()
@@ -50,20 +51,8 @@ function duplicatePendingResponse(existing: {
     )
 }
 
-function getEligibilityReason(input: {
-    user: { role: string; isActive: boolean; deletedAt: Date | null }
-    hasManagerOwnership: boolean
-    hasAgentAssignment: boolean
-}): CreditRequestEligibilityReason {
-    if (input.user.role !== 'USER') return 'NOT_USER'
-    if (!input.user.isActive || input.user.deletedAt) return 'INACTIVE_USER'
-    if (input.hasManagerOwnership) return 'MANAGER_OWNED'
-    if (!input.hasAgentAssignment) return 'NO_ACTIVE_AGENT_ASSIGNMENT'
-    return 'ELIGIBLE'
-}
-
 async function getCreditRequestContext(userId: string) {
-    const [user, activeManagerOwnership, activeAgentAssignment] = await Promise.all([
+    const [user, managerLinks, activeAgentAssignments] = await Promise.all([
         prisma.user.findUnique({
             where: { id: userId },
             select: {
@@ -72,13 +61,34 @@ async function getCreditRequestContext(userId: string) {
                 role: true,
                 isActive: true,
                 deletedAt: true,
+                createdBy: {
+                    select: {
+                        id: true,
+                        username: true,
+                        role: true,
+                        isActive: true,
+                        deletedAt: true,
+                    },
+                },
             },
         }),
-        prisma.managerUser.findFirst({
+        prisma.managerUser.findMany({
             where: { userId },
-            select: { managerId: true, userId: true },
+            select: {
+                id: true,
+                managerId: true,
+                manager: {
+                    select: {
+                        id: true,
+                        username: true,
+                        role: true,
+                        isActive: true,
+                        deletedAt: true,
+                    },
+                },
+            },
         }),
-        prisma.agentAssignment.findFirst({
+        prisma.agentAssignment.findMany({
             where: { userId, isActive: true },
             orderBy: { createdAt: 'desc' },
             select: {
@@ -92,9 +102,13 @@ async function getCreditRequestContext(userId: string) {
                     select: {
                         id: true,
                         username: true,
+                        role: true,
+                        isActive: true,
+                        deletedAt: true,
                         agentProfile: {
                             select: {
                                 displayName: true,
+                                isActive: true,
                             },
                         },
                     },
@@ -103,7 +117,18 @@ async function getCreditRequestContext(userId: string) {
         }),
     ])
 
-    return { user, activeManagerOwnership, activeAgentAssignment }
+    const owner = user
+        ? classifyCurrentUserOwner({
+            user,
+            managerLinks,
+            activeAssignments: activeAgentAssignments,
+        })
+        : null
+    const activeAgentAssignment = owner?.ownerType === 'AGENT'
+        ? activeAgentAssignments.find((assignment) => assignment.id === owner.agentAssignmentId) || null
+        : null
+
+    return { user, managerLinks, activeAgentAssignments, activeAgentAssignment, owner }
 }
 
 export async function GET(request: NextRequest) {
@@ -113,15 +138,14 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        const { user, activeManagerOwnership, activeAgentAssignment } = await getCreditRequestContext(authResult.user.id)
-        if (!user) {
+        const { user, activeAgentAssignment, owner } = await getCreditRequestContext(authResult.user.id)
+        if (!user || !owner) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const eligibilityReason = getEligibilityReason({
+        const eligibilityReason = getEligibilityReasonForOwner({
             user,
-            hasManagerOwnership: Boolean(activeManagerOwnership),
-            hasAgentAssignment: Boolean(activeAgentAssignment),
+            owner,
         })
 
         const requests = await prisma.creditRequest.findMany({
@@ -134,6 +158,8 @@ export async function GET(request: NextRequest) {
                 status: true,
                 amountUsd: true,
                 paymentMethod: true,
+                ownerTypeSnapshot: true,
+                ownerLabelSnapshot: true,
                 agentNameSnapshot: true,
                 sourceGroupSnapshot: true,
                 createdAt: true,
@@ -152,6 +178,8 @@ export async function GET(request: NextRequest) {
             eligibility: {
                 canRequest: eligibilityReason === 'ELIGIBLE',
                 reason: eligibilityReason,
+                ownerType: owner.ownerType,
+                ownerLabel: owner.ownerLabel,
                 agentName,
                 sourceGroup: activeAgentAssignment?.sourceGroup || null,
             },
@@ -161,6 +189,8 @@ export async function GET(request: NextRequest) {
                 status: item.status,
                 amountUsd: item.amountUsd,
                 paymentMethod: item.paymentMethod,
+                ownerType: item.ownerTypeSnapshot,
+                ownerLabel: item.ownerLabelSnapshot,
                 agentName: item.agentNameSnapshot,
                 sourceGroup: item.sourceGroupSnapshot,
                 createdAt: item.createdAt.toISOString(),
@@ -189,33 +219,36 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const { user, activeManagerOwnership, activeAgentAssignment } = await getCreditRequestContext(authResult.user.id)
-        if (!user) {
+        const { user, activeAgentAssignment, owner } = await getCreditRequestContext(authResult.user.id)
+        if (!user || !owner) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const eligible = canRequestCredit({
+        const eligible = canRequestCreditForOwner({
             user,
-            activeAgentAssignment,
-            activeManagerOwnership,
+            owner,
         })
 
-        if (!eligible || !activeAgentAssignment) {
+        if (!eligible || (owner.ownerType === 'AGENT' && !activeAgentAssignment)) {
             return NextResponse.json(
                 {
                     error: 'Credit request is not available for this account',
-                    reason: getEligibilityReason({
+                    reason: getEligibilityReasonForOwner({
                         user,
-                        hasManagerOwnership: Boolean(activeManagerOwnership),
-                        hasAgentAssignment: Boolean(activeAgentAssignment),
+                        owner,
                     }),
                 },
                 { status: 403 }
             )
         }
 
-        const agentProfile = activeAgentAssignment.agent.agentProfile
-        const agentName = agentProfile?.displayName || activeAgentAssignment.agent.username
+        const agentProfile = activeAgentAssignment?.agent.agentProfile
+        const agentName = activeAgentAssignment
+            ? agentProfile?.displayName || activeAgentAssignment.agent.username
+            : null
+        const ownerLabel = owner.ownerLabel
+            || (owner.ownerType === 'ADMIN' || owner.ownerType === 'LEGACY_ADMIN' ? 'Admin direct' : null)
+            || agentName
         const requestNumber = createRequestNumber()
         const notes = parsed.data.notes?.trim() || null
         const existingPending = await findPendingCreditRequestForUser(prisma, user.id)
@@ -242,10 +275,13 @@ export async function POST(request: NextRequest) {
                         amountUsd: parsed.data.amountUsd,
                         paymentMethod: parsed.data.paymentMethod,
                         notes,
-                        agentIdSnapshot: activeAgentAssignment.agentId,
+                        ownerTypeSnapshot: owner.ownerType,
+                        ownerIdSnapshot: owner.ownerId,
+                        ownerLabelSnapshot: ownerLabel,
+                        agentIdSnapshot: activeAgentAssignment?.agentId || null,
                         agentNameSnapshot: agentName,
-                        sourceGroupSnapshot: activeAgentAssignment.sourceGroup,
-                        whatsappGroupUrlSnapshot: activeAgentAssignment.whatsappGroupUrl,
+                        sourceGroupSnapshot: activeAgentAssignment?.sourceGroup || null,
+                        whatsappGroupUrlSnapshot: activeAgentAssignment?.whatsappGroupUrl || null,
                         status: 'PENDING',
                     },
                 })
@@ -285,9 +321,11 @@ export async function POST(request: NextRequest) {
             username: user.username,
             amountUsd: creditRequest.amountUsd,
             paymentMethod: creditRequest.paymentMethod,
-            agentId: activeAgentAssignment.agentId,
+            ownerType: owner.ownerType,
+            ownerLabel,
+            agentId: activeAgentAssignment?.agentId || null,
             agentName,
-            sourceGroup: activeAgentAssignment.sourceGroup,
+            sourceGroup: activeAgentAssignment?.sourceGroup || null,
         })
 
         return NextResponse.json({
@@ -298,8 +336,10 @@ export async function POST(request: NextRequest) {
                 status: creditRequest.status,
                 amountUsd: creditRequest.amountUsd,
                 paymentMethod: creditRequest.paymentMethod,
+                ownerType: owner.ownerType,
+                ownerLabel,
                 agentName,
-                sourceGroup: activeAgentAssignment.sourceGroup,
+                sourceGroup: activeAgentAssignment?.sourceGroup || null,
                 createdAt: creditRequest.createdAt.toISOString(),
             },
             notification: {

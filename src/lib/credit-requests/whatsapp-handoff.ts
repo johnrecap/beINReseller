@@ -9,6 +9,7 @@ type CreateHandoffInput = {
     amountUsd: number
     userId: string
     agentId: string | null
+    ownerType?: string | null
     agentName: string | null
     sourceGroup: string | null
     whatsappGroupUrl: string | null
@@ -78,19 +79,21 @@ export function buildWhatsAppPhoneUrl(phone: string | null, message: string): st
 export async function resolveWhatsAppHandoffDestination(
     tx: HandoffTx,
     input: {
+        ownerType?: string | null
         agentId: string | null
         userId?: string | null
         sourceGroup?: string | null
         whatsappGroupUrl?: string | null
     }
 ): Promise<HandoffDestination> {
+    const shouldResolveAgent = input.ownerType ? input.ownerType === 'AGENT' : Boolean(input.agentId)
     const [activeAssignment, agentProfile, globalSettings] = await Promise.all([
-        input.userId
+        shouldResolveAgent && input.userId
             ? tx.agentAssignment.findFirst({
                 where: {
                     userId: input.userId,
                     isActive: true,
-                    ...(input.agentId ? { agentId: input.agentId } : {}),
+                    agentId: input.agentId || undefined,
                 },
                 orderBy: { createdAt: 'desc' },
                 select: {
@@ -99,7 +102,7 @@ export async function resolveWhatsAppHandoffDestination(
                 },
             })
             : null,
-        input.agentId
+        shouldResolveAgent && input.agentId
             ? tx.agentProfile.findUnique({
                 where: { agentId: input.agentId },
                 select: {
@@ -149,6 +152,7 @@ export async function createWhatsAppHandoffSnapshot(
         approvedAt,
     })
     const destination = await resolveWhatsAppHandoffDestination(tx, {
+        ownerType: input.ownerType,
         agentId: input.agentId,
         userId: input.userId,
         sourceGroup: input.sourceGroup,

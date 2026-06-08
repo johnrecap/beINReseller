@@ -293,6 +293,9 @@ model CreditRequest {
   agentNameSnapshot        String?             @map("agent_name_snapshot")
   sourceGroupSnapshot      String?             @map("source_group_snapshot")
   whatsappGroupUrlSnapshot String?             @map("whatsapp_group_url_snapshot")
+  ownerTypeSnapshot        String?             @map("owner_type_snapshot")
+  ownerIdSnapshot          String?             @map("owner_id_snapshot")
+  ownerLabelSnapshot       String?             @map("owner_label_snapshot")
   status                   CreditRequestStatus @default(PENDING)
   escalated                Boolean             @default(false)
   escalationNote           String?             @map("escalation_note")
@@ -314,6 +317,7 @@ model CreditRequest {
   @@index([status, createdAt])
   @@index([userId, createdAt])
   @@index([agentIdSnapshot, status])
+  @@index([ownerTypeSnapshot, status])
   @@map("credit_requests")
 }
 

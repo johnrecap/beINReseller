@@ -9,7 +9,7 @@ import EditUserDialog from './EditUserDialog'
 import AddBalanceDialog from './AddBalanceDialog'
 import ResetPasswordDialog from './ResetPasswordDialog'
 import UserStatsDialog from './UserStatsDialog'
-import TransferToAgentDialog from './TransferToAgentDialog'
+import TransferOwnershipDialog from './TransferOwnershipDialog'
 import { useTranslation } from '@/hooks/useTranslation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
@@ -30,6 +30,13 @@ interface User {
     creatorUsername?: string | null
     creatorEmail?: string | null
     creatorRole?: string | null
+    currentOwner?: {
+        type: string
+        id: string | null
+        label: string | null
+        isLegacyFallback: boolean
+        hasConflict: boolean
+    }
     // Proxy status (for users tab)
     hasProxyLinked?: boolean
     points?: PointSummary
@@ -481,15 +488,26 @@ export default function UsersTable() {
                 </div>
             </td>
             <td className="px-4 py-3">
-                {user.creatorUsername ? (
+                {user.currentOwner?.label || user.creatorUsername ? (
                     <div>
-                        <p className="font-medium text-foreground">{user.creatorUsername}</p>
-                        <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${user.creatorRole === 'ADMIN'
+                        <p className="font-medium text-foreground">{user.currentOwner?.label || user.creatorUsername}</p>
+                        <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${user.currentOwner?.type === 'ADMIN' || user.currentOwner?.type === 'LEGACY_ADMIN' || user.creatorRole === 'ADMIN'
                                 ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                : user.currentOwner?.type === 'AGENT'
+                                    ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400'
+                                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                             }`}>
-                            {user.creatorRole === 'ADMIN' ? (t.admin?.users?.roles?.admin || 'Admin') : (t.admin?.users?.roles?.manager || 'Manager')}
+                            {user.currentOwner?.type === 'AGENT'
+                                ? 'Agent'
+                                : user.currentOwner?.type === 'MANAGER'
+                                    ? (t.admin?.users?.roles?.manager || 'Manager')
+                                    : user.currentOwner?.type === 'UNOWNED'
+                                        ? 'Unowned'
+                                        : (t.admin?.users?.roles?.admin || 'Admin')}
                         </span>
+                        {user.currentOwner?.hasConflict && (
+                            <div className="mt-1 text-[10px] text-amber-500">Ownership conflict</div>
+                        )}
                     </div>
                 ) : (
                     <span className="text-muted-foreground text-xs">-</span>
@@ -532,7 +550,7 @@ export default function UsersTable() {
                     <button
                         onClick={() => setTransferUser(user)}
                         className="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-cyan-600 rounded-lg transition-colors"
-                        title="Transfer to agent"
+                        title="Transfer owner"
                     >
                         <Shuffle className="w-4 h-4" />
                     </button>
@@ -904,7 +922,7 @@ export default function UsersTable() {
                 userId={statsUser?.id || null}
                 username={statsUser?.username || null}
             />
-            <TransferToAgentDialog
+            <TransferOwnershipDialog
                 isOpen={!!transferUser}
                 onClose={() => setTransferUser(null)}
                 onSuccess={() => {

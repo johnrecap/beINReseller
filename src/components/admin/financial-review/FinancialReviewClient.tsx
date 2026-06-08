@@ -282,6 +282,7 @@ function ReviewCard({
     const owner = item.user || item.customer
     const latestCheck = item.review.latestCardVerification
     const latestDecision = item.review.latestDecision
+    const canDecide = item.state === 'needs_decision' || item.state === 'follow_up'
     const beinAccountName =
         item.evidence.beinAccountLabel ||
         item.evidence.beinUsername ||
@@ -319,24 +320,30 @@ function ReviewCard({
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 xl:max-w-[460px] xl:justify-end">
-                    <button onClick={onVerify} disabled={busy} className="review-button">
-                        <ShieldCheck className="h-4 w-4" />
-                        فحص الأدلة المسجلة
-                    </button>
-                    <button onClick={() => onDecision('BEIN_EXECUTED_NO_REFUND')} disabled={busy} className="review-button review-button-success">
-                        <CheckCircle2 className="h-4 w-4" />
-                        تم التجديد - بدون رد فلوس
-                    </button>
-                    <button onClick={() => onDecision('REFUND_CUSTOMER')} disabled={busy} className="review-button review-button-danger">
-                        <Wallet className="h-4 w-4" />
-                        رد فلوس للعميل
-                    </button>
-                    <button onClick={() => onDecision('KEEP_UNDER_REVIEW')} disabled={busy} className="review-button">
-                        <Clock3 className="h-4 w-4" />
-                        متابعة لاحقا
-                    </button>
-                </div>
+                {canDecide ? (
+                    <div className="flex flex-wrap gap-2 xl:max-w-[460px] xl:justify-end">
+                        <button onClick={onVerify} disabled={busy} className="review-button">
+                            <ShieldCheck className="h-4 w-4" />
+                            فحص الأدلة المسجلة
+                        </button>
+                        <button onClick={() => onDecision('BEIN_EXECUTED_NO_REFUND')} disabled={busy} className="review-button review-button-success">
+                            <CheckCircle2 className="h-4 w-4" />
+                            تم التجديد - بدون رد فلوس
+                        </button>
+                        <button onClick={() => onDecision('REFUND_CUSTOMER')} disabled={busy} className="review-button review-button-danger">
+                            <Wallet className="h-4 w-4" />
+                            رد فلوس للعميل
+                        </button>
+                        <button onClick={() => onDecision('KEEP_UNDER_REVIEW')} disabled={busy} className="review-button">
+                            <Clock3 className="h-4 w-4" />
+                            متابعة لاحقا
+                        </button>
+                    </div>
+                ) : (
+                    <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100 xl:max-w-[360px]">
+                        تم قفل قرار هذه العملية. القرار محفوظ في السجل ولا يحتاج إجراء جديد.
+                    </div>
+                )}
             </div>
 
             {latestCheck && (

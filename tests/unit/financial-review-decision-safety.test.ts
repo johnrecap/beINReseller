@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
     appendManualReviewDecision,
+    canRecordFinancialReviewDecisionForStatus,
     getDefaultPaymentStatus,
     isFinancialReviewDecisionAllowed,
     normalizeManualVerificationForAction,
@@ -152,4 +153,18 @@ test('blocks refund when trusted provider debit exists unless escalated outside 
 
     assert.equal(result.allowed, false)
     assert.equal(result.reason, 'PROVIDER_CHARGE_EVIDENCE_CONFLICT')
+})
+
+test('allows recording no-refund admin decision for an already completed operation', () => {
+    assert.equal(canRecordFinancialReviewDecisionForStatus({
+        operationStatus: 'COMPLETED',
+        action: 'BEIN_EXECUTED_NO_REFUND',
+    }), true)
+})
+
+test('does not allow refund decisions on already completed operations', () => {
+    assert.equal(canRecordFinancialReviewDecisionForStatus({
+        operationStatus: 'COMPLETED',
+        action: 'REFUND_CUSTOMER',
+    }), false)
 })

@@ -27,6 +27,14 @@ type DecisionGuardResult = {
     reason?: 'MISSING_PROVIDER_CHARGE_EVIDENCE' | 'PROVIDER_CHARGE_EVIDENCE_CONFLICT' | 'MISSING_MANUAL_NO_CHARGE_VERIFICATION'
 }
 
+export function canRecordFinancialReviewDecisionForStatus(input: {
+    operationStatus: string
+    action: FinancialReviewDecisionAction
+}): boolean {
+    if (input.operationStatus === 'REVIEW_REQUIRED') return true
+    return input.operationStatus === 'COMPLETED' && input.action === 'BEIN_EXECUTED_NO_REFUND'
+}
+
 export function getDefaultPaymentStatus(action: FinancialReviewDecisionAction): FinancialReviewPaymentStatus | null {
     if (action === 'BEIN_EXECUTED_NO_REFUND') return 'تم تأكيد الدفع'
     if (action === 'REFUND_CUSTOMER') return 'لم يتم تأكيد الدفع'

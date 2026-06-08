@@ -321,7 +321,7 @@ test('T023 no-charge financial review refund is not duplicated when reseller ref
     assert.equal(result.refundAlreadyExists, true)
 })
 
-test('T023 charged financial review closure rejects missing provider charge evidence', () => {
+test('T023 manual charged financial review closure does not require provider charge evidence', () => {
     const chargedDecision = decision(
         'BEIN_EXECUTED_NO_REFUND',
         'Closing as charged without balance or ledger evidence should be rejected.'
@@ -332,7 +332,7 @@ test('T023 charged financial review closure rejects missing provider charge evid
         chargedBeinSpendLedger: null,
     }, new Map())
 
-    assert.ok(item, 'missing evidence should keep the review visible')
+    assert.ok(item, 'manual charged decision should keep the review visible in the confirmed tab')
     assert.equal(item.evidence.beinDebitConfirmed, false)
-    assert.equal(item.state, 'needs_decision')
+    assert.equal(item.state, 'bein_executed')
 })

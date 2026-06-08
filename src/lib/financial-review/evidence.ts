@@ -100,7 +100,7 @@ export function withFinancialReviewMetadata(
 function deriveState(review: FinancialReviewMetadata, evidence: FinancialReviewEvidence): FinancialReviewState {
     const latestDecision = review.latestDecision
     if (latestDecision?.action === 'REFUND_CUSTOMER' && latestDecision.refundApplied !== false && evidence.hasRefund) return 'refunded'
-    if (latestDecision?.action === 'BEIN_EXECUTED_NO_REFUND' && evidence.beinDebitConfirmed) return 'bein_executed'
+    if (latestDecision?.action === 'BEIN_EXECUTED_NO_REFUND') return 'bein_executed'
     if (latestDecision?.action === 'KEEP_UNDER_REVIEW') return 'follow_up'
     return 'needs_decision'
 }
@@ -125,7 +125,7 @@ export function buildFinancialReviewItem(
     const responseData = parseJsonRecord(operation.responseData)
     const auditSnapshot = getNestedRecord(responseData, 'auditSnapshot')
     const review = extractFinancialReviewMetadata(operation.responseData)
-    if (operation.status !== 'REVIEW_REQUIRED' && !review.latestDecision) return null
+    if (operation.status !== 'REVIEW_REQUIRED' && operation.status !== 'COMPLETED' && !review.latestDecision) return null
     const packageInfo = extractSelectedPackage(operation)
     const hasUserDeduction = operation.transactions.some((transaction) => transaction.type === 'OPERATION_DEDUCT')
     const hasRefund = operation.transactions.some((transaction) => transaction.type === 'REFUND')

@@ -169,6 +169,25 @@ test('keeps admin no-refund closure visible in the confirmed tab', () => {
     assert.equal(item.state, 'bein_executed')
 })
 
+test('treats legacy admin no-refund decision as confirmed even without new payment fields', () => {
+    const decision = manualDecision({
+        action: 'BEIN_EXECUTED_NO_REFUND',
+        source: 'admin_manual_review',
+    })
+    const item = buildItem({
+        status: 'COMPLETED',
+        responseData: {
+            auditSnapshot: { userDeductTotal: CUSTOMER_DEDUCT },
+            financialReview: {
+                latestDecision: decision,
+                decisions: [decision],
+            },
+        },
+    })
+
+    assert.equal(item.state, 'bein_executed')
+})
+
 test('uses manual verified not-paid decision as admin conclusion', () => {
     const decision = manualDecision({
         action: 'REFUND_CUSTOMER',

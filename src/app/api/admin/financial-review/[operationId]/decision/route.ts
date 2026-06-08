@@ -9,6 +9,7 @@ import {
 } from '@/lib/financial-review/evidence'
 import {
     appendManualReviewDecision,
+    canRecordFinancialReviewDecisionForStatus,
     getDefaultPaymentStatus,
     isFinancialReviewDecisionAllowed,
     normalizeManualVerificationForAction,
@@ -187,7 +188,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 },
             })
 
-            if (!operation || operation.status !== OperationStatus.REVIEW_REQUIRED) {
+            if (!operation || !canRecordFinancialReviewDecisionForStatus({
+                operationStatus: operation.status,
+                action,
+            })) {
                 throw new Error('OPERATION_NOT_REVIEWABLE')
             }
 

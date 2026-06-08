@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/031-admin-credit-ownership-transfer/plan.md`,
-`specs/031-admin-credit-ownership-transfer/spec.md`, and
-`specs/031-admin-credit-ownership-transfer/tasks.md` before editing.
+`specs/032-unify-points-awards/plan.md`,
+`specs/032-unify-points-awards/spec.md`, and
+`specs/032-unify-points-awards/tasks.md` before editing.
 <!-- SPECKIT END -->

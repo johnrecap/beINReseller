@@ -5,6 +5,7 @@ import { RefreshCw, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cairoDateTimeLocalToUtcIso, utcIsoToCairoDateTimeLocal } from '@/lib/egypt-time'
+import { POINTS_SETTINGS_COPY } from '@/lib/points/settings-copy'
 
 type PersonRate = {
     id: string
@@ -207,7 +208,12 @@ export default function AdminPointsSettingsClient() {
                                 }))}
                                 className="h-4 w-4"
                             />
-                            <span className="text-sm font-medium">Enabled</span>
+                            <span>
+                                <span className="block text-sm font-medium">Enabled</span>
+                                <span className="mt-1 block text-xs text-muted-foreground">
+                                    {POINTS_SETTINGS_COPY.programEnabled}
+                                </span>
+                            </span>
                         </label>
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Start date</span>
@@ -256,7 +262,12 @@ export default function AdminPointsSettingsClient() {
                                 }))}
                                 className="h-4 w-4"
                             />
-                            <span className="text-sm font-medium">Manager-owned user points</span>
+                            <span>
+                                <span className="block text-sm font-medium">Manager-owned user points</span>
+                                <span className="mt-1 block text-xs text-muted-foreground">
+                                    {POINTS_SETTINGS_COPY.managerOwnedUserToggle}
+                                </span>
+                            </span>
                         </label>
                     </div>
                 </section>
@@ -266,6 +277,9 @@ export default function AdminPointsSettingsClient() {
                     <div className="mt-4 grid gap-4 md:grid-cols-4">
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Normal user points per 1000 USD</span>
+                            <span className="block text-xs text-muted-foreground">
+                                {POINTS_SETTINGS_COPY.normalUserRate}
+                            </span>
                             <Input
                                 type="number"
                                 min="0"
@@ -279,6 +293,9 @@ export default function AdminPointsSettingsClient() {
                         </label>
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Manager-owned user points per 1000 USD</span>
+                            <span className="block text-xs text-muted-foreground">
+                                {POINTS_SETTINGS_COPY.managerOwnedUserRate}
+                            </span>
                             <Input
                                 type="number"
                                 min="0"
@@ -292,6 +309,9 @@ export default function AdminPointsSettingsClient() {
                         </label>
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Agent points per 1000 USD</span>
+                            <span className="block text-xs text-muted-foreground">
+                                {POINTS_SETTINGS_COPY.agentRate}
+                            </span>
                             <Input
                                 type="number"
                                 min="0"
@@ -305,6 +325,9 @@ export default function AdminPointsSettingsClient() {
                         </label>
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Manager points per 1000 USD</span>
+                            <span className="block text-xs text-muted-foreground">
+                                {POINTS_SETTINGS_COPY.managerRate}
+                            </span>
                             <Input
                                 type="number"
                                 min="0"

@@ -15,6 +15,8 @@ import {
     normalizeManualVerificationForAction,
 } from '@/lib/financial-review/manual-decisions'
 import type { FinancialReviewDecisionAction, FinancialReviewPaymentStatus } from '@/lib/financial-review/types'
+import { shouldAwardOperationSpendPointsAfterFinancialReview } from '@/lib/financial-review/point-awards'
+import { processCompletedOperationPoints } from '@/lib/points/operation-awards'
 
 const DECISION_ACTIONS: FinancialReviewDecisionAction[] = [
     'BEIN_EXECUTED_NO_REFUND',
@@ -232,6 +234,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
             const decision = nextMetadata.latestDecision
 
             const responseData = withFinancialReviewMetadata(operation.responseData, () => nextMetadata)
+            const nextStatus = action === 'BEIN_EXECUTED_NO_REFUND'
+                ? OperationStatus.COMPLETED
+                : action === 'REFUND_CUSTOMER'
+                    ? OperationStatus.FAILED
+                    : operation.status
 
             await tx.operation.update({
                 where: { id: operationId },
@@ -256,10 +263,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
             return {
                 decision,
                 metadata: extractFinancialReviewMetadata(responseData),
+                awardOperationSpendPoints: shouldAwardOperationSpendPointsAfterFinancialReview({
+                    action,
+                    nextStatus,
+                }),
             }
         })
 
-        return NextResponse.json({ success: true, ...result })
+        const { awardOperationSpendPoints, ...responsePayload } = result
+
+        if (awardOperationSpendPoints) {
+            await processCompletedOperationPoints(operationId).catch((error) => {
+                console.error('Financial review point award error:', {
+                    operationId,
+                    error: error instanceof Error ? error.message : String(error),
+                })
+            })
+        }
+
+        return NextResponse.json({ success: true, ...responsePayload })
     } catch (error) {
         console.error('Financial review decision error:', error)
         if (error instanceof Error) {

@@ -1,28 +1,27 @@
-import type { PrismaClient, Role } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+import {
+    buildOperationSpendAwardEntries,
+    resolveOperationPointRecipients,
+    resolveOperationSpendAwardPolicy,
+} from '../../../shared/points/operation-spend-policy';
+import type {
+    AwardableUser,
+    OperationPointRecipient,
+    RatedOperationPointRecipient,
+} from '../../../shared/points/operation-spend-policy';
 
 type PointsPrisma = Pick<
     PrismaClient,
     'operation' | 'pointProgramSettings' | 'pointRule' | 'pointLedgerEntry'
 >;
 
-type RateKind = Extract<Role, 'USER' | 'AGENT' | 'MANAGER'> | 'MANAGER_OWNED_USER';
-
-type Recipient = {
-    ownerUserId: string;
-    ownerRole: Extract<Role, 'USER' | 'AGENT' | 'MANAGER'>;
-    ownerKind: RateKind;
-};
-
 type WorkerAwardableUser = {
     id: string;
     role: string;
     isActive: boolean;
     deletedAt: Date | string | null;
+    createdBy?: WorkerAwardableUser | null;
 };
-
-function roundPoints(value: number): number {
-    return Math.round(value * 10000) / 10000;
-}
 
 async function activeRuleRate(
     prisma: PointsPrisma,
@@ -38,7 +37,7 @@ async function activeRuleRate(
     return rule?.pointsPerThousand ?? null;
 }
 
-async function spendRate(prisma: PointsPrisma, recipient: Recipient): Promise<number> {
+async function spendRate(prisma: PointsPrisma, recipient: OperationPointRecipient): Promise<number> {
     if (recipient.ownerKind === 'USER') {
         return (await activeRuleRate(prisma, 'USER_GLOBAL', null)) ?? 0;
     }
@@ -62,68 +61,29 @@ async function spendRate(prisma: PointsPrisma, recipient: Recipient): Promise<nu
     return Math.max(0, overrideRate ?? defaultRate ?? 0);
 }
 
-function isReceivableUser(user: WorkerAwardableUser | null | undefined, role: 'USER' | 'AGENT' | 'MANAGER'): user is WorkerAwardableUser {
-    return Boolean(user && user.role === role && user.isActive && !user.deletedAt);
-}
-
 export function resolveWorkerOperationPointRecipients(input: {
     operationUser: WorkerAwardableUser;
     manager: WorkerAwardableUser | null | undefined;
     agent: WorkerAwardableUser | null | undefined;
     managerOwnedUserPointsEnabled?: boolean;
-}): Recipient[] {
-    if (isReceivableUser(input.manager, 'MANAGER')) {
-        const recipients: Recipient[] = [{
-            ownerUserId: input.manager.id,
-            ownerRole: 'MANAGER',
-            ownerKind: 'MANAGER',
-        }];
-
-        if (input.managerOwnedUserPointsEnabled && isReceivableUser(input.operationUser, 'USER')) {
-            recipients.push({
-                ownerUserId: input.operationUser.id,
-                ownerRole: 'USER',
-                ownerKind: 'MANAGER_OWNED_USER',
-            });
-        }
-
-        return recipients;
-    }
-
-    const recipients: Recipient[] = [];
-    if (isReceivableUser(input.operationUser, 'USER')) {
-        recipients.push({ ownerUserId: input.operationUser.id, ownerRole: 'USER', ownerKind: 'USER' });
-    }
-    if (isReceivableUser(input.agent, 'AGENT')) {
-        recipients.push({ ownerUserId: input.agent.id, ownerRole: 'AGENT', ownerKind: 'AGENT' });
-    }
-
-    return recipients;
+}): OperationPointRecipient[] {
+    return resolveOperationPointRecipients({
+        operationUser: input.operationUser as AwardableUser,
+        managerOwnership: input.manager ? { manager: input.manager as AwardableUser } : null,
+        agentAssignment: input.agent ? { agent: input.agent as AwardableUser } : null,
+        managerOwnedUserPointsEnabled: input.managerOwnedUserPointsEnabled,
+    });
 }
 
 export function buildWorkerPointEntries(input: {
     operationId: string;
     amountUsd: number;
-    recipients: Array<Recipient & { ratePerThousand: number }>;
+    recipients: RatedOperationPointRecipient[];
 }) {
-    return input.recipients.flatMap((recipient) => {
-        const rate = Math.max(0, recipient.ratePerThousand);
-        const points = roundPoints((Math.max(0, input.amountUsd) / 1000) * rate);
-        if (points <= 0) return [];
-
-        return [{
-            ownerUserId: recipient.ownerUserId,
-            ownerRoleAtTime: recipient.ownerRole,
-            sourceType: 'OPERATION_SPEND' as const,
-            sourceId: input.operationId,
-            operationId: input.operationId,
-            points,
-            status: 'AVAILABLE' as const,
-            ratePerThousandSnapshot: rate,
-            amountUsdSnapshot: Math.max(0, input.amountUsd),
-            notes: `Spend points for completed operation ${input.operationId}`,
-        }];
-    });
+    return buildOperationSpendAwardEntries(input).map((entry) => ({
+        ...entry,
+        operationId: input.operationId,
+    }));
 }
 
 export async function processCompletedOperationPoints(prisma: PointsPrisma, operationId: string): Promise<void> {
@@ -141,8 +101,17 @@ export async function processCompletedOperationPoints(prisma: PointsPrisma, oper
                     role: true,
                     isActive: true,
                     deletedAt: true,
+                    createdBy: {
+                        select: {
+                            id: true,
+                            role: true,
+                            isActive: true,
+                            deletedAt: true,
+                        },
+                    },
                     managerLink: {
                         take: 1,
+                        orderBy: { createdAt: 'desc' },
                         select: {
                             manager: {
                                 select: { id: true, role: true, isActive: true, deletedAt: true },
@@ -164,14 +133,7 @@ export async function processCompletedOperationPoints(prisma: PointsPrisma, oper
         },
     });
 
-    if (
-        !operation
-        || operation.type !== 'RENEW'
-        || operation.status !== 'COMPLETED'
-        || operation.amount <= 0
-        || !operation.completedAt
-        || !operation.user
-    ) {
+    if (!operation || !operation.user) {
         return;
     }
 
@@ -180,21 +142,29 @@ export async function processCompletedOperationPoints(prisma: PointsPrisma, oper
         select: { pointsEnabled: true, pointsStartAt: true, managerOwnedUserPointsEnabled: true },
     });
 
-    if (!settings?.pointsEnabled) return;
-    if (settings.pointsStartAt && operation.completedAt < settings.pointsStartAt) return;
-
-    const manager = operation.user.managerLink[0]?.manager;
-    const agent = operation.user.agentAssignmentAsUser[0]?.agent;
-
-    const recipients = resolveWorkerOperationPointRecipients({
-        operationUser: operation.user,
-        manager,
-        agent,
-        managerOwnedUserPointsEnabled: settings.managerOwnedUserPointsEnabled,
+    const policy = resolveOperationSpendAwardPolicy({
+        status: operation.status,
+        type: operation.type,
+        amount: operation.amount,
+        completedAt: operation.completedAt,
+        settings: settings ?? {
+            pointsEnabled: false,
+            pointsStartAt: null,
+            managerOwnedUserPointsEnabled: false,
+        },
+        operationUser: operation.user as AwardableUser,
+        managerOwnership: operation.user.managerLink[0]?.manager
+            ? { manager: operation.user.managerLink[0].manager as AwardableUser }
+            : null,
+        agentAssignment: operation.user.agentAssignmentAsUser[0]?.agent
+            ? { agent: operation.user.agentAssignmentAsUser[0].agent as AwardableUser }
+            : null,
     });
 
-    const ratedRecipients = [];
-    for (const recipient of recipients) {
+    if (!policy.eligible) return;
+
+    const ratedRecipients: RatedOperationPointRecipient[] = [];
+    for (const recipient of policy.recipients) {
         const rate = await spendRate(prisma, recipient);
         ratedRecipients.push({ ...recipient, ratePerThousand: rate });
     }

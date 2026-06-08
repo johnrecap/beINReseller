@@ -102,7 +102,7 @@ test('routes transferred user future spend to user and agent when manager link i
     ])
 })
 
-test('routes direct admin-created user spend to the admin only', () => {
+test('routes direct admin-created user spend to the user only', () => {
     const recipients = resolveOperationPointRecipients({
         operationUser: {
             id: 'user-1',
@@ -116,7 +116,22 @@ test('routes direct admin-created user spend to the admin only', () => {
     })
 
     assert.deepEqual(recipients, [
-        { ownerUserId: 'admin-1', ownerRole: 'ADMIN', ownerKind: 'MANAGER' },
+        { ownerUserId: 'user-1', ownerRole: 'USER', ownerKind: 'USER' },
+    ])
+})
+
+test('routes direct admin-owned user spend to the user only', () => {
+    const recipients = resolveOperationPointRecipients({
+        operationUser: { id: 'user-1', role: 'USER', isActive: true, deletedAt: null },
+        managerOwnership: {
+            manager: { id: 'admin-1', role: 'ADMIN', isActive: true, deletedAt: null },
+        },
+        agentAssignment: null,
+        managerOwnedUserPointsEnabled: true,
+    })
+
+    assert.deepEqual(recipients, [
+        { ownerUserId: 'user-1', ownerRole: 'USER', ownerKind: 'USER' },
     ])
 })
 
@@ -159,16 +174,16 @@ test('does not route direct user spend to inactive or deleted admin creator', ()
     assert.deepEqual(deletedAdminRecipients, [])
 })
 
-test('preserves admin ledger role while using manager rate bucket', () => {
+test('builds admin-owned direct user entries with the normal user rate bucket', () => {
     const entries = buildOperationSpendAwardEntries({
         operationId: 'operation-admin',
         amountUsd: 1000,
         recipients: [
             {
-                ownerUserId: 'admin-1',
-                ownerRole: 'ADMIN',
-                ownerKind: 'MANAGER',
-                ratePerThousand: 10,
+                ownerUserId: 'user-1',
+                ownerRole: 'USER',
+                ownerKind: 'USER',
+                ratePerThousand: 4,
             },
         ],
     })
@@ -179,9 +194,9 @@ test('preserves admin ledger role while using manager rate bucket', () => {
         points: entry.points,
     })), [
         {
-            ownerUserId: 'admin-1',
-            ownerRoleAtTime: 'ADMIN',
-            points: 10,
+            ownerUserId: 'user-1',
+            ownerRoleAtTime: 'USER',
+            points: 4,
         },
     ])
 })

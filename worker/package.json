@@ -4,7 +4,7 @@
     "description": "beIN Panel Automation Worker - HTTP-based queue processor",
     "main": "dist/index.js",
     "scripts": {
-        "build": "node ../scripts/check-prisma-schema-sync.js && node -e \"require('fs').mkdirSync('prisma',{recursive:true})\" && node -e \"require('fs').copyFileSync('../prisma/schema.prisma','prisma/schema.prisma')\" && prisma generate && tsc",
+        "build": "node ../scripts/check-prisma-schema-sync.js && node -e \"require('fs').mkdirSync('prisma',{recursive:true})\" && node -e \"require('fs').copyFileSync('../prisma/schema.prisma','prisma/schema.prisma')\" && prisma generate && tsc && node -e \"const fs=require('fs');fs.writeFileSync('dist/index.js', \\\"require('./worker/src/index.js')\\\\n\\\");fs.writeFileSync('dist/keepalive.js', \\\"require('./worker/src/keepalive.js')\\\\n\\\");\"",
         "start": "node dist/index.js"
     },
     "keywords": [

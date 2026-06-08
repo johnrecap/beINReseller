@@ -4,6 +4,7 @@ import {
     findDuplicateIds,
     normalizePointSettingsInput,
 } from '@/lib/points/admin-settings-normalization'
+import { POINTS_SETTINGS_COPY } from '@/lib/points/settings-copy'
 
 test('current point setting field names win over legacy aliases', () => {
     const normalized = normalizePointSettingsInput({
@@ -81,4 +82,10 @@ test('duplicate override owners are reported before persistence', () => {
         'agent-1',
         'agent-2',
     ])
+})
+
+test('settings copy explains direct admin-owned and manager-owned point rules', () => {
+    assert.match(POINTS_SETTINGS_COPY.normalUserRate, /direct admin-owned users/)
+    assert.match(POINTS_SETTINGS_COPY.managerOwnedUserToggle, /users under managers/)
+    assert.match(POINTS_SETTINGS_COPY.managerOwnedUserRate, /manager-owned user points are enabled/)
 })

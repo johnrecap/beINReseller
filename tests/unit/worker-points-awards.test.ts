@@ -62,3 +62,46 @@ test('worker builds manager and manager-owned user point entries with distinct r
         },
     ])
 })
+
+test('worker routes admin-owned direct user spend to the user only', () => {
+    const recipients = resolveWorkerOperationPointRecipients({
+        operationUser: { id: 'user-1', role: 'USER', isActive: true, deletedAt: null },
+        manager: { id: 'admin-1', role: 'ADMIN', isActive: true, deletedAt: null },
+        agent: null,
+        managerOwnedUserPointsEnabled: true,
+    })
+
+    assert.deepEqual(recipients, [
+        { ownerUserId: 'user-1', ownerRole: 'USER', ownerKind: 'USER' },
+    ])
+})
+
+test('worker routes legacy admin-created user spend to the user only', () => {
+    const recipients = resolveWorkerOperationPointRecipients({
+        operationUser: {
+            id: 'user-1',
+            role: 'USER',
+            isActive: true,
+            deletedAt: null,
+            createdBy: { id: 'admin-1', role: 'ADMIN', isActive: true, deletedAt: null },
+        },
+        manager: null,
+        agent: null,
+        managerOwnedUserPointsEnabled: false,
+    })
+
+    assert.deepEqual(recipients, [
+        { ownerUserId: 'user-1', ownerRole: 'USER', ownerKind: 'USER' },
+    ])
+})
+
+test('worker does not award unowned active users by default', () => {
+    const recipients = resolveWorkerOperationPointRecipients({
+        operationUser: { id: 'user-1', role: 'USER', isActive: true, deletedAt: null },
+        manager: null,
+        agent: null,
+        managerOwnedUserPointsEnabled: false,
+    })
+
+    assert.deepEqual(recipients, [])
+})

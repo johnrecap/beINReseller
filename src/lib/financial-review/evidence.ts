@@ -105,10 +105,6 @@ function deriveState(review: FinancialReviewMetadata, evidence: FinancialReviewE
     return 'needs_decision'
 }
 
-function isClosedState(state: FinancialReviewState): boolean {
-    return state === 'refunded' || state === 'bein_executed'
-}
-
 export function getStateLabel(state: FinancialReviewState): string {
     switch (state) {
         case 'needs_decision':
@@ -126,11 +122,10 @@ export function buildFinancialReviewItem(
     operation: ReviewOperation,
     customerWalletDebitLookup: CustomerWalletDebitLookup
 ): FinancialReviewItem | null {
-    if (operation.status !== 'REVIEW_REQUIRED') return null
-
     const responseData = parseJsonRecord(operation.responseData)
     const auditSnapshot = getNestedRecord(responseData, 'auditSnapshot')
     const review = extractFinancialReviewMetadata(operation.responseData)
+    if (operation.status !== 'REVIEW_REQUIRED' && !review.latestDecision) return null
     const packageInfo = extractSelectedPackage(operation)
     const hasUserDeduction = operation.transactions.some((transaction) => transaction.type === 'OPERATION_DEDUCT')
     const hasRefund = operation.transactions.some((transaction) => transaction.type === 'REFUND')
@@ -238,7 +233,6 @@ export function buildFinancialReviewItem(
     }
 
     const state = deriveState(review, evidence)
-    if (isClosedState(state)) return null
 
     return {
         id: operation.id,

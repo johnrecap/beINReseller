@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { OperationStatus } from '@prisma/client'
+import { OperationStatus, Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import {
@@ -9,6 +9,11 @@ import {
 import type { FinancialReviewState } from '@/lib/financial-review/types'
 
 const REVIEW_STATES: FinancialReviewState[] = ['needs_decision', 'follow_up', 'refunded', 'bein_executed']
+const CLOSED_REVIEW_DECISION_FILTERS: Prisma.OperationWhereInput[] = [
+    { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'BEIN_EXECUTED_NO_REFUND' } },
+    { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'REFUND_CUSTOMER' } },
+    { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'KEEP_UNDER_REVIEW' } },
+]
 
 export async function GET(request: NextRequest) {
     try {
@@ -26,10 +31,14 @@ export async function GET(request: NextRequest) {
 
         const operations = await prisma.operation.findMany({
             where: {
-                status: OperationStatus.REVIEW_REQUIRED,
                 updatedAt: { gte: startDate },
+                OR: [
+                    { status: OperationStatus.REVIEW_REQUIRED },
+                    ...CLOSED_REVIEW_DECISION_FILTERS,
+                ],
                 ...(q ? {
-                    OR: [
+                    AND: [{
+                        OR: [
                         { id: { contains: q, mode: 'insensitive' } },
                         { cardNumber: { contains: q, mode: 'insensitive' } },
                         { responseMessage: { contains: q, mode: 'insensitive' } },
@@ -40,7 +49,8 @@ export async function GET(request: NextRequest) {
                         { beinAccount: { label: { contains: q, mode: 'insensitive' } } },
                         { chargedBeinSpendLedger: { is: { beinUsernameSnapshot: { contains: q, mode: 'insensitive' } } } },
                         { chargedBeinSpendLedger: { is: { beinLabelSnapshot: { contains: q, mode: 'insensitive' } } } },
-                    ]
+                        ],
+                    }]
                 } : {}),
             },
             select: {

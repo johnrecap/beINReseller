@@ -258,7 +258,7 @@ test('T019 confirmed no-charge installment evidence is the only after-Pay auto-r
     assert.equal(ambiguousAfterPay.reviewRequired, true)
 })
 
-test('T023 charged financial review closure leaves unresolved review list', () => {
+test('T023 charged financial review closure moves to confirmed tab', () => {
     const chargedDecision = decision(
         'BEIN_EXECUTED_NO_REFUND',
         'Dealer balance decreased by the expected amount; close without refund.'
@@ -278,10 +278,11 @@ test('T023 charged financial review closure leaves unresolved review list', () =
         },
     }, new Map())
 
-    assert.equal(item, null, 'closed charged review must not remain unresolved')
+    assert.ok(item, 'closed charged review should remain visible in its closure tab')
+    assert.equal(item.state, 'bein_executed')
 })
 
-test('T023 no-charge refund financial review closure leaves unresolved review list', () => {
+test('T023 no-charge refund financial review closure moves to refunded tab', () => {
     const refundDecision = decision(
         'REFUND_CUSTOMER',
         'Provider was not charged; reseller refund applied.',
@@ -296,7 +297,8 @@ test('T023 no-charge refund financial review closure leaves unresolved review li
         ],
     }, new Map())
 
-    assert.equal(item, null, 'closed refunded review must not remain unresolved')
+    assert.ok(item, 'closed refunded review should remain visible in its closure tab')
+    assert.equal(item.state, 'refunded')
 })
 
 test('T023 no-charge financial review refund is not duplicated when reseller refund already exists', () => {

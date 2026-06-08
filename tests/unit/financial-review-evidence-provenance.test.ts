@@ -148,6 +148,27 @@ test('uses manual verified paid decision as admin conclusion without hiding prov
     assert.equal(item.evidence.manualVerification?.paymentStatus, 'تم تأكيد الدفع')
 })
 
+test('keeps admin no-refund closure visible in the confirmed tab', () => {
+    const decision = manualDecision({
+        action: 'BEIN_EXECUTED_NO_REFUND',
+        paymentStatus: 'طھظ… طھط£ظƒظٹط¯ ط§ظ„ط¯ظپط¹',
+        cardRenewed: true,
+        source: 'admin_manual_review',
+    })
+    const item = buildItem({
+        status: 'COMPLETED',
+        responseData: {
+            auditSnapshot: { userDeductTotal: CUSTOMER_DEDUCT },
+            financialReview: {
+                latestDecision: decision,
+                decisions: [decision],
+            },
+        },
+    })
+
+    assert.equal(item.state, 'bein_executed')
+})
+
 test('uses manual verified not-paid decision as admin conclusion', () => {
     const decision = manualDecision({
         action: 'REFUND_CUSTOMER',
@@ -170,4 +191,30 @@ test('uses manual verified not-paid decision as admin conclusion', () => {
     assert.equal(item.evidence.beinDebitConfirmed, false)
     assert.equal(item.evidence.beinDebitAmount, null)
     assert.equal(item.evidence.manualVerification?.paymentStatus, 'لم يتم تأكيد الدفع')
+})
+
+test('keeps admin refund closure visible in the refunded tab', () => {
+    const decision = manualDecision({
+        action: 'REFUND_CUSTOMER',
+        paymentStatus: 'ظ„ظ… ظٹطھظ… طھط£ظƒظٹط¯ ط§ظ„ط¯ظپط¹',
+        cardRenewed: false,
+        source: 'admin_manual_review',
+        refundApplied: true,
+    })
+    const item = buildItem({
+        status: 'FAILED',
+        responseData: {
+            auditSnapshot: { userDeductTotal: CUSTOMER_DEDUCT },
+            financialReview: {
+                latestDecision: decision,
+                decisions: [decision],
+            },
+        },
+        transactions: [
+            { type: 'OPERATION_DEDUCT', amount: CUSTOMER_DEDUCT },
+            { type: 'REFUND', amount: CUSTOMER_DEDUCT },
+        ],
+    })
+
+    assert.equal(item.state, 'refunded')
 })

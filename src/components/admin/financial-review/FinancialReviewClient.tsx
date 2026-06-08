@@ -18,6 +18,7 @@ import {
 import type {
     FinancialReviewDecisionAction,
     FinancialReviewItem,
+    FinancialReviewPaymentStatus,
     FinancialReviewState,
 } from '@/lib/financial-review/types'
 
@@ -66,6 +67,8 @@ function getBeinDebitSourceLabel(source: FinancialReviewItem['evidence']['beinDe
             return 'سجل خصم beIN مؤكد'
         case 'audit_snapshot':
             return 'لقطة العملية'
+        case 'manual_verification':
+            return 'تأكيد يدوي من الأدمن'
         case 'none':
             return 'لا يوجد دليل خصم'
     }
@@ -125,14 +128,23 @@ export default function FinancialReviewClient() {
         }
     }
 
-    const submitDecision = async (note: string) => {
+    const submitDecision = async (note: string, paymentStatus?: FinancialReviewPaymentStatus) => {
         if (!dialog) return
         setBusyOperationId(dialog.item.id)
         try {
             const response = await fetch(`/api/admin/financial-review/${dialog.item.id}/decision`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: dialog.action, note }),
+                body: JSON.stringify({
+                    action: dialog.action,
+                    note,
+                    ...(dialog.action === 'BEIN_EXECUTED_NO_REFUND'
+                        ? { manualVerification: { cardRenewed: true, paymentStatus: paymentStatus || 'تم تأكيد الدفع' } }
+                        : {}),
+                    ...(dialog.action === 'REFUND_CUSTOMER'
+                        ? { manualVerification: { cardRenewed: false, paymentStatus: paymentStatus || 'لم يتم تأكيد الدفع' } }
+                        : {}),
+                }),
             })
             const payload = await response.json().catch(() => ({}))
             if (!response.ok) throw new Error(payload.error || 'تعذر حفظ القرار')
@@ -269,13 +281,14 @@ function ReviewCard({
     const [expanded, setExpanded] = useState(false)
     const owner = item.user || item.customer
     const latestCheck = item.review.latestCardVerification
+    const latestDecision = item.review.latestDecision
     const beinAccountName =
         item.evidence.beinAccountLabel ||
         item.evidence.beinUsername ||
         item.beinAccount?.label ||
         item.beinAccount?.username ||
         '-'
-    const beinDebitStatus = item.evidence.beinDebitConfirmed ? 'نعم - يوجد دليل خصم' : 'لا يوجد دليل خصم'
+    const beinDebitStatus = item.evidence.beinDebitConfirmed ? 'نعم - دليل موثوق' : 'لا يوجد دليل موثوق'
 
     return (
         <article className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -298,18 +311,18 @@ function ReviewCard({
                     </div>
                     <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                         <Info label="العميل" value={owner?.username || '-'} />
-                        <Info label="المبلغ المخصوم" value={`${formatAmount(item.amount)} USD`} />
+                        <Info label="خصم العميل من النظام" value={formatUsd(item.evidence.userDeductTotal ?? item.amount)} />
                         <Info label="الباقة المختارة" value={item.packageName || '-'} />
                         <Info label="حساب beIN المستخدم" value={beinAccountName} />
-                        <Info label="هل اتخصم من beIN؟" value={beinDebitStatus} />
-                        <Info label="قيمة خصم beIN" value={formatUsd(item.evidence.beinDebitAmount)} />
+                        <Info label="حالة دليل beIN" value={item.evidence.providerEvidenceLabel || beinDebitStatus} />
+                        <Info label="خصم beIN المؤكد" value={formatUsd(item.evidence.beinDebitAmount)} />
                     </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 xl:max-w-[460px] xl:justify-end">
                     <button onClick={onVerify} disabled={busy} className="review-button">
                         <ShieldCheck className="h-4 w-4" />
-                        فحص الكارت الآن
+                        فحص الأدلة المسجلة
                     </button>
                     <button onClick={() => onDecision('BEIN_EXECUTED_NO_REFUND')} disabled={busy} className="review-button review-button-success">
                         <CheckCircle2 className="h-4 w-4" />
@@ -332,9 +345,28 @@ function ReviewCard({
                 </div>
             )}
 
+            {latestDecision && (
+                <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+                    <div className="font-semibold">
+                        آخر قرار: {latestDecision.paymentStatus || item.stateLabel}
+                    </div>
+                    {latestDecision.note && (
+                        <div className="mt-1 text-emerald-50/90">
+                            ملاحظة الأدمن: {latestDecision.note}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {!item.evidence.beinDebitConfirmed && (
                 <div className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">
-                    لا يوجد دليل واضح أن حساب beIN اتخصم في هذه العملية. راجع الكارت أو موقع beIN قبل رد الفلوس أو تأكيد التجديد.
+                    {item.evidence.providerEvidenceLabel}. راجع الكارت أو موقع beIN قبل القرار.
+                </div>
+            )}
+
+            {item.evidence.legacyStoredBeinDebitAmount !== null && (
+                <div className="mt-4 rounded-lg border border-yellow-400/25 bg-yellow-400/10 p-3 text-sm text-yellow-100">
+                    الرقم القديم المسجل من beIN هو {formatUsd(item.evidence.legacyStoredBeinDebitAmount)}، ظاهر للمراجعة فقط وليس خصما مؤكدا.
                 </div>
             )}
 
@@ -360,13 +392,15 @@ function ReviewCard({
                     <Info label="رقم العملية" value={shortId(item.id)} />
                     <Info label="سبب دخول المراجعة" value={item.evidence.reasonCode || '-'} />
                     <Info label="تم رد سابق؟" value={item.evidence.hasRefund ? 'نعم' : 'لا'} />
-                    <Info label="خصم المستخدم" value={formatAmount(item.evidence.userDeductTotal)} />
+                    <Info label="خصم العميل من النظام" value={formatUsd(item.evidence.userDeductTotal)} />
                     <Info label="رصيد المستخدم قبل/بعد" value={`${formatAmount(item.evidence.userBalanceBefore)} -> ${formatAmount(item.evidence.userBalanceAfter)}`} />
                     <Info label="حساب beIN المستخدم" value={beinAccountName} />
                     <Info label="رصيد beIN قبل" value={formatUsd(item.evidence.beinBalanceBefore)} />
                     <Info label="رصيد beIN بعد" value={formatUsd(item.evidence.beinBalanceAfter)} />
-                    <Info label="هل اتخصم من beIN؟" value={beinDebitStatus} />
-                    <Info label="قيمة خصم beIN" value={formatUsd(item.evidence.beinDebitAmount)} />
+                    <Info label="حالة دليل beIN" value={item.evidence.providerEvidenceLabel || beinDebitStatus} />
+                    <Info label="خصم beIN المؤكد" value={formatUsd(item.evidence.beinDebitAmount)} />
+                    <Info label="فرق العميل عن beIN" value={formatUsd(item.evidence.differenceAmount)} />
+                    <Info label="رقم beIN قديم غير موثوق" value={formatUsd(item.evidence.legacyStoredBeinDebitAmount)} />
                     <Info label="مصدر دليل beIN" value={getBeinDebitSourceLabel(item.evidence.beinDebitSource)} />
                     <Info label="ثقة الدليل" value={item.evidence.beinEvidenceConfidence || '-'} />
                     <Info label="رسالة النظام" value={item.evidence.responseMessage || '-'} />
@@ -395,7 +429,7 @@ function DecisionDialog({
     state: NonNullable<DecisionDialogState>
     busy: boolean
     onClose: () => void
-    onSubmit: (note: string) => void
+    onSubmit: (note: string, paymentStatus?: FinancialReviewPaymentStatus) => void
 }) {
     const [note, setNote] = useState('')
     const copy = {
@@ -403,16 +437,19 @@ function DecisionDialog({
             title: 'تأكيد أن التجديد تم',
             body: 'استخدم هذا القرار فقط لو اتأكدت من موقع beIN أو من دليل واضح أن الكارت اتجدد بالفعل.',
             confirm: 'تأكيد بدون رد فلوس',
+            paymentStatus: 'تم تأكيد الدفع' as FinancialReviewPaymentStatus,
         },
         REFUND_CUSTOMER: {
             title: 'رد فلوس للعميل',
             body: 'سيتم إضافة مبلغ العملية لرصيد العميل مرة واحدة فقط، ولن يسمح النظام برد مكرر لنفس العملية.',
             confirm: 'تنفيذ رد الفلوس',
+            paymentStatus: 'لم يتم تأكيد الدفع' as FinancialReviewPaymentStatus,
         },
         KEEP_UNDER_REVIEW: {
             title: 'متابعة لاحقا',
             body: 'سيتم نقل العملية لتبويب متابعة لاحقا مع حفظ سبب التأجيل.',
             confirm: 'حفظ للمتابعة',
+            paymentStatus: null,
         },
     }[state.action]
 
@@ -424,14 +461,20 @@ function DecisionDialog({
                 <div className="mt-4 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
                     كارت {state.item.cardNumber} - مبلغ {formatAmount(state.item.amount)} USD
                 </div>
+                {copy.paymentStatus && (
+                    <div className="mt-4 rounded-lg border border-[#9ffb06]/25 bg-[#9ffb06]/10 p-3 text-sm text-foreground">
+                        <div className="text-xs text-muted-foreground">حالة الدفع التي سيتم حفظها</div>
+                        <div className="mt-1 font-semibold text-[#9ffb06]">{copy.paymentStatus}</div>
+                    </div>
+                )}
                 <label className="mt-4 block text-sm font-medium text-foreground">
-                    سبب القرار
+                    ملاحظة اختيارية
                     <textarea
                         value={note}
                         onChange={(event) => setNote(event.target.value)}
                         rows={4}
                         className="mt-2 w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none focus:border-[#9ffb06]/60"
-                        placeholder="اكتب سبب واضح: مثال تم التأكد من موقع beIN أن التجديد تم، أو لا يوجد تجديد وتم رد الفلوس."
+                        placeholder="اكتب أي ملاحظة إضافية لو محتاج."
                     />
                 </label>
                 <div className="mt-5 flex justify-end gap-2">
@@ -439,8 +482,8 @@ function DecisionDialog({
                         إلغاء
                     </button>
                     <button
-                        onClick={() => onSubmit(note)}
-                        disabled={busy || !note.trim()}
+                        onClick={() => onSubmit(note, copy.paymentStatus || undefined)}
+                        disabled={busy}
                         className="review-button review-button-success disabled:opacity-50"
                     >
                         {busy ? 'جاري الحفظ...' : copy.confirm}

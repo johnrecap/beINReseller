@@ -16,6 +16,8 @@ export interface RecordConfirmedBeinSpendInput {
     dealerBalanceBefore: number | null;
     dealerBalanceAfter: number | null;
     evidenceSource: 'BALANCE_DELTA';
+    balanceBeforeSource?: 'final_pay_ok_page' | 'package_load_diagnostic' | 'missing';
+    balanceAfterSource?: 'final_pay_result_page' | 'final_pay_balance_check' | 'missing';
     chargedAt?: Date;
 }
 
@@ -79,6 +81,17 @@ async function flagOperationAccountConflict(operationId: string): Promise<void> 
 export async function recordConfirmedBeinSpend(
     input: RecordConfirmedBeinSpendInput
 ): Promise<BeinSpendLedgerResult> {
+    if (
+        (input.balanceBeforeSource !== undefined || input.balanceAfterSource !== undefined) &&
+        (input.balanceBeforeSource !== 'final_pay_ok_page' ||
+            (input.balanceAfterSource !== 'final_pay_result_page' && input.balanceAfterSource !== 'final_pay_balance_check'))
+    ) {
+        return {
+            status: 'missing_balance_delta',
+            reason: 'Confirmed ledger requires final-payment balance sources.',
+        };
+    }
+
     const spendAmount = toPositiveSpendAmount(input.dealerBalanceBefore, input.dealerBalanceAfter);
     if (spendAmount === null) {
         return {
@@ -202,7 +215,7 @@ export async function recordConfirmedBeinSpend(
                 dealerBalanceAfter,
                 spendAmount,
                 evidenceSource: input.evidenceSource,
-                evidenceConfidence: 'CONFIRMED',
+                evidenceConfidence: input.balanceBeforeSource ? 'CONFIRMED_FINAL_PAY' : 'CONFIRMED',
                 beinUsernameSnapshot: account.username,
                 beinLabelSnapshot: account.label,
                 proxyLabelSnapshot: account.proxy?.label || account.proxy?.host || null,

@@ -5,6 +5,7 @@ import type {
     FinancialReviewMetadata,
     FinancialReviewState,
 } from './types'
+import { classifyProviderEvidence } from './evidence-provenance'
 
 type JsonRecord = Record<string, unknown>
 
@@ -59,6 +60,10 @@ export function toNullableNumber(value: unknown): number | null {
 function getNestedRecord(record: JsonRecord | null, key: string): JsonRecord | null {
     const value = record?.[key]
     return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : null
+}
+
+function toNullableString(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
 function extractSelectedPackage(operation: ReviewOperation) {
@@ -125,6 +130,7 @@ export function buildFinancialReviewItem(
 
     const responseData = parseJsonRecord(operation.responseData)
     const auditSnapshot = getNestedRecord(responseData, 'auditSnapshot')
+    const review = extractFinancialReviewMetadata(operation.responseData)
     const packageInfo = extractSelectedPackage(operation)
     const hasUserDeduction = operation.transactions.some((transaction) => transaction.type === 'OPERATION_DEDUCT')
     const hasRefund = operation.transactions.some((transaction) => transaction.type === 'REFUND')
@@ -156,6 +162,12 @@ export function buildFinancialReviewItem(
     const responseBeinBalanceAfter = toNullableNumber(responseData?.dealerBalanceAfter)
     const auditBeinBalanceBefore = toNullableNumber(auditSnapshot?.beinBalanceBefore) ?? responseBeinBalanceBefore
     const auditBeinBalanceAfter = toNullableNumber(auditSnapshot?.beinBalanceAfter) ?? responseBeinBalanceAfter
+    const auditBeforeSource =
+        toNullableString(auditSnapshot?.beinBalanceBeforeSource) ??
+        toNullableString(responseData?.dealerBalanceBeforeSource)
+    const auditAfterSource =
+        toNullableString(auditSnapshot?.beinBalanceAfterSource) ??
+        toNullableString(responseData?.dealerBalanceAfterSource)
     const auditBeinDelta = toNullableNumber(auditSnapshot?.beinDelta)
     const ledgerDebitAmount = chargedLedger ? Math.abs(chargedLedger.spendAmount) : null
     const derivedAuditDebitAmount =
@@ -163,9 +175,15 @@ export function buildFinancialReviewItem(
             ? auditBeinBalanceBefore - auditBeinBalanceAfter
             : null
     const auditDebitAmount = typeof auditBeinDelta === 'number' && auditBeinDelta > 0 ? auditBeinDelta : derivedAuditDebitAmount
-    const beinDebitAmount = ledgerDebitAmount ?? auditDebitAmount
-    const beinDebitSource = chargedLedger ? 'ledger' : auditDebitAmount !== null ? 'audit_snapshot' : 'none'
-    const beinDebitConfirmed = beinDebitSource !== 'none'
+    const providerEvidence = classifyProviderEvidence({
+        userDeductTotal,
+        ledgerDebitAmount,
+        ledgerConfidence: chargedLedger?.evidenceConfidence || null,
+        auditDebitAmount,
+        auditBeforeSource,
+        auditAfterSource,
+        latestDecision: review.latestDecision || null,
+    })
     const resolvedBeinAccount = chargedLedger ? {
         id: chargedLedger.beinAccountId,
         username: chargedLedger.beinUsernameSnapshot,
@@ -200,11 +218,16 @@ export function buildFinancialReviewItem(
             : chargedLedger?.beinUsernameSnapshot || operation.beinAccount?.username || null,
         beinAccountId: resolvedBeinAccount?.id || null,
         beinAccountLabel: resolvedBeinAccount?.label || null,
-        beinDebitConfirmed,
-        beinDebitAmount,
-        beinDebitSource,
+        beinDebitConfirmed: providerEvidence.beinDebitConfirmed,
+        beinDebitAmount: providerEvidence.beinDebitAmount,
+        beinDebitSource: providerEvidence.beinDebitSource,
         beinLedgerId: chargedLedger?.id || null,
         beinEvidenceConfidence: chargedLedger?.evidenceConfidence || null,
+        providerEvidenceState: providerEvidence.providerEvidenceState,
+        providerEvidenceLabel: providerEvidence.providerEvidenceLabel,
+        legacyStoredBeinDebitAmount: providerEvidence.legacyStoredBeinDebitAmount,
+        differenceAmount: providerEvidence.differenceAmount,
+        manualVerification: providerEvidence.manualVerification,
         selectedPackageName: packageInfo.name,
         selectedPackagePrice: packageInfo.price,
         capturedAt: typeof auditSnapshot?.capturedAt === 'string' ? auditSnapshot.capturedAt : null,
@@ -214,7 +237,6 @@ export function buildFinancialReviewItem(
         financiallyImpacted,
     }
 
-    const review = extractFinancialReviewMetadata(operation.responseData)
     const state = deriveState(review, evidence)
     if (isClosedState(state)) return null
 

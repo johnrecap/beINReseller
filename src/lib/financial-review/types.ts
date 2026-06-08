@@ -10,6 +10,24 @@ export type CardVerificationOutcome =
     | 'NOT_CONFIRMED'
     | 'CHECK_FAILED'
     | 'NOT_CHECKED'
+    | 'STORED_EVIDENCE_ONLY'
+
+export type ProviderEvidenceState =
+    | 'confirmed-final-pay'
+    | 'incomplete-evidence'
+    | 'legacy-unverified'
+    | 'manual-verified-paid'
+    | 'manual-verified-not-paid'
+    | 'conflict'
+
+export type FinancialReviewPaymentStatus =
+    | 'تم تأكيد الدفع'
+    | 'لم يتم تأكيد الدفع'
+
+export type FinancialReviewManualSource =
+    | 'admin_manual_review'
+    | 'stored_evidence_review'
+    | 'live_provider_check'
 
 export interface FinancialReviewDecision {
     action: FinancialReviewDecisionAction
@@ -18,6 +36,10 @@ export interface FinancialReviewDecision {
     decidedByUsername: string
     decidedAt: string
     refundApplied?: boolean
+    paymentStatus?: FinancialReviewPaymentStatus
+    cardRenewed?: boolean
+    actualBeinDebitAmount?: number
+    source?: FinancialReviewManualSource
 }
 
 export interface CardVerificationRecord {
@@ -52,9 +74,14 @@ export interface FinancialReviewEvidence {
     beinAccountLabel: string | null
     beinDebitConfirmed: boolean
     beinDebitAmount: number | null
-    beinDebitSource: 'ledger' | 'audit_snapshot' | 'none'
+    beinDebitSource: 'ledger' | 'audit_snapshot' | 'manual_verification' | 'none'
     beinLedgerId: string | null
     beinEvidenceConfidence: string | null
+    providerEvidenceState: ProviderEvidenceState
+    providerEvidenceLabel: string
+    legacyStoredBeinDebitAmount: number | null
+    differenceAmount: number | null
+    manualVerification: FinancialReviewDecision | null
     selectedPackageName: string | null
     selectedPackagePrice: number | null
     capturedAt: string | null

@@ -45,10 +45,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
             (typeof beinDelta === 'number' && Math.abs(beinDelta) >= Math.max(1, operation.amount * 0.5))
         )
 
-        const outcome: CardVerificationOutcome = likelyRenewed ? 'LIKELY_RENEWED' : 'NOT_CONFIRMED'
+        const outcome: CardVerificationOutcome = 'STORED_EVIDENCE_ONLY'
         const summary = likelyRenewed
-            ? 'الدليل المسجل يشير أن بين نفذت خصم/تجديد. راجع رقم الكارت قبل قرار عدم رد الفلوس.'
-            : 'لا يوجد دليل كافي في اللوج المسجل يؤكد أن التجديد تم. يفضل فحص الكارت من موقع بين قبل القرار.'
+            ? 'فحص الأدلة المسجلة فقط: يوجد ما يشير إلى خصم أو تجديد، لكنه ليس فحصا مباشرا من beIN.'
+            : 'فحص الأدلة المسجلة فقط: لا يوجد دليل كاف يؤكد التجديد، وهذا ليس فحصا مباشرا من beIN.'
 
         const check = {
             outcome,

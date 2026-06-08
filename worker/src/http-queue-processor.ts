@@ -11,7 +11,7 @@ import { Job } from 'bullmq';
 import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage, classifyFinalPayOutcome } from './http';
 import type { FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
-import { AccountPoolManager, AccountQueueManager, getQueueManager, forceUnlockAccount, lockAccount, unlockAccount } from './pool';
+import { AccountPoolManager, getQueueManager, forceUnlockAccount, lockAccount, unlockAccount } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
@@ -56,6 +56,11 @@ import {
     resolveRetryAccountRoute,
     type EffectiveBeinRoute,
 } from './lib/bein-connection-mode';
+import {
+    buildFinalPayBalanceEvidence,
+    shouldRecordConfirmedProviderSpend,
+    type FinalPayBalanceEvidence,
+} from './lib/final-pay-evidence';
 
 // Renewal decision windows
 const HEARTBEAT_TTL_SECONDS = 5;
@@ -121,6 +126,20 @@ function mergeOperationPhaseData(
         finalPaySubmittedAt?: string;
         dealerBalanceBefore?: number | null;
         dealerBalanceAfter?: number | null;
+        dealerBalanceBeforeSource?: FinalPayBalanceEvidence['finalBalanceBeforeSource'] | FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
+        dealerBalanceAfterSource?: FinalPayBalanceEvidence['finalBalanceAfterSource'];
+        diagnosticDealerBalanceBefore?: number | null;
+        diagnosticDealerBalanceBeforeSource?: FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
+        providerEvidenceState?: 'confirmed-final-pay' | 'incomplete-evidence';
+        providerEvidenceCapturedAt?: string;
+        providerEvidenceContext?: {
+            operationId: string;
+            beinAccountId: string | null;
+            cardNumber: string | null;
+            packageName: string | null;
+            packagePrice: number | null;
+            contextMatched: boolean;
+        };
         expectedCost?: number | null;
         outcomeCategory?: FinalPayOutcomeCategory;
     }
@@ -210,14 +229,6 @@ function getErrMsg(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
-function isAmbiguousFailure(message: string | null | undefined): boolean {
-    if (!message) return false;
-    const normalized = message.toLowerCase();
-    return normalized.includes('transaction status unknown') ||
-        normalized.includes('status unknown') ||
-        normalized.includes('please check balance');
-}
-
 interface FinalPayRefundDecision {
     outcomeCategory: FinalPayOutcomeCategory;
     refundSafe: boolean;
@@ -252,6 +263,11 @@ interface OperationAuditSnapshot {
     beinBalanceBefore: number | null;
     beinBalanceAfter: number | null;
     beinDelta: number | null;
+    beinBalanceBeforeSource?: FinalPayBalanceEvidence['finalBalanceBeforeSource'];
+    beinBalanceAfterSource?: FinalPayBalanceEvidence['finalBalanceAfterSource'];
+    diagnosticDealerBalanceBefore?: number | null;
+    diagnosticDealerBalanceBeforeSource?: FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
+    providerEvidenceState?: 'confirmed-final-pay' | 'incomplete-evidence';
     userId: string | null;
     userDeductTotal: number;
     userBalanceBefore: number | null;
@@ -353,6 +369,11 @@ async function buildOperationAuditSnapshot(params: {
     beinUsername: string | null;
     beinBalanceBefore: number | null;
     beinBalanceAfter: number | null;
+    beinBalanceBeforeSource?: FinalPayBalanceEvidence['finalBalanceBeforeSource'];
+    beinBalanceAfterSource?: FinalPayBalanceEvidence['finalBalanceAfterSource'];
+    diagnosticDealerBalanceBefore?: number | null;
+    diagnosticDealerBalanceBeforeSource?: FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
+    providerEvidenceState?: 'confirmed-final-pay' | 'incomplete-evidence';
     outcomeCategory?: FinalPayOutcomeCategory;
     reviewReason?: string;
     reviewSource?: string;
@@ -366,6 +387,11 @@ async function buildOperationAuditSnapshot(params: {
         beinUsername,
         beinBalanceBefore,
         beinBalanceAfter,
+        beinBalanceBeforeSource,
+        beinBalanceAfterSource,
+        diagnosticDealerBalanceBefore,
+        diagnosticDealerBalanceBeforeSource,
+        providerEvidenceState,
         outcomeCategory,
         reviewReason,
         reviewSource,
@@ -400,8 +426,11 @@ async function buildOperationAuditSnapshot(params: {
 
     const before = toNullableNumber(beinBalanceBefore);
     const after = toNullableNumber(beinBalanceAfter);
+    const hasConfirmedFinalPaySources =
+        beinBalanceBeforeSource === 'final_pay_ok_page' &&
+        beinBalanceAfterSource === 'final_pay_result_page';
     const beinDelta =
-        before === null || after === null
+        before === null || after === null || !hasConfirmedFinalPaySources
             ? null
             : before - after;
 
@@ -417,6 +446,11 @@ async function buildOperationAuditSnapshot(params: {
         userBalanceAfter,
         capturedAt: new Date().toISOString()
     };
+    if (beinBalanceBeforeSource !== undefined) snapshot.beinBalanceBeforeSource = beinBalanceBeforeSource;
+    if (beinBalanceAfterSource !== undefined) snapshot.beinBalanceAfterSource = beinBalanceAfterSource;
+    if (diagnosticDealerBalanceBefore !== undefined) snapshot.diagnosticDealerBalanceBefore = toNullableNumber(diagnosticDealerBalanceBefore);
+    if (diagnosticDealerBalanceBeforeSource !== undefined) snapshot.diagnosticDealerBalanceBeforeSource = diagnosticDealerBalanceBeforeSource;
+    if (providerEvidenceState !== undefined) snapshot.providerEvidenceState = providerEvidenceState;
     if (outcomeCategory !== undefined) snapshot.outcomeCategory = outcomeCategory;
     if (reviewReason !== undefined) snapshot.reviewReason = reviewReason;
     if (reviewSource !== undefined) snapshot.reviewSource = reviewSource;
@@ -820,7 +854,7 @@ export async function processOperationHttp(
     job: Job<OperationJobData>,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    const { operationId, type, cardNumber, promoCode, userId, amount, accountId, smartcardType } = job.data;
+    const { operationId, type, cardNumber, promoCode, userId, accountId, smartcardType } = job.data;
     let selectedAccountId: string | null = null;
 
     console.log(`📥 [HTTP] Processing ${operationId}: ${type}`);
@@ -961,11 +995,6 @@ async function handleStartRenewalHttp(
     console.log(`🚀 [HTTP] Starting renewal for ${operationId}`);
 
     await checkIfCancelled(operationId);
-
-    const operation = await prisma.operation.findUnique({
-        where: { id: operationId },
-        select: { userId: true }
-    });
 
     // Mark as PROCESSING
     if (!await updateOperationIfActive(operationId, { status: 'PROCESSING', responseMessage: 'Searching for available account...' }, 'START_RENEWAL processing update')) return;
@@ -1240,7 +1269,7 @@ async function handleStartRenewalHttp(
     }
 
     // Convert to format expected by frontend
-    const packages = packagesResult.packages.map((pkg, i) => ({
+    const packages = packagesResult.packages.map((pkg) => ({
         index: pkg.index,
         name: pkg.name,
         price: pkg.price,
@@ -2165,6 +2194,7 @@ async function handleConfirmPurchaseHttp(
 
         await updateProgress(operationId, 'Sending final confirmation...');
         let finalPayResponseData: Prisma.InputJsonObject | null = null;
+        const selectedPackage = operation.selectedPackage as { name?: string; price?: number } | null;
         const rawResult = await client.confirmPurchase(operation.amount ?? undefined, async () => {
             const currentOperation = await prisma.operation.findUnique({
                 where: { id: operationId },
@@ -2188,6 +2218,17 @@ async function handleConfirmPurchaseHttp(
                 finalPaySubmitted: true,
                 finalPaySubmittedAt: new Date().toISOString(),
                 dealerBalanceBefore: preFinalBeinBalance,
+                dealerBalanceBeforeSource: preFinalBeinBalance === null ? 'missing' : 'package_load_diagnostic',
+                diagnosticDealerBalanceBefore: preFinalBeinBalance,
+                diagnosticDealerBalanceBeforeSource: preFinalBeinBalance === null ? 'missing' : 'package_load_diagnostic',
+                providerEvidenceContext: {
+                    operationId,
+                    beinAccountId: operation.beinAccountId,
+                    cardNumber: operation.cardNumber,
+                    packageName: selectedPackage?.name || null,
+                    packagePrice: toNullableNumber(selectedPackage?.price),
+                    contextMatched: true,
+                },
                 expectedCost: operation.amount ?? null
             }), route);
 
@@ -2198,22 +2239,45 @@ async function handleConfirmPurchaseHttp(
                 throw new Error('Final Pay evidence was not persisted before provider submission');
             }
         });
+        const finalPayEvidence = buildFinalPayBalanceEvidence({
+            operationId,
+            beinAccountId: operation.beinAccountId,
+            cardNumber: operation.cardNumber,
+            packageName: selectedPackage?.name || null,
+            packagePrice: toNullableNumber(selectedPackage?.price),
+            finalBalanceBefore: toNullableNumber(rawResult.beinBalanceBefore),
+            finalBalanceAfter: toNullableNumber(rawResult.beinBalanceAfter),
+            diagnosticBalanceBefore: preFinalBeinBalance,
+        });
         const result = {
             ...rawResult,
-            beinBalanceBefore: toNullableNumber(rawResult.beinBalanceBefore) ?? preFinalBeinBalance ?? undefined
+            beinBalanceBefore: finalPayEvidence.finalBalanceBefore ?? undefined,
+            beinBalanceAfter: finalPayEvidence.finalBalanceAfter ?? undefined
         };
         const outcomeDecision = decideFinalPayRefundSafety(result, result.finalPaySubmitted === true);
         const postPayResponseData = responseDataWithRoute(mergeOperationPhaseData(finalPayResponseData ?? operation.responseData, {
             operationPhase: outcomeDecision.reviewRequired ? 'POST_FINAL_PAY_REVIEW' : 'FINAL_PAY_SUBMITTED',
             jobType: 'CONFIRM_PURCHASE',
             finalPaySubmitted: result.finalPaySubmitted === true,
-            dealerBalanceBefore: toNullableNumber(result.beinBalanceBefore) ?? preFinalBeinBalance,
-            dealerBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+            dealerBalanceBefore: finalPayEvidence.finalBalanceBefore,
+            dealerBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
+            dealerBalanceAfter: finalPayEvidence.finalBalanceAfter,
+            dealerBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
+            diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
+            diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
+            providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
+            providerEvidenceCapturedAt: finalPayEvidence.capturedAt,
+            providerEvidenceContext: {
+                operationId: finalPayEvidence.operationId,
+                beinAccountId: finalPayEvidence.beinAccountId,
+                cardNumber: finalPayEvidence.cardNumber,
+                packageName: finalPayEvidence.packageName,
+                packagePrice: finalPayEvidence.packagePrice,
+                contextMatched: finalPayEvidence.contextMatched,
+            },
             expectedCost: operation.amount ?? null,
             outcomeCategory: outcomeDecision.outcomeCategory
         }), route);
-
-        const selectedPackage = operation.selectedPackage as { name: string } | null;
 
         if (result.success) {
             // OPTIMIZATION: Invalidate package cache since packages changed after purchase
@@ -2240,13 +2304,16 @@ async function handleConfirmPurchaseHttp(
             await awardCompletedOperationPointsSafely(operationId);
 
             const ledgerResult = operation.userId
+                && shouldRecordConfirmedProviderSpend(finalPayEvidence)
                 ? await recordConfirmedBeinSpend({
                     operationId,
                     userId: operation.userId,
                     beinAccountId: operation.beinAccountId,
-                    dealerBalanceBefore: toNullableNumber(result.beinBalanceBefore),
-                    dealerBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                    dealerBalanceBefore: finalPayEvidence.finalBalanceBefore,
+                    dealerBalanceAfter: finalPayEvidence.finalBalanceAfter,
                     evidenceSource: 'BALANCE_DELTA',
+                    balanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
+                    balanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
                 })
                 : null;
             if (ledgerResult?.status === 'conflict_review_required') {
@@ -2258,8 +2325,13 @@ async function handleConfirmPurchaseHttp(
                 userId: operation.userId || null,
                 beinAccountId: operation.beinAccountId,
                 beinUsername: account.username,
-                beinBalanceBefore: toNullableNumber(result.beinBalanceBefore),
-                beinBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                beinBalanceBefore: finalPayEvidence.finalBalanceBefore,
+                beinBalanceAfter: finalPayEvidence.finalBalanceAfter,
+                beinBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
+                beinBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
+                diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
+                diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
+                providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
                 outcomeCategory: outcomeDecision.outcomeCategory,
                 chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
             });
@@ -2325,13 +2397,16 @@ async function handleConfirmPurchaseHttp(
             }
 
             const ledgerResult = operation.userId
+                && shouldRecordConfirmedProviderSpend(finalPayEvidence)
                 ? await recordConfirmedBeinSpend({
                     operationId,
                     userId: operation.userId,
                     beinAccountId: operation.beinAccountId,
-                    dealerBalanceBefore: toNullableNumber(result.beinBalanceBefore),
-                    dealerBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                    dealerBalanceBefore: finalPayEvidence.finalBalanceBefore,
+                    dealerBalanceAfter: finalPayEvidence.finalBalanceAfter,
                     evidenceSource: 'BALANCE_DELTA',
+                    balanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
+                    balanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
                 })
                 : null;
             if (ledgerResult?.status === 'conflict_review_required') {
@@ -2343,8 +2418,13 @@ async function handleConfirmPurchaseHttp(
                 userId: operation.userId || null,
                 beinAccountId: operation.beinAccountId,
                 beinUsername: account.username,
-                beinBalanceBefore: toNullableNumber(result.beinBalanceBefore),
-                beinBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                beinBalanceBefore: finalPayEvidence.finalBalanceBefore,
+                beinBalanceAfter: finalPayEvidence.finalBalanceAfter,
+                beinBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
+                beinBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
+                diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
+                diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
+                providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
                 outcomeCategory: outcomeDecision.outcomeCategory,
                 reviewReason: result.message,
                 reviewSource: 'confirm-purchase',
@@ -2367,8 +2447,13 @@ async function handleConfirmPurchaseHttp(
                 userId: operation.userId || null,
                 beinAccountId: operation.beinAccountId,
                 beinUsername: account.username,
-                beinBalanceBefore: toNullableNumber(result.beinBalanceBefore),
-                beinBalanceAfter: toNullableNumber(result.beinBalanceAfter),
+                beinBalanceBefore: finalPayEvidence.finalBalanceBefore,
+                beinBalanceAfter: finalPayEvidence.finalBalanceAfter,
+                beinBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
+                beinBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
+                diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
+                diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
+                providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
                 outcomeCategory: outcomeDecision.outcomeCategory,
                 reviewReason: result.message,
                 reviewSource: 'confirm-purchase',
@@ -3247,11 +3332,6 @@ async function handleStartInstallmentHttp(
 
     await checkIfCancelled(operationId);
 
-    const operation = await prisma.operation.findUnique({
-        where: { id: operationId },
-        select: { userId: true }
-    });
-
     // Mark as PROCESSING
     if (!await updateOperationIfActive(operationId, { status: 'PROCESSING', responseMessage: 'Searching for available account...' }, 'START_INSTALLMENT processing update')) return;
 
@@ -3601,6 +3681,17 @@ async function handleConfirmInstallmentHttp(
         finalPaySubmitted: true,
         finalPaySubmittedAt: new Date().toISOString(),
         dealerBalanceBefore: preFinalInstallmentBalance,
+        dealerBalanceBeforeSource: preFinalInstallmentBalance === null ? 'missing' : 'package_load_diagnostic',
+        diagnosticDealerBalanceBefore: preFinalInstallmentBalance,
+        diagnosticDealerBalanceBeforeSource: preFinalInstallmentBalance === null ? 'missing' : 'package_load_diagnostic',
+        providerEvidenceContext: {
+            operationId,
+            beinAccountId: selectedAccount.id,
+            cardNumber,
+            packageName: 'Installment',
+            packagePrice: operation.amount ?? null,
+            contextMatched: true,
+        },
         expectedCost: operation.amount ?? null
     }), route);
     if (!await updateOperationIfActive(operationId, {
@@ -3609,17 +3700,42 @@ async function handleConfirmInstallmentHttp(
         return;
     }
     const rawPayResult = await client.payInstallment();
+    const installmentPayEvidence = buildFinalPayBalanceEvidence({
+        operationId,
+        beinAccountId: selectedAccount.id,
+        cardNumber,
+        packageName: 'Installment',
+        packagePrice: operation.amount ?? null,
+        finalBalanceBefore: toNullableNumber(rawPayResult.beinBalanceBefore),
+        finalBalanceAfter: toNullableNumber(rawPayResult.beinBalanceAfter),
+        diagnosticBalanceBefore: preFinalInstallmentBalance,
+    });
     const payResult = {
         ...rawPayResult,
-        beinBalanceBefore: toNullableNumber(rawPayResult.beinBalanceBefore) ?? preFinalInstallmentBalance ?? undefined
+        beinBalanceBefore: installmentPayEvidence.finalBalanceBefore ?? undefined,
+        beinBalanceAfter: installmentPayEvidence.finalBalanceAfter ?? undefined
     };
     const payOutcomeDecision = decideFinalPayRefundSafety(payResult, true);
     const installmentPostPayResponseData = responseDataWithRoute(mergeOperationPhaseData(finalPayResponseData, {
         operationPhase: payOutcomeDecision.reviewRequired ? 'POST_FINAL_PAY_REVIEW' : 'FINAL_PAY_SUBMITTED',
         jobType: 'CONFIRM_INSTALLMENT',
         finalPaySubmitted: true,
-        dealerBalanceBefore: toNullableNumber(payResult.beinBalanceBefore) ?? preFinalInstallmentBalance,
-        dealerBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+        dealerBalanceBefore: installmentPayEvidence.finalBalanceBefore,
+        dealerBalanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
+        dealerBalanceAfter: installmentPayEvidence.finalBalanceAfter,
+        dealerBalanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
+        diagnosticDealerBalanceBefore: installmentPayEvidence.diagnosticBalanceBefore,
+        diagnosticDealerBalanceBeforeSource: installmentPayEvidence.diagnosticBalanceBeforeSource,
+        providerEvidenceState: shouldRecordConfirmedProviderSpend(installmentPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
+        providerEvidenceCapturedAt: installmentPayEvidence.capturedAt,
+        providerEvidenceContext: {
+            operationId: installmentPayEvidence.operationId,
+            beinAccountId: installmentPayEvidence.beinAccountId,
+            cardNumber: installmentPayEvidence.cardNumber,
+            packageName: installmentPayEvidence.packageName,
+            packagePrice: installmentPayEvidence.packagePrice,
+            contextMatched: installmentPayEvidence.contextMatched,
+        },
         expectedCost: operation.amount ?? null,
         outcomeCategory: payOutcomeDecision.outcomeCategory
     }), route);
@@ -3644,13 +3760,16 @@ async function handleConfirmInstallmentHttp(
         await awardCompletedOperationPointsSafely(operationId);
 
         const ledgerResult = operation.userId
+            && shouldRecordConfirmedProviderSpend(installmentPayEvidence)
             ? await recordConfirmedBeinSpend({
                 operationId,
                 userId: operation.userId,
                 beinAccountId: selectedAccount.id,
-                dealerBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
-                dealerBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+                dealerBalanceBefore: installmentPayEvidence.finalBalanceBefore,
+                dealerBalanceAfter: installmentPayEvidence.finalBalanceAfter,
                 evidenceSource: 'BALANCE_DELTA',
+                balanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
+                balanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
             })
             : null;
         if (ledgerResult?.status === 'conflict_review_required') {
@@ -3662,8 +3781,13 @@ async function handleConfirmInstallmentHttp(
             userId: operation.userId || null,
             beinAccountId: selectedAccount.id,
             beinUsername: selectedAccount.username,
-            beinBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
-            beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+            beinBalanceBefore: installmentPayEvidence.finalBalanceBefore,
+            beinBalanceAfter: installmentPayEvidence.finalBalanceAfter,
+            beinBalanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
+            beinBalanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
+            diagnosticDealerBalanceBefore: installmentPayEvidence.diagnosticBalanceBefore,
+            diagnosticDealerBalanceBeforeSource: installmentPayEvidence.diagnosticBalanceBeforeSource,
+            providerEvidenceState: shouldRecordConfirmedProviderSpend(installmentPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
             chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
         });
         await persistOperationAuditSnapshot(operationId, installmentPostPayResponseData, auditSnapshot);
@@ -3742,13 +3866,16 @@ async function handleConfirmInstallmentHttp(
         }
 
         const ledgerResult = operation.userId
+            && shouldRecordConfirmedProviderSpend(installmentPayEvidence)
             ? await recordConfirmedBeinSpend({
                 operationId,
                 userId: operation.userId,
                 beinAccountId: selectedAccount.id,
-                dealerBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
-                dealerBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+                dealerBalanceBefore: installmentPayEvidence.finalBalanceBefore,
+                dealerBalanceAfter: installmentPayEvidence.finalBalanceAfter,
                 evidenceSource: 'BALANCE_DELTA',
+                balanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
+                balanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
             })
             : null;
         if (ledgerResult?.status === 'conflict_review_required') {
@@ -3760,8 +3887,13 @@ async function handleConfirmInstallmentHttp(
             userId: operation.userId || null,
             beinAccountId: selectedAccount.id,
             beinUsername: selectedAccount.username,
-            beinBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
-            beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+            beinBalanceBefore: installmentPayEvidence.finalBalanceBefore,
+            beinBalanceAfter: installmentPayEvidence.finalBalanceAfter,
+            beinBalanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
+            beinBalanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
+            diagnosticDealerBalanceBefore: installmentPayEvidence.diagnosticBalanceBefore,
+            diagnosticDealerBalanceBeforeSource: installmentPayEvidence.diagnosticBalanceBeforeSource,
+            providerEvidenceState: shouldRecordConfirmedProviderSpend(installmentPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
             outcomeCategory: payOutcomeDecision.outcomeCategory,
             reviewReason: payResult.message,
             reviewSource: 'confirm-installment',
@@ -3784,8 +3916,13 @@ async function handleConfirmInstallmentHttp(
         userId: operation.userId || null,
         beinAccountId: selectedAccount.id,
         beinUsername: selectedAccount.username,
-        beinBalanceBefore: toNullableNumber(payResult.beinBalanceBefore),
-        beinBalanceAfter: toNullableNumber(payResult.beinBalanceAfter),
+        beinBalanceBefore: installmentPayEvidence.finalBalanceBefore,
+        beinBalanceAfter: installmentPayEvidence.finalBalanceAfter,
+        beinBalanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
+        beinBalanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
+        diagnosticDealerBalanceBefore: installmentPayEvidence.diagnosticBalanceBefore,
+        diagnosticDealerBalanceBeforeSource: installmentPayEvidence.diagnosticBalanceBeforeSource,
+        providerEvidenceState: shouldRecordConfirmedProviderSpend(installmentPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
         outcomeCategory: payOutcomeDecision.outcomeCategory,
         reviewReason: payResult.message,
         reviewSource: 'confirm-installment',

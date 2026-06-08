@@ -7,7 +7,13 @@ import {
     extractFinancialReviewMetadata,
     withFinancialReviewMetadata,
 } from '@/lib/financial-review/evidence'
-import type { FinancialReviewDecisionAction } from '@/lib/financial-review/types'
+import {
+    appendManualReviewDecision,
+    getDefaultPaymentStatus,
+    isFinancialReviewDecisionAllowed,
+    normalizeManualVerificationForAction,
+} from '@/lib/financial-review/manual-decisions'
+import type { FinancialReviewDecisionAction, FinancialReviewPaymentStatus } from '@/lib/financial-review/types'
 
 const DECISION_ACTIONS: FinancialReviewDecisionAction[] = [
     'BEIN_EXECUTED_NO_REFUND',
@@ -119,16 +125,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
         const body = await request.json().catch(() => ({})) as {
             action?: FinancialReviewDecisionAction
             note?: string
+            manualVerification?: {
+                cardRenewed?: boolean
+                actualBeinDebitAmount?: number
+                paymentStatus?: FinancialReviewPaymentStatus
+            }
         }
         const action = body.action
         const note = typeof body.note === 'string' ? body.note.trim() : ''
+        const rawManualVerification =
+            body.manualVerification && typeof body.manualVerification === 'object'
+                ? {
+                    ...(typeof body.manualVerification.cardRenewed === 'boolean'
+                        ? { cardRenewed: body.manualVerification.cardRenewed }
+                        : {}),
+                    ...(body.manualVerification.paymentStatus === 'تم تأكيد الدفع' ||
+                        body.manualVerification.paymentStatus === 'لم يتم تأكيد الدفع'
+                        ? { paymentStatus: body.manualVerification.paymentStatus }
+                        : {}),
+                    ...(typeof body.manualVerification.actualBeinDebitAmount === 'number' && Number.isFinite(body.manualVerification.actualBeinDebitAmount)
+                        ? { actualBeinDebitAmount: body.manualVerification.actualBeinDebitAmount }
+                        : {}),
+                }
+                : null
 
         if (!action || !DECISION_ACTIONS.includes(action)) {
             return NextResponse.json({ error: 'Invalid decision action' }, { status: 400 })
         }
-        if (!note) {
-            return NextResponse.json({ error: 'Decision note is required' }, { status: 400 })
-        }
+        const manualVerification = normalizeManualVerificationForAction(action, rawManualVerification)
 
         const result = await prisma.$transaction(async (tx) => {
             const operation = await tx.operation.findUnique({
@@ -168,33 +192,42 @@ export async function POST(request: NextRequest, context: RouteContext) {
             }
 
             const reviewItem = buildFinancialReviewItem(operation, new Map())
-            if (action === 'BEIN_EXECUTED_NO_REFUND' && !reviewItem?.evidence.beinDebitConfirmed) {
-                throw new Error('MISSING_PROVIDER_CHARGE_EVIDENCE')
+            if (!reviewItem) {
+                throw new Error('OPERATION_NOT_REVIEWABLE')
             }
-            if (action === 'REFUND_CUSTOMER' && reviewItem?.evidence.beinDebitConfirmed) {
-                throw new Error('PROVIDER_CHARGE_EVIDENCE_CONFLICT')
+            const guard = isFinancialReviewDecisionAllowed({
+                action,
+                evidence: reviewItem.evidence,
+                manualVerification,
+            })
+            if (!guard.allowed) {
+                throw new Error(guard.reason || 'DECISION_NOT_ALLOWED')
             }
 
             let refundApplied = false
             if (action === 'REFUND_CUSTOMER') {
-                await applyAdminRefund(tx, operationId, operation.amount, note)
+                await applyAdminRefund(tx, operationId, operation.amount, note || getDefaultPaymentStatus(action) || 'Financial review refund')
                 refundApplied = true
             }
 
-            const decision = {
+            const decisionInput = {
                 action,
                 note,
                 decidedBy: authResult.user.id,
                 decidedByUsername: authResult.user.username,
                 decidedAt: new Date().toISOString(),
+                source: 'admin_manual_review' as const,
+                ...(typeof manualVerification?.cardRenewed === 'boolean' ? { cardRenewed: manualVerification.cardRenewed } : {}),
+                ...(manualVerification?.paymentStatus ? { paymentStatus: manualVerification.paymentStatus } : {}),
+                ...(typeof manualVerification?.actualBeinDebitAmount === 'number'
+                    ? { actualBeinDebitAmount: manualVerification.actualBeinDebitAmount }
+                    : {}),
                 ...(action === 'REFUND_CUSTOMER' ? { refundApplied } : {}),
             }
+            const nextMetadata = appendManualReviewDecision(extractFinancialReviewMetadata(operation.responseData), decisionInput)
+            const decision = nextMetadata.latestDecision
 
-            const responseData = withFinancialReviewMetadata(operation.responseData, (current) => ({
-                ...current,
-                latestDecision: decision,
-                decisions: [...(current.decisions || []), decision],
-            }))
+            const responseData = withFinancialReviewMetadata(operation.responseData, () => nextMetadata)
 
             await tx.operation.update({
                 where: { id: operationId },
@@ -237,6 +270,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
             }
             if (error.message === 'PROVIDER_CHARGE_EVIDENCE_CONFLICT') {
                 return NextResponse.json({ error: 'Refund cannot be applied while provider charge evidence exists' }, { status: 400 })
+            }
+            if (error.message === 'MISSING_MANUAL_NO_CHARGE_VERIFICATION') {
+                return NextResponse.json({ error: 'Manual confirmation that renewal/payment did not happen is required before refund' }, { status: 400 })
             }
         }
         return NextResponse.json({ error: 'Server error' }, { status: 500 })

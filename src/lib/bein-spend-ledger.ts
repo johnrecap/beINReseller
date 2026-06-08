@@ -140,7 +140,7 @@ export function buildBeinSpendLedgerWhere(filters: BeinSpendReportFilters): Pris
         ...(filters.userId ? { userId: filters.userId } : {}),
         ...(filters.operationType ? { operationType: filters.operationType } : {}),
         ...(filters.cardNumber ? { cardNumberSnapshot: { contains: filters.cardNumber } } : {}),
-        evidenceConfidence: 'CONFIRMED',
+        evidenceConfidence: { in: ['CONFIRMED', 'CONFIRMED_FINAL_PAY'] },
     }
 }
 

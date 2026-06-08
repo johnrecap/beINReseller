@@ -44,3 +44,14 @@ test('builds matching ledger and review card filters', () => {
     assert.deepEqual(ledgerWhere.cardNumberSnapshot, { contains: '7518695237' })
     assert.deepEqual(reviewWhere.cardNumber, { contains: '7518695237' })
 })
+
+test('includes legacy and final-pay confirmed spend rows in report filters', () => {
+    const filters = parseBeinSpendReportFilters(new URLSearchParams({
+        from: '2026-05-01T00:00:00.000Z',
+        to: '2026-05-25T23:59:59.999Z',
+    }))
+
+    const ledgerWhere = buildBeinSpendLedgerWhere(filters)
+
+    assert.deepEqual(ledgerWhere.evidenceConfidence, { in: ['CONFIRMED', 'CONFIRMED_FINAL_PAY'] })
+})

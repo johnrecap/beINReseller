@@ -1,32 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { WalletCards } from 'lucide-react'
 import QuickActionTile from '@/components/dashboard/QuickActionTile'
+import { useCreditRequestVisibility } from '@/components/credit-requests/useCreditRequestVisibility'
 
 export default function RequestCreditEntry({ userRole }: { userRole: string }) {
-    const [visible, setVisible] = useState(false)
-
-    useEffect(() => {
-        if (userRole !== 'USER') return
-
-        let cancelled = false
-
-        fetch('/api/credit-requests', { cache: 'no-store' })
-            .then((response) => response.ok ? response.json() : null)
-            .then((payload) => {
-                if (!cancelled) {
-                    setVisible(Boolean(payload?.eligibility?.canRequest))
-                }
-            })
-            .catch(() => {
-                if (!cancelled) setVisible(false)
-            })
-
-        return () => {
-            cancelled = true
-        }
-    }, [userRole])
+    const visible = useCreditRequestVisibility(userRole)
 
     if (!visible) return null
 

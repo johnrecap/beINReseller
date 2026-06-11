@@ -5,13 +5,12 @@ import { requireAuthAPI } from '@/lib/auth-utils'
 import {
     canRequestCreditForOwner,
     findPendingCreditRequestForUser,
-    getEligibilityReasonForOwner,
 } from '@/lib/credit-requests/permissions'
 import {
     createCreditRequestSchema,
 } from '@/lib/credit-requests/types'
 import { sendCreditRequestTelegramNotification } from '@/lib/credit-requests/notifications'
-import { classifyCurrentUserOwner } from '@/lib/users/ownership'
+import { getCreditRequestAccess } from '@/lib/credit-requests/access'
 
 function toDatePart(date: Date): string {
     const year = date.getFullYear()
@@ -51,86 +50,6 @@ function duplicatePendingResponse(existing: {
     )
 }
 
-async function getCreditRequestContext(userId: string) {
-    const [user, managerLinks, activeAgentAssignments] = await Promise.all([
-        prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                id: true,
-                username: true,
-                role: true,
-                isActive: true,
-                deletedAt: true,
-                createdBy: {
-                    select: {
-                        id: true,
-                        username: true,
-                        role: true,
-                        isActive: true,
-                        deletedAt: true,
-                    },
-                },
-            },
-        }),
-        prisma.managerUser.findMany({
-            where: { userId },
-            select: {
-                id: true,
-                managerId: true,
-                manager: {
-                    select: {
-                        id: true,
-                        username: true,
-                        role: true,
-                        isActive: true,
-                        deletedAt: true,
-                    },
-                },
-            },
-        }),
-        prisma.agentAssignment.findMany({
-            where: { userId, isActive: true },
-            orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                agentId: true,
-                userId: true,
-                sourceGroup: true,
-                whatsappGroupUrl: true,
-                isActive: true,
-                agent: {
-                    select: {
-                        id: true,
-                        username: true,
-                        role: true,
-                        isActive: true,
-                        deletedAt: true,
-                        agentProfile: {
-                            select: {
-                                displayName: true,
-                                isActive: true,
-                            },
-                        },
-                    },
-                },
-            },
-        }),
-    ])
-
-    const owner = user
-        ? classifyCurrentUserOwner({
-            user,
-            managerLinks,
-            activeAssignments: activeAgentAssignments,
-        })
-        : null
-    const activeAgentAssignment = owner?.ownerType === 'AGENT'
-        ? activeAgentAssignments.find((assignment) => assignment.id === owner.agentAssignmentId) || null
-        : null
-
-    return { user, managerLinks, activeAgentAssignments, activeAgentAssignment, owner }
-}
-
 export async function GET(request: NextRequest) {
     try {
         const authResult = await requireAuthAPI(request)
@@ -138,15 +57,16 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        const { user, activeAgentAssignment, owner } = await getCreditRequestContext(authResult.user.id)
+        const {
+            user,
+            owner,
+            eligibilityReason,
+            agentName,
+            sourceGroup,
+        } = await getCreditRequestAccess(authResult.user.id)
         if (!user || !owner) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
-
-        const eligibilityReason = getEligibilityReasonForOwner({
-            user,
-            owner,
-        })
 
         const requests = await prisma.creditRequest.findMany({
             where: { userId: authResult.user.id },
@@ -171,9 +91,6 @@ export async function GET(request: NextRequest) {
             },
         })
 
-        const agentProfile = activeAgentAssignment?.agent.agentProfile
-        const agentName = agentProfile?.displayName || activeAgentAssignment?.agent.username || null
-
         return NextResponse.json({
             eligibility: {
                 canRequest: eligibilityReason === 'ELIGIBLE',
@@ -181,7 +98,7 @@ export async function GET(request: NextRequest) {
                 ownerType: owner.ownerType,
                 ownerLabel: owner.ownerLabel,
                 agentName,
-                sourceGroup: activeAgentAssignment?.sourceGroup || null,
+                sourceGroup,
             },
             requests: requests.map((item) => ({
                 id: item.id,
@@ -219,7 +136,14 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const { user, activeAgentAssignment, owner } = await getCreditRequestContext(authResult.user.id)
+        const {
+            user,
+            activeAgentAssignment,
+            owner,
+            eligibilityReason,
+            agentName,
+            sourceGroup,
+        } = await getCreditRequestAccess(authResult.user.id)
         if (!user || !owner) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
@@ -233,19 +157,12 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 {
                     error: 'Credit request is not available for this account',
-                    reason: getEligibilityReasonForOwner({
-                        user,
-                        owner,
-                    }),
+                    reason: eligibilityReason,
                 },
                 { status: 403 }
             )
         }
 
-        const agentProfile = activeAgentAssignment?.agent.agentProfile
-        const agentName = activeAgentAssignment
-            ? agentProfile?.displayName || activeAgentAssignment.agent.username
-            : null
         const ownerLabel = owner.ownerLabel
             || (owner.ownerType === 'ADMIN' || owner.ownerType === 'LEGACY_ADMIN' ? 'Admin direct' : null)
             || agentName
@@ -325,7 +242,7 @@ export async function POST(request: NextRequest) {
             ownerLabel,
             agentId: activeAgentAssignment?.agentId || null,
             agentName,
-            sourceGroup: activeAgentAssignment?.sourceGroup || null,
+            sourceGroup,
         })
 
         return NextResponse.json({
@@ -339,7 +256,7 @@ export async function POST(request: NextRequest) {
                 ownerType: owner.ownerType,
                 ownerLabel,
                 agentName,
-                sourceGroup: activeAgentAssignment?.sourceGroup || null,
+                sourceGroup,
                 createdAt: creditRequest.createdAt.toISOString(),
             },
             notification: {

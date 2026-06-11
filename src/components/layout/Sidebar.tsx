@@ -35,6 +35,7 @@ import { useTranslation } from '@/hooks/useTranslation'
 import { Button } from '@/components/ui/button'
 import { canAccessSubscription } from '@/lib/permissions'
 import { REPORT_CENTER_HREF, REPORT_CENTER_TABS } from '@/components/admin/report-center/report-tabs'
+import { useCreditRequestVisibility } from '@/components/credit-requests/useCreditRequestVisibility'
 
 interface SidebarProps {
     isOpen: boolean
@@ -64,6 +65,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const creditAgentAdminNavigationReady = true
     const creditRewardsNavigationReady = true
     const adminCreditRequestsReady = true
+    const requestCreditVisible = useCreditRequestVisibility(userRole)
 
     // Sidebar visibility settings
     const [sidebarSettings, setSidebarSettings] = useState<Record<string, boolean>>({
@@ -95,6 +97,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         { href: '/dashboard/history', label: t.sidebar.history, icon: History },
     ] : []
 
+    const requestCreditLinks = requestCreditVisible ? [
+        { href: '/dashboard/credit-requests', label: sectionLabel('طلب الرصيد', 'Request Credit'), icon: WalletCards },
+    ] : []
+
     // Common links for all users
     const commonLinks = [
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
@@ -103,7 +109,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     // Combined reseller links
-    const resellerLinks = [...baseLinks, ...renewalLinks, ...commonLinks]
+    const resellerLinks = [...baseLinks, ...renewalLinks, ...requestCreditLinks, ...commonLinks]
 
     const managerLinks = [
         { href: '/dashboard/manager', label: t.sidebar.managerPanel, icon: BarChart3 },

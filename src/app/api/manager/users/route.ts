@@ -7,6 +7,7 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
 import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
 import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
+import { buildManagerBalanceDebitWhere } from '@/lib/manager-user-balances'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -183,10 +184,7 @@ export async function POST(request: NextRequest) {
                 let updatedManager: { balance: number } | null = null
                 if (balance > 0) {
                     const managerDebit = await tx.user.updateMany({
-                        where: {
-                            id: manager.id,
-                            balance: { gte: balance }
-                        },
+                        where: buildManagerBalanceDebitWhere(manager.id, balance),
                         data: { balance: { decrement: balance } }
                     })
 

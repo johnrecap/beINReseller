@@ -6,6 +6,10 @@ import { createNotification } from '@/lib/notification'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
 import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
+import {
+    ManagerUserBalanceError,
+    applyManagerUserBalanceMutation,
+} from '@/lib/manager-user-balances'
 
 const balanceSchema = z.object({
     amount: z.number().refine(val => val !== 0, 'Amount must be greater or less than zero'),
@@ -81,66 +85,14 @@ export async function PATCH(
         // Transactional update with balance checks INSIDE transaction (prevents race conditions)
         try {
             const updatedUser = await prisma.$transaction(async (tx) => {
-                let updatedManager: { balance: number }
-                let updated: { balance: number }
-
-                // 1. For deposits, debit manager with a DB guard before crediting user.
-                if (isDeposit) {
-                    const managerDebit = await tx.user.updateMany({
-                        where: {
-                            id: manager.id,
-                            balance: { gte: absAmount }
-                        },
-                        data: { balance: { decrement: absAmount } }
-                    })
-
-                    if (managerDebit.count !== 1) {
-                        const currentManager = await tx.user.findUnique({
-                            where: { id: manager.id },
-                            select: { balance: true }
-                        })
-                        throw new Error(`INSUFFICIENT_MANAGER_BALANCE:${currentManager?.balance.toFixed(2) || 0}`)
-                    }
-
-                    updatedManager = await tx.user.findUniqueOrThrow({
-                        where: { id: manager.id },
-                        select: { balance: true }
-                    })
-
-                    updated = await tx.user.update({
-                        where: { id },
-                        data: { balance: { increment: absAmount } },
-                        select: { balance: true }
-                    })
-                } else {
-                    // 2. For withdrawals, debit user with a DB guard before crediting manager.
-                    const userDebit = await tx.user.updateMany({
-                        where: {
-                            id,
-                            balance: { gte: absAmount }
-                        },
-                        data: { balance: { decrement: absAmount } }
-                    })
-
-                    if (userDebit.count !== 1) {
-                        const currentUser = await tx.user.findUnique({
-                            where: { id },
-                            select: { balance: true }
-                        })
-                        throw new Error(`INSUFFICIENT_USER_BALANCE:${currentUser?.balance.toFixed(2) || 0}`)
-                    }
-
-                    updated = await tx.user.findUniqueOrThrow({
-                        where: { id },
-                        select: { balance: true }
-                    })
-
-                    updatedManager = await tx.user.update({
-                        where: { id: manager.id },
-                        data: { balance: { increment: absAmount } },
-                        select: { balance: true }
-                    })
-                }
+                const balanceMutation = await applyManagerUserBalanceMutation(tx, {
+                    managerId: manager.id,
+                    userId: id,
+                    amount,
+                })
+                const managedTargetUser = balanceMutation.targetUser
+                const updatedManager = { balance: balanceMutation.updatedManagerBalance }
+                const updated = { balance: balanceMutation.updatedUserBalance }
 
                 // 5. Create transaction for user
                 await tx.transaction.create({
@@ -163,8 +115,8 @@ export async function PATCH(
                         amount: absAmount,
                         balanceAfter: updatedManager.balance,
                         notes: isDeposit 
-                            ? `Balance transfer to user: ${targetUser.username}`
-                            : `Balance refund from user: ${targetUser.username}`,
+                            ? `Balance transfer to user: ${managedTargetUser.username}`
+                            : `Balance refund from user: ${managedTargetUser.username}`,
                     }
                 })
 
@@ -174,7 +126,7 @@ export async function PATCH(
                         userId: manager.id,
                         action: isDeposit ? 'MANAGER_DEPOSIT_USER' : 'MANAGER_WITHDRAW_USER',
                         details: {
-                            targetUsername: targetUser.username,
+                            targetUsername: managedTargetUser.username,
                             targetUserId: id,
                             amount: absAmount,
                             managerNewBalance: updatedManager.balance,
@@ -210,6 +162,23 @@ export async function PATCH(
         } catch (error) {
             // Handle custom balance errors
             if (error instanceof Error) {
+                if (error instanceof ManagerUserBalanceError) {
+                    if (error.code === 'USER_NOT_FOUND') {
+                        return NextResponse.json({ error: 'User not found' }, { status: 404 })
+                    }
+                    if (error.code === 'USER_DELETED') {
+                        return NextResponse.json({ error: 'Cannot modify balance for a deleted user' }, { status: 400 })
+                    }
+                    if (error.code === 'INVALID_TARGET_USER') {
+                        return NextResponse.json({ error: 'Cannot modify balance for this account type' }, { status: 400 })
+                    }
+                    if (error.code === 'USER_NOT_MANAGED') {
+                        return NextResponse.json({ error: 'You do not have permission to modify this user\'s balance' }, { status: 403 })
+                    }
+                    if (error.code === 'MANAGER_NOT_AVAILABLE') {
+                        return NextResponse.json({ error: 'Manager account is not available' }, { status: 403 })
+                    }
+                }
                 if (error.message.startsWith('INSUFFICIENT_MANAGER_BALANCE:')) {
                     const balance = error.message.split(':')[1]
                     return NextResponse.json(

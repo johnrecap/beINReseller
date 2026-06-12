@@ -68,6 +68,7 @@ test('calculates money preview with existing points conversion ratio', () => {
         pointsStartAt: new Date('2026-05-25T00:00:00.000Z'),
         cashConversionPoints: 100,
         cashConversionAmountUsd: 10,
+        managerOwnedUserPointsEnabled: true,
     }), 25)
 
     assert.equal(calculateEidMoneyPreview(250, {
@@ -75,5 +76,6 @@ test('calculates money preview with existing points conversion ratio', () => {
         pointsStartAt: null,
         cashConversionPoints: 100,
         cashConversionAmountUsd: 10,
+        managerOwnedUserPointsEnabled: false,
     }), null)
 })

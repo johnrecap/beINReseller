@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import type { Prisma } from '@prisma/client'
 import { buildFinancialReviewItem } from '@/lib/financial-review/evidence'
 import type { FinancialReviewDecision, FinancialReviewItem } from '@/lib/financial-review/types'
 
@@ -51,6 +52,10 @@ function manualDecision(overrides: Partial<FinancialReviewDecision>): FinancialR
         decidedAt: REVIEW_DATE.toISOString(),
         ...overrides,
     }
+}
+
+function jsonValue(value: unknown): Prisma.JsonValue {
+    return value as Prisma.JsonValue
 }
 
 test('shows confirmed final-pay beIN debit when both final balances have final-pay provenance', () => {
@@ -133,13 +138,13 @@ test('uses manual verified paid decision as admin conclusion without hiding prov
         source: 'admin_manual_review',
     })
     const item = buildItem({
-        responseData: {
+        responseData: jsonValue({
             auditSnapshot: { userDeductTotal: CUSTOMER_DEDUCT },
             financialReview: {
                 latestDecision: decision,
                 decisions: [decision],
             },
-        },
+        }),
     })
 
     assert.equal(item.evidence.providerEvidenceState, 'manual-verified-paid')
@@ -151,19 +156,19 @@ test('uses manual verified paid decision as admin conclusion without hiding prov
 test('keeps admin no-refund closure visible in the confirmed tab', () => {
     const decision = manualDecision({
         action: 'BEIN_EXECUTED_NO_REFUND',
-        paymentStatus: 'طھظ… طھط£ظƒظٹط¯ ط§ظ„ط¯ظپط¹',
+        paymentStatus: 'تم تأكيد الدفع',
         cardRenewed: true,
         source: 'admin_manual_review',
     })
     const item = buildItem({
         status: 'COMPLETED',
-        responseData: {
+        responseData: jsonValue({
             auditSnapshot: { userDeductTotal: CUSTOMER_DEDUCT },
             financialReview: {
                 latestDecision: decision,
                 decisions: [decision],
             },
-        },
+        }),
     })
 
     assert.equal(item.state, 'bein_executed')
@@ -176,13 +181,13 @@ test('treats legacy admin no-refund decision as confirmed even without new payme
     })
     const item = buildItem({
         status: 'COMPLETED',
-        responseData: {
+        responseData: jsonValue({
             auditSnapshot: { userDeductTotal: CUSTOMER_DEDUCT },
             financialReview: {
                 latestDecision: decision,
                 decisions: [decision],
             },
-        },
+        }),
     })
 
     assert.equal(item.state, 'bein_executed')
@@ -197,13 +202,13 @@ test('uses manual verified not-paid decision as admin conclusion', () => {
         refundApplied: true,
     })
     const item = buildItem({
-        responseData: {
+        responseData: jsonValue({
             auditSnapshot: { userDeductTotal: CUSTOMER_DEDUCT },
             financialReview: {
                 latestDecision: decision,
                 decisions: [decision],
             },
-        },
+        }),
     })
 
     assert.equal(item.evidence.providerEvidenceState, 'manual-verified-not-paid')
@@ -215,20 +220,20 @@ test('uses manual verified not-paid decision as admin conclusion', () => {
 test('keeps admin refund closure visible in the refunded tab', () => {
     const decision = manualDecision({
         action: 'REFUND_CUSTOMER',
-        paymentStatus: 'ظ„ظ… ظٹطھظ… طھط£ظƒظٹط¯ ط§ظ„ط¯ظپط¹',
+        paymentStatus: 'لم يتم تأكيد الدفع',
         cardRenewed: false,
         source: 'admin_manual_review',
         refundApplied: true,
     })
     const item = buildItem({
         status: 'FAILED',
-        responseData: {
+        responseData: jsonValue({
             auditSnapshot: { userDeductTotal: CUSTOMER_DEDUCT },
             financialReview: {
                 latestDecision: decision,
                 decisions: [decision],
             },
-        },
+        }),
         transactions: [
             { type: 'OPERATION_DEDUCT', amount: CUSTOMER_DEDUCT },
             { type: 'REFUND', amount: CUSTOMER_DEDUCT },

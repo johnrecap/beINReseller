@@ -2,6 +2,16 @@ export const EGYPT_TIME_ZONE = 'Africa/Cairo'
 
 type DateBoundary = 'start' | 'end'
 
+type CairoDateTimeParts = {
+    year: number
+    month: number
+    day: number
+    hour: number
+    minute: number
+    second: number
+    millisecond: number
+}
+
 function pad(value: number): string {
     return String(value).padStart(2, '0')
 }
@@ -48,15 +58,7 @@ function getTimeZoneOffsetMs(date: Date): number {
     return asUtc - (date.getTime() - date.getMilliseconds())
 }
 
-function cairoPartsToUtcDate(parts: {
-    year: number
-    month: number
-    day: number
-    hour: number
-    minute: number
-    second: number
-    millisecond: number
-}): Date {
+function cairoPartsToUtcDate(parts: CairoDateTimeParts): Date {
     const localAsUtc = Date.UTC(
         parts.year,
         parts.month - 1,
@@ -70,6 +72,51 @@ function cairoPartsToUtcDate(parts: {
     const secondPass = new Date(localAsUtc - getTimeZoneOffsetMs(firstPass))
 
     return secondPass
+}
+
+function cairoPartsMatch(date: Date, parts: CairoDateTimeParts): boolean {
+    const cairoParts = getTimeZoneParts(date)
+
+    return (
+        cairoParts.year === parts.year &&
+        cairoParts.month === parts.month &&
+        cairoParts.day === parts.day &&
+        cairoParts.hour === parts.hour &&
+        cairoParts.minute === parts.minute &&
+        cairoParts.second === parts.second &&
+        date.getUTCMilliseconds() === parts.millisecond
+    )
+}
+
+function findUtcMatchesForCairoParts(parts: CairoDateTimeParts): Date[] {
+    const localAsUtc = Date.UTC(
+        parts.year,
+        parts.month - 1,
+        parts.day,
+        parts.hour,
+        parts.minute,
+        parts.second,
+        parts.millisecond
+    )
+    const matches = new Map<number, Date>()
+
+    for (let offsetMinutes = -12 * 60; offsetMinutes <= 14 * 60; offsetMinutes += 15) {
+        const candidate = new Date(localAsUtc - offsetMinutes * 60_000)
+        if (cairoPartsMatch(candidate, parts)) {
+            matches.set(candidate.getTime(), candidate)
+        }
+    }
+
+    return Array.from(matches.values()).sort((left, right) => left.getTime() - right.getTime())
+}
+
+function cairoPartsToUtcDateForBoundary(parts: CairoDateTimeParts, boundary: DateBoundary): Date {
+    const matches = findUtcMatchesForCairoParts(parts)
+    if (matches.length === 0) {
+        return cairoPartsToUtcDate(parts)
+    }
+
+    return boundary === 'start' ? matches[0] : matches[matches.length - 1]
 }
 
 function parseDateInput(value: string) {
@@ -142,6 +189,26 @@ export function cairoDateRangeToUtcIso(from: string, to: string): { from: string
     return {
         from: cairoDateInputToUtcIso(from, 'start'),
         to: cairoDateInputToUtcIso(to, 'end'),
+    }
+}
+
+function cairoLocalInputToUtcIso(value: string, boundary: DateBoundary): string | null {
+    const dateTimeParts = parseDateTimeLocalInput(value)
+    if (dateTimeParts) {
+        return cairoPartsToUtcDateForBoundary({
+            ...dateTimeParts,
+            second: boundary === 'start' ? 0 : 59,
+            millisecond: boundary === 'start' ? 0 : 999,
+        }, boundary).toISOString()
+    }
+
+    return cairoDateInputToUtcIso(value, boundary)
+}
+
+export function cairoLocalRangeToUtcIso(from: string, to: string): { from: string | null; to: string | null } {
+    return {
+        from: cairoLocalInputToUtcIso(from, 'start'),
+        to: cairoLocalInputToUtcIso(to, 'end'),
     }
 }
 

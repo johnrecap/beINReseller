@@ -3,6 +3,10 @@ import prisma from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { z } from 'zod'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
+import {
+    ManagerUserBalanceError,
+    deleteManagedUserBalanceWithRefund,
+} from '@/lib/manager-user-balances'
 
 const toggleActiveSchema = z.object({
     isActive: z.boolean()
@@ -146,17 +150,21 @@ export async function DELETE(
             return NextResponse.json({ error: 'You do not have permission to delete this user' }, { status: 403 })
         }
 
-        const refundedBalance = userToDelete.balance
-
         // Use transaction to ensure data integrity
-        await prisma.$transaction(async (tx) => {
+        const { refundedBalance } = await prisma.$transaction(async (tx) => {
+            const deleteResult = await deleteManagedUserBalanceWithRefund(tx, {
+                managerId: manager.id,
+                userId: id,
+                deletedByUserId: manager.id,
+            })
+            const managedTargetUser = deleteResult.targetUser
+            const refundedBalance = deleteResult.refundedBalance
+
             // 1. Refund balance to manager if user has balance > 0
             if (refundedBalance > 0) {
-                // Add balance back to manager
-                const updatedManager = await tx.user.update({
-                    where: { id: manager.id },
-                    data: { balance: { increment: refundedBalance } }
-                })
+                if (deleteResult.updatedManagerBalance === null) {
+                    throw new ManagerUserBalanceError('DELETE_TARGET_CHANGED')
+                }
 
                 // Log transaction for manager (receiving refund)
                 await tx.transaction.create({
@@ -164,15 +172,15 @@ export async function DELETE(
                         userId: manager.id,
                         type: 'DEPOSIT',
                         amount: refundedBalance,
-                        notes: `Balance refund from user deletion: ${userToDelete.username}`,
-                        balanceAfter: updatedManager.balance
+                        notes: `Balance refund from user deletion: ${managedTargetUser.username}`,
+                        balanceAfter: deleteResult.updatedManagerBalance
                     }
                 })
 
                 // Log transaction for deleted user (withdrawal)
                 await tx.transaction.create({
                     data: {
-                        userId: userToDelete.id,
+                        userId: managedTargetUser.id,
                         type: 'WITHDRAW',
                         amount: refundedBalance,
                         notes: `Balance deducted due to account deletion`,
@@ -181,32 +189,22 @@ export async function DELETE(
                 })
             }
 
-            // 2. Soft delete - preserve data and mark as deleted
-            await tx.user.update({
-                where: { id },
-                data: {
-                    deletedAt: new Date(),
-                    deletedBalance: refundedBalance,
-                    deletedByUserId: manager.id,
-                    isActive: false,
-                    balance: 0  // Clear user's balance after refund
-                }
-            })
-
             // 3. Log activity with detailed info
             await tx.activityLog.create({
                 data: {
                     userId: manager.id,
                     action: 'MANAGER_DELETE_USER',
                     details: {
-                        deletedUsername: userToDelete.username,
-                        deletedUserId: userToDelete.id,
+                        deletedUsername: managedTargetUser.username,
+                        deletedUserId: managedTargetUser.id,
                         refundedBalance: refundedBalance,
                         refundedToManager: refundedBalance > 0
                     },
                     ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
                 }
             })
+
+            return { refundedBalance }
         })
 
         return NextResponse.json({ 
@@ -217,6 +215,26 @@ export async function DELETE(
         })
 
     } catch (error) {
+        if (error instanceof ManagerUserBalanceError) {
+            if (error.code === 'USER_NOT_FOUND') {
+                return NextResponse.json({ error: 'User not found' }, { status: 404 })
+            }
+            if (error.code === 'USER_DELETED') {
+                return NextResponse.json({ error: 'User already deleted' }, { status: 400 })
+            }
+            if (error.code === 'INVALID_TARGET_USER') {
+                return NextResponse.json({ error: 'Cannot delete this account type' }, { status: 400 })
+            }
+            if (error.code === 'USER_NOT_MANAGED') {
+                return NextResponse.json({ error: 'You do not have permission to delete this user' }, { status: 403 })
+            }
+            if (error.code === 'MANAGER_NOT_AVAILABLE') {
+                return NextResponse.json({ error: 'Manager account is not available' }, { status: 403 })
+            }
+            if (error.code === 'DELETE_TARGET_CHANGED') {
+                return NextResponse.json({ error: 'User balance changed while deleting. Please retry.' }, { status: 409 })
+            }
+        }
         console.error('Manager delete user error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }

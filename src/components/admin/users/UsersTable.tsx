@@ -12,6 +12,7 @@ import UserStatsDialog from './UserStatsDialog'
 import TransferOwnershipDialog from './TransferOwnershipDialog'
 import { useTranslation } from '@/hooks/useTranslation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { formatUserBalanceSummary } from '@/lib/admin/user-balance-summary'
 
 // User type for Users tab (with creator info)
 interface User {
@@ -87,6 +88,7 @@ interface TabCounts {
     distributors: number
     agents: number
     users: number
+    totalBalance: number | null
 }
 
 type TabType = 'distributors' | 'agents' | 'users'
@@ -103,7 +105,7 @@ export default function UsersTable() {
     const [totalPages, setTotalPages] = useState(1)
     const [search, setSearch] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
-    const [counts, setCounts] = useState<TabCounts>({ distributors: 0, agents: 0, users: 0 })
+    const [counts, setCounts] = useState<TabCounts>({ distributors: 0, agents: 0, users: 0, totalBalance: null })
     const [refreshing, setRefreshing] = useState(false)
     const [userCreationDisabled, setUserCreationDisabled] = useState(false)
 
@@ -127,6 +129,7 @@ export default function UsersTable() {
     }
 
     const currentLocale = localeMap[language as keyof typeof localeMap] || ar
+    const totalUserBalanceLabel = formatUserBalanceSummary(counts.totalBalance, t.header.currency)
 
     // Debounce Search
     useEffect(() => {
@@ -145,7 +148,14 @@ export default function UsersTable() {
             const res = await fetch('/api/admin/users/counts')
             const data = await res.json()
             if (res.ok) {
-                setCounts(data)
+                setCounts({
+                    distributors: typeof data.distributors === 'number' ? data.distributors : 0,
+                    agents: typeof data.agents === 'number' ? data.agents : 0,
+                    users: typeof data.users === 'number' ? data.users : 0,
+                    totalBalance: typeof data.totalBalance === 'number' && Number.isFinite(data.totalBalance)
+                        ? data.totalBalance
+                        : null,
+                })
             }
         } catch {
         }
@@ -620,7 +630,8 @@ export default function UsersTable() {
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)}>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <TabsList className="bg-muted/50">
+                    <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                        <TabsList className="bg-muted/50">
                         <TabsTrigger value="distributors" className="gap-2">
                             {t.admin?.users?.tabs?.distributors || 'Distributors'}
                             <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
@@ -639,7 +650,18 @@ export default function UsersTable() {
                                 {counts.agents}
                             </span>
                         </TabsTrigger>
-                    </TabsList>
+                        </TabsList>
+
+                        <div className="flex min-h-10 w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm sm:w-auto">
+                            <Wallet className="h-4 w-4 shrink-0 text-green-500" />
+                            <span className="text-muted-foreground">
+                                {t.admin?.users?.summary?.totalBalance || 'Total balance: users, agents, managers'}
+                            </span>
+                            <span className="font-bold text-foreground dir-ltr text-right">
+                                {totalUserBalanceLabel ?? '-'}
+                            </span>
+                        </div>
+                    </div>
 
                     {/* Header Actions */}
                     <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
@@ -906,7 +928,10 @@ export default function UsersTable() {
             <AddBalanceDialog
                 isOpen={!!balanceUser}
                 onClose={() => setBalanceUser(null)}
-                onSuccess={fetchData}
+                onSuccess={() => {
+                    fetchData()
+                    fetchCounts()
+                }}
                 userId={balanceUser?.id || null}
                 username={balanceUser?.username || null}
             />

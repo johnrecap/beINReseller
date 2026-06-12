@@ -16,7 +16,6 @@ import {
     AlertTriangle,
     Users,
     Loader2,
-    DollarSign,
     Lock,
     Unlock
 } from 'lucide-react'
@@ -44,6 +43,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
+import { formatBeinDealerBalanceUsd, sumBeinDealerBalances } from '@/lib/admin/bein-account-balances'
 
 interface BeinAccount {
     id: string
@@ -131,6 +131,8 @@ export default function BeinAccountsPage() {
 
     // State for tracking balance refresh
     const [refreshingBalanceId, setRefreshingBalanceId] = useState<string | null>(null)
+    const totalBeinDealerBalance = sumBeinDealerBalances(accounts)
+    const totalBeinDealerBalanceLabel = formatBeinDealerBalanceUsd(totalBeinDealerBalance)
 
     const fetchAccounts = useCallback(async () => {
         try {
@@ -489,7 +491,7 @@ export default function BeinAccountsPage() {
 
             {/* Pool Status Cards */}
             {poolStatus && (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <Card>
                         <CardContent className="p-4 text-center">
                             <div className="text-3xl font-bold">{poolStatus.totalAccounts}</div>
@@ -510,14 +512,8 @@ export default function BeinAccountsPage() {
                     </Card>
                     <Card>
                         <CardContent className="p-4 text-center">
-                            <div className="text-3xl font-bold text-yellow-600">{poolStatus.inCooldown}</div>
-                            <div className="text-sm text-muted-foreground">{t.adminBeinAccounts?.stats?.resting || 'Resting'}</div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-4 text-center">
-                            <div className="text-3xl font-bold text-orange-600">{poolStatus.rateLimited}</div>
-                            <div className="text-sm text-muted-foreground">{t.adminBeinAccounts?.stats?.limited || 'Limited'}</div>
+                            <div className="text-2xl md:text-3xl font-bold text-cyan-600 tabular-nums break-words">{totalBeinDealerBalanceLabel}</div>
+                            <div className="text-sm text-muted-foreground">{t.adminBeinAccounts?.stats?.totalBalance || 'Total beIN Balance'}</div>
                         </CardContent>
                     </Card>
                 </div>

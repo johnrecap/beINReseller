@@ -467,6 +467,9 @@ export const ar = {
                 distributors: 'المديرين',
                 users: 'المستخدمين'
             },
+            summary: {
+                totalBalance: 'إجمالي أرصدة المستخدمين والمندوبين والمديرين'
+            },
             roles: {
                 admin: 'مدير النظام',
                 manager: 'مدير',
@@ -932,7 +935,8 @@ export const ar = {
             active: 'نشط',
             available: 'متاح',
             resting: 'في الراحة',
-            limited: 'محدود المعدل'
+            limited: 'محدود المعدل',
+            totalBalance: 'إجمالي أرصدة beIN'
         },
         table: {
             account: 'الحساب',

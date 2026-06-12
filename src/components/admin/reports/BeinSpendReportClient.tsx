@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, RefreshCw, WalletCards } from 'lucide-react'
 import {
     addDaysToCairoDateInput,
-    cairoDateRangeToUtcIso,
+    cairoLocalRangeToUtcIso,
     currentCairoDateInput,
     startOfCairoMonthDateInput,
 } from '@/lib/egypt-time'
@@ -65,17 +65,17 @@ export interface BeinSpendReportFilterState {
 }
 
 function rangeForPreset(preset: Preset): { from: string; to: string } {
-    const to = currentCairoDateInput()
-    let from = to
+    const toDate = currentCairoDateInput()
+    let fromDate = toDate
 
     if (preset === 'week') {
-        from = addDaysToCairoDateInput(to, -6)
+        fromDate = addDaysToCairoDateInput(toDate, -6)
     }
     if (preset === 'month') {
-        from = startOfCairoMonthDateInput(to)
+        fromDate = startOfCairoMonthDateInput(toDate)
     }
 
-    return { from, to }
+    return { from: `${fromDate}T00:00`, to: `${toDate}T23:59` }
 }
 
 function formatMoney(value: number, currency = 'USD'): string {
@@ -91,7 +91,7 @@ function accountDisplay(username: string | null, label: string | null): string {
 }
 
 export function buildBeinSpendReportParams(filters: BeinSpendReportFilterState, includePagination: boolean): URLSearchParams {
-    const range = cairoDateRangeToUtcIso(filters.from, filters.to)
+    const range = cairoLocalRangeToUtcIso(filters.from, filters.to)
     const params = new URLSearchParams({
         from: range.from ?? '',
         to: range.to ?? '',
@@ -213,12 +213,12 @@ export default function BeinSpendReportClient() {
                         ))}
                     </div>
                     <label className="text-sm">
-                        <span className="mb-1 block text-muted-foreground">From</span>
-                        <input className="h-10 w-full rounded-md border border-border bg-background px-3" type="date" value={from} onChange={(e) => { setPreset('custom'); setFrom(e.target.value); setPage(1) }} />
+                        <span className="mb-1 block text-muted-foreground">From (Cairo time)</span>
+                        <input className="h-10 w-full rounded-md border border-border bg-background px-3" type="datetime-local" step={60} value={from} onChange={(e) => { setPreset('custom'); setFrom(e.target.value); setPage(1) }} />
                     </label>
                     <label className="text-sm">
-                        <span className="mb-1 block text-muted-foreground">To</span>
-                        <input className="h-10 w-full rounded-md border border-border bg-background px-3" type="date" value={to} onChange={(e) => { setPreset('custom'); setTo(e.target.value); setPage(1) }} />
+                        <span className="mb-1 block text-muted-foreground">To (Cairo time)</span>
+                        <input className="h-10 w-full rounded-md border border-border bg-background px-3" type="datetime-local" step={60} value={to} onChange={(e) => { setPreset('custom'); setTo(e.target.value); setPage(1) }} />
                     </label>
                     <label className="text-sm">
                         <span className="mb-1 block text-muted-foreground">Operation type</span>

@@ -45,6 +45,21 @@ test('builds matching ledger and review card filters', () => {
     assert.deepEqual(reviewWhere.cardNumber, { contains: '7518695237' })
 })
 
+test('keeps exact parsed UTC instants in ledger and review date filters', () => {
+    const filters = parseBeinSpendReportFilters(new URLSearchParams({
+        from: '2026-05-26T11:30:00.000Z',
+        to: '2026-05-26T12:45:59.999Z',
+    }))
+
+    const ledgerWhere = buildBeinSpendLedgerWhere(filters)
+    const reviewWhere = buildBeinSpendReviewWhere(filters)
+
+    assert.equal((ledgerWhere.chargedAt as { gte: Date }).gte.toISOString(), '2026-05-26T11:30:00.000Z')
+    assert.equal((ledgerWhere.chargedAt as { lte: Date }).lte.toISOString(), '2026-05-26T12:45:59.999Z')
+    assert.equal((reviewWhere.updatedAt as { gte: Date }).gte.toISOString(), '2026-05-26T11:30:00.000Z')
+    assert.equal((reviewWhere.updatedAt as { lte: Date }).lte.toISOString(), '2026-05-26T12:45:59.999Z')
+})
+
 test('includes legacy and final-pay confirmed spend rows in report filters', () => {
     const filters = parseBeinSpendReportFilters(new URLSearchParams({
         from: '2026-05-01T00:00:00.000Z',

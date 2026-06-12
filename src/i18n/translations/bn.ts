@@ -598,6 +598,9 @@ export const bn = {
                 distributors: 'পরিবেশক',
                 users: 'ইউজার'
             },
+            summary: {
+                totalBalance: 'ব্যবহারকারী, এজেন্ট ও ম্যানেজারদের মোট ব্যালেন্স'
+            },
             roles: {
                 admin: 'সিস্টেম অ্যাডমিন',
                 manager: 'ম্যানেজার',
@@ -930,7 +933,8 @@ export const bn = {
             active: 'সক্রিয়',
             available: 'উপলব্ধ',
             resting: 'বিশ্রামে',
-            limited: 'রেট সীমিত'
+            limited: 'রেট সীমিত',
+            totalBalance: 'মোট beIN ব্যালেন্স'
         },
         table: {
             account: 'অ্যাকাউন্ট',

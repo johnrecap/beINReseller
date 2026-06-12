@@ -52,6 +52,23 @@ test('builds report date range using Egypt day boundaries', () => {
     assert.equal(params.get('to'), '2026-05-27T20:59:59.999Z')
 })
 
+test('builds report date range using selected Cairo time minutes', () => {
+    const params = buildBeinSpendReportParams(baseUiFilters({
+        from: '2026-05-26T14:30',
+        to: '2026-05-26T15:45',
+        cardNumber: '7518-695 237',
+        beinAccountId: 'bein-account-1',
+        userId: 'panel-user-1',
+    }), true)
+
+    assert.equal(params.get('from'), '2026-05-26T11:30:00.000Z')
+    assert.equal(params.get('to'), '2026-05-26T12:45:59.999Z')
+    assert.equal(params.get('cardNumber'), '7518-695 237')
+    assert.equal(params.get('beinAccountId'), 'bein-account-1')
+    assert.equal(params.get('userId'), 'panel-user-1')
+    assert.equal(params.get('pageSize'), '25')
+})
+
 test('combines card, account, and operation type filters in query builders', () => {
     const params = buildBeinSpendReportParams(baseUiFilters({
         cardNumber: '7518-695 237',

@@ -598,6 +598,9 @@ export const en = {
                 distributors: 'Distributors',
                 users: 'Users'
             },
+            summary: {
+                totalBalance: 'Total balance: users, agents, managers'
+            },
             roles: {
                 admin: 'System Admin',
                 manager: 'Manager',
@@ -933,7 +936,8 @@ export const en = {
             active: 'Active',
             available: 'Available',
             resting: 'Resting',
-            limited: 'Rate Limited'
+            limited: 'Rate Limited',
+            totalBalance: 'Total beIN Balance'
         },
         table: {
             account: 'Account',

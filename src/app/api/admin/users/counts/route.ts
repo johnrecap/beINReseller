@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { buildUserBalanceSummaryWhere } from '@/lib/admin/user-balance-summary'
 
 export async function GET(request: NextRequest) {
     try {
@@ -9,7 +10,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        const [distributors, agents, users] = await Promise.all([
+        const [distributors, agents, users, balanceSummary] = await Promise.all([
             prisma.user.count({
                 where: {
                     deletedAt: null,
@@ -27,10 +28,19 @@ export async function GET(request: NextRequest) {
                     deletedAt: null,
                     role: 'USER'
                 }
+            }),
+            prisma.user.aggregate({
+                where: buildUserBalanceSummaryWhere(),
+                _sum: { balance: true }
             })
         ])
 
-        return NextResponse.json({ distributors, agents, users })
+        return NextResponse.json({
+            distributors,
+            agents,
+            users,
+            totalBalance: balanceSummary._sum.balance,
+        })
 
     } catch (error) {
         console.error('Counts API error:', error)

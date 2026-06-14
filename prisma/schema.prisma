@@ -79,6 +79,11 @@ enum CreditRequestStatus {
   CANCELLED
 }
 
+enum CreditDebtLedgerEntryType {
+  CREDIT_APPROVED
+  PAYMENT_RECORDED
+}
+
 enum PointRuleOwnerType {
   USER_GLOBAL
   AGENT_DEFAULT
@@ -156,6 +161,7 @@ model User {
   passwordHash      String    @map("password_hash")
   role              Role      @default(USER)
   balance           Float     @default(0)
+  creditDebtLimitUsd Float    @default(0) @map("credit_debt_limit_usd")
   isActive          Boolean   @default(true) @map("is_active")
   lowBalanceAlert   Float     @default(50) @map("low_balance_alert")
   createdAt         DateTime  @default(now()) @map("created_at")
@@ -198,6 +204,8 @@ model User {
   creditRequestsAsAgent        CreditRequest[]              @relation("CreditRequestAgent")
   creditRequestDecisions       CreditRequest[]              @relation("CreditRequestDecider")
   creditRequestHistory         CreditRequestStatusHistory[] @relation("CreditRequestHistoryActor")
+  creditDebtEntries            CreditDebtLedgerEntry[]      @relation("CreditDebtUser")
+  creditDebtEntriesRecorded    CreditDebtLedgerEntry[]      @relation("CreditDebtRecorder")
   pointRulesOwned              PointRule[]                  @relation("PointRuleOwner")
   pointRulesUpdated            PointRule[]                  @relation("PointRuleUpdater")
   pointLedgerEntries           PointLedgerEntry[]           @relation("PointLedgerOwner")
@@ -310,6 +318,7 @@ model CreditRequest {
   decidedByAdmin  User?                        @relation("CreditRequestDecider", fields: [decidedByAdminId], references: [id])
   transaction     Transaction?                 @relation("CreditRequestTransaction", fields: [transactionId], references: [id])
   history         CreditRequestStatusHistory[]
+  debtEntries     CreditDebtLedgerEntry[]      @relation("CreditRequestDebtEntries")
   pointEntries    PointLedgerEntry[]
   notifications   WhatsAppNotificationLog[]
   whatsappHandoff WhatsAppHandoffSnapshot?
@@ -337,6 +346,33 @@ model CreditRequestStatusHistory {
   @@index([creditRequestId, createdAt])
   @@index([actorId, createdAt])
   @@map("credit_request_status_history")
+}
+
+model CreditDebtLedgerEntry {
+  id                 String                    @id @default(cuid())
+  userId             String                    @map("user_id")
+  entryType          CreditDebtLedgerEntryType @map("entry_type")
+  amountUsd          Float                     @map("amount_usd")
+  debtAfterUsd       Float                     @map("debt_after_usd")
+  creditRequestId    String?                   @map("credit_request_id")
+  transactionId      String?                   @map("transaction_id")
+  ownerTypeSnapshot  String?                   @map("owner_type_snapshot")
+  ownerIdSnapshot    String?                   @map("owner_id_snapshot")
+  ownerLabelSnapshot String?                   @map("owner_label_snapshot")
+  recordedByUserId   String?                   @map("recorded_by_user_id")
+  note               String?
+  createdAt          DateTime                  @default(now()) @map("created_at")
+
+  user          User           @relation("CreditDebtUser", fields: [userId], references: [id])
+  creditRequest CreditRequest? @relation("CreditRequestDebtEntries", fields: [creditRequestId], references: [id], onDelete: SetNull)
+  transaction   Transaction?   @relation("TransactionCreditDebtEntries", fields: [transactionId], references: [id], onDelete: SetNull)
+  recordedBy    User?          @relation("CreditDebtRecorder", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([creditRequestId, entryType])
+  @@index([userId, createdAt])
+  @@index([ownerIdSnapshot, createdAt])
+  @@index([entryType, createdAt])
+  @@map("credit_debt_ledger_entries")
 }
 
 model PointRule {
@@ -736,6 +772,7 @@ model Transaction {
   admin               User?                @relation("AdminTransactions", fields: [adminId], references: [id])
   operation           Operation?           @relation("OperationTransactions", fields: [operationId], references: [id])
   creditRequest       CreditRequest?       @relation("CreditRequestTransaction")
+  creditDebtEntries   CreditDebtLedgerEntry[] @relation("TransactionCreditDebtEntries")
   pointCashRedemption PointCashRedemption? @relation("PointCashRedemptionTransaction")
 
   @@index([userId, createdAt])

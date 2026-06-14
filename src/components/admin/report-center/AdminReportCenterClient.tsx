@@ -32,6 +32,7 @@ const REPORT_PANEL_COMPONENTS: Record<ReportCenterTabKey, ComponentType<object>>
     integrity: dynamic(REPORT_PANEL_LOADERS.integrity, { loading: ReportPanelLoading }),
     'bein-spend': dynamic(REPORT_PANEL_LOADERS['bein-spend'], { loading: ReportPanelLoading }),
     'points-analysis': dynamic(REPORT_PANEL_LOADERS['points-analysis'], { loading: ReportPanelLoading }),
+    'credit-payments': dynamic(REPORT_PANEL_LOADERS['credit-payments'], { loading: ReportPanelLoading }),
     'login-monitor': dynamic(REPORT_PANEL_LOADERS['login-monitor'], { loading: ReportPanelLoading }),
     'balance-monitor': dynamic(REPORT_PANEL_LOADERS['balance-monitor'], { loading: ReportPanelLoading }),
     logs: dynamic(REPORT_PANEL_LOADERS.logs, { loading: ReportPanelLoading }),

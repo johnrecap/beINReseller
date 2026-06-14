@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { requireAuthAPI } from '@/lib/auth-utils'
 import {
     canRequestCreditForOwner,
-    findPendingCreditRequestForUser,
 } from '@/lib/credit-requests/permissions'
 import {
     createCreditRequestSchema,
 } from '@/lib/credit-requests/types'
 import { sendCreditRequestTelegramNotification } from '@/lib/credit-requests/notifications'
 import { getCreditRequestAccess } from '@/lib/credit-requests/access'
+import {
+    getCreditDebtSummary,
+    lockCreditDebtUser,
+    validateCreditRequestCapacity,
+} from '@/lib/credit-requests/debt'
 
 function toDatePart(date: Date): string {
     const year = date.getFullYear()
@@ -25,29 +28,13 @@ function createRequestNumber(date = new Date()): string {
     return `CR-${toDatePart(date)}-${suffix}`
 }
 
-function duplicatePendingResponse(existing: {
-    id: string
-    requestNumber: string
-    amountUsd: number
-    paymentMethod: string
-    status: string
-    createdAt: Date
-}) {
-    return NextResponse.json(
-        {
-            error: 'You already have a pending credit request',
-            reason: 'PENDING_REQUEST_EXISTS',
-            existingRequest: {
-                id: existing.id,
-                requestNumber: existing.requestNumber,
-                amountUsd: existing.amountUsd,
-                paymentMethod: existing.paymentMethod,
-                status: existing.status,
-                createdAt: existing.createdAt.toISOString(),
-            },
-        },
-        { status: 409 }
-    )
+class CreditRequestCapacityError extends Error {
+    constructor(
+        readonly reason: 'CREDIT_LIMIT_NOT_CONFIGURED' | 'CREDIT_LIMIT_EXCEEDED',
+        readonly availableUsd: number
+    ) {
+        super(reason)
+    }
 }
 
 export async function GET(request: NextRequest) {
@@ -67,6 +54,14 @@ export async function GET(request: NextRequest) {
         if (!user || !owner) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
+        const debtSummary = await getCreditDebtSummary(prisma, authResult.user.id)
+        const capacityReason = eligibilityReason === 'ELIGIBLE'
+            ? !debtSummary.hasLimit
+                ? 'CREDIT_LIMIT_NOT_CONFIGURED'
+                : debtSummary.availableUsd <= 0
+                    ? 'CREDIT_LIMIT_EXCEEDED'
+                    : null
+            : null
 
         const requests = await prisma.creditRequest.findMany({
             where: { userId: authResult.user.id },
@@ -93,12 +88,13 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             eligibility: {
-                canRequest: eligibilityReason === 'ELIGIBLE',
-                reason: eligibilityReason,
+                canRequest: eligibilityReason === 'ELIGIBLE' && !capacityReason,
+                reason: capacityReason || eligibilityReason,
                 ownerType: owner.ownerType,
                 ownerLabel: owner.ownerLabel,
                 agentName,
                 sourceGroup,
+                debtSummary,
             },
             requests: requests.map((item) => ({
                 id: item.id,
@@ -168,69 +164,50 @@ export async function POST(request: NextRequest) {
             || agentName
         const requestNumber = createRequestNumber()
         const notes = parsed.data.notes?.trim() || null
-        const existingPending = await findPendingCreditRequestForUser(prisma, user.id)
 
-        if (existingPending) {
-            return duplicatePendingResponse(existingPending)
-        }
+        const { creditRequest, debtSummary } = await prisma.$transaction(async (tx) => {
+            await lockCreditDebtUser(tx, user.id)
+            const debtSummaryBefore = await getCreditDebtSummary(tx, user.id)
+            const capacity = validateCreditRequestCapacity(debtSummaryBefore, parsed.data.amountUsd)
+            if (!capacity.allowed) {
+                throw new CreditRequestCapacityError(capacity.reason, capacity.availableUsd)
+            }
 
-        let creditRequest: Prisma.CreditRequestGetPayload<Prisma.CreditRequestDefaultArgs>
-        try {
-            creditRequest = await prisma.$transaction(async (tx) => {
-                const pendingInsideTransaction = await findPendingCreditRequestForUser(tx, user.id)
-                if (pendingInsideTransaction) {
-                    throw Object.assign(new Error('PENDING_REQUEST_EXISTS'), {
-                        existingPending: pendingInsideTransaction,
-                    })
-                }
-
-                const created = await tx.creditRequest.create({
-                    data: {
-                        requestNumber,
-                        userId: user.id,
-                        usernameSnapshot: user.username,
-                        amountUsd: parsed.data.amountUsd,
-                        paymentMethod: parsed.data.paymentMethod,
-                        notes,
-                        ownerTypeSnapshot: owner.ownerType,
-                        ownerIdSnapshot: owner.ownerId,
-                        ownerLabelSnapshot: ownerLabel,
-                        agentIdSnapshot: activeAgentAssignment?.agentId || null,
-                        agentNameSnapshot: agentName,
-                        sourceGroupSnapshot: activeAgentAssignment?.sourceGroup || null,
-                        whatsappGroupUrlSnapshot: activeAgentAssignment?.whatsappGroupUrl || null,
-                        status: 'PENDING',
-                    },
-                })
-
-                await tx.creditRequestStatusHistory.create({
-                    data: {
-                        creditRequestId: created.id,
-                        fromStatus: null,
-                        toStatus: 'PENDING',
-                        actorId: user.id,
-                        actorRole: user.role,
-                        note: 'Credit request created',
-                    },
-                })
-
-                return created
+            const created = await tx.creditRequest.create({
+                data: {
+                    requestNumber,
+                    userId: user.id,
+                    usernameSnapshot: user.username,
+                    amountUsd: parsed.data.amountUsd,
+                    paymentMethod: parsed.data.paymentMethod,
+                    notes,
+                    ownerTypeSnapshot: owner.ownerType,
+                    ownerIdSnapshot: owner.ownerId,
+                    ownerLabelSnapshot: ownerLabel,
+                    agentIdSnapshot: activeAgentAssignment?.agentId || null,
+                    agentNameSnapshot: agentName,
+                    sourceGroupSnapshot: activeAgentAssignment?.sourceGroup || null,
+                    whatsappGroupUrlSnapshot: activeAgentAssignment?.whatsappGroupUrl || null,
+                    status: 'PENDING',
+                },
             })
-        } catch (error) {
-            const existingPending = (error as { existingPending?: Awaited<ReturnType<typeof findPendingCreditRequestForUser>> }).existingPending
-            if (existingPending) {
-                return duplicatePendingResponse(existingPending)
-            }
 
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                const existing = await findPendingCreditRequestForUser(prisma, user.id)
-                if (existing) {
-                    return duplicatePendingResponse(existing)
-                }
-            }
+            await tx.creditRequestStatusHistory.create({
+                data: {
+                    creditRequestId: created.id,
+                    fromStatus: null,
+                    toStatus: 'PENDING',
+                    actorId: user.id,
+                    actorRole: user.role,
+                    note: 'Credit request created',
+                },
+            })
 
-            throw error
-        }
+            return {
+                creditRequest: created,
+                debtSummary: await getCreditDebtSummary(tx, user.id),
+            }
+        })
 
         const notification = await sendCreditRequestTelegramNotification({
             creditRequestId: creditRequest.id,
@@ -259,6 +236,7 @@ export async function POST(request: NextRequest) {
                 sourceGroup,
                 createdAt: creditRequest.createdAt.toISOString(),
             },
+            debtSummary,
             notification: {
                 attempted: notification.attempted,
                 provider: notification.provider,
@@ -268,6 +246,18 @@ export async function POST(request: NextRequest) {
             },
         })
     } catch (error) {
+        if (error instanceof CreditRequestCapacityError) {
+            return NextResponse.json(
+                {
+                    error: error.reason === 'CREDIT_LIMIT_NOT_CONFIGURED'
+                        ? 'Credit request limit is not configured for this account'
+                        : 'Credit request exceeds your available credit limit',
+                    reason: error.reason,
+                    availableUsd: error.availableUsd,
+                },
+                { status: 400 }
+            )
+        }
         console.error('Create credit request error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }

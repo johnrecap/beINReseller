@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
-import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
+import { requireAuthAPI } from '@/lib/auth-utils'
 import { createWhatsAppHandoffSnapshot } from '@/lib/credit-requests/whatsapp-handoff'
+import { canActorManageCreditRequest } from '@/lib/credit-requests/permissions'
+import {
+    canApproveReservedCredit,
+    getCreditDebtSummary,
+    lockCreditDebtUser,
+    normalizeMoney,
+} from '@/lib/credit-requests/debt'
 
 const decisionSchema = z.object({
     decision: z.enum(['APPROVE', 'REJECT', 'CANCEL']),
@@ -44,7 +51,7 @@ export async function POST(
 ) {
     try {
         const params = await context.params
-        const authResult = await requireExactRoleAPIWithMobile(request, 'ADMIN')
+        const authResult = await requireAuthAPI(request)
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
@@ -73,6 +80,7 @@ export async function POST(
                     status: true,
                     transactionId: true,
                     ownerTypeSnapshot: true,
+                    ownerIdSnapshot: true,
                     ownerLabelSnapshot: true,
                     agentIdSnapshot: true,
                     agentNameSnapshot: true,
@@ -92,8 +100,26 @@ export async function POST(
                 throw new CreditRequestDecisionError('Credit request not found', 404)
             }
 
+            if (!canActorManageCreditRequest(authResult.user, creditRequest)) {
+                throw new CreditRequestDecisionError('You do not have permission to decide this credit request', 403)
+            }
+
             if (creditRequest.status !== 'PENDING') {
                 throw new CreditRequestDecisionError('Credit request is no longer pending', 409)
+            }
+
+            await lockCreditDebtUser(tx, creditRequest.userId)
+            const debtSummaryBefore = await getCreditDebtSummary(tx, creditRequest.userId)
+            if (parsed.data.decision === 'APPROVE') {
+                const capacity = canApproveReservedCredit(debtSummaryBefore)
+                if (!capacity.allowed) {
+                    throw new CreditRequestDecisionError(
+                        capacity.reason === 'CREDIT_LIMIT_NOT_CONFIGURED'
+                            ? 'Credit request limit is not configured for this user'
+                            : 'Credit request exceeds this user credit limit',
+                        400
+                    )
+                }
             }
 
             const guardedUpdate = await tx.creditRequest.updateMany({
@@ -147,6 +173,23 @@ export async function POST(
                     data: { transactionId: transaction.id },
                 })
                 balanceTransactionId = transaction.id
+                const debtAfterUsd = normalizeMoney(debtSummaryBefore.outstandingDebtUsd + creditRequest.amountUsd)
+
+                await tx.creditDebtLedgerEntry.create({
+                    data: {
+                        userId: creditRequest.userId,
+                        entryType: 'CREDIT_APPROVED',
+                        amountUsd: creditRequest.amountUsd,
+                        debtAfterUsd,
+                        creditRequestId: creditRequest.id,
+                        transactionId: transaction.id,
+                        ownerTypeSnapshot: creditRequest.ownerTypeSnapshot,
+                        ownerIdSnapshot: creditRequest.ownerIdSnapshot || creditRequest.agentIdSnapshot,
+                        ownerLabelSnapshot: creditRequest.ownerLabelSnapshot || creditRequest.agentNameSnapshot,
+                        recordedByUserId: authResult.user.id,
+                        note: buildDecisionNote(parsed.data.decision, creditRequest.requestNumber, note),
+                    },
+                })
 
                 await tx.creditRequestStatusHistory.create({
                     data: {

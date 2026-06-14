@@ -11,6 +11,7 @@ import { buildManagerOwnedUserFilter } from '@/lib/admin/users-ownership-filter'
 import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
 import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
 import { classifyCurrentUserOwner } from '@/lib/users/ownership'
+import { getCreditDebtSummaryMap } from '@/lib/credit-requests/debt'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -240,6 +241,7 @@ export async function GET(request: NextRequest) {
                         email: true,
                         role: true,
                         balance: true,
+                        creditDebtLimitUsd: true,
                         isActive: true,
                         createdAt: true,
                         lastLoginAt: true,
@@ -307,6 +309,7 @@ export async function GET(request: NextRequest) {
             ])
 
             const pointSummaries = await getPointSummaries(users.map((u) => u.id))
+            const creditDebtSummaries = await getCreditDebtSummaryMap(prisma, users.map((u) => u.id))
 
             return NextResponse.json({
                 users: users.map(u => {
@@ -327,6 +330,7 @@ export async function GET(request: NextRequest) {
                         email: u.email,
                         role: u.role,
                         balance: u.balance,
+                        creditDebtLimitUsd: u.creditDebtLimitUsd,
                         isActive: u.isActive,
                         createdAt: u.createdAt,
                         lastLoginAt: u.lastLoginAt,
@@ -347,6 +351,7 @@ export async function GET(request: NextRequest) {
                         // Proxy status (based on user_proxy_limit setting)
                         hasProxyLinked: proxyLinkedUserIds.includes(u.id),
                         points: pointSummaries.get(u.id) ?? emptyPointSummary(),
+                        creditDebt: creditDebtSummaries.get(u.id) || null,
                     }
                 }),
                 total,

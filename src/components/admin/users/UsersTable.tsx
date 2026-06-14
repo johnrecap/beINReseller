@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw, UserPlus, Shuffle } from 'lucide-react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw, UserPlus, Shuffle, CreditCard } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
@@ -10,17 +10,29 @@ import AddBalanceDialog from './AddBalanceDialog'
 import ResetPasswordDialog from './ResetPasswordDialog'
 import UserStatsDialog from './UserStatsDialog'
 import TransferOwnershipDialog from './TransferOwnershipDialog'
+import CreditControlDialog from './CreditControlDialog'
 import { useTranslation } from '@/hooks/useTranslation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { formatUserBalanceSummary } from '@/lib/admin/user-balance-summary'
 
 // User type for Users tab (with creator info)
+interface CreditDebtSummary {
+    creditDebtLimitUsd: number
+    pendingRequestedUsd: number
+    outstandingDebtUsd: number
+    usedCapacityUsd: number
+    availableUsd: number
+    hasLimit: boolean
+}
+
 interface User {
     id: string
     username: string
     email: string
     role: string
     balance: number
+    creditDebtLimitUsd?: number
+    creditDebt?: CreditDebtSummary | null
     isActive: boolean
     createdAt: string
     lastLoginAt: string | null
@@ -121,6 +133,7 @@ export default function UsersTable() {
     const [statsUser, setStatsUser] = useState<AccountRow | null>(null)
     const [createAgent, setCreateAgent] = useState<Agent | null>(null)
     const [transferUser, setTransferUser] = useState<User | null>(null)
+    const [creditControlUser, setCreditControlUser] = useState<User | null>(null)
 
     const localeMap = {
         ar: ar,
@@ -289,6 +302,17 @@ export default function UsersTable() {
             <p>{(points?.lifetimeEarned ?? 0).toLocaleString()} earned / {(points?.converted ?? 0).toLocaleString()} converted</p>
         </div>
     )
+
+    const renderCreditDebtSummary = (summary?: CreditDebtSummary | null) => {
+        if (!summary) return null
+
+        return (
+            <div className="mt-2 inline-flex flex-col rounded-lg border border-cyan-200 bg-cyan-50 px-2 py-1 text-xs text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-900/20 dark:text-cyan-300">
+                <span>Debt {summary.outstandingDebtUsd.toFixed(2)} / Limit {summary.creditDebtLimitUsd.toFixed(2)}</span>
+                <span>Remaining {summary.availableUsd.toFixed(2)}</span>
+            </div>
+        )
+    }
 
     // Render distributor row
     const renderDistributorRow = (distributor: Distributor) => (
@@ -526,6 +550,7 @@ export default function UsersTable() {
             <td className="px-4 py-3">
                 <p className="font-bold text-foreground dir-ltr text-right">{(user.balance ?? 0).toLocaleString()} {t.header.currency}</p>
                 {renderPointSummary(user.points)}
+                {renderCreditDebtSummary(user.creditDebt)}
             </td>
             <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">
@@ -570,6 +595,13 @@ export default function UsersTable() {
                         title={t.admin?.users?.actions?.viewStats || 'User Statistics'}
                     >
                         <BarChart2 className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => setCreditControlUser(user)}
+                        className="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-cyan-600 rounded-lg transition-colors"
+                        title="Credit Control"
+                    >
+                        <CreditCard className="w-4 h-4" />
                     </button>
                     <button
                         onClick={() => setBalanceUser(user)}
@@ -955,6 +987,16 @@ export default function UsersTable() {
                     fetchCounts()
                 }}
                 user={transferUser}
+            />
+            <CreditControlDialog
+                isOpen={!!creditControlUser}
+                onClose={() => setCreditControlUser(null)}
+                onSuccess={() => {
+                    fetchData()
+                    fetchCounts()
+                }}
+                userId={creditControlUser?.id || null}
+                username={creditControlUser?.username || null}
             />
         </div>
     )

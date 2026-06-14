@@ -14,7 +14,11 @@ export function useCreditRequestVisibility(userRole?: string | null) {
             .then((response) => response.ok ? response.json() : null)
             .then((payload) => {
                 if (!cancelled) {
-                    setCanRequest(Boolean(payload?.eligibility?.canRequest))
+                    const reason = payload?.eligibility?.reason
+                    setCanRequest(Boolean(payload?.eligibility?.canRequest)
+                        || reason === 'CREDIT_LIMIT_NOT_CONFIGURED'
+                        || reason === 'CREDIT_LIMIT_EXCEEDED'
+                    )
                 }
             })
             .catch(() => {

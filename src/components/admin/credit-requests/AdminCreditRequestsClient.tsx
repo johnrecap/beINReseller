@@ -20,6 +20,15 @@ type CreditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
 type Decision = 'APPROVE' | 'REJECT' | 'CANCEL'
 type EscalationAction = 'ESCALATE' | 'RESOLVE'
 
+type CreditDebtSummary = {
+    creditDebtLimitUsd: number
+    pendingRequestedUsd: number
+    outstandingDebtUsd: number
+    usedCapacityUsd: number
+    availableUsd: number
+    hasLimit: boolean
+}
+
 type AdminCreditRequestItem = {
     id: string
     requestNumber: string
@@ -39,6 +48,7 @@ type AdminCreditRequestItem = {
     agentId: string | null
     agentName: string | null
     sourceGroup: string | null
+    debtSummary: CreditDebtSummary | null
     status: CreditRequestStatus
     escalated: boolean
     escalationNote: string | null
@@ -119,7 +129,7 @@ const escalationOptions: Array<{ value: 'ALL' | 'ESCALATED' | 'NORMAL'; label: s
 const decisionCopy: Record<Decision, { title: string; body: string; confirm: string; tone: string }> = {
     APPROVE: {
         title: 'Approve Credit Request',
-        body: 'This will add balance to the user and create pending points once. Duplicate approval is blocked server-side.',
+        body: 'This will add balance to the user and record the approved amount as unpaid debt. Duplicate approval is blocked server-side.',
         confirm: 'Approve and Add Balance',
         tone: 'text-emerald-300',
     },
@@ -162,6 +172,22 @@ function formatDate(value: string | null) {
 
 function formatUsd(value: number) {
     return `USD ${value.toFixed(2)}`
+}
+
+function DebtSummaryCell({ summary }: { summary: CreditDebtSummary | null }) {
+    if (!summary) return <span className="text-xs text-muted-foreground">-</span>
+
+    return (
+        <div className="space-y-1 text-xs">
+            <div className="font-semibold text-foreground">
+                Debt {formatUsd(summary.outstandingDebtUsd)} / {formatUsd(summary.creditDebtLimitUsd)}
+            </div>
+            <div className="text-muted-foreground">Pending {formatUsd(summary.pendingRequestedUsd)}</div>
+            <div className={summary.availableUsd > 0 ? 'text-emerald-300' : 'text-amber-300'}>
+                Remaining {formatUsd(summary.availableUsd)}
+            </div>
+        </div>
+    )
 }
 
 function StatusBadge({ status }: { status: CreditRequestStatus }) {
@@ -421,6 +447,7 @@ export default function AdminCreditRequestsClient() {
                                 <tr>
                                     <th className="px-3 py-3 text-start">Order ID</th>
                                     <th className="px-3 py-3 text-start">User</th>
+                                    <th className="px-3 py-3 text-start">Debt / Limit</th>
                                     <th className="px-3 py-3 text-start">Amount</th>
                                     <th className="px-3 py-3 text-start">Payment</th>
                                     <th className="px-3 py-3 text-start">Owner</th>
@@ -434,7 +461,7 @@ export default function AdminCreditRequestsClient() {
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">Loading...</td>
+                                        <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">Loading...</td>
                                     </tr>
                                 ) : data?.items.length ? (
                                     data.items.map((item) => (
@@ -453,6 +480,7 @@ export default function AdminCreditRequestsClient() {
                                                 <div className="font-semibold text-foreground">{item.username}</div>
                                                 <div className="text-xs text-muted-foreground">Balance: {formatUsd(item.user.balance)}</div>
                                             </td>
+                                            <td className="px-3 py-3"><DebtSummaryCell summary={item.debtSummary} /></td>
                                             <td className="px-3 py-3 font-semibold text-foreground">{formatUsd(item.amountUsd)}</td>
                                             <td className="px-3 py-3 text-foreground">{item.paymentMethod}</td>
                                             <td className="px-3 py-3">
@@ -527,7 +555,7 @@ export default function AdminCreditRequestsClient() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={10} className="px-3 py-8 text-center text-emerald-200">
+                                        <td colSpan={11} className="px-3 py-8 text-center text-emerald-200">
                                             No credit requests found for this filter.
                                         </td>
                                     </tr>
@@ -664,6 +692,13 @@ function DecisionDialog({
                 <div className="mt-4 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
                     {state.item.requestNumber} - {state.item.username} - {formatUsd(state.item.amountUsd)}
                 </div>
+                {state.decision === 'APPROVE' && state.item.debtSummary && (
+                    <div className="mt-3 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
+                        <div>Current debt: {formatUsd(state.item.debtSummary.outstandingDebtUsd)}</div>
+                        <div>Projected debt after approval: {formatUsd(state.item.debtSummary.outstandingDebtUsd + state.item.amountUsd)}</div>
+                        <div>Remaining capacity: {formatUsd(state.item.debtSummary.availableUsd)}</div>
+                    </div>
+                )}
                 <label className="mt-4 block text-sm font-medium text-foreground">
                     Admin note
                     <textarea

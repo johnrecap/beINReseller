@@ -15,6 +15,16 @@ type Eligibility = {
     ownerLabel: string | null
     agentName: string | null
     sourceGroup: string | null
+    debtSummary: CreditDebtSummary
+}
+
+type CreditDebtSummary = {
+    creditDebtLimitUsd: number
+    pendingRequestedUsd: number
+    outstandingDebtUsd: number
+    usedCapacityUsd: number
+    availableUsd: number
+    hasLimit: boolean
 }
 
 type CreditRequestsResponse = {
@@ -28,6 +38,8 @@ const blockedMessages: Record<string, string> = {
     MANAGER_OWNED: 'Credit requests are not available for users managed by a manager.',
     UNOWNED: 'Credit requests are not available until this account is assigned to admin or an agent.',
     NO_ACTIVE_AGENT_ASSIGNMENT: 'Credit requests are available only for users assigned to an agent.',
+    CREDIT_LIMIT_NOT_CONFIGURED: 'Your credit request limit is not configured yet.',
+    CREDIT_LIMIT_EXCEEDED: 'Your current pending requests and unpaid debt have used the full credit request limit.',
 }
 
 function ownerDescription(eligibility: Eligibility | undefined) {
@@ -44,6 +56,30 @@ function formatDate(value: string) {
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(new Date(value))
+}
+
+function formatUsd(value: number) {
+    return `USD ${value.toFixed(2)}`
+}
+
+function DebtSummaryPanel({ summary }: { summary: CreditDebtSummary }) {
+    const items = [
+        { label: 'Limit', value: formatUsd(summary.creditDebtLimitUsd) },
+        { label: 'Current debt', value: formatUsd(summary.outstandingDebtUsd) },
+        { label: 'Pending requests', value: formatUsd(summary.pendingRequestedUsd) },
+        { label: 'Available', value: formatUsd(summary.availableUsd) },
+    ]
+
+    return (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {items.map((item) => (
+                <div key={item.label} className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <div className="text-xs uppercase text-[var(--color-text-secondary)]">{item.label}</div>
+                    <div className="mt-1 font-semibold text-white">{item.value}</div>
+                </div>
+            ))}
+        </div>
+    )
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -117,11 +153,6 @@ export default function RequestCreditForm() {
             const payload = await response.json()
 
             if (!response.ok) {
-                if (payload.reason === 'PENDING_REQUEST_EXISTS' && payload.existingRequest) {
-                    throw new Error(
-                        `You already have a pending request (${payload.existingRequest.requestNumber}) for USD ${Number(payload.existingRequest.amountUsd).toFixed(2)}. Please wait for admin review before submitting another request.`
-                    )
-                }
                 throw new Error(payload.error || 'Failed to submit credit request')
             }
 
@@ -169,6 +200,10 @@ export default function RequestCreditForm() {
                 </div>
             )}
 
+            {data?.eligibility.debtSummary && (
+                <DebtSummaryPanel summary={data.eligibility.debtSummary} />
+            )}
+
             {loading && !data ? (
                 <Card>
                     <CardContent className="pt-6 text-sm text-[var(--color-text-secondary)]">
@@ -198,9 +233,11 @@ export default function RequestCreditForm() {
                                     id="amountUsd"
                                     type="number"
                                     min="1"
+                                    max={data?.eligibility.debtSummary.availableUsd || undefined}
                                     step="0.01"
                                     value={amountUsd}
                                     onChange={(event) => setAmountUsd(event.target.value)}
+                                    disabled={!data?.eligibility.canRequest || data.eligibility.debtSummary.availableUsd <= 0}
                                     required
                                 />
                             </div>
@@ -224,7 +261,11 @@ export default function RequestCreditForm() {
                                 />
                             </div>
                             <div className="md:col-span-3">
-                                <Button type="submit" loading={submitting}>
+                                <Button
+                                    type="submit"
+                                    loading={submitting}
+                                    disabled={!data?.eligibility.canRequest || data.eligibility.debtSummary.availableUsd <= 0}
+                                >
                                     <Send className="h-4 w-4" />
                                     Submit Request
                                 </Button>

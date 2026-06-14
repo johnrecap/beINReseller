@@ -92,6 +92,33 @@ export function canViewCreditRequest(
     return false
 }
 
+export function canActorManageCreditRequest(
+    actor: Pick<AuthenticatedUser, 'id' | 'role'>,
+    request: {
+        userId: string
+        ownerTypeSnapshot?: string | null
+        ownerIdSnapshot?: string | null
+        agentIdSnapshot?: string | null
+    }
+): boolean {
+    void request
+    return hasExactRole(actor.role, 'ADMIN')
+}
+
+export function canActorManageCreditDebt(
+    actor: Pick<AuthenticatedUser, 'id' | 'role'>,
+    owner: CurrentOwnerClassification
+): boolean {
+    if (hasExactRole(actor.role, 'ADMIN')) return true
+    return hasExactRole(actor.role, 'AGENT')
+        && owner.ownerType === 'AGENT'
+        && owner.ownerId === actor.id
+}
+
+export function canActorSetCreditDebtLimit(actor: Pick<AuthenticatedUser, 'role'>): boolean {
+    return hasExactRole(actor.role, 'ADMIN')
+}
+
 export async function findPendingCreditRequestForUser(
     client: PendingRequestClient,
     userId: string

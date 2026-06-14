@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
-import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
+import { requireAuthAPI } from '@/lib/auth-utils'
 import {
     calculatePoints,
     getAgentCreditRequestRate,
     getUserCreditRequestRate,
 } from '@/lib/credit-requests/points'
 import { buildWhatsAppPhoneUrl } from '@/lib/credit-requests/whatsapp-handoff'
+import { getCreditDebtSummaryMap } from '@/lib/credit-requests/debt'
 
 const allowedStatuses = new Set(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'])
 
@@ -25,9 +26,12 @@ function toNumberParam(value: string | null, fallback: number, max: number): num
 
 export async function GET(request: NextRequest) {
     try {
-        const authResult = await requireExactRoleAPIWithMobile(request, 'ADMIN')
+        const authResult = await requireAuthAPI(request)
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+        }
+        if (authResult.user.role !== 'ADMIN' && authResult.user.role !== 'AGENT') {
+            return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
         }
 
         const { searchParams } = new URL(request.url)
@@ -80,9 +84,26 @@ export async function GET(request: NextRequest) {
             ]
         }
 
+        const actorScope: Prisma.CreditRequestWhereInput | null = authResult.user.role === 'AGENT'
+            ? {
+                ownerTypeSnapshot: 'AGENT',
+                OR: [
+                    { ownerIdSnapshot: authResult.user.id },
+                    { agentIdSnapshot: authResult.user.id },
+                ],
+            }
+            : null
+        const scopedWhere: Prisma.CreditRequestWhereInput = actorScope
+            ? { AND: [where, actorScope] }
+            : where
+        const summaryWhere: Prisma.CreditRequestWhereInput = actorScope || {}
+        const sourceGroupsWhere: Prisma.CreditRequestWhereInput = actorScope
+            ? { AND: [actorScope, { sourceGroupSnapshot: { not: null } }] }
+            : { sourceGroupSnapshot: { not: null } }
+
         const [items, total, summary, agents, sourceGroups] = await Promise.all([
             prisma.creditRequest.findMany({
-                where,
+                where: scopedWhere,
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: limit,
@@ -148,13 +169,19 @@ export async function GET(request: NextRequest) {
                     },
                 },
             }),
-            prisma.creditRequest.count({ where }),
+            prisma.creditRequest.count({ where: scopedWhere }),
             prisma.creditRequest.groupBy({
                 by: ['status'],
+                where: summaryWhere,
                 _count: { _all: true },
             }),
             prisma.user.findMany({
-                where: { role: 'AGENT', isActive: true, deletedAt: null },
+                where: {
+                    role: 'AGENT',
+                    isActive: true,
+                    deletedAt: null,
+                    ...(authResult.user.role === 'AGENT' ? { id: authResult.user.id } : {}),
+                },
                 orderBy: { username: 'asc' },
                 select: {
                     id: true,
@@ -165,7 +192,7 @@ export async function GET(request: NextRequest) {
                 },
             }),
             prisma.creditRequest.findMany({
-                where: { sourceGroupSnapshot: { not: null } },
+                where: sourceGroupsWhere,
                 distinct: ['sourceGroupSnapshot'],
                 orderBy: { sourceGroupSnapshot: 'asc' },
                 select: { sourceGroupSnapshot: true },
@@ -174,6 +201,7 @@ export async function GET(request: NextRequest) {
 
         const userRate = await getUserCreditRequestRate(prisma)
         const agentRates = new Map<string, number>()
+        const debtSummaries = await getCreditDebtSummaryMap(prisma, items.map((item) => item.user.id))
         const responseItems = []
 
         for (const item of items) {
@@ -198,6 +226,7 @@ export async function GET(request: NextRequest) {
                 agentId: item.agentIdSnapshot,
                 agentName: item.agentNameSnapshot,
                 sourceGroup: item.sourceGroupSnapshot,
+                debtSummary: debtSummaries.get(item.user.id) || null,
                 status: item.status,
                 escalated: item.escalated,
                 escalationNote: item.escalationNote,

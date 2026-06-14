@@ -49,6 +49,13 @@ export const REPORT_CENTER_TABS = [
         visibilitySetting: undefined,
     },
     {
+        key: 'credit-payments',
+        label: 'Credit Payments',
+        description: 'Recorded user debt payments by admins and agents',
+        legacyHref: '/dashboard/admin/reports?tab=credit-payments',
+        visibilitySetting: undefined,
+    },
+    {
         key: 'login-monitor',
         label: 'Account Login Monitor',
         description: 'beIN account login failure monitoring',

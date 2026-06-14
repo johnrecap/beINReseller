@@ -16,6 +16,7 @@ const REQUIRED_TAB_KEYS = [
     'integrity',
     'bein-spend',
     'points-analysis',
+    'credit-payments',
     'login-monitor',
     'balance-monitor',
     'logs',
@@ -39,6 +40,7 @@ test('report center tabs keep stable legacy routes', () => {
         integrity: '/dashboard/admin/reports/integrity',
         'bein-spend': '/dashboard/admin/reports/bein-spend',
         'points-analysis': '/dashboard/admin/reports?tab=points-analysis',
+        'credit-payments': '/dashboard/admin/reports?tab=credit-payments',
         'login-monitor': '/dashboard/admin/bein-accounts/login-failures',
         'balance-monitor': '/dashboard/admin/bein-accounts/low-balance',
         logs: '/dashboard/admin/logs',
@@ -51,6 +53,7 @@ test('report center resolves unknown tab values to the default tab', () => {
     assert.equal(resolveReportTabKey('analytics'), 'analytics')
     assert.equal(resolveReportTabKey('bein-spend'), 'bein-spend')
     assert.equal(resolveReportTabKey('points-analysis'), 'points-analysis')
+    assert.equal(resolveReportTabKey('credit-payments'), 'credit-payments')
     assert.equal(resolveReportTabKey('missing'), DEFAULT_REPORT_TAB_KEY)
 })
 
@@ -58,6 +61,7 @@ test('report center builds stable deep links for tab keys', () => {
     assert.equal(buildReportCenterHref('analytics'), '/dashboard/admin/reports?tab=analytics')
     assert.equal(buildReportCenterHref('bein-spend'), '/dashboard/admin/reports?tab=bein-spend')
     assert.equal(buildReportCenterHref('points-analysis'), '/dashboard/admin/reports?tab=points-analysis')
+    assert.equal(buildReportCenterHref('credit-payments'), '/dashboard/admin/reports?tab=credit-payments')
     assert.equal(buildReportCenterHref('missing'), '/dashboard/admin/reports?tab=analytics')
 })
 
@@ -80,6 +84,7 @@ test('report center panel modules are importable', async () => {
         import('../../src/components/admin/report-center/IntegrityReportPanel'),
         import('../../src/components/admin/report-center/BeinSpendReportPanel'),
         import('../../src/components/admin/report-center/PointsAnalysisReportPanel'),
+        import('../../src/components/admin/report-center/CreditPaymentsReportPanel'),
         import('../../src/components/admin/report-center/LoginMonitorPanel'),
         import('../../src/components/admin/report-center/BalanceMonitorPanel'),
         import('../../src/components/admin/report-center/LogsReportPanel'),

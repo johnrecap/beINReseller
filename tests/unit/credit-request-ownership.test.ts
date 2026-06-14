@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+    canActorManageCreditDebt,
+    canActorManageCreditRequest,
+    canActorSetCreditDebtLimit,
     canRequestCreditForOwner,
     getEligibilityReasonForOwner,
 } from '@/lib/credit-requests/permissions'
@@ -63,4 +66,42 @@ test('blocks inactive, deleted, and non-user accounts regardless of owner', () =
         user: { ...activeUser, deletedAt: new Date() },
         owner: owner('ADMIN'),
     }), 'INACTIVE_USER')
+})
+
+test('allows admins to manage all credit requests and debt limits', () => {
+    const admin = { id: 'admin-1', role: 'ADMIN' as const }
+
+    assert.equal(canActorManageCreditRequest(admin, {
+        userId: 'user-1',
+        ownerTypeSnapshot: 'AGENT',
+        ownerIdSnapshot: 'agent-1',
+        agentIdSnapshot: 'agent-1',
+    }), true)
+    assert.equal(canActorManageCreditDebt(admin, owner('AGENT')), true)
+    assert.equal(canActorSetCreditDebtLimit(admin), true)
+})
+
+test('blocks agents from deciding credit requests while allowing own-user debt payments', () => {
+    const agent = { id: 'agent-1', role: 'AGENT' as const }
+
+    assert.equal(canActorManageCreditRequest(agent, {
+        userId: 'user-1',
+        ownerTypeSnapshot: 'AGENT',
+        ownerIdSnapshot: 'agent-1',
+        agentIdSnapshot: 'agent-1',
+    }), false)
+    assert.equal(canActorManageCreditRequest(agent, {
+        userId: 'user-1',
+        ownerTypeSnapshot: null,
+        ownerIdSnapshot: null,
+        agentIdSnapshot: 'agent-1',
+    }), false)
+    assert.equal(canActorManageCreditRequest(agent, {
+        userId: 'user-1',
+        ownerTypeSnapshot: 'AGENT',
+        ownerIdSnapshot: 'agent-2',
+        agentIdSnapshot: 'agent-2',
+    }), false)
+    assert.equal(canActorManageCreditDebt(agent, owner('AGENT')), true)
+    assert.equal(canActorSetCreditDebtLimit(agent), false)
 })

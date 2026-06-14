@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
 import { RATE_LIMITS, rateLimitHeaders, withRateLimit } from '@/lib/rate-limiter'
 import { summarizePointBalance } from '@/lib/points/balance'
+import { getCreditDebtSummaryMap } from '@/lib/credit-requests/debt'
 
 function startOfToday() {
     const date = new Date()
@@ -31,7 +33,13 @@ export async function GET(request: NextRequest) {
         }
 
         const today = startOfToday()
-        const requestScope = { agentIdSnapshot: agent.id }
+        const requestScope: Prisma.CreditRequestWhereInput = {
+            ownerTypeSnapshot: 'AGENT',
+            OR: [
+                { ownerIdSnapshot: agent.id },
+                { agentIdSnapshot: agent.id },
+            ],
+        }
 
         const [
             agentProfile,
@@ -88,6 +96,7 @@ export async function GET(request: NextRequest) {
                 select: {
                     id: true,
                     requestNumber: true,
+                    userId: true,
                     usernameSnapshot: true,
                     amountUsd: true,
                     paymentMethod: true,
@@ -122,6 +131,11 @@ export async function GET(request: NextRequest) {
         ])
 
         const pointSummary = summarizePointBalance(pointEntries)
+        const assignedUserIds = assignments.map((assignment) => assignment.user.id)
+        const debtSummaries = await getCreditDebtSummaryMap(prisma, Array.from(new Set([
+            ...assignedUserIds,
+            ...recentRequests.map((item) => item.userId),
+        ])))
 
         return NextResponse.json({
             agent: {
@@ -152,10 +166,12 @@ export async function GET(request: NextRequest) {
                 lastLoginAt: assignment.user.lastLoginAt?.toISOString() ?? null,
                 lastRequestAt: assignment.user.creditRequests[0]?.createdAt.toISOString() ?? null,
                 lastRequestStatus: assignment.user.creditRequests[0]?.status ?? null,
+                creditDebt: debtSummaries.get(assignment.user.id) || null,
             })),
             creditRequests: recentRequests.map((item) => ({
                 id: item.id,
                 requestNumber: item.requestNumber,
+                userId: item.userId,
                 username: item.usernameSnapshot,
                 amountUsd: item.amountUsd,
                 paymentMethod: item.paymentMethod,
@@ -163,6 +179,7 @@ export async function GET(request: NextRequest) {
                 status: item.status,
                 createdAt: item.createdAt.toISOString(),
                 decidedAt: item.decidedAt?.toISOString() ?? null,
+                debtSummary: debtSummaries.get(item.userId) || null,
             })),
         })
     } catch (error) {

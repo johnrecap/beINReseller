@@ -5,6 +5,7 @@ import {
     AlertCircle,
     CheckCircle2,
     Clock3,
+    CreditCard,
     RefreshCw,
     Users,
     WalletCards,
@@ -12,6 +13,15 @@ import {
 import { Button } from '@/components/ui/button'
 
 type CreditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+
+type CreditDebtSummary = {
+    creditDebtLimitUsd: number
+    pendingRequestedUsd: number
+    outstandingDebtUsd: number
+    usedCapacityUsd: number
+    availableUsd: number
+    hasLimit: boolean
+}
 
 type AgentDashboardData = {
     agent: {
@@ -41,10 +51,12 @@ type AgentDashboardData = {
         lastLoginAt: string | null
         lastRequestAt: string | null
         lastRequestStatus: CreditRequestStatus | null
+        creditDebt: CreditDebtSummary | null
     }>
     creditRequests: Array<{
         id: string
         requestNumber: string
+        userId: string
         username: string
         amountUsd: number
         paymentMethod: string
@@ -52,8 +64,11 @@ type AgentDashboardData = {
         status: CreditRequestStatus
         createdAt: string
         decidedAt: string | null
+        debtSummary: CreditDebtSummary | null
     }>
 }
+
+type PaymentUser = AgentDashboardData['assignedUsers'][number]
 
 function formatDate(value: string | null) {
     if (!value) return '-'
@@ -87,6 +102,22 @@ function StatusBadge({ status }: { status: CreditRequestStatus | null }) {
     }[status]
 
     return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${className}`}>{status}</span>
+}
+
+function DebtSummaryCell({ summary }: { summary: CreditDebtSummary | null }) {
+    if (!summary) return <span className="text-xs text-muted-foreground">-</span>
+
+    return (
+        <div className="space-y-1 text-xs">
+            <div className="font-semibold text-foreground">
+                Debt {formatUsd(summary.outstandingDebtUsd)} / {formatUsd(summary.creditDebtLimitUsd)}
+            </div>
+            <div className="text-muted-foreground">Pending {formatUsd(summary.pendingRequestedUsd)}</div>
+            <div className={summary.availableUsd > 0 ? 'text-emerald-300' : 'text-amber-300'}>
+                Remaining {formatUsd(summary.availableUsd)}
+            </div>
+        </div>
+    )
 }
 
 function SummaryCard({
@@ -123,6 +154,8 @@ export default function AgentDashboardClient() {
     const [data, setData] = useState<AgentDashboardData | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [busyId, setBusyId] = useState<string | null>(null)
+    const [paymentUser, setPaymentUser] = useState<PaymentUser | null>(null)
 
     const loadData = useCallback(async () => {
         setLoading(true)
@@ -161,11 +194,33 @@ export default function AgentDashboardClient() {
         ]
     }, [data])
 
+    async function recordPayment(amountUsd: string, note: string) {
+        if (!paymentUser) return
+
+        setBusyId(`payment-${paymentUser.id}`)
+        setError(null)
+        try {
+            const response = await fetch(`/api/credit-debts/${paymentUser.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amountUsd, note }),
+            })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok) throw new Error(payload?.error || 'Failed to record payment')
+            setPaymentUser(null)
+            await loadData()
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to record payment')
+        } finally {
+            setBusyId(null)
+        }
+    }
+
     return (
         <div className="mx-auto max-w-7xl space-y-6 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
-                    <p className="text-sm text-muted-foreground">Read-only workspace</p>
+                    <p className="text-sm text-muted-foreground">Assigned user credit control</p>
                     <h1 className="text-3xl font-bold text-foreground">Agent Dashboard</h1>
                     {data && (
                         <p className="mt-2 text-sm text-muted-foreground">
@@ -207,7 +262,7 @@ export default function AgentDashboardClient() {
                     <section className="rounded-lg border border-border bg-card">
                         <div className="border-b border-border p-4">
                             <h2 className="text-xl font-semibold text-foreground">Assigned Users</h2>
-                            <p className="text-sm text-muted-foreground">Balances and latest request status only.</p>
+                            <p className="text-sm text-muted-foreground">Balances, debt capacity, and payment recording.</p>
                         </div>
                         {data.assignedUsers.length === 0 ? (
                             <div className="p-4">
@@ -220,9 +275,11 @@ export default function AgentDashboardClient() {
                                         <tr>
                                             <th className="px-4 py-3 text-left font-medium">Username</th>
                                             <th className="px-4 py-3 text-left font-medium">Balance</th>
+                                            <th className="px-4 py-3 text-left font-medium">Debt / Limit</th>
                                             <th className="px-4 py-3 text-left font-medium">Source Group</th>
                                             <th className="px-4 py-3 text-left font-medium">Status</th>
                                             <th className="px-4 py-3 text-left font-medium">Last Request</th>
+                                            <th className="px-4 py-3 text-left font-medium">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -230,11 +287,23 @@ export default function AgentDashboardClient() {
                                             <tr key={item.id} className="border-t border-border">
                                                 <td className="px-4 py-3 font-semibold text-foreground">{item.username}</td>
                                                 <td className="px-4 py-3 text-foreground">{formatUsd(item.balance)}</td>
+                                                <td className="px-4 py-3"><DebtSummaryCell summary={item.creditDebt} /></td>
                                                 <td className="px-4 py-3 text-muted-foreground">{item.sourceGroup}</td>
                                                 <td className="px-4 py-3">
                                                     <StatusBadge status={item.lastRequestStatus} />
                                                 </td>
                                                 <td className="px-4 py-3 text-muted-foreground">{formatDate(item.lastRequestAt)}</td>
+                                                <td className="px-4 py-3">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setPaymentUser(item)}
+                                                        disabled={(item.creditDebt?.outstandingDebtUsd || 0) <= 0 || busyId === `payment-${item.id}`}
+                                                    >
+                                                        <CreditCard className="h-3.5 w-3.5" />
+                                                        Payment
+                                                    </Button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -246,7 +315,7 @@ export default function AgentDashboardClient() {
                     <section className="rounded-lg border border-border bg-card">
                         <div className="border-b border-border p-4">
                             <h2 className="text-xl font-semibold text-foreground">Credit Requests</h2>
-                            <p className="text-sm text-muted-foreground">Recent requests for assigned users. No actions are available here.</p>
+                            <p className="text-sm text-muted-foreground">Recent requests for assigned users. Credit request decisions are admin-only.</p>
                         </div>
                         {data.creditRequests.length === 0 ? (
                             <div className="p-4">
@@ -260,6 +329,7 @@ export default function AgentDashboardClient() {
                                             <th className="px-4 py-3 text-left font-medium">Order ID</th>
                                             <th className="px-4 py-3 text-left font-medium">Username</th>
                                             <th className="px-4 py-3 text-left font-medium">Amount</th>
+                                            <th className="px-4 py-3 text-left font-medium">Debt / Limit</th>
                                             <th className="px-4 py-3 text-left font-medium">Payment</th>
                                             <th className="px-4 py-3 text-left font-medium">Status</th>
                                             <th className="px-4 py-3 text-left font-medium">Created</th>
@@ -271,6 +341,7 @@ export default function AgentDashboardClient() {
                                                 <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{item.requestNumber}</td>
                                                 <td className="px-4 py-3 font-semibold text-foreground">{item.username}</td>
                                                 <td className="px-4 py-3 text-foreground">{formatUsd(item.amountUsd)}</td>
+                                                <td className="px-4 py-3"><DebtSummaryCell summary={item.debtSummary} /></td>
                                                 <td className="px-4 py-3 text-muted-foreground">{item.paymentMethod}</td>
                                                 <td className="px-4 py-3">
                                                     <StatusBadge status={item.status} />
@@ -285,6 +356,78 @@ export default function AgentDashboardClient() {
                     </section>
                 </>
             ) : null}
+
+            {paymentUser && (
+                <PaymentDialog
+                    user={paymentUser}
+                    busy={busyId === `payment-${paymentUser.id}`}
+                    onClose={() => setPaymentUser(null)}
+                    onSubmit={recordPayment}
+                />
+            )}
+
+        </div>
+    )
+}
+
+function PaymentDialog({
+    user,
+    busy,
+    onClose,
+    onSubmit,
+}: {
+    user: PaymentUser
+    busy: boolean
+    onClose: () => void
+    onSubmit: (amountUsd: string, note: string) => void
+}) {
+    const [amountUsd, setAmountUsd] = useState('')
+    const [note, setNote] = useState('')
+    const debt = user.creditDebt?.outstandingDebtUsd || 0
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-xl">
+                <h3 className="text-xl font-bold text-foreground">Record Payment</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                    {user.username} owes {formatUsd(debt)}.
+                </p>
+                <form
+                    className="mt-4 space-y-4"
+                    onSubmit={(event) => {
+                        event.preventDefault()
+                        onSubmit(amountUsd, note)
+                    }}
+                >
+                    <label className="block text-sm font-medium text-foreground">
+                        Amount USD
+                        <input
+                            type="number"
+                            min="0.01"
+                            max={debt || undefined}
+                            step="0.01"
+                            value={amountUsd}
+                            onChange={(event) => setAmountUsd(event.target.value)}
+                            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-green-500"
+                            required
+                        />
+                    </label>
+                    <label className="block text-sm font-medium text-foreground">
+                        Note
+                        <input
+                            value={note}
+                            onChange={(event) => setNote(event.target.value)}
+                            maxLength={500}
+                            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-green-500"
+                            placeholder="Optional"
+                        />
+                    </label>
+                    <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Back</Button>
+                        <Button type="submit" loading={busy} disabled={debt <= 0}>Record payment</Button>
+                    </div>
+                </form>
+            </div>
         </div>
     )
 }

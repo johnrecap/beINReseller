@@ -40,6 +40,8 @@ export type CreditRequestEligibilityReason =
     | 'MANAGER_OWNED'
     | 'UNOWNED'
     | 'NO_ACTIVE_AGENT_ASSIGNMENT'
+    | 'CREDIT_LIMIT_NOT_CONFIGURED'
+    | 'CREDIT_LIMIT_EXCEEDED'
 
 export type CreditRequestListItem = {
     id: string

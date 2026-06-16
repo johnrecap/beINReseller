@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
     FINAL_PAY_BALANCE_BEFORE,
     FINAL_PAY_EXPECTED_COST,
@@ -52,6 +54,72 @@ test('classifies matching balance delta as confirmed success', () => {
         }),
         'CONFIRMED_SUCCESS'
     );
+});
+
+test('classifies final pay that drains beIN balance to zero as confirmed success', () => {
+    assert.equal(
+        classifyFinalPay({
+            expectedCost: FINAL_PAY_BALANCE_BEFORE,
+            beinBalanceAfter: 0,
+        }),
+        'CONFIRMED_SUCCESS'
+    );
+});
+
+test('classifies fractional beIN balance delta as confirmed success', () => {
+    assert.equal(
+        classifyFinalPay({
+            expectedCost: 150,
+            beinBalanceBefore: 4785.995,
+            beinBalanceAfter: 4635.995,
+        }),
+        'CONFIRMED_SUCCESS'
+    );
+});
+
+test('preserves zero balance fields in final payment result construction', () => {
+    const source = readFileSync(join(process.cwd(), 'worker', 'src', 'http', 'HttpClientService.ts'), 'utf8');
+    assert.doesNotMatch(
+        source,
+        /(newBalance|beinBalanceBefore|beinBalanceAfter):[^\n]*\|\| undefined/
+    );
+});
+
+test('does not treat generic pre-payment success text as direct purchase completion', () => {
+    const source = readFileSync(join(process.cwd(), 'worker', 'src', 'http', 'HttpClientService.ts'), 'utf8');
+
+    assert.doesNotMatch(
+        source,
+        /pageText\.includes\('Contract Created Successfully'\)\s*\|\|\s*pageText\.includes\('Success'\)/
+    );
+    assert.match(source, /pageText\.includes\('Package Added Successfully'\)/);
+    assert.match(source, /Direct success text before Pay could not be verified by balance delta/);
+    assert.match(source, /balanceDecreaseMatchesExpected\(directDecrease, expectedCost\)/);
+});
+
+test('delays success-message balance verification for three fallback checks', () => {
+    const source = readFileSync(join(process.cwd(), 'worker', 'src', 'http', 'HttpClientService.ts'), 'utf8');
+
+    assert.match(source, /const successFallbackChecks = getFinalPayBalanceCheckCount\('fallback'\)/);
+    assert.match(source, /await wait\(getFinalPayBalanceDelayMs\('fallback'\)\)/);
+    assert.match(source, /Success message delayed balance check/);
+    assert.match(source, /could not verify expected balance debit after delayed checks/);
+    assert.match(source, /outcomeCategory: 'UNCERTAIN_REVIEW_REQUIRED'/);
+});
+
+test('reads balance from final pay result page before fallback balance checks', () => {
+    const source = readFileSync(join(process.cwd(), 'worker', 'src', 'http', 'HttpClientService.ts'), 'utf8');
+
+    assert.match(source, /const resultPageBalanceAfter = this\.extractDealerBalanceFromHtml\(res\.data\)/);
+    assert.match(source, /resultPageBalanceAfter === null \? 'final_pay_balance_check' : 'final_pay_result_page'/);
+    assert.match(source, /beinBalanceAfterSource: successVerification\.beinBalanceAfter === null \? 'missing' : successBalanceAfterSource/);
+});
+
+test('parses package prices with arbitrary decimal precision', () => {
+    const source = readFileSync(join(process.cwd(), 'worker', 'src', 'http', 'HttpClientService.ts'), 'utf8');
+
+    assert.ok(source.includes("const priceMatch = rowText.match(/(?:^|[^\\d.])([\\d,]+(?:\\.\\d+)?)\\s*USD/i);"));
+    assert.doesNotMatch(source, /const priceMatch = rowText\.match\(\/\(\[\\d,\]\+\(\?:\\\.\\d\{1,2\}\)\?\)\\s\*USD\/i\)/);
 });
 
 test('classifies unchanged balance after final pay as not charged', () => {

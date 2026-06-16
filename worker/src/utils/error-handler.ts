@@ -56,7 +56,11 @@ function finalPayMayHaveStarted(status: string, responseData: unknown): boolean 
     const phase = data.operationPhase ?? data.phase
 
     if (data.finalPaySubmitted === true) return true
-    if (phase === 'FINAL_PAY_SUBMITTED' || phase === 'POST_FINAL_PAY_REVIEW') return true
+    if (
+        phase === 'FINAL_PAY_REQUEST_STARTED' ||
+        phase === 'FINAL_PAY_SUBMITTED' ||
+        phase === 'POST_FINAL_PAY_REVIEW'
+    ) return true
     if (
         phase === 'PACKAGE_PREPARATION' ||
         phase === 'CANCELLATION_CONFIRM' ||

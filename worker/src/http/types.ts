@@ -66,6 +66,8 @@ export interface PurchaseResult {
     newBalance?: number;  // Balance after purchase for verification
     beinBalanceBefore?: number; // Dealer balance before successful payment
     beinBalanceAfter?: number;  // Dealer balance after successful payment
+    beinBalanceBeforeSource?: 'final_pay_ok_page' | 'missing';
+    beinBalanceAfterSource?: 'final_pay_result_page' | 'final_pay_balance_check' | 'missing';
     outcomeCategory?: FinalPayOutcomeCategory;
     finalPaySubmitted?: boolean;
 }
@@ -186,6 +188,8 @@ export interface PayInstallmentResult {
     newBalance?: number;
     beinBalanceBefore?: number;
     beinBalanceAfter?: number;
+    beinBalanceBeforeSource?: 'final_pay_ok_page' | 'missing';
+    beinBalanceAfterSource?: 'final_pay_result_page' | 'final_pay_balance_check' | 'missing';
     outcomeCategory?: FinalPayOutcomeCategory;
     finalPaySubmitted?: boolean;
 }

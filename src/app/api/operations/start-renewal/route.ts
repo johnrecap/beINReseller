@@ -31,6 +31,7 @@ const startRenewalSchema = z.object({
 
 const ACTIVE_OPERATION_STATUSES = ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] as const
 const CARD_START_LOCK_TTL_SECONDS = 30
+const UNRESOLVED_REVIEW_STATUS = 'REVIEW_REQUIRED' as const
 
 /**
  * POST /api/operations/start-renewal
@@ -126,6 +127,25 @@ export async function POST(request: NextRequest) {
                 )
             }
 
+            const reviewOperation = await prisma.operation.findFirst({
+                where: {
+                    cardNumber,
+                    status: UNRESOLVED_REVIEW_STATUS,
+                },
+                orderBy: { updatedAt: 'desc' },
+                select: { id: true },
+            })
+
+            if (reviewOperation) {
+                return NextResponse.json(
+                    {
+                        error: 'This card has an unresolved review operation. Resolve it before starting a new renewal.',
+                        operationId: reviewOperation.id,
+                    },
+                    { status: 409 }
+                )
+            }
+
             return NextResponse.json(
                 { error: 'Another request for this card is already in progress. Please try again in a few seconds.' },
                 { status: 409 }
@@ -145,6 +165,25 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json(
                     { error: 'There is an active operation for this card', operationId: existingOperation.id },
                     { status: 400 }
+                )
+            }
+
+            const reviewOperation = await prisma.operation.findFirst({
+                where: {
+                    cardNumber,
+                    status: UNRESOLVED_REVIEW_STATUS,
+                },
+                orderBy: { updatedAt: 'desc' },
+                select: { id: true },
+            })
+
+            if (reviewOperation) {
+                return NextResponse.json(
+                    {
+                        error: 'This card has an unresolved review operation. Resolve it before starting a new renewal.',
+                        operationId: reviewOperation.id,
+                    },
+                    { status: 409 }
                 )
             }
 

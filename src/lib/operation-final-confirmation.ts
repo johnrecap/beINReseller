@@ -115,7 +115,7 @@ export function shouldWorkerSubmitRenewalFinalPay(input: {
     status: OperationStatus | string
     amount: number | null
     responseData: unknown
-}): { allowed: boolean; reason: 'allowed' | 'terminal' | 'invalid_status' | 'missing_amount' | 'missing_dispatch_evidence' } {
+}): { allowed: boolean; reason: 'allowed' | 'terminal' | 'invalid_status' | 'missing_amount' | 'missing_dispatch_evidence' | 'final_pay_already_started' } {
     if (isTerminalOperationStatus(input.status as OperationStatus)) {
         return { allowed: false, reason: 'terminal' }
     }
@@ -132,7 +132,16 @@ export function shouldWorkerSubmitRenewalFinalPay(input: {
         ? input.responseData as Record<string, unknown>
         : {}
     const phase = data.operationPhase ?? data.phase
-    if (phase !== 'DISPATCH_PENDING' && phase !== 'DISPATCH_FAILED' && phase !== 'FINAL_PAY_SUBMITTED') {
+    if (
+        data.finalPaySubmitted === true ||
+        phase === 'FINAL_PAY_REQUEST_STARTED' ||
+        phase === 'FINAL_PAY_SUBMITTED' ||
+        phase === 'POST_FINAL_PAY_REVIEW'
+    ) {
+        return { allowed: false, reason: 'final_pay_already_started' }
+    }
+
+    if (phase !== 'DISPATCH_PENDING' && phase !== 'DISPATCH_FAILED') {
         return { allowed: false, reason: 'missing_dispatch_evidence' }
     }
 

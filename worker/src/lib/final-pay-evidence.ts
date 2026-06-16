@@ -3,11 +3,12 @@ const MONEY_EPSILON = 0.01;
 export type FinalPayBalanceSource =
     | 'final_pay_ok_page'
     | 'final_pay_result_page'
+    | 'final_pay_balance_check'
     | 'package_load_diagnostic'
     | 'missing';
 
 export type FinalPayBeforeBalanceSource = 'final_pay_ok_page' | 'missing';
-export type FinalPayAfterBalanceSource = 'final_pay_result_page' | 'missing';
+export type FinalPayAfterBalanceSource = 'final_pay_result_page' | 'final_pay_balance_check' | 'missing';
 export type DiagnosticBalanceSource = 'package_load_diagnostic' | 'missing';
 
 export type FinalPayBalanceEvidenceInput = {
@@ -18,6 +19,8 @@ export type FinalPayBalanceEvidenceInput = {
     packagePrice?: number | null;
     finalBalanceBefore?: number | null;
     finalBalanceAfter?: number | null;
+    finalBalanceBeforeSource?: FinalPayBeforeBalanceSource;
+    finalBalanceAfterSource?: FinalPayAfterBalanceSource;
     diagnosticBalanceBefore?: number | null;
     capturedAt?: string;
 };
@@ -62,8 +65,8 @@ export function buildFinalPayBalanceEvidence(input: FinalPayBalanceEvidenceInput
         packagePrice: toNullableNumber(input.packagePrice),
         finalBalanceBefore,
         finalBalanceAfter,
-        finalBalanceBeforeSource: finalBalanceBefore === null ? 'missing' : 'final_pay_ok_page',
-        finalBalanceAfterSource: finalBalanceAfter === null ? 'missing' : 'final_pay_result_page',
+        finalBalanceBeforeSource: finalBalanceBefore === null ? 'missing' : input.finalBalanceBeforeSource || 'final_pay_ok_page',
+        finalBalanceAfterSource: finalBalanceAfter === null ? 'missing' : input.finalBalanceAfterSource || 'final_pay_result_page',
         diagnosticBalanceBefore,
         diagnosticBalanceBeforeSource: diagnosticBalanceBefore === null ? 'missing' : 'package_load_diagnostic',
         confirmedDebitAmount: confirmedDebitAmount(finalBalanceBefore, finalBalanceAfter),
@@ -75,7 +78,10 @@ export function buildFinalPayBalanceEvidence(input: FinalPayBalanceEvidenceInput
 export function shouldRecordConfirmedProviderSpend(evidence: FinalPayBalanceEvidence): boolean {
     return evidence.contextMatched === true &&
         evidence.finalBalanceBeforeSource === 'final_pay_ok_page' &&
-        evidence.finalBalanceAfterSource === 'final_pay_result_page' &&
+        (
+            evidence.finalBalanceAfterSource === 'final_pay_result_page' ||
+            evidence.finalBalanceAfterSource === 'final_pay_balance_check'
+        ) &&
         typeof evidence.confirmedDebitAmount === 'number' &&
         evidence.confirmedDebitAmount > MONEY_EPSILON;
 }

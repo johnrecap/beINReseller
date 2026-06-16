@@ -44,6 +44,7 @@ export interface RecoveryClassifierInput {
     dispatchFailed?: boolean
     dispatchExhausted?: boolean
     providerOutcomeCategory?: string | null
+    providerChargeCompletionProof?: boolean
     source?: RecoverySource
 }
 
@@ -117,6 +118,17 @@ export function classifyRecovery(input: RecoveryClassifierInput): RecoveryClassi
     }
 
     if (providerOutcome === 'CONFIRMED_SUCCESS') {
+        if (input.providerChargeCompletionProof !== true) {
+            return {
+                ...base,
+                decision: 'REVIEW_REQUIRED',
+                reason: 'provider_charge_confirmed_missing_recovery_proof',
+                reviewRequired: true,
+                refundAllowed: false,
+                financialImpact: 'UNCERTAIN',
+            }
+        }
+
         return {
             ...base,
             decision: 'COMPLETE',
@@ -205,6 +217,21 @@ export function classifyRecovery(input: RecoveryClassifierInput): RecoveryClassi
     }
 
     if (input.status === 'COMPLETING') {
+        if (
+            (input.amount ?? 0) <= 0 &&
+            !safetyDecision.finalPayMayHaveStarted &&
+            isOlderThan(input.updatedAt, now, 2 * 60 * 1000)
+        ) {
+            return {
+                ...base,
+                decision: 'EXPIRE',
+                reason: 'completion_stale_before_customer_deduction',
+                reviewRequired: false,
+                refundAllowed: false,
+                financialImpact: 'NONE',
+            }
+        }
+
         if (providerOutcome === 'CONFIRMED_NOT_CHARGED') {
             return {
                 ...base,

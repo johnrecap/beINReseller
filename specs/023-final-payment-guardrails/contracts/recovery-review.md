@@ -17,7 +17,7 @@
 
 - Before final Pay: retry dispatch, expire, fail, or refund when safe.
 - After final Pay may have started: review unless confirmed no-charge evidence exists.
-- Confirmed provider charge: complete or keep completed.
+- Confirmed provider charge: complete or keep completed only after ledger/audit proof exists; when final-pay balance proof is already persisted, recovery may repair the missing ledger/audit proof before completion.
 - Confirmed provider no-charge: allow exactly one reseller refund if money was deducted.
 - Legacy ambiguous `COMPLETING`: choose review when money was deducted and evidence is incomplete.
 

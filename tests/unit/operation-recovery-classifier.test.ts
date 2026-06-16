@@ -79,7 +79,41 @@ test('moves completing operation to review when final pay evidence is incomplete
     assert.equal(result.reviewRequired, true)
 })
 
+test('expires stale completing operation before customer deduction and final pay', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'COMPLETING',
+        amount: 0,
+        customerDeductTransactionExists: false,
+        responseData: preFinalPhase('PACKAGE_PREPARATION'),
+        updatedAt: STALE_PROCESSING_AT,
+        now: RECOVERY_TEST_NOW,
+    }))
+
+    assert.equal(result.decision, 'EXPIRE')
+    assert.equal(result.reason, 'completion_stale_before_customer_deduction')
+    assert.equal(result.refundAllowed, false)
+    assert.equal(result.reviewRequired, false)
+    assert.equal(result.financialImpact, 'NONE')
+})
+
 test('completes recovery when provider charge evidence is confirmed', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'COMPLETING',
+        amount: 92,
+        customerDeductTransactionExists: true,
+        providerChargeCompletionProof: true,
+        responseData: {
+            ...finalPaySubmittedPhase(),
+            outcomeCategory: 'CONFIRMED_SUCCESS',
+        },
+    }))
+
+    assert.equal(result.decision, 'COMPLETE')
+    assert.equal(result.financialImpact, 'PROVIDER_CHARGED')
+    assert.equal(result.reviewRequired, false)
+})
+
+test('moves confirmed provider charge to review when recovery proof is missing', () => {
     const result = classifyRecovery(recoveryInput({
         status: 'COMPLETING',
         amount: 92,
@@ -90,9 +124,10 @@ test('completes recovery when provider charge evidence is confirmed', () => {
         },
     }))
 
-    assert.equal(result.decision, 'COMPLETE')
-    assert.equal(result.financialImpact, 'PROVIDER_CHARGED')
-    assert.equal(result.reviewRequired, false)
+    assert.equal(result.decision, 'REVIEW_REQUIRED')
+    assert.equal(result.reason, 'provider_charge_confirmed_missing_recovery_proof')
+    assert.equal(result.financialImpact, 'UNCERTAIN')
+    assert.equal(result.reviewRequired, true)
 })
 
 test('safe-refunds recovery when provider no-charge evidence is confirmed', () => {

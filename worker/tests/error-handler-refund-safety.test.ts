@@ -33,3 +33,19 @@ test('worker refund safety blocks ambiguous final Pay submissions', () => {
     assert.equal(decision.refundAllowed, false);
     assert.equal(decision.reason, 'final_pay_may_have_started');
 });
+
+test('worker refund safety treats final Pay request-started as after final Pay', () => {
+    const decision = decideWorkerRefundSafety({
+        status: 'PROCESSING',
+        amount: 92,
+        responseData: {
+            operationPhase: 'FINAL_PAY_REQUEST_STARTED',
+            finalPaySubmitted: false,
+        },
+        existingRefund: false,
+    });
+
+    assert.equal(decision.finalPayMayHaveStarted, true);
+    assert.equal(decision.refundAllowed, false);
+    assert.equal(decision.reason, 'final_pay_may_have_started');
+});

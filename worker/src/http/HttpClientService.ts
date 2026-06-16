@@ -218,6 +218,10 @@ function withFinalPayOutcome<T extends PurchaseResult | PayInstallmentResult>(
         ...result,
         finalPaySubmitted,
         success: finalPaySubmitted ? outcomeCategory === 'CONFIRMED_SUCCESS' : result.success,
+        beinBalanceBeforeSource: result.beinBalanceBeforeSource ??
+            (typeof result.beinBalanceBefore === 'number' ? 'final_pay_ok_page' : undefined),
+        beinBalanceAfterSource: result.beinBalanceAfterSource ??
+            (typeof result.beinBalanceAfter === 'number' ? 'final_pay_balance_check' : undefined),
         outcomeCategory
     };
 }
@@ -577,7 +581,7 @@ export class HttpClientService {
                 // NOTE: beIN formats prices with commas (e.g., "1,200 USD")
                 // so we must include commas in the digit capture group and strip them before parsing
                 const rowText = $row.text();
-                const priceMatch = rowText.match(/([\d,]+(?:\.\d{1,2})?)\s*USD/i);
+                const priceMatch = rowText.match(/(?:^|[^\d.])([\d,]+(?:\.\d+)?)\s*USD/i);
                 const price = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : 0;
 
                 if (price > 0) {
@@ -2376,8 +2380,7 @@ export class HttpClientService {
 
             // IMPORTANT: Capture balance BEFORE payment from this page
             // The OK response page shows "Your Current Credit Balance is X USD"
-            const balanceBeforeMatch = res.data.match(/Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i);
-            const balanceBefore = balanceBeforeMatch ? parseFloat(balanceBeforeMatch[1].replace(/,/g, '')) : null;
+            const balanceBefore = this.extractDealerBalanceFromHtml(res.data);
             if (balanceBefore !== null) {
                 console.log(`[HTTP] 💰 Balance BEFORE payment: ${balanceBefore} USD`);
             }
@@ -2387,16 +2390,42 @@ export class HttpClientService {
             const pageText = $('body').text();
 
             // Check if already success (no payment needed)
-            if (pageText.includes('Contract Created Successfully') || pageText.includes('Success')) {
-                console.log('[HTTP] ✅ Purchase completed directly (no payment selection)');
+            if (pageText.includes('Contract Created Successfully') || pageText.includes('Package Added Successfully')) {
                 const balanceAfterDirect = await this.getBalanceFromSellPackagesPage();
+                const directDecrease = getBalanceDecrease(balanceBefore, balanceAfterDirect);
+
+                if (typeof expectedCost === 'number' && expectedCost > 0) {
+                    if (directDecrease !== null && balanceDecreaseMatchesExpected(directDecrease, expectedCost)) {
+                        console.log(`[HTTP] ✅ Direct success verified by balance delta: ${directDecrease} USD`);
+                        return withFinalPayOutcome({
+                            success: true,
+                            message: 'Contract Created Successfully',
+                            newBalance: balanceAfterDirect ?? undefined,
+                            beinBalanceBefore: balanceBefore ?? undefined,
+                            beinBalanceAfter: balanceAfterDirect ?? undefined,
+                            outcomeCategory: 'CONFIRMED_SUCCESS'
+                        }, false, expectedCost);
+                    }
+
+                    console.log('[HTTP] ⚠️ Direct success text before Pay could not be verified by balance delta');
+                    return withFinalPayOutcome({
+                        success: false,
+                        message: 'Direct success text before Pay could not be verified by balance delta',
+                        newBalance: balanceAfterDirect ?? undefined,
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: balanceAfterDirect ?? undefined,
+                        outcomeCategory: 'UNCERTAIN_REVIEW_REQUIRED'
+                    }, false, expectedCost);
+                }
+
+                console.log('[HTTP] ✅ Purchase completed directly (no payment selection)');
                 return withFinalPayOutcome({
                     success: true,
                     message: 'Contract Created Successfully',
-                    newBalance: balanceAfterDirect || undefined,
-                    beinBalanceBefore: balanceBefore || undefined,
-                    beinBalanceAfter: balanceAfterDirect || undefined
-                }, false);
+                    newBalance: balanceAfterDirect ?? undefined,
+                    beinBalanceBefore: balanceBefore ?? undefined,
+                    beinBalanceAfter: balanceAfterDirect ?? undefined
+                }, false, expectedCost);
             }
 
             // ===============================================
@@ -2438,7 +2467,7 @@ export class HttpClientService {
                 return withFinalPayOutcome({
                     success: false,
                     message: payError,
-                    beinBalanceBefore: balanceBefore || undefined
+                    beinBalanceBefore: balanceBefore ?? undefined
                 }, true, expectedCost);
             }
 
@@ -2464,7 +2493,7 @@ export class HttpClientService {
                     return withFinalPayOutcome({
                         success: false,
                         message: `Purchase failed - ${pattern}`,
-                        beinBalanceBefore: balanceBefore || undefined
+                        beinBalanceBefore: balanceBefore ?? undefined
                     }, true, expectedCost);
                 }
             }
@@ -2483,16 +2512,74 @@ export class HttpClientService {
                 if (resultPageText.includes(pattern) || res.data.includes(pattern)) {
                     console.log(`[HTTP] ✅ SUCCESS! Found message: "${pattern}"`);
 
-                    // Get balance after to report
-                    const balanceAfter = await this.getBalanceFromSellPackagesPage();
-                    console.log(`[HTTP] 💰 Balance after success: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
-
-                    return withFinalPayOutcome({
+                    // Get balance after to report. beIN can lag after a success page,
+                    // so only complete when the expected debit is visible.
+                    const resultPageBalanceAfter = this.extractDealerBalanceFromHtml(res.data);
+                    let successBalanceAfterSource: PurchaseResult['beinBalanceAfterSource'] =
+                        resultPageBalanceAfter === null ? 'final_pay_balance_check' : 'final_pay_result_page';
+                    const balanceAfter = resultPageBalanceAfter ?? await this.getBalanceFromSellPackagesPage();
+                    console.log(`[HTTP] 💰 Balance after success (${successBalanceAfterSource}): ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
+                    const successReadings: Array<number | null> = [balanceAfter];
+                    let successVerification = classifyFinalPayBalanceReadings({
                         success: true,
                         message: pattern,
-                        newBalance: balanceAfter || undefined,
-                        beinBalanceBefore: balanceBefore || undefined,
-                        beinBalanceAfter: balanceAfter || undefined
+                        finalPaySubmitted: true,
+                        expectedCost,
+                        beinBalanceBefore: balanceBefore,
+                        balanceReadings: successReadings,
+                        requiredChecks: 1
+                    });
+
+                    if (successVerification.outcomeCategory === 'CONFIRMED_SUCCESS') {
+                        return withFinalPayOutcome({
+                            success: true,
+                            message: pattern,
+                            newBalance: successVerification.beinBalanceAfter ?? undefined,
+                            beinBalanceBefore: balanceBefore ?? undefined,
+                            beinBalanceAfter: successVerification.beinBalanceAfter ?? undefined,
+                            beinBalanceAfterSource: successVerification.beinBalanceAfter === null ? 'missing' : successBalanceAfterSource
+                        }, true, expectedCost);
+                    }
+
+                    const successFallbackChecks = getFinalPayBalanceCheckCount('fallback');
+                    for (let check = 1; check <= successFallbackChecks; check++) {
+                        await wait(getFinalPayBalanceDelayMs('fallback'));
+                        const delayedBalance = await this.getBalanceFromSellPackagesPage();
+                        if (delayedBalance !== null) {
+                            successBalanceAfterSource = 'final_pay_balance_check';
+                        }
+                        successReadings.push(delayedBalance);
+                        successVerification = classifyFinalPayBalanceReadings({
+                            success: true,
+                            message: pattern,
+                            finalPaySubmitted: true,
+                            expectedCost,
+                            beinBalanceBefore: balanceBefore,
+                            balanceReadings: successReadings,
+                            requiredChecks: successFallbackChecks + 1
+                        });
+                        console.log(`[HTTP] Success message delayed balance check ${check}/${successFallbackChecks}: ${delayedBalance !== null ? delayedBalance + ' USD' : 'unknown'} (${successVerification.outcomeCategory})`);
+
+                        if (successVerification.outcomeCategory === 'CONFIRMED_SUCCESS') {
+                            return withFinalPayOutcome({
+                                success: true,
+                                message: pattern,
+                                newBalance: successVerification.beinBalanceAfter ?? undefined,
+                                beinBalanceBefore: balanceBefore ?? undefined,
+                                beinBalanceAfter: successVerification.beinBalanceAfter ?? undefined,
+                                beinBalanceAfterSource: successVerification.beinBalanceAfter === null ? 'missing' : successBalanceAfterSource
+                            }, true, expectedCost);
+                        }
+                    }
+
+                    return withFinalPayOutcome({
+                        success: false,
+                        message: `${pattern} but could not verify expected balance debit after delayed checks`,
+                        newBalance: successVerification.beinBalanceAfter ?? undefined,
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: successVerification.beinBalanceAfter ?? undefined,
+                        beinBalanceAfterSource: successVerification.beinBalanceAfter === null ? 'missing' : successBalanceAfterSource,
+                        outcomeCategory: 'UNCERTAIN_REVIEW_REQUIRED'
                     }, true, expectedCost);
                 }
             }
@@ -2527,9 +2614,9 @@ export class HttpClientService {
                                 return withFinalPayOutcome({
                                     success: true,
                                     message: pattern,
-                                    newBalance: retryBalance || undefined,
-                                    beinBalanceBefore: balanceBefore || undefined,
-                                    beinBalanceAfter: retryBalance || undefined
+                                    newBalance: retryBalance ?? undefined,
+                                    beinBalanceBefore: balanceBefore ?? undefined,
+                                    beinBalanceAfter: retryBalance ?? undefined
                                 }, true, expectedCost);
                             }
                         }
@@ -2548,8 +2635,8 @@ export class HttpClientService {
                                     success: true,
                                     message: `Transaction completed (balance decreased by $${decrease})`,
                                     newBalance: retryBalance ?? undefined,
-                                    beinBalanceBefore: balanceBefore || undefined,
-                                    beinBalanceAfter: retryBalance || undefined
+                                    beinBalanceBefore: balanceBefore ?? undefined,
+                                    beinBalanceAfter: retryBalance ?? undefined
                                 }, true, expectedCost);
                             } else if (retryDecrease !== null && retryDecrease > 0) {
                                 console.log(`[HTTP] Balance decreased by $${retryDecrease}, expected $${expectedCost} - manual review required`);
@@ -2557,8 +2644,8 @@ export class HttpClientService {
                                     success: false,
                                     message: `Transaction status uncertain - balance decreased by $${retryDecrease}, expected $${expectedCost}`,
                                     newBalance: retryBalance ?? undefined,
-                                    beinBalanceBefore: balanceBefore || undefined,
-                                    beinBalanceAfter: retryBalance || undefined
+                                    beinBalanceBefore: balanceBefore ?? undefined,
+                                    beinBalanceAfter: retryBalance ?? undefined
                                 }, true, expectedCost);
                             } else if (balanceBefore !== null && retryBalance !== null && retryBalance >= balanceBefore) {
                                 console.log(`[HTTP] ❌ Balance did NOT decrease (${balanceBefore} → ${retryBalance}) — transaction failed on beIN`);
@@ -2580,9 +2667,9 @@ export class HttpClientService {
                 return withFinalPayOutcome({
                     success: false,
                     message: 'Transaction is busy on beIN - please check the card status manually',
-                    newBalance: finalBalance || undefined,
-                    beinBalanceBefore: balanceBefore || undefined,
-                    beinBalanceAfter: finalBalance || undefined
+                    newBalance: finalBalance ?? undefined,
+                    beinBalanceBefore: balanceBefore ?? undefined,
+                    beinBalanceAfter: finalBalance ?? undefined
                 }, true, expectedCost);
             }
 
@@ -2635,9 +2722,9 @@ export class HttpClientService {
                 return withFinalPayOutcome({
                     success: false,
                     message: `Transaction status uncertain - balance decreased by $${verification.balanceDecrease}, expected $${expectedCost}`,
-                    newBalance: balanceAfter || undefined,
-                    beinBalanceBefore: balanceBefore || undefined,
-                    beinBalanceAfter: balanceAfter || undefined
+                    newBalance: balanceAfter ?? undefined,
+                    beinBalanceBefore: balanceBefore ?? undefined,
+                    beinBalanceAfter: balanceAfter ?? undefined
                 }, true, expectedCost);
             }
             console.log(`[HTTP] 💰 Balance AFTER: ${balanceAfter !== null ? balanceAfter + ' USD' : 'unknown'}`);
@@ -2647,15 +2734,37 @@ export class HttpClientService {
             return withFinalPayOutcome({
                 success: false,
                 message: 'No success confirmation found from beIN',
-                newBalance: balanceAfter || undefined,
-                beinBalanceBefore: balanceBefore || undefined,
-                beinBalanceAfter: balanceAfter || undefined
+                newBalance: balanceAfter ?? undefined,
+                beinBalanceBefore: balanceBefore ?? undefined,
+                beinBalanceAfter: balanceAfter ?? undefined
             }, true, expectedCost);
 
         } catch (error: any) {
             console.error('[HTTP] Confirm error:', error.message);
             return withFinalPayOutcome({ success: false, message: `Confirm failed: ${error.message}` }, finalPaySubmitted, expectedCost);
         }
+    }
+
+    /**
+     * Extract dealer balance from a beIN HTML response without making another request.
+     */
+    private extractDealerBalanceFromHtml(html: string): number | null {
+        const $ = cheerio.load(html);
+        const pageText = $('body').text();
+        const balancePatterns = [
+            /Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i,
+            /Credit Balance[:\s]+([\d,]+(?:\.\d+)?)\s*USD/i,
+            /Balance\s*(?:is\s*)?\$?\s*([\d,]+(?:\.\d+)?)\s*USD/i
+        ];
+
+        for (const pattern of balancePatterns) {
+            const match = pageText.match(pattern);
+            if (match) {
+                return parseFloat(match[1].replace(/,/g, ''));
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -2670,17 +2779,7 @@ export class HttpClientService {
                 headers: { 'Referer': this.config.loginUrl }
             });
 
-            const $ = cheerio.load(res.data);
-            const pageText = $('body').text();
-
-            // Match pattern: "Your Current Credit Balance is 1,340 USD"
-            const balanceMatch = pageText.match(/Current Credit Balance is ([\d,]+(?:\.\d+)?)\s*USD/i);
-
-            if (balanceMatch) {
-                return parseFloat(balanceMatch[1].replace(/,/g, ''));
-            }
-
-            return null;
+            return this.extractDealerBalanceFromHtml(res.data);
         } catch (error: any) {
             console.error('[HTTP] Error getting balance from sell packages page:', error.message);
             return null;
@@ -4474,25 +4573,25 @@ export class HttpClientService {
                     return withFinalPayOutcome({
                         success: true,
                         message: 'Installment payment successful',
-                        newBalance: balanceAfter || undefined,
-                        beinBalanceBefore: balanceBefore || undefined,
-                        beinBalanceAfter: balanceAfter || undefined
+                        newBalance: balanceAfter ?? undefined,
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: balanceAfter ?? undefined
                     }, true);
                 } else if (balanceDecreased) {
                     console.log('[HTTP] Installment payment successful by balance delta (Direct Payment)');
                     return withFinalPayOutcome({
                         success: true,
                         message: 'Installment payment successful (balance verified)',
-                        newBalance: balanceAfter || undefined,
-                        beinBalanceBefore: balanceBefore || undefined,
-                        beinBalanceAfter: balanceAfter || undefined
+                        newBalance: balanceAfter ?? undefined,
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: balanceAfter ?? undefined
                     }, true);
                 } else if (hasSuccessMessage) {
                     return withFinalPayOutcome({
                         success: false,
                         message: 'Transaction status unknown - success text but balance unchanged',
-                        beinBalanceBefore: balanceBefore || undefined,
-                        beinBalanceAfter: balanceAfter || undefined
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: balanceAfter ?? undefined
                     }, true);
                 } else if (confirmError) {
                     console.log(`[HTTP] ❌ Payment error after Direct Pay: ${confirmError}`);
@@ -4527,25 +4626,25 @@ export class HttpClientService {
                     return withFinalPayOutcome({
                         success: true,
                         message: 'Installment payment successful',
-                        newBalance: balanceAfter || undefined,
-                        beinBalanceBefore: balanceBefore || undefined,
-                        beinBalanceAfter: balanceAfter || undefined
+                        newBalance: balanceAfter ?? undefined,
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: balanceAfter ?? undefined
                     }, true);
                 } else if (balanceDecreased) {
                     console.log('[HTTP] Installment payment successful by balance delta (no popup)');
                     return withFinalPayOutcome({
                         success: true,
                         message: 'Installment payment successful (balance verified)',
-                        newBalance: balanceAfter || undefined,
-                        beinBalanceBefore: balanceBefore || undefined,
-                        beinBalanceAfter: balanceAfter || undefined
+                        newBalance: balanceAfter ?? undefined,
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: balanceAfter ?? undefined
                     }, true);
                 } else if (hasSuccessMessage) {
                     return withFinalPayOutcome({
                         success: false,
                         message: 'Transaction status unknown - success text but balance unchanged',
-                        beinBalanceBefore: balanceBefore || undefined,
-                        beinBalanceAfter: balanceAfter || undefined
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: balanceAfter ?? undefined
                     }, true);
                 } else if (payError) {
                     console.log(`[HTTP] ❌ Payment error: ${payError}`);

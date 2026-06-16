@@ -96,6 +96,12 @@ const TERMINAL_STATUS_LIST: OperationStatus[] = [
     OperationStatus.FAILED,
     OperationStatus.EXPIRED
 ];
+const HARD_TERMINAL_STATUS_LIST: OperationStatus[] = [
+    OperationStatus.COMPLETED,
+    OperationStatus.CANCELLED,
+    OperationStatus.FAILED,
+    OperationStatus.EXPIRED
+];
 
 const TERMINAL_STATUSES = new Set<string>(TERMINAL_STATUS_LIST);
 
@@ -124,6 +130,7 @@ function mergeOperationPhaseData(
         jobType: string;
         finalPaySubmitted?: boolean;
         finalPaySubmittedAt?: string;
+        finalPayRequestStartedAt?: string;
         dealerBalanceBefore?: number | null;
         dealerBalanceAfter?: number | null;
         dealerBalanceBeforeSource?: FinalPayBalanceEvidence['finalBalanceBeforeSource'] | FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
@@ -158,7 +165,11 @@ function hasFinalPaymentStarted(
     const phase = getOperationPhase(responseData);
 
     if (data.finalPaySubmitted === true) return true;
-    if (phase === 'FINAL_PAY_SUBMITTED' || phase === 'POST_FINAL_PAY_REVIEW') return true;
+    if (
+        phase === 'FINAL_PAY_REQUEST_STARTED' ||
+        phase === 'FINAL_PAY_SUBMITTED' ||
+        phase === 'POST_FINAL_PAY_REVIEW'
+    ) return true;
     if (
         phase === 'PACKAGE_PREPARATION' ||
         phase === 'CANCELLATION_CONFIRM' ||
@@ -173,16 +184,67 @@ function hasFinalPaymentStarted(
     return status === OperationStatus.COMPLETING;
 }
 
+function hasExplicitFinalPaymentStarted(responseData?: unknown): boolean {
+    const data = parseResponseDataObject(responseData);
+    const phase = getOperationPhase(responseData);
+
+    return data.finalPaySubmitted === true ||
+        phase === 'FINAL_PAY_REQUEST_STARTED' ||
+        phase === 'FINAL_PAY_SUBMITTED' ||
+        phase === 'POST_FINAL_PAY_REVIEW';
+}
+
+function hasManualFinancialReviewDecision(responseData: unknown): boolean {
+    const data = parseResponseDataObject(responseData);
+    const financialReview = data.financialReview;
+
+    if (!financialReview || typeof financialReview !== 'object' || Array.isArray(financialReview)) {
+        return false;
+    }
+
+    const review = financialReview as Record<string, unknown>;
+    if (review.latestDecision && typeof review.latestDecision === 'object') return true;
+    return Array.isArray(review.decisions) && review.decisions.length > 0;
+}
+
+function moneyMatches(left: number | null, right: number | null): boolean {
+    return typeof left === 'number' &&
+        typeof right === 'number' &&
+        Math.abs(left - right) <= 0.01;
+}
+
+function confirmedProviderContextMatches(
+    responseData: unknown,
+    finalPayEvidence: FinalPayBalanceEvidence
+): boolean {
+    const data = parseResponseDataObject(responseData);
+    const context = data.providerEvidenceContext;
+
+    if (!context || typeof context !== 'object' || Array.isArray(context)) {
+        return false;
+    }
+
+    const providerContext = context as Record<string, unknown>;
+    const expectedCost = toNullableNumber(data.expectedCost);
+
+    if (providerContext.operationId !== finalPayEvidence.operationId) return false;
+    if (providerContext.beinAccountId !== finalPayEvidence.beinAccountId) return false;
+    if (providerContext.cardNumber !== finalPayEvidence.cardNumber) return false;
+    if (!moneyMatches(toNullableNumber(providerContext.packagePrice), finalPayEvidence.packagePrice)) return false;
+    if (!moneyMatches(expectedCost, finalPayEvidence.packagePrice)) return false;
+    if (!moneyMatches(expectedCost, finalPayEvidence.confirmedDebitAmount)) return false;
+
+    return true;
+}
+
 function hasRenewalFinalPayDispatchEvidence(
     status: OperationStatus | string | null | undefined,
     responseData?: unknown
 ): boolean {
-    const data = parseResponseDataObject(responseData);
     const phase = getOperationPhase(responseData);
 
-    if (data.finalPaySubmitted === true) return true;
     if (phase === 'DISPATCH_PENDING' || phase === 'DISPATCH_FAILED') return true;
-    return hasFinalPaymentStarted(status, responseData);
+    return !phase && status === OperationStatus.COMPLETING;
 }
 
 function shouldSubmitRenewalFinalPay(operation: {
@@ -196,6 +258,9 @@ function shouldSubmitRenewalFinalPay(operation: {
         return { allowed: false, reason: `invalid_status_${operation.status}` };
     }
     if (!operation.amount || operation.amount <= 0) return { allowed: false, reason: 'missing_amount' };
+    if (hasExplicitFinalPaymentStarted(operation.responseData)) {
+        return { allowed: false, reason: 'final_pay_already_started' };
+    }
     if (!hasRenewalFinalPayDispatchEvidence(operation.status, operation.responseData)) {
         return { allowed: false, reason: 'missing_dispatch_evidence' };
     }
@@ -225,6 +290,80 @@ async function updateOperationIfActive(
     return false;
 }
 
+async function completeConfirmedRenewalOperation(
+    operationId: string,
+    data: Prisma.OperationUncheckedUpdateManyInput,
+    postPayResponseData: Prisma.InputJsonObject,
+    postPayPhaseEvidence: Parameters<typeof mergeOperationPhaseData>[1],
+    route: EffectiveBeinRoute,
+    finalPayEvidence: FinalPayBalanceEvidence
+): Promise<{ completed: boolean; responseData: Prisma.InputJsonObject }> {
+    const finalResponseData =
+        data.responseData && typeof data.responseData === 'object' && !Array.isArray(data.responseData)
+            ? data.responseData as Prisma.InputJsonObject
+            : postPayResponseData;
+    const completed = await prisma.operation.updateMany({
+        where: {
+            id: operationId,
+            status: { notIn: TERMINAL_STATUS_LIST }
+        },
+        data
+    });
+
+    if (completed.count > 0) {
+        return { completed: true, responseData: finalResponseData };
+    }
+
+    const current = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: { status: true, responseData: true, updatedAt: true }
+    });
+
+    if (
+        current?.status !== OperationStatus.REVIEW_REQUIRED ||
+        !hasFinalPaymentStarted(current.status, current.responseData) ||
+        hasManualFinancialReviewDecision(current.responseData) ||
+        !confirmedProviderContextMatches(current.responseData, finalPayEvidence) ||
+        !shouldRecordConfirmedProviderSpend(finalPayEvidence)
+    ) {
+        console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId} due to terminal transition race (${current?.status || 'missing'})`);
+        return { completed: false, responseData: postPayResponseData };
+    }
+
+    const refund = await prisma.transaction.findFirst({
+        where: { operationId, type: 'REFUND' },
+        select: { id: true }
+    });
+    if (refund) {
+        console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId}; refund already exists`);
+        return { completed: false, responseData: postPayResponseData };
+    }
+
+    const recoveredResponseData = responseDataWithRoute(
+        mergeOperationPhaseData(current.responseData, postPayPhaseEvidence),
+        route
+    );
+    const recovered = await prisma.operation.updateMany({
+        where: {
+            id: operationId,
+            status: OperationStatus.REVIEW_REQUIRED,
+            updatedAt: current.updatedAt
+        },
+        data: {
+            ...data,
+            responseData: finalResponseData ?? recoveredResponseData
+        }
+    });
+
+    if (recovered.count > 0) {
+        console.warn(`[HTTP] CONFIRM_PURCHASE promoted automated review to COMPLETED for ${operationId} after confirmed provider debit`);
+        return { completed: true, responseData: finalResponseData ?? recoveredResponseData };
+    }
+
+    console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId}; review state changed during confirmed provider debit promotion`);
+    return { completed: false, responseData: postPayResponseData };
+}
+
 function getErrMsg(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -240,13 +379,20 @@ function decideFinalPayRefundSafety(
     result: PurchaseResult | PayInstallmentResult,
     finalPaySubmitted: boolean
 ): FinalPayRefundDecision {
-    const outcomeCategory = result.outcomeCategory ?? classifyFinalPayOutcome({
-        success: result.success,
-        message: result.message,
-        finalPaySubmitted: result.finalPaySubmitted ?? finalPaySubmitted,
-        beinBalanceBefore: result.beinBalanceBefore,
-        beinBalanceAfter: result.beinBalanceAfter
-    });
+    const finalPaySubmittedForDecision = result.finalPaySubmitted === true || finalPaySubmitted;
+    const shouldReclassifyConservativeNoCharge =
+        finalPaySubmittedForDecision &&
+        result.finalPaySubmitted !== true &&
+        result.outcomeCategory === 'CONFIRMED_NOT_CHARGED';
+    const outcomeCategory = !shouldReclassifyConservativeNoCharge && result.outcomeCategory
+        ? result.outcomeCategory
+        : classifyFinalPayOutcome({
+            success: result.success,
+            message: result.message,
+            finalPaySubmitted: finalPaySubmittedForDecision,
+            beinBalanceBefore: result.beinBalanceBefore,
+            beinBalanceAfter: result.beinBalanceAfter
+        });
 
     // Business rule: after final Pay, unknown means review, not refund.
     return {
@@ -279,6 +425,8 @@ interface OperationAuditSnapshot {
     refundBlocked?: boolean;
     chargedBeinLedgerId?: string;
 }
+
+type ConfirmedBeinSpendResult = Awaited<ReturnType<typeof recordConfirmedBeinSpend>>;
 
 function toNullableNumber(value: unknown): number | null {
     return typeof value === 'number' && !Number.isNaN(value) ? value : null;
@@ -428,7 +576,10 @@ async function buildOperationAuditSnapshot(params: {
     const after = toNullableNumber(beinBalanceAfter);
     const hasConfirmedFinalPaySources =
         beinBalanceBeforeSource === 'final_pay_ok_page' &&
-        beinBalanceAfterSource === 'final_pay_result_page';
+        (
+            beinBalanceAfterSource === 'final_pay_result_page' ||
+            beinBalanceAfterSource === 'final_pay_balance_check'
+        );
     const beinDelta =
         before === null || after === null || !hasConfirmedFinalPaySources
             ? null
@@ -459,11 +610,10 @@ async function buildOperationAuditSnapshot(params: {
     return snapshot;
 }
 
-async function persistOperationAuditSnapshot(
-    operationId: string,
+function mergeOperationAuditSnapshot(
     responseData: unknown,
     snapshot: OperationAuditSnapshot
-): Promise<void> {
+): Prisma.InputJsonObject {
     const base = parseResponseDataObject(responseData);
     delete base.sessionData;
     const existingAudit =
@@ -479,12 +629,37 @@ async function persistOperationAuditSnapshot(
         }
     };
 
+    return merged as Prisma.InputJsonObject;
+}
+
+async function persistOperationAuditSnapshot(
+    operationId: string,
+    responseData: unknown,
+    snapshot: OperationAuditSnapshot
+): Promise<void> {
+    const merged = mergeOperationAuditSnapshot(responseData, snapshot);
+
     await prisma.operation.update({
         where: { id: operationId },
         data: {
-            responseData: typeof responseData === 'string' ? JSON.stringify(merged) : merged
+            responseData: merged
         }
     });
+}
+
+function ledgerResultBlocksCompletion(result: ConfirmedBeinSpendResult | null): boolean {
+    return result?.status === 'conflict_review_required' || result?.status === 'missing_balance_delta';
+}
+
+function ledgerResultId(result: ConfirmedBeinSpendResult | null): string | undefined {
+    return result && 'ledgerId' in result ? result.ledgerId : undefined;
+}
+
+function ledgerResultReviewReason(result: ConfirmedBeinSpendResult | null): string | undefined {
+    if (result?.status === 'conflict_review_required' || result?.status === 'missing_balance_delta') {
+        return result.reason;
+    }
+    return undefined;
 }
 
 function getLegacySessionData(responseData: unknown): Record<string, unknown> | null {
@@ -1177,9 +1352,9 @@ async function handleStartRenewalHttp(
     }
 
     // ============================================
-    // PARALLEL: Run checkCard + loadPackages simultaneously
-    // checkCard hits frmCheck.aspx, loadPackages hits frmSellPackages.aspx
-    // They use different pages so they can safely run in parallel (~4s saved)
+    // Run checkCard before loadPackages on the same client.
+    // HttpClientService carries mutable WebForms state (ViewState, STB, cookies),
+    // so these page flows must not share one client concurrently.
     // ============================================
 
     updateProgress(operationId, 'Loading card info...');
@@ -1207,28 +1382,17 @@ async function handleStartRenewalHttp(
             'loadPackages'
         );
     } else {
-        // No STB cache — run BOTH in parallel
-        console.log(`🔍📦 [HTTP] Running checkCard + loadPackages in PARALLEL...`);
+        // No STB cache: read the STB first, then build the package ViewState chain.
+        console.log(`[HTTP] Running checkCard then loadPackages sequentially...`);
         const startTime = Date.now();
 
-        const [checkResult, pkgResult] = await Promise.all([
-            withSessionRetry(
-                client,
-                selectedAccount,
-                route,
-                () => client.checkCard(cardNumber),
-                'checkCard'
-            ),
-            withSessionRetry(
-                client,
-                selectedAccount,
-                route,
-                () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
-                'loadPackages'
-            )
-        ]);
-
-        console.log(`⚡ [HTTP] Parallel operations completed in ${Date.now() - startTime}ms`);
+        const checkResult = await withSessionRetry(
+            client,
+            selectedAccount,
+            route,
+            () => client.checkCard(cardNumber),
+            'checkCard'
+        );
 
         if (!checkResult.success) {
             console.log(`⚠️ [HTTP] checkCard failed: ${checkResult.error} (non-fatal, STB may not be available)`);
@@ -1240,7 +1404,15 @@ async function handleStartRenewalHttp(
             }
         }
 
-        packagesResult = pkgResult;
+        packagesResult = await withSessionRetry(
+            client,
+            selectedAccount,
+            route,
+            () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
+            'loadPackages'
+        );
+
+        console.log(`[HTTP] Card/package preparation completed in ${Date.now() - startTime}ms`);
     }
 
     if (!packagesResult.success) {
@@ -2008,15 +2180,24 @@ async function attemptPurchaseWithAccount(
 
         // Direct success (shouldn't happen with skipFinalClick=true)
         if (result.success) {
+            const directSuccessReviewData = responseDataWithRoute({
+                ...parseResponseDataObject(operation.responseData),
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'COMPLETE_PURCHASE',
+                finalPaySubmitted: result.finalPaySubmitted === true,
+                outcomeCategory: result.outcomeCategory ?? 'UNCERTAIN_REVIEW_REQUIRED',
+                expectedCost: selectedPackage.price,
+                reviewSource: 'complete-purchase-direct-success',
+                reviewReason: 'Direct success before final confirmation did not include confirmed final Pay evidence.'
+            }, route);
             if (!await updateOperationIfActive(operationId, {
-                status: 'COMPLETED',
+                status: 'REVIEW_REQUIRED',
                 responseMessage: result.message,
-                completedAt: new Date()
-            }, 'COMPLETE_PURCHASE direct completion update')) {
+                responseData: directSuccessReviewData
+            }, 'COMPLETE_PURCHASE direct success review update')) {
                 await accountPool.markAccountUsed(accountId, operationId);
                 return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
             }
-            await awardCompletedOperationPointsSafely(operationId);
             await accountPool.markAccountUsed(accountId, operationId);
             return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
         }
@@ -2213,10 +2394,10 @@ async function handleConfirmPurchaseHttp(
             }
 
             finalPayResponseData = responseDataWithRoute(mergeOperationPhaseData(currentOperation.responseData, {
-                operationPhase: 'FINAL_PAY_SUBMITTED',
+                operationPhase: 'FINAL_PAY_REQUEST_STARTED',
                 jobType: 'CONFIRM_PURCHASE',
-                finalPaySubmitted: true,
-                finalPaySubmittedAt: new Date().toISOString(),
+                finalPaySubmitted: false,
+                finalPayRequestStartedAt: new Date().toISOString(),
                 dealerBalanceBefore: preFinalBeinBalance,
                 dealerBalanceBeforeSource: preFinalBeinBalance === null ? 'missing' : 'package_load_diagnostic',
                 diagnosticDealerBalanceBefore: preFinalBeinBalance,
@@ -2247,6 +2428,8 @@ async function handleConfirmPurchaseHttp(
             packagePrice: toNullableNumber(selectedPackage?.price),
             finalBalanceBefore: toNullableNumber(rawResult.beinBalanceBefore),
             finalBalanceAfter: toNullableNumber(rawResult.beinBalanceAfter),
+            finalBalanceBeforeSource: rawResult.beinBalanceBeforeSource,
+            finalBalanceAfterSource: rawResult.beinBalanceAfterSource,
             diagnosticBalanceBefore: preFinalBeinBalance,
         });
         const result = {
@@ -2254,8 +2437,11 @@ async function handleConfirmPurchaseHttp(
             beinBalanceBefore: finalPayEvidence.finalBalanceBefore ?? undefined,
             beinBalanceAfter: finalPayEvidence.finalBalanceAfter ?? undefined
         };
-        const outcomeDecision = decideFinalPayRefundSafety(result, result.finalPaySubmitted === true);
-        const postPayResponseData = responseDataWithRoute(mergeOperationPhaseData(finalPayResponseData ?? operation.responseData, {
+        const finalPayMayHaveStarted =
+            result.finalPaySubmitted === true ||
+            hasFinalPaymentStarted(operation.status, finalPayResponseData ?? operation.responseData);
+        const outcomeDecision = decideFinalPayRefundSafety(result, finalPayMayHaveStarted);
+        const postPayPhaseEvidence: Parameters<typeof mergeOperationPhaseData>[1] = {
             operationPhase: outcomeDecision.reviewRequired ? 'POST_FINAL_PAY_REVIEW' : 'FINAL_PAY_SUBMITTED',
             jobType: 'CONFIRM_PURCHASE',
             finalPaySubmitted: result.finalPaySubmitted === true,
@@ -2277,31 +2463,17 @@ async function handleConfirmPurchaseHttp(
             },
             expectedCost: operation.amount ?? null,
             outcomeCategory: outcomeDecision.outcomeCategory
-        }), route);
+        };
+        let postPayResponseData = responseDataWithRoute(
+            mergeOperationPhaseData(finalPayResponseData ?? operation.responseData, postPayPhaseEvidence),
+            route
+        );
 
         if (result.success) {
             // OPTIMIZATION: Invalidate package cache since packages changed after purchase
             if (operation.cardNumber) {
                 await invalidatePackageCache(operation.cardNumber);
             }
-
-            const completed = await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: TERMINAL_STATUS_LIST }
-                },
-                data: {
-                    status: 'COMPLETED',
-                    responseMessage: result.message,
-                    completedAt: new Date(),
-                    finalConfirmExpiry: null
-                }
-            });
-            if (completed.count === 0) {
-                console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId} due to terminal transition race`);
-                return;
-            }
-            await awardCompletedOperationPointsSafely(operationId);
 
             const ledgerResult = operation.userId
                 && shouldRecordConfirmedProviderSpend(finalPayEvidence)
@@ -2333,9 +2505,56 @@ async function handleConfirmPurchaseHttp(
                 diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
                 providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
                 outcomeCategory: outcomeDecision.outcomeCategory,
-                chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
+                reviewReason: ledgerResultReviewReason(ledgerResult),
+                reviewSource: ledgerResultBlocksCompletion(ledgerResult) ? 'confirm-purchase-ledger' : undefined,
+                refundBlocked: ledgerResultBlocksCompletion(ledgerResult) ? true : undefined,
+                chargedBeinLedgerId: ledgerResultId(ledgerResult)
             });
-            await persistOperationAuditSnapshot(operationId, postPayResponseData, auditSnapshot);
+            postPayResponseData = mergeOperationAuditSnapshot(postPayResponseData, auditSnapshot);
+
+            if (ledgerResultBlocksCompletion(ledgerResult)) {
+                const reviewed = await prisma.operation.updateMany({
+                    where: {
+                        id: operationId,
+                        status: { notIn: HARD_TERMINAL_STATUS_LIST }
+                    },
+                    data: {
+                        status: 'REVIEW_REQUIRED',
+                        responseMessage: ledgerResultReviewReason(ledgerResult) || 'Confirmed beIN spend could not be recorded. Manual review required.',
+                        finalConfirmExpiry: null,
+                        responseData: postPayResponseData
+                    }
+                });
+                if (reviewed.count === 0) {
+                    console.warn(`[HTTP] CONFIRM_PURCHASE ledger-conflict review update skipped for ${operationId} due to terminal transition race`);
+                }
+                await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
+                    console.error(`[HTTP] Failed to mark account used after ledger-conflict review for ${operationId}: ${getErrMsg(e)}`);
+                });
+                await deleteOperationSessionFromCache(operationId).catch((e: unknown) => {
+                    console.error(`[HTTP] Failed to delete operation session after ledger-conflict review for ${operationId}: ${getErrMsg(e)}`);
+                });
+                return;
+            }
+
+            const completion = await completeConfirmedRenewalOperation(operationId, {
+                status: 'COMPLETED',
+                responseMessage: result.message,
+                completedAt: new Date(),
+                finalConfirmExpiry: null,
+                responseData: postPayResponseData
+            }, postPayResponseData, postPayPhaseEvidence, route, finalPayEvidence);
+            postPayResponseData = completion.responseData;
+            if (!completion.completed) {
+                await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
+                    console.error(`[HTTP] Failed to mark account used after skipped completion for ${operationId}: ${getErrMsg(e)}`);
+                });
+                await deleteOperationSessionFromCache(operationId).catch((e: unknown) => {
+                    console.error(`[HTTP] Failed to delete operation session after skipped completion for ${operationId}: ${getErrMsg(e)}`);
+                });
+                return;
+            }
+            await awardCompletedOperationPointsSafely(operationId);
 
             await accountPool.markAccountUsed(operation.beinAccountId, operationId);
             await deleteOperationSessionFromCache(operationId);
@@ -3708,6 +3927,8 @@ async function handleConfirmInstallmentHttp(
         packagePrice: operation.amount ?? null,
         finalBalanceBefore: toNullableNumber(rawPayResult.beinBalanceBefore),
         finalBalanceAfter: toNullableNumber(rawPayResult.beinBalanceAfter),
+        finalBalanceBeforeSource: rawPayResult.beinBalanceBeforeSource,
+        finalBalanceAfterSource: rawPayResult.beinBalanceAfterSource,
         diagnosticBalanceBefore: preFinalInstallmentBalance,
     });
     const payResult = {
@@ -3741,24 +3962,6 @@ async function handleConfirmInstallmentHttp(
     }), route);
 
     if (payResult.success) {
-        const completed = await prisma.operation.updateMany({
-            where: {
-                id: operationId,
-                status: { notIn: TERMINAL_STATUS_LIST }
-            },
-            data: {
-                status: 'COMPLETED',
-                responseMessage: payResult.message,
-                completedAt: new Date(),
-                finalConfirmExpiry: null
-            }
-        });
-        if (completed.count === 0) {
-            console.warn(`[HTTP] CONFIRM_INSTALLMENT completion skipped for ${operationId} due to terminal transition race`);
-            return;
-        }
-        await awardCompletedOperationPointsSafely(operationId);
-
         const ledgerResult = operation.userId
             && shouldRecordConfirmedProviderSpend(installmentPayEvidence)
             ? await recordConfirmedBeinSpend({
@@ -3788,9 +3991,56 @@ async function handleConfirmInstallmentHttp(
             diagnosticDealerBalanceBefore: installmentPayEvidence.diagnosticBalanceBefore,
             diagnosticDealerBalanceBeforeSource: installmentPayEvidence.diagnosticBalanceBeforeSource,
             providerEvidenceState: shouldRecordConfirmedProviderSpend(installmentPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
-            chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
+            outcomeCategory: payOutcomeDecision.outcomeCategory,
+            reviewReason: ledgerResultReviewReason(ledgerResult),
+            reviewSource: ledgerResultBlocksCompletion(ledgerResult) ? 'confirm-installment-ledger' : undefined,
+            refundBlocked: ledgerResultBlocksCompletion(ledgerResult) ? true : undefined,
+            chargedBeinLedgerId: ledgerResultId(ledgerResult)
         });
-        await persistOperationAuditSnapshot(operationId, installmentPostPayResponseData, auditSnapshot);
+        const installmentCompletedResponseData = mergeOperationAuditSnapshot(installmentPostPayResponseData, auditSnapshot);
+
+        if (ledgerResultBlocksCompletion(ledgerResult)) {
+            const reviewed = await prisma.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: { notIn: HARD_TERMINAL_STATUS_LIST }
+                },
+                data: {
+                    status: 'REVIEW_REQUIRED',
+                    responseMessage: ledgerResultReviewReason(ledgerResult) || 'Confirmed beIN spend could not be recorded. Manual review required.',
+                    finalConfirmExpiry: null,
+                    responseData: installmentCompletedResponseData
+                }
+            });
+            if (reviewed.count === 0) {
+                console.warn(`[HTTP] CONFIRM_INSTALLMENT ledger-conflict review update skipped for ${operationId} due to terminal transition race`);
+            }
+            try {
+                await accountPool.markAccountUsed(selectedAccount.id);
+            } catch (e: unknown) {
+                console.error(`[HTTP] Failed to mark account used after installment ledger-conflict review for ${operationId}: ${getErrMsg(e)}`);
+            }
+            return;
+        }
+
+        const completed = await prisma.operation.updateMany({
+            where: {
+                id: operationId,
+                status: { notIn: TERMINAL_STATUS_LIST }
+            },
+            data: {
+                status: 'COMPLETED',
+                responseMessage: payResult.message,
+                completedAt: new Date(),
+                finalConfirmExpiry: null,
+                responseData: installmentCompletedResponseData
+            }
+        });
+        if (completed.count === 0) {
+            console.warn(`[HTTP] CONFIRM_INSTALLMENT completion skipped for ${operationId} due to terminal transition race`);
+            return;
+        }
+        await awardCompletedOperationPointsSafely(operationId);
 
         try {
             await accountPool.markAccountUsed(selectedAccount.id);

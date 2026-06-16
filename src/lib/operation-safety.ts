@@ -16,6 +16,7 @@ export const OPERATION_PHASES = [
     'DISPATCH_PENDING',
     'DISPATCH_FAILED',
     'CANCELLATION_CONFIRM',
+    'FINAL_PAY_REQUEST_STARTED',
     'FINAL_PAY_SUBMITTED',
     'POST_FINAL_PAY_REVIEW',
     'RECOVERY_TIMEOUT',
@@ -28,6 +29,7 @@ export interface OperationPhaseEvidence {
     jobType?: string
     finalPaySubmitted?: boolean
     finalPaySubmittedAt?: string
+    finalPayRequestStartedAt?: string
     cancelRequestedAt?: string
     dealerBalanceBefore?: number | null
     dealerBalanceAfter?: number | null
@@ -116,6 +118,7 @@ export function getOperationPhaseEvidence(input: unknown): OperationPhaseEvidenc
         jobType: typeof data.jobType === 'string' ? data.jobType : undefined,
         finalPaySubmitted: typeof data.finalPaySubmitted === 'boolean' ? data.finalPaySubmitted : undefined,
         finalPaySubmittedAt: typeof data.finalPaySubmittedAt === 'string' ? data.finalPaySubmittedAt : undefined,
+        finalPayRequestStartedAt: typeof data.finalPayRequestStartedAt === 'string' ? data.finalPayRequestStartedAt : undefined,
         cancelRequestedAt: typeof data.cancelRequestedAt === 'string' ? data.cancelRequestedAt : undefined,
         dealerBalanceBefore: typeof data.dealerBalanceBefore === 'number' ? data.dealerBalanceBefore : null,
         dealerBalanceAfter: typeof data.dealerBalanceAfter === 'number' ? data.dealerBalanceAfter : null,
@@ -135,6 +138,7 @@ export function mergeOperationPhaseEvidence(
         jobType: evidence.jobType ?? base.jobType,
         finalPaySubmitted: evidence.finalPaySubmitted ?? base.finalPaySubmitted,
         finalPaySubmittedAt: evidence.finalPaySubmittedAt ?? base.finalPaySubmittedAt,
+        finalPayRequestStartedAt: evidence.finalPayRequestStartedAt ?? base.finalPayRequestStartedAt,
         cancelRequestedAt: evidence.cancelRequestedAt ?? base.cancelRequestedAt,
         dealerBalanceBefore: evidence.dealerBalanceBefore ?? base.dealerBalanceBefore,
         dealerBalanceAfter: evidence.dealerBalanceAfter ?? base.dealerBalanceAfter,
@@ -147,6 +151,7 @@ export function hasFinalPayStarted(input: OperationSafetyInput): boolean {
 
     if (input.finalPaySubmittedEvidence || phaseEvidence?.finalPaySubmitted) return true
     if (input.confirmedBeinChargeEvidence) return true
+    if (phaseEvidence?.phase === 'FINAL_PAY_REQUEST_STARTED') return true
     if (phaseEvidence?.phase === 'FINAL_PAY_SUBMITTED') return true
     if (phaseEvidence?.phase === 'POST_FINAL_PAY_REVIEW') return true
     if (

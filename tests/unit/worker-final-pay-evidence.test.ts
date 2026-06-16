@@ -43,6 +43,25 @@ test('confirms provider spend only when final-pay before and after balances exis
     assert.equal(shouldRecordConfirmedProviderSpend(evidence), true)
 })
 
+test('confirms provider spend when after balance is verified by delayed balance check', () => {
+    const evidence = buildFinalPayBalanceEvidence({
+        operationId: 'operation-2b',
+        beinAccountId: 'bein-1',
+        cardNumber: '7500000004',
+        packageName: 'Premium',
+        packagePrice: 92,
+        finalBalanceBefore: 500,
+        finalBalanceAfter: 408,
+        finalBalanceAfterSource: 'final_pay_balance_check',
+        diagnosticBalanceBefore: 500,
+    })
+
+    assert.equal(evidence.finalBalanceBeforeSource, 'final_pay_ok_page')
+    assert.equal(evidence.finalBalanceAfterSource, 'final_pay_balance_check')
+    assert.equal(evidence.confirmedDebitAmount, 92)
+    assert.equal(shouldRecordConfirmedProviderSpend(evidence), true)
+})
+
 test('does not confirm provider spend when final-pay after balance is missing', () => {
     const evidence = buildFinalPayBalanceEvidence({
         operationId: 'operation-3',

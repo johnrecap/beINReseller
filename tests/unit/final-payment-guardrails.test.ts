@@ -168,6 +168,45 @@ test('T009 worker pre-Pay renewal re-check rejects terminal and stale-disallowed
         amount: 0,
         responseData: { operationPhase: 'DISPATCH_PENDING', finalPaySubmitted: false },
     }).allowed, false)
+
+    const requestStarted = shouldWorkerSubmitRenewalFinalPay({
+        status: 'COMPLETING',
+        amount: RESELLER_DEDUCTED_AMOUNT,
+        responseData: { operationPhase: 'FINAL_PAY_REQUEST_STARTED', finalPaySubmitted: false },
+    })
+    assert.equal(requestStarted.allowed, false)
+    assert.equal(requestStarted.reason, 'final_pay_already_started')
+
+    const submitted = shouldWorkerSubmitRenewalFinalPay({
+        status: 'COMPLETING',
+        amount: RESELLER_DEDUCTED_AMOUNT,
+        responseData: finalPaySubmittedEvidence('CONFIRM_PURCHASE'),
+    })
+    assert.equal(submitted.allowed, false)
+    assert.equal(submitted.reason, 'final_pay_already_started')
+})
+
+test('T009 final pay request-started phase blocks refund safety', () => {
+    const decision = decideRefundSafety({
+        operationStatus: 'COMPLETING',
+        operationAmount: RESELLER_DEDUCTED_AMOUNT,
+        operationResponseData: {
+            operationPhase: 'FINAL_PAY_REQUEST_STARTED',
+            finalPaySubmitted: false,
+        },
+    })
+
+    assert.equal(hasFinalPayStarted({
+        operationStatus: 'COMPLETING',
+        operationAmount: RESELLER_DEDUCTED_AMOUNT,
+        operationResponseData: {
+            operationPhase: 'FINAL_PAY_REQUEST_STARTED',
+            finalPaySubmitted: false,
+        },
+    }), true)
+    assert.equal(decision.refundAllowed, false)
+    assert.equal(decision.reviewRequired, true)
+    assert.equal(decision.reason, 'LEGACY_COMPLETING_CONSERVATIVE_REVIEW')
 })
 
 test('T022 allows confirmed no-charge installment reseller refund once, then blocks duplicates', () => {

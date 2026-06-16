@@ -77,12 +77,26 @@ export function hasRecoveryProviderCompletionProof(input: {
     const ledgerSpend = toNullableNumber(ledger.spendAmount)
     if (ledgerSpend === null || ledgerSpend <= MONEY_EPSILON) return false
 
+    const auditSnapshot = getAuditSnapshot(input.responseData)
+    if (!auditSnapshot) return false
+
+    if (ledger.evidenceConfidence === 'CONTRACT_VERIFIED') {
+        if (auditSnapshot.providerEvidenceState !== 'contract-verified') return false
+        if (auditSnapshot.outcomeCategory !== 'CONFIRMED_SUCCESS') return false
+        if (auditSnapshot.chargedBeinLedgerId !== ledger.id) return false
+        if (
+            ledger.beinAccountId &&
+            typeof auditSnapshot.beinAccountId === 'string' &&
+            auditSnapshot.beinAccountId !== ledger.beinAccountId
+        ) {
+            return false
+        }
+        return true
+    }
+
     if (ledger.evidenceConfidence && ledger.evidenceConfidence !== 'CONFIRMED_FINAL_PAY') {
         return false
     }
-
-    const auditSnapshot = getAuditSnapshot(input.responseData)
-    if (!auditSnapshot) return false
 
     if (auditSnapshot.providerEvidenceState !== 'confirmed-final-pay') return false
     if (auditSnapshot.outcomeCategory !== 'CONFIRMED_SUCCESS') return false

@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OperationStatus } from '@prisma/client'
+import { Queue } from 'bullmq'
 import prisma from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import {
     parseJsonRecord,
-    toNullableNumber,
     withFinancialReviewMetadata,
 } from '@/lib/financial-review/evidence'
-import type { CardVerificationOutcome } from '@/lib/financial-review/types'
 
 type RouteContext = {
     params: Promise<{ operationId: string }>
+}
+
+function getOperationsQueue() {
+    return new Queue('operations', {
+        connection: {
+            url: process.env.REDIS_URL || 'redis://localhost:6379',
+        },
+    })
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -26,9 +33,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
             select: {
                 id: true,
                 status: true,
-                amount: true,
                 responseData: true,
-                responseMessage: true,
+                cardNumber: true,
             },
         })
 
@@ -36,26 +42,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
             return NextResponse.json({ error: 'Operation is not reviewable' }, { status: 409 })
         }
 
-        const responseData = parseJsonRecord(operation.responseData)
-        const auditSnapshot = parseJsonRecord(responseData?.auditSnapshot)
-        const beinDelta = toNullableNumber(auditSnapshot?.beinDelta)
-        const successMessage = `${operation.responseMessage || ''}`.toLowerCase().includes('success')
-        const likelyRenewed = Boolean(
-            successMessage ||
-            (typeof beinDelta === 'number' && Math.abs(beinDelta) >= Math.max(1, operation.amount * 0.5))
-        )
-
-        const outcome: CardVerificationOutcome = 'STORED_EVIDENCE_ONLY'
-        const summary = likelyRenewed
-            ? 'فحص الأدلة المسجلة فقط: يوجد ما يشير إلى خصم أو تجديد، لكنه ليس فحصا مباشرا من beIN.'
-            : 'فحص الأدلة المسجلة فقط: لا يوجد دليل كاف يؤكد التجديد، وهذا ليس فحصا مباشرا من beIN.'
+        const checkedAt = new Date().toISOString()
+        const summary = 'تم إرسال فحص مباشر إلى beIN. سيتم تحديث القرار عند وصول نتيجة worker.'
 
         const check = {
-            outcome,
+            outcome: 'NOT_CHECKED' as const,
             summary,
             checkedBy: authResult.user.id,
             checkedByUsername: authResult.user.username,
-            checkedAt: new Date().toISOString(),
+            checkedAt,
         }
 
         const nextResponseData = withFinancialReviewMetadata(operation.responseData, (current) => ({
@@ -69,7 +64,77 @@ export async function POST(request: NextRequest, context: RouteContext) {
             data: { responseData: nextResponseData },
         })
 
-        return NextResponse.json({ success: true, check })
+        const queue = getOperationsQueue()
+        try {
+            const job = await queue.add('verify-review-card', {
+                operationId,
+                type: 'VERIFY_REVIEW_CARD',
+                cardNumber: operation.cardNumber || '',
+            }, {
+                priority: 0,
+                attempts: 1,
+                removeOnComplete: true,
+                removeOnFail: true,
+                jobId: `VERIFY_REVIEW_CARD--${operationId}--${Date.now()}`,
+            })
+
+            const maxWaitMs = 45_000
+            const pollMs = 1_000
+            const startedAt = Date.now()
+
+            while (Date.now() - startedAt < maxWaitMs) {
+                const current = await prisma.operation.findUnique({
+                    where: { id: operationId },
+                    select: {
+                        status: true,
+                        responseData: true,
+                        responseMessage: true,
+                    },
+                })
+
+                if (!current) break
+                const currentData = parseJsonRecord(current.responseData)
+                const review = parseJsonRecord(currentData?.financialReview)
+                const latest = parseJsonRecord(review?.latestCardVerification)
+
+                if (current.status !== OperationStatus.REVIEW_REQUIRED) {
+                    return NextResponse.json({
+                        success: true,
+                        queued: false,
+                        completed: true,
+                        status: current.status,
+                        message: current.responseMessage,
+                        check: latest || check,
+                    })
+                }
+
+                if (latest?.checkedAt && latest.checkedAt !== checkedAt) {
+                    return NextResponse.json({
+                        success: true,
+                        queued: false,
+                        completed: false,
+                        status: current.status,
+                        message: current.responseMessage,
+                        check: latest,
+                    })
+                }
+
+                const jobState = await job.getState().catch(() => 'unknown')
+                if (jobState === 'failed') {
+                    return NextResponse.json({
+                        success: false,
+                        error: job.failedReason || 'Live beIN verification failed',
+                        check,
+                    }, { status: 500 })
+                }
+
+                await new Promise(resolve => setTimeout(resolve, pollMs))
+            }
+
+            return NextResponse.json({ success: true, queued: true, check })
+        } finally {
+            await queue.close().catch(() => undefined)
+        }
     } catch (error) {
         console.error('Financial review card verification error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -10,7 +10,7 @@
 import { Job } from 'bullmq';
 import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage, classifyFinalPayOutcome } from './http';
-import type { FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
+import type { Contract, FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
 import { AccountPoolManager, getQueueManager, forceUnlockAccount, lockAccount, unlockAccount } from './pool';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
@@ -61,6 +61,13 @@ import {
     shouldRecordConfirmedProviderSpend,
     type FinalPayBalanceEvidence,
 } from './lib/final-pay-evidence';
+import {
+    buildFailedContractVerification,
+    buildRenewalContractVerification,
+    RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS,
+    RENEWAL_CONTRACT_VERIFICATION_DELAY_MS,
+    type ContractVerificationEvidence,
+} from './lib/contract-verification';
 
 // Renewal decision windows
 const HEARTBEAT_TTL_SECONDS = 5;
@@ -71,7 +78,7 @@ const FINAL_CONFIRM_LOCK_TTL_SECONDS = 120;
 
 interface OperationJobData {
     operationId: string;
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE' | 'CHECK_ACCOUNT_BALANCE' | 'START_INSTALLMENT' | 'CONFIRM_INSTALLMENT';
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE' | 'CHECK_ACCOUNT_BALANCE' | 'START_INSTALLMENT' | 'CONFIRM_INSTALLMENT' | 'VERIFY_REVIEW_CARD';
     cardNumber: string;
     duration?: string;
     promoCode?: string;
@@ -105,6 +112,13 @@ const HARD_TERMINAL_STATUS_LIST: OperationStatus[] = [
 
 const TERMINAL_STATUSES = new Set<string>(TERMINAL_STATUS_LIST);
 
+type ProviderEvidenceState = 'confirmed-final-pay' | 'contract-verified' | 'incomplete-evidence';
+
+interface ContractVerificationRun {
+    finalVerification: ContractVerificationEvidence;
+    attempts: ContractVerificationEvidence[];
+}
+
 function isTerminalStatus(status: string | null | undefined): boolean {
     return !!status && TERMINAL_STATUSES.has(status);
 }
@@ -137,7 +151,7 @@ function mergeOperationPhaseData(
         dealerBalanceAfterSource?: FinalPayBalanceEvidence['finalBalanceAfterSource'];
         diagnosticDealerBalanceBefore?: number | null;
         diagnosticDealerBalanceBeforeSource?: FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
-        providerEvidenceState?: 'confirmed-final-pay' | 'incomplete-evidence';
+        providerEvidenceState?: ProviderEvidenceState;
         providerEvidenceCapturedAt?: string;
         providerEvidenceContext?: {
             operationId: string;
@@ -413,7 +427,7 @@ interface OperationAuditSnapshot {
     beinBalanceAfterSource?: FinalPayBalanceEvidence['finalBalanceAfterSource'];
     diagnosticDealerBalanceBefore?: number | null;
     diagnosticDealerBalanceBeforeSource?: FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
-    providerEvidenceState?: 'confirmed-final-pay' | 'incomplete-evidence';
+    providerEvidenceState?: ProviderEvidenceState;
     userId: string | null;
     userDeductTotal: number;
     userBalanceBefore: number | null;
@@ -521,7 +535,7 @@ async function buildOperationAuditSnapshot(params: {
     beinBalanceAfterSource?: FinalPayBalanceEvidence['finalBalanceAfterSource'];
     diagnosticDealerBalanceBefore?: number | null;
     diagnosticDealerBalanceBeforeSource?: FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
-    providerEvidenceState?: 'confirmed-final-pay' | 'incomplete-evidence';
+    providerEvidenceState?: ProviderEvidenceState;
     outcomeCategory?: FinalPayOutcomeCategory;
     reviewReason?: string;
     reviewSource?: string;
@@ -645,6 +659,220 @@ async function persistOperationAuditSnapshot(
             responseData: merged
         }
     });
+}
+
+function compactContract(contract: Contract | null): Prisma.InputJsonObject | null {
+    if (!contract) return null;
+    return {
+        type: contract.type || '',
+        status: contract.status || '',
+        package: contract.package || '',
+        startDate: contract.startDate || '',
+        expiryDate: contract.expiryDate || '',
+        invoiceNo: contract.invoiceNo || '',
+    };
+}
+
+function cardVerificationOutcomeFor(
+    verification: ContractVerificationEvidence
+): 'LIKELY_RENEWED' | 'NOT_CONFIRMED' | 'CHECK_FAILED' {
+    if (verification.outcome === 'CONTRACT_VERIFIED_SUCCESS') return 'LIKELY_RENEWED';
+    if (verification.outcome === 'CHECK_FAILED') return 'CHECK_FAILED';
+    return 'NOT_CONFIRMED';
+}
+
+function contractVerificationSummary(verification: ContractVerificationEvidence): string {
+    const attemptSuffix = verification.maxAttempts
+        ? ` (attempt ${verification.attempt || 1}/${verification.maxAttempts})`
+        : '';
+
+    if (verification.outcome === 'CONTRACT_VERIFIED_SUCCESS') {
+        const invoice = verification.matchedContract?.invoiceNo
+            ? ` invoice ${verification.matchedContract.invoiceNo}`
+            : '';
+        return `Live beIN check confirmed a matching active contract${invoice}${attemptSuffix}.`;
+    }
+    if (verification.outcome === 'CHECK_FAILED') {
+        return `Live beIN check failed${attemptSuffix}: ${verification.error || verification.reason}`;
+    }
+    return `Live beIN check found no matching active contract${attemptSuffix}.`;
+}
+
+function asContractVerificationRun(
+    verification: ContractVerificationEvidence | ContractVerificationRun
+): ContractVerificationRun {
+    if ('finalVerification' in verification) {
+        return verification;
+    }
+
+    return {
+        finalVerification: verification,
+        attempts: [verification],
+    };
+}
+
+function mergeContractVerificationEvidence(
+    responseData: unknown,
+    verification: ContractVerificationEvidence | ContractVerificationRun,
+    source: 'post_final_pay' | 'admin_live_check'
+): Prisma.InputJsonObject {
+    const verificationRun = asContractVerificationRun(verification);
+    const finalVerification = verificationRun.finalVerification;
+    const attempts = verificationRun.attempts.length > 0
+        ? verificationRun.attempts
+        : [finalVerification];
+    const base = parseResponseDataObject(responseData);
+    const existingTimeline = Array.isArray(base.providerVerificationTimeline)
+        ? base.providerVerificationTimeline
+        : [];
+    const timelineEntries = attempts.map((attempt, index) => ({
+        source,
+        attempt: attempt.attempt || index + 1,
+        maxAttempts: attempt.maxAttempts || attempts.length,
+        checkedAt: attempt.checkedAt,
+        outcome: attempt.outcome,
+        reason: attempt.reason,
+        error: attempt.error || null,
+        referenceDate: attempt.referenceDate,
+        selectedPackageName: attempt.selectedPackageName,
+        contractCount: attempt.contractCount,
+        matchedContract: compactContract(attempt.matchedContract),
+        finalDecision: attempt === finalVerification,
+    }));
+    const finalTimelineEntry = timelineEntries[timelineEntries.length - 1] ?? null;
+    const existingFinancialReview =
+        base.financialReview && typeof base.financialReview === 'object' && !Array.isArray(base.financialReview)
+            ? base.financialReview as Record<string, unknown>
+            : {};
+    const existingCardChecks = Array.isArray(existingFinancialReview.cardChecks)
+        ? existingFinancialReview.cardChecks
+        : [];
+    const cardCheck = {
+        outcome: cardVerificationOutcomeFor(finalVerification),
+        summary: contractVerificationSummary(finalVerification),
+        checkedBy: source === 'admin_live_check' ? 'worker-live-provider-check' : 'worker-post-pay',
+        checkedByUsername: source === 'admin_live_check' ? 'worker live beIN check' : 'worker post-Pay verifier',
+        checkedAt: finalVerification.checkedAt,
+        attempt: finalVerification.attempt || attempts.length,
+        maxAttempts: finalVerification.maxAttempts || attempts.length,
+    };
+
+    return {
+        ...base,
+        providerEvidenceState: finalVerification.outcome === 'CONTRACT_VERIFIED_SUCCESS'
+            ? 'contract-verified'
+            : base.providerEvidenceState,
+        outcomeCategory: finalVerification.outcome === 'CONTRACT_VERIFIED_SUCCESS'
+            ? 'CONFIRMED_SUCCESS'
+            : base.outcomeCategory,
+        providerVerificationTimeline: [...existingTimeline, ...timelineEntries].slice(-20) as Prisma.InputJsonArray,
+        providerFinalOutcome: finalVerification.outcome,
+        contractVerification: finalTimelineEntry,
+        financialReview: {
+            ...existingFinancialReview,
+            latestCardVerification: cardCheck,
+            cardChecks: [...existingCardChecks, cardCheck].slice(-20) as Prisma.InputJsonArray,
+        },
+    } as Prisma.InputJsonObject;
+}
+
+function delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function withContractVerificationAttempt(
+    verification: ContractVerificationEvidence,
+    attempt: number,
+    maxAttempts: number
+): ContractVerificationEvidence {
+    return {
+        ...verification,
+        attempt,
+        maxAttempts,
+    };
+}
+
+async function verifyRenewalContractWithProvider(input: {
+    client: HttpClientService;
+    account: OperationBeinAccount;
+    route: EffectiveBeinRoute;
+    cardNumber: string | null;
+    operationCreatedAt: Date;
+    responseData: unknown;
+    selectedPackageName?: string | null;
+}): Promise<ContractVerificationRun> {
+    if (!input.cardNumber) {
+        const finalVerification = withContractVerificationAttempt(
+            buildFailedContractVerification({
+                selectedPackageName: input.selectedPackageName,
+                operationCreatedAt: input.operationCreatedAt,
+                responseData: input.responseData,
+                error: 'Missing card number for live contract verification.',
+            }),
+            1,
+            1
+        );
+        return { finalVerification, attempts: [finalVerification] };
+    }
+
+    const attempts: ContractVerificationEvidence[] = [];
+
+    for (let attempt = 1; attempt <= RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS; attempt++) {
+        if (attempt > 1) {
+            console.log(`[HTTP] Waiting ${RENEWAL_CONTRACT_VERIFICATION_DELAY_MS}ms before live beIN contract verification attempt ${attempt}/${RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS}`);
+            await delay(RENEWAL_CONTRACT_VERIFICATION_DELAY_MS);
+        }
+
+        let verification: ContractVerificationEvidence;
+        try {
+            console.log(`[HTTP] Live beIN contract verification attempt ${attempt}/${RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS}`);
+            const checkResult = await withSessionRetry(
+                input.client,
+                input.account,
+                input.route,
+                () => input.client.checkCardForSignal(input.cardNumber || ''),
+                'postPayContractVerification'
+            );
+
+            if (!checkResult.success) {
+                verification = buildFailedContractVerification({
+                    selectedPackageName: input.selectedPackageName,
+                    operationCreatedAt: input.operationCreatedAt,
+                    responseData: input.responseData,
+                    error: checkResult.error || 'beIN card check failed.',
+                });
+            } else {
+                verification = buildRenewalContractVerification({
+                    contracts: checkResult.contracts || [],
+                    selectedPackageName: input.selectedPackageName,
+                    operationCreatedAt: input.operationCreatedAt,
+                    responseData: input.responseData,
+                });
+            }
+        } catch (error: unknown) {
+            verification = buildFailedContractVerification({
+                selectedPackageName: input.selectedPackageName,
+                operationCreatedAt: input.operationCreatedAt,
+                responseData: input.responseData,
+                error: getErrMsg(error),
+            });
+        }
+
+        verification = withContractVerificationAttempt(
+            verification,
+            attempt,
+            RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS
+        );
+        attempts.push(verification);
+
+        console.log(`[HTTP] Live beIN contract verification attempt ${attempt}/${RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS}: ${verification.outcome} (${verification.reason})`);
+        if (verification.outcome === 'CONTRACT_VERIFIED_SUCCESS') {
+            return { finalVerification: verification, attempts };
+        }
+    }
+
+    const finalVerification = attempts[attempts.length - 1];
+    return { finalVerification, attempts };
 }
 
 function ledgerResultBlocksCompletion(result: ConfirmedBeinSpendResult | null): boolean {
@@ -1057,6 +1285,9 @@ export async function processOperationHttp(
                 break;
             case 'CONFIRM_PURCHASE':
                 await handleConfirmPurchaseHttp(operationId, accountPool);
+                break;
+            case 'VERIFY_REVIEW_CARD':
+                await handleVerifyReviewCardHttp(operationId, accountPool);
                 break;
             case 'CANCEL_CONFIRM':
                 await handleCancelConfirmHttp(operationId, accountPool);
@@ -2253,6 +2484,7 @@ async function handleConfirmPurchaseHttp(
             selectedPackage: true,
             amount: true,
             status: true,
+            createdAt: true,
             stbNumber: true,  // CRITICAL: Need for confirmPurchase
             cardNumber: true, // OPTIMIZATION: Need for cache invalidation
             finalConfirmExpiry: true,
@@ -2469,6 +2701,159 @@ async function handleConfirmPurchaseHttp(
             route
         );
 
+        let contractVerification: ContractVerificationEvidence | null = null;
+        if (!result.success && finalPayMayHaveStarted) {
+            console.log(`[HTTP] Running live beIN contract verification after uncertain final Pay for ${operationId}`);
+            const contractVerificationRun = await verifyRenewalContractWithProvider({
+                client,
+                account,
+                route,
+                cardNumber: operation.cardNumber,
+                operationCreatedAt: operation.createdAt,
+                responseData: postPayResponseData,
+                selectedPackageName: selectedPackage?.name || null,
+            });
+            contractVerification = contractVerificationRun.finalVerification;
+            postPayResponseData = responseDataWithRoute(
+                mergeContractVerificationEvidence(postPayResponseData, contractVerificationRun, 'post_final_pay'),
+                route
+            );
+            console.log(`[HTTP] Contract verification after Pay for ${operationId}: ${contractVerification.outcome} (${contractVerification.reason})`);
+
+            if (contractVerification.outcome === 'CONTRACT_VERIFIED_SUCCESS') {
+                if (operation.cardNumber) {
+                    await invalidatePackageCache(operation.cardNumber);
+                }
+
+                const verifiedSpendAmount = operation.amount ?? toNullableNumber(selectedPackage?.price);
+                const ledgerResult = operation.userId
+                    ? await recordConfirmedBeinSpend({
+                        operationId,
+                        userId: operation.userId,
+                        beinAccountId: operation.beinAccountId,
+                        dealerBalanceBefore: null,
+                        dealerBalanceAfter: null,
+                        evidenceSource: 'CONTRACT_VERIFIED',
+                        confirmedSpendAmount: verifiedSpendAmount,
+                    })
+                    : null;
+                if (ledgerResult?.status === 'conflict_review_required') {
+                    console.warn(`[HTTP] beIN contract ledger conflict for ${operationId}: ${ledgerResult.reason}`);
+                }
+
+                const auditSnapshot = await buildOperationAuditSnapshot({
+                    operationId,
+                    userId: operation.userId || null,
+                    beinAccountId: operation.beinAccountId,
+                    beinUsername: account.username,
+                    beinBalanceBefore: null,
+                    beinBalanceAfter: null,
+                    providerEvidenceState: 'contract-verified',
+                    outcomeCategory: 'CONFIRMED_SUCCESS',
+                    reviewReason: ledgerResultReviewReason(ledgerResult),
+                    reviewSource: ledgerResultBlocksCompletion(ledgerResult) ? 'confirm-purchase-contract-ledger' : undefined,
+                    refundBlocked: ledgerResultBlocksCompletion(ledgerResult) ? true : undefined,
+                    chargedBeinLedgerId: ledgerResultId(ledgerResult)
+                });
+                postPayResponseData = mergeOperationAuditSnapshot(postPayResponseData, auditSnapshot);
+
+                if (ledgerResultBlocksCompletion(ledgerResult)) {
+                    const reviewed = await prisma.operation.updateMany({
+                        where: {
+                            id: operationId,
+                            status: { notIn: HARD_TERMINAL_STATUS_LIST }
+                        },
+                        data: {
+                            status: 'REVIEW_REQUIRED',
+                            responseMessage: ledgerResultReviewReason(ledgerResult) || 'Contract verified but beIN spend ledger could not be recorded. Manual review required.',
+                            finalConfirmExpiry: null,
+                            responseData: postPayResponseData
+                        }
+                    });
+                    if (reviewed.count === 0) {
+                        console.warn(`[HTTP] CONFIRM_PURCHASE contract-ledger review update skipped for ${operationId} due to terminal transition race`);
+                    }
+                    await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
+                        console.error(`[HTTP] Failed to mark account used after contract-ledger review for ${operationId}: ${getErrMsg(e)}`);
+                    });
+                    await deleteOperationSessionFromCache(operationId).catch((e: unknown) => {
+                        console.error(`[HTTP] Failed to delete operation session after contract-ledger review for ${operationId}: ${getErrMsg(e)}`);
+                    });
+                    return;
+                }
+
+                const completed = await prisma.operation.updateMany({
+                    where: {
+                        id: operationId,
+                        status: { notIn: HARD_TERMINAL_STATUS_LIST }
+                    },
+                    data: {
+                        status: 'COMPLETED',
+                        responseMessage: 'beIN contract verified after final Pay.',
+                        completedAt: new Date(),
+                        finalConfirmExpiry: null,
+                        responseData: postPayResponseData
+                    }
+                });
+                if (completed.count === 0) {
+                    console.warn(`[HTTP] CONFIRM_PURCHASE contract-verified completion skipped for ${operationId} due to terminal transition race`);
+                    await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
+                        console.error(`[HTTP] Failed to mark account used after skipped contract completion for ${operationId}: ${getErrMsg(e)}`);
+                    });
+                    await deleteOperationSessionFromCache(operationId).catch((e: unknown) => {
+                        console.error(`[HTTP] Failed to delete operation session after skipped contract completion for ${operationId}: ${getErrMsg(e)}`);
+                    });
+                    return;
+                }
+
+                await awardCompletedOperationPointsSafely(operationId);
+                await accountPool.markAccountUsed(operation.beinAccountId, operationId);
+                await deleteOperationSessionFromCache(operationId);
+
+                if (operation.userId) {
+                    await trackOperationComplete(
+                        operation.userId,
+                        operationId,
+                        'RENEW',
+                        operation.amount,
+                        {
+                            packageName: selectedPackage?.name,
+                            beinAccountId: operation.beinAccountId,
+                            beinUsernameSnapshot: auditSnapshot.beinUsername,
+                            beinBalanceBefore: auditSnapshot.beinBalanceBefore,
+                            beinBalanceAfter: auditSnapshot.beinBalanceAfter,
+                            userBalanceBefore: auditSnapshot.userBalanceBefore,
+                            userBalanceAfter: auditSnapshot.userBalanceAfter
+                        }
+                    );
+
+                    await detectAndRecordOperationIntegrity({
+                        operationId,
+                        beinBalanceBefore: auditSnapshot.beinBalanceBefore ?? undefined,
+                        beinBalanceAfter: auditSnapshot.beinBalanceAfter ?? undefined,
+                        beinUsernameSnapshot: auditSnapshot.beinUsername ?? undefined,
+                        userBalanceBefore: auditSnapshot.userBalanceBefore ?? undefined,
+                        userBalanceAfter: auditSnapshot.userBalanceAfter ?? undefined
+                    });
+                }
+
+                if (operation.userId) {
+                    await createNotification({
+                        userId: operation.userId,
+                        title: 'Renewal successful',
+                        message: `${selectedPackage?.name || 'Package'} - beIN contract verified`,
+                        type: 'success',
+                        link: '/dashboard/history'
+                    });
+                }
+
+                console.log(`[HTTP] Purchase confirmed for ${operationId} by live contract verification`);
+                return;
+            }
+        }
+
+        const contractCheckFailedAfterFinalPay = contractVerification?.outcome === 'CHECK_FAILED';
+
         if (result.success) {
             // OPTIMIZATION: Invalidate package cache since packages changed after purchase
             if (operation.cardNumber) {
@@ -2598,23 +2983,10 @@ async function handleConfirmPurchaseHttp(
             }
 
             console.log(`✅ [HTTP] Purchase confirmed for ${operationId}`);
-        } else if (outcomeDecision.reviewRequired || !outcomeDecision.refundSafe) {
-            const reviewRequired = await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: TERMINAL_STATUS_LIST }
-                },
-                data: {
-                    status: 'REVIEW_REQUIRED',
-                    responseMessage: result.message,
-                    finalConfirmExpiry: null
-                }
-            });
-            if (reviewRequired.count === 0) {
-                console.warn(`[HTTP] CONFIRM_PURCHASE review update skipped for ${operationId} due to terminal transition race`);
-                return;
-            }
-
+        } else if (outcomeDecision.reviewRequired || !outcomeDecision.refundSafe || contractCheckFailedAfterFinalPay) {
+            const reviewMessage = contractCheckFailedAfterFinalPay && contractVerification
+                ? `${result.message}; ${contractVerificationSummary(contractVerification)}`
+                : result.message;
             const ledgerResult = operation.userId
                 && shouldRecordConfirmedProviderSpend(finalPayEvidence)
                 ? await recordConfirmedBeinSpend({
@@ -2645,12 +3017,29 @@ async function handleConfirmPurchaseHttp(
                 diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
                 providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
                 outcomeCategory: outcomeDecision.outcomeCategory,
-                reviewReason: result.message,
+                reviewReason: reviewMessage,
                 reviewSource: 'confirm-purchase',
                 refundBlocked: true,
                 chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
             });
-            await persistOperationAuditSnapshot(operationId, postPayResponseData, auditSnapshot);
+            postPayResponseData = mergeOperationAuditSnapshot(postPayResponseData, auditSnapshot);
+
+            const reviewRequired = await prisma.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: { notIn: TERMINAL_STATUS_LIST }
+                },
+                data: {
+                    status: 'REVIEW_REQUIRED',
+                    responseMessage: reviewMessage,
+                    finalConfirmExpiry: null,
+                    responseData: postPayResponseData
+                }
+            });
+            if (reviewRequired.count === 0) {
+                console.warn(`[HTTP] CONFIRM_PURCHASE review update skipped for ${operationId} due to terminal transition race`);
+                return;
+            }
 
             try {
                 await accountPool.markAccountUsed(operation.beinAccountId, operationId);
@@ -2658,7 +3047,7 @@ async function handleConfirmPurchaseHttp(
                 console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
             }
             await deleteOperationSessionFromCache(operationId);
-            console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED (${outcomeDecision.outcomeCategory}): ${result.message}`);
+            console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED (${outcomeDecision.outcomeCategory}): ${reviewMessage}`);
             return;
         } else {
             const auditSnapshot = await buildOperationAuditSnapshot({
@@ -2696,6 +3085,214 @@ async function handleConfirmPurchaseHttp(
                 console.log(`[HTTP] Account lock released after CONFIRM_PURCHASE: ${operation.beinAccountId}`);
             } catch (releaseError: unknown) {
                 console.error(`[HTTP] Failed to release CONFIRM_PURCHASE account lock: ${getErrMsg(releaseError)}`);
+            }
+        }
+    }
+}
+
+/**
+ * VERIFY_REVIEW_CARD - Live beIN contract check for financial review
+ */
+async function handleVerifyReviewCardHttp(
+    operationId: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    console.log(`[HTTP] Live financial-review card verification for ${operationId}`);
+
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: {
+            id: true,
+            userId: true,
+            beinAccountId: true,
+            selectedPackage: true,
+            amount: true,
+            status: true,
+            cardNumber: true,
+            responseData: true,
+            createdAt: true,
+        }
+    });
+
+    if (!operation || !operation.beinAccountId) {
+        throw new Error('Review operation or beIN account not found');
+    }
+    if (operation.status !== OperationStatus.REVIEW_REQUIRED) {
+        console.log(`[HTTP] Skipping live review verification for ${operationId}; status is ${operation.status}`);
+        return;
+    }
+
+    const account = await prisma.beinAccount.findUnique({
+        where: { id: operation.beinAccountId },
+        include: { proxy: true }
+    }).then(a => a ? decryptAccountPassword(a) : null);
+    if (!account) throw new Error('Account not found');
+
+    const route = await resolveOperationRoute(account, {
+        operationId,
+        responseData: operation.responseData,
+        legacyFallback: true
+    });
+    const redis = accountPool.getRedis();
+    let lockAcquired = false;
+
+    try {
+        const lockStartTime = Date.now();
+        while (Date.now() - lockStartTime < FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS) {
+            lockAcquired = await lockAccount(
+                redis,
+                operation.beinAccountId,
+                WORKER_ID,
+                FINAL_CONFIRM_LOCK_TTL_SECONDS,
+                operationId
+            );
+            if (lockAcquired) break;
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        if (!lockAcquired) {
+            throw new Error('Timed out waiting for beIN account lock during review verification');
+        }
+
+        const client = await createOperationClient(account, route);
+        const selectedPackage = operation.selectedPackage as { name?: string; price?: number } | null;
+        const verificationRun = await verifyRenewalContractWithProvider({
+            client,
+            account,
+            route,
+            cardNumber: operation.cardNumber,
+            operationCreatedAt: operation.createdAt,
+            responseData: operation.responseData,
+            selectedPackageName: selectedPackage?.name || null,
+        });
+        const verification = verificationRun.finalVerification;
+        let responseData = responseDataWithRoute(
+            mergeContractVerificationEvidence(operation.responseData, verificationRun, 'admin_live_check'),
+            route
+        );
+
+        if (verification.outcome !== 'CONTRACT_VERIFIED_SUCCESS') {
+            await prisma.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: OperationStatus.REVIEW_REQUIRED
+                },
+                data: {
+                    responseData,
+                    responseMessage: contractVerificationSummary(verification),
+                }
+            });
+            await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
+                console.error(`[HTTP] Failed to mark account used after live review check for ${operationId}: ${getErrMsg(e)}`);
+            });
+            console.log(`[HTTP] Live review verification kept ${operationId} in REVIEW_REQUIRED: ${verification.outcome}`);
+            return;
+        }
+
+        const verifiedSpendAmount = operation.amount ?? toNullableNumber(selectedPackage?.price);
+        const ledgerResult = operation.userId
+            ? await recordConfirmedBeinSpend({
+                operationId,
+                userId: operation.userId,
+                beinAccountId: operation.beinAccountId,
+                dealerBalanceBefore: null,
+                dealerBalanceAfter: null,
+                evidenceSource: 'CONTRACT_VERIFIED',
+                confirmedSpendAmount: verifiedSpendAmount,
+            })
+            : null;
+        if (ledgerResult?.status === 'conflict_review_required') {
+            console.warn(`[HTTP] beIN review contract ledger conflict for ${operationId}: ${ledgerResult.reason}`);
+        }
+
+        const auditSnapshot = await buildOperationAuditSnapshot({
+            operationId,
+            userId: operation.userId || null,
+            beinAccountId: operation.beinAccountId,
+            beinUsername: account.username,
+            beinBalanceBefore: null,
+            beinBalanceAfter: null,
+            providerEvidenceState: 'contract-verified',
+            outcomeCategory: 'CONFIRMED_SUCCESS',
+            reviewReason: ledgerResultReviewReason(ledgerResult),
+            reviewSource: ledgerResultBlocksCompletion(ledgerResult) ? 'admin-review-contract-ledger' : undefined,
+            refundBlocked: ledgerResultBlocksCompletion(ledgerResult) ? true : undefined,
+            chargedBeinLedgerId: ledgerResultId(ledgerResult)
+        });
+        responseData = mergeOperationAuditSnapshot(responseData, auditSnapshot);
+
+        if (ledgerResultBlocksCompletion(ledgerResult)) {
+            await prisma.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: OperationStatus.REVIEW_REQUIRED
+                },
+                data: {
+                    responseData,
+                    responseMessage: ledgerResultReviewReason(ledgerResult) || 'Contract verified but beIN spend ledger could not be recorded. Manual review required.',
+                }
+            });
+            await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
+                console.error(`[HTTP] Failed to mark account used after live review ledger conflict for ${operationId}: ${getErrMsg(e)}`);
+            });
+            return;
+        }
+
+        const completed = await prisma.operation.updateMany({
+            where: {
+                id: operationId,
+                status: OperationStatus.REVIEW_REQUIRED
+            },
+            data: {
+                status: OperationStatus.COMPLETED,
+                completedAt: new Date(),
+                responseMessage: 'Financial review closed: beIN contract verified live.',
+                responseData,
+            }
+        });
+        if (completed.count === 0) {
+            console.warn(`[HTTP] Live review verification completion skipped for ${operationId}; status changed`);
+            return;
+        }
+
+        await awardCompletedOperationPointsSafely(operationId);
+        await accountPool.markAccountUsed(operation.beinAccountId, operationId);
+
+        if (operation.userId) {
+            await trackOperationComplete(
+                operation.userId,
+                operationId,
+                'RENEW',
+                operation.amount,
+                {
+                    packageName: selectedPackage?.name,
+                    beinAccountId: operation.beinAccountId,
+                    beinUsernameSnapshot: auditSnapshot.beinUsername,
+                    beinBalanceBefore: auditSnapshot.beinBalanceBefore,
+                    beinBalanceAfter: auditSnapshot.beinBalanceAfter,
+                    userBalanceBefore: auditSnapshot.userBalanceBefore,
+                    userBalanceAfter: auditSnapshot.userBalanceAfter
+                }
+            );
+        }
+
+        if (operation.userId) {
+            await createNotification({
+                userId: operation.userId,
+                title: 'Renewal successful',
+                message: `${selectedPackage?.name || 'Package'} - beIN contract verified`,
+                type: 'success',
+                link: '/dashboard/history'
+            });
+        }
+
+        console.log(`[HTTP] Live review verification completed ${operationId} by contract evidence`);
+    } finally {
+        if (lockAcquired) {
+            try {
+                await unlockAccount(redis, operation.beinAccountId, WORKER_ID, operationId);
+                console.log(`[HTTP] Account lock released after live review verification: ${operation.beinAccountId}`);
+            } catch (releaseError: unknown) {
+                console.error(`[HTTP] Failed to release live review verification account lock: ${getErrMsg(releaseError)}`);
             }
         }
     }

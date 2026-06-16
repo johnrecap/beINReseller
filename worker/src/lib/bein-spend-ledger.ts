@@ -15,7 +15,8 @@ export interface RecordConfirmedBeinSpendInput {
     beinAccountId: string;
     dealerBalanceBefore: number | null;
     dealerBalanceAfter: number | null;
-    evidenceSource: 'BALANCE_DELTA';
+    evidenceSource: 'BALANCE_DELTA' | 'CONTRACT_VERIFIED';
+    confirmedSpendAmount?: number | null;
     balanceBeforeSource?: 'final_pay_ok_page' | 'package_load_diagnostic' | 'missing';
     balanceAfterSource?: 'final_pay_result_page' | 'final_pay_balance_check' | 'missing';
     chargedAt?: Date;
@@ -49,20 +50,34 @@ function sameLedgerInput(
     existing: {
         beinAccountId: string;
         spendAmount: number;
-        dealerBalanceBefore: number;
-        dealerBalanceAfter: number;
+        dealerBalanceBefore: number | null;
+        dealerBalanceAfter: number | null;
+        evidenceSource: string;
     },
     input: {
         beinAccountId: string;
         spendAmount: number;
-        dealerBalanceBefore: number;
-        dealerBalanceAfter: number;
+        dealerBalanceBefore: number | null;
+        dealerBalanceAfter: number | null;
+        evidenceSource: string;
     }
 ): boolean {
     return existing.beinAccountId === input.beinAccountId &&
         Math.abs(existing.spendAmount - input.spendAmount) < BALANCE_EPSILON &&
-        Math.abs(existing.dealerBalanceBefore - input.dealerBalanceBefore) < BALANCE_EPSILON &&
-        Math.abs(existing.dealerBalanceAfter - input.dealerBalanceAfter) < BALANCE_EPSILON;
+        existing.evidenceSource === input.evidenceSource &&
+        nullableMoneyMatches(existing.dealerBalanceBefore, input.dealerBalanceBefore) &&
+        nullableMoneyMatches(existing.dealerBalanceAfter, input.dealerBalanceAfter);
+}
+
+function nullableMoneyMatches(left: number | null, right: number | null): boolean {
+    if (left === null || right === null) return left === right;
+    return Math.abs(left - right) < BALANCE_EPSILON;
+}
+
+function toPositiveExplicitSpendAmount(value: number | null | undefined): number | null {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+    const spendAmount = Number(value.toFixed(4));
+    return spendAmount > BALANCE_EPSILON ? spendAmount : null;
 }
 
 async function flagOperationAccountConflict(operationId: string): Promise<void> {
@@ -81,27 +96,31 @@ async function flagOperationAccountConflict(operationId: string): Promise<void> 
 export async function recordConfirmedBeinSpend(
     input: RecordConfirmedBeinSpendInput
 ): Promise<BeinSpendLedgerResult> {
-    if (
+    if (input.evidenceSource === 'BALANCE_DELTA' && (
         (input.balanceBeforeSource !== undefined || input.balanceAfterSource !== undefined) &&
         (input.balanceBeforeSource !== 'final_pay_ok_page' ||
             (input.balanceAfterSource !== 'final_pay_result_page' && input.balanceAfterSource !== 'final_pay_balance_check'))
-    ) {
+    )) {
         return {
             status: 'missing_balance_delta',
             reason: 'Confirmed ledger requires final-payment balance sources.',
         };
     }
 
-    const spendAmount = toPositiveSpendAmount(input.dealerBalanceBefore, input.dealerBalanceAfter);
+    const spendAmount = input.evidenceSource === 'CONTRACT_VERIFIED'
+        ? toPositiveExplicitSpendAmount(input.confirmedSpendAmount)
+        : toPositiveSpendAmount(input.dealerBalanceBefore, input.dealerBalanceAfter);
     if (spendAmount === null) {
         return {
             status: 'missing_balance_delta',
-            reason: 'Confirmed ledger requires a positive beIN dealer balance decrease.',
+            reason: input.evidenceSource === 'CONTRACT_VERIFIED'
+                ? 'Contract verified ledger requires a positive spend amount.'
+                : 'Confirmed ledger requires a positive beIN dealer balance decrease.',
         };
     }
     const dealerBalanceBefore = input.dealerBalanceBefore;
     const dealerBalanceAfter = input.dealerBalanceAfter;
-    if (dealerBalanceBefore === null || dealerBalanceAfter === null) {
+    if (input.evidenceSource === 'BALANCE_DELTA' && (dealerBalanceBefore === null || dealerBalanceAfter === null)) {
         return {
             status: 'missing_balance_delta',
             reason: 'Confirmed ledger requires both beIN balance values.',
@@ -116,6 +135,7 @@ export async function recordConfirmedBeinSpend(
             spendAmount: true,
             dealerBalanceBefore: true,
             dealerBalanceAfter: true,
+            evidenceSource: true,
         },
     });
 
@@ -125,6 +145,7 @@ export async function recordConfirmedBeinSpend(
             spendAmount,
             dealerBalanceBefore,
             dealerBalanceAfter,
+            evidenceSource: input.evidenceSource,
         });
         const duplicateConflicts = existing.beinAccountId !== input.beinAccountId || !duplicateMatches;
 
@@ -215,7 +236,9 @@ export async function recordConfirmedBeinSpend(
                 dealerBalanceAfter,
                 spendAmount,
                 evidenceSource: input.evidenceSource,
-                evidenceConfidence: input.balanceBeforeSource ? 'CONFIRMED_FINAL_PAY' : 'CONFIRMED',
+                evidenceConfidence: input.evidenceSource === 'CONTRACT_VERIFIED'
+                    ? 'CONTRACT_VERIFIED'
+                    : input.balanceBeforeSource ? 'CONFIRMED_FINAL_PAY' : 'CONFIRMED',
                 beinUsernameSnapshot: account.username,
                 beinLabelSnapshot: account.label,
                 proxyLabelSnapshot: account.proxy?.label || account.proxy?.host || null,

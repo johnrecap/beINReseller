@@ -26,8 +26,8 @@ export interface BeinSpendLedgerDetailRow {
     operationType: string;
     cardNumber: string;
     selectedPackageName: string | null;
-    dealerBalanceBefore: number;
-    dealerBalanceAfter: number;
+    dealerBalanceBefore: number | null;
+    dealerBalanceAfter: number | null;
     spendAmount: number;
     evidenceSource: string;
     operationStatusAtRecord: string;
@@ -140,7 +140,7 @@ export function buildBeinSpendLedgerWhere(filters: BeinSpendReportFilters): Pris
         ...(filters.userId ? { userId: filters.userId } : {}),
         ...(filters.operationType ? { operationType: filters.operationType } : {}),
         ...(filters.cardNumber ? { cardNumberSnapshot: { contains: filters.cardNumber } } : {}),
-        evidenceConfidence: { in: ['CONFIRMED', 'CONFIRMED_FINAL_PAY'] },
+        evidenceConfidence: { in: ['CONFIRMED', 'CONFIRMED_FINAL_PAY', 'CONTRACT_VERIFIED'] },
     }
 }
 

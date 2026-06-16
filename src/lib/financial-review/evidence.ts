@@ -26,8 +26,8 @@ type ReviewOperation = {
     chargedBeinSpendLedger: {
         id: string
         beinAccountId: string
-        dealerBalanceBefore: number
-        dealerBalanceAfter: number
+        dealerBalanceBefore: number | null
+        dealerBalanceAfter: number | null
         spendAmount: number
         evidenceConfidence: string
         beinUsernameSnapshot: string

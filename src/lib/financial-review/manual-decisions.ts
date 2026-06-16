@@ -100,6 +100,7 @@ export function isFinancialReviewDecisionAllowed(input: DecisionGuardInput): Dec
 
     const trustedProviderCharge =
         input.evidence.providerEvidenceState === 'confirmed-final-pay' ||
+        input.evidence.providerEvidenceState === 'contract-verified' ||
         input.evidence.providerEvidenceState === 'manual-verified-paid' ||
         (input.evidence.beinDebitConfirmed && input.evidence.providerEvidenceState !== 'legacy-unverified')
 

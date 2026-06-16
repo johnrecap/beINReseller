@@ -97,19 +97,36 @@ function finalPayConfirmed(input: ProviderEvidenceInput): {
     return null
 }
 
+function contractVerified(input: ProviderEvidenceInput): {
+    amount: number
+    source: DebitSource
+} | null {
+    if (
+        typeof input.ledgerDebitAmount === 'number' &&
+        input.ledgerDebitAmount > 0 &&
+        input.ledgerConfidence === 'CONTRACT_VERIFIED'
+    ) {
+        return { amount: input.ledgerDebitAmount, source: 'ledger' }
+    }
+
+    return null
+}
+
 export function classifyProviderEvidence(input: ProviderEvidenceInput): ProviderEvidenceClassification {
     const trustedSystemDebit = finalPayConfirmed(input)
+    const trustedContractDebit = contractVerified(input)
+    const trustedProviderDebit = trustedSystemDebit ?? trustedContractDebit
     const latestDecision = input.latestDecision
 
-    if (trustedSystemDebit && latestDecision?.cardRenewed === false) {
+    if (trustedProviderDebit && latestDecision?.cardRenewed === false) {
         return {
             providerEvidenceState: 'conflict',
             providerEvidenceLabel: 'يوجد خصم مؤكد من beIN لكن نتيجة التجديد اليدوية غير مؤكدة',
             beinDebitConfirmed: true,
-            beinDebitAmount: trustedSystemDebit.amount,
-            beinDebitSource: trustedSystemDebit.source,
+            beinDebitAmount: trustedProviderDebit.amount,
+            beinDebitSource: trustedProviderDebit.source,
             legacyStoredBeinDebitAmount: null,
-            differenceAmount: amountDifference(trustedSystemDebit.amount, input.userDeductTotal),
+            differenceAmount: amountDifference(trustedProviderDebit.amount, input.userDeductTotal),
             manualVerification: latestDecision,
         }
     }
@@ -119,7 +136,7 @@ export function classifyProviderEvidence(input: ProviderEvidenceInput): Provider
             typeof latestDecision?.actualBeinDebitAmount === 'number' &&
             Number.isFinite(latestDecision.actualBeinDebitAmount)
                 ? latestDecision.actualBeinDebitAmount
-                : trustedSystemDebit?.amount ?? null
+                : trustedProviderDebit?.amount ?? null
 
         return {
             providerEvidenceState: 'manual-verified-paid',
@@ -155,6 +172,19 @@ export function classifyProviderEvidence(input: ProviderEvidenceInput): Provider
             beinDebitSource: trustedSystemDebit.source,
             legacyStoredBeinDebitAmount: null,
             differenceAmount: amountDifference(trustedSystemDebit.amount, input.userDeductTotal),
+            manualVerification: null,
+        }
+    }
+
+    if (trustedContractDebit) {
+        return {
+            providerEvidenceState: 'contract-verified',
+            providerEvidenceLabel: 'beIN contract verified after final Pay',
+            beinDebitConfirmed: true,
+            beinDebitAmount: trustedContractDebit.amount,
+            beinDebitSource: trustedContractDebit.source,
+            legacyStoredBeinDebitAmount: null,
+            differenceAmount: amountDifference(trustedContractDebit.amount, input.userDeductTotal),
             manualVerification: null,
         }
     }

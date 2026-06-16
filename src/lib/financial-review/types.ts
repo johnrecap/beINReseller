@@ -14,6 +14,7 @@ export type CardVerificationOutcome =
 
 export type ProviderEvidenceState =
     | 'confirmed-final-pay'
+    | 'contract-verified'
     | 'incomplete-evidence'
     | 'legacy-unverified'
     | 'manual-verified-paid'

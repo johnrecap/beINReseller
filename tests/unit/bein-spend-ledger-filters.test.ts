@@ -68,5 +68,5 @@ test('includes legacy and final-pay confirmed spend rows in report filters', () 
 
     const ledgerWhere = buildBeinSpendLedgerWhere(filters)
 
-    assert.deepEqual(ledgerWhere.evidenceConfidence, { in: ['CONFIRMED', 'CONFIRMED_FINAL_PAY'] })
+    assert.deepEqual(ledgerWhere.evidenceConfidence, { in: ['CONFIRMED', 'CONFIRMED_FINAL_PAY', 'CONTRACT_VERIFIED'] })
 })

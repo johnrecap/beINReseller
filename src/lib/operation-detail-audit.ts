@@ -57,8 +57,8 @@ type OperationAccountAuditSource = {
         beinUsernameSnapshot: string
         beinLabelSnapshot: string | null
         spendAmount: number
-        dealerBalanceBefore: number
-        dealerBalanceAfter: number
+        dealerBalanceBefore: number | null
+        dealerBalanceAfter: number | null
         chargedAt: Date
         evidenceSource: string
     } | null

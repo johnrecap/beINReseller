@@ -119,10 +119,11 @@ export default function FinancialReviewClient() {
             const response = await fetch(`/api/admin/financial-review/${item.id}/verify-card`, {
                 method: 'POST',
             })
-            if (!response.ok) throw new Error('تعذر فحص الدليل الحالي')
+            const payload = await response.json().catch(() => ({}))
+            if (!response.ok) throw new Error(payload.error || 'تعذر تشغيل فحص beIN المباشر')
             await fetchItems()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'تعذر فحص الدليل الحالي')
+            setError(err instanceof Error ? err.message : 'تعذر تشغيل فحص beIN المباشر')
         } finally {
             setBusyOperationId(null)
         }
@@ -324,7 +325,7 @@ function ReviewCard({
                     <div className="flex flex-wrap gap-2 xl:max-w-[460px] xl:justify-end">
                         <button onClick={onVerify} disabled={busy} className="review-button">
                             <ShieldCheck className="h-4 w-4" />
-                            فحص الأدلة المسجلة
+                            فحص مباشر من beIN
                         </button>
                         <button onClick={() => onDecision('BEIN_EXECUTED_NO_REFUND')} disabled={busy} className="review-button review-button-success">
                             <CheckCircle2 className="h-4 w-4" />

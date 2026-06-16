@@ -92,8 +92,8 @@ type RecoveryLedgerRow = {
     id: string
     beinAccountId: string
     spendAmount: number
-    dealerBalanceBefore: number
-    dealerBalanceAfter: number
+    dealerBalanceBefore: number | null
+    dealerBalanceAfter: number | null
     evidenceConfidence: string | null
 }
 

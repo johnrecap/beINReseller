@@ -42,8 +42,8 @@ interface OperationsResponse {
         operationType: string
         cardNumber: string
         selectedPackageName: string | null
-        dealerBalanceBefore: number
-        dealerBalanceAfter: number
+        dealerBalanceBefore: number | null
+        dealerBalanceAfter: number | null
         spendAmount: number
         evidenceSource: string
         operationStatusAtRecord: string
@@ -80,6 +80,16 @@ function rangeForPreset(preset: Preset): { from: string; to: string } {
 
 function formatMoney(value: number, currency = 'USD'): string {
     return `${value.toFixed(2)} ${currency}`
+}
+
+function formatOptionalMoney(value: number | null | undefined): string {
+    return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '-'
+}
+
+function evidenceSourceLabel(value: string): string {
+    if (value === 'BALANCE_DELTA') return 'Balance delta'
+    if (value === 'CONTRACT_VERIFIED') return 'Contract verified'
+    return value || '-'
 }
 
 function formatDate(value: string): string {
@@ -328,10 +338,10 @@ export default function BeinSpendReportClient() {
                                     <td className="px-4 py-3">{accountDisplay(item.beinUsernameSnapshot, item.beinLabelSnapshot)}</td>
                                     <td className="px-4 py-3">{item.cardNumber}</td>
                                     <td className="px-4 py-3">{item.selectedPackageName || item.operationType}</td>
-                                    <td className="px-4 py-3 text-right">{item.dealerBalanceBefore.toFixed(2)}</td>
-                                    <td className="px-4 py-3 text-right">{item.dealerBalanceAfter.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-right">{formatOptionalMoney(item.dealerBalanceBefore)}</td>
+                                    <td className="px-4 py-3 text-right">{formatOptionalMoney(item.dealerBalanceAfter)}</td>
                                     <td className="px-4 py-3 text-right font-medium">{formatMoney(item.spendAmount, currency)}</td>
-                                    <td className="px-4 py-3">{item.evidenceSource}</td>
+                                    <td className="px-4 py-3">{evidenceSourceLabel(item.evidenceSource)}</td>
                                     <td className="px-4 py-3">{formatDate(item.chargedAt)}</td>
                                 </tr>
                             ))}

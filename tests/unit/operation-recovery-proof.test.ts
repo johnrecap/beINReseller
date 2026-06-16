@@ -75,6 +75,28 @@ test('rejects recovery completion proof without matching audit and ledger eviden
     }), false)
 })
 
+test('accepts recovery completion proof from contract verified ledger and audit snapshot', () => {
+    assert.equal(hasRecoveryProviderCompletionProof({
+        responseData: {
+            outcomeCategory: 'CONFIRMED_SUCCESS',
+            auditSnapshot: {
+                providerEvidenceState: 'contract-verified',
+                outcomeCategory: 'CONFIRMED_SUCCESS',
+                chargedBeinLedgerId: 'contract-ledger-1',
+                beinAccountId: 'bein-1',
+            },
+        },
+        chargedBeinSpendLedger: {
+            id: 'contract-ledger-1',
+            beinAccountId: 'bein-1',
+            spendAmount: 95,
+            dealerBalanceBefore: null,
+            dealerBalanceAfter: null,
+            evidenceConfidence: 'CONTRACT_VERIFIED',
+        },
+    }), true)
+})
+
 const repairResponseData = {
     operationPhase: 'FINAL_PAY_SUBMITTED',
     finalPaySubmitted: true,

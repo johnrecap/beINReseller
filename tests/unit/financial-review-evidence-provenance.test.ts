@@ -129,6 +129,26 @@ test('marks inflated legacy ledger debit as legacy-unverified and preserves old 
     assert.equal(item.evidence.legacyStoredBeinDebitAmount, 96.99)
 })
 
+test('uses contract verified ledger as trusted provider evidence', () => {
+    const item = buildItem({
+        chargedBeinSpendLedger: {
+            id: 'ledger-contract',
+            beinAccountId: 'bein-1',
+            dealerBalanceBefore: null,
+            dealerBalanceAfter: null,
+            spendAmount: 95,
+            evidenceConfidence: 'CONTRACT_VERIFIED',
+            beinUsernameSnapshot: 'dealer-1',
+            beinLabelSnapshot: 'Main dealer',
+        },
+    })
+
+    assert.equal(item.evidence.providerEvidenceState, 'contract-verified')
+    assert.equal(item.evidence.beinDebitConfirmed, true)
+    assert.equal(item.evidence.beinDebitAmount, 95)
+    assert.equal(item.evidence.beinDebitSource, 'ledger')
+})
+
 test('uses manual verified paid decision as admin conclusion without hiding provenance', () => {
     const decision = manualDecision({
         action: 'KEEP_UNDER_REVIEW',

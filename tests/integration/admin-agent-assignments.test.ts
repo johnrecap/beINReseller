@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { buildAgentOwnedUserFilter } from '@/lib/admin/users-ownership-filter'
 
 const runDbIntegration =
     process.env.RUN_DB_INTEGRATION === '1' ||
@@ -103,5 +104,92 @@ test('reassigns agent-owned user to another agent', { skip: !runDbIntegration },
         await prisma.activityLog.deleteMany({ where: { userId: admin.id } })
         await prisma.agentAssignment.deleteMany({ where: { userId: user.id } })
         await prisma.user.deleteMany({ where: { id: { in: [admin.id, oldAgent.id, newAgent.id, user.id] } } })
+    }
+})
+
+test('agent user filter returns only active non-deleted assignments', { skip: !runDbIntegration }, async () => {
+    const { default: prisma } = await import('@/lib/prisma')
+    const suffix = `${Date.now()}-filter`
+    const agent = await createUser(prisma, suffix, 'AGENT')
+    const otherAgent = await createUser(prisma, `${suffix}-other`, 'AGENT')
+    const emptyAgent = await createUser(prisma, `${suffix}-empty`, 'AGENT')
+    const activeUser = await createUser(prisma, `${suffix}-active`, 'USER')
+    const inactiveUser = await createUser(prisma, `${suffix}-inactive`, 'USER')
+    const otherAgentUser = await createUser(prisma, `${suffix}-other-agent`, 'USER')
+    const deletedUser = await createUser(prisma, `${suffix}-deleted`, 'USER')
+    const userIds = [activeUser.id, inactiveUser.id, otherAgentUser.id, deletedUser.id]
+
+    try {
+        await prisma.agentAssignment.createMany({
+            data: [
+                {
+                    userId: activeUser.id,
+                    agentId: agent.id,
+                    sourceGroup: 'active-group',
+                },
+                {
+                    userId: inactiveUser.id,
+                    agentId: agent.id,
+                    sourceGroup: 'inactive-group',
+                    isActive: false,
+                    endedAt: new Date(),
+                },
+                {
+                    userId: otherAgentUser.id,
+                    agentId: otherAgent.id,
+                    sourceGroup: 'other-agent-group',
+                },
+                {
+                    userId: deletedUser.id,
+                    agentId: agent.id,
+                    sourceGroup: 'deleted-user-group',
+                },
+            ],
+        })
+        await prisma.user.update({
+            where: { id: deletedUser.id },
+            data: { deletedAt: new Date() },
+        })
+
+        const filteredUsers = await prisma.user.findMany({
+            where: {
+                role: 'USER',
+                deletedAt: null,
+                ...buildAgentOwnedUserFilter(agent.id),
+            },
+            select: { id: true },
+        })
+        const assignedUsersCount = await prisma.agentAssignment.count({
+            where: {
+                agentId: agent.id,
+                isActive: true,
+                user: { role: 'USER', deletedAt: null },
+            },
+        })
+        const emptyAgentUsers = await prisma.user.findMany({
+            where: {
+                role: 'USER',
+                deletedAt: null,
+                ...buildAgentOwnedUserFilter(emptyAgent.id),
+            },
+            select: { id: true },
+        })
+        const emptyAgentUsersCount = await prisma.agentAssignment.count({
+            where: {
+                agentId: emptyAgent.id,
+                isActive: true,
+                user: { role: 'USER', deletedAt: null },
+            },
+        })
+
+        assert.deepEqual(filteredUsers.map((user) => user.id), [activeUser.id])
+        assert.equal(assignedUsersCount, filteredUsers.length)
+        assert.deepEqual(emptyAgentUsers, [])
+        assert.equal(emptyAgentUsersCount, emptyAgentUsers.length)
+    } finally {
+        await prisma.agentAssignment.deleteMany({ where: { userId: { in: userIds } } })
+        await prisma.user.deleteMany({
+            where: { id: { in: [agent.id, otherAgent.id, emptyAgent.id, ...userIds] } },
+        })
     }
 })

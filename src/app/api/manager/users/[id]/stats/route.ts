@@ -1,21 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { getUserStatsReport } from '@/lib/users/stats-report'
 
-/**
- * GET /api/admin/users/[id]/stats
- *
- * Fetch user financial and operations statistics.
- */
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id: userId } = await params
-        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
+        const authResult = await requireRoleAPIWithMobile(request, 'MANAGER')
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+        }
+
+        const targetUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                role: true,
+                deletedAt: true,
+                managerLink: {
+                    where: { managerId: authResult.user.id },
+                    select: { id: true },
+                },
+            },
+        })
+
+        if (!targetUser || targetUser.deletedAt || targetUser.role !== 'USER') {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 })
+        }
+
+        if (authResult.user.role !== 'ADMIN' && targetUser.managerLink.length === 0) {
+            return NextResponse.json({ error: 'You do not have permission to view this user' }, { status: 403 })
         }
 
         const { searchParams } = new URL(request.url)
@@ -32,7 +49,7 @@ export async function GET(
 
         return NextResponse.json(stats)
     } catch (error) {
-        console.error('Get user stats error:', error)
+        console.error('Get manager user stats error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
 }

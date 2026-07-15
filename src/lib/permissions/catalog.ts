@@ -88,10 +88,10 @@ export const PERMISSION_CATALOG: PermissionCatalogItem[] = [
     {
         key: PERMISSION_KEYS.USERS_RESET_PASSWORD,
         category: 'users',
-        label: 'Reset user passwords',
-        description: 'Reset another panel user password.',
+        label: 'Reset user passwords (deprecated)',
+        description: 'Deprecated: panel users must change their own password from profile.',
         riskLevel: 'high',
-        defaultRoles: ['ADMIN', 'MANAGER'],
+        defaultRoles: [],
     },
     {
         key: PERMISSION_KEYS.BALANCE_ADD,

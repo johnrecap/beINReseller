@@ -262,3 +262,32 @@ test('keeps admin refund closure visible in the refunded tab', () => {
 
     assert.equal(item.state, 'refunded')
 })
+
+test('hides zero-amount review rows without financial impact from financial review', () => {
+    const item = buildFinancialReviewItem(operation({
+        amount: 0,
+        responseData: {},
+        responseMessage: 'Safe refund was not applied; manual review required.',
+        transactions: [],
+        chargedBeinSpendLedger: null,
+    }), new Map())
+
+    assert.equal(item, null)
+})
+
+test('keeps zero-amount review rows visible when refund is blocked by evidence', () => {
+    const item = buildFinancialReviewItem(operation({
+        amount: 0,
+        responseData: {
+            auditSnapshot: {
+                refundBlocked: true,
+                reviewReason: 'Final pay may have started',
+            },
+        },
+        transactions: [],
+        chargedBeinSpendLedger: null,
+    }), new Map())
+
+    assert.ok(item)
+    assert.equal(item.evidence.refundBlocked, true)
+})

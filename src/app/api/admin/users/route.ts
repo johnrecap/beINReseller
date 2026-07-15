@@ -7,7 +7,7 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
 import { getAgentTransferErrorResponse, transferUserToAgentInTransaction } from '@/lib/agents/assignment-transfer'
-import { buildManagerOwnedUserFilter } from '@/lib/admin/users-ownership-filter'
+import { resolveAdminUsersOwnerFilter } from '@/lib/admin/users-ownership-filter'
 import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
 import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
 import { classifyCurrentUserOwner } from '@/lib/users/ownership'
@@ -51,6 +51,11 @@ export async function GET(request: NextRequest) {
         const search = searchParams.get('search') || ''
         const roleFilter = searchParams.get('roleFilter') as 'distributors' | 'agents' | 'users' | null
         const managerId = searchParams.get('managerId') || ''
+        const agentId = searchParams.get('agentId') || ''
+        const ownerFilter = resolveAdminUsersOwnerFilter({ managerId, agentId })
+        if (!ownerFilter.ok) {
+            return NextResponse.json({ error: ownerFilter.error }, { status: 400 })
+        }
 
         // Build where clause based on roleFilter
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,10 +71,7 @@ export async function GET(request: NextRequest) {
             // Only USER role
             where.role = 'USER'
 
-            // If managerId is provided, use current ownership with a legacy creator fallback.
-            if (managerId) {
-                Object.assign(where, buildManagerOwnedUserFilter(managerId))
-            }
+            Object.assign(where, ownerFilter.where)
         }
 
         // Add search filter
@@ -79,7 +81,7 @@ export async function GET(request: NextRequest) {
                 { email: { contains: search, mode: 'insensitive' as const } }
             ]
             if (where.OR) {
-                // Combine with existing OR (managerId filter)
+                // Keep ownership and search criteria active together.
                 where.AND = [
                     { OR: where.OR },
                     { OR: searchCondition }
@@ -174,7 +176,7 @@ export async function GET(request: NextRequest) {
                                 agentAssignmentsAsAgent: {
                                     where: {
                                         isActive: true,
-                                        user: { deletedAt: null },
+                                        user: { role: 'USER', deletedAt: null },
                                     },
                                 },
                             },
@@ -468,6 +470,19 @@ export async function POST(request: NextRequest) {
                         }
                     })
 
+                    if (balance > 0) {
+                        await tx.transaction.create({
+                            data: {
+                                userId: newUser.id,
+                                adminId: user.id,
+                                type: 'DEPOSIT',
+                                amount: balance,
+                                balanceAfter: balance,
+                                notes: `Opening balance by admin ${user.username}`,
+                            },
+                        })
+                    }
+
                     const transfer = await transferUserToAgentInTransaction({
                         userId: newUser.id,
                         agentId,
@@ -509,34 +524,51 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const newUser = await prisma.user.create({
-            data: {
-                username,
-                email,
-                passwordHash: hashedPassword,
-                role: role as Role,
-                balance,
-                isActive: true,
-                createdById: user.id
-            }
-        })
-
-        if (role === 'USER') {
-            await prisma.managerUser.create({
+        const newUser = await prisma.$transaction(async (tx) => {
+            const createdUser = await tx.user.create({
                 data: {
-                    managerId: user.id,
-                    userId: newUser.id
+                    username,
+                    email,
+                    passwordHash: hashedPassword,
+                    role: role as Role,
+                    balance,
+                    isActive: true,
+                    createdById: user.id
                 }
             })
-        }
 
-        await prisma.activityLog.create({
-            data: {
-                userId: user.id,
-                action: 'ADMIN_CREATE_USER',
-                details: `Created ${role} user: ${username}`,
-                ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+            if (balance > 0) {
+                await tx.transaction.create({
+                    data: {
+                        userId: createdUser.id,
+                        adminId: user.id,
+                        type: 'DEPOSIT',
+                        amount: balance,
+                        balanceAfter: balance,
+                        notes: `Opening balance by admin ${user.username}`,
+                    },
+                })
             }
+
+            if (role === 'USER') {
+                await tx.managerUser.create({
+                    data: {
+                        managerId: user.id,
+                        userId: createdUser.id
+                    }
+                })
+            }
+
+            await tx.activityLog.create({
+                data: {
+                    userId: user.id,
+                    action: 'ADMIN_CREATE_USER',
+                    details: `Created ${role} user: ${username}`,
+                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
+                }
+            })
+
+            return createdUser
         })
 
         return NextResponse.json({ success: true, user: newUser })

@@ -11,6 +11,8 @@ interface UserStatsDialogProps {
     onClose: () => void
     userId: string | null
     username: string | null
+    statsEndpoint?: string | null
+    canCorrectBalance?: boolean
 }
 
 interface Transaction {
@@ -102,10 +104,19 @@ const getStatusLabels = (t: ReturnType<typeof useTranslation>['t']) => ({
     COMPLETING: { label: t.status?.completing || 'Completing', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
 })
 
-export default function UserStatsDialog({ isOpen, onClose, userId, username }: UserStatsDialogProps) {
+export default function UserStatsDialog({
+    isOpen,
+    onClose,
+    userId,
+    username,
+    statsEndpoint,
+    canCorrectBalance = true,
+}: UserStatsDialogProps) {
     const { t, locale } = useTranslation()
     const transactionTypeLabels = getTransactionTypeLabels(t)
     const statusLabels = getStatusLabels(t)
+    const statsErrorLabel = t.common?.error || 'Error'
+    const statsConnectionFailedLabel = t.userStats?.connectionFailed || 'Failed to connect to server'
 
     const getDateLocale = () => {
         switch (locale) {
@@ -135,7 +146,11 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
     const [correctionType, setCorrectionType] = useState<'INITIALIZE_BALANCE' | 'BALANCE_MISMATCH' | 'ADD_MISSING'>('BALANCE_MISMATCH')
     const [correctionNotes, setCorrectionNotes] = useState('')
 
-    const fetchStats = useCallback(async (loadMore = false, type?: 'transactions' | 'operations') => {
+    const fetchStats = useCallback(async (
+        loadMore = false,
+        type?: 'transactions' | 'operations',
+        skip = { transactions: 0, operations: 0 },
+    ) => {
         if (!userId) return
 
         if (loadMore) {
@@ -146,14 +161,15 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
         }
 
         try {
-            const txSkip = loadMore && type === 'transactions' ? transactions.length : 0
-            const opSkip = loadMore && type === 'operations' ? operations.length : 0
+            const txSkip = loadMore && type === 'transactions' ? skip.transactions : 0
+            const opSkip = loadMore && type === 'operations' ? skip.operations : 0
 
-            const res = await fetch(`/api/admin/users/${userId}/stats?txLimit=20&txSkip=${txSkip}&opLimit=20&opSkip=${opSkip}`)
+            const endpoint = statsEndpoint || `/api/admin/users/${userId}/stats`
+            const res = await fetch(`${endpoint}?txLimit=20&txSkip=${txSkip}&opLimit=20&opSkip=${opSkip}`)
             const result = await res.json()
 
             if (!res.ok) {
-                setError(result.error || t.common?.error || 'Error')
+                setError(result.error || statsErrorLabel)
                 return
             }
 
@@ -175,12 +191,12 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                 setOpTotal(result.pagination.operations.total)
             }
         } catch {
-            setError(t.userStats?.connectionFailed || 'Failed to connect to server')
+            setError(statsConnectionFailedLabel)
         } finally {
             setLoading(false)
             setLoadingMore(false)
         }
-    }, [userId, transactions.length, operations.length])
+    }, [userId, statsEndpoint, statsErrorLabel, statsConnectionFailedLabel])
 
     useEffect(() => {
         if (isOpen && userId) {
@@ -189,14 +205,14 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
             setOperations([])
             fetchStats()
         }
-    }, [isOpen, userId])
+    }, [fetchStats, isOpen, userId])
 
     const handleLoadMore = (type: 'transactions' | 'operations') => {
-        fetchStats(true, type)
+        fetchStats(true, type, { transactions: transactions.length, operations: operations.length })
     }
 
     const handleCorrect = async (alertType: string, operationId?: string) => {
-        if (!userId) return
+        if (!userId || !canCorrectBalance) return
 
         // For BALANCE_MISMATCH, open the dialog instead of auto-correcting
         if (alertType === 'BALANCE_MISMATCH') {
@@ -217,7 +233,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
     }
 
     const submitCorrection = async (alertType: string, operationId?: string, notes?: string) => {
-        if (!userId) return
+        if (!userId || !canCorrectBalance) return
 
         const key = `${alertType}-${operationId || 'none'}`
         setCorrecting(key)
@@ -498,26 +514,28 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                                                     <span></span>
                                                     <span>{alert.message}</span>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleCorrect(alert.type, alert.operationId)}
-                                                    disabled={correcting === `${alert.type}-${alert.operationId || 'none'}`}
-                                                    className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-xs font-medium transition-colors"
-                                                    title={t.userStats?.alerts?.correct}
-                                                >
-                                                    {correcting === `${alert.type}-${alert.operationId || 'none'}` ? (
-                                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                                    ) : correctionSuccess === `${alert.type}-${alert.operationId || 'none'}` ? (
-                                                        <>
-                                                            <CheckCircle className="w-3 h-3" />
-                                                            {t.userStats?.alerts?.done}
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Wrench className="w-3 h-3" />
-                                                            {t.userStats?.alerts?.correct}
-                                                        </>
-                                                    )}
-                                                </button>
+                                                {canCorrectBalance && (
+                                                    <button
+                                                        onClick={() => handleCorrect(alert.type, alert.operationId)}
+                                                        disabled={correcting === `${alert.type}-${alert.operationId || 'none'}`}
+                                                        className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-xs font-medium transition-colors"
+                                                        title={t.userStats?.alerts?.correct}
+                                                    >
+                                                        {correcting === `${alert.type}-${alert.operationId || 'none'}` ? (
+                                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                                        ) : correctionSuccess === `${alert.type}-${alert.operationId || 'none'}` ? (
+                                                            <>
+                                                                <CheckCircle className="w-3 h-3" />
+                                                                {t.userStats?.alerts?.done}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Wrench className="w-3 h-3" />
+                                                                {t.userStats?.alerts?.correct}
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -558,7 +576,7 @@ export default function UserStatsDialog({ isOpen, onClose, userId, username }: U
                             )}
 
                             {/* Correction Dialog (Inline Modal) */}
-                            {correctionDialogOpen && data && (
+                            {correctionDialogOpen && data && canCorrectBalance && (
                                 <div className="fixed inset-0 z-[60] flex items-center justify-center">
                                     <div className="absolute inset-0 bg-black/50" onClick={() => setCorrectionDialogOpen(false)} />
                                     <div className="relative bg-card rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">

@@ -113,6 +113,22 @@ test('completes recovery when provider charge evidence is confirmed', () => {
     assert.equal(result.reviewRequired, false)
 })
 
+test('expires exhausted completing operation when no deduction or refund is needed', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'COMPLETING',
+        amount: 0,
+        customerDeductTransactionExists: false,
+        dispatchFailed: true,
+        dispatchExhausted: true,
+        responseData: preFinalPhase('DISPATCH_FAILED'),
+    }))
+
+    assert.equal(result.decision, 'EXPIRE')
+    assert.equal(result.financialImpact, 'NONE')
+    assert.equal(result.refundAllowed, false)
+    assert.equal(result.reviewRequired, false)
+})
+
 test('moves confirmed provider charge to review when recovery proof is missing', () => {
     const result = classifyRecovery(recoveryInput({
         status: 'COMPLETING',
@@ -143,6 +159,23 @@ test('safe-refunds recovery when provider no-charge evidence is confirmed', () =
 
     assert.equal(result.decision, 'SAFE_REFUND')
     assert.equal(result.refundAllowed, true)
+    assert.equal(result.reviewRequired, false)
+})
+
+test('expires provider no-charge recovery when no customer deduction exists', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'COMPLETING',
+        amount: 0,
+        customerDeductTransactionExists: false,
+        responseData: {
+            ...finalPaySubmittedPhase(),
+            outcomeCategory: 'CONFIRMED_NOT_CHARGED',
+        },
+    }))
+
+    assert.equal(result.decision, 'EXPIRE')
+    assert.equal(result.financialImpact, 'NONE')
+    assert.equal(result.refundAllowed, false)
     assert.equal(result.reviewRequired, false)
 })
 

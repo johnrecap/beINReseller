@@ -608,6 +608,7 @@ export const en = {
             },
             filters: {
                 filterByDistributor: 'Filter by Distributor',
+                filterByAgent: 'Filter by Agent',
                 allDistributors: 'All Distributors',
                 clearFilter: 'Clear Filter'
             },

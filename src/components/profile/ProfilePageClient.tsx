@@ -49,8 +49,6 @@ export default function ProfilePageClient() {
 
     if (!user) return null
 
-    const isAdmin = user.role === 'ADMIN'
-
     return (
         <div className="space-y-6">
             {/* Page Header */}
@@ -64,12 +62,9 @@ export default function ProfilePageClient() {
                 </div>
             </div>
 
-            <div className={`grid gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ${isAdmin ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
-                {/* Left Column: Personal Info */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <ProfileInfo user={user} onUpdate={fetchProfile} />
-
-                {/* Right Column: Change Password - Only for ADMIN */}
-                {isAdmin && <ChangePasswordForm />}
+                <ChangePasswordForm />
             </div>
         </div>
     )

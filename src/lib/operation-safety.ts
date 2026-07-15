@@ -66,6 +66,17 @@ export interface OperationSafetyInput {
     phaseEvidence?: OperationPhaseEvidence | null
 }
 
+export interface OperationFinancialExposureInput {
+    operationStatus: OperationStatus
+    operationAmount?: number | null
+    operationResponseData?: unknown
+    phaseEvidence?: OperationPhaseEvidence | null
+    transactions?: Array<{ type?: string | null; amount?: number | null }>
+    customerWalletDebitExists?: boolean
+    chargedBeinSpendLedgerExists?: boolean
+    refundTransactionExists?: boolean
+}
+
 export interface SafeRefundDecision {
     action: OperationSafetyAction
     refundAllowed: boolean
@@ -144,6 +155,64 @@ export function mergeOperationPhaseEvidence(
         dealerBalanceAfter: evidence.dealerBalanceAfter ?? base.dealerBalanceAfter,
         outcomeCategory: evidence.outcomeCategory ?? base.outcomeCategory,
     }
+}
+
+function nestedRecord(input: Record<string, unknown>, key: string): Record<string, unknown> | null {
+    const value = input[key]
+    return value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null
+}
+
+function finiteNumber(value: unknown): number | null {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function positiveTransactionTotal(
+    transactions: OperationFinancialExposureInput['transactions'],
+    type: string
+): number {
+    return Math.abs((transactions || [])
+        .filter((transaction) => transaction.type === type)
+        .reduce((sum, transaction) => sum + (finiteNumber(transaction.amount) ?? 0), 0))
+}
+
+export function hasOperationFinancialExposureForReview(input: OperationFinancialExposureInput): boolean {
+    if ((input.operationAmount ?? 0) > 0) return true
+    if (positiveTransactionTotal(input.transactions, 'OPERATION_DEDUCT') > 0) return true
+    if (input.customerWalletDebitExists === true) return true
+    if (input.chargedBeinSpendLedgerExists === true) return true
+    if (input.refundTransactionExists === true) return true
+
+    const responseData = parseOperationResponseData(input.operationResponseData)
+    const auditSnapshot = nestedRecord(responseData, 'auditSnapshot')
+    const auditUserDeductTotal = finiteNumber(auditSnapshot?.userDeductTotal)
+    if (auditUserDeductTotal !== null && auditUserDeductTotal > 0) return true
+    if (auditSnapshot?.refundBlocked === true || responseData.refundBlocked === true) return true
+
+    const recoveryImpact = responseData.lastRecoveryFinancialImpact
+    if (
+        recoveryImpact === 'CUSTOMER_DEDUCTED' ||
+        recoveryImpact === 'PROVIDER_CHARGED' ||
+        recoveryImpact === 'UNCERTAIN'
+    ) {
+        return true
+    }
+
+    const outcomeCategory = responseData.outcomeCategory ?? auditSnapshot?.outcomeCategory
+    if (outcomeCategory === 'UNCERTAIN_REVIEW_REQUIRED' || outcomeCategory === 'CONFIRMED_SUCCESS') {
+        return true
+    }
+
+    return hasFinalPayStarted({
+        operationStatus: input.operationStatus,
+        operationAmount: input.operationAmount ?? undefined,
+        operationResponseData: input.operationResponseData,
+        phaseEvidence: input.phaseEvidence,
+        customerDeductTransactionExists: positiveTransactionTotal(input.transactions, 'OPERATION_DEDUCT') > 0,
+        refundTransactionExists: input.refundTransactionExists,
+        confirmedBeinChargeEvidence: outcomeCategory === 'CONFIRMED_SUCCESS',
+    })
 }
 
 export function hasFinalPayStarted(input: OperationSafetyInput): boolean {

@@ -477,6 +477,7 @@ export const ar = {
             },
             filters: {
                 filterByDistributor: 'تصفية حسب المدير',
+                filterByAgent: 'تصفية حسب المندوب',
                 allDistributors: 'جميع المديرين',
                 clearFilter: 'إزالة الفلتر'
             },

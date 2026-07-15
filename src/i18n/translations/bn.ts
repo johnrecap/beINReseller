@@ -608,6 +608,7 @@ export const bn = {
             },
             filters: {
                 filterByDistributor: 'পরিবেশক দ্বারা ফিল্টার করুন',
+                filterByAgent: 'এজেন্ট দ্বারা ফিল্টার করুন',
                 allDistributors: 'সমস্ত পরিবেশক',
                 clearFilter: 'ফিল্টার মুছুন'
             },

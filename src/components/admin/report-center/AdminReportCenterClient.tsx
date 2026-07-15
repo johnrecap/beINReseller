@@ -1,6 +1,6 @@
 'use client'
 
-import { Component, type ComponentType, type ErrorInfo, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { Component, type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -33,6 +33,7 @@ const REPORT_PANEL_COMPONENTS: Record<ReportCenterTabKey, ComponentType<object>>
     'bein-spend': dynamic(REPORT_PANEL_LOADERS['bein-spend'], { loading: ReportPanelLoading }),
     'points-analysis': dynamic(REPORT_PANEL_LOADERS['points-analysis'], { loading: ReportPanelLoading }),
     'credit-payments': dynamic(REPORT_PANEL_LOADERS['credit-payments'], { loading: ReportPanelLoading }),
+    'balance-movements': dynamic(REPORT_PANEL_LOADERS['balance-movements'], { loading: ReportPanelLoading }),
     'login-monitor': dynamic(REPORT_PANEL_LOADERS['login-monitor'], { loading: ReportPanelLoading }),
     'balance-monitor': dynamic(REPORT_PANEL_LOADERS['balance-monitor'], { loading: ReportPanelLoading }),
     logs: dynamic(REPORT_PANEL_LOADERS.logs, { loading: ReportPanelLoading }),
@@ -88,7 +89,8 @@ export default function AdminReportCenterClient({ initialTab }: AdminReportCente
         sidebar_show_low_balance: true,
     })
     const visibleTabs = useMemo(() => getVisibleReportCenterTabs(sidebarSettings), [sidebarSettings])
-    const [activeTab, setActiveTab] = useState<ReportCenterTabKey>(() => resolveReportTabKey(initialTab))
+    const [requestedTab, setRequestedTab] = useState<ReportCenterTabKey>(() => resolveReportTabKey(initialTab))
+    const activeTab = useMemo(() => resolveReportTabKey(requestedTab, visibleTabs), [requestedTab, visibleTabs])
     const activeTabDetails = useMemo(() => getReportCenterTab(activeTab), [activeTab])
 
     useEffect(() => {
@@ -99,16 +101,14 @@ export default function AdminReportCenterClient({ initialTab }: AdminReportCente
     }, [])
 
     useEffect(() => {
-        const resolvedTab = resolveReportTabKey(activeTab, visibleTabs)
-        if (resolvedTab !== activeTab) {
-            setActiveTab(resolvedTab)
-            router.replace(`${pathname}?tab=${encodeURIComponent(resolvedTab)}`, { scroll: false })
+        if (activeTab !== requestedTab) {
+            router.replace(`${pathname}?tab=${encodeURIComponent(activeTab)}`, { scroll: false })
         }
-    }, [activeTab, pathname, router, visibleTabs])
+    }, [activeTab, pathname, requestedTab, router])
 
     function handleTabChange(nextTab: ReportCenterTabKey) {
         const resolvedTab = resolveReportTabKey(nextTab, visibleTabs)
-        setActiveTab(resolvedTab)
+        setRequestedTab(resolvedTab)
         router.replace(`${pathname}?tab=${encodeURIComponent(resolvedTab)}`, { scroll: false })
     }
 

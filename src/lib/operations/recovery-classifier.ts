@@ -84,6 +84,15 @@ function financialImpactFor(input: RecoveryClassifierInput, finalPayMayHaveStart
     return 'NONE'
 }
 
+function recoveryDecisionForRefundSafety(
+    safetyDecision: ReturnType<typeof decideRefundSafety>,
+    noRefundDecision: RecoveryDecision = 'EXPIRE'
+): RecoveryDecision {
+    if (safetyDecision.refundAllowed) return 'SAFE_REFUND'
+    if (safetyDecision.reviewRequired) return 'REVIEW_REQUIRED'
+    return noRefundDecision
+}
+
 export function classifyRecovery(input: RecoveryClassifierInput): RecoveryClassifierResult {
     const now = input.now ?? new Date()
     const phaseEvidence = getOperationPhaseEvidence(input.responseData)
@@ -233,22 +242,24 @@ export function classifyRecovery(input: RecoveryClassifierInput): RecoveryClassi
         }
 
         if (providerOutcome === 'CONFIRMED_NOT_CHARGED') {
+            const decision = recoveryDecisionForRefundSafety(safetyDecision)
             return {
                 ...base,
-                decision: safetyDecision.refundAllowed ? 'SAFE_REFUND' : 'REVIEW_REQUIRED',
+                decision,
                 reason: 'provider_no_charge_confirmed',
-                reviewRequired: !safetyDecision.refundAllowed,
+                reviewRequired: decision === 'REVIEW_REQUIRED',
                 refundAllowed: safetyDecision.refundAllowed,
                 financialImpact: safetyDecision.customerWasDeducted ? 'CUSTOMER_DEDUCTED' : 'NONE',
             }
         }
 
         if (input.dispatchExhausted && !safetyDecision.finalPayMayHaveStarted) {
+            const decision = recoveryDecisionForRefundSafety(safetyDecision)
             return {
                 ...base,
-                decision: safetyDecision.refundAllowed ? 'SAFE_REFUND' : 'REVIEW_REQUIRED',
+                decision,
                 reason: 'dispatch_retries_exhausted_before_final_pay',
-                reviewRequired: !safetyDecision.refundAllowed,
+                reviewRequired: decision === 'REVIEW_REQUIRED',
                 refundAllowed: safetyDecision.refundAllowed,
                 financialImpact: financialImpactFor(input, false),
             }
@@ -266,11 +277,12 @@ export function classifyRecovery(input: RecoveryClassifierInput): RecoveryClassi
         }
 
         if (isPast(input.heartbeatExpiry, now) || isPast(input.finalConfirmExpiry, now)) {
+            const decision = recoveryDecisionForRefundSafety(safetyDecision)
             return {
                 ...base,
-                decision: safetyDecision.reviewRequired ? 'REVIEW_REQUIRED' : 'SAFE_REFUND',
+                decision,
                 reason: 'completion_timeout',
-                reviewRequired: safetyDecision.reviewRequired,
+                reviewRequired: decision === 'REVIEW_REQUIRED',
                 refundAllowed: safetyDecision.refundAllowed,
                 financialImpact: financialImpactFor(input, safetyDecision.finalPayMayHaveStarted),
             }

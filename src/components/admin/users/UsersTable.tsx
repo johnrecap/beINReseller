@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw, UserPlus, Shuffle, CreditCard } from 'lucide-react'
+import { useState, useEffect, useCallback, type KeyboardEvent } from 'react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw, UserPlus, Shuffle, CreditCard } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
 import EditUserDialog from './EditUserDialog'
 import AddBalanceDialog from './AddBalanceDialog'
-import ResetPasswordDialog from './ResetPasswordDialog'
 import UserStatsDialog from './UserStatsDialog'
 import TransferOwnershipDialog from './TransferOwnershipDialog'
 import CreditControlDialog from './CreditControlDialog'
@@ -105,6 +104,11 @@ interface TabCounts {
 
 type TabType = 'distributors' | 'agents' | 'users'
 type AccountRow = User | Distributor | Agent
+type OwnerFilter = {
+    kind: 'distributor' | 'agent'
+    id: string
+    name: string
+}
 
 export default function UsersTable() {
     const { t, language } = useTranslation()
@@ -121,15 +125,12 @@ export default function UsersTable() {
     const [refreshing, setRefreshing] = useState(false)
     const [userCreationDisabled, setUserCreationDisabled] = useState(false)
 
-    // Filter users by specific distributor
-    const [filterManagerId, setFilterManagerId] = useState<string | null>(null)
-    const [filterManagerName, setFilterManagerName] = useState<string | null>(null)
+    const [ownerFilter, setOwnerFilter] = useState<OwnerFilter | null>(null)
 
     // Dialog States
     const [isCreateOpen, setCreateOpen] = useState(false)
     const [editUser, setEditUser] = useState<AccountRow | null>(null)
     const [balanceUser, setBalanceUser] = useState<AccountRow | null>(null)
-    const [resetUser, setResetUser] = useState<AccountRow | null>(null)
     const [statsUser, setStatsUser] = useState<AccountRow | null>(null)
     const [createAgent, setCreateAgent] = useState<Agent | null>(null)
     const [transferUser, setTransferUser] = useState<User | null>(null)
@@ -153,7 +154,7 @@ export default function UsersTable() {
     // Reset page when tab or search changes
     useEffect(() => {
         setPage(1)
-    }, [activeTab, debouncedSearch, filterManagerId])
+    }, [activeTab, debouncedSearch, ownerFilter])
 
     // Fetch counts for tab badges
     const fetchCounts = useCallback(async () => {
@@ -198,9 +199,9 @@ export default function UsersTable() {
         try {
             let url = `/api/admin/users?page=${page}&limit=10&search=${debouncedSearch}&roleFilter=${activeTab}`
 
-            // Add managerId filter for users tab
-            if (activeTab === 'users' && filterManagerId) {
-                url += `&managerId=${filterManagerId}`
+            if (activeTab === 'users' && ownerFilter) {
+                const ownerFilterParam = ownerFilter.kind === 'agent' ? 'agentId' : 'managerId'
+                url += `&${ownerFilterParam}=${encodeURIComponent(ownerFilter.id)}`
             }
 
             const res = await fetch(url)
@@ -223,7 +224,7 @@ export default function UsersTable() {
         } finally {
             setLoading(false)
         }
-    }, [page, debouncedSearch, activeTab, filterManagerId])
+    }, [page, debouncedSearch, activeTab, ownerFilter])
 
     useEffect(() => {
         fetchData()
@@ -276,17 +277,37 @@ export default function UsersTable() {
         }
     }
 
-    // Handle distributor row click - filter users by this distributor
-    const handleDistributorClick = (distributor: Distributor) => {
-        setFilterManagerId(distributor.id)
-        setFilterManagerName(distributor.username)
+    const openOwnedUsers = (filter: OwnerFilter) => {
+        setOwnerFilter(filter)
+        setPage(1)
         setActiveTab('users')
     }
 
-    // Clear distributor filter
-    const clearManagerFilter = () => {
-        setFilterManagerId(null)
-        setFilterManagerName(null)
+    const openDistributorUsers = (distributor: Distributor) => {
+        openOwnedUsers({ kind: 'distributor', id: distributor.id, name: distributor.username })
+    }
+
+    const openAgentUsers = (agent: Agent) => {
+        openOwnedUsers({
+            kind: 'agent',
+            id: agent.id,
+            name: agent.profile.displayName || agent.username,
+        })
+    }
+
+    const activateOwnerRow = (
+        event: KeyboardEvent<HTMLTableRowElement>,
+        openUsers: () => void
+    ) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+
+        event.preventDefault()
+        openUsers()
+    }
+
+    const clearOwnerFilter = () => {
+        setOwnerFilter(null)
     }
 
     // Get default role for create dialog based on active tab
@@ -318,8 +339,11 @@ export default function UsersTable() {
     const renderDistributorRow = (distributor: Distributor) => (
         <tr
             key={distributor.id}
-            className="hover:bg-secondary transition-colors group cursor-pointer"
-            onClick={() => handleDistributorClick(distributor)}
+            className="hover:bg-secondary transition-colors group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            onClick={() => openDistributorUsers(distributor)}
+            onKeyDown={(event) => activateOwnerRow(event, () => openDistributorUsers(distributor))}
+            tabIndex={0}
+            aria-label={`${t.admin.users.filters.filterByDistributor}: ${distributor.username}`}
         >
             <td className="px-4 py-3">
                 <div>
@@ -373,13 +397,6 @@ export default function UsersTable() {
                         <Wallet className="w-4 h-4" />
                     </button>
                     <button
-                        onClick={() => setResetUser(distributor)}
-                        className="p-1.5 hover:bg-amber-50 text-amber-600 rounded-lg transition-colors"
-                        title={t.admin.users.actions.resetPassword}
-                    >
-                        <KeyRound className="w-4 h-4" />
-                    </button>
-                    <button
                         onClick={() => setEditUser(distributor)}
                         className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
                         title={t.admin.users.actions.edit}
@@ -409,7 +426,14 @@ export default function UsersTable() {
     )
 
     const renderAgentRow = (agent: Agent) => (
-        <tr key={agent.id} className="hover:bg-secondary transition-colors group">
+        <tr
+            key={agent.id}
+            className="hover:bg-secondary transition-colors group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            onClick={() => openAgentUsers(agent)}
+            onKeyDown={(event) => activateOwnerRow(event, () => openAgentUsers(agent))}
+            tabIndex={0}
+            aria-label={`${t.admin.users.filters.filterByAgent}: ${agent.profile.displayName || agent.username}`}
+        >
             <td className="px-4 py-3">
                 <div>
                     <p className="font-semibold text-foreground">{agent.profile.displayName || agent.username}</p>
@@ -448,7 +472,7 @@ export default function UsersTable() {
             <td className="px-4 py-3 text-xs text-muted-foreground">
                 {format(new Date(agent.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
             </td>
-            <td className="px-4 py-3">
+            <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                 <div className="flex items-center gap-2 justify-end">
                     <button
                         onClick={() => {
@@ -475,13 +499,6 @@ export default function UsersTable() {
                         title={t.admin.users.actions.addBalance}
                     >
                         <Wallet className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => setResetUser(agent)}
-                        className="p-1.5 hover:bg-amber-50 text-amber-600 rounded-lg transition-colors"
-                        title={t.admin.users.actions.resetPassword}
-                    >
-                        <KeyRound className="w-4 h-4" />
                     </button>
                     <button
                         onClick={() => setEditUser(agent)}
@@ -611,13 +628,6 @@ export default function UsersTable() {
                         <Wallet className="w-4 h-4" />
                     </button>
                     <button
-                        onClick={() => setResetUser(user)}
-                        className="p-1.5 hover:bg-amber-50 text-amber-600 rounded-lg transition-colors"
-                        title={t.admin.users.actions.resetPassword}
-                    >
-                        <KeyRound className="w-4 h-4" />
-                    </button>
-                    <button
                         onClick={() => setEditUser(user)}
                         className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
                         title={t.admin.users.actions.edit}
@@ -740,14 +750,23 @@ export default function UsersTable() {
                 </div>
 
                 {/* Filter badge for users tab */}
-                {activeTab === 'users' && filterManagerId && (
+                {activeTab === 'users' && ownerFilter && (
                     <div className="flex items-center gap-2 mt-4">
-                        <span className="text-sm text-muted-foreground">{t.admin?.users?.filters?.filterByDistributor || 'Filter by Distributor'}:</span>
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
-                            {filterManagerName}
+                        <span className="text-sm text-muted-foreground">
+                            {ownerFilter.kind === 'agent'
+                                ? t.admin.users.filters.filterByAgent
+                                : t.admin.users.filters.filterByDistributor}:
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${ownerFilter.kind === 'agent'
+                            ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400'
+                            : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
+                            }`}>
+                            {ownerFilter.name}
                             <button
-                                onClick={clearManagerFilter}
-                                className="p-0.5 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-full transition-colors"
+                                type="button"
+                                onClick={clearOwnerFilter}
+                                className="p-0.5 hover:bg-background/50 rounded-full transition-colors"
+                                aria-label={t.admin.users.filters.clearFilter}
                             >
                                 <X className="w-3 h-3" />
                             </button>
@@ -966,12 +985,6 @@ export default function UsersTable() {
                 }}
                 userId={balanceUser?.id || null}
                 username={balanceUser?.username || null}
-            />
-            <ResetPasswordDialog
-                isOpen={!!resetUser}
-                onClose={() => setResetUser(null)}
-                userId={resetUser?.id || null}
-                username={resetUser?.username || null}
             />
             <UserStatsDialog
                 isOpen={!!statsUser}

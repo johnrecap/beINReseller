@@ -14,7 +14,11 @@ import {
     type RecoveryProviderBalanceRepairEvidence,
 } from '@/lib/operations/recovery-proof'
 import { acquireRecoveryLock, releaseRecoveryLock } from '@/lib/operations/recovery-locks'
-import { isTerminalOperationStatus, parseOperationResponseData } from '@/lib/operation-safety'
+import {
+    hasOperationFinancialExposureForReview,
+    isTerminalOperationStatus,
+    parseOperationResponseData,
+} from '@/lib/operation-safety'
 import {
     releaseAccountLockSafely,
     type AccountLockReleaseEvidence,
@@ -360,6 +364,7 @@ export async function recoverOperationIfNeeded(
 
     const now = options?.now ?? new Date()
     let shouldReleaseAccountLock = false
+    let safeRefundRequiresReview = false
     let result: RecoverOperationResult | null = null
 
     try {
@@ -405,8 +410,18 @@ export async function recoverOperationIfNeeded(
                 }
             }
 
-            const hasDeduct = operation.transactions.some(txn => txn.type === 'OPERATION_DEDUCT')
+            const operationDeductTotal = Math.abs(operation.transactions
+                .filter(txn => txn.type === 'OPERATION_DEDUCT')
+                .reduce((sum, txn) => sum + txn.amount, 0))
+            const hasDeduct = operationDeductTotal > 0
             const hasRefund = operation.transactions.some(txn => txn.type === 'REFUND')
+            const customerWalletDebit = await tx.walletTransaction.findFirst({
+                where: {
+                    referenceId: operation.id,
+                    type: 'DEBIT',
+                },
+                select: { id: true },
+            })
             const dispatch = operation.dispatches[0]
             const repairedProviderEvidence = await repairConfirmedProviderRecoveryEvidence(tx, operation, now)
             const recoveryResponseData = repairedProviderEvidence?.responseData ?? operation.responseData
@@ -431,11 +446,21 @@ export async function recoverOperationIfNeeded(
                 }),
                 source,
             })
+            const financialExposureForReview = hasOperationFinancialExposureForReview({
+                operationStatus: operation.status,
+                operationAmount: operation.amount,
+                operationResponseData: recoveryResponseData,
+                phaseEvidence: classifier.phaseEvidence,
+                transactions: operation.transactions,
+                customerWalletDebitExists: Boolean(customerWalletDebit),
+                chargedBeinSpendLedgerExists: Boolean(recoveryLedger),
+                refundTransactionExists: hasRefund,
+            })
 
             let decision = classifier.decision
             let nextStatus = getRecoveryStatus(decision)
 
-            if (decision === 'SAFE_REFUND' && !operation.userId) {
+            if (decision === 'SAFE_REFUND' && !operation.userId && financialExposureForReview) {
                 decision = 'REVIEW_REQUIRED'
                 nextStatus = 'REVIEW_REQUIRED'
             }
@@ -526,6 +551,7 @@ export async function recoverOperationIfNeeded(
             }
 
             shouldReleaseAccountLock = decision !== 'RETRY_DISPATCH'
+            safeRefundRequiresReview = financialExposureForReview
 
             return {
                 operationId,
@@ -551,15 +577,26 @@ export async function recoverOperationIfNeeded(
                 : false
             result.refundApplied = refunded
             if (!refunded && result.decision === 'SAFE_REFUND') {
-                await prisma.operation.updateMany({
-                    where: { id: operationId, status: 'FAILED' },
-                    data: {
-                        status: 'REVIEW_REQUIRED',
-                        responseMessage: 'Safe refund was not applied; manual review required.',
-                    },
-                })
-                result.newStatus = 'REVIEW_REQUIRED'
-                result.reviewRequired = true
+                if (safeRefundRequiresReview) {
+                    await prisma.operation.updateMany({
+                        where: { id: operationId, status: 'FAILED' },
+                        data: {
+                            status: 'REVIEW_REQUIRED',
+                            responseMessage: 'Safe refund was not applied; manual review required.',
+                        },
+                    })
+                    result.newStatus = 'REVIEW_REQUIRED'
+                    result.reviewRequired = true
+                } else {
+                    await prisma.operation.updateMany({
+                        where: { id: operationId, status: 'FAILED' },
+                        data: {
+                            responseMessage: 'Operation failed safely: no customer deduction found; no refund required.',
+                        },
+                    })
+                    result.newStatus = 'FAILED'
+                    result.reviewRequired = false
+                }
             }
         }
 

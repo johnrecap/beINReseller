@@ -241,6 +241,31 @@ test('guarded manager debit prevents sequential double spend beyond manager bala
     assert.equal(user.balance, 70)
 })
 
+test('guarded manager debit prevents simultaneous double spend beyond manager balance', async () => {
+    const { tx, manager, user } = createFakeTx({
+        manager: { balance: 100 },
+        user: { balance: 0 },
+    })
+
+    const attempts = await Promise.allSettled([
+        applyManagerUserBalanceMutation(tx, {
+            managerId: manager.id,
+            userId: user.id,
+            amount: 70,
+        }),
+        applyManagerUserBalanceMutation(tx, {
+            managerId: manager.id,
+            userId: user.id,
+            amount: 70,
+        }),
+    ])
+
+    assert.equal(attempts.filter((attempt) => attempt.status === 'fulfilled').length, 1)
+    assert.equal(attempts.filter((attempt) => attempt.status === 'rejected').length, 1)
+    assert.equal(manager.balance, 30)
+    assert.equal(user.balance, 70)
+})
+
 test('rejects non-owned target before moving either balance', async () => {
     const { tx, manager, user } = createFakeTx({
         manager: { balance: 100 },

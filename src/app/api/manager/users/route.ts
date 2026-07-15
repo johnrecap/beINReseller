@@ -228,6 +228,7 @@ export async function POST(request: NextRequest) {
                     await tx.transaction.create({
                         data: {
                             userId: user.id,
+                            adminId: manager.id,
                             type: 'DEPOSIT',
                             amount: balance,
                             notes: `Initial balance from manager ${manager.username}`,

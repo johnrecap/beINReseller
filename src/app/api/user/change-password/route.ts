@@ -20,6 +20,8 @@ const changePasswordSchema = z.object({
     newPassword: z.string().min(6, 'New password must be at least 6 characters'),
 })
 
+const PANEL_ROLES = new Set(['ADMIN', 'MANAGER', 'AGENT', 'USER'])
+
 export async function POST(request: NextRequest) {
     try {
         const authUser = await getAuthUser(request)
@@ -30,8 +32,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Only ADMIN can change their own password
-        if (authUser.role !== 'ADMIN') {
+        if (typeof authUser.role !== 'string' || !PANEL_ROLES.has(authUser.role)) {
             return NextResponse.json(
                 { error: 'You are not allowed to change the password' },
                 { status: 403 }

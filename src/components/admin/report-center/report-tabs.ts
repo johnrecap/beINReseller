@@ -56,6 +56,13 @@ export const REPORT_CENTER_TABS = [
         visibilitySetting: undefined,
     },
     {
+        key: 'balance-movements',
+        label: 'Balance Movements',
+        description: 'Admin and manager balance top-up reports',
+        legacyHref: '/dashboard/admin/reports?tab=balance-movements',
+        visibilitySetting: undefined,
+    },
+    {
         key: 'login-monitor',
         label: 'Account Login Monitor',
         description: 'beIN account login failure monitoring',

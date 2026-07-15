@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Ban, CheckCircle, Wallet, KeyRound, ArrowRight, ArrowLeft, Trash2, AlertTriangle } from 'lucide-react'
+import { Search, Ban, CheckCircle, Wallet, ArrowRight, ArrowLeft, Trash2, AlertTriangle, BarChart2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import ManagerAddBalanceDialog from './ManagerAddBalanceDialog'
-import ManagerResetPasswordDialog from './ManagerResetPasswordDialog'
+import UserStatsDialog from '@/components/admin/users/UserStatsDialog'
 import { useTranslation } from '@/hooks/useTranslation'
 import {
     AlertDialog,
@@ -51,7 +51,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
 
     // Dialog States
     const [balanceUser, setBalanceUser] = useState<User | null>(null)
-    const [resetUser, setResetUser] = useState<User | null>(null)
+    const [statsUser, setStatsUser] = useState<User | null>(null)
     const [deleteUser, setDeleteUser] = useState<User | null>(null)
     const [deleteLoading, setDeleteLoading] = useState(false)
     const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -218,18 +218,18 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2 justify-end">
                                                 <button
+                                                    onClick={() => setStatsUser(user)}
+                                                    className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"
+                                                    title={t.admin?.users?.actions?.viewStats || 'User Statistics'}
+                                                >
+                                                    <BarChart2 className="w-4 h-4" />
+                                                </button>
+                                                <button
                                                     onClick={() => setBalanceUser(user)}
                                                     className="p-1.5 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 rounded-lg transition-colors"
                                                     title={t.admin?.users?.actions?.addBalance || 'Manage Balance'}
                                                 >
                                                     <Wallet className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => setResetUser(user)}
-                                                    className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 rounded-lg transition-colors"
-                                                    title={t.admin?.users?.actions?.resetPassword || 'Reset Password'}
-                                                >
-                                                    <KeyRound className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleToggleStatus(user)}
@@ -294,11 +294,13 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                 username={balanceUser?.username || null}
                 managerBalance={managerBalance}
             />
-            <ManagerResetPasswordDialog
-                isOpen={!!resetUser}
-                onClose={() => setResetUser(null)}
-                userId={resetUser?.id || null}
-                username={resetUser?.username || null}
+            <UserStatsDialog
+                isOpen={!!statsUser}
+                onClose={() => setStatsUser(null)}
+                userId={statsUser?.id || null}
+                username={statsUser?.username || null}
+                statsEndpoint={statsUser ? `/api/manager/users/${statsUser.id}/stats` : null}
+                canCorrectBalance={false}
             />
             
             {/* Delete Confirmation Dialog */}

@@ -2,7 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { getAccountLockReleaseDecision } from '@/lib/operations/account-lock-release'
 import { mergeRecoveryEvidence } from '@/lib/operations/recovery-evidence'
-import { hasFinalPayStarted } from '@/lib/operation-safety'
+import {
+    hasFinalPayStarted,
+    hasOperationFinancialExposureForReview,
+} from '@/lib/operation-safety'
 
 test('skips account lock release when expected owner is unknown', () => {
     const result = getAccountLockReleaseDecision('worker-1', null)
@@ -49,4 +52,43 @@ test('treats pre-final phases as before final pay', () => {
         operationStatus: 'PROCESSING',
         operationResponseData: { operationPhase: 'CUSTOMER_DEDUCTED' },
     }), false)
+})
+
+test('does not treat zero-amount pre-final recovery as financial review exposure', () => {
+    assert.equal(hasOperationFinancialExposureForReview({
+        operationStatus: 'FAILED',
+        operationAmount: 0,
+        operationResponseData: {
+            operationPhase: 'DISPATCH_FAILED',
+            finalPaySubmitted: false,
+            lastRecoveryFinancialImpact: 'NONE',
+        },
+        transactions: [],
+        customerWalletDebitExists: false,
+        chargedBeinSpendLedgerExists: false,
+        refundTransactionExists: false,
+    }), false)
+})
+
+test('keeps zero-amount rows reviewable when hidden financial evidence exists', () => {
+    assert.equal(hasOperationFinancialExposureForReview({
+        operationStatus: 'FAILED',
+        operationAmount: 0,
+        operationResponseData: { auditSnapshot: { userDeductTotal: 92 } },
+        transactions: [],
+    }), true)
+
+    assert.equal(hasOperationFinancialExposureForReview({
+        operationStatus: 'FAILED',
+        operationAmount: 0,
+        operationResponseData: { operationPhase: 'FINAL_PAY_SUBMITTED', finalPaySubmitted: true },
+        transactions: [],
+    }), true)
+
+    assert.equal(hasOperationFinancialExposureForReview({
+        operationStatus: 'FAILED',
+        operationAmount: 0,
+        operationResponseData: {},
+        transactions: [{ type: 'OPERATION_DEDUCT', amount: -92 }],
+    }), true)
 })

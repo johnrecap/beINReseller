@@ -18,16 +18,16 @@ Creates an admin-managed account. This feature extends the existing request with
   "role": "USER",
   "balance": 0,
   "agentId": "agent_1",
-  "sourceGroup": "main-group"
+  "sourceGroup": null
 }
 ```
 
 ### Request Rules
 
-- `agentId` and `sourceGroup` are only valid when `role=USER`.
+- `agentId` and nullable/optional `sourceGroup` are only valid when `role=USER`.
 - If `agentId` is provided, the new user is created with one active agent assignment and no manager/admin owner link.
 - If `agentId` is omitted and `role=USER`, the existing admin-created user behavior remains unless changed by implementation tasks.
-- If `sourceGroup` is blank and the agent has `defaultSourceGroup`, the default is used.
+- If `sourceGroup` is omitted, the agent default is used when present, otherwise `null`; explicit null/blank clears even when a default exists.
 - Duplicate username or email rejects the whole transaction.
 
 ### Success Response
@@ -46,7 +46,7 @@ Creates an admin-managed account. This feature extends the existing request with
   "assignment": {
     "id": "assignment_1",
     "agentId": "agent_1",
-    "sourceGroup": "main-group"
+    "sourceGroup": null
   }
 }
 ```
@@ -55,7 +55,7 @@ Creates an admin-managed account. This feature extends the existing request with
 
 | Status | Reason |
 |--------|--------|
-| 400 | Invalid username, email, password, role, balance, agent, or source group |
+| 400 | Invalid username, email, password, role, balance, agent, or Source Group longer than 120 characters |
 | 400 | Username or email already exists |
 | 401 | Not authenticated |
 | 403 | Not admin |

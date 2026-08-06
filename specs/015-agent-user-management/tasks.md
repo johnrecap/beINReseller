@@ -48,7 +48,7 @@
 
 - [X] T005 [P] Write source group resolution tests in `tests/unit/agent-assignment-transfer.test.ts`
   - Reason: The UI may submit blank source group when an agent profile default exists.
-  - Expected: Tests prove explicit source group wins, blank request uses agent default, and missing both rejects with `SOURCE_GROUP_REQUIRED`.
+  - Expected: Historical baseline covered explicit/default resolution; the 2026-08-06 Spec 031 amendment replaces rejection with nullable `EXPLICIT`, `CLEARED`, `PRESERVED`, `AGENT_DEFAULT`, and `NONE` coverage in T042.
   - Possible bugs: Blank source group can reach credit request snapshots and WhatsApp handoff flows.
   - Fix/Mitigation: Trim input and validate after fallback.
   - Verification: `npx tsx --test tests/unit/agent-assignment-transfer.test.ts`.
@@ -346,9 +346,9 @@
   - Fix/Mitigation: Use `apply_patch` only for edits and scan changed files before final response.
   - Verification: Run a focused scan against changed files using the repository mojibake signatures from `AGENTS.md`, then confirm any findings are pre-existing or intentionally documented.
 
-- [X] T039 Update deployment notes if an optional migration is added
+- [X] T039 Update deployment baseline notes (superseded by required nullable migration and audit-gated constraint in Spec 031 T045/T051-T053)
   - Reason: Production has a live database and should use safe migration deploy commands only when needed.
-  - Expected: If no migration is added, deploy commands skip Prisma migration except normal generate/build; if migration is added, use `npx prisma migrate deploy`.
+  - Expected: Historical baseline documented conditional migration; Spec 031 now requires nullable Source Group via `npx prisma migrate deploy` and separately gates manager uniqueness on accepted audit evidence.
   - Possible bugs: Running `db push` on production can bypass migration history.
   - Fix/Mitigation: Follow `AGENTS.md` production notes.
   - Verification: Final deployment instructions include the correct branch and command order.

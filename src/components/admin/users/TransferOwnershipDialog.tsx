@@ -1,11 +1,30 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
+import { buildOwnershipTransferRequest } from '@/lib/users/ownership-transfer-request'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
 
 type TransferUser = {
     id: string
     username: string
+    currentOwner: {
+        type: string
+        id: string | null
+        ownershipToken: string
+        agentAssignment: {
+            sourceGroup: string | null
+            whatsappConfigured: boolean
+        } | null
+    }
 }
 
 type TargetType = 'ADMIN' | 'MANAGER' | 'AGENT'
@@ -32,11 +51,7 @@ interface TransferOwnershipDialogProps {
     user: TransferUser | null
 }
 
-const targetTypeOptions: Array<{ value: TargetType; label: string }> = [
-    { value: 'ADMIN', label: 'Admin' },
-    { value: 'MANAGER', label: 'Manager' },
-    { value: 'AGENT', label: 'Agent' },
-]
+const targetTypeOptions: TargetType[] = ['ADMIN', 'MANAGER', 'AGENT']
 
 function optionsForType(targets: TargetsResponse['targets'] | null, type: TargetType): OwnerTarget[] {
     if (!targets) return []
@@ -46,15 +61,20 @@ function optionsForType(targets: TargetsResponse['targets'] | null, type: Target
 }
 
 export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, user }: TransferOwnershipDialogProps) {
+    const { t } = useTranslation()
     const [targets, setTargets] = useState<TargetsResponse['targets'] | null>(null)
     const [targetOwnerType, setTargetOwnerType] = useState<TargetType>('ADMIN')
     const [targetOwnerId, setTargetOwnerId] = useState('')
     const [sourceGroup, setSourceGroup] = useState('')
     const [whatsappGroupUrl, setWhatsappGroupUrl] = useState('')
+    const [sourceGroupTouched, setSourceGroupTouched] = useState(false)
+    const [whatsappGroupUrlTouched, setWhatsappGroupUrlTouched] = useState(false)
     const [reason, setReason] = useState('')
     const [loadingTargets, setLoadingTargets] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [ownershipChanged, setOwnershipChanged] = useState(false)
+    const [loadAttempt, setLoadAttempt] = useState(0)
 
     const ownerOptions = useMemo(
         () => optionsForType(targets, targetOwnerType),
@@ -64,6 +84,9 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
         () => ownerOptions.find((target) => target.id === targetOwnerId) || null,
         [ownerOptions, targetOwnerId]
     )
+    const isSameAgentTarget = targetOwnerType === 'AGENT'
+        && user?.currentOwner.type === 'AGENT'
+        && user.currentOwner.id === selectedOwner?.id
 
     useEffect(() => {
         if (!isOpen) return
@@ -72,25 +95,29 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
         async function loadTargets() {
             setLoadingTargets(true)
             setError(null)
+            setTargets(null)
 
             try {
                 const response = await fetch('/api/admin/user-ownership/targets', { cache: 'no-store' })
-                const payload = await response.json().catch(() => null)
                 if (!response.ok) {
-                    throw new Error(payload?.error || 'Failed to load transfer targets')
+                    throw new Error(t.common.loadTransferTargetsFailed)
                 }
+
+                const payload = await response.json()
 
                 if (cancelled) return
                 setTargets(payload.targets)
-                const firstAdmin = payload.targets?.admins?.[0]
                 setTargetOwnerType('ADMIN')
-                setTargetOwnerId(firstAdmin?.id || '')
+                setTargetOwnerId('')
                 setSourceGroup('')
                 setWhatsappGroupUrl('')
+                setSourceGroupTouched(false)
+                setWhatsappGroupUrlTouched(false)
                 setReason('')
+                setOwnershipChanged(false)
             } catch (err) {
                 if (!cancelled) {
-                    setError(err instanceof Error ? err.message : 'Failed to load transfer targets')
+                    setError(err instanceof Error ? err.message : t.common.loadTransferTargetsFailed)
                 }
             } finally {
                 if (!cancelled) setLoadingTargets(false)
@@ -101,24 +128,31 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
         return () => {
             cancelled = true
         }
-    }, [isOpen])
+    }, [isOpen, loadAttempt, t.common.loadTransferTargetsFailed])
 
     useEffect(() => {
-        const firstOption = ownerOptions[0]
-        if (!ownerOptions.some((target) => target.id === targetOwnerId)) {
-            setTargetOwnerId(firstOption?.id || '')
+        if (targetOwnerId && !ownerOptions.some((target) => target.id === targetOwnerId)) {
+            setTargetOwnerId('')
         }
     }, [ownerOptions, targetOwnerId])
 
     useEffect(() => {
-        if (targetOwnerType !== 'AGENT') {
+        if (targetOwnerType !== 'AGENT' || !user) {
             setSourceGroup('')
             setWhatsappGroupUrl('')
+            setSourceGroupTouched(false)
+            setWhatsappGroupUrlTouched(false)
             return
         }
 
-        setSourceGroup((current) => current || selectedOwner?.defaultSourceGroup || '')
-    }, [selectedOwner, targetOwnerType])
+        const sameAgentAssignment = isSameAgentTarget
+            ? user.currentOwner.agentAssignment
+            : null
+        setSourceGroup(sameAgentAssignment ? sameAgentAssignment.sourceGroup ?? '' : selectedOwner?.defaultSourceGroup ?? '')
+        setWhatsappGroupUrl('')
+        setSourceGroupTouched(false)
+        setWhatsappGroupUrlTouched(false)
+    }, [isSameAgentTarget, selectedOwner, targetOwnerType, user])
 
     async function submitTransfer(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -126,29 +160,43 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
 
         setSubmitting(true)
         setError(null)
+        setOwnershipChanged(false)
 
         try {
+            const requestBody = buildOwnershipTransferRequest({
+                userId: user.id,
+                targetOwnerType,
+                targetOwnerId,
+                expectedOwnershipToken: user.currentOwner.ownershipToken,
+                reason,
+                sourceGroup,
+                whatsappGroupUrl,
+                sourceGroupTouched,
+                whatsappGroupUrlTouched,
+            })
+
             const response = await fetch('/api/admin/user-ownership', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId: user.id,
-                    targetOwnerType,
-                    targetOwnerId,
-                    sourceGroup,
-                    whatsappGroupUrl,
-                    reason,
-                }),
+                body: JSON.stringify(requestBody),
             })
             const payload = await response.json().catch(() => null)
+            if (response.status === 409) {
+                setOwnershipChanged(true)
+                setError(t.common.ownershipChanged)
+                return
+            }
             if (!response.ok) {
-                throw new Error(payload?.error || 'Failed to transfer ownership')
+                if (payload?.error === 'INVALID_WHATSAPP_GROUP_URL') {
+                    throw new Error(t.common.invalidWhatsappGroupLink)
+                }
+                throw new Error(t.common.transferOwnershipFailed)
             }
 
             onSuccess()
             onClose()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to transfer ownership')
+            setError(err instanceof Error ? err.message : t.common.transferOwnershipFailed)
         } finally {
             setSubmitting(false)
         }
@@ -156,19 +204,28 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
 
     if (!isOpen || !user) return null
 
-    return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200 border border-border">
-                <div className="flex justify-between items-center p-4 border-b border-border">
-                    <h3 className="font-bold text-foreground">Transfer owner: {user.username}</h3>
-                    <button onClick={onClose} title="Close" className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
+    const targetTypeLabel = (type: TargetType) => {
+        if (type === 'ADMIN') return t.common.ownerAdmin
+        if (type === 'MANAGER') return t.common.ownerManager
+        return t.common.ownerAgent
+    }
 
-                <form onSubmit={submitTransfer} className="p-4 space-y-4">
+    return (
+        <Dialog
+            open={isOpen}
+            onOpenChange={(open) => {
+                if (!open && !submitting) onClose()
+            }}
+        >
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>{t.common.transferOwner}: {user.username}</DialogTitle>
+                    <DialogDescription>{t.common.transferPreservesAccountData}</DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={submitTransfer} className="space-y-4">
                     <label className="block space-y-2">
-                        <span className="text-sm font-medium text-foreground">Target type</span>
+                        <span className="text-sm font-medium text-foreground">{t.common.targetType}</span>
                         <select
                             value={targetOwnerType}
                             onChange={(event) => setTargetOwnerType(event.target.value as TargetType)}
@@ -176,20 +233,26 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                         >
                             {targetTypeOptions.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
+                                <option key={option} value={option}>{targetTypeLabel(option)}</option>
                             ))}
                         </select>
                     </label>
 
                     <label className="block space-y-2">
-                        <span className="text-sm font-medium text-foreground">Target owner</span>
+                        <span className="text-sm font-medium text-foreground">{t.common.targetOwner}</span>
                         <select
                             value={targetOwnerId}
                             onChange={(event) => setTargetOwnerId(event.target.value)}
                             disabled={loadingTargets}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                         >
-                            <option value="">Select owner</option>
+                            <option value="">
+                                {loadingTargets
+                                    ? t.common.loading
+                                    : ownerOptions.length === 0
+                                        ? t.common.noTransferTargets
+                                        : t.common.selectOwner}
+                            </option>
                             {ownerOptions.map((target) => (
                                 <option key={target.id} value={target.id}>
                                     {target.label}
@@ -201,66 +264,114 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
                     {targetOwnerType === 'AGENT' && (
                         <>
                             <label className="block space-y-2">
-                                <span className="text-sm font-medium text-foreground">Source group</span>
+                                <span className="text-sm font-medium text-foreground">{t.common.sourceGroupLabel}</span>
                                 <input
                                     value={sourceGroup}
-                                    onChange={(event) => setSourceGroup(event.target.value)}
-                                    placeholder={selectedOwner?.defaultSourceGroup || 'main-group'}
+                                    onChange={(event) => {
+                                        setSourceGroup(event.target.value)
+                                        setSourceGroupTouched(true)
+                                    }}
+                                    maxLength={120}
+                                    placeholder={isSameAgentTarget
+                                        ? t.common.withoutGroup
+                                        : selectedOwner?.defaultSourceGroup || t.common.withoutGroup}
                                     className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                                 />
+                                <span className="block text-xs text-muted-foreground">
+                                    {t.common.agentDefaultSourceGroupHint}
+                                </span>
                             </label>
 
                             <label className="block space-y-2">
-                                <span className="text-sm font-medium text-foreground">WhatsApp group link</span>
+                                <span className="text-sm font-medium text-foreground">{t.common.whatsappGroupLinkLabel}</span>
                                 <input
+                                    type="url"
+                                    dir="ltr"
                                     value={whatsappGroupUrl}
-                                    onChange={(event) => setWhatsappGroupUrl(event.target.value)}
+                                    onChange={(event) => {
+                                        setWhatsappGroupUrl(event.target.value)
+                                        setWhatsappGroupUrlTouched(true)
+                                    }}
+                                    maxLength={500}
                                     placeholder="https://chat.whatsapp.com/..."
                                     className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                                 />
+                                {isSameAgentTarget
+                                    && user.currentOwner.agentAssignment?.whatsappConfigured
+                                    && !whatsappGroupUrlTouched ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setWhatsappGroupUrl('')
+                                                setWhatsappGroupUrlTouched(true)
+                                            }}
+                                            className="text-xs font-medium text-red-400 hover:text-red-300"
+                                        >
+                                            {t.common.clearSavedWhatsappLink}
+                                        </button>
+                                    ) : null}
+                                <span className="block text-xs text-muted-foreground">
+                                    {t.common.whatsappAssignmentHint}
+                                </span>
                             </label>
                         </>
                     )}
 
                     <label className="block space-y-2">
-                        <span className="text-sm font-medium text-foreground">Reason</span>
+                        <span className="text-sm font-medium text-foreground">{t.common.transferReason}</span>
                         <input
                             value={reason}
                             onChange={(event) => setReason(event.target.value)}
-                            placeholder="Optional note"
+                            placeholder={t.common.optionalNote}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                         />
                     </label>
 
-                    <p className="text-xs text-muted-foreground">
-                        The selected owner will replace current admin, manager, or agent ownership for this user.
-                    </p>
-
                     {error && (
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg">
+                        <div className="space-y-2 rounded-lg bg-red-50 p-3 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400" role="alert">
                             {error}
+                            {ownershipChanged ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        onSuccess()
+                                        onClose()
+                                    }}
+                                    className="block font-semibold underline underline-offset-2"
+                                >
+                                    {t.common.refreshAndReconfirm}
+                                </button>
+                            ) : !targets && !loadingTargets ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+                                    className="block font-semibold underline underline-offset-2"
+                                >
+                                    {t.common.retry}
+                                </button>
+                            ) : null}
                         </div>
                     )}
 
-                    <div className="flex gap-3 pt-2">
+                    <DialogFooter className="gap-3 pt-2 sm:space-x-0">
                         <button
                             type="button"
                             onClick={onClose}
                             className="flex-1 px-4 py-2 text-sm font-medium text-muted-foreground bg-secondary rounded-lg hover:bg-secondary/80"
                         >
-                            Cancel
+                            {t.common.cancel}
                         </button>
                         <button
                             type="submit"
-                            disabled={submitting || loadingTargets || !targetOwnerId}
+                            disabled={submitting || loadingTargets || !targetOwnerId || ownershipChanged}
                             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2"
                         >
                             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                            Transfer
+                            {t.common.transferAction}
                         </button>
-                    </div>
+                    </DialogFooter>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     )
 }

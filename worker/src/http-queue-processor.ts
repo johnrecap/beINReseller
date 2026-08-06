@@ -20,7 +20,10 @@ import { trackOperationComplete } from './lib/activity-tracker';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
 import { decryptAccountPassword } from './lib/crypto';
 import { recordConfirmedBeinSpend } from './lib/bein-spend-ledger';
-import { processCompletedOperationPoints } from './lib/points';
+import {
+    captureOperationSpendAwardRunInTransaction,
+    finalizeOperationSpendAwardRun,
+} from './lib/points';
 import {
     getSessionFromCache,
     saveSessionToCache,
@@ -125,9 +128,9 @@ function isTerminalStatus(status: string | null | undefined): boolean {
 
 async function awardCompletedOperationPointsSafely(operationId: string): Promise<void> {
     try {
-        await processCompletedOperationPoints(prisma, operationId);
+        await finalizeOperationSpendAwardRun(prisma, operationId);
     } catch (error) {
-        console.error(`[HTTP] Point award failed for completed operation ${operationId}:`, error);
+        console.error(`[HTTP] Point finalization failed for completed operation ${operationId}:`, error);
     }
 }
 
@@ -307,6 +310,7 @@ async function updateOperationIfActive(
 async function completeConfirmedRenewalOperation(
     operationId: string,
     data: Prisma.OperationUncheckedUpdateManyInput,
+    completedAt: Date,
     postPayResponseData: Prisma.InputJsonObject,
     postPayPhaseEvidence: Parameters<typeof mergeOperationPhaseData>[1],
     route: EffectiveBeinRoute,
@@ -316,12 +320,23 @@ async function completeConfirmedRenewalOperation(
         data.responseData && typeof data.responseData === 'object' && !Array.isArray(data.responseData)
             ? data.responseData as Prisma.InputJsonObject
             : postPayResponseData;
-    const completed = await prisma.operation.updateMany({
-        where: {
-            id: operationId,
-            status: { notIn: TERMINAL_STATUS_LIST }
-        },
-        data
+    const completed = await prisma.$transaction(async (tx) => {
+        const update = await tx.operation.updateMany({
+            where: {
+                id: operationId,
+                status: { notIn: TERMINAL_STATUS_LIST }
+            },
+            data
+        });
+        if (update.count > 0) {
+            await captureOperationSpendAwardRunInTransaction(
+                tx,
+                operationId,
+                'WORKER_RENEWAL',
+                completedAt
+            );
+        }
+        return update;
     });
 
     if (completed.count > 0) {
@@ -357,16 +372,27 @@ async function completeConfirmedRenewalOperation(
         mergeOperationPhaseData(current.responseData, postPayPhaseEvidence),
         route
     );
-    const recovered = await prisma.operation.updateMany({
-        where: {
-            id: operationId,
-            status: OperationStatus.REVIEW_REQUIRED,
-            updatedAt: current.updatedAt
-        },
-        data: {
-            ...data,
-            responseData: finalResponseData ?? recoveredResponseData
+    const recovered = await prisma.$transaction(async (tx) => {
+        const update = await tx.operation.updateMany({
+            where: {
+                id: operationId,
+                status: OperationStatus.REVIEW_REQUIRED,
+                updatedAt: current.updatedAt
+            },
+            data: {
+                ...data,
+                responseData: finalResponseData ?? recoveredResponseData
+            }
+        });
+        if (update.count > 0) {
+            await captureOperationSpendAwardRunInTransaction(
+                tx,
+                operationId,
+                'WORKER_RENEWAL',
+                completedAt
+            );
         }
+        return update;
     });
 
     if (recovered.count > 0) {
@@ -2782,18 +2808,30 @@ async function handleConfirmPurchaseHttp(
                     return;
                 }
 
-                const completed = await prisma.operation.updateMany({
-                    where: {
-                        id: operationId,
-                        status: { notIn: HARD_TERMINAL_STATUS_LIST }
-                    },
-                    data: {
-                        status: 'COMPLETED',
-                        responseMessage: 'beIN contract verified after final Pay.',
-                        completedAt: new Date(),
-                        finalConfirmExpiry: null,
-                        responseData: postPayResponseData
+                const contractVerifiedAt = new Date();
+                const completed = await prisma.$transaction(async (tx) => {
+                    const update = await tx.operation.updateMany({
+                        where: {
+                            id: operationId,
+                            status: { notIn: HARD_TERMINAL_STATUS_LIST }
+                        },
+                        data: {
+                            status: 'COMPLETED',
+                            responseMessage: 'beIN contract verified after final Pay.',
+                            completedAt: contractVerifiedAt,
+                            finalConfirmExpiry: null,
+                            responseData: postPayResponseData
+                        }
+                    });
+                    if (update.count > 0) {
+                        await captureOperationSpendAwardRunInTransaction(
+                            tx,
+                            operationId,
+                            'WORKER_CONTRACT_VERIFICATION',
+                            contractVerifiedAt
+                        );
                     }
+                    return update;
                 });
                 if (completed.count === 0) {
                     console.warn(`[HTTP] CONFIRM_PURCHASE contract-verified completion skipped for ${operationId} due to terminal transition race`);
@@ -2922,13 +2960,14 @@ async function handleConfirmPurchaseHttp(
                 return;
             }
 
+            const renewalCompletedAt = new Date();
             const completion = await completeConfirmedRenewalOperation(operationId, {
                 status: 'COMPLETED',
                 responseMessage: result.message,
-                completedAt: new Date(),
+                completedAt: renewalCompletedAt,
                 finalConfirmExpiry: null,
                 responseData: postPayResponseData
-            }, postPayResponseData, postPayPhaseEvidence, route, finalPayEvidence);
+            }, renewalCompletedAt, postPayResponseData, postPayPhaseEvidence, route, finalPayEvidence);
             postPayResponseData = completion.responseData;
             if (!completion.completed) {
                 await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
@@ -3237,17 +3276,29 @@ async function handleVerifyReviewCardHttp(
             return;
         }
 
-        const completed = await prisma.operation.updateMany({
-            where: {
-                id: operationId,
-                status: OperationStatus.REVIEW_REQUIRED
-            },
-            data: {
-                status: OperationStatus.COMPLETED,
-                completedAt: new Date(),
-                responseMessage: 'Financial review closed: beIN contract verified live.',
-                responseData,
+        const liveReviewCompletedAt = new Date();
+        const completed = await prisma.$transaction(async (tx) => {
+            const update = await tx.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: OperationStatus.REVIEW_REQUIRED
+                },
+                data: {
+                    status: OperationStatus.COMPLETED,
+                    completedAt: liveReviewCompletedAt,
+                    responseMessage: 'Financial review closed: beIN contract verified live.',
+                    responseData,
+                }
+            });
+            if (update.count > 0) {
+                await captureOperationSpendAwardRunInTransaction(
+                    tx,
+                    operationId,
+                    'WORKER_LIVE_REVIEW',
+                    liveReviewCompletedAt
+                );
             }
+            return update;
         });
         if (completed.count === 0) {
             console.warn(`[HTTP] Live review verification completion skipped for ${operationId}; status changed`);
@@ -3621,22 +3672,42 @@ async function handleSignalRefreshHttp(
             throw new Error(signalResult.error || 'Signal activation failed');
         }
 
-        // Store card status in responseData
-        if (!await updateOperationIfActive(operationId, {
-            status: 'COMPLETED',
-            completedAt: new Date(),
-            stbNumber: signalResult.cardStatus?.stbNumber,
-            responseMessage: signalResult.activated
-                ? 'Signal activated successfully'
-                : signalResult.message || 'Card status retrieved',
-            responseData: responseDataWithRoute({
-                cardStatus: signalResult.cardStatus,
-                activated: signalResult.activated
-            }, route)
-        }, 'SIGNAL_REFRESH completion update')) {
+        // Store card status and capture the immutable completion snapshot atomically.
+        const signalRefreshCompletedAt = new Date();
+        const signalRefreshCompleted = await prisma.$transaction(async (tx) => {
+            const update = await tx.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: { notIn: TERMINAL_STATUS_LIST }
+                },
+                data: {
+                    status: 'COMPLETED',
+                    completedAt: signalRefreshCompletedAt,
+                    stbNumber: signalResult.cardStatus?.stbNumber,
+                    responseMessage: signalResult.activated
+                        ? 'Signal activated successfully'
+                        : signalResult.message || 'Card status retrieved',
+                    responseData: responseDataWithRoute({
+                        cardStatus: signalResult.cardStatus,
+                        activated: signalResult.activated
+                    }, route)
+                }
+            });
+            if (update.count > 0) {
+                await captureOperationSpendAwardRunInTransaction(
+                    tx,
+                    operationId,
+                    'WORKER_SIGNAL_REFRESH',
+                    signalRefreshCompletedAt
+                );
+            }
+            return update;
+        });
+        if (signalRefreshCompleted.count === 0) {
             await accountPool.markAccountUsed(account.id);
             return;
         }
+        await awardCompletedOperationPointsSafely(operationId);
 
         // Create success notification
         const op = await prisma.operation.findUnique({
@@ -3846,21 +3917,42 @@ async function handleSignalCheckHttp(
         await saveOperationSessionToCache(operationId, sessionData, 900, route);
 
         // Store card status and await user to click activate.
-        // Use 'COMPLETED' status with awaitingActivate flag to indicate waiting for user to click activate
-        if (!await updateOperationIfActive(operationId, {
-            status: 'COMPLETED',
-            stbNumber: checkResult.cardStatus?.stbNumber,
-            responseMessage: 'Card checked - ready for activation',
-            responseData: JSON.stringify(responseDataWithRoute({
-                cardStatus: checkResult.cardStatus,
-                contracts: checkResult.contracts || [], // Include contracts table
-                awaitingActivate: true,
-                checkedAt: new Date().toISOString()
-            }, route))
-        }, 'SIGNAL_CHECK completion update')) {
+        // Use 'COMPLETED' status with awaitingActivate flag to indicate waiting for user to click activate.
+        const signalCheckCompletedAt = new Date();
+        const signalCheckCompleted = await prisma.$transaction(async (tx) => {
+            const update = await tx.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: { notIn: TERMINAL_STATUS_LIST }
+                },
+                data: {
+                    status: 'COMPLETED',
+                    completedAt: signalCheckCompletedAt,
+                    stbNumber: checkResult.cardStatus?.stbNumber,
+                    responseMessage: 'Card checked - ready for activation',
+                    responseData: JSON.stringify(responseDataWithRoute({
+                        cardStatus: checkResult.cardStatus,
+                        contracts: checkResult.contracts || [], // Include contracts table
+                        awaitingActivate: true,
+                        checkedAt: signalCheckCompletedAt.toISOString()
+                    }, route))
+                }
+            });
+            if (update.count > 0) {
+                await captureOperationSpendAwardRunInTransaction(
+                    tx,
+                    operationId,
+                    'WORKER_SIGNAL_CHECK',
+                    signalCheckCompletedAt
+                );
+            }
+            return update;
+        });
+        if (signalCheckCompleted.count === 0) {
             await accountPool.markAccountUsed(account.id);
             return;
         }
+        await awardCompletedOperationPointsSafely(operationId);
 
         // Extend session TTL on successful operation
         await extendSessionTTL(account.id, route.routeKey, httpClient.getSessionTimeout());
@@ -3956,24 +4048,32 @@ async function handleSignalActivateHttp(
             throw new Error(activateResult.error || 'Activation failed');
         }
 
-        // Update operation with result
-        if (!await updateOperationIfActive(operationId, {
-            status: 'COMPLETED',
-            completedAt: new Date(),
-            responseMessage: activateResult.activated
-                ? 'Signal activated successfully'
-                : activateResult.message || 'Activation not completed',
-            responseData: JSON.stringify(responseDataWithRoute({
-                ...savedData,
-                cardStatus: activateResult.cardStatus,
-                activated: activateResult.activated,
-                awaitingActivate: false,  // Clear the flag
-                activatedAt: new Date().toISOString()
-            }, route))
-        }, 'SIGNAL_ACTIVATE completion update')) {
+        // SIGNAL_CHECK owns the immutable completion snapshot for this reused operation id.
+        const signalActivatedAt = new Date();
+        const signalActivateCompleted = await prisma.operation.updateMany({
+            where: {
+                id: operationId,
+                status: { notIn: TERMINAL_STATUS_LIST }
+            },
+            data: {
+                status: 'COMPLETED',
+                responseMessage: activateResult.activated
+                    ? 'Signal activated successfully'
+                    : activateResult.message || 'Activation not completed',
+                responseData: JSON.stringify(responseDataWithRoute({
+                    ...savedData,
+                    cardStatus: activateResult.cardStatus,
+                    activated: activateResult.activated,
+                    awaitingActivate: false,  // Clear the flag
+                    activatedAt: signalActivatedAt.toISOString()
+                }, route))
+            }
+        });
+        if (signalActivateCompleted.count === 0) {
             await accountPool.markAccountUsed(account.id);
             return;
         }
+        await awardCompletedOperationPointsSafely(operationId);
 
         // Create notification
         if (operation.userId) {
@@ -4315,14 +4415,34 @@ async function handleStartInstallmentHttp(
 
     if (!installmentResult.hasInstallment) {
         // No installment found - complete with message
-        if (!await updateOperationIfActive(operationId, {
-            status: 'COMPLETED',
-            responseMessage: 'No installments found for this card',
-            completedAt: new Date()
-        }, 'START_INSTALLMENT no-installment completion update')) {
+        const noInstallmentCompletedAt = new Date();
+        const noInstallmentCompleted = await prisma.$transaction(async (tx) => {
+            const update = await tx.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: { notIn: TERMINAL_STATUS_LIST }
+                },
+                data: {
+                    status: 'COMPLETED',
+                    responseMessage: 'No installments found for this card',
+                    completedAt: noInstallmentCompletedAt
+                }
+            });
+            if (update.count > 0) {
+                await captureOperationSpendAwardRunInTransaction(
+                    tx,
+                    operationId,
+                    'WORKER_NO_INSTALLMENT',
+                    noInstallmentCompletedAt
+                );
+            }
+            return update;
+        });
+        if (noInstallmentCompleted.count === 0) {
             await accountPool.markAccountUsed(selectedAccount.id);
             return;
         }
+        await awardCompletedOperationPointsSafely(operationId);
 
         // Release account
         await accountPool.markAccountUsed(selectedAccount.id);
@@ -4620,18 +4740,30 @@ async function handleConfirmInstallmentHttp(
             return;
         }
 
-        const completed = await prisma.operation.updateMany({
-            where: {
-                id: operationId,
-                status: { notIn: TERMINAL_STATUS_LIST }
-            },
-            data: {
-                status: 'COMPLETED',
-                responseMessage: payResult.message,
-                completedAt: new Date(),
-                finalConfirmExpiry: null,
-                responseData: installmentCompletedResponseData
+        const installmentCompletedAt = new Date();
+        const completed = await prisma.$transaction(async (tx) => {
+            const update = await tx.operation.updateMany({
+                where: {
+                    id: operationId,
+                    status: { notIn: TERMINAL_STATUS_LIST }
+                },
+                data: {
+                    status: 'COMPLETED',
+                    responseMessage: payResult.message,
+                    completedAt: installmentCompletedAt,
+                    finalConfirmExpiry: null,
+                    responseData: installmentCompletedResponseData
+                }
+            });
+            if (update.count > 0) {
+                await captureOperationSpendAwardRunInTransaction(
+                    tx,
+                    operationId,
+                    'WORKER_INSTALLMENT',
+                    installmentCompletedAt
+                );
             }
+            return update;
         });
         if (completed.count === 0) {
             console.warn(`[HTTP] CONFIRM_INSTALLMENT completion skipped for ${operationId} due to terminal transition race`);

@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 type TransferUser = {
     id: string
     username: string
+    ownershipToken: string
 }
 
 type AgentOption = {
@@ -14,10 +16,20 @@ type AgentOption = {
     isActive: boolean
     profile: {
         displayName: string
-        defaultSourceGroup: string
+        defaultSourceGroup: string | null
         whatsappHandoffGroupUrl: string
         isActive: boolean
     }
+}
+
+type AssignmentUser = {
+    id: string
+    ownershipToken: string
+    activeAssignment: {
+        agentId: string
+        sourceGroup: string | null
+        whatsappGroupUrl: string | null
+    } | null
 }
 
 interface TransferToAgentDialogProps {
@@ -28,18 +40,24 @@ interface TransferToAgentDialogProps {
 }
 
 export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user }: TransferToAgentDialogProps) {
+    const { t } = useTranslation()
     const [agents, setAgents] = useState<AgentOption[]>([])
+    const [assignmentUser, setAssignmentUser] = useState<AssignmentUser | null>(null)
     const [agentId, setAgentId] = useState('')
     const [sourceGroup, setSourceGroup] = useState('')
     const [whatsappGroupUrl, setWhatsappGroupUrl] = useState('')
+    const [sourceGroupTouched, setSourceGroupTouched] = useState(false)
+    const [whatsappGroupUrlTouched, setWhatsappGroupUrlTouched] = useState(false)
     const [loadingAgents, setLoadingAgents] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [ownershipChanged, setOwnershipChanged] = useState(false)
 
     const selectedAgent = useMemo(
         () => agents.find((agent) => agent.id === agentId) || null,
         [agents, agentId]
     )
+    const isSameAgentTarget = assignmentUser?.activeAssignment?.agentId === selectedAgent?.id
 
     useEffect(() => {
         if (!isOpen) return
@@ -58,10 +76,14 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
 
                 if (cancelled) return
                 const activeAgents = (payload.agents || []).filter((agent: AgentOption) => agent.isActive && agent.profile?.isActive !== false)
+                const latestUser = (payload.users || []).find((item: AssignmentUser) => item.id === user?.id) || null
+                const initialAgentId = activeAgents.some((agent: AgentOption) => agent.id === latestUser?.activeAssignment?.agentId)
+                    ? latestUser?.activeAssignment?.agentId || ''
+                    : activeAgents[0]?.id || ''
                 setAgents(activeAgents)
-                setAgentId(activeAgents[0]?.id || '')
-                setSourceGroup(activeAgents[0]?.profile?.defaultSourceGroup || '')
-                setWhatsappGroupUrl(activeAgents[0]?.profile?.whatsappHandoffGroupUrl || '')
+                setAssignmentUser(latestUser)
+                setAgentId(initialAgentId)
+                setOwnershipChanged(false)
             } catch (err) {
                 if (!cancelled) {
                     setError(err instanceof Error ? err.message : 'Failed to load agents')
@@ -75,13 +97,18 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
         return () => {
             cancelled = true
         }
-    }, [isOpen])
+    }, [isOpen, user])
 
     useEffect(() => {
-        if (!selectedAgent) return
-        setSourceGroup((current) => current || selectedAgent.profile.defaultSourceGroup || '')
-        setWhatsappGroupUrl((current) => current || selectedAgent.profile.whatsappHandoffGroupUrl || '')
-    }, [selectedAgent])
+        const activeAssignment = assignmentUser?.activeAssignment ?? null
+        const sameAgentAssignment = activeAssignment?.agentId === selectedAgent?.id
+            ? activeAssignment
+            : null
+        setSourceGroup(sameAgentAssignment ? sameAgentAssignment.sourceGroup ?? '' : selectedAgent?.profile.defaultSourceGroup ?? '')
+        setWhatsappGroupUrl(sameAgentAssignment?.whatsappGroupUrl ?? '')
+        setSourceGroupTouched(false)
+        setWhatsappGroupUrlTouched(false)
+    }, [assignmentUser, selectedAgent])
 
     async function submitTransfer(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -91,18 +118,26 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
         setError(null)
 
         try {
+            const requestBody: Record<string, unknown> = {
+                userId: user.id,
+                agentId,
+                replaceExisting: true,
+                expectedOwnershipToken: assignmentUser?.ownershipToken || user.ownershipToken,
+            }
+            if (sourceGroupTouched) requestBody.sourceGroup = sourceGroup
+            if (whatsappGroupUrlTouched) requestBody.whatsappGroupUrl = whatsappGroupUrl
+
             const response = await fetch('/api/admin/agent-assignments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId: user.id,
-                    agentId,
-                    sourceGroup,
-                    whatsappGroupUrl,
-                    replaceExisting: true,
-                }),
+                body: JSON.stringify(requestBody),
             })
             const payload = await response.json().catch(() => null)
+            if (response.status === 409) {
+                setOwnershipChanged(true)
+                setError(t.common.ownershipChanged)
+                return
+            }
             if (!response.ok) {
                 throw new Error(payload?.error || payload?.reason || 'Failed to transfer user')
             }
@@ -120,7 +155,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200 border border-border">
+            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center p-4 border-b border-border">
                     <h3 className="font-bold text-foreground">Transfer to Agent: {user.username}</h3>
                     <button onClick={onClose} title="Close" className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
@@ -134,11 +169,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                         <select
                             value={agentId}
                             onChange={(event) => {
-                                const nextAgentId = event.target.value
-                                const nextAgent = agents.find((agent) => agent.id === nextAgentId)
-                                setAgentId(nextAgentId)
-                                setSourceGroup(nextAgent?.profile.defaultSourceGroup || '')
-                                setWhatsappGroupUrl(nextAgent?.profile.whatsappHandoffGroupUrl || '')
+                                setAgentId(event.target.value)
                             }}
                             disabled={loadingAgents}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
@@ -156,33 +187,61 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                         <span className="text-sm font-medium text-foreground">Source Group</span>
                         <input
                             value={sourceGroup}
-                            onChange={(event) => setSourceGroup(event.target.value)}
-                            placeholder={selectedAgent?.profile.defaultSourceGroup || 'main-group'}
+                            onChange={(event) => {
+                                setSourceGroup(event.target.value)
+                                setSourceGroupTouched(true)
+                            }}
+                            maxLength={120}
+                            placeholder={isSameAgentTarget
+                                ? t.common.withoutGroup
+                                : selectedAgent?.profile.defaultSourceGroup || t.common.withoutGroup}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                         />
+                        <span className="block text-xs text-muted-foreground">
+                            {t.common.agentDefaultSourceGroupHint}
+                        </span>
                     </label>
 
                     <label className="block space-y-2">
                         <span className="text-sm font-medium text-foreground">WhatsApp Group Link</span>
                         <input
                             value={whatsappGroupUrl}
-                            onChange={(event) => setWhatsappGroupUrl(event.target.value)}
+                            onChange={(event) => {
+                                setWhatsappGroupUrl(event.target.value)
+                                setWhatsappGroupUrlTouched(true)
+                            }}
+                            maxLength={500}
                             placeholder="https://chat.whatsapp.com/..."
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                         />
+                        <span className="block text-xs text-muted-foreground">
+                            {t.common.whatsappAssignmentHint}
+                        </span>
                     </label>
 
                     <p className="text-xs text-muted-foreground">
-                        This will remove manager/admin ownership and make the selected agent the active owner for future workflows.
+                        {t.common.transferPreservesAccountData}
                     </p>
 
                     {error && (
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg">
+                        <div className="space-y-2 rounded-lg bg-red-50 p-3 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400" role="alert">
                             {error}
+                            {ownershipChanged ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        onSuccess()
+                                        onClose()
+                                    }}
+                                    className="block font-semibold underline underline-offset-2"
+                                >
+                                    {t.common.refreshAndReconfirm}
+                                </button>
+                            ) : null}
                         </div>
                     )}
 
-                    <div className="flex gap-3 pt-2">
+                    <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row">
                         <button
                             type="button"
                             onClick={onClose}
@@ -192,7 +251,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                         </button>
                         <button
                             type="submit"
-                            disabled={submitting || loadingAgents || !agentId}
+                            disabled={submitting || loadingAgents || !agentId || ownershipChanged}
                             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2"
                         >
                             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}

@@ -77,9 +77,49 @@
 - Extend the current agent-only transfer path only: rejected because it does not support admin/manager targets and can preserve old links.
 - Add separate endpoints for every direction: rejected because it multiplies inconsistent rules.
 
+## Decision: Source Group Is Optional Assignment Metadata
+
+**Decision**: Store `AgentAssignment.sourceGroup` as nullable metadata. Omitted, explicitly cleared, and explicitly supplied values have distinct semantics; WhatsApp URL is resolved independently.
+
+**Rationale**: Source Group is only a label used by UI, filters, reports, and Telegram. It is not an ownership group and must not block transfer, balance visibility, credit handoff, or notification delivery.
+
+**Alternatives considered**:
+
+- Keep a required fake value such as `main-group`: rejected because it creates misleading data and hides truly ungrouped assignments.
+- Inherit the old agent's metadata when switching agents: rejected because it can expose a private group or route handoff to the wrong owner.
+
+## Decision: Lock Then Revalidate An Ownership Token
+
+**Decision**: Public ownership mutations require a versioned token over current ownership evidence. The canonical transaction locks the subject and relevant owners, re-reads state, and rejects a stale token with `409` without retry.
+
+**Rationale**: Application-level validation before a transaction cannot prevent two admins, legacy endpoints, or completion-time point capture from racing. A shared user lock serializes cross-table ownership evidence that no single index can cover.
+
+**Alternatives considered**:
+
+- Last write wins: rejected because it can silently overwrite another admin's decision.
+- Automatic retry with refreshed ownership: rejected because it would confirm a materially different state without the admin seeing it.
+- Rely only on unique indexes: rejected because manager and agent ownership live in different tables.
+
+## Decision: Exact Match Is A No-Op And Same-Agent Metadata Updates In Place
+
+**Decision**: Do not close/recreate an assignment when owner and metadata already match; update the existing row for a same-agent metadata change.
+
+**Rationale**: Recreating rows creates audit noise, changes assignment identity/timestamps, and makes concurrent retries harder to reason about.
+
+**Alternatives considered**:
+
+- Always recreate: rejected because it treats idempotent retry as ownership churn.
+- Mutate history for different-agent transfers: rejected because old inactive rows and request snapshots are historical evidence.
+
+## Decision: Historical Null Source Group Remains Null
+
+**Decision**: A credit request with `sourceGroupSnapshot = null` never falls back to a later assignment Source Group. Destination URL fallback remains independent and may use current assignment, agent, then global settings.
+
+**Rationale**: Request snapshots describe the request at creation. Inferring a later group changes historical reporting and may mislabel notifications, while destination fallback is an explicit operational routing rule.
+
 ## Decision: Strict Ownership Indexes Are Deferred Until Data Audit
 
-**Decision**: Do not add strict database uniqueness constraints for current ownership until an audit checks existing production data.
+**Decision**: Keep the existing active-agent uniqueness protection. Add unique `ManagerUser.userId` only after an audit checks/repairs production data; retain transaction locking permanently.
 
 **Rationale**: Existing data may already contain duplicate manager links or duplicate active agent assignments. Adding constraints without cleanup can fail deploy.
 

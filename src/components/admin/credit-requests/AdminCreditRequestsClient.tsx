@@ -15,6 +15,13 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useTranslation } from '@/hooks/useTranslation'
+import {
+    applyCreditRequestSourceGroupFilter,
+    decodeCreditRequestSourceGroupOption,
+    encodeCreditRequestSourceGroupOption,
+    type CreditRequestSourceGroupSelection,
+} from '@/lib/credit-requests/source-group-filter'
 
 type CreditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
 type Decision = 'APPROVE' | 'REJECT' | 'CANCEL'
@@ -85,6 +92,8 @@ type ApiResponse = {
     filters: {
         agents: Array<{ id: string; name: string; username: string }>
         sourceGroups: string[]
+        hasNoSourceGroup: boolean
+        noSourceGroupCount: number
     }
     items: AdminCreditRequestItem[]
 }
@@ -224,9 +233,10 @@ function SummaryCard({
 }
 
 export default function AdminCreditRequestsClient() {
+    const { t } = useTranslation()
     const [status, setStatus] = useState<CreditRequestStatus | 'ALL'>('PENDING')
     const [agentId, setAgentId] = useState('')
-    const [sourceGroup, setSourceGroup] = useState('')
+    const [sourceGroupFilter, setSourceGroupFilter] = useState<CreditRequestSourceGroupSelection>({ mode: 'ALL' })
     const [escalationFilter, setEscalationFilter] = useState<'ALL' | 'ESCALATED' | 'NORMAL'>('ALL')
     const [search, setSearch] = useState('')
     const [data, setData] = useState<ApiResponse | null>(null)
@@ -241,12 +251,12 @@ export default function AdminCreditRequestsClient() {
         const params = new URLSearchParams({ page: '1', limit: '25' })
         if (status !== 'ALL') params.set('status', status)
         if (agentId) params.set('agentId', agentId)
-        if (sourceGroup) params.set('sourceGroup', sourceGroup)
+        applyCreditRequestSourceGroupFilter(params, sourceGroupFilter)
         if (escalationFilter === 'ESCALATED') params.set('escalated', 'true')
         if (escalationFilter === 'NORMAL') params.set('escalated', 'false')
         if (search.trim()) params.set('search', search.trim())
         return params.toString()
-    }, [agentId, escalationFilter, search, sourceGroup, status])
+    }, [agentId, escalationFilter, search, sourceGroupFilter, status])
 
     const loadData = useCallback(async () => {
         setLoading(true)
@@ -412,13 +422,23 @@ export default function AdminCreditRequestsClient() {
                             ))}
                         </select>
                         <select
-                            value={sourceGroup}
-                            onChange={(event) => setSourceGroup(event.target.value)}
+                            value={encodeCreditRequestSourceGroupOption(sourceGroupFilter)}
+                            onChange={(event) => setSourceGroupFilter(decodeCreditRequestSourceGroupOption(event.target.value))}
                             className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                         >
-                            <option value="">All groups</option>
+                            <option value={encodeCreditRequestSourceGroupOption({ mode: 'ALL' })}>{t.common.allGroups}</option>
+                            {data?.filters.hasNoSourceGroup ? (
+                                <option value={encodeCreditRequestSourceGroupOption({ mode: 'NONE' })}>
+                                    {t.common.withoutGroup} ({data.filters.noSourceGroupCount})
+                                </option>
+                            ) : null}
                             {(data?.filters.sourceGroups || []).map((group) => (
-                                <option key={group} value={group}>{group}</option>
+                                <option
+                                    key={group}
+                                    value={encodeCreditRequestSourceGroupOption({ mode: 'VALUE', value: group })}
+                                >
+                                    {group}
+                                </option>
                             ))}
                         </select>
                         <select
@@ -486,7 +506,7 @@ export default function AdminCreditRequestsClient() {
                                             <td className="px-3 py-3">
                                                 <div className="text-foreground">{item.ownerLabel || item.agentName || '-'}</div>
                                                 <div className="text-xs text-muted-foreground">
-                                                    {item.ownerType === 'AGENT' ? item.sourceGroup || '-' : item.ownerType || '-'}
+                                                    {item.ownerType === 'AGENT' ? item.sourceGroup || t.common.withoutGroup : item.ownerType || '-'}
                                                 </div>
                                             </td>
                                             <td className="px-3 py-3">

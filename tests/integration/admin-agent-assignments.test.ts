@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildAgentOwnedUserFilter } from '@/lib/admin/users-ownership-filter'
+import { buildOwnershipToken } from '../../shared/db/ownership-evidence-lock'
 
 const runDbIntegration =
     process.env.RUN_DB_INTEGRATION === '1' ||
@@ -22,6 +23,29 @@ async function createUser(
     })
 }
 
+async function ownershipToken(
+    prisma: Awaited<typeof import('@/lib/prisma')>['default'],
+    userId: string,
+) {
+    const [managerLinks, activeAssignments] = await Promise.all([
+        prisma.managerUser.findMany({
+            where: { userId },
+            select: { id: true, managerId: true },
+        }),
+        prisma.agentAssignment.findMany({
+            where: { userId, isActive: true },
+            select: {
+                id: true,
+                agentId: true,
+                updatedAt: true,
+                sourceGroup: true,
+                whatsappGroupUrl: true,
+            },
+        }),
+    ])
+    return buildOwnershipToken({ managerLinks, activeAssignments })
+}
+
 test('transfers manager-owned user to agent ownership', { skip: !runDbIntegration }, async () => {
     const { default: prisma } = await import('@/lib/prisma')
     const { transferUserToAgent } = await import('@/lib/agents/assignment-transfer')
@@ -40,6 +64,7 @@ test('transfers manager-owned user to agent ownership', { skip: !runDbIntegratio
             agentId: agent.id,
             sourceGroup: 'group-a',
             replaceExisting: true,
+            expectedOwnershipToken: await ownershipToken(prisma, user.id),
             adminUserId: admin.id,
             ipAddress: 'test',
         })
@@ -86,6 +111,7 @@ test('reassigns agent-owned user to another agent', { skip: !runDbIntegration },
             agentId: newAgent.id,
             sourceGroup: 'new-group',
             replaceExisting: true,
+            expectedOwnershipToken: await ownershipToken(prisma, user.id),
             adminUserId: admin.id,
             ipAddress: 'test',
         })
@@ -104,6 +130,79 @@ test('reassigns agent-owned user to another agent', { skip: !runDbIntegration },
         await prisma.activityLog.deleteMany({ where: { userId: admin.id } })
         await prisma.agentAssignment.deleteMany({ where: { userId: user.id } })
         await prisma.user.deleteMany({ where: { id: { in: [admin.id, oldAgent.id, newAgent.id, user.id] } } })
+    }
+})
+
+test('transfer with null Source Group preserves all financial records and values', { skip: !runDbIntegration }, async () => {
+    const { default: prisma } = await import('@/lib/prisma')
+    const { transferUserToAgent } = await import('@/lib/agents/assignment-transfer')
+    const suffix = `${Date.now()}-financial`
+    const admin = await createUser(prisma, suffix, 'ADMIN')
+    const agent = await createUser(prisma, suffix, 'AGENT')
+    const user = await createUser(prisma, suffix, 'USER')
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { balance: 321.75, creditDebtLimitUsd: 500 },
+    })
+    const operation = await prisma.operation.create({
+        data: {
+            userId: user.id,
+            type: 'RENEW',
+            cardNumber: `75${Date.now()}`,
+            amount: 87.5,
+        },
+    })
+    const transaction = await prisma.transaction.create({
+        data: {
+            userId: user.id,
+            adminId: admin.id,
+            operationId: operation.id,
+            type: 'DEPOSIT',
+            amount: 321.75,
+            balanceAfter: 321.75,
+        },
+    })
+    const pointEntry = await prisma.pointLedgerEntry.create({
+        data: {
+            ownerUserId: user.id,
+            ownerRoleAtTime: 'USER',
+            sourceType: 'ADMIN_ADJUSTMENT',
+            sourceId: `transfer-financial-${suffix}`,
+            points: 7,
+            status: 'AVAILABLE',
+        },
+    })
+
+    try {
+        const before = await prisma.user.findUniqueOrThrow({
+            where: { id: user.id },
+            select: { balance: true, creditDebtLimitUsd: true },
+        })
+        const result = await transferUserToAgent({
+            userId: user.id,
+            agentId: agent.id,
+            sourceGroup: null,
+            expectedOwnershipToken: await ownershipToken(prisma, user.id),
+            adminUserId: admin.id,
+            ipAddress: 'test',
+        })
+        const after = await prisma.user.findUniqueOrThrow({
+            where: { id: user.id },
+            select: { balance: true, creditDebtLimitUsd: true },
+        })
+
+        assert.equal(result.assignment.sourceGroup, null)
+        assert.deepEqual(after, before)
+        assert.equal(await prisma.operation.count({ where: { id: operation.id, userId: user.id } }), 1)
+        assert.equal(await prisma.transaction.count({ where: { id: transaction.id, userId: user.id } }), 1)
+        assert.equal(await prisma.pointLedgerEntry.count({ where: { id: pointEntry.id, ownerUserId: user.id } }), 1)
+    } finally {
+        await prisma.activityLog.deleteMany({ where: { userId: admin.id } })
+        await prisma.agentAssignment.deleteMany({ where: { userId: user.id } })
+        await prisma.pointLedgerEntry.deleteMany({ where: { id: pointEntry.id } })
+        await prisma.transaction.deleteMany({ where: { id: transaction.id } })
+        await prisma.operation.deleteMany({ where: { id: operation.id } })
+        await prisma.user.deleteMany({ where: { id: { in: [admin.id, agent.id, user.id] } } })
     }
 })
 

@@ -353,6 +353,94 @@
 
 ---
 
+## Phase 8: 2026-08-06 Amendment - Optional Source Group And Hardened Ownership
+
+**Purpose**: Implement the approved nullable Source Group and concurrency-safe transfer behavior without changing financial/history data. These tasks supersede any earlier statement that Source Group is required.
+
+- [ ] T042 [P] Add Source Group and WhatsApp presence-semantics unit tests in `tests/unit/agent-assignment-transfer.test.ts` and `tests/unit/user-ownership-transfer.test.ts`
+  - **Reason**: Omitted, explicit clear, explicit value, same-agent preserve, and new-agent default are different business commands that current code collapses.
+  - **Expected**: Failing-first tests cover `EXPLICIT`, `CLEARED`, `PRESERVED`, `AGENT_DEFAULT`, and `NONE`, nullable results, independent WhatsApp behavior, 120-character validation, exact no-op, and same-agent update.
+  - **Possible bugs**: Empty text can accidentally trigger an agent default; switching agents can retain the old group's URL or label.
+  - **Fix/Mitigation**: Assert property presence separately from normalized value and build fixtures for both same-agent and different-agent targets.
+  - **Verification**: `npx tsx --test tests/unit/agent-assignment-transfer.test.ts tests/unit/user-ownership-transfer.test.ts` fails before implementation and passes after T046-T047.
+
+- [ ] T043 [P] Add PostgreSQL ownership concurrency and financial-invariant tests in `tests/integration/admin-user-ownership-transfer.test.ts` and `tests/integration/admin-agent-assignments.test.ts`
+  - **Reason**: Row locks, stale tokens, rollback, compatibility behavior, and untouched balances/history cannot be proven by pure mocks.
+  - **Expected**: Tests cover active `USER` transfer from every owner type, non-zero balance/debt/limits/operations/transactions/points, missing `428`, stale different-state `409`, concurrent identical duplicate `NO_OP` with null audit id, uniqueness races, same-agent update, legacy GET token plus POST/DELETE, create-under-agent, former/new-agent live access versus request-snapshot history, and injected rollback.
+  - **Possible bugs**: Tests may pass sequentially while production races; assertions may overlook a changed financial column or historical row count.
+  - **Fix/Mitigation**: Use two database connections/barriers for concurrency and snapshot every financial field plus related row ids/counts before and after.
+  - **Verification**: `npx tsx --test tests/integration/admin-user-ownership-transfer.test.ts tests/integration/admin-agent-assignments.test.ts` against the isolated PostgreSQL test database.
+
+- [ ] T044 [P] Add no-group/handoff tests in `tests/unit/credit-request-whatsapp-handoff.test.ts`, `tests/unit/credit-request-telegram.test.ts`, `tests/integration/admin-credit-requests-source-group-filter.test.ts`, and `tests/e2e/admin-user-ownership-transfer.spec.ts`
+  - **Reason**: Null Source Group must remain visible/selectable and must not inherit a later group, while handoff URL fallback continues independently.
+  - **Expected**: Tests in `tests/unit/credit-request-whatsapp-handoff.test.ts`, `tests/unit/credit-request-telegram.test.ts`, a focused admin credit-request filter test, and component/Playwright coverage prove null history, `sourceGroupMode=NONE`, invalid-mode rejection, loading/error/empty results, omitted Group line, agent-owned URL fallback, admin-owned global-only fallback, and AR/EN/BN no-group labels.
+  - **Possible bugs**: A null snapshot can fall back to current assignment metadata; a sentinel string can collide with a real group; UI can send blank instead of omitting.
+  - **Fix/Mitigation**: Assert SQL/filter shape uses null, request payload property presence, and URL resolution separately from label resolution.
+  - **Verification**: Run the focused unit/API/component tests and `npx playwright test tests/e2e/admin-user-ownership-transfer.spec.ts`.
+
+- [ ] T045 Add nullable Source Group migration and synchronized Prisma models in `prisma/schema.prisma`, `worker/prisma/schema.prisma`, and a new additive migration
+  - **Reason**: The database currently rejects valid ungrouped assignments even if API validation is relaxed.
+  - **Expected**: `AgentAssignment.sourceGroup` is `String?` in both schemas; migration only drops `NOT NULL`; old values remain byte-for-byte unchanged and new null rows insert successfully.
+  - **Possible bugs**: App/Worker schemas can drift; an unsafe rollback/backfill can rewrite historical group data.
+  - **Fix/Mitigation**: Use identical targeted schema edits, no data update statement, schema-sync validation, and document forward-fix rollback.
+  - **Verification**: `npx prisma validate`, Worker Prisma validation, schema-sync command, and clean/upgraded PostgreSQL migration tests.
+
+- [ ] T046 Implement shared row locks in `shared/db/ownership-evidence-lock.ts` plus nullable assignment resolution and ownership-token helpers in `src/lib/agents/assignment-transfer.ts` and `src/lib/users/ownership-transfer.ts`
+  - **Reason**: All callers need one definition of omitted/clear/default/preserve semantics and one canonical state precondition.
+  - **Expected**: Helpers lock the subject then lexical current/target owner user ids with `SELECT ... FOR UPDATE`, return nullable values plus resolution mode, normalize 120-character Source Group and validated WhatsApp independently, and compute deterministic `ow1.*` tokens from sorted current ownership evidence.
+  - **Possible bugs**: JSON/key ordering or timestamps can make identical states hash differently; raw WhatsApp values can leak into token/audit inputs.
+  - **Fix/Mitigation**: Canonicalize only stable safe fields, sort relation evidence, version the digest, and store only configured state/digest for WhatsApp.
+  - **Verification**: T042 tests plus deterministic-token fixtures pass.
+
+- [ ] T047 Harden the canonical ownership transaction in `src/lib/users/ownership-transfer.ts`
+  - **Reason**: Current transfer closes/recreates rows without locks, rejects missing Source Group, logs raw URL, and cannot distinguish no-op from conflict.
+  - **Expected**: Service locks subject/owners deterministically, re-reads and validates active `USER`/targets/token, returns `428`/`409`, preserves all financial/history data, supports no-op and same-agent in-place update, cleans dirty ownership atomically, maps residual uniqueness conflicts, and writes one redacted audit only for real changes.
+  - **Possible bugs**: Lock-order inversion can deadlock; no-op detection can bypass stale-state safety; cleanup can touch inactive history.
+  - **Fix/Mitigation**: Share lock order with point capture, compare the full desired durable state, mutate only current rows, and keep all validation inside the transaction.
+  - **Verification**: T042-T043 tests, transaction rollback injection, and audit redaction assertions pass.
+
+- [ ] T048 Expose tokens from `src/app/api/admin/users/route.ts` and `src/app/api/admin/agent-assignments/route.ts`, then delegate mutations in those routes and `src/app/api/admin/user-ownership/route.ts`
+  - **Reason**: The unified and legacy UIs cannot satisfy the precondition unless `src/app/api/admin/users/route.ts` and GET `src/app/api/admin/agent-assignments/route.ts` return current tokens; any direct writer can bypass nullable metadata, locks, and audit.
+  - **Expected**: Both GETs batch-classify listed users without N+1 queries and return token plus nullable current assignment metadata; `/api/admin/user-ownership`, `/api/admin/agent-assignments` POST/DELETE, and admin user creation delegate to canonical paths; public mutations preserve tri-state properties/token errors and legacy response/error/delete/`replaceExisting=false` semantics.
+  - **Possible bugs**: Route parsing can collapse `undefined` into `null`; internal user creation can be blocked by a token it cannot yet have; delete can unexpectedly reattach to admin.
+  - **Fix/Mitigation**: Check own-property presence, expose a narrow trusted-new-user entry point, and retain unowned/legacy delete outcome.
+  - **Verification**: T043 contract/integration suite and authorization tests pass.
+
+- [ ] T049 Make snapshots/reports safe in `src/lib/credit-requests/whatsapp-handoff.ts`, `src/lib/credit-requests/telegram.ts`, and `src/app/api/admin/credit-requests/route.ts`
+  - **Reason**: A null historical snapshot currently can inherit current assignment Source Group, and null rows cannot be selected by existing filters.
+  - **Expected**: Group labels use request snapshot only, Telegram omits absent Group, WhatsApp URL fallback remains operational and independent, `sourceGroupMode=NONE` selects null snapshots, and filter metadata exposes ungrouped availability/count.
+  - **Possible bugs**: Removing group fallback can accidentally remove URL fallback; agent/admin scoping can be weakened by the new filter.
+  - **Fix/Mitigation**: Separate label and destination resolvers and apply the null predicate inside existing authorization scope.
+  - **Verification**: T044 focused handoff/Telegram/filter tests pass for admin and agent scopes.
+
+- [ ] T050 Update `TransferOwnershipDialog.tsx`, `UsersTable.tsx`, `AdminAgentsClient.tsx`, agent/credit clients, and `src/i18n/translations/{ar,en,bn}.ts`
+  - **Reason**: Current dialogs use fake `main-group`, hardcoded English, required guards, and state that leaks old agent metadata.
+  - **Expected**: Unified dialog uses the existing Radix primitive, does not auto-select a target, distinguishes untouched from cleared fields, resets metadata on agent switch, surfaces `409` refresh guidance, and tables/forms implement localized loading, empty, invalid-filter, retry, and no-group states; all affected API/component types use `string | null`.
+  - **Possible bugs**: RTL layout or accessibility can regress; fake defaults can return through legacy/dead UI; a stale dialog can overwrite current data.
+  - **Fix/Mitigation**: Reuse design-system controls/tokens, update or remove the unreferenced old dialog, add focus/error states, and cover LTR/RTL payload behavior.
+  - **Verification**: Typecheck/build, localization parity checks, component tests, and T044 Playwright flow pass.
+
+- [ ] T051 Add production audit in `src/lib/users/ownership-audit.ts` and `scripts/audit-user-ownership.ts` and gate the one-manager-owner constraint
+  - **Reason**: A unique `ManagerUser.userId` constraint can fail deployment or conceal conflicting production ownership unless data is reviewed first.
+  - **Expected**: Audit reports safe counts/sample ids for duplicate manager links, duplicate active assignments, mixed manager+agent ownership, and legacy/unowned users; no constraint migration is activated until results are accepted; application locks remain in place afterward.
+  - **Possible bugs**: Audit output can expose PII or scan unbounded tables; a constraint can be applied before cleanup.
+  - **Fix/Mitigation**: Emit ids/counts only, use indexed/grouped queries, require explicit reviewed release evidence, and keep constraint delivery separate/gated.
+  - **Verification**: Run the audit against an approved read-only production connection before any constraint deploy and attach reviewed counts to release evidence.
+
+- [ ] T052 Conditionally add one-manager-owner-per-user Prisma migration after accepted production audit
+  - **Reason**: Application locking prevents races, but a reviewed database uniqueness constraint adds durable defense against direct or future writers.
+  - **Expected**: Only after T051 evidence shows zero duplicate `ManagerUser.userId` rows, a separate additive migration creates the unique constraint/index; dirty results stop this task for cleanup/review, and cross-table user locks remain unchanged.
+  - **Possible bugs**: Applying before cleanup can fail production deploy; removing locks afterward can reintroduce manager-versus-agent races.
+  - **Fix/Mitigation**: Require attached accepted audit evidence, use `prisma migrate deploy`, keep rollback/forward-fix notes, and never remove canonical locks.
+  - **Verification**: Run upgraded-database migration test, confirm duplicate fixture fails safely, and verify the accepted production audit immediately before deploy.
+
+- [ ] T053 Run full ownership/source-group verification and update deployment evidence
+  - **Reason**: The combined change spans migration, web, Worker schema, historical reports, UI, and concurrency-sensitive financial boundaries.
+  - **Expected**: Focused unit/integration/PostgreSQL tests, Prisma sync, web/Worker builds, Playwright, diff/mojibake scan, and production audit all pass; deployment uses `prisma migrate deploy` and does not rewrite old values.
+  - **Possible bugs**: Local mocks can hide PostgreSQL locking/type behavior; build can pass while old Worker client is deployed.
+  - **Fix/Mitigation**: Require real PostgreSQL concurrency tests, generate/validate both clients, deploy migration before compatible code, and smoke-test both admin and agent visibility.
+  - **Verification**: Execute the commands in `quickstart.md`, `git diff --check`, mojibake scan, and the repository's standard production deploy checklist.
+
 ## Dependencies And Execution Order
 
 - Phase 1 tests should be written before implementation changes.
@@ -360,6 +448,8 @@
 - User Stories 1 and 2 form the MVP for admin-owned credit requests.
 - User Story 3 can start after Phase 2 but should ship after the credit request MVP if the work is split.
 - User Story 4 depends on transfer endpoints and admin users API owner fields.
+- Amendment tests T042-T044 must fail first; T045-T046 then unblock canonical service T047, route adapters T048, historical reporting T049, and UI T050.
+- T051 production audit gates conditional constraint T052 but does not gate the application lock implementation; T053 is the final combined release gate.
 - Final verification depends on all selected stories for the release.
 
 ## Parallel Opportunities
@@ -368,11 +458,13 @@
 - T009 through T012 can proceed in parallel after the owner evidence shape is agreed.
 - T018 through T024 can be implemented in parallel with T025 through T030 if separate agents own credit notifications/handoff and ownership transfer.
 - T033 through T035 can proceed after endpoint contracts stabilize.
+- After T045-T046, T047-T049 can be split by exclusive service/API/report files; T050 starts after response contracts stabilize.
 
 ## Implementation Strategy
 
 1. Build owner classification and tests.
 2. Ship MVP: admin-owned credit requests plus notification and WhatsApp handoff fixes.
-3. Add unified ownership transfer service and endpoints.
-4. Update admin UI for current owner display and transfer target selection.
-5. Run audit, focused tests, build checks, and deploy safety checks.
+3. Add failing amendment tests, nullable migration, tri-state resolver, token, and shared lock discipline.
+4. Harden the unified service and delegate every legacy/create/delete mutation path.
+5. Make historical reporting/handoff null-safe and update localized UI/current owner metadata.
+6. Run the production audit gate, PostgreSQL concurrency suite, builds, Playwright, and deploy safety checks.

@@ -87,7 +87,7 @@ Represents `AgentAssignment` rows.
 - `id`
 - `agentId`
 - `userId`
-- `sourceGroup`
+- `sourceGroup` (`string | null`)
 - `isActive`
 - `assignedByAdminId`
 - `createdAt`
@@ -98,13 +98,13 @@ Represents `AgentAssignment` rows.
 
 - New assignment: `isActive=true`, `endedAt=null`.
 - Replaced assignment: `isActive=false`, `endedAt=<transfer time>`.
-- Same-agent source group refresh: old active row can be ended and a new row created to preserve an audit trail, or updated in place if implementation chooses lower churn. The tasks select the audit-trail approach.
+- Same-agent metadata change updates the existing active row in place; an exact match is a no-op.
 
 **Validation rules**:
 
 - Target agent must be a valid active agent.
 - Target user must be a valid active user.
-- Source group must be non-empty after fallback to the agent default.
+- Source Group may be null; non-empty values are trimmed and limited to 120 characters. Omitted uses same-agent preserve or new-agent default/null, while explicit blank/null clears.
 - After transfer, the user must have exactly one active assignment.
 
 ## Transfer Result
@@ -116,7 +116,7 @@ Logical result returned by the transfer service.
 - `assignmentId`
 - `userId`
 - `agentId`
-- `sourceGroup`
+- `sourceGroup` (`string | null`)
 - `previousManagerOwnerIds`
 - `previousAgentAssignmentIds`
 - `replacedOwnership`
@@ -149,4 +149,4 @@ Counts and point summaries must be batched for the current page. Do not query co
 - Historical `AgentAssignment` rows stay in the database.
 - Historical `ManagerUser` relationship rows are removed only for users transferred to an agent.
 - Existing operations, credit requests, point ledger entries, redemptions, and transactions are not recalculated.
-- Future points use the current active assignment and current ownership rows.
+- Operations completed after transfer capture the then-current assignment; operations completed before transfer retain their immutable completion-time point owner and are never re-routed at award/finalization time.

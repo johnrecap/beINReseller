@@ -112,6 +112,13 @@ enum PointLedgerStatus {
   CANCELLED
 }
 
+enum OperationSpendAwardRunStatus {
+  CAPTURED
+  AWARDED
+  SKIPPED
+  LEGACY_REVIEW_REQUIRED
+}
+
 enum RewardRedemptionStatus {
   PENDING
   APPROVED
@@ -271,7 +278,7 @@ model AgentAssignment {
   id                String    @id @default(cuid())
   agentId           String    @map("agent_id")
   userId            String    @map("user_id")
-  sourceGroup       String    @map("source_group")
+  sourceGroup       String?   @map("source_group")
   whatsappGroupUrl  String?   @map("whatsapp_group_url")
   isActive          Boolean   @default(true) @map("is_active")
   assignedByAdminId String?   @map("assigned_by_admin_id")
@@ -399,6 +406,7 @@ model PointProgramSettings {
   cashConversionPoints          Float     @default(0) @map("cash_conversion_points")
   cashConversionAmountUsd       Float     @default(0) @map("cash_conversion_amount_usd")
   managerOwnedUserPointsEnabled Boolean   @default(false) @map("manager_owned_user_points_enabled")
+  operationSpendSnapshotCutoverAt DateTime? @map("operation_spend_snapshot_cutover_at")
   updatedByAdminId              String?   @map("updated_by_admin_id")
   createdAt                     DateTime  @default(now()) @map("created_at")
   updatedAt                     DateTime  @updatedAt @map("updated_at")
@@ -416,6 +424,7 @@ model PointLedgerEntry {
   sourceId                String                @map("source_id")
   creditRequestId         String?               @map("credit_request_id")
   operationId             String?               @map("operation_id")
+  operationSpendAwardRunId String?               @map("operation_spend_award_run_id")
   points                  Float
   status                  PointLedgerStatus     @default(PENDING)
   ratePerThousandSnapshot Float?                @map("rate_per_thousand_snapshot")
@@ -429,18 +438,58 @@ model PointLedgerEntry {
   owner               User                 @relation("PointLedgerOwner", fields: [ownerUserId], references: [id])
   creditRequest       CreditRequest?       @relation(fields: [creditRequestId], references: [id], onDelete: SetNull)
   operation           Operation?           @relation("OperationPointLedgerEntries", fields: [operationId], references: [id], onDelete: SetNull)
+  operationSpendAwardRun OperationSpendAwardRun? @relation(fields: [operationSpendAwardRunId], references: [id], onDelete: Restrict)
   createdBy           User?                @relation("PointLedgerCreator", fields: [createdById], references: [id])
   releasedByAdmin     User?                @relation("PointLedgerReleaser", fields: [releasedByAdminId], references: [id])
   rewardRedemption    RewardRedemption?    @relation("RewardRedemptionLedger")
   pointCashRedemption PointCashRedemption? @relation("PointCashRedemptionLedger")
 
   @@unique([ownerUserId, sourceType, sourceId])
+  @@unique([operationSpendAwardRunId, ownerUserId])
   @@index([ownerUserId, status])
   @@index([ownerUserId, status, sourceType])
   @@index([sourceType, sourceId])
   @@index([creditRequestId])
   @@index([operationId])
+  @@index([operationSpendAwardRunId])
   @@map("point_ledger_entries")
+}
+
+model OperationSpendAwardRun {
+  id                                    String                       @id @default(cuid())
+  operationId                           String                       @unique @map("operation_id")
+  policyVersion                         String                       @map("policy_version")
+  completionSource                      String                       @map("completion_source")
+  completedAtSnapshot                   DateTime?                    @map("completed_at_snapshot")
+  operationTypeSnapshot                 OperationType                @map("operation_type_snapshot")
+  amountUsdSnapshot                     Float                        @map("amount_usd_snapshot")
+  operationUserIdSnapshot               String?                      @map("operation_user_id_snapshot")
+  ownershipKindSnapshot                 String?                      @map("ownership_kind_snapshot")
+  ownershipOwnerIdSnapshot              String?                      @map("ownership_owner_id_snapshot")
+  pointsEnabledSnapshot                 Boolean?                     @map("points_enabled_snapshot")
+  pointsStartAtSnapshot                 DateTime?                    @map("points_start_at_snapshot")
+  managerOwnedUserPointsEnabledSnapshot Boolean?                     @map("manager_owned_user_points_enabled_snapshot")
+  ownershipEvidenceSnapshot             Json?                        @map("ownership_evidence_snapshot")
+  recipientsSnapshot                    Json?                        @map("recipients_snapshot")
+  status                                OperationSpendAwardRunStatus
+  reasonCode                            String?                      @map("reason_code")
+  ledgerEntryCount                      Int                          @default(0) @map("ledger_entry_count")
+  finalizationAttemptCount              Int                          @default(0) @map("finalization_attempt_count")
+  lastFinalizationAttemptAt             DateTime?                    @map("last_finalization_attempt_at")
+  nextFinalizationAttemptAt             DateTime?                    @map("next_finalization_attempt_at")
+  lastFinalizationErrorCode             String?                      @map("last_finalization_error_code")
+  capturedAt                            DateTime                     @default(now()) @map("captured_at")
+  finalizedAt                           DateTime?                    @map("finalized_at")
+  createdAt                             DateTime                     @default(now()) @map("created_at")
+  updatedAt                             DateTime                     @updatedAt @map("updated_at")
+
+  operation     Operation          @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  ledgerEntries PointLedgerEntry[]
+
+  @@index([status, capturedAt])
+  @@index([status, nextFinalizationAttemptAt, capturedAt], map: "op_spend_award_retry_due_idx")
+  @@index([completionSource, capturedAt])
+  @@map("operation_spend_award_runs")
 }
 
 model PointCashRedemption {
@@ -718,6 +767,7 @@ model Operation {
   beinAccount            BeinAccount?              @relation(fields: [beinAccountId], references: [id])
   transactions           Transaction[]             @relation("OperationTransactions")
   pointLedgerEntries     PointLedgerEntry[]        @relation("OperationPointLedgerEntries")
+  operationSpendAwardRun OperationSpendAwardRun?
   integrityIssues        OperationIntegrityIssue[]
   dispatches             OperationDispatch[]
   chargedBeinSpendLedger BeinAccountSpendLedger?   @relation("OperationChargedBeinSpendLedger")

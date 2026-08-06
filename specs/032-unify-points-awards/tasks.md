@@ -98,30 +98,30 @@
 
 **Independent Test**: Same operation fixture produces the same point recipients through web, worker, recovery, and manual charged completion.
 
-- [x] T011 [US1] Refactor web award wrapper in `src/lib/points/operation-awards.ts`
+- [x] T011 [US1] Refactor web award wrapper baseline in `src/lib/points/operation-awards.ts` (superseded by run finalization in T034/T037)
   - Reason: Web completion and recovery already call this wrapper, so it must become a shared-policy adapter.
   - Expected: Wrapper returns stable skipped reasons and awarded entries from shared policy decisions.
   - Possible bugs: Existing skipped-reason values can change and break admin diagnostics.
   - Fix/Mitigation: Preserve current reason names where possible and map new policy reasons explicitly.
   - Verification: `npx tsx --test tests/unit/points-operation-awards.test.ts`.
 
-- [x] T012 [US1] Refactor worker award wrapper in `worker/src/lib/points.ts`
+- [x] T012 [US1] Refactor worker award wrapper baseline in `worker/src/lib/points.ts` (superseded by run finalization in T034/T035)
   - Reason: Worker handles most live renewals and must match web behavior exactly.
   - Expected: Worker calls the same shared policy, resolves the same rate buckets, and writes the same entry shape.
   - Possible bugs: Worker entry status or notes can drift from web entry shape.
   - Fix/Mitigation: Keep entry creation fields aligned and assert shape in worker tests.
   - Verification: `npx tsx --test tests/unit/worker-points-awards.test.ts`.
 
-- [x] T013 [US1] Wire manual financial-review completion in `src/app/api/admin/financial-review/[operationId]/decision/route.ts`
+- [x] T013 [US1] Wire manual financial-review award baseline in `src/app/api/admin/financial-review/[operationId]/decision/route.ts` (superseded by atomic capture in T036)
   - Reason: Manual charged closure should not miss operation-spend points.
-  - Expected: When a decision transitions an operation to completed/charged, the route calls `processCompletedOperationPoints` once after the state change.
+  - Expected: Historical baseline calls `processCompletedOperationPoints` after the state change; T036 replaces this with capture inside the completion transaction and post-commit finalization.
   - Possible bugs: Calling awards on non-completed or already-reviewed operations can create confusing logs or unnecessary work.
   - Fix/Mitigation: Gate the call on a successful completed transition and rely on ledger idempotency.
   - Verification: `npx tsx --test tests/unit/financial-review-points-awards.test.ts`.
 
-- [x] T014 [US1] Confirm recovery still uses the web wrapper in `src/lib/operations/recovery.ts`
+- [x] T014 [US1] Confirm recovery wrapper baseline in `src/lib/operations/recovery.ts` (superseded by atomic capture in T036)
   - Reason: Recovery must benefit from the shared policy without adding a second implementation.
-  - Expected: Recovery keeps calling the web wrapper and inherits the shared policy.
+  - Expected: Historical baseline calls the web wrapper; T036 replaces this with in-transaction capture and post-commit finalization.
   - Possible bugs: Recovery can swallow award failures silently and hide skipped reasons.
   - Fix/Mitigation: Keep safe error logging with operation id and skipped reason only.
   - Verification: `npx tsx --test tests/unit/operation-recovery-classifier.test.ts tests/unit/points-operation-awards.test.ts`.
@@ -157,7 +157,7 @@
   - Fix/Mitigation: Require a valid admin/direct, agent, manager, or legacy admin fallback ownership decision before user points are awarded.
   - Verification: `npx tsx --test tests/unit/worker-points-awards.test.ts`.
 
-- [x] T018 [US2] Preserve idempotency for admin-owned user awards in `src/lib/points/operation-awards.ts` and `worker/src/lib/points.ts`
+- [x] T018 [US2] Preserve per-owner idempotency baseline in `src/lib/points/operation-awards.ts` and `worker/src/lib/points.ts` (strengthened by unique runs in T033-T034)
   - Reason: Changing the owner from admin to user must not create duplicate entries for repeated award attempts after deployment.
   - Expected: The same owner/source uniqueness rule prevents duplicate user entries for the same operation.
   - Possible bugs: If an old admin entry already exists historically, a new user entry could be created for the same old operation during manual reprocessing.
@@ -225,33 +225,28 @@
 
 ## Final Phase: Verification And Release Safety
 
-- [x] T024 Run focused points unit tests
+- [x] T024 Run pre-amendment focused points unit-test baseline (superseded by T030-T031/T040)
   - Reason: This feature changes financial-adjacent point awards.
   - Expected: Policy, web wrapper, worker wrapper, financial review, calculation, and routing tests pass.
   - Possible bugs: Tests can pass locally while DB integration remains unverified.
   - Fix/Mitigation: Document skipped integration tests and run DB-backed tests on a safe database before production.
   - Verification: `npx tsx --test tests/unit/points-operation-spend-policy.test.ts tests/unit/points-operation-awards.test.ts tests/unit/worker-points-awards.test.ts tests/unit/financial-review-points-awards.test.ts tests/unit/points-calculation.test.ts`.
 
-- [x] T025 Run completion parity integration tests
+- [x] T025 Run pre-amendment completion parity baseline (superseded by T032/T040)
   - Reason: The main goal is parity across completion paths.
   - Expected: Web, worker, recovery, and manual completion fixtures produce matching point recipients.
   - Possible bugs: Integration tests may require environment setup and fixture cleanup.
   - Fix/Mitigation: Use isolated fixture ids and only run on a safe test database.
   - Verification: `npx tsx --test tests/integration/operation-points-completion-parity.test.ts`.
 
-- [x] T026 Run web and worker builds
+- [x] T026 Run pre-amendment web and Worker build baseline (must be rerun by T040)
   - Reason: Shared code must compile in both runtimes.
   - Expected: Web and worker builds pass after the shared policy and tsconfig changes.
   - Possible bugs: Worker build can fail if shared module emits outside expected dist layout.
   - Fix/Mitigation: Keep shared imports narrow and inspect build output if needed.
   - Verification: `npm run build && npm --prefix worker run build`.
 
-- [ ] T027 Run release audit query for missing operation-spend points
-  - Reason: Admin needs visibility into completed operations after deployment that did not receive points.
-  - Expected: Audit reports counts and sample operation ids only, without changing data.
-  - Possible bugs: Audit can expose sensitive customer data in logs.
-  - Fix/Mitigation: Output operation ids, safe owner ids, and counts only.
-  - Verification: Run the documented audit query/script on staging or production after deployment.
+T027 was a pre-amendment missing-ledger audit proposal and is superseded entirely by executable run-state/cutover audit T038; it is intentionally not an independent task because valid `SKIPPED` runs have no ledger entry.
 
 - [x] T028 Run encoding and diff safety checks
   - Reason: Repository rules require minimal, encoding-safe edits.
@@ -269,6 +264,87 @@
 
 ---
 
+## Phase 8: 2026-08-06 Amendment - Completion-Time Award Snapshot
+
+**Purpose**: Replace award-time live ownership/settings lookup with a durable completion-time decision and atomic finalization. These tasks supersede earlier wrapper-only/no-migration assumptions.
+
+- [ ] T030 [P] Add pure snapshot-policy tests in `tests/unit/points-operation-spend-policy.test.ts`
+  - **Reason**: The shared policy must serialize every eligibility, ownership, rate source, recipient, point, and skip outcome deterministically.
+  - **Expected**: Failing-first tests cover admin direct/legacy, agent, manager toggle, dirty precedence, inactive/deleted/invalid/unowned, disabled, pre-start, non-renewal, non-positive, all-zero and mixed zero/positive override/default cases, safe evidence, and deterministic snapshots.
+  - **Possible bugs**: Zero overrides can fall back to defaults; unsafe owner/provider fields can enter JSON; decimal calculations can drift.
+  - **Fix/Mitigation**: Assert explicit presence, allowlist snapshot fields, preserve decimal strings/rounding policy, and compare complete serialized fixtures.
+  - **Verification**: `npx tsx --test tests/unit/points-operation-spend-policy.test.ts` fails before implementation and passes after T034.
+
+- [ ] T031 [P] Add PostgreSQL run/concurrency/fault tests in `tests/integration/operation-spend-award-run.test.ts`
+  - **Reason**: Unique-run serialization and all-or-nothing multi-recipient writes require real database behavior.
+  - **Expected**: New integration suites cover clean/upgraded migration, one run per operation, completion rollback, concurrent web/Worker capture, pre-existing run identity match/mismatch, transfer-versus-completion locking, concurrent finalizers, mixed zero/positive recipients, second-recipient failure, persisted backoff/exhaustion without starvation, unique review sentinels for existing unlinked ledger/post-cutover missing runs, and unchanged pre-cutover history.
+  - **Possible bugs**: Mock transactions can miss row-lock races; injected failure may occur outside the finalization transaction.
+  - **Fix/Mitigation**: Use independent PostgreSQL connections/barriers and inject failure between recipient inserts inside the same transaction.
+  - **Verification**: `npx tsx --test tests/integration/operation-spend-award-run.test.ts` against the isolated PostgreSQL test database.
+
+- [ ] T032 [P] Add completion-writer inventory/parity tests in `tests/integration/operation-spend-completion-writers.test.ts` and `operation-points-completion-parity.test.ts`
+  - **Reason**: A single uninstrumented writer can create a post-cutover completed operation without decision evidence.
+  - **Expected**: Real behavior fixtures cover Worker contract verification, panel-user renewal, customer/mobile renewal, live financial review, installment, customer/mobile signal refresh/check, no-installment completion, web recovery, admin charged decision, and confirmation/re-observation behavior. Each canonical writer commits one `CAPTURED` or `SKIPPED` run with the exact completion timestamp; customer-only paths commit `CUSTOMER_OPERATION_NOT_ELIGIBLE`, and signal activation preserves the signal-check run because it reuses the same operation id.
+  - **Possible bugs**: Text-based inventory assertions can miss dynamically named updates or produce false positives.
+  - **Fix/Mitigation**: Keep the source inventory only as a secondary guard; release requires executable PostgreSQL behavior fixtures for every known writer, including operations with `customerId` and no `userId`.
+  - **Verification**: `npx tsx --test tests/integration/operation-spend-completion-writers.test.ts tests/integration/operation-points-completion-parity.test.ts`.
+
+- [ ] T033 Add operation-spend run models to `prisma/schema.prisma`, `worker/prisma/schema.prisma`, and a new additive `prisma/migrations/*_operation_spend_award_runs/migration.sql`
+  - **Reason**: Completion-time decisions and run-level serialization need durable database evidence shared by web and Worker.
+  - **Expected**: `OperationSpendAwardRun`, nullable ledger run FK/index/unique, nullable cutover setting, bounded retry count/timestamps/safe code, backoff index, restrictive operation FK, and matching app/Worker schemas are generated without historical backfill.
+  - **Possible bugs**: Required fields can break existing rows; enum/schema drift can break rolling deployment; delete cascade can erase audit evidence.
+  - **Fix/Mitigation**: Use additive nullable columns/table, explicit defaults only for new rows, restrictive delete, byte-identical schemas, and leave cutover null.
+  - **Verification**: Prisma validation/generation, schema-sync check, migration SQL review, and T031 clean/upgraded migration tests.
+
+- [ ] T034 Implement `buildOperationSpendAwardSnapshot` in `shared/points/operation-spend-award-snapshot.ts`, shared locks in `shared/db/ownership-evidence-lock.ts`, the portable state-machine core in `shared/points/operation-spend-award-runs.ts`, and the web adapter in `src/lib/points/operation-spend-award-runs.ts`
+  - **Reason**: Both runtimes need one immutable policy and one atomic state machine rather than live-state wrapper duplication.
+  - **Expected**: Named functions implement safe snapshots, exact operation→subject→lexical-owner lock order when a panel user exists, customer-only durable skip without owner lookup, immutable identity equality checks, mixed zero/positive handling, minimal review sentinels, `CAPTURED/SKIPPED/AWARDED/LEGACY_REVIEW_REQUIRED`, legacy-row defense, complete recipient transactions, and stable structured results.
+  - **Possible bugs**: Finalizer may accidentally query current ownership/rates; partial insert or status can commit; capture can disagree with transfer lock order.
+  - **Fix/Mitigation**: Make snapshot the finalizer's only award input, wrap all recipient inserts plus status in one transaction, and reuse one subject-lock helper/order.
+  - **Verification**: T030-T031 plus transfer-after-completion and settings-mutation fixtures pass.
+
+- [ ] T035 Integrate transactional capture/finalization into every Writer completion in `worker/src/http-queue-processor.ts` and adapt `worker/src/lib/points.ts`
+  - **Reason**: Worker contains the majority of completion paths and currently awards only after separate completion transactions.
+  - **Expected**: Update `completeConfirmedRenewalOperation` (around lines 307-379), contract verification (2785-2810), normal confirmation (2925-2942), live-review completion (3240-3257), signal refresh (3624-3639), signal check (3848-3863), no-installment completion (4316-4329), and installment completion (4623-4640). Each canonical completion captures inside its transaction; signal check sets `completedAt`. Signal activation (3959-3973) preserves that timestamp and finalizes the existing signal-check run only. Post-commit calls in `worker/src/lib/points.ts` never reconstruct live ownership.
+  - **Possible bugs**: Large processor edits can alter provider/operation behavior; signal check/activate terminal-state interaction can regress.
+  - **Fix/Mitigation**: Make narrow call-site patches, retain existing completion decisions, add a separate regression assertion for signal lifecycle, and avoid provider work while locks are held.
+  - **Verification**: T032 Worker fixtures, Worker unit tests, and Worker build pass.
+
+- [ ] T036 Integrate capture into `src/lib/operations/recovery.ts` and `src/app/api/admin/financial-review/[operationId]/decision/route.ts`
+  - **Reason**: These paths currently commit completion and call awards outside the transaction, allowing missed or redirected points.
+  - **Expected**: Recovery `COMPLETE` transaction and admin charged decision capture with the exact committed timestamp and finalize after commit. Financial review locks/re-reads the operation and guards the transition from `REVIEW_REQUIRED` before refund/completion effects so concurrent charged/refund/follow-up decisions have one winner.
+  - **Possible bugs**: Capture failure can leave operation completed if transaction boundaries are not truly shared; response behavior can change.
+  - **Fix/Mitigation**: Pass the existing transaction client into capture, assert rollback on injected failure, and preserve external response/error contracts.
+  - **Verification**: T031-T032, recovery tests, `tests/unit/financial-review-points-awards.test.ts`, and a PostgreSQL charged-vs-refund/follow-up race test pass.
+
+- [ ] T037 Convert confirmation/re-observation callers in `src/app/api/operations/[id]/confirm-purchase/route.ts` and `confirm-installment/route.ts`, and add bounded retry to `src/lib/maintenance/operation-maintenance-runner.ts`
+  - **Reason**: Existing confirm routes reconstruct awards from live state, while captured runs need reliable post-crash retry.
+  - **Expected**: Replace the old award calls around confirm-purchase line 239 and confirm-installment line 218 with existing-run finalization only; maintenance selects an indexed bounded batch whose backoff elapsed, persists a safe attempt/code/time on failure, moves exhausted runs to review-required, and continues to later eligible runs; missing runs return review/not-found according to cutover.
+  - **Possible bugs**: An unbounded loop can overload the database; a pre-cutover operation can be misclassified; finalization failures can retry forever without visibility.
+  - **Fix/Mitigation**: Enforce batch/age/attempt limits, persistent bounded backoff, structured status counts, safe error codes, cutover-aware behavior, and a starvation regression test.
+  - **Verification**: Focused confirm/maintenance tests and T031 legacy/cutover cases pass.
+
+- [ ] T038 Add safe release audit plus dry-run-first activation in `scripts/audit-operation-spend-award-runs.ts` and `scripts/activate-operation-spend-snapshot-cutover.ts`
+  - **Reason**: Cutover before all completion writers are compatible creates false invariant violations and missing snapshots.
+  - **Expected**: One shared read-only preflight reports total counts plus bounded safe ids for run states, stale/retry-exhausted captured runs, post-cutover missing runs, and unlinked ledger rows. Activation is dry-run by default, invokes that preflight, refuses unresolved invariants, and mutates only with `--activate --confirmed-release=<release-id>` after compatible web/all Workers are verified; it locks/rechecks the singleton and stores database time once.
+  - **Possible bugs**: Audit can expose customer data or scan unbounded history; operators can activate cutover early.
+  - **Fix/Mitigation**: Return ids/counts only, filter by indexed time/status, require explicit activation step after process-version verification, and document forward-fix rollback.
+  - **Verification**: Audit tests plus `tests/integration/operation-spend-cutover.test.ts` cover dry run, missing attestation, first activation, concurrent activation, already-set state, and safe output on an approved database snapshot.
+
+- [ ] T039 Replace hardcoded point-settings copy with semantic AR/EN/BN tokens in `src/i18n/translations/{ar,en,bn}.ts`, `src/lib/points/settings-copy.ts`, and `src/components/admin/points/AdminPointsSettingsClient.tsx`
+  - **Reason**: Pre-amendment settings copy is hardcoded English, while repository rules require the existing localization catalog for every user-facing message.
+  - **Expected**: Existing catalog keys are reused where possible; otherwise matching semantic keys explain disabled, admin-direct, agent, and manager-toggle behavior in all three locales with RTL-safe rendering.
+  - **Possible bugs**: Missing Bengali/Arabic keys can fall back to English or render undefined; copy tests can become brittle.
+  - **Fix/Mitigation**: Add key-parity assertions and test semantic meaning/constants rather than full component snapshots.
+  - **Verification**: `npx tsx --test tests/unit/points-admin-settings-normalization.test.ts` plus locale parity check and admin points-page browser smoke.
+
+- [ ] T040 Run full point-snapshot verification and convergence
+  - **Reason**: Financially adjacent behavior spans schema, all completion writers, two runtimes, ownership locking, legacy data, and release operations.
+  - **Expected**: Pure/unit/PostgreSQL/parity/fault/customer/race/retry tests, schema sync, Prisma validation/generation, web build, Worker build, settings UI smoke, diff/mojibake scan, and shared release preflight pass; convergence finds no missing writer/task.
+  - **Possible bugs**: A green wrapper suite can hide a writer not exercised; generated clients can be stale; cross-feature ownership locks can deadlock.
+  - **Fix/Mitigation**: Run source inventory plus behavior parity, both builds/clients, and combined concurrent transfer-versus-completion test.
+  - **Verification**: Execute all commands in `quickstart.md`, combined ownership/points integration tests, `git diff --check`, and the repository encoding scan.
+
 ## Dependencies And Execution Order
 
 - Phase 1 tests should be written first.
@@ -276,7 +352,9 @@
 - User Story 1 and User Story 2 are the MVP and should ship together.
 - User Story 3 confirms existing behavior did not regress.
 - User Story 4 can ship after the core behavior is correct.
-- Final verification blocks release.
+- Amendment tests T030-T032 must fail first; schema T033 and service T034 block all completion-writer changes.
+- Worker/web completion integration T035-T036 must finish before re-observation/maintenance T037 and cutover procedure T038; localization T039 may proceed after copy inspection.
+- Final verification T040 blocks release.
 
 ## Parallel Opportunities
 
@@ -284,13 +362,14 @@
 - T011 through T014 can be split between web/recovery and financial-review owners after T006 through T010 are complete.
 - T019 through T021 can run in parallel with T022 after the shared policy is stable.
 - T024 and T026 can run in parallel after implementation is complete.
+- T030-T032 can run in parallel by exclusive test files; after T034, T035 and T036 can proceed in parallel by runtime.
 
 ## Implementation Strategy
 
 1. Add tests for the desired award policy and parity.
-2. Create the shared pure operation-spend policy.
-3. Refactor web and worker wrappers to call the shared policy.
-4. Fix admin-owned direct user recipients to user-only.
-5. Wire manual financial-review completion into the same award process.
-6. Update settings-page wording.
-7. Run focused tests, builds, audit, and deploy safety checks.
+2. Add failing immutable-snapshot, PostgreSQL concurrency/fault, and completion-writer inventory tests.
+3. Apply the additive run schema and implement pure snapshot plus transactional capture/finalize services.
+4. Integrate every canonical Worker and web completion writer with in-transaction capture, and keep reused-operation re-observation finalize-only.
+5. Convert confirmation/recovery/maintenance to finalize existing runs only and implement legacy/cutover audit safety.
+6. Preserve admin/agent/manager recipient behavior and settings wording through snapshot fixtures.
+7. Run focused tests, both builds/clients, combined transfer-versus-completion concurrency, convergence, and deploy safety checks before cutover.

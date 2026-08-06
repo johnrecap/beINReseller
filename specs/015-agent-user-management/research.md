@@ -24,7 +24,7 @@
 
 ## Decision 3: Use One Transfer Service Shared By Both Admin Entry Points
 
-**Decision**: Add a small service in `src/lib/agents/assignment-transfer.ts` and call it from both `/api/admin/agent-assignments` and admin user creation/transfer endpoints.
+**Decision**: Historical baseline used `src/lib/agents/assignment-transfer.ts`; the 2026-08-06 amendment makes `src/lib/users/ownership-transfer.ts` the canonical locked/token-aware service, with the agent helper and legacy routes acting only as compatibility adapters.
 
 **Rationale**: The existing agents page currently rejects manager-owned users. A shared service avoids fixing the users page while leaving the agents page broken.
 
@@ -44,15 +44,16 @@
 - Use `/api/admin/agent-assignments` to render agents tab: rejected because that endpoint returns full assignment management data, not paginated admin user rows with point summaries.
 - Create a new `/api/admin/agents` listing endpoint: rejected for MVP because it overlaps with existing admin users patterns and would require extra UI plumbing.
 
-## Decision 5: Optional Unique Index Is Hardening, Not MVP Requirement
+## Decision 5: Nullable Source Group Migration Is Required; Ownership Constraint Is Audit-Gated
 
-**Decision**: Do not require a migration for MVP. Consider a partial unique index for active assignment per user after checking production data.
+**Decision**: Apply the required additive migration that makes `AgentAssignment.sourceGroup` nullable without rewriting existing rows. Retain the active-assignment uniqueness index; add one-manager-link-per-user uniqueness only after production audit/cleanup acceptance.
 
-**Rationale**: The service can end old active assignments transactionally. Adding a partial unique index on production requires a duplicate-data preflight and could block deployment if old bad data exists.
+**Rationale**: Optional Source Group cannot work while the database column is `NOT NULL`. Cross-table locking remains the primary concurrency guard, while manager-link uniqueness is safe only after duplicate-data preflight.
 
 **Alternatives considered**:
 
-- Add partial unique index immediately: useful, but risky without preflight on the live database.
+- Skip the nullable migration: rejected because valid no-group assignments would still fail at persistence.
+- Add manager-link uniqueness immediately: rejected because it is risky without preflight on the live database.
 - Skip all hardening permanently: rejected because an optional follow-up hardening task is valuable after data health is known.
 
 ## Existing Behavior To Change
@@ -62,7 +63,7 @@
 - `src/components/admin/users/UsersTable.tsx` defines `TabType = 'distributors' | 'users'` and has no agents tab.
 - `src/app/api/admin/agent-assignments/route.ts` rejects manager-owned users with reason `MANAGER_OWNED`.
 - `src/app/api/admin/users/route.ts` creates a `ManagerUser` link for every admin-created `USER`, which is wrong when creating directly under an agent.
-- `src/lib/points/operation-awards.ts` resolves manager ownership before agent assignment. Transfer must remove manager/admin links so future points route to agent ownership.
+- Completion-time point snapshotting resolves manager ownership before agent assignment. Transfer must remove manager/admin links so operations completed after transfer capture agent ownership; already completed operations retain their prior snapshot.
 
 ## Verification Queries
 

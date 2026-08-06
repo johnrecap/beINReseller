@@ -5,7 +5,7 @@ import { addOperationJob } from '@/lib/queue'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { Prisma } from '@prisma/client'
 import { parseOperationResponseData } from '@/lib/operation-safety'
-import { processCompletedOperationPoints } from '@/lib/points/operation-awards'
+import { finalizeOperationSpendAwardRun } from '@/lib/points/operation-spend-award-runs'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -216,8 +216,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             select: { status: true },
         })
         if (completedOperation?.status === 'COMPLETED') {
-            await processCompletedOperationPoints(operationId).catch((error) => {
-                console.error('Confirm installment point award error:', error)
+            await finalizeOperationSpendAwardRun(operationId).catch((error) => {
+                console.error('Confirm installment point finalization error:', error)
             })
         }
 

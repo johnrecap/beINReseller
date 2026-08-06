@@ -35,7 +35,7 @@ test('formats admin-owned credit request without fake agent values', () => {
 
     assert.match(message, /Owner: Admin direct/)
     assert.doesNotMatch(message, /Agent: -/)
-    assert.doesNotMatch(message, /Group: -/)
+    assert.doesNotMatch(message, /^Group:/m)
 })
 
 test('formats legacy admin-owned retry without fake agent placeholders', () => {
@@ -49,5 +49,21 @@ test('formats legacy admin-owned retry without fake agent placeholders', () => {
 
     assert.match(message, /Owner: Admin direct \(legacy\)/)
     assert.doesNotMatch(message, /Agent: -/)
-    assert.doesNotMatch(message, /Group: -/)
+    assert.doesNotMatch(message, /^Group:/m)
+})
+
+test('agent-owned request omits Group when the request-time snapshot is blank', () => {
+    for (const sourceGroup of [null, '', '   ']) {
+        const message = formatCreditRequestTelegramMessage({
+            ...base,
+            ownerType: 'AGENT',
+            ownerLabel: 'Agent One',
+            agentName: 'Agent One',
+            sourceGroup,
+        })
+
+        assert.match(message, /Owner: Agent One/)
+        assert.match(message, /Agent: Agent One/)
+        assert.doesNotMatch(message, /^Group:/m)
+    }
 })

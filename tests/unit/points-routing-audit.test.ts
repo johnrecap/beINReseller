@@ -35,7 +35,7 @@ test('classifies manager-owned user operation spend as a safe historical candida
     })
 })
 
-test('classifies admin-created direct user converted points as review required', () => {
+test('does not classify legitimate admin-created direct user points as historical candidates', () => {
     const candidate = classifyHistoricalPointRoutingCandidate({
         ledgerEntryId: 'ledger-2',
         operationId: 'operation-2',
@@ -56,19 +56,7 @@ test('classifies admin-created direct user converted points as review required',
         pointCashRedemption: { balanceAmountUsd: 1.5 },
     })
 
-    assert.deepEqual(candidate, {
-        ledgerEntryId: 'ledger-2',
-        operationId: 'operation-2',
-        wrongOwnerUserId: 'user-2',
-        wrongOwnerUsername: null,
-        points: 3,
-        availableRisk: 0,
-        convertedRisk: true,
-        expectedOwnerUserId: 'admin-1',
-        expectedOwnerRole: 'ADMIN',
-        reason: 'ADMIN_CREATOR',
-        reviewRequired: true,
-    })
+    assert.equal(candidate, null)
 })
 
 test('does not classify legitimate agent-owned user points as historical candidates', () => {

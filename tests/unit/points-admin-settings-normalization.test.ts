@@ -5,6 +5,7 @@ import {
     normalizePointSettingsInput,
 } from '@/lib/points/admin-settings-normalization'
 import { POINTS_SETTINGS_COPY } from '@/lib/points/settings-copy'
+import { ar, bn, en } from '@/i18n/translations'
 
 test('current point setting field names win over legacy aliases', () => {
     const normalized = normalizePointSettingsInput({
@@ -84,8 +85,22 @@ test('duplicate override owners are reported before persistence', () => {
     ])
 })
 
-test('settings copy explains direct admin-owned and manager-owned point rules', () => {
-    assert.match(POINTS_SETTINGS_COPY.normalUserRate, /direct admin-owned users/)
-    assert.match(POINTS_SETTINGS_COPY.managerOwnedUserToggle, /users under managers/)
-    assert.match(POINTS_SETTINGS_COPY.managerOwnedUserRate, /manager-owned user points are enabled/)
+test('settings copy uses matching semantic AR EN and BN catalog entries', () => {
+    assert.deepEqual(POINTS_SETTINGS_COPY, {
+        programEnabled: 'programEnabledHelp',
+        managerOwnedUserToggle: 'managerOwnedUserToggleHelp',
+        normalUserRate: 'normalUserRateHelp',
+        managerOwnedUserRate: 'managerOwnedUserRateHelp',
+        agentRate: 'agentRateHelp',
+        managerRate: 'managerRateHelp',
+    })
+
+    for (const locale of [ar, en, bn]) {
+        for (const key of Object.values(POINTS_SETTINGS_COPY)) {
+            assert.equal(typeof locale.admin.pointsSettings[key], 'string')
+            assert.notEqual(locale.admin.pointsSettings[key].trim(), '')
+        }
+    }
+    assert.match(en.admin.pointsSettings.normalUserRateHelp, /direct admin-owned users/)
+    assert.match(en.admin.pointsSettings.managerOwnedUserToggleHelp, /users under managers/)
 })

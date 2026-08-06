@@ -21,7 +21,7 @@
 
 - [ ] T002 Extend WhatsApp handoff tests in `tests/unit/credit-request-whatsapp-handoff.test.ts`
   - Reason: Destination priority and unsafe URL handling must stay correct while approval handoff UI changes.
-  - Expected: Tests cover request snapshot priority, assignment fallback, agent/global fallback, invalid group URL rejection, valid phone fallback, and message text required fields.
+  - Expected: Tests cover agent-owned request URL snapshot priority, current-assignment/agent/global URL fallback, admin-owned global-only fallback, historical null Source Group remaining null, invalid URL rejection, valid phone fallback, and message required fields.
   - Possible bugs: Mock data may not match real nullable values from current records.
   - Fix/Mitigation: Include null/empty string cases in the test mocks.
   - Verification: `npx tsx --test tests/unit/credit-request-whatsapp-handoff.test.ts` fails for newly added expectations before implementation.
@@ -41,7 +41,7 @@
 
 - [ ] T004 Update Telegram message formatting in `src/lib/credit-requests/telegram.ts`
   - Reason: The admin alert must clearly identify who requested credit and what needs review.
-  - Expected: Message includes customer username, amount, payment method, agent/group when available, order number, and pending status in readable wording.
+  - Expected: Message includes customer username, amount, payment method, request-time agent/group snapshots when available, order number, and pending status; it omits Group for null/blank and never reads a later assignment label.
   - Possible bugs: Message text can omit a required field or include undefined/null labels.
   - Fix/Mitigation: Use safe fallbacks for optional agent/group values and test all required fields.
   - Verification: `npx tsx --test tests/unit/credit-request-notifications.test.ts`.

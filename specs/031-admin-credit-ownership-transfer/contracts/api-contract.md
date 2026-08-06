@@ -54,6 +54,8 @@ Response additions:
 - `currentOwner.type`: `ADMIN`, `MANAGER`, `AGENT`, `LEGACY_ADMIN`, or `UNOWNED`.
 - `currentOwner.label`: safe owner label.
 - `currentOwner.conflictCount`: count of duplicate/cross-owner evidence when detected.
+- `currentOwner.ownershipToken`: versioned optimistic concurrency token.
+- Agent ownership includes active assignment id, nullable Source Group, and safe WhatsApp configured state needed for intentional preserve/clear behavior.
 
 Rules:
 
@@ -87,8 +89,9 @@ Request body:
 - `userId`: required.
 - `targetOwnerType`: `ADMIN`, `MANAGER`, or `AGENT`.
 - `targetOwnerId`: required.
-- `sourceGroup`: required for agent targets only.
-- `whatsappGroupUrl`: optional for agent targets only.
+- `expectedOwnershipToken`: required for public transfer requests.
+- `sourceGroup`: optional/nullable for agent targets; property presence is significant.
+- `whatsappGroupUrl`: optional/nullable for agent targets; property presence is significant and independent from Source Group.
 - `reason`: optional admin note.
 
 Response:
@@ -97,14 +100,39 @@ Response:
 - `newOwner`.
 - `closedAgentAssignmentIds`.
 - `removedManagerUserIds`.
-- `auditLogId`.
+- `auditLogId`: `string | null`; null only for `NO_OP`.
+- `ownershipToken` for the committed state.
+- `mode`: `CREATED`, `REPLACED`, `UPDATED`, or `NO_OP`.
+- Nullable agent assignment metadata and Source Group resolution mode when target is agent.
 
 Rules:
 
-- The transaction closes/removes old current ownership before creating the new owner.
+- Missing `expectedOwnershipToken` returns HTTP `428` with `OWNERSHIP_PRECONDITION_REQUIRED`.
+- After row locking, an exact desired durable state returns `NO_OP` (and `auditLogId: null`) even if the supplied token became stale because an identical request committed first. Otherwise a stale token returns HTTP `409` with `OWNERSHIP_CHANGED`, the safe current ownership summary/token, and no partial mutation.
+- The transaction locks the subject and relevant owners, re-reads state, then closes/removes only conflicting current ownership before creating the new owner.
+- Exact desired state is a no-op; same-agent metadata edits update the active row in place.
 - The target owner must be active, not deleted, and have the expected role.
+- The subject must be active, not deleted, and have role exactly `USER`.
+- Source Group resolution: omitted preserves for same agent or uses new-agent default/null; `null`/blank clears; non-empty sets trimmed text up to 120 characters.
+- WhatsApp URL follows the same presence rules independently; a different-agent transfer never inherits old assignment metadata.
 - Balances, operations, point ledger entries, historical transactions, and historical credit request decisions are unchanged.
+
+Error codes:
+
+- `OWNERSHIP_PRECONDITION_REQUIRED` (`428`)
+- `OWNERSHIP_CHANGED` (`409`)
+- `INVALID_SUBJECT_USER`, `INVALID_TARGET_OWNER`, or target-role-specific validation (`400`/`404`)
+- `OWNERSHIP_CONFLICT` (`409`) for residual database uniqueness races
+
+## GET /api/admin/credit-requests Source Group Filter
+
+- Real values continue to use `sourceGroup=<value>`.
+- `sourceGroupMode=NONE` selects `sourceGroupSnapshot IS NULL` and does not collide with a real group name.
+- Filter metadata returns real non-null Source Groups separately and a `hasNoSourceGroup` flag/count.
+- Rows with null snapshots render the localized no-group label; the API does not manufacture a string snapshot.
 
 ## Existing Compatibility
 
-Existing agent assignment endpoints may remain for older UI paths, but new admin users transfer UI should use the unified ownership endpoint. Compatibility endpoints should delegate to the same transfer service when practical.
+Existing agent assignment endpoints remain for older UI paths but MUST delegate POST and DELETE to the same canonical ownership service. The adapter preserves legacy response/error names and `replaceExisting=false` behavior; DELETE preserves its documented unowned/legacy outcome while gaining locks, token validation, idempotency, and safe audit. Creating a new user under an agent uses an internal trusted unowned-user path and does not weaken the public token requirement.
+
+Legacy `GET /api/admin/agent-assignments` MUST return the current `ownershipToken` for every assignable user/assignment row so its POST and DELETE UI can supply the required precondition without a second ownership source.

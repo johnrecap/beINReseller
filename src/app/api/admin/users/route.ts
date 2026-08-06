@@ -12,6 +12,7 @@ import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
 import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
 import { classifyCurrentUserOwner } from '@/lib/users/ownership'
 import { getCreditDebtSummaryMap } from '@/lib/credit-requests/debt'
+import { buildOwnershipToken } from '../../../../../shared/db/ownership-evidence-lock'
 
 const createUserSchema = z.object({
     username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -283,6 +284,7 @@ export async function GET(request: NextRequest) {
                                 sourceGroup: true,
                                 whatsappGroupUrl: true,
                                 isActive: true,
+                                updatedAt: true,
                                 agent: {
                                     select: {
                                         id: true,
@@ -320,6 +322,22 @@ export async function GET(request: NextRequest) {
                         managerLinks: u.managerLink,
                         activeAssignments: u.agentAssignmentAsUser,
                     })
+                    const ownershipToken = buildOwnershipToken({
+                        managerLinks: u.managerLink.map((link) => ({
+                            id: link.id,
+                            managerId: link.managerId,
+                        })),
+                        activeAssignments: u.agentAssignmentAsUser.map((assignment) => ({
+                            id: assignment.id,
+                            agentId: assignment.agentId,
+                            updatedAt: assignment.updatedAt,
+                            sourceGroup: assignment.sourceGroup,
+                            whatsappGroupUrl: assignment.whatsappGroupUrl,
+                        })),
+                    })
+                    const currentAgentAssignment = currentOwner.ownerType === 'AGENT'
+                        ? u.agentAssignmentAsUser.find((assignment) => assignment.id === currentOwner.agentAssignmentId) || null
+                        : null
                     const creator = currentOwner.ownerType === 'LEGACY_ADMIN'
                         ? u.createdBy
                         : u.managerLink.find((link) => link.managerId === currentOwner.ownerId)?.manager
@@ -349,6 +367,13 @@ export async function GET(request: NextRequest) {
                             label: currentOwner.ownerLabel,
                             isLegacyFallback: currentOwner.isLegacyFallback,
                             hasConflict: currentOwner.conflicts.hasMixedCurrentOwners,
+                            conflictCount: currentOwner.managerUserIds.length + currentOwner.activeAgentAssignmentIds.length,
+                            ownershipToken,
+                            agentAssignment: currentAgentAssignment ? {
+                                id: currentAgentAssignment.id,
+                                sourceGroup: currentAgentAssignment.sourceGroup,
+                                whatsappConfigured: Boolean(currentAgentAssignment.whatsappGroupUrl),
+                            } : null,
                         },
                         // Proxy status (based on user_proxy_limit setting)
                         hasProxyLinked: proxyLinkedUserIds.includes(u.id),
@@ -486,9 +511,14 @@ export async function POST(request: NextRequest) {
                     const transfer = await transferUserToAgentInTransaction({
                         userId: newUser.id,
                         agentId,
-                        sourceGroup,
-                        whatsappGroupUrl,
+                        ...(Object.prototype.hasOwnProperty.call(result.data, 'sourceGroup')
+                            ? { sourceGroup }
+                            : {}),
+                        ...(Object.prototype.hasOwnProperty.call(result.data, 'whatsappGroupUrl')
+                            ? { whatsappGroupUrl }
+                            : {}),
                         replaceExisting: true,
+                        trustedInitialAssignment: true,
                         adminUserId: user.id,
                         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
                     }, tx)
@@ -502,7 +532,9 @@ export async function POST(request: NextRequest) {
                                 username: newUser.username,
                                 agentId,
                                 sourceGroup: transfer.assignment.sourceGroup,
-                                whatsappGroupUrl: transfer.assignment.whatsappGroupUrl,
+                                whatsappUrlState: transfer.assignment.whatsappGroupUrl
+                                    ? 'CONFIGURED'
+                                    : 'NONE',
                             },
                             ipAddress: request.headers.get('x-forwarded-for') || 'unknown'
                         }

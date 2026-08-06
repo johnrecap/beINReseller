@@ -10,7 +10,7 @@ import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { Prisma } from '@prisma/client'
 import { buildRenewalFinalConfirmationEvidence } from '@/lib/operation-final-confirmation'
-import { processCompletedOperationPoints } from '@/lib/points/operation-awards'
+import { finalizeOperationSpendAwardRun } from '@/lib/points/operation-spend-award-runs'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -237,8 +237,8 @@ export async function POST(
             select: { status: true },
         })
         if (completedOperation?.status === 'COMPLETED') {
-            await processCompletedOperationPoints(id).catch((error) => {
-                console.error('Confirm purchase point award error:', error)
+            await finalizeOperationSpendAwardRun(id).catch((error) => {
+                console.error('Confirm purchase point finalization error:', error)
             })
         }
         // 5. Return success

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cairoDateTimeLocalToUtcIso, utcIsoToCairoDateTimeLocal } from '@/lib/egypt-time'
 import { POINTS_SETTINGS_COPY } from '@/lib/points/settings-copy'
+import { useTranslation } from '@/hooks/useTranslation'
 
 type PersonRate = {
     id: string
@@ -43,6 +44,7 @@ function toRate(value: string) {
 }
 
 export default function AdminPointsSettingsClient() {
+    const { t } = useTranslation()
     const [data, setData] = useState<PointsSettingsData | null>(null)
     const [defaults, setDefaults] = useState<DefaultsDraft>({
         userGlobalPointsPerThousand: 0,
@@ -211,7 +213,7 @@ export default function AdminPointsSettingsClient() {
                             <span>
                                 <span className="block text-sm font-medium">Enabled</span>
                                 <span className="mt-1 block text-xs text-muted-foreground">
-                                    {POINTS_SETTINGS_COPY.programEnabled}
+                                    {t.admin.pointsSettings[POINTS_SETTINGS_COPY.programEnabled]}
                                 </span>
                             </span>
                         </label>
@@ -265,7 +267,7 @@ export default function AdminPointsSettingsClient() {
                             <span>
                                 <span className="block text-sm font-medium">Manager-owned user points</span>
                                 <span className="mt-1 block text-xs text-muted-foreground">
-                                    {POINTS_SETTINGS_COPY.managerOwnedUserToggle}
+                                    {t.admin.pointsSettings[POINTS_SETTINGS_COPY.managerOwnedUserToggle]}
                                 </span>
                             </span>
                         </label>
@@ -278,7 +280,7 @@ export default function AdminPointsSettingsClient() {
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Normal user points per 1000 USD</span>
                             <span className="block text-xs text-muted-foreground">
-                                {POINTS_SETTINGS_COPY.normalUserRate}
+                                {t.admin.pointsSettings[POINTS_SETTINGS_COPY.normalUserRate]}
                             </span>
                             <Input
                                 type="number"
@@ -294,7 +296,7 @@ export default function AdminPointsSettingsClient() {
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Manager-owned user points per 1000 USD</span>
                             <span className="block text-xs text-muted-foreground">
-                                {POINTS_SETTINGS_COPY.managerOwnedUserRate}
+                                {t.admin.pointsSettings[POINTS_SETTINGS_COPY.managerOwnedUserRate]}
                             </span>
                             <Input
                                 type="number"
@@ -310,7 +312,7 @@ export default function AdminPointsSettingsClient() {
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Agent points per 1000 USD</span>
                             <span className="block text-xs text-muted-foreground">
-                                {POINTS_SETTINGS_COPY.agentRate}
+                                {t.admin.pointsSettings[POINTS_SETTINGS_COPY.agentRate]}
                             </span>
                             <Input
                                 type="number"
@@ -326,7 +328,7 @@ export default function AdminPointsSettingsClient() {
                         <label className="block space-y-2">
                             <span className="text-sm text-muted-foreground">Manager points per 1000 USD</span>
                             <span className="block text-xs text-muted-foreground">
-                                {POINTS_SETTINGS_COPY.managerRate}
+                                {t.admin.pointsSettings[POINTS_SETTINGS_COPY.managerRate]}
                             </span>
                             <Input
                                 type="number"

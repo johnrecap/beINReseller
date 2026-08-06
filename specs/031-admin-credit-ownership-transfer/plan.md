@@ -6,7 +6,7 @@
 
 ## Summary
 
-Allow users owned directly by admin to submit credit requests without an agent assignment, while keeping manager-owned and unowned users blocked. Fix the related Telegram and WhatsApp handoff paths so admin-owned requests are labeled and routed correctly. Add a unified admin ownership transfer flow that moves a user to exactly one current owner across admin, manager/distributor, and agent ownership, with audit evidence and dirty-data cleanup.
+Allow users owned directly by admin to submit credit requests without an agent assignment, while keeping manager-owned and unowned users blocked. Fix Telegram and WhatsApp handoff so historical request snapshots remain truthful. Extend the unified admin ownership flow so any active non-deleted `USER` can move safely to admin, manager/distributor, or agent ownership; make Source Group nullable classification metadata; preserve all financial/history data; and add row locking, an optimistic ownership token, no-op/same-agent behavior, safe audit evidence, and compatibility adapters for every assignment mutation path.
 
 ## Planning Quality Standard
 
@@ -24,21 +24,21 @@ The plan MUST call out source-of-truth data, legacy/backfill behavior, security 
 
 **Language/Version**: TypeScript 5.9, Node.js runtime, React 19.2
 
-**Primary Dependencies**: Next.js 16.1, Prisma 7.2, PostgreSQL, zod, existing credit request services, existing agent assignment transfer helper, existing Telegram and WhatsApp handoff helpers
+**Primary Dependencies**: Next.js 16.1, Prisma 7.2, PostgreSQL row locks and additive migrations, zod, existing credit request services, existing agent assignment transfer helper, existing Telegram and WhatsApp handoff helpers
 
 **Storage**: PostgreSQL through Prisma schema and migrations
 
-**Testing**: `npx tsx --test` focused unit/integration tests, `npx prisma validate`, `npm run build`, and targeted lint checks for edited files
+**Testing**: `npx tsx --test` focused unit/integration tests, PostgreSQL migration/concurrency tests, `npx prisma validate`, app/Worker schema-sync and builds, Playwright ownership-flow checks, and targeted lint checks
 
 **Target Platform**: Existing Desh Panel web app and API routes
 
 **Project Type**: Full-stack Next.js application with Prisma-backed APIs
 
-**Performance Goals**: Credit request eligibility remains a bounded lookup. Ownership transfer runs as one bounded transaction for one user. Admin users listing remains paginated and does not scan all users for every row.
+**Performance Goals**: Credit request eligibility remains a bounded lookup. Ownership transfer locks and updates one subject plus relevant owners in one bounded transaction. Admin users listing remains paginated, returns ownership tokens without N+1 scans, and no-group reporting stays bounded.
 
 **Constraints**: Do not change balances, operation records, point ledger entries, historical credit request decisions, or sensitive runtime credential handling. Do not use `npx prisma db push` for production. Keep edits minimal and encoding-safe.
 
-**Scale/Scope**: Credit request eligibility and creation, notification formatting, WhatsApp handoff, admin users list owner display, unified ownership transfer service/API/dialog, Prisma migration for credit request owner evidence, focused tests, and deployment notes.
+**Scale/Scope**: Credit request eligibility and creation; snapshot-safe notification/handoff; admin/agent user tables and no-group filters; unified ownership transfer, legacy adapter, same-agent edit and delete service/API/dialog; nullable Source Group migration in app and Worker schemas; optimistic concurrency and row locking; production ownership audit/constraint gate; focused unit, PostgreSQL integration, UI/Playwright, build, and deployment verification.
 
 ## Constitution Check
 
@@ -122,8 +122,10 @@ See [research.md](./research.md). Decisions:
 - Legacy admin-created users with no current owner may be treated as legacy admin-owned only when no active manager/admin link or active agent assignment exists.
 - New credit requests should store owner type evidence.
 - Admin-owned WhatsApp handoff must skip agent assignment lookup entirely.
-- Unified transfers must close all old current owner links before creating the new owner.
-- Strict database ownership uniqueness is deferred until the production data audit is reviewed.
+- Unified transfers close old conflicting current owner links before creating the new owner; exact matches are no-ops and same-agent metadata changes update in place.
+- Public mutations require an ownership token and lock/revalidate the subject plus relevant owners in one transaction.
+- Source Group is nullable classification metadata. Its absence has no financial, ownership, points, transaction, notification-destination, or handoff effect.
+- Strict `ManagerUser.userId` uniqueness is gated by the production audit; cross-table locking remains mandatory after the constraint.
 
 ## Phase 1 Design
 
@@ -137,9 +139,11 @@ See [data-model.md](./data-model.md), [contracts/api-contract.md](./contracts/ap
 - **Agent-owned source**: active `AgentAssignment` whose agent is active and not deleted.
 - **Legacy admin fallback**: `createdById` points to an active admin and no current owner rows exist.
 - **Transfer source**: the unified transfer transaction result, not client-side assumptions.
+- **Concurrency source**: a versioned digest of sorted current manager/admin links and active assignment identity/metadata, revalidated after row locks.
+- **Source Group source**: explicit request value, explicit clear, same-agent preserved value, target-agent default, or `null`, with the resolution mode recorded.
 - **Credit request source**: request row plus owner snapshot captured at creation time.
-- **WhatsApp handoff source**: credit request snapshot. Null-agent/admin-owned snapshots use only default WhatsApp settings.
-- **Audit source**: transfer audit entry records actor, previous current owner evidence, cleanup details, target owner, and timestamp.
+- **WhatsApp handoff source**: agent-owned request snapshots may resolve request URL snapshot, current assignment URL, agent configuration, then global configuration. Admin-owned and legacy-admin-owned snapshots use global configuration only and never query a later assignment. A null Source Group never blocks the destination, and a historical null group never inherits a later group label.
+- **Audit source**: transfer audit entry records actor, safe previous/current owner evidence, cleanup details, target owner, Source Group resolution mode, and timestamp; full WhatsApp invite URLs are excluded.
 
 ## Security Boundaries
 
@@ -147,7 +151,9 @@ See [data-model.md](./data-model.md), [contracts/api-contract.md](./contracts/ap
 - Normal users can only submit their own credit requests.
 - Manager-owned and unowned users remain blocked from credit requests in this version.
 - Transfer targets must be active, not deleted, and have the expected role.
+- Transfer subjects must be active, not deleted, and have role exactly `USER`; all public mutation routes require exact `ADMIN` authorization and an ownership precondition.
 - API responses and logs must not expose Telegram tokens, beIN passwords, TOTP secrets, cookies, session data, storage state, ViewState, or raw provider tokens.
+- Audit and operational logs must not contain full WhatsApp invitation URLs; they may record configured/cleared state and a non-reversible digest when correlation is necessary.
 - Admin UI may show owner names, usernames, and labels needed for audit; it must not show sensitive credentials.
 
 ## Database And Migration Impact
@@ -155,18 +161,22 @@ See [data-model.md](./data-model.md), [contracts/api-contract.md](./contracts/ap
 Planned Prisma changes:
 
 - Add nullable owner evidence to `CreditRequest`, such as `ownerTypeSnapshot` and optional owner label/id fields if current nullable agent fields are not enough for audit clarity.
+- Change `AgentAssignment.sourceGroup` from `String` to `String?` in both Prisma schemas.
+- Add an additive migration that drops only the `NOT NULL` requirement on `agent_assignments.source_group`; do not backfill, delete, or rewrite historical values.
 - Mirror schema changes into `worker/prisma/schema.prisma` if repository schema sync requires it.
 
 Required indexes/constraints:
 
-- Existing `ManagerUser` and `AgentAssignment` indexes are sufficient for first release lookups.
-- Do not add a unique `ManagerUser.userId` constraint until the audit confirms production data has no conflicting current manager/admin owner links.
-- Do not add a partial unique active-agent-assignment index until the audit confirms no duplicate active assignments, or include cleanup before the migration.
+- Keep the existing partial unique active-agent-assignment index and verify it on upgraded PostgreSQL data.
+- Add a unique `ManagerUser.userId` constraint only after the production audit confirms/repairs conflicting current links.
+- No database constraint spans `ManagerUser` and `AgentAssignment`; retain the subject-user lock to serialize those cross-table ownership changes.
 
 Migration safety:
 
 - New credit request owner evidence fields are nullable for historical rows.
 - Historical credit requests are not rewritten.
+- Existing Source Group values and request snapshots are preserved; new null assignment values are permitted without a backfill.
+- Reversal from nullable to required is unsafe after null rows exist; rollback is a forward-fix or a separately reviewed validation/backfill before `SET NOT NULL`.
 - Production deploy must use `npx prisma migrate deploy`.
 
 ## Legacy And Backfill Behavior
@@ -176,6 +186,7 @@ Migration safety:
 - Legacy admin-owned classification is allowed only as a fallback when no current owner exists and `createdById` points to an active admin.
 - Ownership transfer cleanup can repair a single user's dirty current owner rows at the time that user is transferred.
 - A separate data cleanup/backfill migration can be planned later after audit output is reviewed.
+- Public missing/stale ownership preconditions return `428`/`409`; duplicate/no-op retries do not write new assignments or audit records.
 
 ## API Authorization Rules
 
@@ -195,10 +206,16 @@ Migration safety:
   - Submit success: request appears in recent requests with correct owner/notification state.
 - Admin users page:
   - Owner column shows admin/direct, manager/distributor, agent, legacy admin, or unowned.
-  - Transfer dialog shows target type selector and only relevant fields.
+  - Transfer dialog shows target type selector and only relevant fields, marks Source Group optional, and distinguishes omitted from explicitly cleared.
   - Transfer loading state disables submit.
   - Transfer validation error preserves selected input.
   - Transfer success refreshes the row and removes stale old owner display.
+- Assignment and credit request tables show localized no-group wording and expose an explicit no-group filter.
+- Source Group filter states:
+  - Loading keeps the current table stable and disables duplicate filter submissions.
+  - Valid no-group filter with zero rows shows a localized empty result, not a hidden/error row.
+  - Invalid `sourceGroupMode` returns a stable validation code and the UI preserves the last valid filter with a localized error/recovery action.
+  - API/network failure shows a retry state without silently broadening the ownership scope.
 - Admin credit review:
   - Admin-owned request cards show admin/direct owner wording.
   - Missing default WhatsApp destination shows a warning, not a wrong link.
@@ -210,8 +227,10 @@ Migration safety:
 - Unit tests for Telegram message formatting with admin-owned and agent-owned requests.
 - Unit tests for WhatsApp handoff proving null-agent/admin-owned requests skip assignment lookup.
 - Unit and integration tests for transfer directions and dirty-data cleanup.
+- Unit and PostgreSQL integration tests for all Source Group/WhatsApp tri-state modes, row locks, stale tokens, no-op/same-agent updates, concurrent transfers, rollback, and non-zero financial invariants.
+- Contract and UI tests for nullable Source Group, explicit no-group filtering, historical snapshot behavior, and AR/EN/BN labels.
 - API authorization tests for transfer endpoints.
-- Build and targeted lint verification.
+- App/Worker Prisma schema sync, migration tests, builds, targeted lint, and Playwright ownership-flow verification.
 - Data audit query before production deploy.
 - Mojibake and whitespace diff checks on changed files.
 

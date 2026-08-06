@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { normalizeWhatsAppGroupInviteUrl } from '@/lib/whatsapp/group-invite-url'
 
 type HandoffTx = Prisma.TransactionClient
 
@@ -26,18 +27,6 @@ type HandoffDestination = {
 function clean(value: string | null | undefined): string | null {
     const trimmed = value?.trim()
     return trimmed ? trimmed : null
-}
-
-function cleanHttpUrl(value: string | null | undefined): string | null {
-    const trimmed = clean(value)
-    if (!trimmed) return null
-
-    try {
-        const url = new URL(trimmed)
-        return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null
-    } catch {
-        return null
-    }
 }
 
 function normalizePhone(value: string | null): string | null {
@@ -97,7 +86,6 @@ export async function resolveWhatsAppHandoffDestination(
                 },
                 orderBy: { createdAt: 'desc' },
                 select: {
-                    sourceGroup: true,
                     whatsappGroupUrl: true,
                 },
             })
@@ -110,7 +98,6 @@ export async function resolveWhatsAppHandoffDestination(
                     whatsappHandoffPhone: true,
                     whatsappHandoffLabel: true,
                     whapiGroupName: true,
-                    defaultSourceGroup: true,
                 },
             })
             : null,
@@ -124,18 +111,17 @@ export async function resolveWhatsAppHandoffDestination(
         }),
     ])
 
-    const sourceGroup = clean(input.sourceGroup) || clean(activeAssignment?.sourceGroup)
+    const sourceGroup = clean(input.sourceGroup)
 
     return {
-        groupUrl: cleanHttpUrl(input.whatsappGroupUrl)
-            || cleanHttpUrl(activeAssignment?.whatsappGroupUrl)
-            || cleanHttpUrl(agentProfile?.whatsappHandoffGroupUrl)
-            || cleanHttpUrl(globalSettings?.defaultWhatsappGroupUrl),
+        groupUrl: normalizeWhatsAppGroupInviteUrl(input.whatsappGroupUrl)
+            || normalizeWhatsAppGroupInviteUrl(activeAssignment?.whatsappGroupUrl)
+            || normalizeWhatsAppGroupInviteUrl(agentProfile?.whatsappHandoffGroupUrl)
+            || normalizeWhatsAppGroupInviteUrl(globalSettings?.defaultWhatsappGroupUrl),
         phone: normalizePhone(clean(agentProfile?.whatsappHandoffPhone) || clean(globalSettings?.defaultWhatsappPhone)),
         label: sourceGroup
             || clean(agentProfile?.whatsappHandoffLabel)
             || clean(agentProfile?.whapiGroupName)
-            || clean(agentProfile?.defaultSourceGroup)
             || clean(globalSettings?.defaultWhatsappLabel),
     }
 }

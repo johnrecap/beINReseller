@@ -1,7 +1,7 @@
 # Specification Quality Checklist: Agent User Management
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-05-25
+**Created**: 2026-05-25; revalidated 2026-08-06
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -31,5 +31,5 @@
 
 ## Notes
 
-- The spec deliberately states behavior without requiring a schema migration. Planning may still add an optional partial unique index if current data shows multiple active agent assignments are possible.
-- The approved default is that transfer to agent ends prior manager/admin ownership and affects only future workflows.
+- The nullable Source Group migration is mandatory and preserves existing values; strict manager-link uniqueness remains gated by a production audit.
+- The approved default is that transfer to agent ends prior manager/admin ownership for live access; point ownership is captured per operation at completion and historical snapshots do not move.

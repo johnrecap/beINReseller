@@ -110,10 +110,10 @@ See [data-model.md](./data-model.md), [quickstart.md](./quickstart.md), and [con
 - **Transfer to agent**:
   - Validate target user is a non-deleted `USER`.
   - Validate target agent is a non-deleted active `AGENT`.
-  - Resolve source group from request or target agent profile default.
+  - Resolve nullable Source Group using Spec 031 presence semantics: same-agent preserve, new-agent default/null, explicit clear, or explicit value.
   - End all active agent assignments for the user.
   - Remove all manager/admin ownership rows for the user.
-  - Create the new active agent assignment, unless the same agent assignment is only being refreshed for source group.
+  - Create the new active agent assignment for a different owner, update same-agent metadata in place, or return a no-op for an exact match.
   - Create an activity log with previous and new ownership evidence.
 - **Historical data**: Operations, points, credit requests, balance transactions, inactive assignments, and old activity logs are not rewritten.
 - **Points behavior**: Future completed spend must see the current active agent assignment and should no longer see a manager/admin ownership row after transfer.
@@ -130,8 +130,8 @@ See [data-model.md](./data-model.md), [quickstart.md](./quickstart.md), and [con
 ## Required Indexes And Migration Impact
 
 - Existing indexes on `AgentAssignment(agentId, isActive)` and `AgentAssignment(userId, isActive)` support current list and transfer lookups.
-- No schema migration is required for the MVP if the service always ends active assignments before creating a new one.
-- Optional hardening migration may add a partial unique index on active agent assignment per user:
+- 2026-08-06 amendment: an additive migration drops `NOT NULL` from `AgentAssignment.sourceGroup` in both app and Worker schemas without rewriting existing rows.
+- Existing hardening migration may add/retain a partial unique index on active agent assignment per user:
   - `CREATE UNIQUE INDEX ... ON agent_assignments(user_id) WHERE is_active = true`
   - Only add this after a preflight query confirms production has no duplicate active assignments.
 - No destructive migration is allowed for existing historical assignments.
@@ -139,15 +139,15 @@ See [data-model.md](./data-model.md), [quickstart.md](./quickstart.md), and [con
 ## UI States
 
 - Agents tab: loading skeleton, empty state, search pagination, refresh spinner, and API error alert.
-- Add-under-agent dialog: prefilled agent, source group fallback, duplicate username/email error, invalid agent error.
-- Transfer dialog: target user, current owner summary, target agent, source group fallback, success state, validation error, and no partial local state update on failure.
+- Add-under-agent dialog: prefilled agent, optional Source Group default, duplicate username/email error, invalid agent error.
+- Transfer dialog: target user, current owner summary/token, target agent, optional Source Group preserve/default/clear states, success state, stale-state error, and no partial local state update on failure.
 - Existing agents page: no more manager-owned rejection; show transfer success and refresh assignments.
 
 ## Verification Limitations
 
 - Existing full lint can be blocked by unrelated repository warnings; this feature must still run TypeScript, schema sync, focused unit tests, integration tests, and UI smoke checks.
 - Browser verification requires a local dev server and authenticated admin session; if not available, document manual verification steps from quickstart.
-- Production deployment should use `npx prisma migrate deploy` only if an optional migration is added; otherwise deployment is build and PM2 restart only.
+- Production deployment MUST run `npx prisma migrate deploy` for the required nullable Source Group migration. The separate manager-ownership uniqueness migration remains audit-gated and is deployed only after accepted cleanup evidence.
 
 ## Post-Design Constitution Check
 

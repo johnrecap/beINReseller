@@ -11,6 +11,7 @@ import {
     WalletCards,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/hooks/useTranslation'
 
 type CreditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
 
@@ -46,7 +47,7 @@ type AgentDashboardData = {
         username: string
         balance: number
         isActive: boolean
-        sourceGroup: string
+        sourceGroup: string | null
         assignedAt: string
         lastLoginAt: string | null
         lastRequestAt: string | null
@@ -151,6 +152,7 @@ function EmptyState({ title }: { title: string }) {
 }
 
 export default function AgentDashboardClient() {
+    const { t } = useTranslation()
     const [data, setData] = useState<AgentDashboardData | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -225,7 +227,7 @@ export default function AgentDashboardClient() {
                     {data && (
                         <p className="mt-2 text-sm text-muted-foreground">
                             {data.agent.displayName}
-                            {data.agent.defaultSourceGroup ? ` - ${data.agent.defaultSourceGroup}` : ''}
+                            {` - ${data.agent.defaultSourceGroup || t.common.withoutGroup}`}
                         </p>
                     )}
                 </div>
@@ -242,7 +244,7 @@ export default function AgentDashboardClient() {
             </div>
 
             {error && (
-                <div className="rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">
+                <div className="rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200" role="alert">
                     {error}
                 </div>
             )}
@@ -273,13 +275,13 @@ export default function AgentDashboardClient() {
                                 <table className="w-full text-sm">
                                     <thead className="bg-muted/40 text-muted-foreground">
                                         <tr>
-                                            <th className="px-4 py-3 text-left font-medium">Username</th>
-                                            <th className="px-4 py-3 text-left font-medium">Balance</th>
-                                            <th className="px-4 py-3 text-left font-medium">Debt / Limit</th>
-                                            <th className="px-4 py-3 text-left font-medium">Source Group</th>
-                                            <th className="px-4 py-3 text-left font-medium">Status</th>
-                                            <th className="px-4 py-3 text-left font-medium">Last Request</th>
-                                            <th className="px-4 py-3 text-left font-medium">Actions</th>
+                                            <th className="px-4 py-3 text-start font-medium">Username</th>
+                                            <th className="px-4 py-3 text-start font-medium">Balance</th>
+                                            <th className="px-4 py-3 text-start font-medium">Debt / Limit</th>
+                                            <th className="px-4 py-3 text-start font-medium">Source Group</th>
+                                            <th className="px-4 py-3 text-start font-medium">Status</th>
+                                            <th className="px-4 py-3 text-start font-medium">Last Request</th>
+                                            <th className="px-4 py-3 text-start font-medium">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -288,7 +290,9 @@ export default function AgentDashboardClient() {
                                                 <td className="px-4 py-3 font-semibold text-foreground">{item.username}</td>
                                                 <td className="px-4 py-3 text-foreground">{formatUsd(item.balance)}</td>
                                                 <td className="px-4 py-3"><DebtSummaryCell summary={item.creditDebt} /></td>
-                                                <td className="px-4 py-3 text-muted-foreground">{item.sourceGroup}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">
+                                                    {item.sourceGroup || t.common.withoutGroup}
+                                                </td>
                                                 <td className="px-4 py-3">
                                                     <StatusBadge status={item.lastRequestStatus} />
                                                 </td>
@@ -326,13 +330,14 @@ export default function AgentDashboardClient() {
                                 <table className="w-full text-sm">
                                     <thead className="bg-muted/40 text-muted-foreground">
                                         <tr>
-                                            <th className="px-4 py-3 text-left font-medium">Order ID</th>
-                                            <th className="px-4 py-3 text-left font-medium">Username</th>
-                                            <th className="px-4 py-3 text-left font-medium">Amount</th>
-                                            <th className="px-4 py-3 text-left font-medium">Debt / Limit</th>
-                                            <th className="px-4 py-3 text-left font-medium">Payment</th>
-                                            <th className="px-4 py-3 text-left font-medium">Status</th>
-                                            <th className="px-4 py-3 text-left font-medium">Created</th>
+                                            <th className="px-4 py-3 text-start font-medium">Order ID</th>
+                                            <th className="px-4 py-3 text-start font-medium">Username</th>
+                                            <th className="px-4 py-3 text-start font-medium">Amount</th>
+                                            <th className="px-4 py-3 text-start font-medium">Debt / Limit</th>
+                                            <th className="px-4 py-3 text-start font-medium">Payment</th>
+                                            <th className="px-4 py-3 text-start font-medium">Source Group</th>
+                                            <th className="px-4 py-3 text-start font-medium">Status</th>
+                                            <th className="px-4 py-3 text-start font-medium">Created</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -343,6 +348,9 @@ export default function AgentDashboardClient() {
                                                 <td className="px-4 py-3 text-foreground">{formatUsd(item.amountUsd)}</td>
                                                 <td className="px-4 py-3"><DebtSummaryCell summary={item.debtSummary} /></td>
                                                 <td className="px-4 py-3 text-muted-foreground">{item.paymentMethod}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">
+                                                    {item.sourceGroup || t.common.withoutGroup}
+                                                </td>
                                                 <td className="px-4 py-3">
                                                     <StatusBadge status={item.status} />
                                                 </td>

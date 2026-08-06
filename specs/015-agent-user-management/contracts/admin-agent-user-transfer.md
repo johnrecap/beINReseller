@@ -14,7 +14,8 @@ Creates or transfers a user's active ownership to an agent.
 {
   "userId": "user_1",
   "agentId": "agent_1",
-  "sourceGroup": "main-group",
+  "expectedOwnershipToken": "ow1.example",
+  "sourceGroup": null,
   "replaceExisting": true
 }
 ```
@@ -23,7 +24,8 @@ Creates or transfers a user's active ownership to an agent.
 
 - `userId` must identify a non-deleted active `USER`.
 - `agentId` must identify a non-deleted active `AGENT`.
-- `sourceGroup` may be omitted or blank only when the target agent has a non-empty default source group.
+- `expectedOwnershipToken` is required for public mutations.
+- `sourceGroup` may be omitted, null, blank, or non-empty: omitted preserves for the same agent or uses the new-agent default/null; null/blank clears; non-empty sets a trimmed value up to 120 characters.
 - `replaceExisting` defaults to `true`.
 - If `replaceExisting=false` and the user has active manager/admin ownership or an active agent assignment, the API returns `409`.
 - If `replaceExisting=true`, the API ends old active agent assignments and removes manager/admin owner links before creating the new assignment.
@@ -37,9 +39,12 @@ Creates or transfers a user's active ownership to an agent.
     "id": "assignment_1",
     "userId": "user_1",
     "agentId": "agent_1",
-    "sourceGroup": "main-group",
+    "sourceGroup": null,
     "createdAt": "2026-05-25T12:00:00.000Z"
   },
+  "ownershipToken": "ow1.committed",
+  "auditLogId": "activity_1",
+  "sourceGroupResolution": "CLEARED",
   "transfer": {
     "mode": "transferred",
     "previousManagerOwnerIds": ["manager_1"],
@@ -49,13 +54,16 @@ Creates or transfers a user's active ownership to an agent.
 }
 ```
 
+`auditLogId` is `null` for an exact `NO_OP`. GET assignment/user rows expose the current `ownershipToken`. Additive response fields are backward-compatible; `sourceGroup` remains nullable.
+
 ### Error Responses
 
 | Status | Code/Reason | Notes |
 |--------|-------------|-------|
 | 400 | `INVALID_TARGET_USER` | User missing, deleted, inactive, or not role `USER` |
 | 400 | `INVALID_TARGET_AGENT` | Agent missing, deleted, inactive, or not role `AGENT` |
-| 400 | `SOURCE_GROUP_REQUIRED` | No source group supplied and no agent default |
+| 428 | `OWNERSHIP_PRECONDITION_REQUIRED` | Missing ownership token |
+| 409 | `OWNERSHIP_CHANGED` | Ownership changed since the client loaded it |
 | 409 | `OWNERSHIP_EXISTS` | Existing ownership exists and `replaceExisting=false` |
 | 401 | Unauthorized | No valid session |
 | 403 | Forbidden | Actor is not exact admin |
@@ -76,7 +84,8 @@ Existing endpoint remains, but state refresh must stay consistent with the users
 
 ```json
 {
-  "assignmentId": "assignment_1"
+  "assignmentId": "assignment_1",
+  "expectedOwnershipToken": "ow1.example"
 }
 ```
 

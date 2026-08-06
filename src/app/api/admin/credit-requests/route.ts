@@ -9,6 +9,7 @@ import {
 } from '@/lib/credit-requests/points'
 import { buildWhatsAppPhoneUrl } from '@/lib/credit-requests/whatsapp-handoff'
 import { getCreditDebtSummaryMap } from '@/lib/credit-requests/debt'
+import { parseCreditRequestSourceGroupFilter } from '@/lib/credit-requests/source-group-filter'
 
 const allowedStatuses = new Set(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'])
 
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
         const status = searchParams.get('status')
         const agentId = searchParams.get('agentId')
         const sourceGroup = searchParams.get('sourceGroup')
+        const sourceGroupMode = searchParams.get('sourceGroupMode')
         const escalated = searchParams.get('escalated')
         const search = searchParams.get('search')?.trim()
         const from = parseDate(searchParams.get('from'))
@@ -45,6 +47,17 @@ export async function GET(request: NextRequest) {
         const page = toNumberParam(searchParams.get('page'), 1, 10000)
         const limit = toNumberParam(searchParams.get('limit'), 25, 100)
         const skip = (page - 1) * limit
+        const sourceGroupFilter = parseCreditRequestSourceGroupFilter({
+            sourceGroup,
+            sourceGroupMode,
+        })
+
+        if (!sourceGroupFilter.ok) {
+            return NextResponse.json(
+                { error: 'Invalid source group filter', code: sourceGroupFilter.code },
+                { status: 400 },
+            )
+        }
 
         const where: Prisma.CreditRequestWhereInput = {}
 
@@ -56,8 +69,8 @@ export async function GET(request: NextRequest) {
             where.agentIdSnapshot = agentId
         }
 
-        if (sourceGroup) {
-            where.sourceGroupSnapshot = sourceGroup
+        if (sourceGroupFilter.where) {
+            where.sourceGroupSnapshot = sourceGroupFilter.where.sourceGroupSnapshot
         }
 
         if (escalated === 'true') {
@@ -100,8 +113,11 @@ export async function GET(request: NextRequest) {
         const sourceGroupsWhere: Prisma.CreditRequestWhereInput = actorScope
             ? { AND: [actorScope, { sourceGroupSnapshot: { not: null } }] }
             : { sourceGroupSnapshot: { not: null } }
+        const noSourceGroupWhere: Prisma.CreditRequestWhereInput = actorScope
+            ? { AND: [actorScope, { sourceGroupSnapshot: null }] }
+            : { sourceGroupSnapshot: null }
 
-        const [items, total, summary, agents, sourceGroups] = await Promise.all([
+        const [items, total, summary, agents, sourceGroups, noSourceGroupCount] = await Promise.all([
             prisma.creditRequest.findMany({
                 where: scopedWhere,
                 orderBy: { createdAt: 'desc' },
@@ -197,6 +213,7 @@ export async function GET(request: NextRequest) {
                 orderBy: { sourceGroupSnapshot: 'asc' },
                 select: { sourceGroupSnapshot: true },
             }),
+            prisma.creditRequest.count({ where: noSourceGroupWhere }),
         ])
 
         const userRate = await getUserCreditRequestRate(prisma)
@@ -292,6 +309,8 @@ export async function GET(request: NextRequest) {
                 sourceGroups: sourceGroups
                     .map((row) => row.sourceGroupSnapshot)
                     .filter((value): value is string => Boolean(value)),
+                hasNoSourceGroup: noSourceGroupCount > 0,
+                noSourceGroupCount,
             },
             items: responseItems,
         })

@@ -15,7 +15,7 @@
 - Customer username.
 - Requested amount.
 - Payment method.
-- Agent/group information when available.
+- Request-time agent and Source Group snapshot when available; omit Group when snapshot is null/blank and never infer a later value.
 - Order number.
 - Pending status.
 
@@ -50,6 +50,8 @@
 
 - Group link opens when available and safe.
 - Phone URL opens when no group is available but a valid phone is available.
+- Agent-owned URL fallback is request snapshot, current assignment, agent default, then global default; admin/legacy-admin requests use global default only.
+- Destination URL/label fallback never changes the historical nullable Source Group snapshot.
 - If neither exists, the message remains visible and copyable.
 
 ## Failure Behavior

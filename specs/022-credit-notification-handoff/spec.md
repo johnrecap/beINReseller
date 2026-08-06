@@ -66,7 +66,7 @@ After an admin approves a credit request, the panel prepares a WhatsApp confirma
 - Existing saved Telegram secret must remain hidden while still usable.
 - Browser blocks clipboard access on iPhone, Android, or desktop.
 - Browser blocks opening WhatsApp unless it is triggered by an admin action.
-- Customer has a saved assignment group, an agent default group, and a global default; the request-specific destination must win.
+- Agent-owned customer has a saved request URL snapshot, current assignment URL, agent default, and global default; the request-specific destination wins. A null historical Source Group remains null and is never replaced by later group metadata.
 - WhatsApp destination link is malformed or unsafe.
 - Admin approves from a filtered credit request list and must see the handoff result without losing context.
 
@@ -83,14 +83,14 @@ After an admin approves a credit request, the panel prepares a WhatsApp confirma
 - **FR-007**: The system MUST provide a Telegram test action that sends a test message to the configured destination.
 - **FR-008**: When an eligible customer creates a credit request, the system MUST create the request even if Telegram notification is disabled or fails.
 - **FR-009**: When Telegram is enabled and configured, the system MUST send one Telegram alert for each new credit request.
-- **FR-010**: Telegram alerts MUST include customer name, amount, payment method, order number, agent/group information when available, and pending status.
+- **FR-010**: Telegram alerts MUST include customer name, amount, payment method, order number, request-time agent and Source Group snapshot when present, and pending status; the Group line is omitted for a null/blank snapshot and never inferred later.
 - **FR-011**: Notification status MUST be visible to admins on the credit request list, including failed or disabled states.
 - **FR-012**: Admins MUST be able to retry a failed or disabled Telegram alert while the credit request is still pending.
 - **FR-013**: On approval, the system MUST prepare a WhatsApp confirmation message containing customer name, approved amount, order number, and approval date.
 - **FR-014**: On approval, the system MUST attempt to copy the WhatsApp confirmation message where the browser allows clipboard access.
 - **FR-015**: On approval, the system MUST show the prepared WhatsApp message and a clear copy button as a fallback.
 - **FR-016**: On approval, the system MUST open the saved WhatsApp destination when one is available, but MUST NOT send the WhatsApp message automatically.
-- **FR-017**: The WhatsApp destination MUST be resolved in this priority order: request snapshot, current customer assignment, agent default, global default.
+- **FR-017**: Agent-owned request destinations MUST resolve request URL snapshot, current assignment URL, agent default, then global default. Admin-owned/legacy-admin-owned requests MUST use global defaults only and never query a later assignment. Destination fallback is independent from the historical Source Group label.
 - **FR-018**: Unsafe or malformed WhatsApp destinations MUST not be opened.
 - **FR-019**: Existing credit request creation, approval, rejection, cancellation, and balance behavior MUST continue unchanged except for clearer notification handoff behavior.
 

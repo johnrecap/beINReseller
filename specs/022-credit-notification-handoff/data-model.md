@@ -103,6 +103,8 @@
 3. Agent profile default group/phone/label.
 4. Global notification settings default group/phone/label.
 
+2026-08-06 clarification: this order applies to the WhatsApp destination URL/phone and dedicated destination label. `sourceGroupSnapshot` is historical classification metadata: when it is null, no later assignment/default Source Group may be substituted as the historical Group label. A null Source Group does not stop destination fallback.
+
 **Validation rules**:
 
 - Group URLs must be safe HTTP/HTTPS URLs.

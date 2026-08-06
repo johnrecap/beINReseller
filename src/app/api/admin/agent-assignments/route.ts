@@ -3,6 +3,8 @@ import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
 import { getAgentTransferErrorResponse, transferUserToAgent } from '@/lib/agents/assignment-transfer'
+import { buildOwnershipToken } from '../../../../../shared/db/ownership-evidence-lock'
+import { endAgentAssignment } from '@/lib/users/ownership-transfer'
 
 const assignmentSchema = z.object({
     userId: z.string().min(1),
@@ -10,10 +12,12 @@ const assignmentSchema = z.object({
     sourceGroup: z.string().trim().max(120).optional().nullable(),
     whatsappGroupUrl: z.string().trim().max(500).optional().nullable(),
     replaceExisting: z.boolean().optional().default(true),
+    expectedOwnershipToken: z.string().trim().min(1).optional(),
 })
 
 const endAssignmentSchema = z.object({
     assignmentId: z.string().min(1),
+    expectedOwnershipToken: z.string().trim().min(1).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -55,13 +59,17 @@ export async function GET(request: NextRequest) {
                     balance: true,
                     isActive: true,
                     managerLink: {
-                        select: { managerId: true },
-                        take: 1,
+                        select: { id: true, managerId: true },
                     },
                     agentAssignmentAsUser: {
                         where: { isActive: true },
-                        take: 1,
-                        select: { id: true, agentId: true, sourceGroup: true, whatsappGroupUrl: true },
+                        select: {
+                            id: true,
+                            agentId: true,
+                            sourceGroup: true,
+                            whatsappGroupUrl: true,
+                            updatedAt: true,
+                        },
                     },
                 },
             }),
@@ -86,7 +94,17 @@ export async function GET(request: NextRequest) {
                             username: true,
                             balance: true,
                             isActive: true,
-                            managerLink: { select: { managerId: true }, take: 1 },
+                            managerLink: { select: { id: true, managerId: true } },
+                            agentAssignmentAsUser: {
+                                where: { isActive: true },
+                                select: {
+                                    id: true,
+                                    agentId: true,
+                                    sourceGroup: true,
+                                    whatsappGroupUrl: true,
+                                    updatedAt: true,
+                                },
+                            },
                         },
                     },
                 },
@@ -97,6 +115,13 @@ export async function GET(request: NextRequest) {
         ])
 
         const managerOwnedUserIds = new Set(managerOwnedUsers.map((item) => item.userId))
+        const ownershipTokensByUserId = new Map(users.map((user) => [
+            user.id,
+            buildOwnershipToken({
+                managerLinks: user.managerLink,
+                activeAssignments: user.agentAssignmentAsUser,
+            }),
+        ]))
 
         return NextResponse.json({
             agents: agents.map((agent) => ({
@@ -122,11 +147,13 @@ export async function GET(request: NextRequest) {
                 isActive: user.isActive,
                 managerOwned: user.managerLink.length > 0,
                 activeAssignment: user.agentAssignmentAsUser[0] || null,
+                ownershipToken: ownershipTokensByUserId.get(user.id),
             })),
             assignments: assignments.map((assignment) => ({
                 id: assignment.id,
                 sourceGroup: assignment.sourceGroup,
                 whatsappGroupUrl: assignment.whatsappGroupUrl,
+                ownershipToken: ownershipTokensByUserId.get(assignment.user.id),
                 createdAt: assignment.createdAt.toISOString(),
                 agent: {
                     id: assignment.agent.id,
@@ -163,14 +190,32 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             )
         }
+        if (!parsed.data.expectedOwnershipToken) {
+            return NextResponse.json(
+                { error: 'OWNERSHIP_PRECONDITION_REQUIRED', reason: 'OWNERSHIP_PRECONDITION_REQUIRED' },
+                { status: 428 }
+            )
+        }
 
-        const { userId, agentId, sourceGroup, whatsappGroupUrl, replaceExisting } = parsed.data
-        const result = await transferUserToAgent({
+        const {
             userId,
             agentId,
             sourceGroup,
             whatsappGroupUrl,
             replaceExisting,
+            expectedOwnershipToken,
+        } = parsed.data
+        const result = await transferUserToAgent({
+            userId,
+            agentId,
+            ...(Object.prototype.hasOwnProperty.call(parsed.data, 'sourceGroup')
+                ? { sourceGroup }
+                : {}),
+            ...(Object.prototype.hasOwnProperty.call(parsed.data, 'whatsappGroupUrl')
+                ? { whatsappGroupUrl }
+                : {}),
+            replaceExisting,
+            expectedOwnershipToken,
             adminUserId: authResult.user.id,
             ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
         })
@@ -186,9 +231,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 error: transferError.code,
                 reason: transferError.code,
+                currentOwnershipToken: transferError.currentOwnershipToken,
+                currentOwnershipSummary: transferError.currentOwnershipSummary,
             }, { status: transferError.status })
         }
-
         console.error('Admin create agent assignment error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }
@@ -209,36 +255,31 @@ export async function DELETE(request: NextRequest) {
                 { status: 400 }
             )
         }
-
-        const existing = await prisma.agentAssignment.findUnique({
-            where: { id: parsed.data.assignmentId },
-            select: { id: true, isActive: true, userId: true, agentId: true },
-        })
-
-        if (!existing) {
-            return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
+        if (!parsed.data.expectedOwnershipToken) {
+            return NextResponse.json(
+                { error: 'OWNERSHIP_PRECONDITION_REQUIRED' },
+                { status: 428 }
+            )
         }
 
-        await prisma.$transaction(async (tx) => {
-            await tx.agentAssignment.update({
-                where: { id: existing.id },
-                data: { isActive: false, endedAt: new Date() },
-            })
-
-            await tx.activityLog.create({
-                data: {
-                    userId: authResult.user.id,
-                    action: 'ADMIN_AGENT_ASSIGNMENT_ENDED',
-                    targetId: existing.id,
-                    targetType: 'AgentAssignment',
-                    details: { userId: existing.userId, agentId: existing.agentId },
-                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-                },
-            })
+        const result = await endAgentAssignment({
+            assignmentId: parsed.data.assignmentId,
+            expectedOwnershipToken: parsed.data.expectedOwnershipToken,
+            adminUserId: authResult.user.id,
+            ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+            userAgent: request.headers.get('user-agent'),
         })
 
-        return NextResponse.json({ success: true })
+        return NextResponse.json({ success: true, result })
     } catch (error) {
+        const transferError = getAgentTransferErrorResponse(error)
+        if (transferError) {
+            return NextResponse.json({
+                error: transferError.code,
+                currentOwnershipToken: transferError.currentOwnershipToken,
+                currentOwnershipSummary: transferError.currentOwnershipSummary,
+            }, { status: transferError.status })
+        }
         console.error('Admin end agent assignment error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }

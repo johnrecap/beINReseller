@@ -3,6 +3,10 @@ import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
 import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
 import { runDispatchWatchdog } from '@/lib/operation-dispatch'
+import {
+    retryStaleCapturedOperationSpendAwardRuns,
+    type OperationSpendAwardRunMaintenanceSummary,
+} from '@/lib/maintenance/operation-spend-award-run-maintenance'
 
 const LEADER_LOCK_KEY = 'operation-maintenance:leader'
 export const MAINTENANCE_HEALTH_KEY = 'operation-maintenance:health'
@@ -21,6 +25,7 @@ export interface MaintenanceCycleSummary {
     retried: number
     reviewRequired: number
     refunded: number
+    awardRuns: OperationSpendAwardRunMaintenanceSummary
     errors: string[]
 }
 
@@ -29,6 +34,8 @@ export interface OperationMaintenanceRunnerOptions {
     leaderTtlMs?: number
     staleLimit?: number
     maxDispatchAttempts?: number
+    awardRunLimit?: number
+    awardRunStaleMs?: number
     once?: boolean
 }
 
@@ -99,12 +106,17 @@ async function findRecoverableOperationIds(now: Date, limit: number): Promise<st
 }
 
 export async function runOperationMaintenanceCycle(
-    options?: Pick<OperationMaintenanceRunnerOptions, 'staleLimit' | 'maxDispatchAttempts'>
+    options?: Pick<
+        OperationMaintenanceRunnerOptions,
+        'staleLimit' | 'maxDispatchAttempts' | 'awardRunLimit' | 'awardRunStaleMs'
+    >
 ): Promise<MaintenanceCycleSummary> {
     const started = new Date()
     const cycleId = crypto.randomUUID()
     const staleLimit = options?.staleLimit ?? envNumber('MAINTENANCE_STALE_LIMIT', 50)
     const maxDispatchAttempts = options?.maxDispatchAttempts ?? envNumber('MAINTENANCE_MAX_DISPATCH_ATTEMPTS', 3)
+    const awardRunLimit = options?.awardRunLimit ?? envNumber('MAINTENANCE_AWARD_RUN_LIMIT', 25)
+    const awardRunStaleMs = options?.awardRunStaleMs ?? envNumber('MAINTENANCE_AWARD_RUN_STALE_MS', 300000)
 
     let inspected = 0
     let changed = 0
@@ -112,6 +124,17 @@ export async function runOperationMaintenanceCycle(
     let retried = 0
     let reviewRequired = 0
     let refunded = 0
+    let awardRuns: OperationSpendAwardRunMaintenanceSummary = {
+        inspected: 0,
+        awarded: 0,
+        alreadyFinalized: 0,
+        skipped: 0,
+        reviewRequired: 0,
+        notFound: 0,
+        retryScheduled: 0,
+        retryExhausted: 0,
+        errors: [],
+    }
     const errors: string[] = []
 
     try {
@@ -148,6 +171,22 @@ export async function runOperationMaintenanceCycle(
         errors.push(error instanceof Error ? error.message : String(error))
     }
 
+    try {
+        awardRuns = await retryStaleCapturedOperationSpendAwardRuns({
+            now: started,
+            limit: awardRunLimit,
+            staleMs: awardRunStaleMs,
+        })
+        inspected += awardRuns.inspected
+        changed += awardRuns.awarded
+        skipped += awardRuns.alreadyFinalized + awardRuns.skipped + awardRuns.notFound
+        reviewRequired += awardRuns.reviewRequired
+        errors.push(...awardRuns.errors.map(operationId => `award-run:${operationId}`))
+    } catch {
+        console.error('[Maintenance] Award-run finalization batch failed')
+        errors.push('award-run-maintenance')
+    }
+
     const finished = new Date()
     const summary: MaintenanceCycleSummary = {
         cycleId,
@@ -161,6 +200,7 @@ export async function runOperationMaintenanceCycle(
         retried,
         reviewRequired,
         refunded,
+        awardRuns,
         errors,
     }
 
@@ -177,6 +217,17 @@ export async function runOperationMaintenanceCycle(
         retried,
         reviewRequired,
         refunded,
+        awardRuns: {
+            inspected: awardRuns.inspected,
+            awarded: awardRuns.awarded,
+            alreadyFinalized: awardRuns.alreadyFinalized,
+            skipped: awardRuns.skipped,
+            reviewRequired: awardRuns.reviewRequired,
+            notFound: awardRuns.notFound,
+            retryScheduled: awardRuns.retryScheduled,
+            retryExhausted: awardRuns.retryExhausted,
+            errorCount: awardRuns.errors.length,
+        },
         errorCount: errors.length,
         durationMs: summary.durationMs,
     }))

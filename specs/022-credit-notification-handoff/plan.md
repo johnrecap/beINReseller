@@ -108,7 +108,7 @@ tests/
 - Source of truth for request alert attempts remains `whatsapp_notification_logs`, including Telegram provider rows.
 - Source of truth for manual WhatsApp approval output remains `whatsapp_handoff_snapshots`.
 - Existing Telegram token values may already be saved in the current field. Implementation must support current saved values and avoid breaking existing alerts after deploy.
-- Existing customer/agent/default WhatsApp destination priority remains request snapshot, current assignment, agent default, then global default.
+- Existing customer/agent/default WhatsApp destination priority remains request URL snapshot, current assignment URL, agent default, then global default. Source Group labels are separate historical metadata: a null request snapshot remains no-group and never inherits a later assignment group.
 
 ## API Authorization Rules
 

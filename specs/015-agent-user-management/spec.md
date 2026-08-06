@@ -14,8 +14,9 @@
 
 - Q: What should happen when a user is moved from a manager or admin owner to an agent? -> A: The previous manager/admin ownership must be ended before the new active agent assignment is created, so the user has one active owner path for future workflows.
 - Q: What should happen when a user already belongs to another agent? -> A: The old active agent assignment must be ended and replaced with the new agent assignment in the same admin action.
-- Q: Should historical points or old spend be recalculated after transfer? -> A: No. The transfer affects future ownership and future point earning only.
+- Q: Should historical points or old spend be recalculated after transfer? -> A: No. An operation completed after transfer captures the new owner at completion; an operation completed before transfer retains its captured prior owner even if ledger finalization happens later.
 - Q: What should the new admin users tab be called? -> A: `مندوبين` in Arabic UI, with `Agents` as English fallback.
+- Q: Is Source Group required? -> A: No as of the 2026-08-06 amendment. It is nullable assignment metadata; omitted, explicitly cleared, and explicitly supplied values have distinct semantics defined by Spec 031.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -90,8 +91,8 @@ Admins need the existing admin agents page and the users page to use the same tr
 - A user has multiple legacy manager/admin links: all active manager/admin links for that user are removed during transfer to agent.
 - A user has multiple active agent assignments due to old data: transfer ends all active assignments before creating the new one.
 - A target agent is inactive through `users.isActive=false` or `agentProfile.isActive=false`: transfer is rejected.
-- A transfer is requested from an agent to the same agent: system treats it as a no-op refresh only if the source group changes; otherwise it returns success without duplicate assignment.
-- A source group is blank: system uses the target agent default source group if available, otherwise rejects with a clear validation error.
+- A transfer is requested from an agent to the same agent: unchanged durable state is a no-op; metadata changes update the existing active assignment in place.
+- Source Group is omitted: same-agent transfer preserves it; new-agent transfer uses the target default or stores `null`. Explicit `null`, blank, or whitespace clears it.
 - Existing historical assignments remain audit history through inactive rows and `endedAt`; they are not deleted.
 - Existing historical points, operations, and credit requests are not rewritten when ownership is transferred.
 - Search and pagination must remain stable when switching between distributors, users, and agents tabs.
@@ -112,12 +113,12 @@ Admins need the existing admin agents page and the users page to use the same tr
 - **FR-010**: Transfer to agent MUST end all other active agent assignments for the user before creating or refreshing the target active assignment.
 - **FR-011**: The system MUST reject transfer when the target user is not a non-deleted `USER` account.
 - **FR-012**: The system MUST reject transfer when the target agent is not a non-deleted, active `AGENT` account with an active agent profile if profile data exists.
-- **FR-013**: The system MUST resolve a blank source group by using the target agent default source group when present; if neither is present, it MUST reject the request.
-- **FR-014**: Every successful create-under-agent or transfer action MUST create an activity log containing admin id, user id, target agent id, previous manager/admin links, previous agent assignment ids, source group, and whether the action replaced existing ownership.
+- **FR-013**: The system MUST treat Source Group as optional nullable metadata with the omitted/default/preserve versus explicit-clear semantics defined by Spec 031 and a 120-character maximum when supplied.
+- **FR-014**: Every mutating create-under-agent or transfer action MUST create a redacted activity log containing admin id, user id, target agent id, previous current ownership ids, Source Group resolution mode, and transfer mode; exact no-ops create no audit noise.
 - **FR-015**: Existing historical operations, credit requests, point ledger entries, and assignments MUST NOT be mutated except ending active ownership rows needed for the transfer.
-- **FR-016**: Future point earning after a successful transfer MUST use the current active agent assignment and MUST NOT continue treating the user as manager-owned.
+- **FR-016**: An operation that completes after a successful transfer MUST capture the new active agent assignment; an operation completed before transfer MUST retain its completion-time owner and MUST NOT be reattributed during later point finalization.
 - **FR-017**: The existing admin agents assignment page MUST use the same transfer rules as the new users-page flow and MUST no longer reject manager-owned users solely because they are manager-owned.
-- **FR-018**: API responses for assignment creation/transfer MUST return enough state for UI refresh: assignment id, user id, agent id, source group, previous ownership summary, and transfer mode.
+- **FR-018**: API responses for assignment creation/transfer MUST return enough state for UI refresh: assignment id, user id, agent id, nullable Source Group, previous ownership summary, ownership token, and transfer mode.
 - **FR-019**: The UI MUST show loading, empty, success, and error states for the agents tab and transfer dialogs.
 - **FR-020**: The implementation MUST avoid N+1 point-summary or assignment-count queries on paginated admin users lists.
 
@@ -126,7 +127,7 @@ Admins need the existing admin agents page and the users page to use the same tr
 - **Agent Account**: A `User` with role `AGENT`, optional `AgentProfile`, own balance and point summary, and active assigned users.
 - **Managed User**: A `User` with role `USER` that can be owned by manager/admin legacy links or by an active agent assignment.
 - **Manager/Admin Ownership Link**: Existing `ManagerUser` row that represents legacy ownership by a manager or admin account.
-- **Agent Assignment**: Existing `AgentAssignment` row that represents assignment of a user to an agent, with source group, active flag, admin actor, and ended timestamp.
+- **Agent Assignment**: Existing `AgentAssignment` row that represents assignment of a user to an agent, with nullable Source Group metadata, optional WhatsApp URL, active flag, admin actor, and ended timestamp.
 - **Transfer Result**: Auditable outcome of moving a user to an agent, including previous ownership and new active assignment.
 - **Agent Tab Row**: Admin-facing row combining agent account fields, point summary, profile defaults, and active assigned-user count.
 

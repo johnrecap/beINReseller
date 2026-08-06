@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
 import {
+    buildOwnershipTransferErrorPayload,
     getOwnershipTransferErrorResponse,
     transferUserOwnership,
 } from '@/lib/users/ownership-transfer'
@@ -10,8 +11,9 @@ const transferSchema = z.object({
     userId: z.string().trim().min(1),
     targetOwnerType: z.enum(['ADMIN', 'MANAGER', 'AGENT']),
     targetOwnerId: z.string().trim().min(1),
-    sourceGroup: z.string().trim().max(120).optional().or(z.literal('')),
-    whatsappGroupUrl: z.string().trim().max(500).optional().or(z.literal('')),
+    expectedOwnershipToken: z.string().trim().min(1).optional(),
+    sourceGroup: z.string().trim().max(120).optional().nullable(),
+    whatsappGroupUrl: z.string().trim().max(500).optional().nullable(),
     reason: z.string().trim().max(500).optional().or(z.literal('')),
 })
 
@@ -31,12 +33,23 @@ export async function POST(request: NextRequest) {
             )
         }
 
+        if (!parsed.data.expectedOwnershipToken) {
+            return NextResponse.json(
+                { error: 'OWNERSHIP_PRECONDITION_REQUIRED' },
+                { status: 428 }
+            )
+        }
+
+        const hasSourceGroup = Object.prototype.hasOwnProperty.call(parsed.data, 'sourceGroup')
+        const hasWhatsAppGroupUrl = Object.prototype.hasOwnProperty.call(parsed.data, 'whatsappGroupUrl')
+
         const result = await transferUserOwnership({
             userId: parsed.data.userId,
             targetOwnerType: parsed.data.targetOwnerType,
             targetOwnerId: parsed.data.targetOwnerId,
-            sourceGroup: parsed.data.sourceGroup || null,
-            whatsappGroupUrl: parsed.data.whatsappGroupUrl || null,
+            expectedOwnershipToken: parsed.data.expectedOwnershipToken,
+            ...(hasSourceGroup ? { sourceGroup: parsed.data.sourceGroup ?? null } : {}),
+            ...(hasWhatsAppGroupUrl ? { whatsappGroupUrl: parsed.data.whatsappGroupUrl ?? null } : {}),
             reason: parsed.data.reason || null,
             adminUserId: authResult.user.id,
             ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
@@ -50,7 +63,10 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         const transferError = getOwnershipTransferErrorResponse(error)
         if (transferError && !transferError.ok) {
-            return NextResponse.json({ error: transferError.code }, { status: transferError.status })
+            return NextResponse.json(
+                buildOwnershipTransferErrorPayload(transferError),
+                { status: transferError.status },
+            )
         }
 
         console.error('Transfer user ownership error:', error)

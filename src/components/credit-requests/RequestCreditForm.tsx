@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useTranslation } from '@/hooks/useTranslation'
 import type { CreditRequestListItem } from '@/lib/credit-requests/types'
 
 type Eligibility = {
@@ -42,10 +43,10 @@ const blockedMessages: Record<string, string> = {
     CREDIT_LIMIT_EXCEEDED: 'Your current pending requests and unpaid debt have used the full credit request limit.',
 }
 
-function ownerDescription(eligibility: Eligibility | undefined) {
+function ownerDescription(eligibility: Eligibility | undefined, withoutGroupLabel: string) {
     if (!eligibility) return ''
     if (eligibility.ownerType === 'AGENT') {
-        return `Agent: ${eligibility.agentName || eligibility.ownerLabel || '-'} | Group: ${eligibility.sourceGroup || '-'}`
+        return `Agent: ${eligibility.agentName || eligibility.ownerLabel || '-'} | Group: ${eligibility.sourceGroup || withoutGroupLabel}`
     }
 
     return `Owner: ${eligibility.ownerLabel || 'Admin direct'}`
@@ -97,6 +98,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function RequestCreditForm() {
+    const { t } = useTranslation()
     const [data, setData] = useState<CreditRequestsResponse | null>(null)
     const [loading, setLoading] = useState(true)
     const [submitting, setSubmitting] = useState(false)
@@ -190,7 +192,7 @@ export default function RequestCreditForm() {
             </div>
 
             {message && (
-                <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${
+                <div role={message.type === 'error' ? 'alert' : 'status'} className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${
                     message.type === 'success'
                         ? 'border-green-500/40 bg-green-500/10 text-green-300'
                         : 'border-red-500/40 bg-red-500/10 text-red-300'
@@ -222,7 +224,7 @@ export default function RequestCreditForm() {
                     <CardHeader>
                         <CardTitle>New Credit Request</CardTitle>
                         <CardDescription>
-                            {ownerDescription(data?.eligibility)}
+                            {ownerDescription(data?.eligibility, t.common.withoutGroup)}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -304,7 +306,14 @@ export default function RequestCreditForm() {
                                             <td className="py-3 font-mono text-xs">{request.requestNumber}</td>
                                             <td className="py-3 font-semibold">USD {request.amountUsd.toFixed(2)}</td>
                                             <td className="py-3">{request.paymentMethod}</td>
-                                            <td className="py-3">{request.ownerLabel || request.agentName || '-'}</td>
+                                            <td className="py-3">
+                                                <div>{request.ownerLabel || request.agentName || '-'}</div>
+                                                {request.ownerType === 'AGENT' ? (
+                                                    <div className="text-xs text-[var(--color-text-secondary)]">
+                                                        {request.sourceGroup || t.common.withoutGroup}
+                                                    </div>
+                                                ) : null}
+                                            </td>
                                             <td className="py-3"><StatusBadge status={request.status} /></td>
                                             <td className="py-3">{request.notificationStatus || '-'}</td>
                                             <td className="py-3 text-[var(--color-text-secondary)]">{formatDate(request.createdAt)}</td>

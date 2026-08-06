@@ -1,19 +1,24 @@
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import {
     buildOperationSpendAwardEntries,
     resolveOperationPointRecipients,
-    resolveOperationSpendAwardPolicy,
 } from '../../../shared/points/operation-spend-policy';
 import type {
     AwardableUser,
     OperationPointRecipient,
     RatedOperationPointRecipient,
 } from '../../../shared/points/operation-spend-policy';
-
-type PointsPrisma = Pick<
-    PrismaClient,
-    'operation' | 'pointProgramSettings' | 'pointRule' | 'pointLedgerEntry'
->;
+import {
+    captureOperationSpendAwardRunInTransaction as captureAwardRun,
+    finalizeOperationSpendAwardRunInDatabase,
+    type AwardRunDatabase,
+    type AwardRunTransaction,
+    type OperationSpendAwardRunCreateData,
+    type OperationSpendAwardRunUpdateData,
+    type OperationSpendCaptureResult,
+    type OperationSpendFinalizationResult,
+    type OperationSpendLedgerCreateData,
+} from '../../../shared/points/operation-spend-award-runs';
 
 type WorkerAwardableUser = {
     id: string;
@@ -22,44 +27,6 @@ type WorkerAwardableUser = {
     deletedAt: Date | string | null;
     createdBy?: WorkerAwardableUser | null;
 };
-
-async function activeRuleRate(
-    prisma: PointsPrisma,
-    ownerType: 'USER_GLOBAL' | 'MANAGER_OWNED_USER_DEFAULT' | 'AGENT_DEFAULT' | 'AGENT_OVERRIDE' | 'MANAGER_DEFAULT' | 'MANAGER_OVERRIDE',
-    ownerUserId: string | null
-): Promise<number | null> {
-    const rule = await prisma.pointRule.findFirst({
-        where: { ownerType, ownerUserId, isActive: true },
-        orderBy: { updatedAt: 'desc' },
-        select: { pointsPerThousand: true },
-    });
-
-    return rule?.pointsPerThousand ?? null;
-}
-
-async function spendRate(prisma: PointsPrisma, recipient: OperationPointRecipient): Promise<number> {
-    if (recipient.ownerKind === 'USER') {
-        return (await activeRuleRate(prisma, 'USER_GLOBAL', null)) ?? 0;
-    }
-
-    if (recipient.ownerKind === 'MANAGER_OWNED_USER') {
-        return (await activeRuleRate(prisma, 'MANAGER_OWNED_USER_DEFAULT', null)) ?? 0;
-    }
-
-    if (recipient.ownerKind === 'AGENT') {
-        const [defaultRate, overrideRate] = await Promise.all([
-            activeRuleRate(prisma, 'AGENT_DEFAULT', null),
-            activeRuleRate(prisma, 'AGENT_OVERRIDE', recipient.ownerUserId),
-        ]);
-        return Math.max(0, overrideRate ?? defaultRate ?? 0);
-    }
-
-    const [defaultRate, overrideRate] = await Promise.all([
-        activeRuleRate(prisma, 'MANAGER_DEFAULT', null),
-        activeRuleRate(prisma, 'MANAGER_OVERRIDE', recipient.ownerUserId),
-    ]);
-    return Math.max(0, overrideRate ?? defaultRate ?? 0);
-}
 
 export function resolveWorkerOperationPointRecipients(input: {
     operationUser: WorkerAwardableUser;
@@ -86,99 +53,111 @@ export function buildWorkerPointEntries(input: {
     }));
 }
 
-export async function processCompletedOperationPoints(prisma: PointsPrisma, operationId: string): Promise<void> {
-    const operation = await prisma.operation.findUnique({
-        where: { id: operationId },
-        select: {
-            id: true,
-            type: true,
-            status: true,
-            amount: true,
-            completedAt: true,
-            user: {
-                select: {
-                    id: true,
-                    role: true,
-                    isActive: true,
-                    deletedAt: true,
-                    createdBy: {
-                        select: {
-                            id: true,
-                            role: true,
-                            isActive: true,
-                            deletedAt: true,
-                        },
-                    },
-                    managerLink: {
-                        take: 1,
-                        orderBy: { createdAt: 'desc' },
-                        select: {
-                            manager: {
-                                select: { id: true, role: true, isActive: true, deletedAt: true },
-                            },
-                        },
-                    },
-                    agentAssignmentAsUser: {
-                        where: { isActive: true },
-                        take: 1,
-                        orderBy: { createdAt: 'desc' },
-                        select: {
-                            agent: {
-                                select: { id: true, role: true, isActive: true, deletedAt: true },
-                            },
-                        },
-                    },
-                },
-            },
+function runCreateData(
+    data: OperationSpendAwardRunCreateData
+): Prisma.OperationSpendAwardRunUncheckedCreateInput {
+    return data;
+}
+
+function runUpdateData(
+    data: OperationSpendAwardRunUpdateData
+): Prisma.OperationSpendAwardRunUncheckedUpdateInput {
+    return data;
+}
+
+function runUpdateManyData(
+    data: OperationSpendAwardRunUpdateData
+): Prisma.OperationSpendAwardRunUncheckedUpdateManyInput {
+    return data;
+}
+
+function ledgerCreateData(
+    data: OperationSpendLedgerCreateData[]
+): Prisma.PointLedgerEntryCreateManyInput[] {
+    return data;
+}
+
+function prismaAwardRunTransaction(transaction: Prisma.TransactionClient): AwardRunTransaction {
+    return {
+        $queryRaw<T = unknown>(query: Prisma.Sql): Promise<T> {
+            return transaction.$queryRaw<T>(query);
         },
-    });
-
-    if (!operation || !operation.user) {
-        return;
-    }
-
-    const settings = await prisma.pointProgramSettings.findUnique({
-        where: { id: 'default' },
-        select: { pointsEnabled: true, pointsStartAt: true, managerOwnedUserPointsEnabled: true },
-    });
-
-    const policy = resolveOperationSpendAwardPolicy({
-        status: operation.status,
-        type: operation.type,
-        amount: operation.amount,
-        completedAt: operation.completedAt,
-        settings: settings ?? {
-            pointsEnabled: false,
-            pointsStartAt: null,
-            managerOwnedUserPointsEnabled: false,
+        operation: {
+            findUnique: (args) => transaction.operation.findUnique(
+                args as Prisma.OperationFindUniqueArgs
+            ) as never,
         },
-        operationUser: operation.user as AwardableUser,
-        managerOwnership: operation.user.managerLink[0]?.manager
-            ? { manager: operation.user.managerLink[0].manager as AwardableUser }
-            : null,
-        agentAssignment: operation.user.agentAssignmentAsUser[0]?.agent
-            ? { agent: operation.user.agentAssignmentAsUser[0].agent as AwardableUser }
-            : null,
-    });
+        pointProgramSettings: {
+            findUnique: (args) => transaction.pointProgramSettings.findUnique(
+                args as Prisma.PointProgramSettingsFindUniqueArgs
+            ) as never,
+        },
+        pointRule: {
+            findMany: (args) => transaction.pointRule.findMany(
+                args as Prisma.PointRuleFindManyArgs
+            ) as never,
+        },
+        operationSpendAwardRun: {
+            findUnique: (args) => transaction.operationSpendAwardRun.findUnique(
+                args as Prisma.OperationSpendAwardRunFindUniqueArgs
+            ),
+            create: ({ data }) => transaction.operationSpendAwardRun.create({
+                data: runCreateData(data),
+            }),
+            upsert: ({ where, create, update }) => transaction.operationSpendAwardRun.upsert({
+                where,
+                create: runCreateData(create),
+                update: runUpdateData(update),
+            }),
+            update: ({ where, data }) => transaction.operationSpendAwardRun.update({
+                where,
+                data: runUpdateData(data),
+            }),
+            updateMany: ({ where, data }) => transaction.operationSpendAwardRun.updateMany({
+                where,
+                data: runUpdateManyData(data),
+            }),
+        },
+        pointLedgerEntry: {
+            findFirst: (args) => transaction.pointLedgerEntry.findFirst(
+                args as Prisma.PointLedgerEntryFindFirstArgs
+            ),
+            count: (args) => transaction.pointLedgerEntry.count(
+                args as Prisma.PointLedgerEntryCountArgs
+            ),
+            createMany: ({ data }) => transaction.pointLedgerEntry.createMany({
+                data: ledgerCreateData(data),
+            }),
+        },
+    };
+}
 
-    if (!policy.eligible) return;
-
-    const ratedRecipients: RatedOperationPointRecipient[] = [];
-    for (const recipient of policy.recipients) {
-        const rate = await spendRate(prisma, recipient);
-        ratedRecipients.push({ ...recipient, ratePerThousand: rate });
+export async function captureOperationSpendAwardRunInTransaction(
+    transaction: Prisma.TransactionClient,
+    operationId: string,
+    completionSource: string,
+    completedAt: Date
+): Promise<OperationSpendCaptureResult> {
+    const capture = await captureAwardRun(
+        prismaAwardRunTransaction(transaction),
+        operationId,
+        completionSource,
+        completedAt
+    );
+    if (capture.outcome === 'CONFLICT') {
+        throw new Error('AWARD_RUN_CONFLICT');
     }
+    return capture;
+}
 
-    const entries = buildWorkerPointEntries({
-        operationId: operation.id,
-        amountUsd: operation.amount,
-        recipients: ratedRecipients,
-    });
-
-    if (entries.length === 0) return;
-
-    await prisma.pointLedgerEntry.createMany({
-        data: entries,
-        skipDuplicates: true,
-    });
+export async function finalizeOperationSpendAwardRun(
+    prismaClient: PrismaClient,
+    operationId: string
+): Promise<OperationSpendFinalizationResult> {
+    const database: AwardRunDatabase = {
+        $transaction<T>(work: (transaction: AwardRunTransaction) => Promise<T>): Promise<T> {
+            return prismaClient.$transaction((transaction) => work(prismaAwardRunTransaction(transaction)));
+        },
+    };
+    return finalizeOperationSpendAwardRunInDatabase(operationId, database);
 }

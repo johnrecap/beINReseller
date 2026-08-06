@@ -7,6 +7,10 @@ function createTxMock(input: {
     assignmentSourceGroup?: string | null
     agentGroupUrl?: string | null
     defaultGroupUrl?: string | null
+    agentHandoffLabel?: string | null
+    agentApiGroupName?: string | null
+    agentDefaultSourceGroup?: string | null
+    globalLabel?: string | null
     onAssignmentLookup?: () => void
 }) {
     return {
@@ -26,9 +30,13 @@ function createTxMock(input: {
                 return {
                     whatsappHandoffGroupUrl: input.agentGroupUrl ?? null,
                     whatsappHandoffPhone: ' +20 100 123 4567 ',
-                    whatsappHandoffLabel: 'Agent default label',
-                    whapiGroupName: 'Agent API group',
-                    defaultSourceGroup: 'Agent default source',
+                    whatsappHandoffLabel: input.agentHandoffLabel === undefined
+                        ? 'Agent default label'
+                        : input.agentHandoffLabel,
+                    whapiGroupName: input.agentApiGroupName === undefined
+                        ? 'Agent API group'
+                        : input.agentApiGroupName,
+                    defaultSourceGroup: input.agentDefaultSourceGroup ?? 'Agent default source',
                 }
             },
         },
@@ -37,17 +45,19 @@ function createTxMock(input: {
                 return {
                     defaultWhatsappGroupUrl: input.defaultGroupUrl ?? null,
                     defaultWhatsappPhone: '201111111111',
-                    defaultWhatsappLabel: 'Global default',
+                    defaultWhatsappLabel: input.globalLabel === undefined
+                        ? 'Global default'
+                        : input.globalLabel,
                 }
             },
         },
     }
 }
 
-test('uses the user assignment WhatsApp group before agent defaults', async () => {
+test('historical null Source Group keeps no group metadata while assignment URL still falls back', async () => {
     const destination = await resolveWhatsAppHandoffDestination(createTxMock({
         assignmentGroupUrl: 'https://chat.whatsapp.com/user-group',
-        assignmentSourceGroup: 'VIP group',
+        assignmentSourceGroup: 'Later assignment group',
         agentGroupUrl: 'https://chat.whatsapp.com/agent-group',
         defaultGroupUrl: 'https://chat.whatsapp.com/global-group',
     }) as never, {
@@ -58,7 +68,7 @@ test('uses the user assignment WhatsApp group before agent defaults', async () =
     })
 
     assert.equal(destination.groupUrl, 'https://chat.whatsapp.com/user-group')
-    assert.equal(destination.label, 'VIP group')
+    assert.equal(destination.label, 'Agent default label')
     assert.equal(destination.phone, '+201001234567')
 })
 
@@ -78,6 +88,24 @@ test('uses the credit request group snapshot before the current assignment', asy
     assert.equal(destination.label, 'Snapshot group')
 })
 
+test('historical null Source Group never inherits the current agent default group label', async () => {
+    const destination = await resolveWhatsAppHandoffDestination(createTxMock({
+        assignmentGroupUrl: 'https://chat.whatsapp.com/current-url',
+        agentHandoffLabel: null,
+        agentApiGroupName: null,
+        agentDefaultSourceGroup: 'Later default group',
+        globalLabel: null,
+    }) as never, {
+        agentId: 'agent-1',
+        userId: 'user-1',
+        sourceGroup: null,
+        whatsappGroupUrl: null,
+    })
+
+    assert.equal(destination.groupUrl, 'https://chat.whatsapp.com/current-url')
+    assert.equal(destination.label, null)
+})
+
 test('ignores unsafe group URLs and falls back to configured defaults', async () => {
     const destination = await resolveWhatsAppHandoffDestination(createTxMock({
         assignmentGroupUrl: 'javascript:alert(1)',
@@ -91,7 +119,20 @@ test('ignores unsafe group URLs and falls back to configured defaults', async ()
     })
 
     assert.equal(destination.groupUrl, 'https://chat.whatsapp.com/agent-group')
-    assert.equal(destination.label, 'Unsafe group')
+})
+
+test('ignores non-WhatsApp HTTPS URLs when resolving handoff destinations', async () => {
+    const destination = await resolveWhatsAppHandoffDestination(createTxMock({
+        assignmentGroupUrl: 'https://example.com/not-a-whatsapp-group',
+        agentGroupUrl: 'https://chat.whatsapp.com/agent-group',
+    }) as never, {
+        agentId: 'agent-1',
+        userId: 'user-1',
+        sourceGroup: null,
+        whatsappGroupUrl: null,
+    })
+
+    assert.equal(destination.groupUrl, 'https://chat.whatsapp.com/agent-group')
 })
 
 test('admin-owned requests skip current assignment lookup and use global defaults', async () => {

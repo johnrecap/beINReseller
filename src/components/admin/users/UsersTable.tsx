@@ -42,12 +42,19 @@ interface User {
     creatorUsername?: string | null
     creatorEmail?: string | null
     creatorRole?: string | null
-    currentOwner?: {
+    currentOwner: {
         type: string
         id: string | null
         label: string | null
         isLegacyFallback: boolean
         hasConflict: boolean
+        conflictCount: number
+        ownershipToken: string
+        agentAssignment: {
+            id: string
+            sourceGroup: string | null
+            whatsappConfigured: boolean
+        } | null
     }
     // Proxy status (for users tab)
     hasProxyLinked?: boolean
@@ -556,6 +563,11 @@ export default function UsersTable() {
                                         ? 'Unowned'
                                         : (t.admin?.users?.roles?.admin || 'Admin')}
                         </span>
+                        {user.currentOwner?.type === 'AGENT' && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                                {user.currentOwner.agentAssignment?.sourceGroup || t.common.withoutGroup}
+                            </div>
+                        )}
                         {user.currentOwner?.hasConflict && (
                             <div className="mt-1 text-[10px] text-amber-500">Ownership conflict</div>
                         )}
@@ -964,7 +976,6 @@ export default function UsersTable() {
                     id: createAgent.id,
                     username: createAgent.profile.displayName || createAgent.username,
                     defaultSourceGroup: createAgent.profile.defaultSourceGroup,
-                    defaultWhatsAppGroupUrl: createAgent.profile.whatsappHandoffGroupUrl,
                 } : null}
             />
             <EditUserDialog

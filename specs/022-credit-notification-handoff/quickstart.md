@@ -30,12 +30,12 @@ npm run build
 1. Enable Telegram alerts and save a valid Telegram secret and destination.
 2. Use an eligible customer to submit a credit request.
 3. Confirm the customer sees the request as pending.
-4. Confirm the admin receives one Telegram message with customer, amount, payment method, agent/group, order number, and pending status.
+4. Confirm the admin receives one Telegram message with customer, amount, payment method, request-time agent/group when present, order number, and pending status; null group omits the Group line even after a later assignment edit.
 5. Open admin credit requests and confirm notification status is visible.
 
 ## Manual Check 3: Manual WhatsApp Approval
 
-1. Ensure the credit request has a saved WhatsApp group link through the customer assignment or global default.
+1. Ensure an agent-owned credit request has a request/assignment/agent/global WhatsApp URL fallback, or an admin-owned request has a global default; Source Group may remain null.
 2. Approve the request as admin.
 3. Confirm the WhatsApp handoff dialog appears.
 4. Confirm the message includes customer username, amount, order number, and approval date.

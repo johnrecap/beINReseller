@@ -35,14 +35,14 @@
 
 ## Decision: Preserve Existing Destination Priority
 
-**Decision**: WhatsApp destination priority remains: request snapshot, current assignment, agent default, global default.
+**Decision**: For agent-owned requests, WhatsApp URL/phone priority remains request URL snapshot, current assignment URL, agent default, global default. Admin/legacy-admin requests use global defaults only. Historical Source Group is separate: null remains null and cannot inherit current/default group metadata.
 
 **Rationale**: This protects the destination captured when the request was created while still allowing fallbacks.
 
 **Alternatives considered**:
 
 - Always use global default: rejected because customer/group-specific routing would be lost.
-- Always use current assignment: rejected because assignment changes after request creation could send the admin to the wrong group.
+- Always use current assignment: rejected because assignment changes after request creation could send the admin to the wrong group; current assignment remains only a destination fallback for requests captured as agent-owned, never a historical Group label.
 
 ## Decision: Harden Telegram Secret Handling In Place
 

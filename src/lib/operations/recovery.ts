@@ -24,7 +24,10 @@ import {
     type AccountLockReleaseEvidence,
 } from '@/lib/operations/account-lock-release'
 import { mergeRecoveryEvidence } from '@/lib/operations/recovery-evidence'
-import { processCompletedOperationPoints } from '@/lib/points/operation-awards'
+import {
+    captureOperationSpendAwardRunInTransaction,
+    finalizeOperationSpendAwardRun,
+} from '@/lib/points/operation-spend-award-runs'
 
 export interface RecoverOperationResult {
     operationId: string
@@ -526,6 +529,18 @@ export async function recoverOperationIfNeeded(
                         lockReleased: false,
                     }
                 }
+
+                if (nextStatus === 'COMPLETED') {
+                    const capture = await captureOperationSpendAwardRunInTransaction(
+                        tx,
+                        operation.id,
+                        'WEB_RECOVERY',
+                        now
+                    )
+                    if (capture.outcome === 'CONFLICT') {
+                        throw new Error('AWARD_RUN_CONFLICT')
+                    }
+                }
             }
 
             if (operation.userId) {
@@ -601,8 +616,8 @@ export async function recoverOperationIfNeeded(
         }
 
         if (result.newStatus === 'COMPLETED') {
-            await processCompletedOperationPoints(operationId).catch((error) => {
-                console.error('Recovery point award error:', error)
+            await finalizeOperationSpendAwardRun(operationId).catch((error) => {
+                console.error('Recovery point finalization error:', error)
             })
         }
 

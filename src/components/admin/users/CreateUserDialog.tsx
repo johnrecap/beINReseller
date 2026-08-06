@@ -15,7 +15,6 @@ interface CreateUserDialogProps {
         id: string
         username: string
         defaultSourceGroup?: string | null
-        defaultWhatsAppGroupUrl?: string | null
     } | null
 }
 
@@ -28,7 +27,9 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
     const [email, setEmail] = useState("")
     const [role, setRole] = useState(defaultRole)
     const [sourceGroup, setSourceGroup] = useState(agentContext?.defaultSourceGroup || "")
-    const [whatsappGroupUrl, setWhatsappGroupUrl] = useState(agentContext?.defaultWhatsAppGroupUrl || "")
+    const [whatsappGroupUrl, setWhatsappGroupUrl] = useState("")
+    const [sourceGroupTouched, setSourceGroupTouched] = useState(false)
+    const [whatsappGroupUrlTouched, setWhatsappGroupUrlTouched] = useState(false)
     const emailInputRef = useRef<HTMLInputElement>(null)
 
     // Reset role when dialog opens with a new defaultRole
@@ -36,7 +37,9 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
         if (isOpen) {
             setRole(agentContext ? 'USER' : defaultRole)
             setSourceGroup(agentContext?.defaultSourceGroup || "")
-            setWhatsappGroupUrl(agentContext?.defaultWhatsAppGroupUrl || "")
+            setWhatsappGroupUrl("")
+            setSourceGroupTouched(false)
+            setWhatsappGroupUrlTouched(false)
         }
     }, [isOpen, defaultRole, agentContext])
 
@@ -79,7 +82,11 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
             password: formData.get('password') as string,
             role: role,
             balance: parseFloat(formData.get('balance') as string) || 0,
-            ...(agentContext ? { agentId: agentContext.id, sourceGroup, whatsappGroupUrl } : {}),
+            ...(agentContext ? {
+                agentId: agentContext.id,
+                ...(sourceGroupTouched ? { sourceGroup } : {}),
+                ...(whatsappGroupUrlTouched ? { whatsappGroupUrl } : {}),
+            } : {}),
         }
 
         try {
@@ -102,7 +109,9 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
             setEmail("")
             setRole(agentContext ? 'USER' : defaultRole)
             setSourceGroup(agentContext?.defaultSourceGroup || "")
-            setWhatsappGroupUrl(agentContext?.defaultWhatsAppGroupUrl || "")
+            setWhatsappGroupUrl("")
+            setSourceGroupTouched(false)
+            setWhatsappGroupUrlTouched(false)
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error')
         } finally {
@@ -114,7 +123,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200 border border-border">
+            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center p-4 border-b border-border">
                     <h3 className="font-bold text-foreground">{t.admin.users.dialogs.createTitle}</h3>
                     <button onClick={onClose} title={t.common?.close || 'Close'} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
@@ -205,10 +214,17 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                                     name="sourceGroup"
                                     type="text"
                                     value={sourceGroup}
-                                    onChange={(e) => setSourceGroup(e.target.value)}
-                                    placeholder={agentContext.defaultSourceGroup || 'main-group'}
+                                    onChange={(e) => {
+                                        setSourceGroup(e.target.value)
+                                        setSourceGroupTouched(true)
+                                    }}
+                                    maxLength={120}
+                                    placeholder={agentContext.defaultSourceGroup || t.common.withoutGroup}
                                     className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                                 />
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {t.common.agentDefaultSourceGroupHint}
+                                </p>
                             </div>
                             <div>
                                 <label htmlFor="whatsappGroupUrl" className="block text-sm font-medium text-foreground mb-1">
@@ -219,7 +235,11 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                                     name="whatsappGroupUrl"
                                     type="text"
                                     value={whatsappGroupUrl}
-                                    onChange={(e) => setWhatsappGroupUrl(e.target.value)}
+                                    onChange={(e) => {
+                                        setWhatsappGroupUrl(e.target.value)
+                                        setWhatsappGroupUrlTouched(true)
+                                    }}
+                                    maxLength={500}
                                     placeholder="https://chat.whatsapp.com/..."
                                     className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm"
                                 />
@@ -242,7 +262,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                     </div>
 
                     {error && (
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg">
+                        <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg" role="alert">
                             {error}
                         </div>
                     )}

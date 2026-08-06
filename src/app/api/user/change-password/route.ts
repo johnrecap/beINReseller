@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { compare, hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
-
-/**
- * Helper to get authenticated user from session OR mobile token
- */
-async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
-}
+import { requireAuthAPI } from '@/lib/auth-utils'
+import { SECURITY_CONFIG } from '@/lib/config'
 
 const changePasswordSchema = z.object({
     currentPassword: z.string().min(1, 'Current password is required'),
@@ -24,13 +15,14 @@ const PANEL_ROLES = new Set(['ADMIN', 'MANAGER', 'AGENT', 'USER'])
 
 export async function POST(request: NextRequest) {
     try {
-        const authUser = await getAuthUser(request)
-        if (!authUser?.id) {
+        const authResult = await requireAuthAPI(request)
+        if ('error' in authResult) {
             return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
+                { error: authResult.error },
+                { status: authResult.status }
             )
         }
+        const authUser = authResult.user
 
         if (typeof authUser.role !== 'string' || !PANEL_ROLES.has(authUser.role)) {
             return NextResponse.json(
@@ -87,7 +79,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Hash new password
-        const hashedPassword = await hash(newPassword, 12)
+        const hashedPassword = await hash(newPassword, SECURITY_CONFIG.bcryptRounds)
 
         // Update password
         await prisma.user.update({

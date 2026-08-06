@@ -1,19 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
+import { NextRequest } from 'next/server'
+import { respondToPasswordResetRequest } from '@/lib/users/password-reset-route'
 
-export async function POST(request: NextRequest) {
-    try {
-        const authResult = await requireRoleAPIWithMobile(request, 'MANAGER')
-        if ('error' in authResult) {
-            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
-        }
-
-        return NextResponse.json({
-            error: 'Users must change their own password from profile.',
-        }, { status: 403 })
-
-    } catch (error) {
-        console.error('Manager reset password error:', error)
-        return NextResponse.json({ error: 'Server error' }, { status: 500 })
-    }
+export async function POST(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { id } = await params
+    return respondToPasswordResetRequest(request, id, 'MANAGER')
 }

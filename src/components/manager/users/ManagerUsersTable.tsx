@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Ban, CheckCircle, Wallet, ArrowRight, ArrowLeft, Trash2, AlertTriangle, BarChart2 } from 'lucide-react'
+import { Search, Ban, CheckCircle, Wallet, ArrowRight, ArrowLeft, Trash2, AlertTriangle, BarChart2, KeyRound } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import ManagerAddBalanceDialog from './ManagerAddBalanceDialog'
 import UserStatsDialog from '@/components/admin/users/UserStatsDialog'
+import ResetPasswordDialog from '@/components/users/ResetPasswordDialog'
 import { useTranslation } from '@/hooks/useTranslation'
 import {
     AlertDialog,
@@ -48,11 +49,13 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
     const [totalPages, setTotalPages] = useState(1)
     const [search, setSearch] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
+    const [canResetPasswords, setCanResetPasswords] = useState(false)
 
     // Dialog States
     const [balanceUser, setBalanceUser] = useState<User | null>(null)
     const [statsUser, setStatsUser] = useState<User | null>(null)
     const [deleteUser, setDeleteUser] = useState<User | null>(null)
+    const [resetUser, setResetUser] = useState<User | null>(null)
     const [deleteLoading, setDeleteLoading] = useState(false)
     const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -78,6 +81,7 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
             if (res.ok) {
                 setUsers(data.users)
                 setTotalPages(data.totalPages)
+                setCanResetPasswords(Boolean(data.capabilities?.canResetPasswords))
             }
         } catch {
         } finally {
@@ -217,6 +221,16 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2 justify-end">
+                                                {canResetPasswords && user.isActive && (
+                                                    <button
+                                                        onClick={() => setResetUser(user)}
+                                                        className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 rounded-lg transition-colors"
+                                                        aria-label={t.passwordReset.action}
+                                                        title={t.passwordReset.action}
+                                                    >
+                                                        <KeyRound className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => setStatsUser(user)}
                                                     className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"
@@ -301,6 +315,12 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                 username={statsUser?.username || null}
                 statsEndpoint={statsUser ? `/api/manager/users/${statsUser.id}/stats` : null}
                 canCorrectBalance={false}
+            />
+            <ResetPasswordDialog
+                isOpen={!!resetUser}
+                onClose={() => setResetUser(null)}
+                scope="manager"
+                user={resetUser}
             />
             
             {/* Delete Confirmation Dialog */}

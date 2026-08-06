@@ -9,7 +9,10 @@ import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/bala
 import { getAgentTransferErrorResponse, transferUserToAgentInTransaction } from '@/lib/agents/assignment-transfer'
 import { resolveAdminUsersOwnerFilter } from '@/lib/admin/users-ownership-filter'
 import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
-import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
+import {
+    evaluatePermissionForAuthenticatedUser,
+    requirePermissionAPIWithMobile,
+} from '@/lib/permissions/guards'
 import { classifyCurrentUserOwner } from '@/lib/users/ownership'
 import { getCreditDebtSummaryMap } from '@/lib/credit-requests/debt'
 import { buildOwnershipToken } from '../../../../../shared/db/ownership-evidence-lock'
@@ -44,6 +47,14 @@ export async function GET(request: NextRequest) {
                 { error: 'Rate limit exceeded, please wait' },
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
+        }
+
+        const resetPasswordPermission = await evaluatePermissionForAuthenticatedUser(
+            user,
+            PERMISSION_KEYS.USERS_RESET_PASSWORD
+        )
+        const capabilities = {
+            canResetPasswords: resetPasswordPermission.allowed,
         }
 
         const { searchParams } = new URL(request.url)
@@ -140,6 +151,7 @@ export async function GET(request: NextRequest) {
             const pointSummaries = await getPointSummaries(users.map((u) => u.id))
 
             return NextResponse.json({
+                capabilities,
                 users: users.map(u => ({
                     ...u,
                     // Count of users managed via ManagerUser
@@ -193,6 +205,7 @@ export async function GET(request: NextRequest) {
             const pointSummaries = await getPointSummaries(users.map((u) => u.id))
 
             return NextResponse.json({
+                capabilities,
                 users: users.map(u => ({
                     id: u.id,
                     username: u.username,
@@ -316,6 +329,7 @@ export async function GET(request: NextRequest) {
             const creditDebtSummaries = await getCreditDebtSummaryMap(prisma, users.map((u) => u.id))
 
             return NextResponse.json({
+                capabilities,
                 users: users.map(u => {
                     const currentOwner = classifyCurrentUserOwner({
                         user: u,
@@ -413,6 +427,7 @@ export async function GET(request: NextRequest) {
         const pointSummaries = await getPointSummaries(users.map((u) => u.id))
 
         return NextResponse.json({
+            capabilities,
             users: users.map(u => ({
                 ...u,
                 transactionCount: u._count.transactions,

@@ -121,6 +121,9 @@ const ACTION_MAP: Record<string, ActionInfo> = {
     'MANAGER_REMOVE_USER': { label: 'User Removed', category: 'manager', outcome: 'info', icon: 'UserMinus' },
     'MANAGER_TRANSFER_BALANCE': { label: 'Balance Transfer', category: 'manager', outcome: 'info', icon: 'ArrowRightLeft' },
 
+    // Agent
+    'AGENT_RESET_PASSWORD': { label: 'Password Reset', category: 'user', outcome: 'success', icon: 'KeyRound' },
+
     // User
     'PASSWORD_CHANGED': { label: 'Password Changed', category: 'user', outcome: 'success', icon: 'KeyRound' },
     'PASSWORD_CHANGE': { label: 'Password Changed', category: 'user', outcome: 'success', icon: 'KeyRound' },
@@ -294,7 +297,7 @@ export const filterGroups: FilterGroup[] = [
         options: [
             { value: 'ADMIN_CREATE_USER,MANAGER_CREATE_USER,USER_CREATE', label: 'User Created' },
             { value: 'ADMIN_DELETE_USER,MANAGER_DELETE_USER', label: 'User Deleted' },
-            { value: 'ADMIN_RESET_PASSWORD,MANAGER_RESET_PASSWORD,PASSWORD_RESET', label: 'Password Reset' },
+            { value: 'ADMIN_RESET_PASSWORD,MANAGER_RESET_PASSWORD,AGENT_RESET_PASSWORD,PASSWORD_RESET', label: 'Password Reset' },
         ]
     },
     {

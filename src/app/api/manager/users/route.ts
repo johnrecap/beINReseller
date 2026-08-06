@@ -6,7 +6,10 @@ import { hash } from 'bcryptjs'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { emptyPointSummary, groupPointSummariesByOwner } from '@/lib/points/balance'
 import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
-import { requirePermissionAPIWithMobile } from '@/lib/permissions/guards'
+import {
+    evaluatePermissionForAuthenticatedUser,
+    requirePermissionAPIWithMobile,
+} from '@/lib/permissions/guards'
 import { buildManagerBalanceDebitWhere } from '@/lib/manager-user-balances'
 
 const createUserSchema = z.object({
@@ -38,6 +41,11 @@ export async function GET(request: NextRequest) {
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
+
+        const resetPasswordPermission = await evaluatePermissionForAuthenticatedUser(
+            user,
+            PERMISSION_KEYS.USERS_RESET_PASSWORD
+        )
 
         // Parse query params with bounds
         const { searchParams } = new URL(request.url)
@@ -107,6 +115,9 @@ export async function GET(request: NextRequest) {
         const pointSummaries = groupPointSummariesByOwner(pointEntries)
 
         return NextResponse.json({
+            capabilities: {
+                canResetPasswords: resetPasswordPermission.allowed,
+            },
             users: activeUsers.map(record => ({
                 ...record.user,
                 linkedAt: record.createdAt,

@@ -12,7 +12,6 @@ import {
     type LoginFeedback,
 } from '@/components/auth/loginFeedback'
 
-import Link from 'next/link'
 import { FloatingInput } from '@/components/ui/FloatingInput'
 
 async function fetchLoginAttemptFeedback(loginName: string): Promise<LoginFeedback | null> {
@@ -182,9 +181,9 @@ export default function LoginForm() {
             </Button>
 
             <div className="flex items-center justify-center pt-2">
-                <Link href="#" className="text-xs text-slate-500 hover:text-[#00A651] transition-colors">
-                    {/* Forgot password link placeholder */}
-                </Link>
+                <p className="max-w-sm text-center text-xs leading-5 text-slate-500">
+                    {t.passwordReset.forgotPasswordContactSupervisor}
+                </p>
             </div>
         </form>
     )

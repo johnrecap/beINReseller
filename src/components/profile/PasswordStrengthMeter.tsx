@@ -5,16 +5,28 @@ import { Check, X } from 'lucide-react'
 
 interface PasswordStrengthMeterProps {
     password: string
+    minimumLength?: number
+    labels?: {
+        minimum: string
+        uppercase: string
+        lowercase: string
+        number: string
+    }
 }
 
-export default function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
-    // const { t } = useTranslation() // Using hardcoded for now based on spec, or English default
-
+export default function PasswordStrengthMeter({
+    password,
+    minimumLength = 8,
+    labels,
+}: PasswordStrengthMeterProps) {
     const requirements = [
-        { label: 'At least 8 characters', valid: password.length >= 8 },
-        { label: 'Contains uppercase letter', valid: /[A-Z]/.test(password) },
-        { label: 'Contains lowercase letter', valid: /[a-z]/.test(password) },
-        { label: 'Contains number', valid: /[0-9]/.test(password) },
+        {
+            label: labels?.minimum || `At least ${minimumLength} characters`,
+            valid: password.length >= minimumLength,
+        },
+        { label: labels?.uppercase || 'Contains uppercase letter', valid: /[A-Z]/.test(password) },
+        { label: labels?.lowercase || 'Contains lowercase letter', valid: /[a-z]/.test(password) },
+        { label: labels?.number || 'Contains number', valid: /[0-9]/.test(password) },
     ]
 
     const validCount = requirements.filter(r => r.valid).length

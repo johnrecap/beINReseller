@@ -5,6 +5,8 @@ import { requireExactRoleAPIWithMobile } from '@/lib/auth-utils'
 import { RATE_LIMITS, rateLimitHeaders, withRateLimit } from '@/lib/rate-limiter'
 import { summarizePointBalance } from '@/lib/points/balance'
 import { getCreditDebtSummaryMap } from '@/lib/credit-requests/debt'
+import { PERMISSION_KEYS } from '@/lib/permissions/catalog'
+import { evaluatePermissionForAuthenticatedUser } from '@/lib/permissions/guards'
 
 function startOfToday() {
     const date = new Date()
@@ -31,6 +33,11 @@ export async function GET(request: NextRequest) {
                 { status: 429, headers: rateLimitHeaders(limitResult) }
             )
         }
+
+        const resetPasswordPermission = await evaluatePermissionForAuthenticatedUser(
+            agent,
+            PERMISSION_KEYS.USERS_RESET_PASSWORD
+        )
 
         const today = startOfToday()
         const requestScope: Prisma.CreditRequestWhereInput = {
@@ -61,7 +68,15 @@ export async function GET(request: NextRequest) {
                 },
             }),
             prisma.agentAssignment.findMany({
-                where: { agentId: agent.id, isActive: true },
+                where: {
+                    agentId: agent.id,
+                    isActive: true,
+                    user: {
+                        role: 'USER',
+                        isActive: true,
+                        deletedAt: null,
+                    },
+                },
                 orderBy: { createdAt: 'desc' },
                 take: 100,
                 select: {
@@ -138,6 +153,9 @@ export async function GET(request: NextRequest) {
         ])))
 
         return NextResponse.json({
+            capabilities: {
+                canResetPasswords: resetPasswordPermission.allowed,
+            },
             agent: {
                 id: agent.id,
                 username: agent.username,

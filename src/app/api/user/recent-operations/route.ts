@@ -1,24 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
-
-/**
- * Helper to get authenticated user from session OR mobile token
- */
-async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
-}
+import { requireAuthAPI } from '@/lib/auth-utils'
 
 export async function GET(request: NextRequest) {
     try {
-        const authUser = await getAuthUser(request)
-
-        if (!authUser?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const authResult = await requireAuthAPI(request)
+        if ('error' in authResult) {
+            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+        const authUser = authResult.user
 
         // Get recent 5 operations
         const operations = await prisma.operation.findMany({

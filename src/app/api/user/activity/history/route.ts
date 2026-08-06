@@ -9,30 +9,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { redactActivityLogDetails } from '@/lib/activity-log-redaction'
-
-/**
- * Helper to get authenticated user from session OR mobile token
- */
-async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
-}
+import { requireAuthAPI } from '@/lib/auth-utils'
 
 export async function GET(request: NextRequest) {
     try {
-        const authUser = await getAuthUser(request)
-        
-        if (!authUser?.id) {
+        const authResult = await requireAuthAPI(request)
+        if ('error' in authResult) {
             return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
+                { error: authResult.error },
+                { status: authResult.status }
             )
         }
+        const authUser = authResult.user
         
         const { searchParams } = new URL(request.url)
         const page = Math.max(1, parseInt(searchParams.get('page') || '1'))

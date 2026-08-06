@@ -6,5 +6,5 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params
-    return respondToPasswordResetRequest(request, id, 'ADMIN')
+    return respondToPasswordResetRequest(request, id, 'AGENT')
 }

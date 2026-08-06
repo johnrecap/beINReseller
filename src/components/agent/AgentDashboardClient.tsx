@@ -6,12 +6,14 @@ import {
     CheckCircle2,
     Clock3,
     CreditCard,
+    KeyRound,
     RefreshCw,
     Users,
     WalletCards,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/hooks/useTranslation'
+import ResetPasswordDialog from '@/components/users/ResetPasswordDialog'
 
 type CreditRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
 
@@ -25,6 +27,9 @@ type CreditDebtSummary = {
 }
 
 type AgentDashboardData = {
+    capabilities: {
+        canResetPasswords: boolean
+    }
     agent: {
         id: string
         username: string
@@ -158,6 +163,7 @@ export default function AgentDashboardClient() {
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
     const [paymentUser, setPaymentUser] = useState<PaymentUser | null>(null)
+    const [resetUser, setResetUser] = useState<PaymentUser | null>(null)
 
     const loadData = useCallback(async () => {
         setLoading(true)
@@ -298,15 +304,28 @@ export default function AgentDashboardClient() {
                                                 </td>
                                                 <td className="px-4 py-3 text-muted-foreground">{formatDate(item.lastRequestAt)}</td>
                                                 <td className="px-4 py-3">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => setPaymentUser(item)}
-                                                        disabled={(item.creditDebt?.outstandingDebtUsd || 0) <= 0 || busyId === `payment-${item.id}`}
-                                                    >
-                                                        <CreditCard className="h-3.5 w-3.5" />
-                                                        Payment
-                                                    </Button>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {data.capabilities.canResetPasswords && item.isActive && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => setResetUser(item)}
+                                                                title={t.passwordReset.action}
+                                                            >
+                                                                <KeyRound className="h-3.5 w-3.5" />
+                                                                {t.passwordReset.action}
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => setPaymentUser(item)}
+                                                            disabled={(item.creditDebt?.outstandingDebtUsd || 0) <= 0 || busyId === `payment-${item.id}`}
+                                                        >
+                                                            <CreditCard className="h-3.5 w-3.5" />
+                                                            Payment
+                                                        </Button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -373,6 +392,13 @@ export default function AgentDashboardClient() {
                     onSubmit={recordPayment}
                 />
             )}
+
+            <ResetPasswordDialog
+                isOpen={!!resetUser}
+                onClose={() => setResetUser(null)}
+                scope="agent"
+                user={resetUser}
+            />
 
         </div>
     )

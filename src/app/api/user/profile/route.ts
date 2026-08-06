@@ -1,35 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { requireAuthAPI } from '@/lib/auth-utils'
 
 const profileSchema = z.object({
     email: z.string().email('Invalid email address').optional(),
 })
 
-/**
- * Helper to get authenticated user from session or mobile token
- */
-async function getAuthUser(request: NextRequest) {
-    // Try NextAuth session first
-    const session = await auth()
-    if (session?.user?.id) {
-        return session.user
-    }
-    // Try mobile token
-    return getMobileUserFromRequest(request)
-}
-
 export async function GET(request: NextRequest) {
     try {
-        const authUser = await getAuthUser(request)
-        if (!authUser?.id) {
+        const authResult = await requireAuthAPI(request)
+        if ('error' in authResult) {
             return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
+                { error: authResult.error },
+                { status: authResult.status }
             )
         }
+        const authUser = authResult.user
 
         const user = await prisma.user.findUnique({
             where: { id: authUser.id },
@@ -70,13 +57,14 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
     try {
-        const authUser = await getAuthUser(request)
-        if (!authUser?.id) {
+        const authResult = await requireAuthAPI(request)
+        if ('error' in authResult) {
             return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
+                { error: authResult.error },
+                { status: authResult.status }
             )
         }
+        const authUser = authResult.user
 
         // Only ADMIN can change their own email
         if (authUser.role !== 'ADMIN') {

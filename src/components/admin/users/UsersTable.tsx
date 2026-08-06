@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, type KeyboardEvent } from 'react'
-import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw, UserPlus, Shuffle, CreditCard } from 'lucide-react'
+import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw, UserPlus, Shuffle, CreditCard, KeyRound } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
 import CreateUserDialog from './CreateUserDialog'
@@ -10,6 +10,7 @@ import AddBalanceDialog from './AddBalanceDialog'
 import UserStatsDialog from './UserStatsDialog'
 import TransferOwnershipDialog from './TransferOwnershipDialog'
 import CreditControlDialog from './CreditControlDialog'
+import ResetPasswordDialog from '@/components/users/ResetPasswordDialog'
 import { useTranslation } from '@/hooks/useTranslation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { formatUserBalanceSummary } from '@/lib/admin/user-balance-summary'
@@ -131,6 +132,7 @@ export default function UsersTable() {
     const [counts, setCounts] = useState<TabCounts>({ distributors: 0, agents: 0, users: 0, totalBalance: null })
     const [refreshing, setRefreshing] = useState(false)
     const [userCreationDisabled, setUserCreationDisabled] = useState(false)
+    const [canResetPasswords, setCanResetPasswords] = useState(false)
 
     const [ownerFilter, setOwnerFilter] = useState<OwnerFilter | null>(null)
 
@@ -142,6 +144,7 @@ export default function UsersTable() {
     const [createAgent, setCreateAgent] = useState<Agent | null>(null)
     const [transferUser, setTransferUser] = useState<User | null>(null)
     const [creditControlUser, setCreditControlUser] = useState<User | null>(null)
+    const [resetUser, setResetUser] = useState<AccountRow | null>(null)
 
     const localeMap = {
         ar: ar,
@@ -214,6 +217,7 @@ export default function UsersTable() {
             const res = await fetch(url)
             const data = await res.json()
             if (res.ok) {
+                setCanResetPasswords(Boolean(data.capabilities?.canResetPasswords))
                 if (activeTab === 'distributors') {
                     setDistributors(data.users)
                 } else if (activeTab === 'agents') {
@@ -389,6 +393,16 @@ export default function UsersTable() {
             </td>
             <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2 justify-end">
+                    {canResetPasswords && distributor.isActive && distributor.role !== 'ADMIN' && (
+                        <button
+                            onClick={() => setResetUser(distributor)}
+                            className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 rounded-lg transition-colors"
+                            aria-label={t.passwordReset.action}
+                            title={t.passwordReset.action}
+                        >
+                            <KeyRound className="w-4 h-4" />
+                        </button>
+                    )}
                     <button
                         onClick={() => setStatsUser(distributor)}
                         className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 rounded-lg transition-colors"
@@ -481,6 +495,16 @@ export default function UsersTable() {
             </td>
             <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                 <div className="flex items-center gap-2 justify-end">
+                    {canResetPasswords && agent.isActive && (
+                        <button
+                            onClick={() => setResetUser(agent)}
+                            className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 rounded-lg transition-colors"
+                            aria-label={t.passwordReset.action}
+                            title={t.passwordReset.action}
+                        >
+                            <KeyRound className="w-4 h-4" />
+                        </button>
+                    )}
                     <button
                         onClick={() => {
                             if (userCreationDisabled) return
@@ -611,6 +635,16 @@ export default function UsersTable() {
             </td>
             <td className="px-4 py-3">
                 <div className="flex items-center gap-2 justify-end">
+                    {canResetPasswords && user.isActive && (
+                        <button
+                            onClick={() => setResetUser(user)}
+                            className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 rounded-lg transition-colors"
+                            aria-label={t.passwordReset.action}
+                            title={t.passwordReset.action}
+                        >
+                            <KeyRound className="w-4 h-4" />
+                        </button>
+                    )}
                     <button
                         onClick={() => setTransferUser(user)}
                         className="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-cyan-600 rounded-lg transition-colors"
@@ -1021,6 +1055,12 @@ export default function UsersTable() {
                 }}
                 userId={creditControlUser?.id || null}
                 username={creditControlUser?.username || null}
+            />
+            <ResetPasswordDialog
+                isOpen={!!resetUser}
+                onClose={() => setResetUser(null)}
+                scope="admin"
+                user={resetUser}
             />
         </div>
     )

@@ -47,6 +47,18 @@ export async function loadPermissionInputsForUser(userId: string) {
     return { globalSettings, roleSettings, userOverrides }
 }
 
+export async function evaluatePermissionForAuthenticatedUser(
+    user: AuthenticatedUser,
+    permissionKey: AppPermissionKey
+) {
+    const inputs = await loadPermissionInputsForUser(user.id)
+    return evaluatePermission({
+        user,
+        permissionKey,
+        ...inputs,
+    })
+}
+
 export async function requirePermissionAPIWithMobile(
     request: NextRequest,
     permissionKey: AppPermissionKey
@@ -63,12 +75,10 @@ export async function requirePermissionAPIWithMobile(
         }
     }
 
-    const inputs = await loadPermissionInputsForUser(authResult.user.id)
-    const evaluation = evaluatePermission({
-        user: authResult.user,
-        permissionKey,
-        ...inputs,
-    })
+    const evaluation = await evaluatePermissionForAuthenticatedUser(
+        authResult.user,
+        permissionKey
+    )
 
     if (!evaluation.allowed) {
         if (evaluation.code === 'PANEL_USER_CREATION_DISABLED') {

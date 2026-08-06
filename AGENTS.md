@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/032-unify-points-awards/plan.md`,
-`specs/032-unify-points-awards/spec.md`, and
-`specs/032-unify-points-awards/tasks.md` before editing.
+`specs/033-hierarchical-password-reset/plan.md`,
+`specs/033-hierarchical-password-reset/spec.md`, and
+`specs/033-hierarchical-password-reset/tasks.md` before editing.
 <!-- SPECKIT END -->

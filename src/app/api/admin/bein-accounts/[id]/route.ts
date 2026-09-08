@@ -99,10 +99,27 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+        const adminUser = authResult.user
 
         const { id } = await params
         const body = await request.json()
-        const { password, totpSecret, label, priority, isActive, proxyId, customerOnly } = body
+        const {
+            password,
+            totpSecret,
+            label,
+            priority,
+            isActive,
+            proxyId,
+            customerOnly,
+            automationExclusive,
+        } = body
+
+        if (automationExclusive !== undefined && typeof automationExclusive !== 'boolean') {
+            return NextResponse.json(
+                { error: 'INVALID_AUTOMATION_EXCLUSIVE' },
+                { status: 400 }
+            )
+        }
 
         // Check if account exists
         const existing = await prisma.beinAccount.findUnique({
@@ -141,10 +158,36 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         if (customerOnly !== undefined) {
             updateData.customerOnly = customerOnly
         }
+        if (automationExclusive !== undefined) {
+            updateData.automationExclusive = automationExclusive
+        }
 
-        const account = await prisma.beinAccount.update({
-            where: { id },
-            data: updateData
+        const account = await prisma.$transaction(async (tx) => {
+            const updatedAccount = await tx.beinAccount.update({
+                where: { id },
+                data: updateData
+            })
+
+            if (
+                automationExclusive !== undefined
+                && automationExclusive !== existing.automationExclusive
+            ) {
+                await tx.activityLog.create({
+                    data: {
+                        userId: adminUser.id,
+                        action: 'ADMIN_ATTEST_BEIN_ACCOUNT_AUTOMATION_EXCLUSIVITY',
+                        targetId: updatedAccount.id,
+                        targetType: 'BeinAccount',
+                        details: {
+                            previous: existing.automationExclusive,
+                            current: automationExclusive,
+                        },
+                        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                    },
+                })
+            }
+
+            return updatedAccount
         })
 
         return NextResponse.json({
@@ -155,6 +198,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
                 label: account.label,
                 isActive: account.isActive,
                 priority: account.priority,
+                automationExclusive: account.automationExclusive,
                 updatedAt: account.updatedAt
             }
         })

@@ -1,0 +1,39 @@
+# Audit remediation release gates
+
+Status, 2026-09-08: **NOT READY FOR PRODUCTION ACCEPTANCE**. Current local results are in [extended quality verification](../../specs/036-audit-remediation/evidence/extended-quality-verification.md); earlier [review repairs](../../specs/036-audit-remediation/evidence/review-repairs.md) remain historical. No deployment occurred.
+
+Maintenance shutdown waits for its active cycle. Apply the updated ecosystem configuration at authorized cutover so `bein-maintenance` receives `kill_timeout: 300000`; restarting by process name alone must not be assumed to update saved PM2 configuration. The bound may still force termination, so keep durable recovery and the drain/fence procedure below. See [PM2 shutdown semantics](https://pm2.keymetrics.io/docs/usage/signals-clean-restart/).
+
+| Gate | Owner | Evidence required before acceptance |
+| --- | --- | --- |
+| Attributable installment settlement | T007, T008 | Sanitized original receipt/rejection for the exact due item; implemented observation adapter and settlement verification. Current adapter retains UNKNOWN/review. T012 renewal-only finalization is independently verified. |
+| Final cart matches accepted quote | T038, T053 | Original sanitized Add/Sell/final-confirm responses and a parser/consent contract test. Current verification protects the pre-cart list only. |
+| Migration provenance | T040, T052 | Establish the missing fresh-install baseline (0_init is empty); rehearse fresh/upgrade/drift repair. The empty refund migration directory is intentional, not missing SQL. Existing schema bootstrap is not a release migration; CI migrate deploy remains blocked on an empty database. |
+| Legacy operations/account ownership | T041, T042, T055 | Inventory missing quote revisions and automation exclusivity; drain or classify old work through existing safe closure. No blanket opt-in or rewritten payment identity. |
+| Process cutover and builds | T041, T051, T055 | Verify actual PM2 topology and synchronize web/worker/maintenance versions. Never build over the active .next serving directory. |
+| Integrated and live acceptance | T050, T053-T057 | Implement missing live adapter; obtain authorized provider, combined, load and operational evidence. Synthetic tests do not certify live HTTP behavior. |
+
+Preparation now writes an explicit parked-lock marker after provider/session work. Do not mix old preparation workers with new continuation code during rollout. A client timeout keeps the original request identity and never authorizes another Pay. Unknown provider actions and financial contradictions retain review/reservations.
+
+Follow the established deployment order in [AGENTS.md](../../AGENTS.md) only after these gates pass. This document authorizes neither deployment nor a migration-history workaround.
+
+## Reviewed cutover procedure
+
+1. T055 records the exact deployed revision, pending migration history, active/paused queues, registered consumers, cron entries and PM2 names. Preserve a backup and the previous web/worker artifacts with checksums. Obtain the actual panel count and set `PANEL_WORKER_COUNT` to that reviewed integer (1..32); both ecosystem files derive `bein-worker-1` through that count from `deployment/panel-workers.cjs`. An unset count intentionally stops config loading. Do not start both ecosystem profiles as competing deployments.
+2. T052 must establish authoritative provenance for the empty `0_init/migration.sql` and the missing `20260616120000_unique_refund_transaction_per_operation/migration.sql`. Test a fresh baseline and restored upgrade before proceeding. Do not create substitute historical SQL, resolve failed production migrations blindly, or use `db push`.
+3. In the approved window, use the site's existing ingress controls to block new operation creation for every actor, including ADMIN and direct clients. The panel's `maintenance_mode` alone is insufficient: startup exempts ADMIN and is not a universal mutation fence. Keep read/status and agreed continuation paths available while draining. The exact ingress rule depends on the server and must be reviewed in T055; no new application maintenance switch is implied here.
+4. Drain old active handlers and admitted work to a recorded safe boundary. Classify waiting package/captcha/final-confirmation, pending dispatch and REVIEW_REQUIRED records separately. Preserve card/account reservations and submission markers for ambiguous provider work. Never delete queue jobs, flush Redis, cancel active Pay, reset attempts or mark unknown work successful to make counts reach zero. If a mutation cannot reach a safe boundary, hold cutover and resolve its evidence first.
+5. After no old handler can submit a provider mutation, block continuation mutations too; stop the exact old panel workers, maintenance and keepalive processes. Verify external cron triggers are suspended. Keep excluded consumer processes within the separately established compatibility boundary; this runbook does not authorize changing them.
+6. At `/www/wwwroot/deshpanel.com`, select the reviewed branch/revision with fast-forward-only Git operations. Install root and worker dependencies only when required. Run `npx prisma migrate deploy`, then generate matching root and worker Prisma clients. Each command must succeed before the next stage. The migration set includes the additive dispatch retry-schedule migration; do not omit new untracked sources from the release manifest.
+7. Stop `bein-web` before replacing/removing its `.next` output. Preserve the old artifact outside that directory, clear only the verified project `.next`, then run the web build. Build the worker under `/www/wwwroot/deshpanel.com/worker`. On failure, keep admission closed and use the compatible-artifact rollback below; never serve a partially rebuilt `.next`.
+8. Start/restart `bein-web` and the exact reviewed panel worker/maintenance/keepalive names with updated environment and matching release versions. Create a previously absent process from the root ecosystem with an explicit `--only` selection; a restart command cannot create missing processes. Remove obsolete extra panel consumers only within the approved topology change. Do not infer 8 or 10 from old documentation.
+9. Before reopening admission, check web login/read endpoints, queue consumer registration, maintenance health/cadence, ready account count, requested/effective fulfillment mode and attestation expiry. Record dispatch age, effect pending/exhausted counts, review/refund counts and recent sanitized logs. T053/T056 provider/load evidence remains independently required; a zero process exit is insufficient.
+10. Reopen admission gradually under the agreed operational acceptance. Preserve the release revision/topology/evidence record and monitor newly admitted work through its terminal or explicit review outcome.
+
+## Rollback limits
+
+Before any new-version financial write, a verified schema-compatible old artifact may be restored while admission stays closed and new workers are stopped. Check the old readers/writers against every applied additive migration first; do not down-migrate or delete new columns to force compatibility.
+
+After any new refund, completion effect, adjudication, captured points run or provider submission, preserve database/queue/evidence history and prefer forward repair. Restoring a stale database backup would lose money and submission evidence and is not an operational rollback. If old code cannot understand new rows, keep compatible code and the affected admission fenced until repaired. Never replay Pay as a rollback step.
+
+Local evidence proves source topology parity (including 8- and 10-worker test profiles), isolated builds, synthetic migration constraints and bounded recovery. Exact process count, ingress rules, drained state, backup restoration and cutover remain unexecuted external gates.

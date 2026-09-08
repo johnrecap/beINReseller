@@ -1,0 +1,88 @@
+{
+  "feature": "036-audit-remediation",
+  "phase": 2,
+  "date": "2026-09-07",
+  "branch": "034-web-project-memory",
+  "head": "7457b7028811759736faa799a8b06b43691b1218",
+  "state": "IMPLEMENTED_UNVERIFIED",
+  "baselineFileCount": 1121,
+  "sourceChanges": [
+    {
+      "path": "prisma/migrations/20260907090000_audit_financial_context/migration.sql",
+      "beforeSha256": null,
+      "afterSha256": "3b1c9d348efb14bcce104121a0c08b26be05977857d9668fd485bede82c763c6"
+    },
+    {
+      "path": "prisma/migrations/20260907100000_audit_dispatch_claim_identity/migration.sql",
+      "beforeSha256": null,
+      "afterSha256": "f5a9e1e0edf1561c8c48523441489bd553ea00ebe56014324703967795fe4412"
+    },
+    {
+      "path": "prisma/migrations/20260907110000_audit_refund_review_effects/migration.sql",
+      "beforeSha256": null,
+      "afterSha256": "fb551820b19ea66246cfef07125c1f46302406b1e9fb669ce4de26fb4e37afb1"
+    },
+    {
+      "path": "prisma/schema.prisma",
+      "beforeSha256": "f445c4d524678133b374603d41835b562a17d647d85d69c7e156fc4ede860a4f",
+      "afterSha256": "e0ac6cfa6b7f17804d127405c01b40df6e237170495a1204788a68df5641c3e3"
+    },
+    {
+      "path": "shared/operations/audit-financial-context.ts",
+      "beforeSha256": null,
+      "afterSha256": "96c4f9c0819292dbe062b1218a546167940ce59bc70bfbb5f3f792f3398b91fd"
+    },
+    {
+      "path": "src/components/admin/reports/BeinSpendReportClient.tsx",
+      "beforeSha256": "acfe4289e560d821e5c4daabc58684d04fdd75d78b7616489c29d6d607ed719d",
+      "afterSha256": "0b51286aacd19376138b24c46cad7f3a33f76dca2a99bde906fcce1a7b2d87c5"
+    },
+    {
+      "path": "src/lib/bein-spend-ledger.ts",
+      "beforeSha256": "1bf2d16e451ddcdf00a64d9aea6fb791046a683d330be833b85b38bfbf73e935",
+      "afterSha256": "7f983bac81fad42bc65b26b5502b7d087601f9215540e110525a529025c127ca"
+    },
+    {
+      "path": "src/lib/mobile-renewal-payment-finalization.ts",
+      "beforeSha256": "b757a6dde54f1bf598b2c34910d706f388c4ef3ca30fa4528827915d0481e761",
+      "afterSha256": "4ca27e06f8fd80c4735962556e0053de078bea084a784f95e742f8ce6baab50b"
+    },
+    {
+      "path": "src/lib/operation-dispatch.ts",
+      "beforeSha256": "561c2676b2a7a82b77e988b6f34b33e1f81bf49fbc2938456c1c11396688ffbe",
+      "afterSha256": "896b653c5a8b9420594e95e83f9331c4c638613b1fed3dfdd9e16af846bee8b6"
+    },
+    {
+      "path": "tests/helpers/audit-operation-fixtures.ts",
+      "beforeSha256": null,
+      "afterSha256": "9cd762b8152a30427c72fa687f79de7c85d06819de6f6e050aff056f59a9dc8a"
+    },
+    {
+      "path": "tests/helpers/disposable-database.ts",
+      "beforeSha256": "d5defe3f5a20580c3ba8215358518577dc9289f0fa88c65e7deadd0d415b6607",
+      "afterSha256": "1fcf537ea036699b2069040fb709aa612ae25831e6297d9eed11cf7b9f66dc85"
+    },
+    {
+      "path": "tests/integration/audit-financial-model-db.test.ts",
+      "beforeSha256": null,
+      "afterSha256": "a47a26e6a87c4add28ed4e7b4d56ed7d8ce144afb3d44b2b1b623b649c6cbc1a"
+    },
+    {
+      "path": "tests/integration/renewal-payment-refund-finalization-db.test.ts",
+      "beforeSha256": "e17901195ebe290be9883ae3810935cf1734a02642491aab4975800faa46b278",
+      "afterSha256": "2aa39b55e9b2f68c48a7180e8288304a685e2cb14365a3c813260d3c0766dfa7"
+    },
+    {
+      "path": "tests/unit/audit-financial-context.test.ts",
+      "beforeSha256": null,
+      "afterSha256": "032c6a81ad839cf51b7eaa90b2db7420d79c6999ed47f8ec7b435e760fd0bb71"
+    },
+    {
+      "path": "worker/prisma/schema.prisma",
+      "beforeSha256": "f445c4d524678133b374603d41835b562a17d647d85d69c7e156fc4ede860a4f",
+      "afterSha256": "e0ac6cfa6b7f17804d127405c01b40df6e237170495a1204788a68df5641c3e3"
+    }
+  ],
+  "existingMigrationSqlPreserved": true,
+  "runtimeChecks": "NOT_RUN"
+}

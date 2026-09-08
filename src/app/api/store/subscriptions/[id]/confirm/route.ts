@@ -9,7 +9,12 @@ import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-response'
 import { getStoreCustomerFromRequest } from '@/lib/store-auth'
-import { addOperationJob } from '@/lib/queue'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import {
+    ensureGuardedRenewalOperationReservation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -61,27 +66,43 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return errorResponse('Confirmation expired - please start a new operation', 400, 'CONFIRM_EXPIRED')
         }
         
-        // 6. Add CONFIRM_PURCHASE job to queue
-        await addOperationJob({
-            operationId: operation.id,
-            type: 'CONFIRM_PURCHASE',
-            cardNumber: operation.cardNumber,
-            userId: customer.id,
+        // 6-7. Assert the durable card claim and persist dispatch atomically.
+        await prisma.$transaction(async (tx) => {
+            await ensureGuardedRenewalOperationReservation(tx, {
+                operationId: operation.id,
+                cardNumber: operation.cardNumber,
+            })
+            await createOperationDispatch(tx, {
+                operationId: operation.id,
+                type: 'CONFIRM_PURCHASE',
+                cardNumber: operation.cardNumber,
+                customerId: customer.id,
+            })
+            await tx.storeSubscription.update({
+                where: { id: subscription.id },
+                data: { status: 'COMPLETING' },
+            })
         })
-        
-        // 7. Update subscription status
-        await prisma.storeSubscription.update({
-            where: { id: subscription.id },
-            data: { status: 'COMPLETING' }
+
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [operation.id],
         })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch store confirm-purchase; saved for retry:', operation.id)
+        }
         
         return successResponse({
             subscriptionId: subscription.id,
             status: 'COMPLETING',
             message: 'Confirming final payment...',
+            queued: dispatchResult.failed === 0,
         })
         
     } catch (error) {
+        if (isRenewalCreationBlockedError(error)) {
+            const payload = renewalCreationBlockedPayload(error)
+            return errorResponse(payload.error, 409, payload.code)
+        }
         return handleApiError(error)
     }
 }

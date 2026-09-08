@@ -25,6 +25,7 @@ import { refundUser } from '@/lib/refund'
 import { decideRefundSafety, getOperationPhaseEvidence, mergeOperationPhaseEvidence } from '@/lib/operation-safety'
 import { HEARTBEAT_STALE_SECONDS } from '@/lib/operations/timing'
 import { releaseAccountLockSafely } from '@/lib/operations/account-lock-release'
+import { finalizeWebPreMutationRenewalTermination } from '@/lib/operations/pre-mutation-renewal-finalization'
 
 // Configuration
 const HEARTBEAT_GRACE_PERIOD_SECONDS = HEARTBEAT_STALE_SECONDS
@@ -124,6 +125,77 @@ export async function GET(request: Request) {
                     expiryReason = 'Final confirmation timeout - browser closed or connection lost'
                 } else if (operation.status === 'AWAITING_CAPTCHA') {
                     expiryReason = 'CAPTCHA timeout - browser closed or connection lost'
+                }
+
+                if (operation.type === 'RENEW') {
+                    const renewalTermination = await finalizeWebPreMutationRenewalTermination({
+                        operationId: operation.id,
+                        terminalStatus: 'EXPIRED',
+                        allowedStatuses: [operation.status],
+                        responseMessage: expiryReason,
+                        errorMessage: expiryReason,
+                        releaseReason: 'HEARTBEAT_TIMEOUT_PRE_MUTATION',
+                        expectedStaleHeartbeat: {
+                            checkedAt: now,
+                            noHeartbeatBefore: graceTime,
+                        },
+                        activity: operation.userId
+                            ? {
+                                userId: operation.userId,
+                                action: 'OPERATION_EXPIRED_NO_HEARTBEAT',
+                                details: {
+                                    operationId: operation.id,
+                                    previousStatus: operation.status,
+                                    lastHeartbeat: operation.lastHeartbeat?.toISOString() || null,
+                                    heartbeatExpiry: operation.heartbeatExpiry?.toISOString() || null,
+                                    settlement: 'ATOMIC_PRE_MUTATION',
+                                    reason: expiryReason,
+                                },
+                                ipAddress: 'cleanup-cron',
+                            }
+                            : undefined,
+                    })
+
+                    if (renewalTermination.status === 'REVIEW_REQUIRED') {
+                        console.warn(
+                            `[Cleanup Cron] Renewal ${operation.id} held for review: ${renewalTermination.reason}`
+                        )
+                        await redis.del(`operation:heartbeat:${operation.id}`).catch((redisError) => {
+                            console.error('[Cleanup Cron] Failed to clean Redis heartbeat key:', redisError)
+                        })
+                        continue
+                    }
+                    if (renewalTermination.status === 'EVIDENCE_CONFLICT') {
+                        console.warn(
+                            `[Cleanup Cron] Renewal ${operation.id} state changed: ${renewalTermination.reason}`
+                        )
+                        continue
+                    }
+
+                    expiredCount++
+                    if (renewalTermination.refundAmount > 0) refundedCount++
+
+                    if (operation.beinAccountId) {
+                        try {
+                            const release = await releaseAccountLockSafely(
+                                redis,
+                                operation.beinAccountId,
+                                operation.id
+                            )
+                            if (release.released || release.reason === 'no_lock') {
+                                accountsReleased++
+                            }
+                        } catch (lockError) {
+                            console.error(
+                                `[Cleanup Cron] Failed to release lock for account ${operation.beinAccountId}:`,
+                                lockError
+                            )
+                        }
+                    }
+                    await redis.del(`operation:heartbeat:${operation.id}`).catch((redisError) => {
+                        console.error('[Cleanup Cron] Failed to clean Redis heartbeat key:', redisError)
+                    })
+                    continue
                 }
 
                 const result = await prisma.$transaction(async (tx) => {

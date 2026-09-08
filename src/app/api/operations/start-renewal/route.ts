@@ -1,26 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import redis from '@/lib/redis'
 import { computeEffectiveMaintenanceStatus } from '@/lib/maintenance/effective-status'
+import { assertRenewalReadiness, renewalReadinessErrorPayload } from '@/lib/renewal-readiness'
+import {
+    createGuardedRenewalOperation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    // Try web session first
-    const session = await auth()
-    if (session?.user?.id) {
-        return session.user
-    }
-    // Fall back to mobile token
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 // Validation schema
@@ -32,6 +31,23 @@ const startRenewalSchema = z.object({
 const ACTIVE_OPERATION_STATUSES = ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] as const
 const CARD_START_LOCK_TTL_SECONDS = 30
 const UNRESOLVED_REVIEW_STATUS = 'REVIEW_REQUIRED' as const
+const FULFILLMENT_SAFETY_ISSUE_TYPES = [
+    'PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED',
+    'FULFILLMENT_PROOF_CONFLICT',
+    'DUPLICATE_RENEWAL_CHARGE_BURST',
+] as const
+
+async function findFulfillmentSafetyConflict(cardNumber: string) {
+    return prisma.operationIntegrityIssue.findFirst({
+        where: {
+            issueType: { in: [...FULFILLMENT_SAFETY_ISSUE_TYPES] },
+            status: { in: ['OPEN', 'ACKNOWLEDGED'] },
+            operation: { cardNumber },
+        },
+        orderBy: { lastSeenAt: 'desc' },
+        select: { id: true, operationId: true, issueType: true },
+    })
+}
 
 /**
  * POST /api/operations/start-renewal
@@ -106,6 +122,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { cardNumber, smartcardType } = validationResult.data
+        await assertRenewalReadiness(prisma)
 
         // 5. Card-level lock: prevents concurrent start requests for the same card
         const cardLockKey = `operation:start-renewal:card-lock:${cardNumber}`
@@ -139,8 +156,21 @@ export async function POST(request: NextRequest) {
             if (reviewOperation) {
                 return NextResponse.json(
                     {
+                        code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
                         error: 'This card has an unresolved review operation. Resolve it before starting a new renewal.',
                         operationId: reviewOperation.id,
+                    },
+                    { status: 409 }
+                )
+            }
+
+            const fulfillmentConflict = await findFulfillmentSafetyConflict(cardNumber)
+            if (fulfillmentConflict) {
+                return NextResponse.json(
+                    {
+                        code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
+                        error: 'This card has an unresolved renewal fulfillment safety issue.',
+                        operationId: fulfillmentConflict.operationId,
                     },
                     { status: 409 }
                 )
@@ -180,6 +210,7 @@ export async function POST(request: NextRequest) {
             if (reviewOperation) {
                 return NextResponse.json(
                     {
+                        code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
                         error: 'This card has an unresolved review operation. Resolve it before starting a new renewal.',
                         operationId: reviewOperation.id,
                     },
@@ -187,14 +218,27 @@ export async function POST(request: NextRequest) {
                 )
             }
 
+            const fulfillmentConflict = await findFulfillmentSafetyConflict(cardNumber)
+            if (fulfillmentConflict) {
+                return NextResponse.json(
+                    {
+                        code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
+                        error: 'This card has an unresolved renewal fulfillment safety issue.',
+                        operationId: fulfillmentConflict.operationId,
+                    },
+                    { status: 409 }
+                )
+            }
+
             const operation = await prisma.$transaction(async (tx) => {
-                const createdOperation = await tx.operation.create({
+                const createdOperation = await createGuardedRenewalOperation(tx, {
+                    cardNumber,
                     data: {
                         userId: authUser.id,
-                        type: 'RENEW',
-                        cardNumber,
                         amount: 0, // Will be determined after package selection
                         status: 'PENDING',
+                        providerPaymentState: 'NOT_SUBMITTED',
+                        fulfillmentState: 'UNVERIFIED',
                     },
                 })
 
@@ -256,7 +300,15 @@ export async function POST(request: NextRequest) {
         }
 
     } catch (error) {
+        const readinessError = renewalReadinessErrorPayload(error)
+        if (readinessError) return NextResponse.json(readinessError, { status: 503 })
         console.error('Start renewal error:', error)
+        if (isRenewalCreationBlockedError(error)) {
+            return NextResponse.json(
+                renewalCreationBlockedPayload(error),
+                { status: 409 }
+            )
+        }
         return NextResponse.json(
             { error: 'Server error' },
             { status: 500 }

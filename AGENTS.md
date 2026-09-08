@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/033-hierarchical-password-reset/plan.md`,
-`specs/033-hierarchical-password-reset/spec.md`, and
-`specs/033-hierarchical-password-reset/tasks.md` before editing.
+`specs/036-audit-remediation/plan.md`,
+`specs/036-audit-remediation/spec.md`, and
+`specs/036-audit-remediation/tasks.md` before editing.
 <!-- SPECKIT END -->

@@ -10,9 +10,12 @@
     "start": "next start",
     "lint": "eslint",
     "worker:build": "npm --prefix worker run build",
-    "ci": "npm run check:schema-sync && prisma generate && npm run lint && npm run build && npm run worker:build",
+    "test:unit": "node --import tsx --test tests/unit/*.test.ts",
+    "test:worker": "node --import tsx --test worker/tests/*.test.ts",
+    "ci": "npm run check:schema-sync && prisma generate && npm run test:unit && npm run test:worker && npm run lint && npm run build && npm run worker:build",
     "ui:info": "shadcn info",
-    "ui:add": "shadcn add"
+    "ui:add": "shadcn add",
+    "reconcile:renewal-fulfillment": "tsx scripts/reconcile-renewal-fulfillment.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

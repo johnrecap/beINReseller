@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
-import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
+import { parseOperationResponseData } from '@/lib/operation-safety'
+import { publicPackageQuote, quoteData } from '../../../../../../shared/operations/package-quote'
+import { projectOperationProgress } from '../../../../../../shared/operations/consumer-progress'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 /**
@@ -46,9 +45,15 @@ export async function GET(
                 status: true,
                 stbNumber: true,
                 availablePackages: true,
+                promoCode: true,
                 responseMessage: true,
+                responseData: true,
                 selectedPackage: true,
                 finalConfirmExpiry: true,
+                providerPaymentState: true,
+                fulfillmentState: true,
+                transactions: { where: { type: 'REFUND' }, select: { type: true } },
+                refundSettlements: { select: { state: true } },
             },
         })
 
@@ -67,9 +72,16 @@ export async function GET(
             )
         }
 
+        const fulfillmentEvidence = parseOperationResponseData(operation.responseData)
+        const progress = projectOperationProgress(operation)
+        const respond = (body: Record<string, unknown>) => NextResponse.json({
+            ...body, ...progress, messageKey: progress.messageKey ?? body.messageKey,
+        })
+        if (progress.confirmationExpired) return respond({ success: false, status: operation.status })
+
         // 4. Check status
         if (operation.status === 'AWAITING_CAPTCHA') {
-            return NextResponse.json({
+            return respond({
                 success: true,
                 status: 'AWAITING_CAPTCHA',
                 message: 'Waiting for CAPTCHA solution',
@@ -77,7 +89,7 @@ export async function GET(
         }
 
         if (operation.status === 'PENDING' || operation.status === 'PROCESSING') {
-            return NextResponse.json({
+            return respond({
                 success: true,
                 status: operation.status,
                 message: 'Loading packages...',
@@ -86,7 +98,7 @@ export async function GET(
         }
 
         if (operation.status === 'FAILED') {
-            return NextResponse.json({
+            return respond({
                 success: false,
                 status: 'FAILED',
                 message: operation.responseMessage || 'Operation failed',
@@ -94,24 +106,33 @@ export async function GET(
         }
 
         if (operation.status === 'REVIEW_REQUIRED') {
-            return NextResponse.json({
+            return respond({
                 success: false,
                 status: 'REVIEW_REQUIRED',
+                code: 'RENEWAL_FULFILLMENT_REVIEW_REQUIRED',
+                messageKey: fulfillmentEvidence.quoteConflict === true ? 'operations.packageQuoteChangedReview'
+                    : fulfillmentEvidence.providerPaymentState === 'CHARGED'
+                    ? 'operations.providerChargedFulfillmentUnderReview'
+                    : 'operations.fulfillmentReviewPending',
                 message: operation.responseMessage || 'Operation requires manual verification',
             })
         }
 
         if (operation.status === 'COMPLETING') {
-            return NextResponse.json({
+            return respond({
                 success: true,
                 status: 'COMPLETING',
                 message: 'Completing purchase...',
+                messageKey: fulfillmentEvidence.providerPaymentState === 'CHARGED' &&
+                    fulfillmentEvidence.fulfillmentState === 'VERIFYING'
+                    ? 'operations.providerChargedVerifyingFulfillment'
+                    : undefined,
                 responseMessage: operation.responseMessage,
             })
         }
 
         if (operation.status === 'COMPLETED') {
-            return NextResponse.json({
+            return respond({
                 success: true,
                 status: 'COMPLETED',
                 message: operation.responseMessage || 'Renewal successful!',
@@ -120,52 +141,37 @@ export async function GET(
 
         // Handle AWAITING_FINAL_CONFIRM - return package info for confirmation dialog
         if (operation.status === 'AWAITING_FINAL_CONFIRM') {
-            if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-                const recovery = await recoverOperationIfNeeded(operation.id, 'packages-poll')
-                return NextResponse.json({
-                    success: false,
-                    status: recovery.newStatus || 'EXPIRED',
-                    message: recovery.reason || 'Final confirmation timed out. Please start a new operation.',
-                    recovery,
-                })
-            }
-
-            return NextResponse.json({
+            return respond({
                 success: true,
                 status: 'AWAITING_FINAL_CONFIRM',
                 message: 'Awaiting final confirmation',
                 cardNumber: operation.cardNumber,
                 stbNumber: operation.stbNumber,
-                selectedPackage: operation.selectedPackage,
+                selectedPackage: (() => {
+                    const selected = quoteData(operation.selectedPackage)
+                    return { index: selected.index, name: selected.name, price: selected.price,
+                        quoteRevision: selected.quoteRevision, packageKey: selected.packageKey,
+                        appliedPromoCode: selected.appliedPromoCode }
+                })(),
                 finalConfirmExpiry: operation.finalConfirmExpiry,
             })
         }
 
         if (operation.status !== 'AWAITING_PACKAGE') {
-            return NextResponse.json({
+            return respond({
                 success: false,
                 status: operation.status,
                 message: 'Operation is not in package selection stage',
             })
         }
 
-        if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-            const recovery = await recoverOperationIfNeeded(operation.id, 'packages-poll')
-            return NextResponse.json({
-                success: false,
-                status: recovery.newStatus || 'EXPIRED',
-                message: recovery.reason || 'Package selection timed out. Please start a new operation.',
-                recovery,
-            })
-        }
-
         // 5. Return packages
-        return NextResponse.json({
+        return respond({
             success: true,
             status: 'AWAITING_PACKAGE',
             cardNumber: operation.cardNumber,
             stbNumber: operation.stbNumber,
-            packages: operation.availablePackages || [],
+            ...publicPackageQuote(operation),
             finalConfirmExpiry: operation.finalConfirmExpiry,
             message: 'Choose the appropriate package',
         })

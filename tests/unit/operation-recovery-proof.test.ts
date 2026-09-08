@@ -1,185 +1,156 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {
-    getRecoveryProviderBalanceRepairEvidence,
-    hasRecoveryProviderCompletionProof,
-} from '@/lib/operations/recovery-proof'
+import { hasRecoveryProviderCompletionProof } from '@/lib/operations/recovery-proof'
 
-const ledger = {
-    id: 'ledger-1',
-    beinAccountId: 'bein-1',
-    spendAmount: 92,
-    dealerBalanceBefore: 500,
-    dealerBalanceAfter: 408,
-    evidenceConfidence: 'CONFIRMED_FINAL_PAY',
-}
-
-const auditResponseData = {
+const responseData = {
     operationPhase: 'FINAL_PAY_SUBMITTED',
     finalPaySubmitted: true,
-    outcomeCategory: 'CONFIRMED_SUCCESS',
-    auditSnapshot: {
-        providerEvidenceState: 'confirmed-final-pay',
-        outcomeCategory: 'CONFIRMED_SUCCESS',
-        chargedBeinLedgerId: 'ledger-1',
-        beinAccountId: 'bein-1',
-        beinBalanceBefore: 500,
-        beinBalanceAfter: 408,
-        beinDelta: 92,
-        beinBalanceBeforeSource: 'final_pay_ok_page',
-        beinBalanceAfterSource: 'final_pay_balance_check',
-    },
+    providerPaymentState: 'CHARGED',
+    fulfillmentState: 'VERIFIED',
+    fulfillmentAuthority: 'AUTOMATED_COMPOSITE',
 }
 
-test('accepts recovery completion proof only when confirmed ledger and audit snapshot match', () => {
+test('provider balance ledger alone is not recovery completion proof', () => {
     assert.equal(hasRecoveryProviderCompletionProof({
-        responseData: auditResponseData,
-        chargedBeinSpendLedger: ledger,
-    }), true)
-})
-
-test('rejects recovery completion proof without matching audit and ledger evidence', () => {
-    assert.equal(hasRecoveryProviderCompletionProof({
-        responseData: auditResponseData,
-        chargedBeinSpendLedger: null,
-    }), false)
-
-    assert.equal(hasRecoveryProviderCompletionProof({
-        responseData: {
-            ...auditResponseData,
-            auditSnapshot: {
-                ...auditResponseData.auditSnapshot,
-                chargedBeinLedgerId: 'different-ledger',
-            },
-        },
-        chargedBeinSpendLedger: ledger,
-    }), false)
-
-    assert.equal(hasRecoveryProviderCompletionProof({
-        responseData: {
-            ...auditResponseData,
-            auditSnapshot: {
-                ...auditResponseData.auditSnapshot,
-                beinDelta: 50,
-            },
-        },
-        chargedBeinSpendLedger: ledger,
-    }), false)
-
-    assert.equal(hasRecoveryProviderCompletionProof({
-        responseData: auditResponseData,
+        responseData,
         chargedBeinSpendLedger: {
-            ...ledger,
-            dealerBalanceAfter: 407,
-        },
-    }), false)
-})
-
-test('accepts recovery completion proof from contract verified ledger and audit snapshot', () => {
-    assert.equal(hasRecoveryProviderCompletionProof({
-        responseData: {
-            outcomeCategory: 'CONFIRMED_SUCCESS',
-            auditSnapshot: {
-                providerEvidenceState: 'contract-verified',
-                outcomeCategory: 'CONFIRMED_SUCCESS',
-                chargedBeinLedgerId: 'contract-ledger-1',
-                beinAccountId: 'bein-1',
-            },
-        },
-        chargedBeinSpendLedger: {
-            id: 'contract-ledger-1',
+            id: 'ledger-1',
             beinAccountId: 'bein-1',
-            spendAmount: 95,
-            dealerBalanceBefore: null,
-            dealerBalanceAfter: null,
-            evidenceConfidence: 'CONTRACT_VERIFIED',
+            spendAmount: 174,
+            dealerBalanceBefore: 1000,
+            dealerBalanceAfter: 826,
+            evidenceConfidence: 'CONFIRMED_FINAL_PAY',
+        },
+        fulfillmentProof: null,
+    }), false)
+})
+
+test('installment recovery preserves its prior confirmed provider balance proof', () => {
+    assert.equal(hasRecoveryProviderCompletionProof({
+        responseData: {
+            operationPhase: 'FINAL_PAY_SUBMITTED',
+            finalPaySubmitted: true,
+            jobType: 'CONFIRM_INSTALLMENT',
+            auditSnapshot: {
+                providerEvidenceState: 'confirmed-final-pay',
+                outcomeCategory: 'CONFIRMED_SUCCESS',
+                chargedBeinLedgerId: 'ledger-installment-1',
+                beinAccountId: 'bein-1',
+                beinBalanceBefore: 500,
+                beinBalanceAfter: 408,
+                beinBalanceBeforeSource: 'final_pay_ok_page',
+                beinBalanceAfterSource: 'final_pay_result_page',
+            },
+        },
+        chargedBeinSpendLedger: {
+            id: 'ledger-installment-1',
+            beinAccountId: 'bein-1',
+            spendAmount: 92,
+            dealerBalanceBefore: 500,
+            dealerBalanceAfter: 408,
+            evidenceConfidence: 'CONFIRMED_FINAL_PAY',
         },
     }), true)
 })
 
-const repairResponseData = {
-    operationPhase: 'FINAL_PAY_SUBMITTED',
-    finalPaySubmitted: true,
-    finalPaySubmittedAt: '2026-06-16T02:00:08.000Z',
-    dealerBalanceBefore: 1513.01,
-    dealerBalanceBeforeSource: 'final_pay_ok_page',
-    dealerBalanceAfter: 1411.01,
-    dealerBalanceAfterSource: 'final_pay_result_page',
-    diagnosticDealerBalanceBefore: 1513.01,
-    diagnosticDealerBalanceBeforeSource: 'package_load_diagnostic',
-    providerEvidenceState: 'confirmed-final-pay',
-    providerEvidenceCapturedAt: '2026-06-16T02:00:09.000Z',
-    providerEvidenceContext: {
-        operationId: 'operation-1',
-        beinAccountId: 'bein-1',
-        cardNumber: '7500000001',
-        packageName: 'Premium',
-        packagePrice: 102,
-        contextMatched: true,
-    },
-    expectedCost: 102,
-    outcomeCategory: 'CONFIRMED_SUCCESS',
-}
-
-test('extracts recovery repair evidence from confirmed final-pay balance proof', () => {
-    const evidence = getRecoveryProviderBalanceRepairEvidence({
-        responseData: repairResponseData,
-        operationId: 'operation-1',
-        beinAccountId: 'bein-1',
-        cardNumber: '7500000001',
-        expectedCost: 102,
-    })
-
-    assert.ok(evidence)
-    assert.equal(evidence.beinAccountId, 'bein-1')
-    assert.equal(evidence.dealerBalanceBefore, 1513.01)
-    assert.equal(evidence.dealerBalanceAfter, 1411.01)
-    assert.equal(evidence.spendAmount, 102)
-    assert.equal(evidence.dealerBalanceAfterSource, 'final_pay_result_page')
-})
-
-test('rejects recovery repair evidence without final-pay balance provenance', () => {
-    assert.equal(getRecoveryProviderBalanceRepairEvidence({
+test('ordinary renewal cannot relabel balance evidence as installment proof', () => {
+    assert.equal(hasRecoveryProviderCompletionProof({
         responseData: {
-            ...repairResponseData,
-            dealerBalanceBeforeSource: 'package_load_diagnostic',
-        },
-        operationId: 'operation-1',
-        beinAccountId: 'bein-1',
-        cardNumber: '7500000001',
-        expectedCost: 102,
-    }), null)
-})
-
-test('rejects recovery repair evidence when balance decrease does not match expected cost', () => {
-    assert.equal(getRecoveryProviderBalanceRepairEvidence({
-        responseData: {
-            ...repairResponseData,
-            expectedCost: 95,
-            providerEvidenceContext: {
-                ...repairResponseData.providerEvidenceContext,
-                packagePrice: 95,
+            operationPhase: 'FINAL_PAY_SUBMITTED',
+            finalPaySubmitted: true,
+            jobType: 'CONFIRM_PURCHASE',
+            auditSnapshot: {
+                providerEvidenceState: 'confirmed-final-pay',
+                outcomeCategory: 'CONFIRMED_SUCCESS',
+                chargedBeinLedgerId: 'ledger-renewal-1',
+                beinAccountId: 'bein-1',
+                beinBalanceBefore: 500,
+                beinBalanceAfter: 326,
+                beinBalanceBeforeSource: 'final_pay_ok_page',
+                beinBalanceAfterSource: 'final_pay_result_page',
             },
         },
-        operationId: 'operation-1',
-        beinAccountId: 'bein-1',
-        cardNumber: '7500000001',
-        expectedCost: 95,
-    }), null)
+        chargedBeinSpendLedger: {
+            id: 'ledger-renewal-1',
+            beinAccountId: 'bein-1',
+            spendAmount: 174,
+            dealerBalanceBefore: 500,
+            dealerBalanceAfter: 326,
+            evidenceConfidence: 'CONFIRMED_FINAL_PAY',
+        },
+    }), false)
 })
-
-test('rejects recovery repair evidence when provider context does not match operation', () => {
-    assert.equal(getRecoveryProviderBalanceRepairEvidence({
-        responseData: {
-            ...repairResponseData,
-            providerEvidenceContext: {
-                ...repairResponseData.providerEvidenceContext,
-                operationId: 'different-operation',
-            },
+test('matching unique fulfillment proof permits recovery completion', () => {
+    assert.equal(hasRecoveryProviderCompletionProof({
+        responseData,
+        chargedBeinSpendLedger: null,
+        fulfillmentProof: {
+            id: 'proof-1',
+            operationId: 'operation-1',
+            beinAccountId: 'bein-1',
+            cardNumberSnapshot: '7517687161',
+            invoiceNo: 'INV-1',
+            proofKind: 'SOLD_REPORT_CONTRACT_CORRELATION',
         },
         operationId: 'operation-1',
         beinAccountId: 'bein-1',
-        cardNumber: '7500000001',
-        expectedCost: 102,
-    }), null)
+        cardNumber: '7517687161',
+    }), true)
+})
+
+test('mismatched proof context does not permit recovery completion', () => {
+    assert.equal(hasRecoveryProviderCompletionProof({
+        responseData,
+        fulfillmentProof: {
+            id: 'proof-1',
+            operationId: 'operation-2',
+            beinAccountId: 'bein-1',
+            cardNumberSnapshot: '7517687161',
+            invoiceNo: 'INV-1',
+            proofKind: 'SOLD_REPORT_CONTRACT_CORRELATION',
+        },
+        operationId: 'operation-1',
+        beinAccountId: 'bein-1',
+        cardNumber: '7517687161',
+    }), false)
+})
+
+test('legacy contract-only proof cannot permit recovery completion', () => {
+    assert.equal(hasRecoveryProviderCompletionProof({
+        responseData: {
+            ...responseData,
+            fulfillmentAuthority: 'NONE',
+        },
+        fulfillmentProof: {
+            id: 'legacy-proof-1',
+            operationId: 'operation-1',
+            beinAccountId: 'bein-1',
+            cardNumberSnapshot: '7517687161',
+            invoiceNo: 'INV-LEGACY',
+            proofKind: 'LEGACY_CONTRACT_ONLY',
+        },
+        operationId: 'operation-1',
+        beinAccountId: 'bein-1',
+        cardNumber: '7517687161',
+    }), false)
+})
+
+test('structured manual provider evidence permits labeled recovery completion', () => {
+    assert.equal(hasRecoveryProviderCompletionProof({
+        responseData: {
+            ...responseData,
+            fulfillmentAuthority: 'MANUAL_PROVIDER_CONFIRMATION',
+        },
+        fulfillmentProof: null,
+        manualFulfillmentEvidence: {
+            id: 'manual-evidence-1',
+            operationId: 'operation-1',
+            beinAccountId: 'bein-1',
+            cardNumberSnapshot: '7517687161',
+            invoiceNo: 'INV-MANUAL-1',
+        },
+        operationId: 'operation-1',
+        beinAccountId: 'bein-1',
+        cardNumber: '7517687161',
+    }), true)
 })

@@ -7,13 +7,10 @@ import { ManagerActionsLog } from "@/components/manager/ManagerActionsLog"
 import { CreateUserDialog } from "@/components/manager/CreateUserDialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTranslation } from "@/hooks/useTranslation"
+import type { ManagerDashboardData } from "@/lib/manager-dashboard"
 
 interface ManagerPageContentProps {
-    data: {
-        stats: any
-        recentUsers: any[]
-        recentActions: any[]
-    } | null
+    data: ManagerDashboardData | null
 }
 
 export function ManagerPageContent({ data }: ManagerPageContentProps) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { projectOperationProgress } from '../../../../../shared/operations/consumer-progress'
 import {
     buildChargedBeinAccountAudit,
     redactOperationResponseData,
@@ -11,9 +11,7 @@ import {
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 export async function GET(
@@ -47,6 +45,11 @@ export async function GET(
                 createdAt: true,
                 updatedAt: true,
                 userId: true,
+                finalConfirmExpiry: true,
+                providerPaymentState: true,
+                fulfillmentState: true,
+                transactions: { where: { type: 'REFUND' }, select: { type: true } },
+                refundSettlements: { select: { state: true } },
                 chargedBeinSpendLedger: {
                     select: {
                         id: true,
@@ -89,10 +92,13 @@ export async function GET(
         const operationData = {
             ...operation,
             chargedBeinAccount: buildChargedBeinAccountAudit(operation, authUser.role === 'ADMIN'),
+            ...projectOperationProgress(operation),
         }
         delete (operationData as { userId?: string }).userId
         delete (operationData as { chargedBeinSpendLedger?: unknown }).chargedBeinSpendLedger
         delete (operationData as { beinAccount?: unknown }).beinAccount
+        delete (operationData as { transactions?: unknown }).transactions
+        delete (operationData as { refundSettlements?: unknown }).refundSettlements
 
         return NextResponse.json({
             ...operationData,

@@ -1,3 +1,5 @@
+import { deliverCompletionEffects } from '../../shared/operations/completion-effects';
+
 /**
  * HTTP Queue Processor - Handles operations using HttpClientService
  * 
@@ -7,11 +9,22 @@
  * @see queue-processor.ts for the Playwright version
  */
 
-import { Job } from 'bullmq';
+import { randomUUID } from 'node:crypto';
+import { Job, Queue, UnrecoverableError } from 'bullmq';
 import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage, classifyFinalPayOutcome } from './http';
-import type { Contract, FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
-import { AccountPoolManager, getQueueManager, forceUnlockAccount, lockAccount, unlockAccount } from './pool';
+import type { FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
+import { AccountPoolManager, getQueueManager, lockAccount, unlockAccount } from './pool';
+import {
+    acquireAccountExecutionLease,
+    assertAccountExecutionLease,
+    extendLock,
+    getAccountLockStatus,
+    isAccountExecutionLeaseActive,
+    parkAccountLockForHandoff,
+    transitionAccountLockToExecutionLease,
+    type AccountExecutionLeaseHandle,
+} from './pool/account-locking';
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
@@ -20,6 +33,11 @@ import { trackOperationComplete } from './lib/activity-tracker';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
 import { decryptAccountPassword } from './lib/crypto';
 import { recordConfirmedBeinSpend } from './lib/bein-spend-ledger';
+import { claimInstallmentMutation, finalizeInstallmentSettlement } from './lib/installment-finalization';
+import { installmentIdentity } from '../../shared/operations/audit-financial-context';
+import { actionRevision, quoteRevisionOf, readyPackageQuote, type PromoAction } from '../../shared/operations/package-quote';
+import { holdQuoteConflict, isCurrentPromo, matchFreshPackage, publishPromoQuote, refreshPromoPackages } from './lib/promo-quote';
+import { getRedisConnection } from './lib/redis';
 import {
     captureOperationSpendAwardRunInTransaction,
     finalizeOperationSpendAwardRun,
@@ -34,7 +52,9 @@ import {
     extendSessionTTL,
     acquireLoginLock,
     releaseLoginLock,
-    waitForLoginComplete
+    waitForLoginComplete,
+    saveSessionToCacheFenced,
+    saveOperationSessionToCacheFenced,
 } from './lib/session-cache';
 import {
     getCachedPackages,
@@ -64,31 +84,67 @@ import {
     shouldRecordConfirmedProviderSpend,
     type FinalPayBalanceEvidence,
 } from './lib/final-pay-evidence';
+import type { FulfillmentProofCandidate } from './lib/fulfillment-proof';
+import { finalizeAutomatedRenewalFulfillment } from './lib/fulfillment-finalization';
+import { finalizeRenewalNoChargeFailure } from './lib/renewal-no-charge-finalization';
+import { finalizePreMutationRenewalTermination } from './lib/pre-mutation-renewal-finalization';
 import {
-    buildFailedContractVerification,
-    buildRenewalContractVerification,
-    RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS,
-    RENEWAL_CONTRACT_VERIFICATION_DELAY_MS,
-    type ContractVerificationEvidence,
-} from './lib/contract-verification';
+    RetryableRenewalVerificationError,
+    isTransientRenewalVerificationError,
+} from './lib/renewal-verification-retry';
+import {
+    captureRenewalFulfillmentBaseline,
+    claimFinalProviderMutationStart,
+    getActiveRenewalFulfillmentBaseline,
+    getRenewalFulfillmentConfig,
+    markFulfillmentVerificationAttemptProofConflict,
+    persistRenewalFulfillmentState,
+    recordFulfillmentVerificationAttempt,
+    supersedeRenewalFulfillmentBaseline,
+} from './lib/fulfillment-baseline';
+import {
+    acquireProviderAccountCausalReservation,
+    assertActiveProviderAccountReservation,
+    decideProviderAccountConsumerAccess,
+    findActiveProviderAccountReservationForAccount,
+    releaseProviderAccountCausalReservation,
+    type ProviderAccountConsumer,
+} from './lib/provider-account-reservation';
+import {
+    correlateRenewalFulfillment,
+    type RenewalFulfillmentCorrelationResult,
+} from './lib/renewal-fulfillment-correlation';
+import {
+    decideRenewalTerminalState,
+    mapVerificationOutcomeToFulfillmentState,
+    type FulfillmentProofMode,
+    type FulfillmentState,
+    type FulfillmentVerificationOutcome,
+    type ProviderPaymentState,
+} from '../../shared/operations/renewal-fulfillment';
 
 // Renewal decision windows
 const HEARTBEAT_TTL_SECONDS = 5;
 const PACKAGE_SELECTION_TIMEOUT_MS = 30_000;
 const CONFIRMATION_TIMEOUT_MS = 10_000;
 const FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS = 10_000;
-const FINAL_CONFIRM_LOCK_TTL_SECONDS = 120;
+const FINAL_PROVIDER_MUTATION_PHASE = 'FINAL_PROVIDER_MUTATION_STARTED';
+const BALANCE_ACCOUNT_LOCK_TTL_SECONDS = 120;
+const BALANCE_ACCOUNT_LOCK_HEARTBEAT_MS = 30_000;
 
 interface OperationJobData {
     operationId: string;
-    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE' | 'CHECK_ACCOUNT_BALANCE' | 'START_INSTALLMENT' | 'CONFIRM_INSTALLMENT' | 'VERIFY_REVIEW_CARD';
+    type: 'RENEW' | 'CHECK_BALANCE' | 'REFRESH_SIGNAL' | 'SIGNAL_REFRESH' | 'START_RENEWAL' | 'COMPLETE_PURCHASE' | 'APPLY_PROMO' | 'CONFIRM_PURCHASE' | 'CANCEL_CONFIRM' | 'SIGNAL_CHECK' | 'SIGNAL_ACTIVATE' | 'CHECK_ACCOUNT_BALANCE' | 'START_INSTALLMENT' | 'CONFIRM_INSTALLMENT' | 'VERIFY_RENEWAL_FULFILLMENT' | 'VERIFY_REVIEW_CARD';
     cardNumber: string;
     duration?: string;
     promoCode?: string;
+    promoAction?: PromoAction;
+    actionRevision?: number;
     userId?: string;
     amount?: number;
     accountId?: string;  // For CHECK_ACCOUNT_BALANCE
     smartcardType?: string;  // 'CISCO' or 'IRDETO' (default: CISCO)
+    verificationAttempt?: number;
 }
 
 // Custom error for cancelled operations
@@ -117,14 +173,11 @@ const TERMINAL_STATUSES = new Set<string>(TERMINAL_STATUS_LIST);
 
 type ProviderEvidenceState = 'confirmed-final-pay' | 'contract-verified' | 'incomplete-evidence';
 
-interface ContractVerificationRun {
-    finalVerification: ContractVerificationEvidence;
-    attempts: ContractVerificationEvidence[];
-}
-
 function isTerminalStatus(status: string | null | undefined): boolean {
     return !!status && TERMINAL_STATUSES.has(status);
 }
+
+class QuoteHoldPersistenceError extends Error {}
 
 async function awardCompletedOperationPointsSafely(operationId: string): Promise<void> {
     try {
@@ -148,6 +201,8 @@ function mergeOperationPhaseData(
         finalPaySubmitted?: boolean;
         finalPaySubmittedAt?: string;
         finalPayRequestStartedAt?: string;
+        finalProviderMutationStartedAt?: string;
+        providerMutationStage?: 'FINAL_OK';
         dealerBalanceBefore?: number | null;
         dealerBalanceAfter?: number | null;
         dealerBalanceBeforeSource?: FinalPayBalanceEvidence['finalBalanceBeforeSource'] | FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
@@ -155,6 +210,15 @@ function mergeOperationPhaseData(
         diagnosticDealerBalanceBefore?: number | null;
         diagnosticDealerBalanceBeforeSource?: FinalPayBalanceEvidence['diagnosticBalanceBeforeSource'];
         providerEvidenceState?: ProviderEvidenceState;
+        providerPaymentState?: ProviderPaymentState;
+        fulfillmentState?: FulfillmentState;
+        fulfillmentProofId?: string;
+        fulfillmentInvoiceNo?: string;
+        fulfillmentReasonCode?: string;
+        verificationOutcome?: FulfillmentVerificationOutcome;
+        nextVerificationAt?: string | null;
+        fulfillmentProofMode?: FulfillmentProofMode;
+        proofKind?: 'LEGACY_CONTRACT_ONLY' | 'SOLD_REPORT_CONTRACT_CORRELATION';
         providerEvidenceCapturedAt?: string;
         providerEvidenceContext?: {
             operationId: string;
@@ -183,6 +247,8 @@ function hasFinalPaymentStarted(
 
     if (data.finalPaySubmitted === true) return true;
     if (
+        phase === 'PROVIDER_SALE_PREPARATION_STARTED' ||
+        phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
         phase === 'FINAL_PAY_REQUEST_STARTED' ||
         phase === 'FINAL_PAY_SUBMITTED' ||
         phase === 'POST_FINAL_PAY_REVIEW'
@@ -206,52 +272,11 @@ function hasExplicitFinalPaymentStarted(responseData?: unknown): boolean {
     const phase = getOperationPhase(responseData);
 
     return data.finalPaySubmitted === true ||
+        phase === 'PROVIDER_SALE_PREPARATION_STARTED' ||
+        phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
         phase === 'FINAL_PAY_REQUEST_STARTED' ||
         phase === 'FINAL_PAY_SUBMITTED' ||
         phase === 'POST_FINAL_PAY_REVIEW';
-}
-
-function hasManualFinancialReviewDecision(responseData: unknown): boolean {
-    const data = parseResponseDataObject(responseData);
-    const financialReview = data.financialReview;
-
-    if (!financialReview || typeof financialReview !== 'object' || Array.isArray(financialReview)) {
-        return false;
-    }
-
-    const review = financialReview as Record<string, unknown>;
-    if (review.latestDecision && typeof review.latestDecision === 'object') return true;
-    return Array.isArray(review.decisions) && review.decisions.length > 0;
-}
-
-function moneyMatches(left: number | null, right: number | null): boolean {
-    return typeof left === 'number' &&
-        typeof right === 'number' &&
-        Math.abs(left - right) <= 0.01;
-}
-
-function confirmedProviderContextMatches(
-    responseData: unknown,
-    finalPayEvidence: FinalPayBalanceEvidence
-): boolean {
-    const data = parseResponseDataObject(responseData);
-    const context = data.providerEvidenceContext;
-
-    if (!context || typeof context !== 'object' || Array.isArray(context)) {
-        return false;
-    }
-
-    const providerContext = context as Record<string, unknown>;
-    const expectedCost = toNullableNumber(data.expectedCost);
-
-    if (providerContext.operationId !== finalPayEvidence.operationId) return false;
-    if (providerContext.beinAccountId !== finalPayEvidence.beinAccountId) return false;
-    if (providerContext.cardNumber !== finalPayEvidence.cardNumber) return false;
-    if (!moneyMatches(toNullableNumber(providerContext.packagePrice), finalPayEvidence.packagePrice)) return false;
-    if (!moneyMatches(expectedCost, finalPayEvidence.packagePrice)) return false;
-    if (!moneyMatches(expectedCost, finalPayEvidence.confirmedDebitAmount)) return false;
-
-    return true;
 }
 
 function hasRenewalFinalPayDispatchEvidence(
@@ -268,6 +293,8 @@ function shouldSubmitRenewalFinalPay(operation: {
     status: OperationStatus | string | null | undefined;
     amount: number | null | undefined;
     responseData?: unknown;
+    providerMutationStartedAt?: Date | null;
+    providerMutationStage?: string | null;
 } | null): { allowed: boolean; reason: string } {
     if (!operation) return { allowed: false, reason: 'missing_operation' };
     if (isTerminalStatus(operation.status)) return { allowed: false, reason: `terminal_${operation.status}` };
@@ -275,8 +302,12 @@ function shouldSubmitRenewalFinalPay(operation: {
         return { allowed: false, reason: `invalid_status_${operation.status}` };
     }
     if (!operation.amount || operation.amount <= 0) return { allowed: false, reason: 'missing_amount' };
-    if (hasExplicitFinalPaymentStarted(operation.responseData)) {
-        return { allowed: false, reason: 'final_pay_already_started' };
+    if (
+        operation.providerMutationStartedAt ||
+        operation.providerMutationStage ||
+        hasExplicitFinalPaymentStarted(operation.responseData)
+    ) {
+        return { allowed: false, reason: 'final_provider_mutation_already_started' };
     }
     if (!hasRenewalFinalPayDispatchEvidence(operation.status, operation.responseData)) {
         return { allowed: false, reason: 'missing_dispatch_evidence' };
@@ -305,103 +336,6 @@ async function updateOperationIfActive(
     });
     console.log(`[HTTP] Skipping ${context} for ${operationId}; current status is ${current?.status || 'missing'}`);
     return false;
-}
-
-async function completeConfirmedRenewalOperation(
-    operationId: string,
-    data: Prisma.OperationUncheckedUpdateManyInput,
-    completedAt: Date,
-    postPayResponseData: Prisma.InputJsonObject,
-    postPayPhaseEvidence: Parameters<typeof mergeOperationPhaseData>[1],
-    route: EffectiveBeinRoute,
-    finalPayEvidence: FinalPayBalanceEvidence
-): Promise<{ completed: boolean; responseData: Prisma.InputJsonObject }> {
-    const finalResponseData =
-        data.responseData && typeof data.responseData === 'object' && !Array.isArray(data.responseData)
-            ? data.responseData as Prisma.InputJsonObject
-            : postPayResponseData;
-    const completed = await prisma.$transaction(async (tx) => {
-        const update = await tx.operation.updateMany({
-            where: {
-                id: operationId,
-                status: { notIn: TERMINAL_STATUS_LIST }
-            },
-            data
-        });
-        if (update.count > 0) {
-            await captureOperationSpendAwardRunInTransaction(
-                tx,
-                operationId,
-                'WORKER_RENEWAL',
-                completedAt
-            );
-        }
-        return update;
-    });
-
-    if (completed.count > 0) {
-        return { completed: true, responseData: finalResponseData };
-    }
-
-    const current = await prisma.operation.findUnique({
-        where: { id: operationId },
-        select: { status: true, responseData: true, updatedAt: true }
-    });
-
-    if (
-        current?.status !== OperationStatus.REVIEW_REQUIRED ||
-        !hasFinalPaymentStarted(current.status, current.responseData) ||
-        hasManualFinancialReviewDecision(current.responseData) ||
-        !confirmedProviderContextMatches(current.responseData, finalPayEvidence) ||
-        !shouldRecordConfirmedProviderSpend(finalPayEvidence)
-    ) {
-        console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId} due to terminal transition race (${current?.status || 'missing'})`);
-        return { completed: false, responseData: postPayResponseData };
-    }
-
-    const refund = await prisma.transaction.findFirst({
-        where: { operationId, type: 'REFUND' },
-        select: { id: true }
-    });
-    if (refund) {
-        console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId}; refund already exists`);
-        return { completed: false, responseData: postPayResponseData };
-    }
-
-    const recoveredResponseData = responseDataWithRoute(
-        mergeOperationPhaseData(current.responseData, postPayPhaseEvidence),
-        route
-    );
-    const recovered = await prisma.$transaction(async (tx) => {
-        const update = await tx.operation.updateMany({
-            where: {
-                id: operationId,
-                status: OperationStatus.REVIEW_REQUIRED,
-                updatedAt: current.updatedAt
-            },
-            data: {
-                ...data,
-                responseData: finalResponseData ?? recoveredResponseData
-            }
-        });
-        if (update.count > 0) {
-            await captureOperationSpendAwardRunInTransaction(
-                tx,
-                operationId,
-                'WORKER_RENEWAL',
-                completedAt
-            );
-        }
-        return update;
-    });
-
-    if (recovered.count > 0) {
-        console.warn(`[HTTP] CONFIRM_PURCHASE promoted automated review to COMPLETED for ${operationId} after confirmed provider debit`);
-        return { completed: true, responseData: finalResponseData ?? recoveredResponseData };
-    }
-
-    console.warn(`[HTTP] CONFIRM_PURCHASE completion skipped for ${operationId}; review state changed during confirmed provider debit promotion`);
-    return { completed: false, responseData: postPayResponseData };
 }
 
 function getErrMsg(error: unknown): string {
@@ -486,6 +420,38 @@ function parseResponseDataObject(responseData: unknown): Record<string, unknown>
         return responseData as Record<string, unknown>;
     }
     return {};
+}
+
+function getStoredProviderPaymentState(responseData: unknown): ProviderPaymentState | null {
+    const state = parseResponseDataObject(responseData).providerPaymentState;
+    switch (state) {
+        case 'NOT_SUBMITTED':
+        case 'CHARGED':
+        case 'NOT_CHARGED':
+        case 'UNKNOWN':
+            return state;
+        default:
+            return null;
+    }
+}
+
+function hasReviewFinalPaymentEvidence(responseData: unknown): boolean {
+    if (hasExplicitFinalPaymentStarted(responseData)) return true;
+
+    const data = parseResponseDataObject(responseData);
+    const providerPaymentState = getStoredProviderPaymentState(data);
+    if (providerPaymentState && providerPaymentState !== 'NOT_SUBMITTED') return true;
+
+    const auditSnapshot = data.auditSnapshot && typeof data.auditSnapshot === 'object' && !Array.isArray(data.auditSnapshot)
+        ? data.auditSnapshot as Record<string, unknown>
+        : {};
+    const outcomeCategory = data.outcomeCategory ?? auditSnapshot.outcomeCategory;
+    const providerEvidenceState = data.providerEvidenceState ?? auditSnapshot.providerEvidenceState;
+    return outcomeCategory === 'CONFIRMED_SUCCESS' ||
+        outcomeCategory === 'CONFIRMED_NOT_CHARGED' ||
+        outcomeCategory === 'UNCERTAIN_REVIEW_REQUIRED' ||
+        providerEvidenceState === 'confirmed-final-pay' ||
+        providerEvidenceState === 'contract-verified';
 }
 
 type OperationBeinAccount = BeinAccount & { proxy?: Proxy | null };
@@ -687,222 +653,41 @@ async function persistOperationAuditSnapshot(
     });
 }
 
-function compactContract(contract: Contract | null): Prisma.InputJsonObject | null {
-    if (!contract) return null;
-    return {
-        type: contract.type || '',
-        status: contract.status || '',
-        package: contract.package || '',
-        startDate: contract.startDate || '',
-        expiryDate: contract.expiryDate || '',
-        invoiceNo: contract.invoiceNo || '',
-    };
-}
+function renewalProviderPaymentState(
+    result: PurchaseResult,
+    markerClaimed: boolean
+): ProviderPaymentState {
+    if (!markerClaimed) return 'NOT_SUBMITTED';
+    if (result.outcomeCategory === 'CONFIRMED_SUCCESS') return 'CHARGED';
 
-function cardVerificationOutcomeFor(
-    verification: ContractVerificationEvidence
-): 'LIKELY_RENEWED' | 'NOT_CONFIRMED' | 'CHECK_FAILED' {
-    if (verification.outcome === 'CONTRACT_VERIFIED_SUCCESS') return 'LIKELY_RENEWED';
-    if (verification.outcome === 'CHECK_FAILED') return 'CHECK_FAILED';
-    return 'NOT_CONFIRMED';
-}
-
-function contractVerificationSummary(verification: ContractVerificationEvidence): string {
-    const attemptSuffix = verification.maxAttempts
-        ? ` (attempt ${verification.attempt || 1}/${verification.maxAttempts})`
-        : '';
-
-    if (verification.outcome === 'CONTRACT_VERIFIED_SUCCESS') {
-        const invoice = verification.matchedContract?.invoiceNo
-            ? ` invoice ${verification.matchedContract.invoiceNo}`
-            : '';
-        return `Live beIN check confirmed a matching active contract${invoice}${attemptSuffix}.`;
-    }
-    if (verification.outcome === 'CHECK_FAILED') {
-        return `Live beIN check failed${attemptSuffix}: ${verification.error || verification.reason}`;
-    }
-    return `Live beIN check found no matching active contract${attemptSuffix}.`;
-}
-
-function asContractVerificationRun(
-    verification: ContractVerificationEvidence | ContractVerificationRun
-): ContractVerificationRun {
-    if ('finalVerification' in verification) {
-        return verification;
-    }
-
-    return {
-        finalVerification: verification,
-        attempts: [verification],
-    };
-}
-
-function mergeContractVerificationEvidence(
-    responseData: unknown,
-    verification: ContractVerificationEvidence | ContractVerificationRun,
-    source: 'post_final_pay' | 'admin_live_check'
-): Prisma.InputJsonObject {
-    const verificationRun = asContractVerificationRun(verification);
-    const finalVerification = verificationRun.finalVerification;
-    const attempts = verificationRun.attempts.length > 0
-        ? verificationRun.attempts
-        : [finalVerification];
-    const base = parseResponseDataObject(responseData);
-    const existingTimeline = Array.isArray(base.providerVerificationTimeline)
-        ? base.providerVerificationTimeline
-        : [];
-    const timelineEntries = attempts.map((attempt, index) => ({
-        source,
-        attempt: attempt.attempt || index + 1,
-        maxAttempts: attempt.maxAttempts || attempts.length,
-        checkedAt: attempt.checkedAt,
-        outcome: attempt.outcome,
-        reason: attempt.reason,
-        error: attempt.error || null,
-        referenceDate: attempt.referenceDate,
-        selectedPackageName: attempt.selectedPackageName,
-        contractCount: attempt.contractCount,
-        matchedContract: compactContract(attempt.matchedContract),
-        finalDecision: attempt === finalVerification,
-    }));
-    const finalTimelineEntry = timelineEntries[timelineEntries.length - 1] ?? null;
-    const existingFinancialReview =
-        base.financialReview && typeof base.financialReview === 'object' && !Array.isArray(base.financialReview)
-            ? base.financialReview as Record<string, unknown>
-            : {};
-    const existingCardChecks = Array.isArray(existingFinancialReview.cardChecks)
-        ? existingFinancialReview.cardChecks
-        : [];
-    const cardCheck = {
-        outcome: cardVerificationOutcomeFor(finalVerification),
-        summary: contractVerificationSummary(finalVerification),
-        checkedBy: source === 'admin_live_check' ? 'worker-live-provider-check' : 'worker-post-pay',
-        checkedByUsername: source === 'admin_live_check' ? 'worker live beIN check' : 'worker post-Pay verifier',
-        checkedAt: finalVerification.checkedAt,
-        attempt: finalVerification.attempt || attempts.length,
-        maxAttempts: finalVerification.maxAttempts || attempts.length,
-    };
-
-    return {
-        ...base,
-        providerEvidenceState: finalVerification.outcome === 'CONTRACT_VERIFIED_SUCCESS'
-            ? 'contract-verified'
-            : base.providerEvidenceState,
-        outcomeCategory: finalVerification.outcome === 'CONTRACT_VERIFIED_SUCCESS'
-            ? 'CONFIRMED_SUCCESS'
-            : base.outcomeCategory,
-        providerVerificationTimeline: [...existingTimeline, ...timelineEntries].slice(-20) as Prisma.InputJsonArray,
-        providerFinalOutcome: finalVerification.outcome,
-        contractVerification: finalTimelineEntry,
-        financialReview: {
-            ...existingFinancialReview,
-            latestCardVerification: cardCheck,
-            cardChecks: [...existingCardChecks, cardCheck].slice(-20) as Prisma.InputJsonArray,
-        },
-    } as Prisma.InputJsonObject;
+    const message = result.message.toLowerCase();
+    const deterministicRejection = result.finalPaySubmitted === true && (
+        message.includes('insufficient balance') ||
+        message.includes('insufficient credit') ||
+        message.includes('transaction failed on bein')
+    );
+    return result.outcomeCategory === 'CONFIRMED_NOT_CHARGED' && deterministicRejection
+        ? 'NOT_CHARGED'
+        : 'UNKNOWN';
 }
 
 function delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function withContractVerificationAttempt(
-    verification: ContractVerificationEvidence,
-    attempt: number,
-    maxAttempts: number
-): ContractVerificationEvidence {
-    return {
-        ...verification,
-        attempt,
-        maxAttempts,
-    };
-}
-
-async function verifyRenewalContractWithProvider(input: {
-    client: HttpClientService;
-    account: OperationBeinAccount;
-    route: EffectiveBeinRoute;
-    cardNumber: string | null;
-    operationCreatedAt: Date;
-    responseData: unknown;
-    selectedPackageName?: string | null;
-}): Promise<ContractVerificationRun> {
-    if (!input.cardNumber) {
-        const finalVerification = withContractVerificationAttempt(
-            buildFailedContractVerification({
-                selectedPackageName: input.selectedPackageName,
-                operationCreatedAt: input.operationCreatedAt,
-                responseData: input.responseData,
-                error: 'Missing card number for live contract verification.',
-            }),
-            1,
-            1
-        );
-        return { finalVerification, attempts: [finalVerification] };
-    }
-
-    const attempts: ContractVerificationEvidence[] = [];
-
-    for (let attempt = 1; attempt <= RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS; attempt++) {
-        if (attempt > 1) {
-            console.log(`[HTTP] Waiting ${RENEWAL_CONTRACT_VERIFICATION_DELAY_MS}ms before live beIN contract verification attempt ${attempt}/${RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS}`);
-            await delay(RENEWAL_CONTRACT_VERIFICATION_DELAY_MS);
-        }
-
-        let verification: ContractVerificationEvidence;
-        try {
-            console.log(`[HTTP] Live beIN contract verification attempt ${attempt}/${RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS}`);
-            const checkResult = await withSessionRetry(
-                input.client,
-                input.account,
-                input.route,
-                () => input.client.checkCardForSignal(input.cardNumber || ''),
-                'postPayContractVerification'
-            );
-
-            if (!checkResult.success) {
-                verification = buildFailedContractVerification({
-                    selectedPackageName: input.selectedPackageName,
-                    operationCreatedAt: input.operationCreatedAt,
-                    responseData: input.responseData,
-                    error: checkResult.error || 'beIN card check failed.',
-                });
-            } else {
-                verification = buildRenewalContractVerification({
-                    contracts: checkResult.contracts || [],
-                    selectedPackageName: input.selectedPackageName,
-                    operationCreatedAt: input.operationCreatedAt,
-                    responseData: input.responseData,
-                });
-            }
-        } catch (error: unknown) {
-            verification = buildFailedContractVerification({
-                selectedPackageName: input.selectedPackageName,
-                operationCreatedAt: input.operationCreatedAt,
-                responseData: input.responseData,
-                error: getErrMsg(error),
-            });
-        }
-
-        verification = withContractVerificationAttempt(
-            verification,
-            attempt,
-            RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS
-        );
-        attempts.push(verification);
-
-        console.log(`[HTTP] Live beIN contract verification attempt ${attempt}/${RENEWAL_CONTRACT_VERIFICATION_ATTEMPTS}: ${verification.outcome} (${verification.reason})`);
-        if (verification.outcome === 'CONTRACT_VERIFIED_SUCCESS') {
-            return { finalVerification: verification, attempts };
-        }
-    }
-
-    const finalVerification = attempts[attempts.length - 1];
-    return { finalVerification, attempts };
-}
-
 function ledgerResultBlocksCompletion(result: ConfirmedBeinSpendResult | null): boolean {
     return result?.status === 'conflict_review_required' || result?.status === 'missing_balance_delta';
+}
+
+function spendLedgerAccountMismatch(operation: {
+    beinAccountId: string | null;
+    chargedBeinSpendLedger: { beinAccountId: string } | null;
+}): boolean {
+    return Boolean(
+        operation.chargedBeinSpendLedger &&
+        (!operation.beinAccountId ||
+            operation.chargedBeinSpendLedger.beinAccountId !== operation.beinAccountId)
+    );
 }
 
 function ledgerResultId(result: ConfirmedBeinSpendResult | null): string | undefined {
@@ -914,6 +699,58 @@ function ledgerResultReviewReason(result: ConfirmedBeinSpendResult | null): stri
         return result.reason;
     }
     return undefined;
+}
+
+async function upsertRenewalFulfillmentSafetyIssue(input: {
+    operationId: string;
+    userId: string | null;
+    beinAccountId: string;
+    operationAmount: number | null;
+    issueType: 'PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED' | 'FULFILLMENT_PROOF_CONFLICT';
+    details: Prisma.InputJsonObject;
+}): Promise<void> {
+    await prisma.operationIntegrityIssue.upsert({
+        where: {
+            operationId_issueType: {
+                operationId: input.operationId,
+                issueType: input.issueType,
+            },
+        },
+        create: {
+            operationId: input.operationId,
+            userId: input.userId,
+            beinAccountId: input.beinAccountId,
+            issueType: input.issueType,
+            severity: 'HIGH',
+            status: 'OPEN',
+            operationAmount: input.operationAmount,
+            details: input.details,
+        },
+        update: {
+            lastSeenAt: new Date(),
+            details: input.details,
+        },
+    });
+}
+
+async function resolveRenewalFulfillmentSafetyIssues(operationId: string): Promise<void> {
+    await prisma.operationIntegrityIssue.updateMany({
+        where: {
+            operationId,
+            issueType: {
+                in: [
+                    'PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED',
+                    'FULFILLMENT_PROOF_CONFLICT',
+                ],
+            },
+            status: { in: ['OPEN', 'ACKNOWLEDGED'] },
+        },
+        data: {
+            status: 'RESOLVED',
+            reviewedAt: new Date(),
+            reviewNote: 'Resolved automatically after unique fulfillment proof was committed.',
+        },
+    });
 }
 
 function getLegacySessionData(responseData: unknown): Record<string, unknown> | null {
@@ -1027,71 +864,135 @@ async function trackFreshLoginSuccess(accountId: string): Promise<void> {
 const MAX_LOGIN_RETRIES = 3;
 const LOGIN_RETRY_DELAY_MS = 2000;
 
-async function performReLogin(
+function isProviderExecutionLeaseLostError(error: unknown): boolean {
+    return getErrMsg(error).startsWith('PROVIDER_EXECUTION_LEASE_LOST');
+}
+
+async function assertReLoginExecutionLeaseCurrent(
+    executionLease?: AccountExecutionLeaseHandle
+): Promise<void> {
+    if (!executionLease) return;
+
+    try {
+        if (await assertAccountExecutionLease(getRedisConnection(), executionLease)) return;
+    } catch (error: unknown) {
+        if (isProviderExecutionLeaseLostError(error)) throw error;
+        throw new Error('PROVIDER_EXECUTION_LEASE_LOST_ASSERT_FAILED');
+    }
+
+    throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_RELOGIN');
+}
+
+async function waitForReLoginRetry(
+    executionLease: AccountExecutionLeaseHandle | undefined,
+    assertExecutionLeaseCurrent: (
+        executionLease?: AccountExecutionLeaseHandle
+    ) => Promise<void> = assertReLoginExecutionLeaseCurrent
+): Promise<void> {
+    await assertExecutionLeaseCurrent(executionLease);
+    await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+    await assertExecutionLeaseCurrent(executionLease);
+}
+
+type ReLoginFencedSessionInput = Parameters<typeof saveSessionToCacheFenced>[1];
+
+export interface ReLoginRuntime {
+    assertExecutionLeaseCurrent: (
+        executionLease?: AccountExecutionLeaseHandle
+    ) => Promise<void>;
+    getCaptchaApiKey: () => Promise<string | null>;
+    solveCaptcha: (apiKey: string, captchaImage: string) => Promise<string>;
+    trackCredentialLoginFailure: (accountId: string, reason: string | undefined) => Promise<void>;
+    trackFreshLoginSuccess: (accountId: string) => Promise<void>;
+    saveSessionToCacheFenced: (input: ReLoginFencedSessionInput) => Promise<boolean>;
+}
+
+const DEFAULT_RELOGIN_RUNTIME: ReLoginRuntime = {
+    assertExecutionLeaseCurrent: assertReLoginExecutionLeaseCurrent,
+    getCaptchaApiKey,
+    solveCaptcha: async (apiKey, captchaImage) => {
+        const captchaSolver = new CaptchaSolver(apiKey);
+        return captchaSolver.solve(captchaImage);
+    },
+    trackCredentialLoginFailure,
+    trackFreshLoginSuccess,
+    saveSessionToCacheFenced: (input) => saveSessionToCacheFenced(getRedisConnection(), input),
+};
+
+export async function performReLogin(
     httpClient: HttpClientService,
     account: OperationBeinAccount,
     route: EffectiveBeinRoute,
-    operationName: string
+    operationName: string,
+    executionLease?: AccountExecutionLeaseHandle,
+    runtime: ReLoginRuntime = DEFAULT_RELOGIN_RUNTIME
 ): Promise<boolean> {
     let lastError: string = 'Login failed';
 
     for (let attempt = 1; attempt <= MAX_LOGIN_RETRIES; attempt++) {
         try {
+            await runtime.assertExecutionLeaseCurrent(executionLease);
             console.log(`[HTTP] Re-login route for ${account.username}: ${safeRouteLogSuffix(route)}`);
             console.log(`[HTTP] 🔑 Login attempt ${attempt}/${MAX_LOGIN_RETRIES} for ${account.username} (${operationName})`);
 
             // Clear cached session on first attempt only
             if (attempt === 1) {
-                await deleteSessionFromCache(account.id, route.routeKey);
+                if (!executionLease) {
+                    await deleteSessionFromCache(account.id, route.routeKey);
+                }
                 httpClient.invalidateSession();
             }
 
             // Perform fresh login
+            await runtime.assertExecutionLeaseCurrent(executionLease);
             const loginResult = await httpClient.login(
                 account.username,
                 account.password,
                 account.totpSecret || undefined
             );
+            await runtime.assertExecutionLeaseCurrent(executionLease);
 
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
                 // Try 2Captcha auto-solve
                 console.log(`[HTTP] 🧩 CAPTCHA required during login attempt ${attempt}, attempting auto-solve...`);
-                const captchaApiKey = await getCaptchaApiKey();
+                const captchaApiKey = await runtime.getCaptchaApiKey();
 
                 if (captchaApiKey) {
                     try {
-                        const captchaSolver = new CaptchaSolver(captchaApiKey);
-                        const solution = await captchaSolver.solve(loginResult.captchaImage);
+                        const solution = await runtime.solveCaptcha(captchaApiKey, loginResult.captchaImage);
                         console.log('[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]');
 
                         // Submit login with CAPTCHA solution
+                        await runtime.assertExecutionLeaseCurrent(executionLease);
                         const loginWithCaptcha = await httpClient.submitLogin(
                             account.username,
                             account.password,
                             account.totpSecret || undefined,
                             solution
                         );
+                        await runtime.assertExecutionLeaseCurrent(executionLease);
 
                         if (!loginWithCaptcha.success) {
                             lastError = loginWithCaptcha.error || 'Login failed after CAPTCHA';
-                            await trackCredentialLoginFailure(account.id, lastError);
+                            await runtime.trackCredentialLoginFailure(account.id, lastError);
                             console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
 
                             if (attempt < MAX_LOGIN_RETRIES) {
                                 console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
-                                await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+                                await waitForReLoginRetry(executionLease, runtime.assertExecutionLeaseCurrent);
                             }
                             continue; // Try next attempt
                         }
 
                         console.log(`[HTTP] ✅ Login with CAPTCHA successful on attempt ${attempt}`);
                     } catch (captchaError: unknown) {
+                        if (isProviderExecutionLeaseLostError(captchaError)) throw captchaError;
                         lastError = `CAPTCHA auto-solve failed: ${getErrMsg(captchaError)}`;
                         console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${lastError}`);
 
                         if (attempt < MAX_LOGIN_RETRIES) {
                             console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
-                            await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+                            await waitForReLoginRetry(executionLease, runtime.assertExecutionLeaseCurrent);
                         }
                         continue; // Try next attempt
                     }
@@ -1102,37 +1003,54 @@ async function performReLogin(
                 }
             } else if (!loginResult.success) {
                 lastError = loginResult.error || 'Login failed';
-                await trackCredentialLoginFailure(account.id, lastError);
+                await runtime.trackCredentialLoginFailure(account.id, lastError);
                 console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
 
                 if (attempt < MAX_LOGIN_RETRIES) {
                     console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
-                    await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+                    await waitForReLoginRetry(executionLease, runtime.assertExecutionLeaseCurrent);
                 }
                 continue; // Try next attempt
             }
 
             // === LOGIN SUCCESS ===
-            await trackFreshLoginSuccess(account.id);
+            await runtime.trackFreshLoginSuccess(account.id);
 
             // Save new session to cache
+            await runtime.assertExecutionLeaseCurrent(executionLease);
             const newSession = await httpClient.exportSession();
+            await runtime.assertExecutionLeaseCurrent(executionLease);
             // FIX: Update timestamps before saving
             const now = Date.now();
             newSession.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
             newSession.loginTimestamp = now;
-            await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(newSession), httpClient.getSessionTimeout());
+            const sharedSession = prepareSharedSessionForCache(newSession);
+            if (executionLease) {
+                await runtime.assertExecutionLeaseCurrent(executionLease);
+                const saved = await runtime.saveSessionToCacheFenced({
+                    accountId: account.id,
+                    routeKey: route.routeKey,
+                    session: sharedSession,
+                    ttlSeconds: httpClient.getSessionTimeout(),
+                    lease: executionLease,
+                });
+                if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
+                await runtime.assertExecutionLeaseCurrent(executionLease);
+            } else {
+                await saveSessionToCache(account.id, route.routeKey, sharedSession, httpClient.getSessionTimeout());
+            }
             console.log(`[HTTP] ✅ Fresh login successful for ${operationName} (attempt ${attempt})`);
 
             return true;
 
         } catch (error: unknown) {
+            if (isProviderExecutionLeaseLostError(error)) throw error;
             lastError = getErrMsg(error);
             console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} threw: ${lastError}`);
 
             if (attempt < MAX_LOGIN_RETRIES) {
                 console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
-                await new Promise(resolve => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
+                await waitForReLoginRetry(executionLease, runtime.assertExecutionLeaseCurrent);
             }
         }
     }
@@ -1161,7 +1079,8 @@ async function withSessionRetry<T>(
     account: OperationBeinAccount,
     route: EffectiveBeinRoute,
     operation: () => Promise<T>,
-    operationName: string
+    operationName: string,
+    executionLease?: AccountExecutionLeaseHandle
 ): Promise<T> {
     let result: T;
 
@@ -1174,7 +1093,7 @@ async function withSessionRetry<T>(
         }
 
         console.log(`[HTTP] ⚠️ Session expired (thrown) during ${operationName}, performing fresh login...`);
-        await performReLogin(httpClient, account, route, operationName);
+        await performReLogin(httpClient, account, route, operationName, executionLease);
 
         // Retry the operation once
         return await operation();
@@ -1189,7 +1108,7 @@ async function withSessionRetry<T>(
             console.log(`[HTTP] ⚠️ Session expired (returned) during ${operationName}, performing fresh login...`);
             console.log(`[HTTP] Error was: ${resultObj.error}`);
 
-            await performReLogin(httpClient, account, route, operationName);
+            await performReLogin(httpClient, account, route, operationName, executionLease);
 
             // Retry the operation once
             console.log(`[HTTP] 🔄 Retrying ${operationName} after re-login...`);
@@ -1284,6 +1203,7 @@ export async function processOperationHttp(
     accountPool: AccountPoolManager
 ): Promise<void> {
     const { operationId, type, cardNumber, promoCode, userId, accountId, smartcardType } = job.data;
+    const revision = actionRevision(type, job.data.actionRevision);
     let selectedAccountId: string | null = null;
 
     console.log(`📥 [HTTP] Processing ${operationId}: ${type}`);
@@ -1293,7 +1213,7 @@ export async function processOperationHttp(
             case 'CHECK_ACCOUNT_BALANCE':
                 if (accountId) {
                     try {
-                        await handleCheckAccountBalance(accountId);
+                        await handleCheckAccountBalance(operationId, accountId, accountPool);
                     } catch (balanceError: unknown) {
                         console.error(`❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for ${accountId}:`, getErrMsg(balanceError));
                         // Don't throw - this job type has no operation to refund
@@ -1307,10 +1227,17 @@ export async function processOperationHttp(
                 await handleCompletePurchaseHttp(operationId, promoCode, accountPool);
                 break;
             case 'APPLY_PROMO':
-                await handleApplyPromoHttp(operationId, cardNumber, promoCode, accountPool);
+                await handleApplyPromoHttp(operationId, cardNumber, promoCode, accountPool, revision, job.data.promoAction || 'APPLY');
                 break;
             case 'CONFIRM_PURCHASE':
                 await handleConfirmPurchaseHttp(operationId, accountPool);
+                break;
+            case 'VERIFY_RENEWAL_FULFILLMENT':
+                await handleVerifyRenewalFulfillmentHttp(
+                    operationId,
+                    accountPool,
+                    job.data.verificationAttempt
+                );
                 break;
             case 'VERIFY_REVIEW_CARD':
                 await handleVerifyReviewCardHttp(operationId, accountPool);
@@ -1337,9 +1264,30 @@ export async function processOperationHttp(
                 throw new Error(`Unsupported operation type for HTTP: ${type}`);
         }
     } catch (error: unknown) {
+        if (error instanceof QuoteHoldPersistenceError) {
+            // Retain the reservation and surface a failed job for operator recovery.
+            // Replaying COMPLETE_PURCHASE would replay provider cart preparation.
+            throw new UnrecoverableError(error.message);
+        }
         if (error instanceof OperationCancelledError) {
             console.log(`🚫 [HTTP] Operation ${operationId} cancelled`);
             return;
+        }
+
+        // Promo preparation never owns financial closure, even when reservation
+        // or client setup fails before its local error handler. Retry the same revision.
+        if (type === 'APPLY_PROMO') throw error;
+
+        // The wrapped error can only originate from a read-only fulfillment
+        // check before its attempt record is committed. Let BullMQ retry it;
+        // never route it through generic renewal failure/refund handling.
+        if (
+            error instanceof RetryableRenewalVerificationError ||
+            type === 'VERIFY_RENEWAL_FULFILLMENT' ||
+            type === 'VERIFY_REVIEW_CARD'
+        ) {
+            console.warn(`[HTTP] Retrying read-only fulfillment verification for ${operationId}: ${getErrMsg(error)}`);
+            throw error;
         }
 
         console.error(`❌ [HTTP] Operation ${operationId} failed:`, getErrMsg(error));
@@ -1347,7 +1295,20 @@ export async function processOperationHttp(
         // ALWAYS read from DB - job data amount may be stale (deferred payment)
         const op = await prisma.operation.findUnique({
             where: { id: operationId },
-            select: { userId: true, amount: true, beinAccountId: true, status: true, responseData: true }
+            select: {
+                userId: true,
+                amount: true,
+                beinAccountId: true,
+                status: true,
+                type: true,
+                responseData: true,
+                providerMutationStartedAt: true,
+                providerPaymentState: true,
+                fulfillmentState: true,
+                fulfillmentVerificationOutcome: true,
+                purpose: true,
+                installmentEvidence: { select: { correlationKey: true } },
+            }
         });
         if (!op) {
             console.warn(`[HTTP] Operation ${operationId} missing during generic error handling; skipping refund/failure update`);
@@ -1358,13 +1319,71 @@ export async function processOperationHttp(
             return;
         }
         const opUserId = op?.userId || userId;
+        if (op.purpose === 'INSTALLMENT' || type === 'CONFIRM_INSTALLMENT') {
+            await finalizeInstallmentSettlement({ operationId, preMutation: !op.providerMutationStartedAt,
+                expectedCorrelationKey: op.installmentEvidence?.correlationKey });
+            return;
+        }
         const opAmount = op?.amount || 0;
         selectedAccountId = op?.beinAccountId || null;
-        const finalPayStarted = hasFinalPaymentStarted(op?.status, op?.responseData);
+        const finalPayStarted = op.type === 'RENEW'
+            ? Boolean(op.providerMutationStartedAt) || providerMutationMayHaveStarted(op.responseData)
+            : hasFinalPaymentStarted(op.status, op.responseData);
         const genericDecision = decideFinalPayRefundSafety({
             success: false,
             message: getErrMsg(error)
         }, finalPayStarted);
+        if (op.type === 'RENEW' && finalPayStarted) {
+            const noChargeFinalization = await finalizeRenewalNoChargeFailure({
+                operationId,
+                responseData: mergeOperationPhaseData(op.responseData, {
+                    operationPhase: 'POST_FINAL_PAY_REVIEW',
+                    jobType: type,
+                }),
+                responseMessage: getErrMsg(error),
+                refundReason: getErrMsg(error),
+            });
+            if (noChargeFinalization.status === 'EVIDENCE_CONFLICT') {
+                await prisma.operation.updateMany({
+                    where: {
+                        id: operationId,
+                        status: { notIn: TERMINAL_STATUS_LIST }
+                    },
+                    data: {
+                        status: 'REVIEW_REQUIRED',
+                        responseMessage: noChargeFinalization.reason,
+                        finalConfirmExpiry: null
+                    }
+                });
+            }
+            const auditSnapshot = await buildOperationAuditSnapshot({
+                operationId,
+                userId: op.userId || opUserId || null,
+                beinAccountId: op.beinAccountId || null,
+                beinUsername: null,
+                beinBalanceBefore: null,
+                beinBalanceAfter: null,
+                outcomeCategory: genericDecision.outcomeCategory,
+                reviewReason: noChargeFinalization.status === 'EVIDENCE_CONFLICT'
+                    ? noChargeFinalization.reason
+                    : getErrMsg(error),
+                reviewSource: 'worker-generic-catch-atomic-renewal-finalizer',
+                refundBlocked: noChargeFinalization.status === 'EVIDENCE_CONFLICT'
+            });
+            await persistOperationAuditSnapshot(operationId, op.responseData, auditSnapshot);
+            return;
+        }
+        if (op.type === 'RENEW') {
+            await finalizePreMutationRenewalTermination({
+                operationId,
+                terminalStatus: 'FAILED',
+                allowedStatuses: [op.status],
+                responseMessage: getErrMsg(error),
+                releaseReason: 'GENERIC_PRE_MUTATION_FAILURE',
+                retryCount: 1,
+            });
+            return;
+        }
         if (finalPayStarted && !genericDecision.refundSafe) {
             await prisma.operation.updateMany({
                 where: {
@@ -1401,6 +1420,7 @@ export async function processOperationHttp(
             });
         }
         await markOperationFailed(operationId, { type: 'UNKNOWN', message: getErrMsg(error), recoverable: false }, 1);
+        await releaseSafeTerminalReservations(operationId, 'GENERIC_NON_RENEW_TERMINAL_FAILURE');
     } finally {
         if (selectedAccountId) {
             await accountPool.releaseLock(selectedAccountId, operationId).catch((releaseError: unknown) => {
@@ -1725,6 +1745,13 @@ async function handleStartRenewalHttp(
     const now = new Date();
     const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
 
+    // All provider/session work above is finished. The next queue consumer may
+    // be another worker; publish only after the exact legacy owner is parked.
+    if (!await parkAccountLockForHandoff(accountPool.getRedis(), selectedAccount.id,
+        accountPool.getWorkerId(), operationId)) {
+        throw new Error('ACCOUNT_PREPARATION_HANDOFF_LOST');
+    }
+
     if (!await updateOperationIfActive(operationId, {
         status: 'AWAITING_PACKAGE',
         beinAccountId: selectedAccount.id,  // Merged here instead of separate update
@@ -1740,6 +1767,7 @@ async function handleStartRenewalHttp(
         // Operation session is stored server-side in Redis.
         responseData: JSON.stringify(responseDataWithRoute({
             dealerBalance: packagesResult.dealerBalance,  // For balance validation
+            ...readyPackageQuote({}, packages, 0, null),
             savedAt: new Date().toISOString(),
             smartcardType: smartcardType || 'CISCO',
             operationPhase: 'PACKAGE_PREPARATION',
@@ -1770,230 +1798,66 @@ async function handleApplyPromoHttp(
     operationId: string,
     cardNumber: string,
     promoCode: string | undefined,
-    accountPool: AccountPoolManager
+    accountPool: AccountPoolManager,
+    revision: number,
+    promoAction: PromoAction
 ): Promise<void> {
-    console.log(`🎫 [HTTP] Applying promo code for ${operationId}`);
+    const operation = await prisma.operation.findUnique({ where: { id: operationId } });
+    if (!operation || !isCurrentPromo(operation, revision, promoCode, promoAction)) return;
+    if (cardNumber !== operation.cardNumber) throw new Error('PROMO_CARD_CONTEXT_CONFLICT');
 
-    if (!promoCode) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'No promo code provided' })
-            }
-        });
+    // Re-read under the canonical card/operation locks. A late result, cancellation
+    // or duplicate job must never replace a newer quote or its financial state.
+    const publish = (result: { success: boolean; packages: AvailablePackage[] }, assertCurrent?: () => Promise<void>) =>
+        publishPromoQuote(prisma, { operationId, revision, promoCode, promoAction, result }, assertCurrent);
+
+    if (!operation.beinAccountId) {
+        await publish({ success: false, packages: [] });
         return;
     }
-
-    await checkIfCancelled(operationId);
-
-    // Get operation with account
-    const operation = await prisma.operation.findUnique({
-        where: { id: operationId },
-        select: {
-            id: true,
-            beinAccountId: true,
-            cardNumber: true,
-            status: true,
-            responseData: true,
-        }
+    const reserved = await reserveProviderAccountForFulfillment({
+        operationId, beinAccountId: operation.beinAccountId, accountPool, consumer: 'RENEWAL',
     });
-
-    if (!operation || !operation.beinAccountId) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'Operation or account not found' })
-            }
-        });
+    if (!reserved) {
+        await publish({ success: false, packages: [] });
         return;
     }
-
-    // Get account (decrypt password from DB)
-    const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId },
-        include: { proxy: true }
-    }).then(a => a ? decryptAccountPassword(a) : null);
-
-    if (!account) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({ promoApplied: false, error: 'beIN account not found' })
-            }
-        });
-        return;
-    }
-
-    const existingResponseData = parseResponseDataObject(operation.responseData);
-    delete existingResponseData.sessionData;
-    const redis = accountPool.getRedis();
-    const LOCK_WAIT_TIMEOUT = 15_000;
-    const LOCK_TTL = 90;
-    const lockStartTime = Date.now();
-    let lockAcquired = false;
-
-    while (Date.now() - lockStartTime < LOCK_WAIT_TIMEOUT) {
-        lockAcquired = await lockAccount(redis, operation.beinAccountId, WORKER_ID, LOCK_TTL, operationId);
-        if (lockAcquired) break;
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    if (!lockAcquired) {
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                responseData: JSON.stringify({
-                    ...existingResponseData,
-                    promoApplied: false,
-                    refreshing: false,
-                    error: 'beIN account is busy. Please retry promo in a few seconds.',
-                }),
-            }
-        });
-        return;
-    }
-
+    const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
     try {
-        const route = await resolveOperationRoute(account, {
-            operationId,
-            responseData: operation.responseData,
-            legacyFallback: true
+        await heartbeat.assertCurrent();
+        const current = await prisma.operation.findUnique({ where: { id: operationId } });
+        if (!current || !isCurrentPromo(current, revision, promoCode, promoAction)) return;
+        const route = await resolveOperationRoute(reserved.account, {
+            operationId, responseData: current.responseData, legacyFallback: true,
         });
-        const client = await createOperationClient(account, route);
-        try {
-            const restored = await restoreOperationSession(operationId, operation.responseData, client, route);
-            if (restored) console.log('[HTTP] Promo flow restored operation-scoped session snapshot');
-        } catch (sessionImportError: unknown) {
-            console.log(`[HTTP] Failed to import operation session snapshot: ${getErrMsg(sessionImportError)}`);
+        const client = await createOperationClient(reserved.account, route);
+        await restoreOperationSession(operationId, current.responseData, client, route).catch(() => false);
+        if (!client.isSessionActive() || !await client.validateSession()) {
+            await performReLogin(client, reserved.account, route, 'promoQuoteRefresh', reserved.lease);
         }
-
-        // Ensure session is active
-        if (!client.isSessionActive()) {
-            console.log(`[HTTP] ⚠️ Session expired for promo apply, restoring...`);
-            const cachedSession = await getSessionFromCache(account.id, route.routeKey);
-            if (cachedSession) {
-                await client.importSession(cachedSession);
-                client.markSessionValidFromCache(cachedSession.expiresAt);
-                console.log(`[HTTP] ✅ Session restored from cache for promo`);
-            } else {
-                // Fresh login needed
-                const loginResult = await client.login(
-                    account.username,
-                    account.password,
-                    account.totpSecret || undefined
-                );
-                if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                    await prisma.operation.update({
-                        where: { id: operationId },
-                        data: {
-                            responseData: JSON.stringify(responseDataWithRoute({
-                                ...existingResponseData,
-                                promoApplied: false,
-                                refreshing: false,
-                                error: 'Login requires CAPTCHA for promo apply'
-                            }, route))
-                        }
-                    });
-                    return;
-                }
-
-                if (!loginResult.success) {
-                    await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
-                    await prisma.operation.update({
-                        where: { id: operationId },
-                        data: {
-                            responseData: JSON.stringify(responseDataWithRoute({
-                                ...existingResponseData,
-                                promoApplied: false,
-                                refreshing: false,
-                                error: 'Login failed for promo apply'
-                            }, route))
-                        }
-                    });
-                    return;
-                }
-
-                await trackFreshLoginSuccess(account.id);
-                // Save session to cache
-                try {
-                    const sessionData = await client.exportSession();
-                    const sessionTimeout = client.getSessionTimeout();
-                    await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
-                } catch (saveError) {
-                    console.error('[HTTP] Failed to save session to cache:', saveError);
-                }
-            }
-        }
-
-        // Apply promo code
-        console.log(`[HTTP] 🎫 Applying promo code: ${promoCode}`);
-        const useCardNumber = cardNumber || operation.cardNumber;
-        const result = await client.applyPromoCode(promoCode, useCardNumber);
-        const latestSessionData = await client.exportSession().catch(() => null);
-        const mergedResponseBase: Record<string, unknown> = {
-            ...existingResponseData,
-            refreshing: false,
-            promoCode: promoCode || null,
-        };
-        if (latestSessionData) {
-            await saveOperationSessionToCache(operationId, latestSessionData, 180, route);
-            mergedResponseBase.savedAt = new Date().toISOString();
-        }
-
-        if (result.success && result.packages.length > 0) {
-            const normalizedPackages = result.packages.map((pkg) => ({
-                index: pkg.index,
-                name: pkg.name,
-                price: pkg.price,
-                checkboxSelector: pkg.checkboxValue,
-                checkboxValue: pkg.checkboxValue,
-            }));
-
-            // Update operation with new discounted packages
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    availablePackages: JSON.parse(JSON.stringify(normalizedPackages)),
-                    responseData: JSON.stringify(responseDataWithRoute({
-                        ...mergedResponseBase,
-                        promoApplied: true,
-                        error: null,
-                        packages: normalizedPackages
-                    }, route))
-                }
+        const context = parseResponseDataObject(current.responseData);
+        const result = await refreshPromoPackages(client, {
+            cardNumber: current.cardNumber,
+            smartcardType: typeof context.smartcardType === 'string' ? context.smartcardType : 'CISCO',
+            promoAction, promoCode,
+        }, heartbeat.assertCurrent);
+        await heartbeat.assertCurrent();
+        const accepted = await publish(result, heartbeat.assertCurrent);
+        if (accepted && result.success) {
+            await heartbeat.assertCurrent();
+            const session = await client.exportSession();
+            await saveOperationSessionToCacheFenced(getRedisConnection(), {
+                operationId, session, ttlSeconds: 180, route, lease: reserved.lease,
             });
-            console.log(`✅ [HTTP] Promo code applied, ${result.packages.length} packages updated`);
-        } else {
-            const normalizedPackages = result.packages.map((pkg) => ({
-                index: pkg.index,
-                name: pkg.name,
-                price: pkg.price,
-                checkboxSelector: pkg.checkboxValue,
-                checkboxValue: pkg.checkboxValue,
-            }));
-
-            // Promo failed — update responseData with error
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    ...(normalizedPackages.length > 0
-                        ? { availablePackages: JSON.parse(JSON.stringify(normalizedPackages)) }
-                        : {}),
-                    responseData: JSON.stringify(responseDataWithRoute({
-                        ...mergedResponseBase,
-                        promoApplied: false,
-                        error: result.error || 'Failed to apply promo code',
-                        packages: normalizedPackages
-                    }, route))
-                }
-            });
-            console.log(`⚠️ [HTTP] Promo code failed: ${result.error}`);
         }
+    } catch (error) {
+        console.error('[HTTP] Promo quote refresh failed:', getErrMsg(error));
+        // A failed preparation is not a financial failure/refund. Its quote stays
+        // unselectable, and only a new explicit promo revision may try again.
+        await publish({ success: false, packages: [] }, heartbeat.assertCurrent).catch(() => false);
     } finally {
-        await unlockAccount(redis, operation.beinAccountId, WORKER_ID, operationId).catch((releaseError: unknown) => {
-            const releaseMessage = releaseError instanceof Error ? releaseError.message : String(releaseError);
-            console.warn(`[HTTP] Failed to release promo lock for ${operationId}: ${releaseMessage}`);
-        });
+        heartbeat.stop();
+        await accountPool.releaseExecutionLease(reserved.lease).catch(() => false);
     }
 }
 
@@ -2028,6 +1892,8 @@ async function handleCompletePurchaseHttp(
             stbNumber: true,
             amount: true,
             cardNumber: true,
+            status: true,
+            providerMutationStartedAt: true,
             responseData: true  // Contains saved session from START_RENEWAL
         }
     });
@@ -2048,12 +1914,29 @@ async function handleCompletePurchaseHttp(
         throw new Error('No package selected');
     }
 
+    if (operation.status === OperationStatus.AWAITING_FINAL_CONFIRM) {
+        console.log(`[HTTP] COMPLETE_PURCHASE already prepared for ${operationId}; duplicate job skipped`);
+        return;
+    }
+    if (operation.providerMutationStartedAt || providerMutationMayHaveStarted(operation.responseData)) {
+        await prisma.operation.updateMany({
+            where: { id: operationId, status: { notIn: HARD_TERMINAL_STATUS_LIST } },
+            data: {
+                status: OperationStatus.REVIEW_REQUIRED,
+                responseMessage: 'Provider sale preparation may already have started. Automatic replay is blocked.',
+                finalConfirmExpiry: null,
+            },
+        });
+        return;
+    }
+
     if (!await updateOperationIfActive(operationId, { status: 'COMPLETING', responseMessage: 'Completing purchase...' }, 'COMPLETE_PURCHASE completing update')) return;
 
     // Track which accounts we've tried
     const triedAccountIds: string[] = [];
     let currentAccountId = operation.beinAccountId;
     let currentResponseData: unknown = operation.responseData;
+    let currentReservationGeneration: number | null = null;
     let lastError = '';
 
     // Retry loop - try all available accounts
@@ -2079,9 +1962,38 @@ async function handleCompletePurchaseHttp(
             return;
         }
 
+        if (attemptResult.quoteConflict) {
+            // The owning attempt saved the hold under its lease and the canonical
+            // lock. A stale attempt must not overwrite a newer result or prepare again.
+            return;
+        }
+
         // Mark this account as tried
         triedAccountIds.push(currentAccountId);
         lastError = attemptResult.error || 'Unknown error';
+        currentReservationGeneration = attemptResult.reservationGeneration ?? currentReservationGeneration;
+
+        if (attemptResult.providerMutationMayHaveStarted) {
+            const reviewData = mergeOperationPhaseData(currentResponseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'COMPLETE_PURCHASE',
+                providerPaymentState: 'UNKNOWN',
+                fulfillmentState: 'VERIFYING',
+                fulfillmentReasonCode: 'PROVIDER_PREPARATION_MUTATION_UNCERTAIN',
+            });
+            await prisma.operation.updateMany({
+                where: { id: operationId, status: { notIn: HARD_TERMINAL_STATUS_LIST } },
+                data: {
+                    status: OperationStatus.REVIEW_REQUIRED,
+                    providerPaymentState: 'UNKNOWN',
+                    fulfillmentState: 'VERIFYING',
+                    responseMessage: lastError,
+                    responseData: reviewData,
+                    finalConfirmExpiry: null,
+                },
+            });
+            return;
+        }
 
         // Check if we should retry with a different account
         if (!attemptResult.shouldRetryDifferentAccount) {
@@ -2091,6 +2003,17 @@ async function handleCompletePurchaseHttp(
 
         console.log(`[HTTP] ⚠️ Attempt ${attemptNumber} failed: ${lastError}`);
         console.log(`[HTTP] 🔍 Looking for alternative account (tried: ${triedAccountIds.length})...`);
+
+        if (currentReservationGeneration !== null) {
+            await supersedeRenewalFulfillmentBaseline(operationId, 'SAFE_PRE_MUTATION_FAILOVER');
+            await releaseProviderAccountReservation({
+                operationId,
+                beinAccountId: currentAccountId,
+                reservationGeneration: currentReservationGeneration,
+            });
+        }
+        await deleteOperationSessionFromCache(operationId);
+        await invalidatePackageCache(operation.cardNumber);
 
         // Try to get another account (with minimum balance filter for balance errors)
         const minBalance = attemptResult.isBalanceError ? selectedPackage.price : undefined;
@@ -2128,6 +2051,9 @@ async function handleCompletePurchaseHttp(
 
         currentAccountId = nextAccount.id;
         currentResponseData = nextResponseData;
+        currentReservationGeneration = null;
+        // The next attempt captures a fresh baseline, reloads packages, reapplies promo,
+        // and calls rematchSelectedPackage before any provider sale mutation.
         console.log(`[HTTP] Retrying with account: ${nextAccount.label || nextAccount.username} (Balance: ${nextAccount.dealerBalance || 'unknown'} USD) ${safeRouteLogSuffix(nextRoute)}`);
     }
 }
@@ -2162,197 +2088,97 @@ async function attemptPurchaseWithAccount(
     success: boolean;
     shouldRetryDifferentAccount: boolean;
     isBalanceError: boolean;
+    providerMutationMayHaveStarted: boolean;
+    reservationGeneration?: number;
+    quoteConflict?: boolean;
     error?: string;
 }> {
+    let reservedExecution: ReservedProviderExecution | null = null;
+    let leaseHeartbeat: ReturnType<typeof startExecutionLeaseHeartbeat> | null = null;
+    let saleMutationStarted = false;
+    let providerCartStarted = false;
     try {
-        const preparedLock = await lockAccount(
-            accountPool.getRedis(),
-            accountId,
-            WORKER_ID,
-            FINAL_CONFIRM_LOCK_TTL_SECONDS,
-            operationId
-        );
-        if (!preparedLock) {
+        reservedExecution = await reserveProviderAccountForFulfillment({
+            operationId,
+            beinAccountId: accountId,
+            accountPool,
+        });
+        if (!reservedExecution) {
             return {
                 success: false,
                 shouldRetryDifferentAccount: true,
                 isBalanceError: false,
-                error: 'beIN account is busy with another operation'
+                providerMutationMayHaveStarted: false,
+                error: 'beIN account is not automation-exclusive or is reserved by another operation'
             };
         }
-
-        // Get account (decrypt password from DB)
-        const account = await prisma.beinAccount.findUnique({
-            where: { id: accountId },
-            include: { proxy: true }
-        }).then(a => a ? decryptAccountPassword(a) : null);
-
-        if (!account) {
-            return {
-                success: false,
-                shouldRetryDifferentAccount: true,
-                isBalanceError: false,
-                error: 'Account not found'
-            };
-        }
+        leaseHeartbeat = startExecutionLeaseHeartbeat(accountPool, reservedExecution.lease);
+        await leaseHeartbeat.assertCurrent();
+        const account = reservedExecution.account;
 
         const savedData = parseResponseDataObject(operation.responseData);
-        const requiresFreshPackageLoad = savedData.requiresFreshPackageLoad === true;
-        const isOriginalAccount = triedAccountIds.length === 0;
-        const canReusePreparedOperation = isOriginalAccount && !requiresFreshPackageLoad;
         const route = await resolveOperationRoute(account, {
             operationId,
             responseData: operation.responseData,
-            legacyFallback: canReusePreparedOperation
+            legacyFallback: triedAccountIds.length === 0
         });
         const client = await createOperationClient(account, route);
+        if (!client.isSessionActive() || !await client.validateSession()) {
+            await updateProgress(operationId, 'Logging in...');
+            await performReLogin(client, account, route, 'renewalBaselinePreparation', reservedExecution.lease);
+        }
+        await leaseHeartbeat.assertCurrent();
 
-        // Try to restore session from database (for same-account retry from START_RENEWAL)
-        let dealerBalance: number | undefined;
-
-        if (canReusePreparedOperation && operation.responseData) {
-            try {
-                // Validate session age
-                if (typeof savedData.savedAt === 'string') {
-                    validateSessionAge(savedData.savedAt, 'completePurchase');
-                }
-
-                const restored = await restoreOperationSession(operationId, operation.responseData, client, route);
-                if (restored) console.log(`[HTTP] Restored operation-scoped session`);
-
-                dealerBalance = typeof savedData.dealerBalance === 'number' ? savedData.dealerBalance : undefined;
-            } catch (parseError: unknown) {
-                console.log(`[HTTP] ⚠️ Could not restore saved session: ${getErrMsg(parseError)}`);
-            }
+        const baseline = await captureRenewalFulfillmentBaseline({
+            operationId,
+            beinAccountId: accountId,
+            cardNumber: operation.cardNumber,
+            reservationGeneration: reservedExecution.reservationGeneration,
+            sessionGeneration: reservedExecution.sessionGeneration,
+            client,
+            assertExecutionCurrent: leaseHeartbeat.assertCurrent,
+        });
+        if (!baseline.complete || !baseline.baselineId) {
+            throw new Error(`FULFILLMENT_BASELINE_INCOMPLETE: ${baseline.reasonCode}`);
         }
 
-        // Extract smartcardType from responseData (persisted during START_RENEWAL)
-        let savedSmartcardType = 'CISCO';
-        try {
-            if (operation.responseData) {
-                savedSmartcardType = typeof savedData.smartcardType === 'string' ? savedData.smartcardType : 'CISCO';
-            }
-        } catch { /* ignore parse errors */ }
+        const savedSmartcardType = typeof savedData.smartcardType === 'string'
+            ? savedData.smartcardType
+            : 'CISCO';
+        await leaseHeartbeat.assertCurrent();
+        const packagesResult = await client.loadPackages(operation.cardNumber, savedSmartcardType);
+        if (!packagesResult.success) {
+            throw new Error(packagesResult.error || 'Failed to load packages after complete baseline');
+        }
 
-        // For non-original account or if session restore failed, need fresh login + loadPackages
-        if (requiresFreshPackageLoad || !isOriginalAccount || !client.isSessionActive()) {
-            await updateProgress(operationId, 'Logging in...');
-            console.log(`[HTTP] Fresh account preparation required before package load`);
+        let freshPackages = packagesResult.packages;
+        const effectivePromoCode = operation.promoCode || promoCode;
+        if (effectivePromoCode) {
+            saleMutationStarted = true;
+            await leaseHeartbeat.assertCurrent();
+            const promoResult = await client.applyPromoCode(effectivePromoCode, operation.cardNumber, savedSmartcardType);
+            if (!promoResult.success) throw new Error(promoResult.error || 'Promo reapply failed');
+            freshPackages = promoResult.packages;
+        }
+        const rematchedPackage = rematchSelectedPackage(freshPackages, selectedPackage);
+        const dealerBalance = packagesResult.dealerBalance;
 
-            // Perform login
-            const loginResult = await client.login(
-                account.username,
-                account.password,
-                account.totpSecret || undefined
-            );
-
-            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                console.log(`[HTTP] 🧩 CAPTCHA required for login, attempting auto-solve...`);
-                const captchaApiKey = await getCaptchaApiKey();
-
-                if (!captchaApiKey) {
-                    await accountPool.markAccountFailed(accountId, 'CAPTCHA required but no API key', operationId);
-                    return {
-                        success: false,
-                        shouldRetryDifferentAccount: true,
-                        isBalanceError: false,
-                        error: 'CAPTCHA required but no API key configured'
-                    };
-                }
-
-                try {
-                    const solver = new CaptchaSolver(captchaApiKey);
-                    const solution = await solver.solve(loginResult.captchaImage);
-
-                    const loginWithCaptcha = await client.submitLogin(
-                        account.username,
-                        account.password,
-                        account.totpSecret || undefined,
-                        solution
-                    );
-
-                    if (!loginWithCaptcha.success) {
-                        await trackCredentialLoginFailure(
-                            accountId,
-                            loginWithCaptcha.error || 'Login failed after CAPTCHA'
-                        );
-                        await accountPool.markAccountFailed(accountId, `CAPTCHA login failed: ${loginWithCaptcha.error}`, operationId);
-                        return {
-                            success: false,
-                            shouldRetryDifferentAccount: true,
-                            isBalanceError: false,
-                            error: `Login with CAPTCHA failed: ${loginWithCaptcha.error}`
-                        };
-                    }
-                } catch (captchaError: unknown) {
-                    await accountPool.markAccountFailed(accountId, `CAPTCHA solve failed: ${getErrMsg(captchaError)}`, operationId);
-                    return {
-                        success: false,
-                        shouldRetryDifferentAccount: true,
-                        isBalanceError: false,
-                        error: `CAPTCHA auto-solve failed: ${getErrMsg(captchaError)}`
-                    };
-                }
-            } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(accountId, loginResult.error || 'Login failed');
-                await accountPool.markAccountFailed(accountId, `Login failed: ${loginResult.error}`, operationId);
-                return {
-                    success: false,
-                    shouldRetryDifferentAccount: true,
-                    isBalanceError: false,
-                    error: `Login failed: ${loginResult.error}`
-                };
-            }
-
-            await trackFreshLoginSuccess(accountId);
-
-            // Load packages with session retry (use saved smartcard type)
-            console.log(`[HTTP] 📦 Loading packages for new account (smartcard: ${savedSmartcardType})...`);
-            const packagesResult = await withSessionRetry(
-                client,
-                account,
-                route,
-                () => client.loadPackages(operation.cardNumber, savedSmartcardType),
-                'loadPackages'
-            );
-
-            if (!packagesResult.success) {
-                // Check if it's a session error that was already retried
-                if (isSessionExpiredError(packagesResult.error)) {
-                    await accountPool.markAccountFailed(accountId, `Session error: ${packagesResult.error}`, operationId);
-                    return {
-                        success: false,
-                        shouldRetryDifferentAccount: true,
-                        isBalanceError: false,
-                        error: packagesResult.error
-                    };
-                }
-                throw new Error(packagesResult.error || 'Failed to load packages');
-            }
-
-            dealerBalance = packagesResult.dealerBalance;
-
-            // Update account balance in database
-            if (dealerBalance !== undefined) {
-                await prisma.beinAccount.update({
-                    where: { id: accountId },
-                    data: {
-                        dealerBalance,
-                        balanceUpdatedAt: new Date()
-                    }
-                });
-                await checkAndNotifyLowBalance(accountId, account.label || account.username, dealerBalance);
-            }
+        if (dealerBalance !== undefined) {
+            await prisma.beinAccount.update({
+                where: { id: accountId },
+                data: { dealerBalance, balanceUpdatedAt: new Date() }
+            });
+            await checkAndNotifyLowBalance(accountId, account.label || account.username, dealerBalance);
         }
 
         // ========== DEALER BALANCE CHECK ==========
-        if (dealerBalance !== undefined && dealerBalance < selectedPackage.price) {
-            console.log(`[HTTP] ❌ INSUFFICIENT DEALER BALANCE: ${dealerBalance} USD < ${selectedPackage.price} USD`);
+        if (dealerBalance !== undefined && dealerBalance < rematchedPackage.price) {
+            console.log(`[HTTP] ❌ INSUFFICIENT DEALER BALANCE: ${dealerBalance} USD < ${rematchedPackage.price} USD`);
 
             // Mark account for cooldown
             await accountPool.markAccountFailed(
                 accountId,
-                `INSUFFICIENT_BALANCE: ${dealerBalance} < ${selectedPackage.price}`,
+                `INSUFFICIENT_BALANCE: ${dealerBalance} < ${rematchedPackage.price}`,
                 operationId
             );
 
@@ -2361,7 +2187,7 @@ async function attemptPurchaseWithAccount(
                 accountId,
                 account.label || account.username,
                 dealerBalance,
-                selectedPackage.price
+                rematchedPackage.price
             );
 
 
@@ -2369,34 +2195,71 @@ async function attemptPurchaseWithAccount(
                 success: false,
                 shouldRetryDifferentAccount: true,
                 isBalanceError: true,
-                error: `Insufficient balance: ${dealerBalance} < ${selectedPackage.price}`
+                providerMutationMayHaveStarted: saleMutationStarted,
+                reservationGeneration: reservedExecution.reservationGeneration,
+                error: `Insufficient balance: ${dealerBalance} < ${rematchedPackage.price}`
             };
         }
 
-        // Convert to AvailablePackage format
-        const selectedCheckboxValue = selectedPackage.checkboxSelector || selectedPackage.checkboxValue || '';
-        const pkg: AvailablePackage = {
-            index: selectedPackage.index,
-            name: selectedPackage.name,
-            price: selectedPackage.price,
-            checkboxValue: selectedCheckboxValue
-        };
+        await leaseHeartbeat.assertCurrent();
+        saleMutationStarted = true;
+        providerCartStarted = true;
+        const preparationStartedAt = new Date().toISOString();
+        const preparationData = responseDataWithRoute({
+            ...savedData,
+            operationPhase: 'PROVIDER_SALE_PREPARATION_STARTED',
+            jobType: 'COMPLETE_PURCHASE',
+            providerMutationMayHaveStarted: true,
+            providerPreparationMutationStartedAt: preparationStartedAt,
+            fulfillmentBaselineId: baseline.baselineId,
+            fulfillmentSessionGeneration: reservedExecution.sessionGeneration,
+            savedAt: preparationStartedAt,
+        }, route);
+        const preparationPersisted = await prisma.operation.updateMany({
+            where: {
+                id: operationId,
+                status: OperationStatus.COMPLETING,
+                providerMutationStartedAt: null,
+            },
+            data: {
+                selectedPackage: { ...selectedPackage, checkboxValue: rematchedPackage.checkboxValue,
+                    checkboxSelector: rematchedPackage.checkboxValue } as unknown as Prisma.InputJsonValue,
+                responseData: preparationData,
+            },
+        });
+        if (preparationPersisted.count !== 1) {
+            throw new Error('PROVIDER_PREPARATION_MARKER_CONFLICT');
+        }
 
-        // Complete purchase
-        console.log(`[HTTP] 📦 Completing purchase: ${pkg.name} @ ${pkg.price} USD`);
+        console.log(`[HTTP] 📦 Completing purchase: ${rematchedPackage.name} @ ${rematchedPackage.price} USD`);
         const result = await client.completePurchase(
-            pkg,
-            operation.promoCode || promoCode,
+            rematchedPackage,
+            undefined,
             operation.stbNumber || undefined,
-            true // skipFinalClick - pause for confirmation
+            true, // skipFinalClick - pause for confirmation
+            leaseHeartbeat.assertCurrent
         );
+        await leaseHeartbeat.assertCurrent();
 
         if (result.awaitingConfirm) {
             console.log(`⏸️ [HTTP] Awaiting confirmation for ${operationId}`);
 
             // Export and save updated session for CONFIRM_PURCHASE
             const updatedSessionData = await client.exportSession();
-            await saveOperationSessionToCache(operationId, updatedSessionData, 90, route);
+            const operationSessionSaved = await saveOperationSessionToCacheFenced(
+                getRedisConnection(),
+                {
+                    operationId,
+                    session: updatedSessionData,
+                    ttlSeconds: 90,
+                    route,
+                    lease: reservedExecution.lease,
+                }
+            );
+            if (!operationSessionSaved) {
+                throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_OPERATION_SESSION_SAVE');
+            }
+            await leaseHeartbeat.assertCurrent();
 
             // Set heartbeat expiry
             const now = new Date();
@@ -2409,30 +2272,44 @@ async function attemptPurchaseWithAccount(
                 lastHeartbeat: now,
                 heartbeatExpiry: heartbeatExpiry,
                 responseData: JSON.stringify(responseDataWithRoute({
+                    ...savedData,
                     dealerBalance: dealerBalance,
                     dealerBalanceBefore: dealerBalance,
                     operationPhase: 'FINAL_CONFIRMATION_REQUESTED',
                     jobType: 'COMPLETE_PURCHASE',
                     finalPaySubmitted: false,
-                    accountLockOwner: operationId,
+                    providerMutationMayHaveStarted: true,
+                    fulfillmentBaselineId: baseline.baselineId,
+                    fulfillmentSessionGeneration: reservedExecution.sessionGeneration,
                     savedAt: new Date().toISOString()
                 }, route))
             }, 'COMPLETE_PURCHASE final confirm update')) {
-                await accountPool.markAccountUsed(accountId);
-                return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
+                return {
+                    success: true,
+                    shouldRetryDifferentAccount: false,
+                    isBalanceError: false,
+                    providerMutationMayHaveStarted: true,
+                    reservationGeneration: reservedExecution.reservationGeneration,
+                };
             }
 
             if (operation.userId) {
                 await createNotification({
                     userId: operation.userId,
                     title: '⚠️ Payment confirmation required',
-                    message: `${selectedPackage.name} - ${selectedPackage.price} USD`,
+                    message: `${rematchedPackage.name} - ${rematchedPackage.price} USD`,
                     type: 'warning',
                     link: '/dashboard/operations'
                 });
             }
 
-            return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
+            return {
+                success: true,
+                shouldRetryDifferentAccount: false,
+                isBalanceError: false,
+                providerMutationMayHaveStarted: true,
+                reservationGeneration: reservedExecution.reservationGeneration,
+            };
         }
 
         // Direct success (shouldn't happen with skipFinalClick=true)
@@ -2443,7 +2320,7 @@ async function attemptPurchaseWithAccount(
                 jobType: 'COMPLETE_PURCHASE',
                 finalPaySubmitted: result.finalPaySubmitted === true,
                 outcomeCategory: result.outcomeCategory ?? 'UNCERTAIN_REVIEW_REQUIRED',
-                expectedCost: selectedPackage.price,
+                expectedCost: rematchedPackage.price,
                 reviewSource: 'complete-purchase-direct-success',
                 reviewReason: 'Direct success before final confirmation did not include confirmed final Pay evidence.'
             }, route);
@@ -2452,11 +2329,21 @@ async function attemptPurchaseWithAccount(
                 responseMessage: result.message,
                 responseData: directSuccessReviewData
             }, 'COMPLETE_PURCHASE direct success review update')) {
-                await accountPool.markAccountUsed(accountId, operationId);
-                return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
+                return {
+                    success: true,
+                    shouldRetryDifferentAccount: false,
+                    isBalanceError: false,
+                    providerMutationMayHaveStarted: true,
+                    reservationGeneration: reservedExecution.reservationGeneration,
+                };
             }
-            await accountPool.markAccountUsed(accountId, operationId);
-            return { success: true, shouldRetryDifferentAccount: false, isBalanceError: false };
+            return {
+                success: true,
+                shouldRetryDifferentAccount: false,
+                isBalanceError: false,
+                providerMutationMayHaveStarted: true,
+                reservationGeneration: reservedExecution.reservationGeneration,
+            };
         }
 
         // Purchase failed
@@ -2465,6 +2352,28 @@ async function attemptPurchaseWithAccount(
     } catch (error: unknown) {
         const errorMessage = getErrMsg(error) || 'Unknown error';
         console.log(`[HTTP] ❌ attemptPurchaseWithAccount failed: ${errorMessage}`);
+
+        if (errorMessage === 'PACKAGE_QUOTE_CHANGED') {
+            if (leaseHeartbeat) {
+                for (let saveAttempt = 0; saveAttempt < 3; saveAttempt++) {
+                    try {
+                        await holdQuoteConflict(prisma, {
+                            operationId, revision: quoteRevisionOf(operation.responseData), selectedPackage,
+                            ...(!providerCartStarted ? { preSale: { beinAccountId: accountId } } : {}),
+                        }, leaseHeartbeat.assertCurrent);
+                        break;
+                    } catch (holdError: unknown) {
+                        // A superseded lease cannot publish. A current owner's failed
+                        // write is different: retry the write only, never the cart.
+                        try { await leaseHeartbeat.assertCurrent(); } catch { break; }
+                        if (saveAttempt === 2) throw new QuoteHoldPersistenceError(
+                            `PACKAGE_QUOTE_HOLD_PERSISTENCE_FAILED:${operationId}:${getErrMsg(holdError)}`);
+                    }
+                }
+            }
+            return { success: false, shouldRetryDifferentAccount: false, isBalanceError: false,
+                quoteConflict: true, providerMutationMayHaveStarted: saleMutationStarted, error: errorMessage };
+        }
 
         await accountPool.releaseLock(accountId, operationId).catch((releaseError: unknown) => {
             console.warn(`[HTTP] Failed to release account lock after purchase attempt failure: ${getErrMsg(releaseError)}`);
@@ -2483,10 +2392,21 @@ async function attemptPurchaseWithAccount(
 
         return {
             success: false,
-            shouldRetryDifferentAccount: isRecoverableError,
+            shouldRetryDifferentAccount: isRecoverableError && !saleMutationStarted,
             isBalanceError: false,
+            providerMutationMayHaveStarted: saleMutationStarted,
+            ...(reservedExecution
+                ? { reservationGeneration: reservedExecution.reservationGeneration }
+                : {}),
             error: errorMessage
         };
+    } finally {
+        leaseHeartbeat?.stop();
+        if (reservedExecution) {
+            await accountPool.releaseExecutionLease(reservedExecution.lease).catch((releaseError: unknown) => {
+                console.warn(`[HTTP] Failed to release fenced execution lease for ${operationId}: ${getErrMsg(releaseError)}`);
+            });
+        }
     }
 }
 
@@ -2497,8 +2417,10 @@ async function handleConfirmPurchaseHttp(
     operationId: string,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    console.log(`✅ [HTTP] Confirming purchase for ${operationId}`);
+    console.log('[HTTP] Confirming purchase for ' + operationId);
 
+    // Legacy FINAL_PAY_REQUEST_STARTED and FINAL_PROVIDER_MUTATION_STARTED both
+    // mean verificationOnly: neither barrier permits another provider mutation.
     await checkIfCancelled(operationId);
 
     const operation = await prisma.operation.findUnique({
@@ -2510,28 +2432,59 @@ async function handleConfirmPurchaseHttp(
             selectedPackage: true,
             amount: true,
             status: true,
-            createdAt: true,
-            stbNumber: true,  // CRITICAL: Need for confirmPurchase
-            cardNumber: true, // OPTIMIZATION: Need for cache invalidation
+            stbNumber: true,
+            cardNumber: true,
             finalConfirmExpiry: true,
-            responseData: true  // CRITICAL: Need this for session restoration
-        }
+            responseData: true,
+            providerMutationStartedAt: true,
+            providerMutationStage: true,
+            providerPaymentState: true,
+        },
     });
-
     if (!operation || !operation.beinAccountId) {
         throw new Error('Operation or account not found');
     }
-
-    // Guard: skip if already terminal (race condition with duplicate jobs)
-    // NOTE: COMPLETING is valid - the confirm-purchase API sets it before adding this job.
     if (isTerminalStatus(operation.status)) {
-        console.log(`⏭️ [HTTP] Operation ${operationId} already terminal (${operation.status}), skipping CONFIRM_PURCHASE`);
+        console.log('[HTTP] Operation already terminal; skipping CONFIRM_PURCHASE: ' + operationId);
         return;
     }
+    if (
+        operation.status !== OperationStatus.AWAITING_FINAL_CONFIRM &&
+        operation.status !== OperationStatus.COMPLETING &&
+        operation.status !== OperationStatus.REVIEW_REQUIRED
+    ) {
+        throw new Error('Invalid status: ' + operation.status);
+    }
 
-    // Valid states: AWAITING_FINAL_CONFIRM (legacy) or COMPLETING (set by confirm-purchase API)
-    if (operation.status !== 'AWAITING_FINAL_CONFIRM' && operation.status !== 'COMPLETING') {
-        throw new Error(`Invalid status: ${operation.status}`);
+    const verificationOnly = Boolean(
+        operation.providerMutationStartedAt ||
+        operation.providerMutationStage ||
+        hasExplicitFinalPaymentStarted(operation.responseData)
+    );
+    if (verificationOnly) {
+        const storedPaymentState = operation.providerPaymentState ||
+            getStoredProviderPaymentState(operation.responseData) ||
+            'UNKNOWN';
+        const retryResponseData = mergeOperationPhaseData(operation.responseData, {
+            operationPhase: 'POST_FINAL_PAY_REVIEW',
+            jobType: 'CONFIRM_PURCHASE',
+            providerPaymentState: storedPaymentState === 'NOT_SUBMITTED' ? 'UNKNOWN' : storedPaymentState,
+            fulfillmentState: 'VERIFYING',
+            fulfillmentReasonCode: 'FINAL_MUTATION_ALREADY_STARTED_VERIFICATION_ONLY',
+        });
+        await prisma.operation.updateMany({
+            where: { id: operationId, status: { notIn: HARD_TERMINAL_STATUS_LIST } },
+            data: {
+                status: OperationStatus.REVIEW_REQUIRED,
+                providerPaymentState: storedPaymentState === 'NOT_SUBMITTED' ? 'UNKNOWN' : storedPaymentState,
+                fulfillmentState: 'VERIFYING',
+                responseMessage: 'Provider mutation already started; only fulfillment verification is allowed.',
+                responseData: retryResponseData,
+                finalConfirmExpiry: null,
+            },
+        });
+        await handleVerifyRenewalFulfillmentHttp(operationId, accountPool);
+        return;
     }
 
     if (
@@ -2539,145 +2492,195 @@ async function handleConfirmPurchaseHttp(
         new Date() > operation.finalConfirmExpiry &&
         !hasRenewalFinalPayDispatchEvidence(operation.status, operation.responseData)
     ) {
-        if (operation.userId && operation.amount && operation.amount > 0) {
-            await refundUser(operationId, operation.userId, operation.amount, 'Confirmation timeout');
-        }
-        await markOperationFailed(operationId, { type: 'TIMEOUT', message: 'Confirmation timeout', recoverable: false }, 1);
-        throw new Error('Confirmation timeout');
-    } else if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-        console.log(`[HTTP] Ignoring stale final confirmation deadline for dispatched CONFIRM_PURCHASE ${operationId}`);
+        await finalizePreMutationRenewalTermination({
+            operationId,
+            terminalStatus: 'FAILED',
+            allowedStatuses: [OperationStatus.AWAITING_FINAL_CONFIRM, OperationStatus.COMPLETING],
+            responseMessage: 'Confirmation timeout',
+            releaseReason: 'CONFIRMATION_TIMEOUT_PRE_MUTATION',
+            retryCount: 1,
+        });
+        return;
     }
 
     if (!await updateOperationIfActive(operationId, {
-        status: 'COMPLETING',
-        responseMessage: 'Confirming purchase...'
+        status: OperationStatus.COMPLETING,
+        responseMessage: 'Confirming purchase...',
     }, 'CONFIRM_PURCHASE completing update')) return;
 
-    const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId },
-        include: { proxy: true }  // CRITICAL: Include proxy for HTTP client
-    }).then(a => a ? decryptAccountPassword(a) : null);
-    if (!account) throw new Error('Account not found');
+    const reserved = await reserveProviderAccountForFulfillment({
+        operationId,
+        beinAccountId: operation.beinAccountId,
+        accountPool,
+    });
+    if (!reserved) {
+        await persistRenewalFulfillmentState({
+            operationId,
+            providerPaymentState: 'NOT_SUBMITTED',
+            fulfillmentState: 'CHECK_FAILED',
+            verificationOutcome: 'CHECK_FAILED',
+            status: 'REVIEW_REQUIRED',
+            responseData: mergeOperationPhaseData(operation.responseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'CONFIRM_PURCHASE',
+                providerPaymentState: 'NOT_SUBMITTED',
+                fulfillmentState: 'CHECK_FAILED',
+                verificationOutcome: 'CHECK_FAILED',
+                fulfillmentReasonCode: 'CAUSAL_RESERVATION_OR_LEASE_UNAVAILABLE',
+            }),
+            responseMessage: 'Provider account ownership could not be proven. Manual review required.',
+        });
+        return;
+    }
 
+    const leaseHeartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
+    const account = reserved.account;
     const route = await resolveOperationRoute(account, {
         operationId,
         responseData: operation.responseData,
-        legacyFallback: true
+        legacyFallback: true,
     });
-
-    const redis = accountPool.getRedis();
-    let confirmLockAcquired = false;
-
     try {
-        const lockStartTime = Date.now();
-        while (Date.now() - lockStartTime < FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS) {
-            confirmLockAcquired = await lockAccount(
-                redis,
-                operation.beinAccountId,
-                WORKER_ID,
-                FINAL_CONFIRM_LOCK_TTL_SECONDS,
-                operationId
-            );
-            if (confirmLockAcquired) break;
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        if (!confirmLockAcquired) {
-            throw new Error('Timed out waiting for beIN account lock during final confirmation');
-        }
-
-        console.log(`[HTTP] Account lock acquired for CONFIRM_PURCHASE: ${operation.beinAccountId}`);
-
+        await leaseHeartbeat.assertCurrent();
         const client = await createOperationClient(account, route);
-        let preFinalBeinBalance: number | null = null;
+        if (operation.stbNumber) client.setSTBNumber(operation.stbNumber);
 
-        // CRITICAL: Set STB number on client for confirmPurchase
-        if (operation.stbNumber) {
-            client.setSTBNumber(operation.stbNumber);
-            console.log('[HTTP] STB number restored for CONFIRM_PURCHASE');
-        } else {
-            console.warn('[HTTP] ⚠️ No STB number found in operation!');
+        const savedData = parseResponseDataObject(operation.responseData);
+        const diagnosticBalanceBefore =
+            toNullableNumber(savedData.dealerBalanceBefore) ??
+            toNullableNumber(savedData.dealerBalance);
+        if (typeof savedData.savedAt === 'string') {
+            validateSessionAge(savedData.savedAt, 'confirmPurchase');
+        }
+        const restored = await restoreOperationSession(
+            operationId,
+            operation.responseData,
+            client,
+            route
+        );
+        if (!restored) {
+            await persistRenewalFulfillmentState({
+                operationId,
+                providerPaymentState: 'NOT_SUBMITTED',
+                fulfillmentState: 'CHECK_FAILED',
+                verificationOutcome: 'CHECK_FAILED',
+                status: 'REVIEW_REQUIRED',
+                responseData: mergeOperationPhaseData(operation.responseData, {
+                    operationPhase: 'POST_FINAL_PAY_REVIEW',
+                    jobType: 'CONFIRM_PURCHASE',
+                    providerPaymentState: 'NOT_SUBMITTED',
+                    fulfillmentState: 'CHECK_FAILED',
+                    verificationOutcome: 'CHECK_FAILED',
+                    fulfillmentReasonCode: 'PRE_MUTATION_SESSION_RESTORE_FAILED',
+                }),
+                responseMessage: 'Prepared provider session could not be restored. Manual review required.',
+            });
+            return;
         }
 
-        // CRITICAL: Restore session from server-side cache (cross-worker support)
-        // Without this, the ViewState and cookies are missing and purchase fails silently!
-        if (operation.responseData) {
-            try {
-                const savedData = parseResponseDataObject(operation.responseData);
-                preFinalBeinBalance =
-                    toNullableNumber(savedData.dealerBalanceBefore) ??
-                    toNullableNumber(savedData.dealerBalance);
-
-                // AUDIT FIX 4.2: Use helper function for session age validation
-                if (typeof savedData.savedAt === 'string') {
-                    validateSessionAge(savedData.savedAt, 'confirmPurchase');
-                }
-
-                const restored = await restoreOperationSession(operationId, operation.responseData, client, route);
-                if (!restored) {
-                    throw new Error('No session data available - cannot confirm purchase');
-                }
-                console.log(`[HTTP] Session restored for CONFIRM_PURCHASE`);
-
-            } catch (sessionError: unknown) {
-                if (getErrMsg(sessionError).includes('Session expired')) {
-                    throw sessionError; // Re-throw session expiry error
-                }
-                console.error('[HTTP] Failed to restore saved session for confirm:', sessionError);
-                throw new Error('Session restoration failed - cannot confirm purchase');
-            }
-        } else {
-            console.error('[HTTP] ❌ No saved session found - cannot confirm purchase');
-            throw new Error('No session data available - cannot confirm purchase');
-        }
-
-        await updateProgress(operationId, 'Sending final confirmation...');
-        let finalPayResponseData: Prisma.InputJsonObject | null = null;
         const selectedPackage = operation.selectedPackage as { name?: string; price?: number } | null;
-        const rawResult = await client.confirmPurchase(operation.amount ?? undefined, async () => {
+        const expectedProviderAmount = toNullableNumber(selectedPackage?.price) ?? operation.amount;
+        let finalPayResponseData: Prisma.InputJsonObject | null = null;
+        let finalMutationStartedAt: Date | null = null;
+        await leaseHeartbeat.assertCurrent();
+
+        const claimMutationStart = async (stage: 'FINAL_OK'): Promise<void> => {
+            await leaseHeartbeat.assertCurrent();
+            const reservationActive = await assertActiveProviderAccountReservation(prisma, {
+                operationId,
+                beinAccountId: operation.beinAccountId!,
+                reservationGeneration: reserved.reservationGeneration,
+            });
+            if (!reservationActive) {
+                throw new Error('PROVIDER_CAUSAL_RESERVATION_LOST_BEFORE_FINAL_OK');
+            }
+
             const currentOperation = await prisma.operation.findUnique({
                 where: { id: operationId },
                 select: {
                     status: true,
                     amount: true,
-                    responseData: true
-                }
-            });
-            if (!currentOperation) {
-                throw new Error('Operation missing before final Pay provider submission');
-            }
-            const finalPayCheck = shouldSubmitRenewalFinalPay(currentOperation);
-            if (!finalPayCheck.allowed) {
-                throw new Error(`Final Pay blocked before provider submission: ${finalPayCheck.reason}`);
-            }
-
-            finalPayResponseData = responseDataWithRoute(mergeOperationPhaseData(currentOperation.responseData, {
-                operationPhase: 'FINAL_PAY_REQUEST_STARTED',
-                jobType: 'CONFIRM_PURCHASE',
-                finalPaySubmitted: false,
-                finalPayRequestStartedAt: new Date().toISOString(),
-                dealerBalanceBefore: preFinalBeinBalance,
-                dealerBalanceBeforeSource: preFinalBeinBalance === null ? 'missing' : 'package_load_diagnostic',
-                diagnosticDealerBalanceBefore: preFinalBeinBalance,
-                diagnosticDealerBalanceBeforeSource: preFinalBeinBalance === null ? 'missing' : 'package_load_diagnostic',
-                providerEvidenceContext: {
-                    operationId,
-                    beinAccountId: operation.beinAccountId,
-                    cardNumber: operation.cardNumber,
-                    packageName: selectedPackage?.name || null,
-                    packagePrice: toNullableNumber(selectedPackage?.price),
-                    contextMatched: true,
+                    responseData: true,
+                    providerMutationStartedAt: true,
+                    providerMutationStage: true,
                 },
-                expectedCost: operation.amount ?? null
-            }), route);
-
-            const persisted = await updateOperationIfActive(operationId, {
-                responseData: finalPayResponseData
-            }, 'CONFIRM_PURCHASE final Pay evidence update');
-            if (!persisted) {
-                throw new Error('Final Pay evidence was not persisted before provider submission');
+            });
+            const dispatchDecision = shouldSubmitRenewalFinalPay(currentOperation);
+            if (!dispatchDecision.allowed) {
+                throw new Error('Final provider mutation blocked: ' + dispatchDecision.reason);
             }
-        });
+
+            const markerResponseData = responseDataWithRoute(
+                mergeOperationPhaseData(currentOperation?.responseData, {
+                    operationPhase: FINAL_PROVIDER_MUTATION_PHASE,
+                    jobType: 'CONFIRM_PURCHASE',
+                    finalPaySubmitted: false,
+                    finalProviderMutationStartedAt: new Date().toISOString(),
+                    providerMutationStage: stage,
+                    dealerBalanceBefore: diagnosticBalanceBefore,
+                    dealerBalanceBeforeSource: diagnosticBalanceBefore === null
+                        ? 'missing'
+                        : 'package_load_diagnostic',
+                    diagnosticDealerBalanceBefore: diagnosticBalanceBefore,
+                    diagnosticDealerBalanceBeforeSource: diagnosticBalanceBefore === null
+                        ? 'missing'
+                        : 'package_load_diagnostic',
+                    providerPaymentState: 'UNKNOWN',
+                    fulfillmentState: 'VERIFYING',
+                    providerEvidenceContext: {
+                        operationId,
+                        beinAccountId: operation.beinAccountId,
+                        cardNumber: operation.cardNumber,
+                        packageName: selectedPackage?.name || null,
+                        packagePrice: toNullableNumber(selectedPackage?.price),
+                        contextMatched: true,
+                    },
+                    expectedCost: expectedProviderAmount,
+                }),
+                route
+            );
+            const marker = await claimFinalProviderMutationStart({
+                operationId,
+                beinAccountId: operation.beinAccountId!,
+                cardNumber: operation.cardNumber,
+                reservationGeneration: reserved.reservationGeneration,
+                responseData: markerResponseData,
+            });
+            if (!marker.claimed || !marker.startedAt) {
+                throw new Error('Final provider mutation blocked: ' + marker.reason);
+            }
+            finalPayResponseData = markerResponseData;
+            finalMutationStartedAt = marker.startedAt;
+        };
+        const rawResult = await client.confirmPurchase(
+            expectedProviderAmount,
+            claimMutationStart,
+            leaseHeartbeat.assertCurrent
+        );
+
+        if (!finalMutationStartedAt) {
+            await persistRenewalFulfillmentState({
+                operationId,
+                providerPaymentState: 'UNKNOWN',
+                fulfillmentState: 'CHECK_FAILED',
+                verificationOutcome: 'CHECK_FAILED',
+                status: 'REVIEW_REQUIRED',
+                responseData: mergeOperationPhaseData(
+                    finalPayResponseData ?? operation.responseData,
+                    {
+                        operationPhase: 'POST_FINAL_PAY_REVIEW',
+                        jobType: 'CONFIRM_PURCHASE',
+                        providerPaymentState: 'UNKNOWN',
+                        fulfillmentState: 'CHECK_FAILED',
+                        verificationOutcome: 'CHECK_FAILED',
+                        fulfillmentReasonCode: 'FINAL_MUTATION_MARKER_NOT_CONFIRMED',
+                    }
+                ),
+                responseMessage: 'Final provider state is ambiguous. Manual review required.',
+            });
+            return;
+        }
+
         const finalPayEvidence = buildFinalPayBalanceEvidence({
             operationId,
             beinAccountId: operation.beinAccountId,
@@ -2688,218 +2691,162 @@ async function handleConfirmPurchaseHttp(
             finalBalanceAfter: toNullableNumber(rawResult.beinBalanceAfter),
             finalBalanceBeforeSource: rawResult.beinBalanceBeforeSource,
             finalBalanceAfterSource: rawResult.beinBalanceAfterSource,
-            diagnosticBalanceBefore: preFinalBeinBalance,
+            diagnosticBalanceBefore,
         });
-        const result = {
+        const result: PurchaseResult = {
             ...rawResult,
             beinBalanceBefore: finalPayEvidence.finalBalanceBefore ?? undefined,
-            beinBalanceAfter: finalPayEvidence.finalBalanceAfter ?? undefined
+            beinBalanceAfter: finalPayEvidence.finalBalanceAfter ?? undefined,
         };
-        const finalPayMayHaveStarted =
-            result.finalPaySubmitted === true ||
-            hasFinalPaymentStarted(operation.status, finalPayResponseData ?? operation.responseData);
-        const outcomeDecision = decideFinalPayRefundSafety(result, finalPayMayHaveStarted);
-        const postPayPhaseEvidence: Parameters<typeof mergeOperationPhaseData>[1] = {
-            operationPhase: outcomeDecision.reviewRequired ? 'POST_FINAL_PAY_REVIEW' : 'FINAL_PAY_SUBMITTED',
-            jobType: 'CONFIRM_PURCHASE',
-            finalPaySubmitted: result.finalPaySubmitted === true,
-            dealerBalanceBefore: finalPayEvidence.finalBalanceBefore,
-            dealerBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
-            dealerBalanceAfter: finalPayEvidence.finalBalanceAfter,
-            dealerBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
-            diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
-            diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
-            providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
-            providerEvidenceCapturedAt: finalPayEvidence.capturedAt,
-            providerEvidenceContext: {
-                operationId: finalPayEvidence.operationId,
-                beinAccountId: finalPayEvidence.beinAccountId,
-                cardNumber: finalPayEvidence.cardNumber,
-                packageName: finalPayEvidence.packageName,
-                packagePrice: finalPayEvidence.packagePrice,
-                contextMatched: finalPayEvidence.contextMatched,
-            },
-            expectedCost: operation.amount ?? null,
-            outcomeCategory: outcomeDecision.outcomeCategory
-        };
+        const outcomeDecision = decideFinalPayRefundSafety(result, true);
+        const providerPaymentState = renewalProviderPaymentState(result, true);
         let postPayResponseData = responseDataWithRoute(
-            mergeOperationPhaseData(finalPayResponseData ?? operation.responseData, postPayPhaseEvidence),
+            mergeOperationPhaseData(finalPayResponseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'CONFIRM_PURCHASE',
+                finalPaySubmitted: result.finalPaySubmitted === true,
+                finalPaySubmittedAt: new Date().toISOString(),
+                dealerBalanceBefore: finalPayEvidence.finalBalanceBefore,
+                dealerBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
+                dealerBalanceAfter: finalPayEvidence.finalBalanceAfter,
+                dealerBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
+                diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
+                diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
+                providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence)
+                    ? 'confirmed-final-pay'
+                    : 'incomplete-evidence',
+                providerPaymentState,
+                fulfillmentState: 'VERIFYING',
+                providerEvidenceCapturedAt: finalPayEvidence.capturedAt,
+                expectedCost: expectedProviderAmount,
+                outcomeCategory: outcomeDecision.outcomeCategory,
+            }),
+            route
+        );
+        const paymentPersisted = await prisma.operation.updateMany({
+            where: { id: operationId, status: { notIn: HARD_TERMINAL_STATUS_LIST } },
+            data: {
+                status: OperationStatus.COMPLETING,
+                providerPaymentState,
+                fulfillmentState: 'VERIFYING',
+                responseMessage: 'Provider mutation submitted; verifying fulfillment evidence.',
+                responseData: postPayResponseData,
+                finalConfirmExpiry: null,
+            },
+        });
+        if (paymentPersisted.count !== 1) return;
+
+        await leaseHeartbeat.assertCurrent();
+        const verification = await verifyRenewalFulfillmentWithProvider({
+            operationId,
+            beinAccountId: operation.beinAccountId,
+            cardNumber: operation.cardNumber,
+            selectedPackage,
+            responseData: postPayResponseData,
+            finalMutationStartedAt,
+            account,
+            route,
+            client,
+            executionLease: reserved.lease,
+            verificationSource: 'POST_FINAL_PAY',
+            assertExecutionCurrent: leaseHeartbeat.assertCurrent,
+        });
+        await leaseHeartbeat.assertCurrent();
+        const verificationOutcome = verification.correlation.outcome;
+        const fulfillmentState = mapVerificationOutcomeToFulfillmentState({
+            outcome: verificationOutcome,
+            proofMode: verification.proofMode,
+            compositeProofClaimed: false,
+        });
+        let effectiveVerificationOutcome = verificationOutcome;
+        let effectiveFulfillmentState = fulfillmentState;
+        postPayResponseData = responseDataWithRoute(
+            mergeOperationPhaseData(postPayResponseData, {
+                operationPhase: verificationOutcome === 'MATCHED'
+                    ? 'FULFILLMENT_CANDIDATE_MATCHED'
+                    : 'POST_FINAL_PAY_REVIEW',
+                jobType: 'CONFIRM_PURCHASE',
+                providerPaymentState,
+                fulfillmentState,
+                verificationOutcome,
+                fulfillmentReasonCode: verification.correlation.reasonCode,
+                fulfillmentInvoiceNo: verification.correlation.discoveredInvoiceNo || undefined,
+                fulfillmentProofMode: verification.proofMode,
+                proofKind: 'SOLD_REPORT_CONTRACT_CORRELATION',
+            }),
             route
         );
 
-        let contractVerification: ContractVerificationEvidence | null = null;
-        if (!result.success && finalPayMayHaveStarted) {
-            console.log(`[HTTP] Running live beIN contract verification after uncertain final Pay for ${operationId}`);
-            const contractVerificationRun = await verifyRenewalContractWithProvider({
-                client,
-                account,
-                route,
-                cardNumber: operation.cardNumber,
-                operationCreatedAt: operation.createdAt,
-                responseData: postPayResponseData,
-                selectedPackageName: selectedPackage?.name || null,
+        let attemptRecord: {
+            attemptId: string;
+            verificationId: string;
+            baselineId: string;
+            attemptNo: number;
+            retryDueAt: Date | null;
+            replayed: boolean;
+        };
+        if (verification.proofMode === 'REVIEW_ONLY') {
+            attemptRecord = await recordFulfillmentVerificationAttempt({
+                operationId,
+                baselineId: verification.baselineId,
+                outcome: verificationOutcome,
+                reasonCode: verification.correlation.reasonCode,
+                completeScan: verification.completeScan,
+                pageCount: verification.pageCount,
+                rowCount: verification.rowCount,
+                candidateInvoiceNo: verification.correlation.discoveredInvoiceNo,
+                reportObservedAt: verification.reportObservedAt,
+                contractObservedAt: verification.contractObservedAt,
             });
-            contractVerification = contractVerificationRun.finalVerification;
-            postPayResponseData = responseDataWithRoute(
-                mergeContractVerificationEvidence(postPayResponseData, contractVerificationRun, 'post_final_pay'),
-                route
-            );
-            console.log(`[HTTP] Contract verification after Pay for ${operationId}: ${contractVerification.outcome} (${contractVerification.reason})`);
-
-            if (contractVerification.outcome === 'CONTRACT_VERIFIED_SUCCESS') {
-                if (operation.cardNumber) {
-                    await invalidatePackageCache(operation.cardNumber);
-                }
-
-                const verifiedSpendAmount = operation.amount ?? toNullableNumber(selectedPackage?.price);
-                const ledgerResult = operation.userId
-                    ? await recordConfirmedBeinSpend({
-                        operationId,
-                        userId: operation.userId,
-                        beinAccountId: operation.beinAccountId,
-                        dealerBalanceBefore: null,
-                        dealerBalanceAfter: null,
-                        evidenceSource: 'CONTRACT_VERIFIED',
-                        confirmedSpendAmount: verifiedSpendAmount,
-                    })
-                    : null;
-                if (ledgerResult?.status === 'conflict_review_required') {
-                    console.warn(`[HTTP] beIN contract ledger conflict for ${operationId}: ${ledgerResult.reason}`);
-                }
-
-                const auditSnapshot = await buildOperationAuditSnapshot({
-                    operationId,
-                    userId: operation.userId || null,
-                    beinAccountId: operation.beinAccountId,
-                    beinUsername: account.username,
-                    beinBalanceBefore: null,
-                    beinBalanceAfter: null,
-                    providerEvidenceState: 'contract-verified',
-                    outcomeCategory: 'CONFIRMED_SUCCESS',
-                    reviewReason: ledgerResultReviewReason(ledgerResult),
-                    reviewSource: ledgerResultBlocksCompletion(ledgerResult) ? 'confirm-purchase-contract-ledger' : undefined,
-                    refundBlocked: ledgerResultBlocksCompletion(ledgerResult) ? true : undefined,
-                    chargedBeinLedgerId: ledgerResultId(ledgerResult)
-                });
-                postPayResponseData = mergeOperationAuditSnapshot(postPayResponseData, auditSnapshot);
-
-                if (ledgerResultBlocksCompletion(ledgerResult)) {
-                    const reviewed = await prisma.operation.updateMany({
-                        where: {
-                            id: operationId,
-                            status: { notIn: HARD_TERMINAL_STATUS_LIST }
-                        },
-                        data: {
-                            status: 'REVIEW_REQUIRED',
-                            responseMessage: ledgerResultReviewReason(ledgerResult) || 'Contract verified but beIN spend ledger could not be recorded. Manual review required.',
-                            finalConfirmExpiry: null,
-                            responseData: postPayResponseData
-                        }
-                    });
-                    if (reviewed.count === 0) {
-                        console.warn(`[HTTP] CONFIRM_PURCHASE contract-ledger review update skipped for ${operationId} due to terminal transition race`);
-                    }
-                    await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
-                        console.error(`[HTTP] Failed to mark account used after contract-ledger review for ${operationId}: ${getErrMsg(e)}`);
-                    });
-                    await deleteOperationSessionFromCache(operationId).catch((e: unknown) => {
-                        console.error(`[HTTP] Failed to delete operation session after contract-ledger review for ${operationId}: ${getErrMsg(e)}`);
-                    });
-                    return;
-                }
-
-                const contractVerifiedAt = new Date();
-                const completed = await prisma.$transaction(async (tx) => {
-                    const update = await tx.operation.updateMany({
-                        where: {
-                            id: operationId,
-                            status: { notIn: HARD_TERMINAL_STATUS_LIST }
-                        },
-                        data: {
-                            status: 'COMPLETED',
-                            responseMessage: 'beIN contract verified after final Pay.',
-                            completedAt: contractVerifiedAt,
-                            finalConfirmExpiry: null,
-                            responseData: postPayResponseData
-                        }
-                    });
-                    if (update.count > 0) {
-                        await captureOperationSpendAwardRunInTransaction(
-                            tx,
-                            operationId,
-                            'WORKER_CONTRACT_VERIFICATION',
-                            contractVerifiedAt
-                        );
-                    }
-                    return update;
-                });
-                if (completed.count === 0) {
-                    console.warn(`[HTTP] CONFIRM_PURCHASE contract-verified completion skipped for ${operationId} due to terminal transition race`);
-                    await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
-                        console.error(`[HTTP] Failed to mark account used after skipped contract completion for ${operationId}: ${getErrMsg(e)}`);
-                    });
-                    await deleteOperationSessionFromCache(operationId).catch((e: unknown) => {
-                        console.error(`[HTTP] Failed to delete operation session after skipped contract completion for ${operationId}: ${getErrMsg(e)}`);
-                    });
-                    return;
-                }
-
-                await awardCompletedOperationPointsSafely(operationId);
-                await accountPool.markAccountUsed(operation.beinAccountId, operationId);
-                await deleteOperationSessionFromCache(operationId);
-
-                if (operation.userId) {
-                    await trackOperationComplete(
-                        operation.userId,
-                        operationId,
-                        'RENEW',
-                        operation.amount,
-                        {
-                            packageName: selectedPackage?.name,
-                            beinAccountId: operation.beinAccountId,
-                            beinUsernameSnapshot: auditSnapshot.beinUsername,
-                            beinBalanceBefore: auditSnapshot.beinBalanceBefore,
-                            beinBalanceAfter: auditSnapshot.beinBalanceAfter,
-                            userBalanceBefore: auditSnapshot.userBalanceBefore,
-                            userBalanceAfter: auditSnapshot.userBalanceAfter
-                        }
-                    );
-
-                    await detectAndRecordOperationIntegrity({
-                        operationId,
-                        beinBalanceBefore: auditSnapshot.beinBalanceBefore ?? undefined,
-                        beinBalanceAfter: auditSnapshot.beinBalanceAfter ?? undefined,
-                        beinUsernameSnapshot: auditSnapshot.beinUsername ?? undefined,
-                        userBalanceBefore: auditSnapshot.userBalanceBefore ?? undefined,
-                        userBalanceAfter: auditSnapshot.userBalanceAfter ?? undefined
-                    });
-                }
-
-                if (operation.userId) {
-                    await createNotification({
-                        userId: operation.userId,
-                        title: 'Renewal successful',
-                        message: `${selectedPackage?.name || 'Package'} - beIN contract verified`,
-                        type: 'success',
-                        link: '/dashboard/history'
-                    });
-                }
-
-                console.log(`[HTTP] Purchase confirmed for ${operationId} by live contract verification`);
-                return;
-            }
+            const reviewOnlyStatus = OperationStatus.REVIEW_REQUIRED;
+            postPayResponseData = mergeOperationPhaseData(postPayResponseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'CONFIRM_PURCHASE',
+                providerPaymentState,
+                fulfillmentState,
+                verificationOutcome,
+                fulfillmentProofMode: 'REVIEW_ONLY',
+                nextVerificationAt: attemptRecord.retryDueAt?.toISOString() || null,
+            });
+            void reviewOnlyStatus;
+        } else if (verification.proofMode === 'ENFORCE') {
+            attemptRecord = await recordFulfillmentVerificationAttempt({
+                operationId,
+                baselineId: verification.baselineId,
+                outcome: verificationOutcome,
+                reasonCode: verification.correlation.reasonCode,
+                completeScan: verification.completeScan,
+                pageCount: verification.pageCount,
+                rowCount: verification.rowCount,
+                candidateInvoiceNo: verification.correlation.discoveredInvoiceNo,
+                reportObservedAt: verification.reportObservedAt,
+                contractObservedAt: verification.contractObservedAt,
+            });
+            postPayResponseData = mergeOperationPhaseData(postPayResponseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'CONFIRM_PURCHASE',
+                providerPaymentState,
+                fulfillmentState,
+                verificationOutcome,
+                fulfillmentProofMode: 'ENFORCE',
+                nextVerificationAt: attemptRecord.retryDueAt?.toISOString() || null,
+            });
+        } else {
+            throw new Error('Unsupported fulfillment proof mode');
         }
 
-        const contractCheckFailedAfterFinalPay = contractVerification?.outcome === 'CHECK_FAILED';
+        const terminalDecision = decideRenewalTerminalState({
+            providerPaymentState,
+            fulfillmentState,
+            fulfillmentAuthority: 'NONE',
+            proofKind: 'SOLD_REPORT_CONTRACT_CORRELATION',
+            verificationOutcome,
+        });
+        let ledgerResult: ConfirmedBeinSpendResult | null = null;
+        let ledgerBlocksFinalization = false;
 
-        if (result.success) {
-            // OPTIMIZATION: Invalidate package cache since packages changed after purchase
-            if (operation.cardNumber) {
-                await invalidatePackageCache(operation.cardNumber);
-            }
-
-            const ledgerResult = operation.userId
-                && shouldRecordConfirmedProviderSpend(finalPayEvidence)
+        if (providerPaymentState === 'CHARGED') {
+            ledgerResult = shouldRecordConfirmedProviderSpend(finalPayEvidence)
                 ? await recordConfirmedBeinSpend({
                     operationId,
                     userId: operation.userId,
@@ -2911,13 +2858,10 @@ async function handleConfirmPurchaseHttp(
                     balanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
                 })
                 : null;
-            if (ledgerResult?.status === 'conflict_review_required') {
-                console.warn(`[HTTP] beIN spend ledger conflict for ${operationId}: ${ledgerResult.reason}`);
-            }
-
+            ledgerBlocksFinalization = ledgerResultBlocksCompletion(ledgerResult);
             const auditSnapshot = await buildOperationAuditSnapshot({
                 operationId,
-                userId: operation.userId || null,
+                userId: operation.userId,
                 beinAccountId: operation.beinAccountId,
                 beinUsername: account.username,
                 beinBalanceBefore: finalPayEvidence.finalBalanceBefore,
@@ -2926,426 +2870,1203 @@ async function handleConfirmPurchaseHttp(
                 beinBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
                 diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
                 diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
-                providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
+                providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence)
+                    ? 'confirmed-final-pay'
+                    : 'incomplete-evidence',
                 outcomeCategory: outcomeDecision.outcomeCategory,
-                reviewReason: ledgerResultReviewReason(ledgerResult),
-                reviewSource: ledgerResultBlocksCompletion(ledgerResult) ? 'confirm-purchase-ledger' : undefined,
-                refundBlocked: ledgerResultBlocksCompletion(ledgerResult) ? true : undefined,
-                chargedBeinLedgerId: ledgerResultId(ledgerResult)
-            });
-            postPayResponseData = mergeOperationAuditSnapshot(postPayResponseData, auditSnapshot);
-
-            if (ledgerResultBlocksCompletion(ledgerResult)) {
-                const reviewed = await prisma.operation.updateMany({
-                    where: {
-                        id: operationId,
-                        status: { notIn: HARD_TERMINAL_STATUS_LIST }
-                    },
-                    data: {
-                        status: 'REVIEW_REQUIRED',
-                        responseMessage: ledgerResultReviewReason(ledgerResult) || 'Confirmed beIN spend could not be recorded. Manual review required.',
-                        finalConfirmExpiry: null,
-                        responseData: postPayResponseData
-                    }
-                });
-                if (reviewed.count === 0) {
-                    console.warn(`[HTTP] CONFIRM_PURCHASE ledger-conflict review update skipped for ${operationId} due to terminal transition race`);
-                }
-                await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
-                    console.error(`[HTTP] Failed to mark account used after ledger-conflict review for ${operationId}: ${getErrMsg(e)}`);
-                });
-                await deleteOperationSessionFromCache(operationId).catch((e: unknown) => {
-                    console.error(`[HTTP] Failed to delete operation session after ledger-conflict review for ${operationId}: ${getErrMsg(e)}`);
-                });
-                return;
-            }
-
-            const renewalCompletedAt = new Date();
-            const completion = await completeConfirmedRenewalOperation(operationId, {
-                status: 'COMPLETED',
-                responseMessage: result.message,
-                completedAt: renewalCompletedAt,
-                finalConfirmExpiry: null,
-                responseData: postPayResponseData
-            }, renewalCompletedAt, postPayResponseData, postPayPhaseEvidence, route, finalPayEvidence);
-            postPayResponseData = completion.responseData;
-            if (!completion.completed) {
-                await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
-                    console.error(`[HTTP] Failed to mark account used after skipped completion for ${operationId}: ${getErrMsg(e)}`);
-                });
-                await deleteOperationSessionFromCache(operationId).catch((e: unknown) => {
-                    console.error(`[HTTP] Failed to delete operation session after skipped completion for ${operationId}: ${getErrMsg(e)}`);
-                });
-                return;
-            }
-            await awardCompletedOperationPointsSafely(operationId);
-
-            await accountPool.markAccountUsed(operation.beinAccountId, operationId);
-            await deleteOperationSessionFromCache(operationId);
-
-            // Track activity for user engagement metrics
-            if (operation.userId) {
-                await trackOperationComplete(
-                    operation.userId,
-                    operationId,
-                    'RENEW',
-                    operation.amount,
-                    {
-                        packageName: selectedPackage?.name,
-                        beinAccountId: operation.beinAccountId,
-                        beinUsernameSnapshot: auditSnapshot.beinUsername,
-                        beinBalanceBefore: auditSnapshot.beinBalanceBefore,
-                        beinBalanceAfter: auditSnapshot.beinBalanceAfter,
-                        userBalanceBefore: auditSnapshot.userBalanceBefore,
-                        userBalanceAfter: auditSnapshot.userBalanceAfter
-                    }
-                );
-
-                await detectAndRecordOperationIntegrity({
-                    operationId,
-                    beinBalanceBefore: auditSnapshot.beinBalanceBefore ?? undefined,
-                    beinBalanceAfter: auditSnapshot.beinBalanceAfter ?? undefined,
-                    beinUsernameSnapshot: auditSnapshot.beinUsername ?? undefined,
-                    userBalanceBefore: auditSnapshot.userBalanceBefore ?? undefined,
-                    userBalanceAfter: auditSnapshot.userBalanceAfter ?? undefined
-                });
-            }
-
-            if (operation.userId) {
-                await createNotification({
-                    userId: operation.userId,
-                    title: 'Renewal successful',
-                    message: `${selectedPackage?.name || 'Package'} - ${result.message}`,
-                    type: 'success',
-                    link: '/dashboard/history'
-                });
-            }
-
-            console.log(`✅ [HTTP] Purchase confirmed for ${operationId}`);
-        } else if (outcomeDecision.reviewRequired || !outcomeDecision.refundSafe || contractCheckFailedAfterFinalPay) {
-            const reviewMessage = contractCheckFailedAfterFinalPay && contractVerification
-                ? `${result.message}; ${contractVerificationSummary(contractVerification)}`
-                : result.message;
-            const ledgerResult = operation.userId
-                && shouldRecordConfirmedProviderSpend(finalPayEvidence)
-                ? await recordConfirmedBeinSpend({
-                    operationId,
-                    userId: operation.userId,
-                    beinAccountId: operation.beinAccountId,
-                    dealerBalanceBefore: finalPayEvidence.finalBalanceBefore,
-                    dealerBalanceAfter: finalPayEvidence.finalBalanceAfter,
-                    evidenceSource: 'BALANCE_DELTA',
-                    balanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
-                    balanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
-                })
-                : null;
-            if (ledgerResult?.status === 'conflict_review_required') {
-                console.warn(`[HTTP] beIN spend ledger conflict for ${operationId}: ${ledgerResult.reason}`);
-            }
-
-            const auditSnapshot = await buildOperationAuditSnapshot({
-                operationId,
-                userId: operation.userId || null,
-                beinAccountId: operation.beinAccountId,
-                beinUsername: account.username,
-                beinBalanceBefore: finalPayEvidence.finalBalanceBefore,
-                beinBalanceAfter: finalPayEvidence.finalBalanceAfter,
-                beinBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
-                beinBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
-                diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
-                diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
-                providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
-                outcomeCategory: outcomeDecision.outcomeCategory,
-                reviewReason: reviewMessage,
-                reviewSource: 'confirm-purchase',
+                reviewReason: ledgerResultReviewReason(ledgerResult) ||
+                    'Provider payment charged while fulfillment awaits unique proof.',
+                reviewSource: 'confirm-purchase-composite-fulfillment',
                 refundBlocked: true,
-                chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
+                chargedBeinLedgerId: ledgerResultId(ledgerResult),
             });
             postPayResponseData = mergeOperationAuditSnapshot(postPayResponseData, auditSnapshot);
-
-            const reviewRequired = await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: TERMINAL_STATUS_LIST }
-                },
+            await prisma.operation.updateMany({
+                where: { id: operationId, status: { notIn: HARD_TERMINAL_STATUS_LIST } },
                 data: {
                     status: 'REVIEW_REQUIRED',
-                    responseMessage: reviewMessage,
+                    providerPaymentState,
+                    fulfillmentState,
+                    fulfillmentVerificationOutcome: verificationOutcome,
+                    responseMessage: ledgerResultReviewReason(ledgerResult) ||
+                        'Provider charged; unique package fulfillment is being verified.',
+                    responseData: postPayResponseData,
                     finalConfirmExpiry: null,
-                    responseData: postPayResponseData
-                }
+                },
             });
-            if (reviewRequired.count === 0) {
-                console.warn(`[HTTP] CONFIRM_PURCHASE review update skipped for ${operationId} due to terminal transition race`);
+            await upsertRenewalFulfillmentSafetyIssue({
+                operationId,
+                userId: operation.userId,
+                beinAccountId: operation.beinAccountId,
+                operationAmount: operation.amount,
+                issueType: 'PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED',
+                details: {
+                    source: 'worker_post_final_pay',
+                    providerPaymentState,
+                    verificationOutcome,
+                    reasonCode: verification.correlation.reasonCode,
+                },
+            });
+            if (ledgerResultBlocksCompletion(ledgerResult)) {
+                console.warn('[HTTP] Charged renewal ledger conflict; finalization blocked: ' + operationId);
+            }
+        } else if (terminalDecision.decision === 'REVIEW_REQUIRED') {
+            await persistRenewalFulfillmentState({
+                operationId,
+                providerPaymentState,
+                fulfillmentState,
+                verificationOutcome,
+                status: 'REVIEW_REQUIRED',
+                responseData: postPayResponseData,
+                responseMessage: 'Provider outcome requires manual fulfillment review.',
+            });
+        }
+
+        if (
+            verification.proofMode === 'ENFORCE' &&
+            !ledgerBlocksFinalization &&
+            verificationOutcome === 'MATCHED'
+        ) {
+            await leaseHeartbeat.assertCurrent();
+            const finalization = await finalizeRenewalFulfillment({
+                operationId,
+                providerPaymentState,
+                verification,
+                verificationAttempt: attemptRecord,
+                reservationGeneration: reserved.reservationGeneration,
+            });
+            if (finalization.status === 'COMPLETED' || finalization.status === 'ALREADY_COMPLETED') {
+                if (finalization.shouldFinalizeSideEffects) {
+                    await finalizeRenewalSideEffects(operationId, accountPool);
+                }
                 return;
             }
-
-            try {
-                await accountPool.markAccountUsed(operation.beinAccountId, operationId);
-            } catch (e: unknown) {
-                console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
-            }
-            await deleteOperationSessionFromCache(operationId);
-            console.warn(`[HTTP] Purchase for ${operationId} moved to REVIEW_REQUIRED (${outcomeDecision.outcomeCategory}): ${reviewMessage}`);
-            return;
-        } else {
-            const auditSnapshot = await buildOperationAuditSnapshot({
-                operationId,
-                userId: operation.userId || null,
-                beinAccountId: operation.beinAccountId,
-                beinUsername: account.username,
-                beinBalanceBefore: finalPayEvidence.finalBalanceBefore,
-                beinBalanceAfter: finalPayEvidence.finalBalanceAfter,
-                beinBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
-                beinBalanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
-                diagnosticDealerBalanceBefore: finalPayEvidence.diagnosticBalanceBefore,
-                diagnosticDealerBalanceBeforeSource: finalPayEvidence.diagnosticBalanceBeforeSource,
-                providerEvidenceState: shouldRecordConfirmedProviderSpend(finalPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
-                outcomeCategory: outcomeDecision.outcomeCategory,
-                reviewReason: result.message,
-                reviewSource: 'confirm-purchase',
-                refundBlocked: false
-            });
-            await persistOperationAuditSnapshot(operationId, postPayResponseData, auditSnapshot);
-
-            if (operation.userId && operation.amount && operation.amount > 0) {
-                await refundUser(operationId, operation.userId, operation.amount, result.message, {
-                    allowFinalPayRefund: outcomeDecision.outcomeCategory === 'CONFIRMED_NOT_CHARGED'
+            if (finalization.status === 'PROOF_CONFLICT') {
+                effectiveVerificationOutcome = 'PROOF_CONFLICT';
+                effectiveFulfillmentState = 'PROOF_CONFLICT';
+                await markFulfillmentVerificationAttemptProofConflict({
+                    operationId,
+                    attemptNo: attemptRecord.attemptNo,
+                    reasonCode: 'DATABASE_PROOF_CLAIM_CONFLICT',
+                });
+                postPayResponseData = mergeOperationPhaseData(postPayResponseData, {
+                    operationPhase: 'POST_FINAL_PAY_REVIEW',
+                    jobType: 'CONFIRM_PURCHASE',
+                    providerPaymentState,
+                    fulfillmentState: effectiveFulfillmentState,
+                    verificationOutcome: effectiveVerificationOutcome,
+                    fulfillmentReasonCode: 'DATABASE_PROOF_CLAIM_CONFLICT',
+                });
+                await upsertRenewalFulfillmentSafetyIssue({
+                    operationId,
+                    userId: operation.userId,
+                    beinAccountId: operation.beinAccountId,
+                    operationAmount: operation.amount,
+                    issueType: 'FULFILLMENT_PROOF_CONFLICT',
+                    details: {
+                        source: 'worker_post_final_pay',
+                        verificationOutcome,
+                        invoiceNo: verification.correlation.discoveredInvoiceNo,
+                    },
                 });
             }
-            await markOperationFailed(operationId, { type: 'UNKNOWN', message: result.message, recoverable: false }, 1);
-            await deleteOperationSessionFromCache(operationId);
-            throw new Error(result.message);
         }
-    } finally {
-        if (confirmLockAcquired) {
-            try {
-                await unlockAccount(redis, operation.beinAccountId, WORKER_ID, operationId);
-                console.log(`[HTTP] Account lock released after CONFIRM_PURCHASE: ${operation.beinAccountId}`);
-            } catch (releaseError: unknown) {
-                console.error(`[HTTP] Failed to release CONFIRM_PURCHASE account lock: ${getErrMsg(releaseError)}`);
+
+        if (attemptRecord.retryDueAt) {
+            await scheduleRenewalFulfillmentVerification({
+                operationId,
+                cardNumber: operation.cardNumber,
+                attemptNo: attemptRecord.attemptNo,
+                retryDueAt: attemptRecord.retryDueAt,
+                accountPool,
+            });
+            return;
+        }
+
+        if (
+            terminalDecision.decision === 'FAIL_AND_REFUND' &&
+            providerPaymentState === 'NOT_CHARGED' &&
+            effectiveFulfillmentState === 'NOT_FOUND' &&
+            effectiveVerificationOutcome === 'VALID_NO_MATCH'
+        ) {
+            const noChargeFinalization = await finalizeRenewalNoChargeFailure({
+                operationId,
+                responseData: postPayResponseData,
+                responseMessage: 'Provider explicitly rejected payment and no fulfilled package was found.',
+                expected: attemptRecord,
+                refundReason: 'Provider explicitly rejected payment and fulfillment verification found no sale.',
+            });
+            if (noChargeFinalization.status === 'EVIDENCE_CONFLICT') {
+                await persistRenewalFulfillmentState({
+                    operationId,
+                    providerPaymentState,
+                    fulfillmentState: 'PROOF_CONFLICT',
+                    verificationOutcome: 'PROOF_CONFLICT',
+                    status: 'REVIEW_REQUIRED',
+                    responseData: postPayResponseData,
+                    responseMessage: `Atomic no-charge finalization conflict: ${noChargeFinalization.reason}`,
+                });
             }
+            if (
+                noChargeFinalization.status === 'FAILED_AND_REFUNDED' ||
+                noChargeFinalization.status === 'ALREADY_FAILED_AND_REFUNDED'
+            ) {
+                await deleteOperationSessionFromCache(operationId);
+            }
+            return;
         }
+
+        await persistRenewalFulfillmentState({
+            operationId,
+            providerPaymentState,
+            fulfillmentState: effectiveFulfillmentState,
+            verificationOutcome: effectiveVerificationOutcome,
+            status: 'REVIEW_REQUIRED',
+            responseData: postPayResponseData,
+            responseMessage: 'Unique fulfillment proof was not established. Manual review required.',
+        });
+    } finally {
+        leaseHeartbeat.stop();
+        await accountPool.releaseExecutionLease(reserved.lease).catch((error: unknown) => {
+            console.error('[HTTP] Failed to release confirmation execution lease: ' + getErrMsg(error));
+        });
     }
 }
 
-/**
- * VERIFY_REVIEW_CARD - Live beIN contract check for financial review
- */
-async function handleVerifyReviewCardHttp(
+async function handleVerifyRenewalFulfillmentHttp(
     operationId: string,
-    accountPool: AccountPoolManager
+    accountPool: AccountPoolManager,
+    requestedAttemptNo?: number
 ): Promise<void> {
-    console.log(`[HTTP] Live financial-review card verification for ${operationId}`);
-
     const operation = await prisma.operation.findUnique({
         where: { id: operationId },
         select: {
             id: true,
             userId: true,
             beinAccountId: true,
-            selectedPackage: true,
-            amount: true,
-            status: true,
             cardNumber: true,
+            amount: true,
+            selectedPackage: true,
             responseData: true,
-            createdAt: true,
-        }
+            status: true,
+            providerMutationStartedAt: true,
+            providerPaymentState: true,
+            chargedBeinSpendLedger: { select: { beinAccountId: true } },
+        },
     });
+    if (
+        !operation?.beinAccountId ||
+        HARD_TERMINAL_STATUS_LIST.includes(operation.status)
+    ) return;
+    if (
+        operation.status !== OperationStatus.COMPLETING &&
+        operation.status !== OperationStatus.REVIEW_REQUIRED
+    ) return;
 
-    if (!operation || !operation.beinAccountId) {
-        throw new Error('Review operation or beIN account not found');
-    }
-    if (operation.status !== OperationStatus.REVIEW_REQUIRED) {
-        console.log(`[HTTP] Skipping live review verification for ${operationId}; status is ${operation.status}`);
+    const activeBaseline = await getActiveRenewalFulfillmentBaseline(operationId);
+    if (!activeBaseline || activeBaseline.activeBaseline.supersededAt !== null) {
+        await persistRenewalFulfillmentState({
+            operationId,
+            providerPaymentState: operation.providerPaymentState || 'UNKNOWN',
+            fulfillmentState: 'CHECK_FAILED',
+            verificationOutcome: 'INCOMPLETE_SCAN',
+            status: 'REVIEW_REQUIRED',
+            responseData: mergeOperationPhaseData(operation.responseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'VERIFY_RENEWAL_FULFILLMENT',
+                providerPaymentState: operation.providerPaymentState || 'UNKNOWN',
+                fulfillmentState: 'CHECK_FAILED',
+                verificationOutcome: 'INCOMPLETE_SCAN',
+                fulfillmentReasonCode: 'MISSING_NON_SUPERSEDED_BASELINE',
+            }),
+            responseMessage: 'The causal fulfillment baseline is unavailable. Manual review required.',
+        });
         return;
     }
+    if (requestedAttemptNo !== undefined) {
+        const expectedAttemptNo = activeBaseline.verification.attemptCount + 1;
+        if (requestedAttemptNo !== expectedAttemptNo) return;
+    }
 
-    const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId },
-        include: { proxy: true }
-    }).then(a => a ? decryptAccountPassword(a) : null);
-    if (!account) throw new Error('Account not found');
-
-    const route = await resolveOperationRoute(account, {
+    const reserved = await reserveProviderAccountForFulfillment({
         operationId,
-        responseData: operation.responseData,
-        legacyFallback: true
+        beinAccountId: operation.beinAccountId,
+        accountPool,
     });
-    const redis = accountPool.getRedis();
-    let lockAcquired = false;
-
+    if (!reserved) {
+        throw new RetryableRenewalVerificationError(
+            new Error('PROVIDER_ACCOUNT_EXECUTION_UNAVAILABLE')
+        );
+    }
+    const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
+    let attemptRecorded = false;
     try {
-        const lockStartTime = Date.now();
-        while (Date.now() - lockStartTime < FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS) {
-            lockAcquired = await lockAccount(
-                redis,
-                operation.beinAccountId,
-                WORKER_ID,
-                FINAL_CONFIRM_LOCK_TTL_SECONDS,
-                operationId
-            );
-            if (lockAcquired) break;
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        if (!lockAcquired) {
-            throw new Error('Timed out waiting for beIN account lock during review verification');
-        }
-
-        const client = await createOperationClient(account, route);
-        const selectedPackage = operation.selectedPackage as { name?: string; price?: number } | null;
-        const verificationRun = await verifyRenewalContractWithProvider({
-            client,
-            account,
-            route,
-            cardNumber: operation.cardNumber,
-            operationCreatedAt: operation.createdAt,
+        await heartbeat.assertCurrent();
+        const route = await resolveOperationRoute(reserved.account, {
+            operationId,
             responseData: operation.responseData,
-            selectedPackageName: selectedPackage?.name || null,
+            legacyFallback: true,
         });
-        const verification = verificationRun.finalVerification;
-        let responseData = responseDataWithRoute(
-            mergeContractVerificationEvidence(operation.responseData, verificationRun, 'admin_live_check'),
+        const client = await createOperationClient(reserved.account, route);
+        const restored = await restoreOperationSession(
+            operationId,
+            operation.responseData,
+            client,
             route
         );
+        if (!restored || !client.isSessionActive() || !await client.validateSession()) {
+            const loggedIn = await performReLogin(
+                client,
+                reserved.account,
+                route,
+                'renewalFulfillmentReadOnlyRetry',
+                reserved.lease
+            );
+            if (!loggedIn) throw new Error('FULFILLMENT_READ_SESSION_UNAVAILABLE');
+        }
+        await heartbeat.assertCurrent();
 
-        if (verification.outcome !== 'CONTRACT_VERIFIED_SUCCESS') {
-            await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: OperationStatus.REVIEW_REQUIRED
-                },
-                data: {
-                    responseData,
-                    responseMessage: contractVerificationSummary(verification),
+        const providerPaymentState = operation.providerPaymentState ||
+            getStoredProviderPaymentState(operation.responseData) ||
+            'UNKNOWN';
+        const verification = await verifyRenewalFulfillmentWithProvider({
+            operationId,
+            beinAccountId: operation.beinAccountId,
+            cardNumber: operation.cardNumber,
+            selectedPackage: operation.selectedPackage as { name?: string; price?: number } | null,
+            responseData: operation.responseData,
+            finalMutationStartedAt: storedFinalMutationStartedAt(operation),
+            account: reserved.account,
+            route,
+            client,
+            executionLease: reserved.lease,
+            verificationSource: 'WORKER_RETRY',
+            assertExecutionCurrent: heartbeat.assertCurrent,
+        });
+        await heartbeat.assertCurrent();
+        const verificationOutcome = verification.correlation.outcome;
+        const attempt = await recordFulfillmentVerificationAttempt({
+            operationId,
+            baselineId: verification.baselineId,
+            outcome: verificationOutcome,
+            reasonCode: verification.correlation.reasonCode,
+            completeScan: verification.completeScan,
+            pageCount: verification.pageCount,
+            rowCount: verification.rowCount,
+            candidateInvoiceNo: verification.correlation.discoveredInvoiceNo,
+            reportObservedAt: verification.reportObservedAt,
+            contractObservedAt: verification.contractObservedAt,
+            requestedAttemptNo,
+        });
+        attemptRecorded = true;
+        const fulfillmentState = mapVerificationOutcomeToFulfillmentState({
+            outcome: verificationOutcome,
+            proofMode: verification.proofMode,
+            compositeProofClaimed: false,
+        });
+        let effectiveVerificationOutcome = verificationOutcome;
+        let effectiveFulfillmentState = fulfillmentState;
+        let responseData = mergeOperationPhaseData(operation.responseData, {
+            operationPhase: 'POST_FINAL_PAY_REVIEW',
+            jobType: 'VERIFY_RENEWAL_FULFILLMENT',
+            providerPaymentState,
+            fulfillmentState,
+            verificationOutcome,
+            fulfillmentReasonCode: verification.correlation.reasonCode,
+            fulfillmentInvoiceNo: verification.correlation.discoveredInvoiceNo || undefined,
+            fulfillmentProofMode: verification.proofMode,
+            proofKind: 'SOLD_REPORT_CONTRACT_CORRELATION',
+            nextVerificationAt: attempt.retryDueAt?.toISOString() || null,
+        });
+
+        const ledgerAccountMismatch = spendLedgerAccountMismatch(operation);
+        if (ledgerAccountMismatch) {
+            effectiveVerificationOutcome = 'PROOF_CONFLICT';
+            effectiveFulfillmentState = 'PROOF_CONFLICT';
+            await markFulfillmentVerificationAttemptProofConflict({
+                operationId,
+                attemptNo: attempt.attemptNo,
+                reasonCode: 'SPEND_LEDGER_ACCOUNT_MISMATCH',
+            });
+            responseData = mergeOperationPhaseData(responseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'VERIFY_RENEWAL_FULFILLMENT',
+                providerPaymentState,
+                fulfillmentState: effectiveFulfillmentState,
+                verificationOutcome: effectiveVerificationOutcome,
+                fulfillmentReasonCode: 'SPEND_LEDGER_ACCOUNT_MISMATCH',
+            });
+        } else if (verification.proofMode === 'ENFORCE' && verificationOutcome === 'MATCHED') {
+            await heartbeat.assertCurrent();
+            const finalization = await finalizeRenewalFulfillment({
+                operationId,
+                providerPaymentState,
+                verification,
+                verificationAttempt: attempt,
+                reservationGeneration: reserved.reservationGeneration,
+            });
+            if (finalization.status === 'COMPLETED' || finalization.status === 'ALREADY_COMPLETED') {
+                if (finalization.shouldFinalizeSideEffects) {
+                    await finalizeRenewalSideEffects(operationId, accountPool);
                 }
+                return;
+            }
+            if (finalization.status === 'PROOF_CONFLICT') {
+                effectiveVerificationOutcome = 'PROOF_CONFLICT';
+                effectiveFulfillmentState = 'PROOF_CONFLICT';
+                await markFulfillmentVerificationAttemptProofConflict({
+                    operationId,
+                    attemptNo: attempt.attemptNo,
+                    reasonCode: 'DATABASE_PROOF_CLAIM_CONFLICT',
+                });
+                responseData = mergeOperationPhaseData(responseData, {
+                    operationPhase: 'POST_FINAL_PAY_REVIEW',
+                    jobType: 'VERIFY_RENEWAL_FULFILLMENT',
+                    providerPaymentState,
+                    fulfillmentState: effectiveFulfillmentState,
+                    verificationOutcome: effectiveVerificationOutcome,
+                    fulfillmentReasonCode: 'DATABASE_PROOF_CLAIM_CONFLICT',
+                });
+            }
+        }
+
+        const terminalDecision = decideRenewalTerminalState({
+            providerPaymentState,
+            fulfillmentState: effectiveFulfillmentState,
+            fulfillmentAuthority: 'NONE',
+            proofKind: 'SOLD_REPORT_CONTRACT_CORRELATION',
+            verificationOutcome: effectiveVerificationOutcome,
+        });
+        if (attempt.retryDueAt && effectiveVerificationOutcome !== 'PROOF_CONFLICT') {
+            await persistRenewalFulfillmentState({
+                operationId,
+                providerPaymentState,
+                fulfillmentState: effectiveFulfillmentState,
+                verificationOutcome: effectiveVerificationOutcome,
+                status: 'REVIEW_REQUIRED',
+                responseData,
+                responseMessage: 'Fulfillment evidence is not visible yet; another read-only check is scheduled.',
             });
-            await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
-                console.error(`[HTTP] Failed to mark account used after live review check for ${operationId}: ${getErrMsg(e)}`);
+            await scheduleRenewalFulfillmentVerification({
+                operationId,
+                cardNumber: operation.cardNumber,
+                attemptNo: attempt.attemptNo,
+                retryDueAt: attempt.retryDueAt,
+                accountPool,
             });
-            console.log(`[HTTP] Live review verification kept ${operationId} in REVIEW_REQUIRED: ${verification.outcome}`);
             return;
         }
 
-        const verifiedSpendAmount = operation.amount ?? toNullableNumber(selectedPackage?.price);
-        const ledgerResult = operation.userId
-            ? await recordConfirmedBeinSpend({
+        if (
+            terminalDecision.decision === 'FAIL_AND_REFUND' &&
+            providerPaymentState === 'NOT_CHARGED' &&
+            effectiveFulfillmentState === 'NOT_FOUND' &&
+            effectiveVerificationOutcome === 'VALID_NO_MATCH'
+        ) {
+            const noChargeFinalization = await finalizeRenewalNoChargeFailure({
+                operationId,
+                responseData,
+                responseMessage: 'Provider rejected payment and complete verification found no fulfilled package.',
+                expected: attempt,
+                refundReason: 'Provider rejected payment and complete verification found no fulfilled package.',
+            });
+            if (noChargeFinalization.status === 'EVIDENCE_CONFLICT') {
+                await persistRenewalFulfillmentState({
+                    operationId,
+                    providerPaymentState,
+                    fulfillmentState: 'PROOF_CONFLICT',
+                    verificationOutcome: 'PROOF_CONFLICT',
+                    status: 'REVIEW_REQUIRED',
+                    responseData,
+                    responseMessage: `Atomic no-charge finalization conflict: ${noChargeFinalization.reason}`,
+                });
+            }
+            return;
+        }
+
+        await persistRenewalFulfillmentState({
+            operationId,
+            providerPaymentState,
+            fulfillmentState: effectiveFulfillmentState,
+            verificationOutcome: effectiveVerificationOutcome,
+            status: 'REVIEW_REQUIRED',
+            responseData,
+            responseMessage: verification.proofMode === 'REVIEW_ONLY'
+                ? 'Fulfillment candidate recorded in review-only mode.'
+                : 'Unique fulfillment proof was not established. Manual review required.',
+        });
+        if (ledgerAccountMismatch || effectiveVerificationOutcome === 'PROOF_CONFLICT') {
+            await upsertRenewalFulfillmentSafetyIssue({
                 operationId,
                 userId: operation.userId,
                 beinAccountId: operation.beinAccountId,
-                dealerBalanceBefore: null,
-                dealerBalanceAfter: null,
-                evidenceSource: 'CONTRACT_VERIFIED',
-                confirmedSpendAmount: verifiedSpendAmount,
-            })
-            : null;
-        if (ledgerResult?.status === 'conflict_review_required') {
-            console.warn(`[HTTP] beIN review contract ledger conflict for ${operationId}: ${ledgerResult.reason}`);
-        }
-
-        const auditSnapshot = await buildOperationAuditSnapshot({
-            operationId,
-            userId: operation.userId || null,
-            beinAccountId: operation.beinAccountId,
-            beinUsername: account.username,
-            beinBalanceBefore: null,
-            beinBalanceAfter: null,
-            providerEvidenceState: 'contract-verified',
-            outcomeCategory: 'CONFIRMED_SUCCESS',
-            reviewReason: ledgerResultReviewReason(ledgerResult),
-            reviewSource: ledgerResultBlocksCompletion(ledgerResult) ? 'admin-review-contract-ledger' : undefined,
-            refundBlocked: ledgerResultBlocksCompletion(ledgerResult) ? true : undefined,
-            chargedBeinLedgerId: ledgerResultId(ledgerResult)
-        });
-        responseData = mergeOperationAuditSnapshot(responseData, auditSnapshot);
-
-        if (ledgerResultBlocksCompletion(ledgerResult)) {
-            await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: OperationStatus.REVIEW_REQUIRED
+                operationAmount: operation.amount,
+                issueType: 'FULFILLMENT_PROOF_CONFLICT',
+                details: {
+                    source: 'worker_verification_retry',
+                    verificationOutcome: effectiveVerificationOutcome,
+                    reasonCode: ledgerAccountMismatch
+                        ? 'SPEND_LEDGER_ACCOUNT_MISMATCH'
+                        : 'DATABASE_PROOF_CLAIM_CONFLICT',
                 },
-                data: {
-                    responseData,
-                    responseMessage: ledgerResultReviewReason(ledgerResult) || 'Contract verified but beIN spend ledger could not be recorded. Manual review required.',
-                }
             });
-            await accountPool.markAccountUsed(operation.beinAccountId, operationId).catch((e: unknown) => {
-                console.error(`[HTTP] Failed to mark account used after live review ledger conflict for ${operationId}: ${getErrMsg(e)}`);
-            });
-            return;
         }
-
-        const liveReviewCompletedAt = new Date();
-        const completed = await prisma.$transaction(async (tx) => {
-            const update = await tx.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: OperationStatus.REVIEW_REQUIRED
-                },
-                data: {
-                    status: OperationStatus.COMPLETED,
-                    completedAt: liveReviewCompletedAt,
-                    responseMessage: 'Financial review closed: beIN contract verified live.',
-                    responseData,
-                }
-            });
-            if (update.count > 0) {
-                await captureOperationSpendAwardRunInTransaction(
-                    tx,
-                    operationId,
-                    'WORKER_LIVE_REVIEW',
-                    liveReviewCompletedAt
-                );
-            }
-            return update;
-        });
-        if (completed.count === 0) {
-            console.warn(`[HTTP] Live review verification completion skipped for ${operationId}; status changed`);
-            return;
-        }
-
-        await awardCompletedOperationPointsSafely(operationId);
-        await accountPool.markAccountUsed(operation.beinAccountId, operationId);
-
-        if (operation.userId) {
-            await trackOperationComplete(
-                operation.userId,
+        if (providerPaymentState === 'CHARGED') {
+            await upsertRenewalFulfillmentSafetyIssue({
                 operationId,
-                'RENEW',
-                operation.amount,
+                userId: operation.userId,
+                beinAccountId: operation.beinAccountId,
+                operationAmount: operation.amount,
+                issueType: 'PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED',
+                details: {
+                    source: 'worker_verification_retry',
+                    verificationOutcome: effectiveVerificationOutcome,
+                    reasonCode: verification.correlation.reasonCode,
+                },
+            });
+        }
+    } catch (error: unknown) {
+        if (!attemptRecorded) {
+            if (!isTransientRenewalVerificationError(error)) {
+                console.warn('[HTTP] Retrying unclassified read-only fulfillment failure: ' + getErrMsg(error));
+            }
+            throw new RetryableRenewalVerificationError(error);
+        }
+        throw error;
+    } finally {
+        heartbeat.stop();
+        await accountPool.releaseExecutionLease(reserved.lease).catch(() => undefined);
+    }
+}
+
+/**
+ * VERIFY_REVIEW_CARD - Live composite fulfillment check for financial review
+ */
+async function handleVerifyReviewCardHttp(
+    operationId: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: {
+            id: true,
+            userId: true,
+            beinAccountId: true,
+            cardNumber: true,
+            amount: true,
+            selectedPackage: true,
+            responseData: true,
+            status: true,
+            providerMutationStartedAt: true,
+            providerPaymentState: true,
+            chargedBeinSpendLedger: { select: { beinAccountId: true } },
+        },
+    });
+    if (
+        !operation?.beinAccountId ||
+        operation.status !== OperationStatus.REVIEW_REQUIRED ||
+        !hasReviewFinalPaymentEvidence(operation.responseData)
+    ) return;
+
+    // Admin live verification still requires the active non-superseded causal baseline.
+    const activeBaseline = await getActiveRenewalFulfillmentBaseline(operationId);
+    if (
+        !activeBaseline ||
+        activeBaseline.activeBaseline.supersededAt !== null ||
+        activeBaseline.activeBaseline.beinAccountId !== operation.beinAccountId
+    ) {
+        await persistRenewalFulfillmentState({
+            operationId,
+            providerPaymentState: operation.providerPaymentState || 'UNKNOWN',
+            fulfillmentState: 'CHECK_FAILED',
+            verificationOutcome: 'INCOMPLETE_SCAN',
+            status: 'REVIEW_REQUIRED',
+            responseData: mergeOperationPhaseData(operation.responseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'VERIFY_REVIEW_CARD',
+                providerPaymentState: operation.providerPaymentState || 'UNKNOWN',
+                fulfillmentState: 'CHECK_FAILED',
+                verificationOutcome: 'INCOMPLETE_SCAN',
+                fulfillmentReasonCode: 'MISSING_NON_SUPERSEDED_BASELINE',
+            }),
+            responseMessage: 'A valid causal baseline is unavailable; live verification cannot complete the operation.',
+        });
+        return;
+    }
+
+    const reserved = await reserveProviderAccountForFulfillment({
+        operationId,
+        beinAccountId: operation.beinAccountId,
+        accountPool,
+    });
+    if (!reserved) throw new Error('PROVIDER_ACCOUNT_EXECUTION_UNAVAILABLE');
+    const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
+    try {
+        await heartbeat.assertCurrent();
+        const route = await resolveOperationRoute(reserved.account, {
+            operationId,
+            responseData: operation.responseData,
+            legacyFallback: true,
+        });
+        const client = await createOperationClient(reserved.account, route);
+        const restored = await restoreOperationSession(
+            operationId,
+            operation.responseData,
+            client,
+            route
+        );
+        if (!restored || !client.isSessionActive() || !await client.validateSession()) {
+            const loggedIn = await performReLogin(
+                client,
+                reserved.account,
+                route,
+                'adminCompositeFulfillmentRead',
+                reserved.lease
+            );
+            if (!loggedIn) throw new Error('ADMIN_FULFILLMENT_READ_SESSION_UNAVAILABLE');
+        }
+        await heartbeat.assertCurrent();
+
+        const providerPaymentState = operation.providerPaymentState ||
+            getStoredProviderPaymentState(operation.responseData) ||
+            'UNKNOWN';
+        const verification = await verifyRenewalFulfillmentWithProvider({
+            operationId,
+            beinAccountId: operation.beinAccountId,
+            cardNumber: operation.cardNumber,
+            selectedPackage: operation.selectedPackage as { name?: string; price?: number } | null,
+            responseData: operation.responseData,
+            finalMutationStartedAt: storedFinalMutationStartedAt(operation),
+            account: reserved.account,
+            route,
+            client,
+            executionLease: reserved.lease,
+            verificationSource: 'ADMIN_LIVE_CHECK',
+            assertExecutionCurrent: heartbeat.assertCurrent,
+        });
+        await heartbeat.assertCurrent();
+        const verificationOutcome = verification.correlation.outcome;
+        const fulfillmentProofMode = verification.proofMode;
+        const attempt = await recordFulfillmentVerificationAttempt({
+            operationId,
+            baselineId: verification.baselineId,
+            outcome: verificationOutcome,
+            reasonCode: verification.correlation.reasonCode,
+            completeScan: verification.completeScan,
+            pageCount: verification.pageCount,
+            rowCount: verification.rowCount,
+            candidateInvoiceNo: verification.correlation.discoveredInvoiceNo,
+            reportObservedAt: verification.reportObservedAt,
+            contractObservedAt: verification.contractObservedAt,
+        });
+        const fulfillmentState = mapVerificationOutcomeToFulfillmentState({
+            outcome: verificationOutcome,
+            proofMode: fulfillmentProofMode,
+            compositeProofClaimed: false,
+        });
+        let effectiveVerificationOutcome = verificationOutcome;
+        let effectiveFulfillmentState = fulfillmentState;
+        let responseData = mergeOperationPhaseData(operation.responseData, {
+            operationPhase: 'POST_FINAL_PAY_REVIEW',
+            jobType: 'VERIFY_REVIEW_CARD',
+            providerPaymentState,
+            fulfillmentState,
+            verificationOutcome,
+            fulfillmentReasonCode: verification.correlation.reasonCode,
+            fulfillmentInvoiceNo: verification.correlation.discoveredInvoiceNo || undefined,
+            fulfillmentProofMode,
+            proofKind: 'SOLD_REPORT_CONTRACT_CORRELATION',
+            nextVerificationAt: attempt.retryDueAt?.toISOString() || null,
+        });
+
+        const ledgerAccountMismatch = spendLedgerAccountMismatch(operation);
+        if (ledgerAccountMismatch) {
+            effectiveVerificationOutcome = 'PROOF_CONFLICT';
+            effectiveFulfillmentState = 'PROOF_CONFLICT';
+            await markFulfillmentVerificationAttemptProofConflict({
+                operationId,
+                attemptNo: attempt.attemptNo,
+                reasonCode: 'SPEND_LEDGER_ACCOUNT_MISMATCH',
+            });
+            responseData = mergeOperationPhaseData(responseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW',
+                jobType: 'VERIFY_REVIEW_CARD',
+                providerPaymentState,
+                fulfillmentState: effectiveFulfillmentState,
+                verificationOutcome: effectiveVerificationOutcome,
+                fulfillmentReasonCode: 'SPEND_LEDGER_ACCOUNT_MISMATCH',
+            });
+        } else if (fulfillmentProofMode === 'ENFORCE' && verificationOutcome === 'MATCHED') {
+            await heartbeat.assertCurrent();
+            const finalization = await finalizeRenewalFulfillment({
+                operationId,
+                providerPaymentState,
+                verification,
+                verificationAttempt: attempt,
+                reservationGeneration: reserved.reservationGeneration,
+            });
+            if (finalization.status === 'COMPLETED' || finalization.status === 'ALREADY_COMPLETED') {
+                if (finalization.shouldFinalizeSideEffects) {
+                    await finalizeRenewalSideEffects(operationId, accountPool);
+                }
+                return;
+            }
+            if (finalization.status === 'PROOF_CONFLICT') {
+                effectiveVerificationOutcome = 'PROOF_CONFLICT';
+                effectiveFulfillmentState = 'PROOF_CONFLICT';
+                await markFulfillmentVerificationAttemptProofConflict({
+                    operationId,
+                    attemptNo: attempt.attemptNo,
+                    reasonCode: 'DATABASE_PROOF_CLAIM_CONFLICT',
+                });
+                responseData = mergeOperationPhaseData(responseData, {
+                    operationPhase: 'POST_FINAL_PAY_REVIEW',
+                    jobType: 'VERIFY_REVIEW_CARD',
+                    providerPaymentState,
+                    fulfillmentState: effectiveFulfillmentState,
+                    verificationOutcome: effectiveVerificationOutcome,
+                    fulfillmentReasonCode: 'DATABASE_PROOF_CLAIM_CONFLICT',
+                });
+            }
+        }
+
+        await persistRenewalFulfillmentState({
+            operationId,
+            providerPaymentState,
+            fulfillmentState: effectiveFulfillmentState,
+            verificationOutcome: effectiveVerificationOutcome,
+            status: 'REVIEW_REQUIRED',
+            responseData,
+            responseMessage: fulfillmentProofMode === 'REVIEW_ONLY' && verificationOutcome === 'MATCHED'
+                ? 'Composite fulfillment candidate recorded; rollout mode requires manual review.'
+                : 'Live composite verification did not establish authoritative fulfillment.',
+        });
+        if (ledgerAccountMismatch || effectiveVerificationOutcome === 'PROOF_CONFLICT') {
+            await upsertRenewalFulfillmentSafetyIssue({
+                operationId,
+                userId: operation.userId,
+                beinAccountId: operation.beinAccountId,
+                operationAmount: operation.amount,
+                issueType: 'FULFILLMENT_PROOF_CONFLICT',
+                details: {
+                    source: 'admin_live_verification',
+                    verificationOutcome: effectiveVerificationOutcome,
+                    reasonCode: ledgerAccountMismatch
+                        ? 'SPEND_LEDGER_ACCOUNT_MISMATCH'
+                        : 'DATABASE_PROOF_CLAIM_CONFLICT',
+                },
+            });
+        }
+    } finally {
+        heartbeat.stop();
+        await accountPool.releaseExecutionLease(reserved.lease).catch(() => undefined);
+    }
+}
+
+type SelectedRenewalPackage = {
+    index: number;
+    name: string;
+    price: number;
+    checkboxSelector?: string;
+    checkboxValue?: string;
+};
+
+type ReservedProviderExecution = {
+    account: OperationBeinAccount;
+    reservationGeneration: number;
+    sessionGeneration: string;
+    lease: AccountExecutionLeaseHandle;
+};
+
+type RenewalVerificationResult = {
+    correlation: RenewalFulfillmentCorrelationResult;
+    proofMode: FulfillmentProofMode;
+    proofCandidate: FulfillmentProofCandidate | null;
+    baselineId: string | null;
+    completeScan: boolean;
+    pageCount: number;
+    rowCount: number;
+    reportObservedAt: Date | null;
+    contractObservedAt: Date | null;
+};
+
+function canonicalMoney(value: number): string {
+    return value.toFixed(2);
+}
+
+function rematchSelectedPackage(
+    packages: readonly AvailablePackage[],
+    selectedPackage: SelectedRenewalPackage
+): AvailablePackage {
+    return matchFreshPackage(packages, selectedPackage);
+}
+
+function providerMutationMayHaveStarted(responseData: unknown): boolean {
+    const phase = getOperationPhase(responseData);
+    const data = parseResponseDataObject(responseData);
+    return data.providerMutationMayHaveStarted === true ||
+        phase === 'PROVIDER_SALE_PREPARATION_STARTED' ||
+        phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
+        phase === 'FINAL_PAY_REQUEST_STARTED' ||
+        phase === 'FINAL_PAY_SUBMITTED' ||
+        phase === 'POST_FINAL_PAY_REVIEW';
+}
+
+async function reserveProviderAccountForFulfillment(input: {
+    operationId: string;
+    beinAccountId: string;
+    accountPool: AccountPoolManager;
+    consumer?: ProviderAccountConsumer;
+}): Promise<ReservedProviderExecution | null> {
+    const account = await prisma.beinAccount.findUnique({
+        where: { id: input.beinAccountId },
+        include: { proxy: true },
+    });
+    if (!account?.isActive || !account.automationExclusive) return null;
+
+    const claim = await prisma.$transaction((tx) =>
+        acquireProviderAccountCausalReservation(tx, {
+            operationId: input.operationId,
+            beinAccountId: input.beinAccountId,
+            automaticWindowEndsAt: new Date(Date.now() + 10 * 60_000),
+        })
+    );
+    if (claim.status !== 'ACQUIRED' && claim.status !== 'ALREADY_HELD') return null;
+
+    const compensateNewProviderReservation = async (): Promise<void> => {
+        if (claim.status === 'ACQUIRED') {
+            await releaseProviderAccountReservation({
+                operationId: input.operationId,
+                beinAccountId: input.beinAccountId,
+                reservationGeneration: claim.reservation.reservationGeneration,
+            });
+        }
+    };
+    let lease: AccountExecutionLeaseHandle | null = null;
+    let executionReady = false;
+    try {
+        const legacyLockStatus = await getAccountLockStatus(
+            input.accountPool.getRedis(),
+            input.beinAccountId
+        );
+        if (legacyLockStatus.locked) {
+            if (
+                legacyLockStatus.ownerOperationId !== input.operationId ||
+                (legacyLockStatus.ownerWorkerId !== input.accountPool.getWorkerId() && !legacyLockStatus.handoffReady) ||
+                !legacyLockStatus.rawOwner
+            ) {
+                return null;
+            }
+            lease = await transitionAccountLockToExecutionLease(
+                input.accountPool.getRedis(),
                 {
-                    packageName: selectedPackage?.name,
-                    beinAccountId: operation.beinAccountId,
-                    beinUsernameSnapshot: auditSnapshot.beinUsername,
-                    beinBalanceBefore: auditSnapshot.beinBalanceBefore,
-                    beinBalanceAfter: auditSnapshot.beinBalanceAfter,
-                    userBalanceBefore: auditSnapshot.userBalanceBefore,
-                    userBalanceAfter: auditSnapshot.userBalanceAfter
+                    accountId: input.beinAccountId,
+                    operationId: input.operationId,
+                    reservationGeneration: claim.reservation.reservationGeneration,
+                    leaseId: randomUUID(),
+                    workerId: input.accountPool.getWorkerId(),
+                    expectedLegacyOwner: legacyLockStatus.rawOwner,
                 }
             );
+            if (!lease) return null;
         }
-
-        if (operation.userId) {
-            await createNotification({
-                userId: operation.userId,
-                title: 'Renewal successful',
-                message: `${selectedPackage?.name || 'Package'} - beIN contract verified`,
-                type: 'success',
-                link: '/dashboard/history'
+        const leaseDeadline = Date.now() + FINAL_CONFIRM_LOCK_WAIT_TIMEOUT_MS;
+        while (!lease && Date.now() < leaseDeadline) {
+            lease = await acquireAccountExecutionLease(input.accountPool.getRedis(), {
+                accountId: input.beinAccountId,
+                operationId: input.operationId,
+                reservationGeneration: claim.reservation.reservationGeneration,
+                leaseId: randomUUID(),
+                workerId: input.accountPool.getWorkerId(),
             });
+            if (!lease) await delay(250);
         }
+        if (!lease) return null;
 
-        console.log(`[HTTP] Live review verification completed ${operationId} by contract evidence`);
+        const reservationActive = await assertActiveProviderAccountReservation(prisma, {
+            operationId: input.operationId,
+            beinAccountId: input.beinAccountId,
+            reservationGeneration: claim.reservation.reservationGeneration,
+        });
+        if (!reservationActive) return null;
+        const accessDecision = decideProviderAccountConsumerAccess({
+            consumer: input.consumer ?? 'RENEWAL',
+            activeReservation: {
+                operationId: claim.reservation.operationId,
+                reservationGeneration: claim.reservation.reservationGeneration,
+            },
+            requester: {
+                operationId: input.operationId,
+                reservationGeneration: claim.reservation.reservationGeneration,
+                exactExecutionLease: true,
+            },
+        });
+        if (!accessDecision.allowed) return null;
+
+        executionReady = true;
+        return {
+            account: decryptAccountPassword(account),
+            reservationGeneration: claim.reservation.reservationGeneration,
+            sessionGeneration: String(claim.reservation.reservationGeneration),
+            lease,
+        };
     } finally {
-        if (lockAcquired) {
-            try {
-                await unlockAccount(redis, operation.beinAccountId, WORKER_ID, operationId);
-                console.log(`[HTTP] Account lock released after live review verification: ${operation.beinAccountId}`);
-            } catch (releaseError: unknown) {
-                console.error(`[HTTP] Failed to release live review verification account lock: ${getErrMsg(releaseError)}`);
+        if (!executionReady) {
+            if (lease) {
+                await input.accountPool.releaseExecutionLease(lease).catch(() => undefined);
             }
+            await compensateNewProviderReservation();
         }
+    }
+}
+
+async function releaseProviderAccountReservation(input: {
+    operationId: string;
+    beinAccountId: string;
+    reservationGeneration: number;
+}): Promise<boolean> {
+    return releaseProviderAccountCausalReservation(prisma, {
+        operationId: input.operationId,
+        beinAccountId: input.beinAccountId,
+        reservationGeneration: input.reservationGeneration,
+        authority: {
+            kind: 'AUDITED_QUARANTINE_TRANSFER',
+            auditId: `pre-mutation-failover:${input.operationId}:${input.reservationGeneration}`,
+        },
+    });
+}
+
+function startExecutionLeaseHeartbeat(
+    accountPool: AccountPoolManager,
+    lease: AccountExecutionLeaseHandle
+): { assertCurrent: () => Promise<void>; stop: () => void } {
+    let current = true;
+    const timer = setInterval(() => {
+        accountPool.renewExecutionLease(lease)
+            .then((renewed) => { current = current && renewed; })
+            .catch(() => { current = false; });
+    }, 30_000);
+    timer.unref();
+    return {
+        assertCurrent: async () => {
+            if (!current || !await accountPool.assertExecutionLease(lease)) {
+                throw new Error('PROVIDER_EXECUTION_LEASE_LOST');
+            }
+        },
+        stop: () => clearInterval(timer),
+    };
+}
+
+function baselineInvoices(value: Prisma.JsonValue): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((invoice): invoice is string => typeof invoice === 'string');
+}
+
+function unavailableCorrelation(
+    outcome: 'INCOMPLETE_SCAN' | 'CHECK_FAILED' | 'PROOF_CONFLICT',
+    reasonCode: string
+): RenewalFulfillmentCorrelationResult {
+    return {
+        outcome,
+        reasonCode,
+        discoveredInvoiceNo: null,
+        reportRow: null,
+        matchedContract: null,
+    };
+}
+
+async function verifyRenewalFulfillmentWithProvider(input: {
+    operationId: string;
+    beinAccountId: string;
+    cardNumber: string;
+    selectedPackage: { name?: string; price?: number } | null;
+    responseData: unknown;
+    finalMutationStartedAt: Date | null;
+    account: OperationBeinAccount;
+    route: EffectiveBeinRoute;
+    client: HttpClientService;
+    executionLease: AccountExecutionLeaseHandle;
+    verificationSource: FulfillmentProofCandidate['verificationSource'];
+    assertExecutionCurrent: () => Promise<void>;
+}): Promise<RenewalVerificationResult> {
+    const config = await getRenewalFulfillmentConfig();
+    const active = await getActiveRenewalFulfillmentBaseline(input.operationId);
+    if (!active || active.activeBaseline.beinAccountId !== input.beinAccountId) {
+        return {
+            correlation: unavailableCorrelation('INCOMPLETE_SCAN', 'MISSING_ACTIVE_BASELINE'),
+            proofMode: config.proofMode,
+            proofCandidate: null,
+            baselineId: null,
+            completeScan: false,
+            pageCount: 0,
+            rowCount: 0,
+            reportObservedAt: null,
+            contractObservedAt: null,
+        };
+    }
+    if (!input.finalMutationStartedAt || !input.selectedPackage?.name || input.selectedPackage.price === undefined) {
+        return {
+            correlation: unavailableCorrelation('PROOF_CONFLICT', 'MISSING_MUTATION_OR_PACKAGE_CONTEXT'),
+            proofMode: config.proofMode,
+            proofCandidate: null,
+            baselineId: active.activeBaseline.id,
+            completeScan: false,
+            pageCount: 0,
+            rowCount: 0,
+            reportObservedAt: null,
+            contractObservedAt: null,
+        };
+    }
+
+    let reportObservedAt: Date;
+    let report: Awaited<ReturnType<HttpClientService['scanSoldPackagesReport']>>;
+    try {
+        report = await input.client.scanSoldPackagesReport({
+            pageCap: config.reportPageCap,
+            scanAttempts: config.reportScanAttempts,
+        });
+        reportObservedAt = new Date();
+    } catch {
+        reportObservedAt = new Date();
+        return {
+            correlation: unavailableCorrelation('CHECK_FAILED', 'SOLD_REPORT_CHECK_FAILED'),
+            proofMode: config.proofMode,
+            proofCandidate: null,
+            baselineId: active.activeBaseline.id,
+            completeScan: false,
+            pageCount: 0,
+            rowCount: 0,
+            reportObservedAt,
+            contractObservedAt: null,
+        };
+    }
+    await input.assertExecutionCurrent();
+    let contractObservedAt: Date;
+    let contractCheck: Awaited<ReturnType<HttpClientService['checkCardForSignal']>>;
+    try {
+        contractCheck = await withSessionRetry(
+            input.client,
+            input.account,
+            input.route,
+            () => input.client.checkCardForSignal(input.cardNumber),
+            'renewalFulfillmentContractRead',
+            input.executionLease
+        );
+        contractObservedAt = new Date();
+    } catch {
+        contractObservedAt = new Date();
+        return {
+            correlation: unavailableCorrelation('CHECK_FAILED', 'CONTRACT_CHECK_FAILED'),
+            proofMode: config.proofMode,
+            proofCandidate: null,
+            baselineId: active.activeBaseline.id,
+            completeScan: false,
+            pageCount: report.pageCount,
+            rowCount: report.rows.length,
+            reportObservedAt,
+            contractObservedAt,
+        };
+    }
+    await input.assertExecutionCurrent();
+    const dealerContextHash = report.dealerContextHash || '';
+    const smartcardType = typeof parseResponseDataObject(input.responseData).smartcardType === 'string'
+        ? String(parseResponseDataObject(input.responseData).smartcardType).toUpperCase()
+        : 'CISCO';
+    const correlation = correlateRenewalFulfillment({
+        baseline: {
+            outcome: 'COMPLETE',
+            invoiceNos: baselineInvoices(active.activeBaseline.invoiceSet),
+            dealerContextHash: active.activeBaseline.dealerContextHash,
+            capturedAt: active.activeBaseline.capturedAt.toISOString(),
+        },
+        postReport: {
+            outcome: report.outcome,
+            rows: report.rows,
+            dealerContextHash,
+            observedAt: reportObservedAt.toISOString(),
+        },
+        contractCheck: {
+            outcome: contractCheck.success ? 'COMPLETE' : 'CHECK_FAILED',
+            contracts: contractCheck.contracts || [],
+            observedAt: contractObservedAt.toISOString(),
+        },
+        target: {
+            cardNumber: input.cardNumber,
+            itemType: `Card_${smartcardType}`,
+            selectedPackageName: input.selectedPackage.name,
+            providerAmount: canonicalMoney(input.selectedPackage.price),
+            currency: 'USD',
+            finalMutationStartedAt: input.finalMutationStartedAt.toISOString(),
+        },
+    });
+    const proofCandidate = correlation.outcome === 'MATCHED' && correlation.reportRow && correlation.matchedContract
+        ? {
+            operationId: input.operationId,
+            beinAccountId: input.beinAccountId,
+            cardNumberSnapshot: input.cardNumber,
+            invoiceNo: correlation.discoveredInvoiceNo,
+            proofKind: 'SOLD_REPORT_CONTRACT_CORRELATION' as const,
+            selectedPackageName: input.selectedPackage.name,
+            contractPackageName: correlation.matchedContract.package,
+            contractStatus: correlation.matchedContract.status,
+            contractType: correlation.matchedContract.type,
+            contractStartDate: correlation.matchedContract.startDate,
+            contractExpiryDate: correlation.matchedContract.expiryDate,
+            verificationSource: input.verificationSource,
+            providerCheckedAt: contractObservedAt,
+            baselineId: active.activeBaseline.id,
+            sessionGeneration: active.activeBaseline.sessionGeneration,
+            baselineCapturedAt: active.activeBaseline.capturedAt,
+            reportObservedAt,
+            contractObservedAt,
+            reportRowFingerprint: correlation.reportRow.rowFingerprint,
+            providerAmount: correlation.reportRow.providerAmount,
+            currency: correlation.reportRow.currency,
+            reportPackageName: correlation.reportRow.packageName,
+            reportItemType: correlation.reportRow.itemType,
+            dealerContextHash,
+        }
+        : null;
+
+    return {
+        correlation,
+        proofMode: config.proofMode,
+        proofCandidate,
+        baselineId: active.activeBaseline.id,
+        completeScan: report.outcome === 'COMPLETE' && contractCheck.success,
+        pageCount: report.pageCount,
+        rowCount: report.rows.length,
+        reportObservedAt,
+        contractObservedAt,
+    };
+}
+
+async function finalizeRenewalFulfillment(input: {
+    operationId: string;
+    providerPaymentState: ProviderPaymentState;
+    verification: RenewalVerificationResult;
+    verificationAttempt: { attemptId: string; attemptNo: number };
+    reservationGeneration: number;
+}) {
+    const { proofCandidate, baselineId } = input.verification;
+    if (!proofCandidate || !baselineId) {
+        return { status: 'REVIEW_REQUIRED' as const, shouldFinalizeSideEffects: false };
+    }
+    return finalizeAutomatedRenewalFulfillment({
+        operationId: input.operationId,
+        providerPaymentState: input.providerPaymentState,
+        verificationOutcome: input.verification.correlation.outcome,
+        proofMode: input.verification.proofMode,
+        verificationAttemptId: input.verificationAttempt.attemptId,
+        verificationAttemptNo: input.verificationAttempt.attemptNo,
+        baselineId,
+        reservationGeneration: input.reservationGeneration,
+        proofCandidate,
+    });
+}
+
+async function scheduleRenewalFulfillmentVerification(input: {
+    operationId: string;
+    cardNumber: string;
+    attemptNo: number;
+    retryDueAt: Date | null;
+    accountPool: AccountPoolManager;
+}): Promise<void> {
+    if (!input.retryDueAt) return;
+    const delayMs = Math.max(0, input.retryDueAt.getTime() - Date.now());
+    const queue = new Queue<OperationJobData>('operations', {
+        connection: input.accountPool.getRedis() as never,
+    });
+    try {
+        await queue.add('process-operation', {
+            operationId: input.operationId,
+            type: 'VERIFY_RENEWAL_FULFILLMENT',
+            cardNumber: input.cardNumber,
+            verificationAttempt: input.attemptNo + 1,
+        }, {
+            jobId: `VERIFY_RENEWAL_FULFILLMENT--${input.operationId}--${input.attemptNo + 1}`,
+            delay: delayMs,
+            attempts: 4,
+            backoff: { type: 'exponential', delay: 1_000 },
+            removeOnComplete: 100,
+            removeOnFail: 1000,
+        });
+    } finally {
+        await queue.close();
+    }
+}
+
+function storedFinalMutationStartedAt(operation: {
+    providerMutationStartedAt: Date | null;
+    responseData: unknown;
+}): Date | null {
+    if (operation.providerMutationStartedAt) return operation.providerMutationStartedAt;
+    const data = parseResponseDataObject(operation.responseData);
+    const candidate = data.finalProviderMutationStartedAt ??
+        data.finalPayRequestStartedAt ??
+        data.finalPaySubmittedAt;
+    if (typeof candidate !== 'string') return null;
+    const parsed = new Date(candidate);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+async function releaseSafeTerminalReservations(
+    operationId: string,
+    reasonCode: string
+): Promise<void> {
+    const releasedAt = new Date();
+    const releaseReason = ('SAFE_TERMINAL:' + reasonCode).slice(0, 500);
+    await prisma.$transaction(async (tx) => {
+        await tx.cardLifecycleReservation.updateMany({
+            where: { operationId, releasedAt: null },
+            data: { releasedAt, releaseReason },
+        });
+        await tx.providerAccountCausalReservation.updateMany({
+            where: { operationId, releasedAt: null },
+            data: { releasedAt, releaseReason },
+        });
+    });
+}
+
+async function finalizeRenewalSideEffects(
+    operationId: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
+    const operation = await prisma.operation.findUnique({
+        where: { id: operationId },
+        select: {
+            userId: true,
+            amount: true,
+            cardNumber: true,
+            selectedPackage: true,
+            beinAccountId: true,
+            responseData: true,
+            beinAccount: { select: { username: true } },
+        },
+    });
+    if (!operation?.beinAccountId) return;
+
+    await resolveRenewalFulfillmentSafetyIssues(operationId);
+    await awardCompletedOperationPointsSafely(operationId);
+    await invalidatePackageCache(operation.cardNumber);
+    await deleteOperationSessionFromCache(operationId);
+    await accountPool.markAccountUsed(operation.beinAccountId, operationId, { durableCompletionCounters: Boolean(operation.userId) });
+
+    const audit = parseResponseDataObject(
+        parseResponseDataObject(operation.responseData).auditSnapshot
+    );
+    if (operation.userId) {
+        await deliverCompletionEffects(prisma, { operationId });
+        await detectAndRecordOperationIntegrity({
+            operationId,
+            beinBalanceBefore: toNullableNumber(audit.beinBalanceBefore) ?? undefined,
+            beinBalanceAfter: toNullableNumber(audit.beinBalanceAfter) ?? undefined,
+            beinUsernameSnapshot: typeof audit.beinUsername === 'string'
+                ? audit.beinUsername
+                : operation.beinAccount?.username,
+            userBalanceBefore: toNullableNumber(audit.userBalanceBefore) ?? undefined,
+            userBalanceAfter: toNullableNumber(audit.userBalanceAfter) ?? undefined,
+        });
     }
 }
 
@@ -3366,7 +4087,8 @@ async function handleCancelConfirmHttp(
             beinAccountId: true,
             amount: true,
             status: true,
-            responseData: true
+            responseData: true,
+            providerMutationStartedAt: true,
         }
     });
 
@@ -3384,11 +4106,19 @@ async function handleCancelConfirmHttp(
         operation.status === OperationStatus.COMPLETING &&
         getOperationPhase(operation.responseData) === 'CANCELLATION_CONFIRM';
 
-    if (hasFinalPaymentStarted(operation.status, operation.responseData)) {
+    if (
+        operation.providerMutationStartedAt ||
+        hasFinalPaymentStarted(operation.status, operation.responseData)
+    ) {
         await prisma.operation.updateMany({
             where: {
                 id: operationId,
-                status: OperationStatus.COMPLETING
+                status: {
+                    in: [
+                        OperationStatus.AWAITING_FINAL_CONFIRM,
+                        OperationStatus.COMPLETING,
+                    ],
+                },
             },
             data: {
                 status: OperationStatus.REVIEW_REQUIRED,
@@ -3422,57 +4152,58 @@ async function handleCancelConfirmHttp(
         return;
     }
 
-    // Click Cancel if account available
+    // Click Cancel only while the exact causal owner holds a fenced execution lease.
     if (operation.beinAccountId) {
-        try {
-            const account = await prisma.beinAccount.findUnique({
-                where: { id: operation.beinAccountId },
-                include: { proxy: true }  // Include proxy for HTTP client
-            }).then(a => a ? decryptAccountPassword(a) : null);
-            if (account) {
-                const route = await resolveOperationRoute(account, {
+        const reserved = await reserveProviderAccountForFulfillment({
+            operationId,
+            beinAccountId: operation.beinAccountId,
+            accountPool,
+        });
+        if (reserved) {
+            const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
+            try {
+                await heartbeat.assertCurrent();
+                const route = await resolveOperationRoute(reserved.account, {
                     operationId,
                     responseData: operation.responseData,
-                    legacyFallback: true
+                    legacyFallback: true,
                 });
-                const client = await createOperationClient(account, route);
-                await client.cancelPurchase();
+                const client = await createOperationClient(reserved.account, route);
+                const restored = await restoreOperationSession(
+                    operationId,
+                    operation.responseData,
+                    client,
+                    route
+                );
+                if (restored) await client.cancelPurchase();
+            } catch (error: unknown) {
+                console.warn('[HTTP] Provider-side cancellation was not confirmed: ' + getErrMsg(error));
+            } finally {
+                heartbeat.stop();
+                await accountPool.releaseExecutionLease(reserved.lease).catch(() => undefined);
             }
-        } catch (e: unknown) {
-            console.log(`⚠️ [HTTP] Failed to click cancel: ${getErrMsg(e)}`);
         }
     }
 
-    const cancelled = await prisma.operation.updateMany({
-        where: {
-            id: operationId,
-            status: cancellationConfirmInProgress
-                ? OperationStatus.COMPLETING
-                : OperationStatus.AWAITING_FINAL_CONFIRM
-        },
-        data: {
-            status: OperationStatus.CANCELLED,
-            responseMessage: 'Operation cancelled',
-            completedAt: new Date(),
-            finalConfirmExpiry: null
-        }
+    const cancellation = await finalizePreMutationRenewalTermination({
+        operationId,
+        terminalStatus: 'CANCELLED',
+        allowedStatuses: cancellationConfirmInProgress
+            ? [OperationStatus.COMPLETING]
+            : [OperationStatus.AWAITING_FINAL_CONFIRM],
+        responseMessage: 'Operation cancelled',
+        releaseReason: 'USER_CANCELLED_PRE_FINAL_MUTATION',
     });
-
-    if (cancelled.count === 0) {
-        console.warn(`[HTTP] CANCEL_CONFIRM update skipped for ${operationId} due to state transition race`);
+    if (cancellation.status === 'REVIEW_REQUIRED' || cancellation.status === 'EVIDENCE_CONFLICT') {
+        console.warn(`[HTTP] CANCEL_CONFIRM for ${operationId} requires review: ${cancellation.reason}`);
         return;
-    }
-
-    // Refund only after the guarded pre-final-payment cancellation succeeds.
-    if (operation.userId && operation.amount && operation.amount > 0) {
-        await refundUser(operationId, operation.userId, operation.amount, 'User cancellation');
     }
 
     if (operation.userId) {
         await createNotification({
             userId: operation.userId,
             title: 'Operation cancelled',
-            message: operation.amount && operation.amount > 0 ? 'Purchase cancelled and amount refunded' : 'Purchase cancelled',
+            message: cancellation.refundId ? 'Purchase cancelled and amount refunded' : 'Purchase cancelled',
             type: 'info',
             link: '/dashboard/history'
         });
@@ -3480,18 +4211,6 @@ async function handleCancelConfirmHttp(
 
     if (operation.beinAccountId) {
         await accountPool.markAccountUsed(operation.beinAccountId, operationId);
-        // Force-unlock: markAccountUsed uses unlockAccount which checks worker ID ownership,
-        // but cancels often run on a different worker than the one that locked the account.
-        // Force-unlock guarantees the lock is released after cancellation.
-        try {
-            const redis = (accountPool as unknown as { redis?: import("ioredis").Redis }).redis;
-            if (redis) {
-                await forceUnlockAccount(redis, operation.beinAccountId);
-                console.log(`🔓 [HTTP] Force-unlocked account ${operation.beinAccountId} after cancel`);
-            }
-        } catch (e: unknown) {
-            console.log(`⚠️ [HTTP] Failed to force-unlock: ${getErrMsg(e)}`);
-        }
     }
 
     console.log(`✅ [HTTP] Operation ${operationId} cancelled and refunded`);
@@ -3543,10 +4262,25 @@ async function handleSignalRefreshHttp(
         return;
     }
 
+    const reservedSignalRefreshExecution = await reserveProviderAccountForFulfillment({
+        operationId,
+        beinAccountId: account.id,
+        accountPool,
+        consumer: 'SIGNAL',
+    });
+    if (!reservedSignalRefreshExecution) {
+        throw new Error('SIGNAL_PROVIDER_ACCOUNT_RESERVATION_UNAVAILABLE');
+    }
+    const signalRefreshLeaseHeartbeat = startExecutionLeaseHeartbeat(
+        accountPool,
+        reservedSignalRefreshExecution.lease
+    );
+
     // Get or create HTTP client for this account (includes session restore from Redis)
     const httpClient = await createOperationClient(account, route);
 
     try {
+        await signalRefreshLeaseHeartbeat.assertCurrent();
         // Step 1: Login with session caching (like other handlers)
         await updateProgress(operationId, 'Logging in...');
         let needsFreshLogin = true;
@@ -3580,7 +4314,9 @@ async function handleSignalRefreshHttp(
         }
 
         if (needsFreshLogin) {
+            await signalRefreshLeaseHeartbeat.assertCurrent();
             const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
+            await signalRefreshLeaseHeartbeat.assertCurrent();
 
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
                 console.log(`🧩 [HTTP] CAPTCHA required for signal refresh ${operationId}`);
@@ -3611,6 +4347,7 @@ async function handleSignalRefreshHttp(
                     }, 'SIGNAL_REFRESH captcha update')) {
                         await releaseLoginLock(account.id, WORKER_ID);
                         await accountPool.markAccountUsed(account.id);
+                        await releaseSafeTerminalReservations(operationId, 'SIGNAL_REFRESH_ABORTED');
                         return;
                     }
 
@@ -3622,12 +4359,14 @@ async function handleSignalRefreshHttp(
                 }
 
                 // Submit with CAPTCHA
+                await signalRefreshLeaseHeartbeat.assertCurrent();
                 const loginWithCaptcha = await httpClient.submitLogin(
                     account.username,
                     account.password,
                     account.totpSecret || undefined,
                     solution
                 );
+                await signalRefreshLeaseHeartbeat.assertCurrent();
 
                 if (!loginWithCaptcha.success) {
                     await trackCredentialLoginFailure(
@@ -3652,9 +4391,17 @@ async function handleSignalRefreshHttp(
             try {
                 const sessionData = await httpClient.exportSession();
                 const sessionTimeout = httpClient.getSessionTimeout();
-                await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
+                const saved = await saveSessionToCacheFenced(getRedisConnection(), {
+                    accountId: account.id,
+                    routeKey: route.routeKey,
+                    session: prepareSharedSessionForCache(sessionData),
+                    ttlSeconds: sessionTimeout,
+                    lease: reservedSignalRefreshExecution.lease,
+                });
+                if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
                 console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
             } catch (saveError) {
+                if (getErrMsg(saveError).includes('PROVIDER_EXECUTION_LEASE_LOST')) throw saveError;
                 console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
             }
 
@@ -3666,13 +4413,23 @@ async function handleSignalRefreshHttp(
 
         // Step 2: Activate signal
         await updateProgress(operationId, 'Refreshing signal...');
-        const signalResult = await httpClient.activateSignal(cardNumber);
+        await signalRefreshLeaseHeartbeat.assertCurrent();
+        const signalResult = await withSessionRetry(
+            httpClient,
+            account,
+            route,
+            () => httpClient.activateSignal(cardNumber),
+            'activateSignal',
+            reservedSignalRefreshExecution.lease
+        );
+        await signalRefreshLeaseHeartbeat.assertCurrent();
 
         if (!signalResult.success) {
             throw new Error(signalResult.error || 'Signal activation failed');
         }
 
         // Store card status and capture the immutable completion snapshot atomically.
+        await signalRefreshLeaseHeartbeat.assertCurrent();
         const signalRefreshCompletedAt = new Date();
         const signalRefreshCompleted = await prisma.$transaction(async (tx) => {
             const update = await tx.operation.updateMany({
@@ -3705,6 +4462,7 @@ async function handleSignalRefreshHttp(
         });
         if (signalRefreshCompleted.count === 0) {
             await accountPool.markAccountUsed(account.id);
+            await releaseSafeTerminalReservations(operationId, 'SIGNAL_REFRESH_TERMINAL_RACE');
             return;
         }
         await awardCompletedOperationPointsSafely(operationId);
@@ -3728,6 +4486,7 @@ async function handleSignalRefreshHttp(
 
         // Mark account as used
         await accountPool.markAccountUsed(account.id);
+        await releaseSafeTerminalReservations(operationId, 'SIGNAL_REFRESH_COMPLETED');
 
         console.log(`✅ [HTTP] Signal refresh completed for ${operationId}`);
 
@@ -3735,6 +4494,9 @@ async function handleSignalRefreshHttp(
         // Mark account as used even on failure
         await accountPool.markAccountUsed(account.id);
         throw error;
+    } finally {
+        signalRefreshLeaseHeartbeat.stop();
+        await accountPool.releaseExecutionLease(reservedSignalRefreshExecution.lease).catch(() => false);
     }
 }
 
@@ -3785,9 +4547,24 @@ async function handleSignalCheckHttp(
         return;
     }
 
+    const reservedSignalExecution = await reserveProviderAccountForFulfillment({
+        operationId,
+        beinAccountId: account.id,
+        accountPool,
+        consumer: 'SIGNAL',
+    });
+    if (!reservedSignalExecution) {
+        throw new Error('SIGNAL_PROVIDER_ACCOUNT_RESERVATION_UNAVAILABLE');
+    }
+    const signalLeaseHeartbeat = startExecutionLeaseHeartbeat(
+        accountPool,
+        reservedSignalExecution.lease
+    );
+
     const httpClient = await createOperationClient(account, route);
 
     try {
+        await signalLeaseHeartbeat.assertCurrent();
         // Step 1: Login (with Redis session caching and login locking)
         let needsFreshLogin = true;
 
@@ -3887,9 +4664,17 @@ async function handleSignalCheckHttp(
             try {
                 const loginSessionData = await httpClient.exportSession();
                 const sessionTimeout = httpClient.getSessionTimeout();
-                await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(loginSessionData), sessionTimeout);
+                    const saved = await saveSessionToCacheFenced(getRedisConnection(), {
+                        accountId: account.id,
+                        routeKey: route.routeKey,
+                        session: prepareSharedSessionForCache(loginSessionData),
+                        ttlSeconds: sessionTimeout,
+                        lease: reservedSignalExecution.lease,
+                    });
+                    if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
                 console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
             } catch (saveError) {
+                if (getErrMsg(saveError).includes('PROVIDER_EXECUTION_LEASE_LOST')) throw saveError;
                 console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
             }
 
@@ -3905,7 +4690,8 @@ async function handleSignalCheckHttp(
             account,
             route,
             () => httpClient.checkCardForSignal(cardNumber),
-            'checkCardForSignal'
+            'checkCardForSignal',
+            reservedSignalExecution.lease
         );
 
         if (!checkResult.success) {
@@ -3969,6 +4755,9 @@ async function handleSignalCheckHttp(
         }
 
         throw error;
+    } finally {
+        signalLeaseHeartbeat.stop();
+        await accountPool.releaseExecutionLease(reservedSignalExecution.lease).catch(() => false);
     }
 }
 
@@ -4017,12 +4806,20 @@ async function handleSignalActivateHttp(
     // Update status
     if (!await updateOperationIfActive(operationId, { status: 'PROCESSING', responseMessage: 'Activating signal...' }, 'SIGNAL_ACTIVATE processing update')) return;
 
-    // Get account
-    const account = await prisma.beinAccount.findUnique({
-        where: { id: operation.beinAccountId },
-        include: { proxy: true }  // CRITICAL: Include proxy for HTTP client
-    }).then(a => a ? decryptAccountPassword(a) : null);
-    if (!account) throw new Error('Account not found');
+    const reservedSignalExecution = await reserveProviderAccountForFulfillment({
+        operationId,
+        beinAccountId: operation.beinAccountId,
+        accountPool,
+        consumer: 'SIGNAL',
+    });
+    if (!reservedSignalExecution) {
+        throw new Error('SIGNAL_PROVIDER_ACCOUNT_RESERVATION_UNAVAILABLE');
+    }
+    const account = reservedSignalExecution.account;
+    const signalLeaseHeartbeat = startExecutionLeaseHeartbeat(
+        accountPool,
+        reservedSignalExecution.lease
+    );
 
     const route = await resolveOperationRoute(account, {
         operationId,
@@ -4032,6 +4829,7 @@ async function handleSignalActivateHttp(
     const httpClient = await createOperationClient(account, route);
 
     try {
+        await signalLeaseHeartbeat.assertCurrent();
         // Session was parsed above as savedData - restore if available
         if (savedData.checkedAt) {
             validateSessionAge(savedData.checkedAt as string, 'signalActivate');
@@ -4042,6 +4840,7 @@ async function handleSignalActivateHttp(
         const targetCardNumber = cardNumber || operation.cardNumber;
 
         // Activate signal
+        await signalLeaseHeartbeat.assertCurrent();
         const activateResult = await httpClient.activateSignalOnly(targetCardNumber);
 
         if (!activateResult.success) {
@@ -4089,11 +4888,15 @@ async function handleSignalActivateHttp(
 
         await accountPool.markAccountUsed(account.id);
         await deleteOperationSessionFromCache(operationId);
+        await releaseSafeTerminalReservations(operationId, 'SIGNAL_ACTIVATION_COMPLETED');
         console.log(`✅ [HTTP] Signal activation completed for ${operationId}: activated=${activateResult.activated}`);
 
     } catch (error: unknown) {
         await accountPool.markAccountUsed(account.id);
         throw error;
+    } finally {
+        signalLeaseHeartbeat.stop();
+        await accountPool.releaseExecutionLease(reservedSignalExecution.lease).catch(() => false);
     }
 }
 
@@ -4129,7 +4932,11 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
  * CHECK_ACCOUNT_BALANCE - Fetch dealer balance for admin display
  * This is called from the admin panel to update account balance
  */
-async function handleCheckAccountBalance(accountId: string): Promise<void> {
+async function handleCheckAccountBalance(
+    operationId: string,
+    accountId: string,
+    accountPool: AccountPoolManager
+): Promise<void> {
     console.log(`💰 [HTTP] Checking balance for account ${accountId}`);
 
     // Get account with proxy
@@ -4145,9 +4952,108 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
     if (!account.isActive) {
         throw new Error(`Account ${accountId} is not active`);
     }
+    if (!account.automationExclusive) {
+        throw new Error('ACCOUNT_NOT_AUTOMATION_EXCLUSIVE');
+    }
+
+    const guardOperationId = `balance:${operationId}`;
+    const redis = accountPool.getRedis();
+    const workerId = accountPool.getWorkerId();
+    const reservationBeforeGuard = await findActiveProviderAccountReservationForAccount(
+        prisma,
+        accountId
+    );
+    const accessBeforeGuard = decideProviderAccountConsumerAccess({
+        consumer: 'BALANCE',
+        activeReservation: reservationBeforeGuard
+            ? {
+                operationId: reservationBeforeGuard.operationId,
+                reservationGeneration: reservationBeforeGuard.reservationGeneration,
+            }
+            : null,
+        requester: null,
+    });
+    if (!accessBeforeGuard.allowed || await isAccountExecutionLeaseActive(redis, accountId)) {
+        throw new Error('ACCOUNT_CAUSALLY_RESERVED');
+    }
+
+    const guardAcquired = await lockAccount(
+        redis,
+        accountId,
+        workerId,
+        BALANCE_ACCOUNT_LOCK_TTL_SECONDS,
+        guardOperationId
+    );
+    if (!guardAcquired) throw new Error('ACCOUNT_BUSY');
+
+    let guardHeartbeatFailure: Error | null = null;
+    let guardHeartbeatInFlight: Promise<void> | null = null;
+    const balanceGuardLostError = () => new Error('ACCOUNT_BALANCE_GUARD_LOST');
+    const assertBalanceGuardOwnership = async (): Promise<void> => {
+        if (guardHeartbeatFailure) throw guardHeartbeatFailure;
+
+        let status;
+        try {
+            status = await getAccountLockStatus(redis, accountId);
+        } catch {
+            guardHeartbeatFailure = balanceGuardLostError();
+            throw guardHeartbeatFailure;
+        }
+
+        if (
+            !status.locked ||
+            status.ownerWorkerId !== workerId ||
+            status.ownerOperationId !== guardOperationId
+        ) {
+            guardHeartbeatFailure = balanceGuardLostError();
+            throw guardHeartbeatFailure;
+        }
+    };
+    const guardHeartbeat = setInterval(() => {
+        if (guardHeartbeatInFlight || guardHeartbeatFailure) return;
+
+        const run = (async () => {
+            const extended = await extendLock(
+                redis,
+                accountId,
+                workerId,
+                BALANCE_ACCOUNT_LOCK_TTL_SECONDS,
+                guardOperationId
+            );
+            if (!extended) throw balanceGuardLostError();
+            await assertBalanceGuardOwnership();
+        })().catch(() => {
+            guardHeartbeatFailure = balanceGuardLostError();
+        });
+        guardHeartbeatInFlight = run;
+        void run.finally(() => {
+            if (guardHeartbeatInFlight === run) guardHeartbeatInFlight = null;
+        });
+    }, BALANCE_ACCOUNT_LOCK_HEARTBEAT_MS);
+
+    try {
+        await assertBalanceGuardOwnership();
+        const reservationAfterGuard = await findActiveProviderAccountReservationForAccount(
+            prisma,
+            accountId
+        );
+        const accessAfterGuard = decideProviderAccountConsumerAccess({
+            consumer: 'BALANCE',
+            activeReservation: reservationAfterGuard
+                ? {
+                    operationId: reservationAfterGuard.operationId,
+                    reservationGeneration: reservationAfterGuard.reservationGeneration,
+                }
+                : null,
+            requester: null,
+        });
+        if (!accessAfterGuard.allowed || await isAccountExecutionLeaseActive(redis, accountId)) {
+            throw new Error('ACCOUNT_CAUSALLY_RESERVED');
+        }
+        await assertBalanceGuardOwnership();
 
     const route = await resolveOperationRoute(account, {
-        operationId: `balance:${accountId}`,
+        operationId: guardOperationId,
         ignoreSnapshot: true
     });
 
@@ -4155,16 +5061,20 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
     const client = await createOperationClient(account, route);
 
     // Reload config
+    await assertBalanceGuardOwnership();
     await client.reloadConfig();
+    await assertBalanceGuardOwnership();
 
     // Login if needed
     if (!client.isSessionActive()) {
         console.log(`[HTTP] Logging in to fetch balance...`);
+        await assertBalanceGuardOwnership();
         const loginResult = await client.login(
             account.username,
             account.password,
             account.totpSecret || undefined
         );
+        await assertBalanceGuardOwnership();
 
         if (loginResult.requiresCaptcha && loginResult.captchaImage) {
             throw new Error('Login requires CAPTCHA for balance check');
@@ -4207,7 +5117,9 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
     console.log(`[HTTP] Fetching balance using card: ${testCardNumber}`);
 
     // Fetch dealer balance
+    await assertBalanceGuardOwnership();
     const balanceResult = await client.fetchDealerBalance(testCardNumber);
+    await assertBalanceGuardOwnership();
 
     if (balanceResult.success && balanceResult.balance !== null) {
         // Update the account with the new balance
@@ -4218,11 +5130,23 @@ async function handleCheckAccountBalance(accountId: string): Promise<void> {
                 balanceUpdatedAt: new Date()
             }
         });
+        await assertBalanceGuardOwnership();
         console.log(`✅ [HTTP] Balance updated: ${balanceResult.balance} USD`);
         await checkAndNotifyLowBalance(accountId, account.label || account.username, balanceResult.balance);
+        await assertBalanceGuardOwnership();
     } else {
         console.log(`⚠️ [HTTP] Could not fetch balance: ${balanceResult.error}`);
         throw new Error(balanceResult.error || 'Failed to fetch balance');
+    }
+    } finally {
+        clearInterval(guardHeartbeat);
+        if (guardHeartbeatInFlight) await guardHeartbeatInFlight;
+        await unlockAccount(
+            redis,
+            accountId,
+            workerId,
+            guardOperationId
+        ).catch(() => false);
     }
 }
 
@@ -4279,6 +5203,23 @@ async function handleStartInstallmentHttp(
         await accountPool.markAccountUsed(selectedAccount.id);
         return;
     }
+
+    const reservedInstallmentExecution = await reserveProviderAccountForFulfillment({
+        operationId,
+        beinAccountId: selectedAccount.id,
+        accountPool,
+        consumer: 'INSTALLMENT',
+    });
+    if (!reservedInstallmentExecution) {
+        throw new Error('INSTALLMENT_PROVIDER_ACCOUNT_RESERVATION_UNAVAILABLE');
+    }
+    const installmentLeaseHeartbeat = startExecutionLeaseHeartbeat(
+        accountPool,
+        reservedInstallmentExecution.lease
+    );
+
+    try {
+    await installmentLeaseHeartbeat.assertCurrent();
 
     console.log(`🔑 [HTTP] Using account: ${selectedAccount.label || selectedAccount.username}`);
 
@@ -4392,9 +5333,17 @@ async function handleStartInstallmentHttp(
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(selectedAccount.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
+            const saved = await saveSessionToCacheFenced(getRedisConnection(), {
+                accountId: selectedAccount.id,
+                routeKey: route.routeKey,
+                session: prepareSharedSessionForCache(sessionData),
+                ttlSeconds: sessionTimeout,
+                lease: reservedInstallmentExecution.lease,
+            });
+            if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
             console.log(`[HTTP] 💾 Session saved to Redis cache`);
         } catch (saveError) {
+            if (getErrMsg(saveError).includes('PROVIDER_EXECUTION_LEASE_LOST')) throw saveError;
             console.error('[HTTP] Failed to save session to cache:', saveError);
         }
 
@@ -4407,6 +5356,7 @@ async function handleStartInstallmentHttp(
     await updateProgress(operationId, 'Loading installment data...');
     console.log(`[HTTP] Loading installment for card ${cardNumber}`);
 
+    await installmentLeaseHeartbeat.assertCurrent();
     const installmentResult = await client.loadInstallment(cardNumber);
 
     if (!installmentResult.success) {
@@ -4446,6 +5396,7 @@ async function handleStartInstallmentHttp(
 
         // Release account
         await accountPool.markAccountUsed(selectedAccount.id);
+        await releaseSafeTerminalReservations(operationId, 'NO_INSTALLMENT_FOUND');
         return;
     }
 
@@ -4459,6 +5410,7 @@ async function handleStartInstallmentHttp(
         // Store installment data in responseData
         responseData: JSON.stringify(responseDataWithRoute({
             installment: installmentResult.installment || null,
+            installmentId: installmentIdentity(installmentResult.installment),
             subscriber: installmentResult.subscriber || null,
             dealerBalance: installmentResult.dealerBalance || null,
             dealerBalanceBefore: installmentResult.dealerBalance || null,
@@ -4482,6 +5434,10 @@ async function handleStartInstallmentHttp(
     console.log(`✅ [HTTP] Installment loaded, awaiting confirmation`);
     console.log(`   Package: ${installmentResult.installment?.package}`);
     console.log(`   Dealer Price: ${installmentResult.installment?.dealerPrice} USD`);
+    } finally {
+        installmentLeaseHeartbeat.stop();
+        await accountPool.releaseExecutionLease(reservedInstallmentExecution.lease).catch(() => false);
+    }
 }
 
 /**
@@ -4514,6 +5470,12 @@ async function handleConfirmInstallmentHttp(
         return;
     }
 
+    if (operation.purpose !== 'INSTALLMENT' || operation.cardNumber !== cardNumber || operation.providerMutationStartedAt) {
+        const saved = await prisma.operationInstallmentEvidence.findUnique({ where: { operationId } });
+        await finalizeInstallmentSettlement({ operationId, expectedCorrelationKey: saved?.correlationKey });
+        return;
+    }
+
     const movedToCompleting = await prisma.operation.updateMany({
         where: {
             id: operationId,
@@ -4536,7 +5498,22 @@ async function handleConfirmInstallmentHttp(
         throw new Error(`Invalid status for CONFIRM_INSTALLMENT: ${current?.status || operation.status}`);
     }
 
-    const selectedAccount = operation.beinAccount;
+    const reservedInstallmentExecution = await reserveProviderAccountForFulfillment({
+        operationId,
+        beinAccountId: operation.beinAccount.id,
+        accountPool,
+        consumer: 'INSTALLMENT',
+    });
+    if (!reservedInstallmentExecution) {
+        throw new Error('INSTALLMENT_PROVIDER_ACCOUNT_RESERVATION_UNAVAILABLE');
+    }
+    const selectedAccount = reservedInstallmentExecution.account;
+    const installmentLeaseHeartbeat = startExecutionLeaseHeartbeat(
+        accountPool,
+        reservedInstallmentExecution.lease
+    );
+    try {
+    await installmentLeaseHeartbeat.assertCurrent();
     const route = await resolveOperationRoute(selectedAccount, {
         operationId,
         responseData: operation.responseData,
@@ -4579,8 +5556,16 @@ async function handleConfirmInstallmentHttp(
             try {
                 const sessionData = await client.exportSession();
                 const sessionTimeout = client.getSessionTimeout();
-                await saveSessionToCache(selectedAccount.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
+                const saved = await saveSessionToCacheFenced(getRedisConnection(), {
+                    accountId: selectedAccount.id,
+                    routeKey: route.routeKey,
+                    session: prepareSharedSessionForCache(sessionData),
+                    ttlSeconds: sessionTimeout,
+                    lease: reservedInstallmentExecution.lease,
+                });
+                if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
             } catch (saveError) {
+                if (getErrMsg(saveError).includes('PROVIDER_EXECUTION_LEASE_LOST')) throw saveError;
                 console.error('[HTTP] Failed to save session to cache:', saveError);
             }
         }
@@ -4591,13 +5576,11 @@ async function handleConfirmInstallmentHttp(
     // Re-load installment to ensure card is loaded and ViewState is fresh
     await updateProgress(operationId, 'Loading installment data...');
     console.log(`[HTTP] Re-loading installment for card ${cardNumber} before payment...`);
+    await installmentLeaseHeartbeat.assertCurrent();
     const loadResult = await client.loadInstallment(cardNumber);
 
     if (!loadResult.success || !loadResult.hasInstallment) {
-        if (operation.userId && operation.amount && operation.amount > 0) {
-            await refundUser(operationId, operation.userId, operation.amount, loadResult.error || 'Failed to re-load installment');
-        }
-        await markOperationFailed(operationId, { type: 'UNKNOWN', message: loadResult.error || 'Failed to re-load installment before payment', recoverable: false }, 1);
+        await finalizeInstallmentSettlement({ operationId, preMutation: true });
         return;
     }
 
@@ -4635,7 +5618,22 @@ async function handleConfirmInstallmentHttp(
     }, 'CONFIRM_INSTALLMENT final Pay evidence update')) {
         return;
     }
-    const rawPayResult = await client.payInstallment();
+    await installmentLeaseHeartbeat.assertCurrent();
+    const loadedInstallmentId = installmentIdentity(loadResult.installment);
+    if (!loadedInstallmentId || loadedInstallmentId !== operationResponseData.installmentId ||
+        loadResult.installment?.dealerPrice !== operation.amount) {
+        await finalizeInstallmentSettlement({ operationId, preMutation: true });
+        return;
+    }
+    const mutationClaim = await claimInstallmentMutation({ operationId, beinAccountId: selectedAccount.id,
+        installmentId: loadedInstallmentId, reservationGeneration: reservedInstallmentExecution.reservationGeneration });
+    if (mutationClaim.status !== 'CLAIMED') {
+        const saved = await prisma.operationInstallmentEvidence.findUnique({ where: { operationId } });
+        await finalizeInstallmentSettlement({ operationId, expectedCorrelationKey: saved?.correlationKey });
+        return;
+    }
+    await installmentLeaseHeartbeat.assertCurrent();
+    const rawPayResult = await client.payInstallment(() => installmentLeaseHeartbeat.assertCurrent());
     const installmentPayEvidence = buildFinalPayBalanceEvidence({
         operationId,
         beinAccountId: selectedAccount.id,
@@ -4678,244 +5676,26 @@ async function handleConfirmInstallmentHttp(
         outcomeCategory: payOutcomeDecision.outcomeCategory
     }), route);
 
-    if (payResult.success) {
-        const ledgerResult = operation.userId
-            && shouldRecordConfirmedProviderSpend(installmentPayEvidence)
-            ? await recordConfirmedBeinSpend({
-                operationId,
-                userId: operation.userId,
-                beinAccountId: selectedAccount.id,
-                dealerBalanceBefore: installmentPayEvidence.finalBalanceBefore,
-                dealerBalanceAfter: installmentPayEvidence.finalBalanceAfter,
-                evidenceSource: 'BALANCE_DELTA',
-                balanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
-                balanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
-            })
-            : null;
-        if (ledgerResult?.status === 'conflict_review_required') {
-            console.warn(`[HTTP] beIN spend ledger conflict for ${operationId}: ${ledgerResult.reason}`);
-        }
-
-        const auditSnapshot = await buildOperationAuditSnapshot({
-            operationId,
-            userId: operation.userId || null,
-            beinAccountId: selectedAccount.id,
-            beinUsername: selectedAccount.username,
-            beinBalanceBefore: installmentPayEvidence.finalBalanceBefore,
-            beinBalanceAfter: installmentPayEvidence.finalBalanceAfter,
-            beinBalanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
-            beinBalanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
-            diagnosticDealerBalanceBefore: installmentPayEvidence.diagnosticBalanceBefore,
-            diagnosticDealerBalanceBeforeSource: installmentPayEvidence.diagnosticBalanceBeforeSource,
-            providerEvidenceState: shouldRecordConfirmedProviderSpend(installmentPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
-            outcomeCategory: payOutcomeDecision.outcomeCategory,
-            reviewReason: ledgerResultReviewReason(ledgerResult),
-            reviewSource: ledgerResultBlocksCompletion(ledgerResult) ? 'confirm-installment-ledger' : undefined,
-            refundBlocked: ledgerResultBlocksCompletion(ledgerResult) ? true : undefined,
-            chargedBeinLedgerId: ledgerResultId(ledgerResult)
-        });
-        const installmentCompletedResponseData = mergeOperationAuditSnapshot(installmentPostPayResponseData, auditSnapshot);
-
-        if (ledgerResultBlocksCompletion(ledgerResult)) {
-            const reviewed = await prisma.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: HARD_TERMINAL_STATUS_LIST }
-                },
-                data: {
-                    status: 'REVIEW_REQUIRED',
-                    responseMessage: ledgerResultReviewReason(ledgerResult) || 'Confirmed beIN spend could not be recorded. Manual review required.',
-                    finalConfirmExpiry: null,
-                    responseData: installmentCompletedResponseData
-                }
-            });
-            if (reviewed.count === 0) {
-                console.warn(`[HTTP] CONFIRM_INSTALLMENT ledger-conflict review update skipped for ${operationId} due to terminal transition race`);
-            }
-            try {
-                await accountPool.markAccountUsed(selectedAccount.id);
-            } catch (e: unknown) {
-                console.error(`[HTTP] Failed to mark account used after installment ledger-conflict review for ${operationId}: ${getErrMsg(e)}`);
-            }
-            return;
-        }
-
-        const installmentCompletedAt = new Date();
-        const completed = await prisma.$transaction(async (tx) => {
-            const update = await tx.operation.updateMany({
-                where: {
-                    id: operationId,
-                    status: { notIn: TERMINAL_STATUS_LIST }
-                },
-                data: {
-                    status: 'COMPLETED',
-                    responseMessage: payResult.message,
-                    completedAt: installmentCompletedAt,
-                    finalConfirmExpiry: null,
-                    responseData: installmentCompletedResponseData
-                }
-            });
-            if (update.count > 0) {
-                await captureOperationSpendAwardRunInTransaction(
-                    tx,
-                    operationId,
-                    'WORKER_INSTALLMENT',
-                    installmentCompletedAt
-                );
-            }
-            return update;
-        });
-        if (completed.count === 0) {
-            console.warn(`[HTTP] CONFIRM_INSTALLMENT completion skipped for ${operationId} due to terminal transition race`);
-            return;
-        }
-        await awardCompletedOperationPointsSafely(operationId);
-
-        try {
-            await accountPool.markAccountUsed(selectedAccount.id);
-        } catch (e: unknown) {
-            console.error(`[HTTP] Failed to mark account used after installment completion for ${operationId}: ${getErrMsg(e)}`);
-        }
-
-        if (operation.userId) {
-            try {
-                await trackOperationComplete(
-                    operation.userId,
-                    operationId,
-                    'RENEW',
-                    operation.amount,
-                    {
-                        type: 'installment',
-                        cardNumber,
-                        beinAccountId: selectedAccount.id,
-                        beinUsernameSnapshot: auditSnapshot.beinUsername,
-                        beinBalanceBefore: auditSnapshot.beinBalanceBefore,
-                        beinBalanceAfter: auditSnapshot.beinBalanceAfter,
-                        userBalanceBefore: auditSnapshot.userBalanceBefore,
-                        userBalanceAfter: auditSnapshot.userBalanceAfter
-                    }
-                );
-
-                await detectAndRecordOperationIntegrity({
-                    operationId,
-                    beinBalanceBefore: auditSnapshot.beinBalanceBefore ?? undefined,
-                    beinBalanceAfter: auditSnapshot.beinBalanceAfter ?? undefined,
-                    beinUsernameSnapshot: auditSnapshot.beinUsername ?? undefined,
-                    userBalanceBefore: auditSnapshot.userBalanceBefore ?? undefined,
-                    userBalanceAfter: auditSnapshot.userBalanceAfter ?? undefined
-                });
-            } catch (e: unknown) {
-                console.error(`[HTTP] Failed to track installment completion for ${operationId}: ${getErrMsg(e)}`);
-            }
-        }
-
-        if (operation.userId) {
-            try {
-                await createNotification({
-                    userId: operation.userId,
-                    title: 'Installment paid',
-                    message: `Installment paid for card ${cardNumber} successfully`,
-                    type: 'success',
-                    link: '/dashboard/history'
-                });
-            } catch (e: unknown) {
-                console.error(`[HTTP] Failed to create installment notification for ${operationId}: ${getErrMsg(e)}`);
-            }
-        }
-
-        console.log(`✅ [HTTP] Installment payment completed`);
-        return;
-    }
-
-    if (payOutcomeDecision.reviewRequired || !payOutcomeDecision.refundSafe) {
-        const reviewRequired = await prisma.operation.updateMany({
-            where: {
-                id: operationId,
-                status: { notIn: TERMINAL_STATUS_LIST }
-            },
-            data: {
-                status: 'REVIEW_REQUIRED',
-                responseMessage: payResult.message,
-                finalConfirmExpiry: null
-            }
-        });
-        if (reviewRequired.count === 0) {
-            console.warn(`[HTTP] CONFIRM_INSTALLMENT review update skipped for ${operationId} due to terminal transition race`);
-            return;
-        }
-
-        const ledgerResult = operation.userId
-            && shouldRecordConfirmedProviderSpend(installmentPayEvidence)
-            ? await recordConfirmedBeinSpend({
-                operationId,
-                userId: operation.userId,
-                beinAccountId: selectedAccount.id,
-                dealerBalanceBefore: installmentPayEvidence.finalBalanceBefore,
-                dealerBalanceAfter: installmentPayEvidence.finalBalanceAfter,
-                evidenceSource: 'BALANCE_DELTA',
-                balanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
-                balanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
-            })
-            : null;
-        if (ledgerResult?.status === 'conflict_review_required') {
-            console.warn(`[HTTP] beIN spend ledger conflict for ${operationId}: ${ledgerResult.reason}`);
-        }
-
-        const auditSnapshot = await buildOperationAuditSnapshot({
-            operationId,
-            userId: operation.userId || null,
-            beinAccountId: selectedAccount.id,
-            beinUsername: selectedAccount.username,
-            beinBalanceBefore: installmentPayEvidence.finalBalanceBefore,
-            beinBalanceAfter: installmentPayEvidence.finalBalanceAfter,
-            beinBalanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
-            beinBalanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
-            diagnosticDealerBalanceBefore: installmentPayEvidence.diagnosticBalanceBefore,
-            diagnosticDealerBalanceBeforeSource: installmentPayEvidence.diagnosticBalanceBeforeSource,
-            providerEvidenceState: shouldRecordConfirmedProviderSpend(installmentPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
-            outcomeCategory: payOutcomeDecision.outcomeCategory,
-            reviewReason: payResult.message,
-            reviewSource: 'confirm-installment',
-            refundBlocked: true,
-            chargedBeinLedgerId: ledgerResult && 'ledgerId' in ledgerResult ? ledgerResult.ledgerId : undefined
-        });
-        await persistOperationAuditSnapshot(operationId, installmentPostPayResponseData, auditSnapshot);
-
-        try {
-            await accountPool.markAccountUsed(selectedAccount.id);
-        } catch (e: unknown) {
-            console.error(`[HTTP] Failed to mark account used after REVIEW_REQUIRED for ${operationId}: ${getErrMsg(e)}`);
-        }
-        console.warn(`[HTTP] Installment payment for ${operationId} moved to REVIEW_REQUIRED (${payOutcomeDecision.outcomeCategory}): ${payResult.message}`);
-        return;
-    }
-
-    const auditSnapshot = await buildOperationAuditSnapshot({
-        operationId,
-        userId: operation.userId || null,
-        beinAccountId: selectedAccount.id,
-        beinUsername: selectedAccount.username,
-        beinBalanceBefore: installmentPayEvidence.finalBalanceBefore,
-        beinBalanceAfter: installmentPayEvidence.finalBalanceAfter,
-        beinBalanceBeforeSource: installmentPayEvidence.finalBalanceBeforeSource,
-        beinBalanceAfterSource: installmentPayEvidence.finalBalanceAfterSource,
-        diagnosticDealerBalanceBefore: installmentPayEvidence.diagnosticBalanceBefore,
-        diagnosticDealerBalanceBeforeSource: installmentPayEvidence.diagnosticBalanceBeforeSource,
-        providerEvidenceState: shouldRecordConfirmedProviderSpend(installmentPayEvidence) ? 'confirmed-final-pay' : 'incomplete-evidence',
-        outcomeCategory: payOutcomeDecision.outcomeCategory,
-        reviewReason: payResult.message,
-        reviewSource: 'confirm-installment',
-        refundBlocked: false
+    // The legacy HTTP adapter exposes debit evidence, not an attributable due-item receipt.
+    // Persist the debit independently and keep settlement UNKNOWN until exact proof is available.
+    const ledgerResult = await recordConfirmedBeinSpend({
+        operationId, beinAccountId: selectedAccount.id,
+        dealerBalanceBefore: toNullableNumber(rawPayResult.beinBalanceBefore),
+        dealerBalanceAfter: toNullableNumber(rawPayResult.beinBalanceAfter),
+        evidenceSource: 'BALANCE_DELTA',
     });
-    await persistOperationAuditSnapshot(operationId, installmentPostPayResponseData, auditSnapshot);
-
-    if (operation.userId && operation.amount && operation.amount > 0) {
-        await refundUser(operationId, operation.userId, operation.amount, payResult.message, {
-            allowFinalPayRefund: payOutcomeDecision.outcomeCategory === 'CONFIRMED_NOT_CHARGED'
-        });
+    await prisma.operationInstallmentEvidence.updateMany({
+        where: { operationId, correlationKey: mutationClaim.correlationKey, paymentState: 'UNKNOWN', settlementState: 'UNKNOWN' },
+        data: { observedAt: new Date(), paymentState: ledgerResult.status === 'created' || ledgerResult.status === 'already_recorded'
+            ? 'CHARGED' : 'UNKNOWN', reasonCode: 'ATTRIBUTABLE_INSTALLMENT_SETTLEMENT_REQUIRED' },
+    });
+    await updateOperationIfActive(operationId, { responseData: installmentPostPayResponseData }, 'INSTALLMENT_OBSERVATION');
+    await finalizeInstallmentSettlement({ operationId, expectedCorrelationKey: mutationClaim.correlationKey });
+    await accountPool.markAccountUsed(selectedAccount.id);
+    } finally {
+        installmentLeaseHeartbeat.stop();
+        await accountPool.releaseExecutionLease(reservedInstallmentExecution.lease).catch(() => false);
     }
-    await markOperationFailed(operationId, { type: 'UNKNOWN', message: payResult.message, recoverable: false }, 1);
-    return;
 }
 
 /**

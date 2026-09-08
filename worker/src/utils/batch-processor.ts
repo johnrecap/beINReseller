@@ -20,8 +20,8 @@ interface BatchConfig {
 
 interface BatchedJob {
     job: Job
-    resolve: (result: any) => void
-    reject: (error: Error) => void
+    resolve: (result: unknown) => void
+    reject: (error: unknown) => void
 }
 
 interface PendingBatch {
@@ -82,7 +82,7 @@ export class BatchProcessor {
             }
 
             // Add job to batch
-            batch.jobs.push({ job, resolve, reject })
+            batch.jobs.push({ job, resolve: result => resolve(result as T), reject })
             this.stats.totalBatched++
 
             console.log(`📦 Job ${job.id} added to batch ${batchKey} (${batch.jobs.length}/${this.config.maxBatchSize})`)
@@ -146,9 +146,9 @@ export class BatchProcessor {
 
             console.log(`✅ Batch ${batchKey} completed: ${batchSize} jobs`)
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             // Reject all jobs on batch failure
-            console.error(`❌ Batch ${batchKey} failed:`, error.message)
+            console.error(`❌ Batch ${batchKey} failed:`, (error instanceof Error ? error.message : 'Unknown error'))
 
             for (const batchedJob of batch.jobs) {
                 batchedJob.reject(error)

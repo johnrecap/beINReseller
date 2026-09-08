@@ -16,9 +16,36 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bein_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bein_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bein_ci
       REDIS_URL: redis://localhost:6379
+      TEST_REDIS_URL: redis://localhost:6379
+      RUN_DB_INTEGRATION: "1"
+      CONFIRM_DISPOSABLE_RENEWAL_FULFILLMENT_DB: "1"
+      RUN_REDIS_INTEGRATION: "1"
       NEXTAUTH_SECRET: ci-placeholder-secret
       NEXTAUTH_URL: http://localhost:3000
     steps:
@@ -45,6 +72,18 @@ jobs:
 
       - name: Generate Prisma client
         run: npx prisma generate
+
+      - name: Apply migrations to disposable PostgreSQL
+        run: npx prisma migrate deploy
+
+      - name: Run unit tests
+        run: node scripts/run-audit-gates.cjs unit
+
+      - name: Run worker tests including Redis lease races
+        run: node scripts/run-audit-gates.cjs worker
+
+      - name: Run renewal fulfillment database gates
+        run: node scripts/run-audit-gates.cjs database
 
       - name: Lint
         run: npm run lint

@@ -1,218 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
-import { addOperationJob, operationsQueue } from '@/lib/queue'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { Prisma } from '@prisma/client'
+import { z } from 'zod'
+import { lockFinancialOperation } from '../../../../../../shared/operations/financial-lock'
+import { quoteData, quoteRevisionOf, publicPackageQuote, quoteErrorPayload } from '../../../../../../shared/operations/package-quote'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import {
+    ensureGuardedRenewalOperationReservation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
-function parseOperationResponseData(responseData: unknown): Record<string, unknown> {
-    if (!responseData) return {}
-    if (typeof responseData === 'object') return responseData as Record<string, unknown>
-    if (typeof responseData === 'string') {
-        try {
-            const parsed = JSON.parse(responseData)
-            return parsed && typeof parsed === 'object'
-                ? parsed as Record<string, unknown>
-                : {}
-        } catch {
-            return {}
-        }
-    }
-    return {}
-}
+const promoSchema = z.object({
+    actionRevision: z.number().int().min(1).max(2147483647),
+    promoAction: z.enum(['APPLY', 'REMOVE']).default('APPLY'),
+    promoCode: z.string().trim().min(1).max(100).optional(),
+}).refine(input => input.promoAction === 'REMOVE' || Boolean(input.promoCode))
 
-function isDuplicateJobError(error: unknown): boolean {
-    const message = error instanceof Error ? error.message.toLowerCase() : ''
-    return message.includes('already exists') || message.includes('jobid')
-}
-
-export async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         const authUser = await getAuthUser(request)
-        if (!authUser?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
+        if (!authUser?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         const { id } = await params
-        const { promoCode } = await request.json()
-
-        if (!promoCode) {
-            return NextResponse.json({ error: 'Please enter a promo code' }, { status: 400 })
-        }
-
-        // Get operation
-        const operation = await prisma.operation.findUnique({
-            where: { id },
-        })
-
-        if (!operation) {
-            return NextResponse.json({ error: 'Operation not found' }, { status: 404 })
-        }
-
-        // Check ownership
-        if (operation.userId !== authUser.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-        }
-
-        // Must be awaiting package selection
-        if (operation.status !== 'AWAITING_PACKAGE') {
-            return NextResponse.json(
-                { error: 'Operation is not in package selection stage' },
-                { status: 400 }
-            )
-        }
-
-        // Save promo code to operation
-        const existingResponseData = parseOperationResponseData(operation.responseData)
-        if (existingResponseData.refreshing === true) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    processing: true,
-                    message: 'Promo code is already being applied. Please wait a few seconds.',
-                },
-                { status: 202 }
-            )
-        }
-
-        await prisma.operation.update({
-            where: { id },
-            data: {
-                promoCode,
-                responseData: JSON.stringify({
-                    ...existingResponseData,
-                    promoApplied: false,
-                    refreshing: true,
-                }),
-            },
-        })
-
-        // Add job to queue to apply promo
-        const promoJobId = `APPLY_PROMO--${id}`
-        let existingJob = await operationsQueue.getJob(promoJobId).catch(() => null)
-
-        if (existingJob) {
-            const jobState = await existingJob.getState().catch(() => null)
-            if (jobState === 'completed' || jobState === 'failed') {
-                await existingJob.remove().catch(() => undefined)
-                existingJob = null
+        const parsed = promoSchema.safeParse(await request.json().catch(() => null))
+        if (!parsed.success) return NextResponse.json({ code: 'INVALID_PROMO_REQUEST', error: 'INVALID_PROMO_REQUEST',
+            messageKey: 'operations.packageQuoteChanged' }, { status: 400 })
+        const input = parsed.data
+        const requestedCode = input.promoAction === 'REMOVE' ? null : input.promoCode!
+        await prisma.$transaction(async tx => {
+            if (!await lockFinancialOperation(tx, id)) throw new Error('OPERATION_NOT_FOUND')
+            const current = await tx.operation.findUniqueOrThrow({ where: { id } })
+            if (current.userId !== authUser.id) throw new Error('FORBIDDEN')
+            if (current.status !== 'AWAITING_PACKAGE' || (current.finalConfirmExpiry && current.finalConfirmExpiry <= new Date())) {
+                throw new Error('STALE_PACKAGE_QUOTE')
             }
-        }
-
-        try {
-            if (!existingJob) {
-                await addOperationJob({
-                    operationId: id,
-                    type: 'APPLY_PROMO',
-                    promoCode,
-                    userId: authUser.id,
-                    cardNumber: operation.cardNumber,
-                })
-            }
-        } catch (queueError) {
-            if (!isDuplicateJobError(queueError)) {
-                await prisma.operation.update({
-                    where: { id },
-                    data: {
-                        responseData: JSON.stringify({
-                            ...existingResponseData,
-                            promoApplied: false,
-                            refreshing: false,
-                            error: 'Could not queue promo request. Please try again.',
-                        }),
-                    },
-                })
-
-                return NextResponse.json(
-                    { error: 'Could not apply promo right now. Please try again.' },
-                    { status: 503 }
-                )
-            }
-        }
-
-        // Poll for updated packages (wait up to 30 seconds)
-        const maxWait = 30000
-        const pollInterval = 2000
-        let elapsed = 0
-
-        while (elapsed < maxWait) {
-            await new Promise(resolve => setTimeout(resolve, pollInterval))
-            elapsed += pollInterval
-
-            const updatedOp = await prisma.operation.findUnique({
-                where: { id },
-            })
-
-            // Check if packages were updated via responseData
-            if (updatedOp?.responseData) {
-                try {
-                    const data = parseOperationResponseData(updatedOp.responseData)
-                    if (data.promoApplied === true && Array.isArray(data.packages)) {
-                        return NextResponse.json({
-                            success: true,
-                            message: 'Promo code applied',
-                            packages: data.packages,
-                        })
-                    }
-
-                    if (
-                        data.promoApplied === false &&
-                        data.refreshing !== true &&
-                        typeof data.error === 'string'
-                    ) {
-                        return NextResponse.json(
-                            {
-                                success: false,
-                                error: data.error,
-                                packages: Array.isArray(data.packages) ? data.packages : [],
-                            },
-                            { status: 400 }
-                        )
-                    }
-                } catch {
-                    // Not valid JSON, continue
+            const data = quoteData(current.responseData)
+            const revision = quoteRevisionOf(data)
+            if (input.actionRevision === revision) {
+                if (data.requestedPromoCode !== requestedCode || data.promoAction !== input.promoAction) {
+                    throw new Error('PROMO_REQUEST_CONFLICT')
                 }
+                return // Pending, completed and failed requests replay their existing result.
             }
-        }
-
-        const latestOp = await prisma.operation.findUnique({
-            where: { id },
-            select: { responseData: true, availablePackages: true },
+            if (input.actionRevision !== revision + 1) throw new Error('PROMO_REQUEST_CONFLICT')
+            await ensureGuardedRenewalOperationReservation(tx, { operationId: id, cardNumber: current.cardNumber })
+            await tx.operation.update({ where: { id }, data: {
+                selectedPackage: Prisma.JsonNull,
+                responseData: JSON.stringify({ ...data, quoteRevision: input.actionRevision, quoteState: 'PENDING',
+                    requestedPromoCode: requestedCode, promoAction: input.promoAction, refreshing: true,
+                    promoApplied: false, error: null }),
+            } })
+            await createOperationDispatch(tx, {
+                operationId: id, type: 'APPLY_PROMO', actionRevision: input.actionRevision,
+                promoAction: input.promoAction, promoCode: requestedCode || undefined,
+                userId: authUser.id, cardNumber: current.cardNumber,
+                smartcardType: typeof data.smartcardType === 'string' ? data.smartcardType : 'CISCO',
+            })
         })
-        const latestData = parseOperationResponseData(latestOp?.responseData)
-
-        if (latestData.refreshing === true) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    processing: true,
-                    message: 'Promo application is still processing. Please wait and try again.',
-                    packages: Array.isArray(latestOp?.availablePackages) ? latestOp?.availablePackages : [],
-                },
-                { status: 202 }
-            )
-        }
-
-        return NextResponse.json(
-            {
-                success: false,
-                error: 'Timeout - please try again',
-            },
-            { status: 408 }
-        )
-
+        await dispatchPendingOperationJobs({ operationIds: [id] })
+        const latest = await prisma.operation.findUniqueOrThrow({ where: { id } })
+        const quote = publicPackageQuote(latest)
+        const processing = quote.quoteState === 'PENDING'
+        return NextResponse.json({ ...quote, success: quote.quoteState === 'READY', processing,
+            messageKey: processing ? 'operations.packageQuotePending' : quote.quoteState === 'FAILED'
+                ? 'operations.packageQuoteFailed' : 'operations.packageQuoteUpdated' }, { status: processing ? 202 : 200 })
     } catch (error) {
+        if (isRenewalCreationBlockedError(error)) return NextResponse.json(renewalCreationBlockedPayload(error), { status: 409 })
+        const quoteError = quoteErrorPayload(error)
+        if (quoteError) return NextResponse.json(quoteError, { status: 409 })
+        const message = error instanceof Error ? error.message : ''
+        if (message === 'FORBIDDEN') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+        if (message === 'OPERATION_NOT_FOUND') return NextResponse.json({ error: 'Operation not found' }, { status: 404 })
         console.error('Apply promo error:', error)
         return NextResponse.json({ error: 'Server error' }, { status: 500 })
     }

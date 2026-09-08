@@ -8,7 +8,7 @@
  * - Runs every N minutes (configurable via keepalive_interval_minutes setting)
  * - Automatically solves CAPTCHA using 2Captcha
  * - Staggered refresh (10 sec between accounts) to avoid rate limiting
- * - Skips accounts that are in use (locked by operations)
+ * - Uses only automation-exclusive accounts and skips causal reservations
  * - Stores metrics in Redis for admin panel
  * 
  * Usage:
@@ -51,6 +51,7 @@ async function main() {
     const intervalMinutes = await getIntervalFromSettings();
     console.log(`⏰ Refresh interval: ${intervalMinutes} minutes`);
     console.log(`⏱️ Stagger delay: 10 seconds between accounts`);
+    console.log('🔒 Provider-account reservation guard: enabled');
 
     // Create keep-alive service
     const keepAlive = new SessionKeepAliveService(intervalMinutes, 10000);

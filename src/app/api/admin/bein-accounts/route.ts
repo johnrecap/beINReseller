@@ -4,6 +4,11 @@ import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { encryptSecret } from '@/lib/crypto'
 import Redis from 'ioredis'
 import { buildAccountLockStatus, readAccountLockStatus } from '@/lib/operations/account-lock-release'
+import { normalizeProviderAccountCredentialUsername } from '@/lib/provider-account-identity'
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+    return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002'
+}
 
 // Initialize Redis for pool status
 const getRedis = () => {
@@ -52,7 +57,7 @@ export async function GET(request: NextRequest) {
                 const lockStatus = await readAccountLockStatus(redis, account.id)
                 lockStatusByAccountId.set(account.id, lockStatus)
 
-                if (!account.isActive) continue
+                if (!account.isActive || !account.automationExclusive) continue
                 if (lockStatus.locked) continue
 
                 // Check cooldown
@@ -83,7 +88,9 @@ export async function GET(request: NextRequest) {
             console.error('Redis error when getting pool status:', redisError)
             // Fall back to basic calculation
             poolStatus.availableNow = accounts.filter(a =>
-                a.isActive && (!a.cooldownUntil || a.cooldownUntil < new Date())
+                a.isActive
+                && a.automationExclusive
+                && (!a.cooldownUntil || a.cooldownUntil < new Date())
             ).length
         }
 
@@ -119,6 +126,7 @@ export async function GET(request: NextRequest) {
                 proxyId: account.proxyId,
                 proxy: account.proxy,
                 customerOnly: account.customerOnly,
+                automationExclusive: account.automationExclusive,
                 hasTotpSecret: !!account.totpSecret, // Indicate if TOTP is configured
                 lockStatus: lockStatusByAccountId.get(account.id) ?? buildAccountLockStatus(null),
             }
@@ -143,21 +151,39 @@ export async function POST(request: NextRequest) {
         if ('error' in authResult) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
+        const adminUser = authResult.user
 
         const body = await request.json()
-        const { username, password, totpSecret, label, priority, customerOnly } = body
+        const {
+            username,
+            password,
+            totpSecret,
+            label,
+            priority,
+            customerOnly,
+            automationExclusive = false,
+        } = body
+
+        if (typeof automationExclusive !== 'boolean') {
+            return NextResponse.json(
+                { error: 'INVALID_AUTOMATION_EXCLUSIVE' },
+                { status: 400 }
+            )
+        }
 
         // Validate required fields
-        if (!username || !password) {
+        if (typeof username !== 'string' || !username.trim() || !password) {
             return NextResponse.json(
                 { error: 'Username and password are required' },
                 { status: 400 }
             )
         }
 
+        const credentialUsername = normalizeProviderAccountCredentialUsername(username)
+
         // Check if username already exists
-        const existing = await prisma.beinAccount.findUnique({
-            where: { username }
+        const existing = await prisma.beinAccount.findFirst({
+            where: { username: { equals: credentialUsername, mode: 'insensitive' } }
         })
 
         if (existing) {
@@ -168,16 +194,32 @@ export async function POST(request: NextRequest) {
         }
 
         // Create account
-        const account = await prisma.beinAccount.create({
-            data: {
-                username,
-                password: encryptSecret(password),
-                totpSecret: totpSecret ? encryptSecret(totpSecret) : null,
-                label: label || null,
-                priority: priority || 0,
-                customerOnly: customerOnly || false,
-                isActive: true
-            }
+        const account = await prisma.$transaction(async (tx) => {
+            const createdAccount = await tx.beinAccount.create({
+                data: {
+                    username: credentialUsername,
+                    password: encryptSecret(password),
+                    totpSecret: totpSecret ? encryptSecret(totpSecret) : null,
+                    label: label || null,
+                    priority: priority || 0,
+                    customerOnly: customerOnly || false,
+                    automationExclusive,
+                    isActive: true
+                }
+            })
+
+            await tx.activityLog.create({
+                data: {
+                    userId: adminUser.id,
+                    action: 'ADMIN_CREATE_BEIN_ACCOUNT',
+                    targetId: createdAccount.id,
+                    targetType: 'BeinAccount',
+                    details: { automationExclusive },
+                    ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                },
+            })
+
+            return createdAccount
         })
 
         return NextResponse.json({
@@ -188,11 +230,15 @@ export async function POST(request: NextRequest) {
                 label: account.label,
                 isActive: account.isActive,
                 priority: account.priority,
+                automationExclusive: account.automationExclusive,
                 createdAt: account.createdAt
             }
         })
 
     } catch (error) {
+        if (isUniqueConstraintViolation(error)) {
+            return NextResponse.json({ error: 'Username already exists' }, { status: 400 })
+        }
         console.error('Create beIN account error:', error)
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

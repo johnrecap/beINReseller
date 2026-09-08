@@ -52,6 +52,7 @@ interface BeinAccount {
     isActive: boolean
     priority: number
     customerOnly: boolean
+    automationExclusive: boolean
     lastUsedAt: string | null
     usageCount: number
     cooldownUntil: string | null
@@ -126,6 +127,7 @@ export default function BeinAccountsPage() {
         label: '',
         priority: 0,
         customerOnly: false,
+        automationExclusive: false,
         proxyId: ''
     })
 
@@ -183,7 +185,7 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 toast.success(t.adminBeinAccounts?.messages?.addSuccess || 'Account added successfully')
                 setAddDialogOpen(false)
-                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, proxyId: '' })
+                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
                 fetchAccounts()
             } else {
                 toast.error(data.error)
@@ -213,7 +215,7 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 toast.success(t.adminBeinAccounts?.messages?.updateSuccess || 'Account updated successfully')
                 setEditAccount(null)
-                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, proxyId: '' })
+                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
                 fetchAccounts()
             } else {
                 toast.error(data.error)
@@ -477,6 +479,23 @@ export default function BeinAccountsPage() {
                                         Mobile App Only
                                     </Label>
                                 </div>
+                                <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        id="automationExclusive"
+                                        checked={formData.automationExclusive}
+                                        onChange={(e) => setFormData({ ...formData, automationExclusive: e.target.checked })}
+                                        className="mt-1 h-4 w-4 rounded border-input"
+                                    />
+                                    <span>
+                                        <span className="block font-medium text-foreground">
+                                            {t.adminBeinAccounts.dialogs.automationExclusiveLabel}
+                                        </span>
+                                        <span className="block text-sm text-muted-foreground">
+                                            {t.adminBeinAccounts.dialogs.automationExclusiveHint}
+                                        </span>
+                                    </span>
+                                </label>
                                 <DialogFooter>
                                     <DialogClose asChild>
                                         <Button type="button" variant="outline">{t.common?.cancel || 'Cancel'}</Button>
@@ -534,6 +553,7 @@ export default function BeinAccountsPage() {
                                 <TableHead>{t.adminBeinAccounts?.table?.account || 'Account'}</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.proxy || 'Proxy'}</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.status || 'Status'}</TableHead>
+                                <TableHead className="text-center">{t.adminBeinAccounts.table.automationExclusive}</TableHead>
                                 <TableHead className="text-center">Lock</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.priority || 'Priority'}</TableHead>
                                 <TableHead className="text-center">{t.adminBeinAccounts?.table?.balance || 'beIN Balance'}</TableHead>
@@ -546,7 +566,7 @@ export default function BeinAccountsPage() {
                         <TableBody>
                             {accounts.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                                         {t.adminBeinAccounts?.table?.noAccounts || 'No accounts. Add your first account!'}
                                     </TableCell>
                                 </TableRow>
@@ -571,6 +591,13 @@ export default function BeinAccountsPage() {
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">{getStatusBadge(account)}</TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant={account.automationExclusive ? 'success' : 'outline'}>
+                                                {account.automationExclusive
+                                                    ? t.adminBeinAccounts.status.automationExclusive
+                                                    : t.adminBeinAccounts.status.sharedUsage}
+                                            </Badge>
+                                        </TableCell>
                                         <TableCell className="text-center">{getLockBadge(account)}</TableCell>
                                         <TableCell className="text-center">{account.priority}</TableCell>
                                         <TableCell className="text-center">
@@ -660,6 +687,7 @@ export default function BeinAccountsPage() {
                                                             label: account.label || '',
                                                             priority: account.priority,
                                                             customerOnly: account.customerOnly || false,
+                                                            automationExclusive: account.automationExclusive,
                                                             proxyId: account.proxyId || ''
                                                         })
                                                     }}
@@ -811,6 +839,23 @@ export default function BeinAccountsPage() {
                                 Mobile App Only
                             </Label>
                         </div>
+                        <label className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                id="edit-automationExclusive"
+                                checked={formData.automationExclusive}
+                                onChange={(e) => setFormData({ ...formData, automationExclusive: e.target.checked })}
+                                className="mt-1 h-4 w-4 rounded border-input"
+                            />
+                            <span>
+                                <span className="block font-medium text-foreground">
+                                    {t.adminBeinAccounts.dialogs.automationExclusiveLabel}
+                                </span>
+                                <span className="block text-sm text-muted-foreground">
+                                    {t.adminBeinAccounts.dialogs.automationExclusiveHint}
+                                </span>
+                            </span>
+                        </label>
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">{t.common?.cancel || 'Cancel'}</Button>

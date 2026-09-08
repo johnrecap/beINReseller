@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
-import { addOperationJob } from '@/lib/queue'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import redis from '@/lib/redis'
 import { Prisma } from '@prisma/client'
 import { parseOperationResponseData } from '@/lib/operation-safety'
 import { finalizeOperationSpendAwardRun } from '@/lib/points/operation-spend-award-runs'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import {
+    ensureGuardedRenewalOperationReservation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
+import { finalizeWebPreMutationRenewalTermination } from '@/lib/operations/pre-mutation-renewal-finalization'
+import { releaseAccountLockSafely } from '@/lib/operations/account-lock-release'
+import { assertRenewalReadiness, renewalReadinessErrorPayload } from '@/lib/renewal-readiness'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) {
-        return session.user
-    }
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 interface RouteParams {
@@ -47,8 +51,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             select: {
                 id: true,
                 userId: true,
+                purpose: true,
                 status: true,
                 cardNumber: true,
+                beinAccountId: true,
                 amount: true,
                 responseData: true, // CRITICAL: Need this to get the actual price
                 finalConfirmExpiry: true,
@@ -71,7 +77,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         // Verify status is awaiting confirmation
-        if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
+        if (operation.status !== 'AWAITING_FINAL_CONFIRM' || operation.purpose !== 'INSTALLMENT') {
             return NextResponse.json(
                 { error: 'Operation is not in awaiting confirmation state' },
                 { status: 400 }
@@ -80,14 +86,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         // Check if confirmation has expired
         if (operation.finalConfirmExpiry && new Date() > operation.finalConfirmExpiry) {
-            // Mark as failed
-            await prisma.operation.update({
-                where: { id: operationId },
-                data: {
-                    status: 'FAILED',
-                    responseMessage: 'Confirmation timeout'
-                }
+            const renewalTermination = await finalizeWebPreMutationRenewalTermination({
+                operationId,
+                terminalStatus: 'FAILED',
+                allowedStatuses: ['AWAITING_FINAL_CONFIRM'],
+                responseMessage: 'Confirmation timeout',
+                errorMessage: 'Confirmation timeout',
+                releaseReason: 'INSTALLMENT_CONFIRMATION_TIMEOUT_PRE_MUTATION',
             })
+
+            if (renewalTermination.status === 'REVIEW_REQUIRED') {
+                return NextResponse.json(
+                    {
+                        error: 'Confirmation timeout',
+                        reviewRequired: true,
+                        status: 'REVIEW_REQUIRED',
+                    },
+                    { status: 409 }
+                )
+            }
+            if (renewalTermination.status === 'EVIDENCE_CONFLICT') {
+                return NextResponse.json(
+                    { error: 'Operation state changed. Please refresh and try again.' },
+                    { status: 409 }
+                )
+            }
+
+            await releaseAccountLockSafely(redis, operation.beinAccountId, operation.id)
+            await redis.del(`operation:heartbeat:${operation.id}`).catch(() => undefined)
 
             return NextResponse.json(
                 { error: 'Confirmation timeout' },
@@ -100,7 +126,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const installmentData = responseData.installment as { dealerPrice?: unknown } | undefined
         const dealerPrice = typeof installmentData?.dealerPrice === 'number' ? installmentData.dealerPrice : 0
 
-        if (dealerPrice <= 0) {
+        if (!Number.isFinite(dealerPrice) || dealerPrice <= 0) {
             return NextResponse.json(
                 { error: 'Invalid installment price' },
                 { status: 400 }
@@ -108,7 +134,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
 
         // Charge the operation owner (admin may confirm on behalf of user)
-        const chargedUserId = operation.userId || authUser.id
+        const chargedUserId = operation.userId
         if (!chargedUserId) {
             return NextResponse.json(
                 { error: 'Operation has no chargeable user' },
@@ -118,10 +144,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         // Atomic financial step: race guard + balance deduction + transaction row
         await prisma.$transaction(async (tx) => {
+            await ensureGuardedRenewalOperationReservation(tx, {
+                operationId,
+                cardNumber: operation.cardNumber,
+            })
+            const currentAccount = await tx.operation.findUniqueOrThrow({ where: { id: operationId }, select: { beinAccountId: true } })
+            await assertRenewalReadiness(tx, { operationId, beinAccountId: currentAccount.beinAccountId,
+                minBalance: dealerPrice, lockAssignedAccount: true })
+
             const opGuard = await tx.operation.updateMany({
                 where: {
                     id: operationId,
                     status: 'AWAITING_FINAL_CONFIRM',
+                    purpose: 'INSTALLMENT',
+                    userId: chargedUserId,
+                    providerMutationStartedAt: null,
                     amount: 0
                 },
                 data: {
@@ -163,52 +200,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                     notes: `Installment payment for card ${operation.cardNumber}`
                 }
             })
-        })
 
-        // Add job to queue for final payment
-        try {
-            await addOperationJob({
+            await createOperationDispatch(tx, {
                 operationId: operation.id,
                 type: 'CONFIRM_INSTALLMENT',
                 cardNumber: operation.cardNumber,
                 userId: chargedUserId,
-                amount: dealerPrice, // Pass the actual price
+                amount: dealerPrice,
             })
-        } catch (queueError) {
-            console.error('Failed to add confirm job to queue:', queueError)
+        })
 
-            // Refund on failure
-            await prisma.$transaction(async (tx) => {
-                const updatedUser = await tx.user.update({
-                    where: { id: chargedUserId },
-                    data: { balance: { increment: dealerPrice } }
-                })
-
-                await tx.operation.update({
-                    where: { id: operationId },
-                    data: {
-                        status: 'FAILED',
-                        amount: 0,
-                        responseMessage: 'Failed to confirm payment - amount refunded'
-                    }
-                })
-
-                await tx.transaction.create({
-                    data: {
-                        userId: chargedUserId,
-                        type: 'REFUND',
-                        amount: dealerPrice,
-                        balanceAfter: updatedUser.balance,
-                        operationId,
-                        notes: 'Auto-refund: failed to queue installment confirmation'
-                    }
-                })
-            })
-
-            return NextResponse.json(
-                { error: 'Failed to confirm payment, amount refunded' },
-                { status: 500 }
-            )
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [operation.id],
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch installment confirmation; saved for retry:', operation.id)
         }
 
         const completedOperation = await prisma.operation.findUnique({
@@ -223,10 +229,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({
             success: true,
-            message: 'Completing payment...'
+            message: 'Completing payment...',
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {
+        const readinessError = renewalReadinessErrorPayload(error)
+        if (readinessError) return NextResponse.json(readinessError, { status: 503 })
+        if (isRenewalCreationBlockedError(error)) {
+            return NextResponse.json(
+                renewalCreationBlockedPayload(error),
+                { status: 409 }
+            )
+        }
         const msg = error instanceof Error ? error.message : ''
         if (msg === 'INSUFFICIENT_BALANCE') {
             return NextResponse.json(

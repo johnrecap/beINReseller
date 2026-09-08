@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    // Try web session first
-    const session = await auth()
-    if (session?.user?.id) {
-        return session.user
-    }
-    // Fall back to mobile token
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 // Validation schema

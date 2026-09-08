@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getOperationPriceFromDB } from '@/lib/pricing'
@@ -7,19 +7,13 @@ import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/ope
 import { createNotification } from '@/lib/notification'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { legacyRenewalRouteDisabledPayload } from '@/lib/operations/renewal-creation-guard'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    // Try web session first
-    const session = await auth()
-    if (session?.user?.id) {
-        return session.user
-    }
-    // Fall back to mobile token
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 const MAX_CARDS_PER_REQUEST = 10
@@ -71,6 +65,21 @@ export async function POST(request: NextRequest) {
         }
 
         const { type, cardNumbers, duration } = validationResult.data
+
+        if (type === 'CHECK_BALANCE') {
+            return NextResponse.json({ error: 'UNSUPPORTED_OPERATION_TYPE', code: 'UNSUPPORTED_OPERATION_TYPE',
+                messageKey: 'operations.unsupportedOperationType' }, { status: 400 })
+        }
+
+        // Bulk `RENEW` dispatches an unsupported Worker job and used to debit
+        // every card before that failure. Keep it closed until it is migrated
+        // to the guided renewal state machine.
+        if ((type as string) === 'RENEW') {
+            return NextResponse.json(
+                legacyRenewalRouteDisabledPayload(),
+                { status: 409 }
+            )
+        }
 
         // Remove duplicates
         const uniqueCardNumbers = [...new Set(cardNumbers)]

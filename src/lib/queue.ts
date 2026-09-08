@@ -1,4 +1,5 @@
 import { Queue } from 'bullmq'
+import { actionRevision } from '../../shared/operations/package-quote'
 
 const getRedisUrl = () => {
     if (process.env.REDIS_URL) {
@@ -7,8 +8,9 @@ const getRedisUrl = () => {
     return 'redis://localhost:6379'
 }
 
-function buildOperationJobId(data: { operationId: string; type: string }) {
-    return `${data.type}--${data.operationId}`
+function buildOperationJobId(data: { operationId: string; type: string; actionRevision?: number }) {
+    const revision = actionRevision(data.type, data.actionRevision)
+    return `${data.type}--${data.operationId}${revision > 0 ? `--${revision}` : ''}`
 }
 
 export interface OperationJobData {
@@ -17,10 +19,14 @@ export interface OperationJobData {
     cardNumber: string
     duration?: string
     promoCode?: string
+    promoAction?: 'APPLY' | 'REMOVE'
+    actionRevision?: number
     userId?: string
     customerId?: string
     amount?: number
     smartcardType?: string
+    verificationAttempt?: number
+    queueTarget?: 'RESELLER' | 'CUSTOMER'
 }
 
 // ===== Reseller Operations Queue (Priority 1 - Higher) =====

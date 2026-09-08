@@ -13,6 +13,7 @@ import {
     unchangedFinalPayReadings,
     unreadableFinalPayReadings,
 } from './helpers/final-pay-fixtures';
+import { mapProviderPaymentState } from '../../shared/operations/renewal-fulfillment';
 
 test('classifies explicit success with matching balance delta as confirmed success', () => {
     assert.equal(
@@ -24,14 +25,14 @@ test('classifies explicit success with matching balance delta as confirmed succe
     );
 });
 
-test('does not classify explicit success with unchanged balance as confirmed success', () => {
+test('does not infer a no-charge result from explicit success with unchanged balance', () => {
     assert.equal(
         classifyFinalPay({
             success: true,
             message: 'Contract Created Successfully',
             beinBalanceAfter: FINAL_PAY_BALANCE_BEFORE,
         }),
-        'CONFIRMED_NOT_CHARGED'
+        'UNCERTAIN_REVIEW_REQUIRED'
     );
 });
 
@@ -46,35 +47,35 @@ test('moves explicit success with missing balance evidence to review', () => {
     );
 });
 
-test('classifies matching balance delta as confirmed success', () => {
-    assert.equal(
-        classifyFinalPay({
+test('maps matching balance delta to CHARGED evidence without treating it as fulfillment', () => {
+    const financialOutcome = classifyFinalPay({
             message: 'Server Error',
             beinBalanceAfter: balanceAfterDecrease(FINAL_PAY_EXPECTED_COST),
-        }),
-        'CONFIRMED_SUCCESS'
-    );
+        });
+
+    assert.equal(financialOutcome, 'CONFIRMED_SUCCESS');
+    assert.equal(mapProviderPaymentState(financialOutcome, true), 'CHARGED');
 });
 
-test('classifies final pay that drains beIN balance to zero as confirmed success', () => {
-    assert.equal(
-        classifyFinalPay({
+test('maps a balance debit down to zero to CHARGED evidence only', () => {
+    const financialOutcome = classifyFinalPay({
             expectedCost: FINAL_PAY_BALANCE_BEFORE,
             beinBalanceAfter: 0,
-        }),
-        'CONFIRMED_SUCCESS'
-    );
+        });
+
+    assert.equal(financialOutcome, 'CONFIRMED_SUCCESS');
+    assert.equal(mapProviderPaymentState(financialOutcome, true), 'CHARGED');
 });
 
-test('classifies fractional beIN balance delta as confirmed success', () => {
-    assert.equal(
-        classifyFinalPay({
+test('maps an exact fractional balance debit to CHARGED evidence only', () => {
+    const financialOutcome = classifyFinalPay({
             expectedCost: 150,
             beinBalanceBefore: 4785.995,
             beinBalanceAfter: 4635.995,
-        }),
-        'CONFIRMED_SUCCESS'
-    );
+        });
+
+    assert.equal(financialOutcome, 'CONFIRMED_SUCCESS');
+    assert.equal(mapProviderPaymentState(financialOutcome, true), 'CHARGED');
 });
 
 test('preserves zero balance fields in final payment result construction', () => {
@@ -122,13 +123,13 @@ test('parses package prices with arbitrary decimal precision', () => {
     assert.doesNotMatch(source, /const priceMatch = rowText\.match\(\/\(\[\\d,\]\+\(\?:\\\.\\d\{1,2\}\)\?\)\\s\*USD\/i\)/);
 });
 
-test('classifies unchanged balance after final pay as not charged', () => {
+test('keeps unchanged balance after final pay uncertain without explicit rejection', () => {
     assert.equal(
         classifyFinalPay({
             message: 'No success confirmation found from beIN',
             beinBalanceAfter: FINAL_PAY_BALANCE_BEFORE,
         }),
-        'CONFIRMED_NOT_CHARGED'
+        'UNCERTAIN_REVIEW_REQUIRED'
     );
 });
 
@@ -152,6 +153,17 @@ test('classifies missing balance evidence after pay submit as review required', 
     );
 });
 
+test('accepts an explicit provider insufficient-credit rejection as not charged', () => {
+    assert.equal(
+        classifyFinalPay({
+            success: false,
+            message: 'Insufficient credit',
+            beinBalanceAfter: FINAL_PAY_BALANCE_BEFORE,
+        }),
+        'CONFIRMED_NOT_CHARGED'
+    );
+});
+
 test('classifies delayed expected balance decrease as confirmed success', () => {
     assert.equal(classifyFinalPayReadings(delayedExpectedDecreaseReadings, 3), 'CONFIRMED_SUCCESS');
 });
@@ -160,8 +172,8 @@ test('does not treat first unchanged delayed balance read as confirmed no-charge
     assert.equal(classifyFinalPayReadings([FINAL_PAY_BALANCE_BEFORE], 3), 'UNCERTAIN_REVIEW_REQUIRED');
 });
 
-test('classifies unchanged balance after all delayed checks as confirmed no-charge', () => {
-    assert.equal(classifyFinalPayReadings(unchangedFinalPayReadings, 3), 'CONFIRMED_NOT_CHARGED');
+test('keeps unchanged balance after all delayed checks uncertain without explicit rejection', () => {
+    assert.equal(classifyFinalPayReadings(unchangedFinalPayReadings, 3), 'UNCERTAIN_REVIEW_REQUIRED');
 });
 
 test('classifies delayed mismatched balance decrease as review required', () => {

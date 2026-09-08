@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { OperationStatus, Prisma } from '@prisma/client'
+import { OperationStatus } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import {
@@ -9,108 +9,29 @@ import {
 } from '@/lib/financial-review/evidence'
 import {
     appendManualReviewDecision,
-    getDefaultPaymentStatus,
+    canRecordFinancialReviewDecisionForStatus,
     isFinancialReviewDecisionAllowed,
     normalizeManualVerificationForAction,
 } from '@/lib/financial-review/manual-decisions'
 import type { FinancialReviewDecisionAction, FinancialReviewPaymentStatus } from '@/lib/financial-review/types'
-import { shouldAwardOperationSpendPointsAfterFinancialReview } from '@/lib/financial-review/point-awards'
-import {
-    captureOperationSpendAwardRunInTransaction,
-    finalizeOperationSpendAwardRun,
-} from '@/lib/points/operation-spend-award-runs'
+import { finalizeOperationSpendAwardRun } from '@/lib/points/operation-spend-award-runs'
+import { finalizeManualRenewalFulfillment } from '@/lib/operations/manual-fulfillment-finalization'
+import { finalizeStrictFinancialReviewRefund } from '@/lib/operations/financial-review-refund-finalization'
 import { lockOperationRow } from '../../../../../../../shared/db/ownership-evidence-lock'
+import { validDecisionNote } from '../../../../../../../shared/operations/review-decision-note'
+import { classifyFinancialReview, reviewCapabilitySelect } from '@/lib/financial-review/capabilities'
+import { finalizeLegacyReview } from '@/lib/operations/legacy-review-finalization'
+import { finalizeWebPreMutationRenewalTermination } from '@/lib/operations/pre-mutation-renewal-finalization'
 
 const DECISION_ACTIONS: FinancialReviewDecisionAction[] = [
     'BEIN_EXECUTED_NO_REFUND',
     'REFUND_CUSTOMER',
     'KEEP_UNDER_REVIEW',
+    'RESOLVE_PRE_MUTATION',
 ]
 
 type RouteContext = {
     params: Promise<{ operationId: string }>
-}
-
-type AdminRefundInput = {
-    operationId: string
-    userId: string | null
-    customerId: string | null
-    amount: number
-    reason: string
-}
-
-async function applyAdminRefund(tx: Prisma.TransactionClient, input: AdminRefundInput) {
-    if (!input.amount || input.amount <= 0) {
-        throw new Error('INVALID_REFUND_AMOUNT')
-    }
-
-    if (input.userId) {
-        const existingRefund = await tx.transaction.findFirst({
-            where: { operationId: input.operationId, type: 'REFUND' },
-            select: { id: true },
-        })
-        if (existingRefund) return false
-
-        const user = await tx.user.update({
-            where: { id: input.userId },
-            data: { balance: { increment: input.amount } },
-            select: { id: true, balance: true },
-        })
-
-        await tx.transaction.create({
-            data: {
-                userId: user.id,
-                operationId: input.operationId,
-                type: 'REFUND',
-                amount: input.amount,
-                balanceAfter: user.balance,
-                notes: `Financial review refund: ${input.reason}`,
-            },
-        })
-
-        await tx.notification.create({
-            data: {
-                userId: user.id,
-                title: 'Amount refunded',
-                message: `Amount ${input.amount} refunded after admin review.`,
-                type: 'info',
-                link: '/dashboard/transactions',
-            },
-        })
-
-        return true
-    }
-
-    if (input.customerId) {
-        const existingRefund = await tx.walletTransaction.findFirst({
-            where: { referenceId: input.operationId, referenceType: 'REFUND' },
-            select: { id: true },
-        })
-        if (existingRefund) return false
-
-        const customer = await tx.customer.update({
-            where: { id: input.customerId },
-            data: { walletBalance: { increment: input.amount } },
-            select: { id: true, walletBalance: true },
-        })
-
-        await tx.walletTransaction.create({
-            data: {
-                customerId: customer.id,
-                type: 'REFUND',
-                amount: input.amount,
-                balanceBefore: customer.walletBalance - input.amount,
-                balanceAfter: customer.walletBalance,
-                description: `Financial review refund: ${input.reason}`,
-                referenceType: 'REFUND',
-                referenceId: input.operationId,
-            },
-        })
-
-        return true
-    }
-
-    throw new Error('NO_REFUND_TARGET')
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
@@ -124,10 +45,23 @@ export async function POST(request: NextRequest, context: RouteContext) {
         const body = await request.json().catch(() => ({})) as {
             action?: FinancialReviewDecisionAction
             note?: string
+            decisionKey?: string
+            sourceReference?: string
             manualVerification?: {
                 cardRenewed?: boolean
                 actualBeinDebitAmount?: number
                 paymentStatus?: FinancialReviewPaymentStatus
+            }
+            manualFulfillmentEvidence?: {
+                invoiceNo?: string
+                beinAccountId?: string
+                cardNumberSnapshot?: string
+                packageNameSnapshot?: string
+                providerAmount?: string | number
+                currency?: string
+                evidenceSource?: string
+                evidenceNote?: string
+                observedAt?: string
             }
         }
         const action = body.action
@@ -151,12 +85,158 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (!action || !DECISION_ACTIONS.includes(action)) {
             return NextResponse.json({ error: 'Invalid decision action' }, { status: 400 })
         }
+
+        if (!validDecisionNote(note, action !== 'KEEP_UNDER_REVIEW')) {
+            return NextResponse.json({ error: 'INVALID_DECISION_NOTE', code: 'INVALID_DECISION_NOTE',
+                messageKey: 'admin.financialReview.decisionNoteValidation' }, { status: 400 })
+        }
+
+        if (action === 'RESOLVE_PRE_MUTATION') {
+            const result = await finalizeWebPreMutationRenewalTermination({ operationId, terminalStatus: 'FAILED',
+                allowedStatuses: ['REVIEW_REQUIRED'], responseMessage: 'ADMIN_PRE_MUTATION_RESOLVED',
+                releaseReason: 'ADMIN_PRE_MUTATION_RESOLVED', adminReview: {
+                    actorId: authResult.user.id, actorUsername: authResult.user.username, note,
+                } })
+            const success = result.status === 'TERMINATED' || result.status === 'ALREADY_TERMINATED'
+            return NextResponse.json({ success, ...result }, { status: success ? 200 : 409 })
+        }
+
+        if (action === 'REFUND_CUSTOMER') {
+            const finalization = await finalizeStrictFinancialReviewRefund({
+                operationId,
+                decisionNote: note,
+                actorUserId: authResult.user.id,
+                actorUsername: authResult.user.username,
+            })
+            if (
+                finalization.status === 'REFUNDED' ||
+                finalization.status === 'ALREADY_REFUNDED'
+            ) {
+                return NextResponse.json({
+                    success: true,
+                    status: finalization.status,
+                    refundId: finalization.refundId,
+                })
+            }
+            return NextResponse.json(
+                { error: finalization.status },
+                {
+                    status: finalization.status === 'INVALID_DECISION_NOTE' ||
+                        finalization.status === 'REFUND_TARGET_MISSING'
+                        ? 400
+                        : 409,
+                }
+            )
+        }
         const manualVerification = normalizeManualVerificationForAction(action, rawManualVerification)
+
+        if (action === 'BEIN_EXECUTED_NO_REFUND') {
+            const operationState = await prisma.operation.findUnique({
+                where: { id: operationId },
+                select: {
+                    ...reviewCapabilitySelect,
+                    status: true,
+                    providerPaymentState: true,
+                    fulfillmentAuthority: true,
+                    fulfillmentProof: { select: { id: true, proofKind: true } },
+                },
+            })
+            if (!operationState) {
+                return NextResponse.json({ error: 'OPERATION_NOT_REVIEWABLE' }, { status: 409 })
+            }
+
+            const hasAutomatedCompositeProof =
+                operationState.status === OperationStatus.COMPLETED &&
+                operationState.fulfillmentAuthority === 'AUTOMATED_COMPOSITE' &&
+                operationState.fulfillmentProof?.proofKind === 'SOLD_REPORT_CONTRACT_CORRELATION'
+
+            if (!hasAutomatedCompositeProof) {
+                const capabilities = classifyFinancialReview(operationState)
+                const legacy = capabilities.classification === 'LEGACY_RENEWAL'
+                const manualReplay = operationState.status === 'COMPLETED' && operationState.manualFulfillmentEvidence
+                if (
+                    !manualReplay && !capabilities.allowedActions.includes('BEIN_EXECUTED_NO_REFUND')
+                ) {
+                    return NextResponse.json(
+                        { error: 'MANUAL_FULFILLMENT_PAYMENT_STATE_REQUIRED' },
+                        { status: 409 }
+                    )
+                }
+                const manualFulfillmentEvidence = body.manualFulfillmentEvidence
+                if (!manualFulfillmentEvidence || typeof manualFulfillmentEvidence !== 'object') {
+                    return NextResponse.json({ error: 'MANUAL_FULFILLMENT_EVIDENCE_REQUIRED' }, { status: 400 })
+                }
+
+                const input = {
+                    operationId,
+                    evidence: {
+                        beinAccountId: typeof manualFulfillmentEvidence.beinAccountId === 'string'
+                            ? manualFulfillmentEvidence.beinAccountId
+                            : '',
+                        invoiceNo: typeof manualFulfillmentEvidence.invoiceNo === 'string'
+                            ? manualFulfillmentEvidence.invoiceNo
+                            : '',
+                        cardNumberSnapshot: typeof manualFulfillmentEvidence.cardNumberSnapshot === 'string'
+                            ? manualFulfillmentEvidence.cardNumberSnapshot
+                            : '',
+                        packageNameSnapshot: typeof manualFulfillmentEvidence.packageNameSnapshot === 'string'
+                            ? manualFulfillmentEvidence.packageNameSnapshot
+                            : '',
+                        providerAmount: typeof manualFulfillmentEvidence.providerAmount === 'string' ||
+                            typeof manualFulfillmentEvidence.providerAmount === 'number'
+                            ? String(manualFulfillmentEvidence.providerAmount)
+                            : '',
+                        currency: typeof manualFulfillmentEvidence.currency === 'string'
+                            ? manualFulfillmentEvidence.currency
+                            : '',
+                        evidenceSource: typeof manualFulfillmentEvidence.evidenceSource === 'string'
+                            ? manualFulfillmentEvidence.evidenceSource
+                            : '',
+                        evidenceNote: typeof manualFulfillmentEvidence.evidenceNote === 'string'
+                            ? manualFulfillmentEvidence.evidenceNote
+                            : '',
+                        observedAt: new Date(manualFulfillmentEvidence.observedAt || ''),
+                        actorUserId: authResult.user.id,
+                    },
+                    decisionNote: note,
+                    actorUsername: authResult.user.username,
+                }
+                const finalization = legacy || (manualReplay && typeof body.decisionKey === 'string')
+                    ? await finalizeLegacyReview({ ...input, decisionKey: body.decisionKey || '', sourceReference: body.sourceReference || '' })
+                    : await finalizeManualRenewalFulfillment({ ...input,
+                        providerPaymentState: operationState.providerPaymentState === 'CHARGED' ? 'CHARGED' : 'UNKNOWN' })
+
+                if (finalization.status === 'COMPLETED' || finalization.status === 'ALREADY_COMPLETED') {
+                    await finalizeOperationSpendAwardRun(operationId).catch((error) => {
+                        console.error('Manual fulfillment point finalization error:', {
+                            operationId,
+                            error: error instanceof Error ? error.message : String(error),
+                        })
+                    })
+                    return NextResponse.json({
+                        success: true,
+                        status: finalization.status,
+                        fulfillmentAuthority: 'MANUAL_PROVIDER_CONFIRMATION',
+                        manualEvidenceId: finalization.manualEvidenceId ?? null,
+                    })
+                }
+
+                return NextResponse.json(
+                    { error: finalization.status },
+                    { status: finalization.status === 'INVALID_EVIDENCE' ? 400 : 409 }
+                )
+            }
+        }
 
         const result = await prisma.$transaction(async (tx) => {
             if (!await lockOperationRow(tx, operationId)) {
                 throw new Error('OPERATION_NOT_REVIEWABLE')
             }
+            const actor = await tx.$queryRaw<Array<{ id: string }>>`
+                SELECT "id" FROM "users" WHERE "id" = ${authResult.user.id}
+                  AND "role" = 'ADMIN' AND "is_active" = true AND "deleted_at" IS NULL FOR SHARE
+            `
+            if (actor.length !== 1) throw new Error('OPERATION_NOT_REVIEWABLE')
             const operation = await tx.operation.findUnique({
                 where: { id: operationId },
                 select: {
@@ -169,6 +249,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
                     updatedAt: true,
                     responseMessage: true,
                     responseData: true,
+                    fulfillmentAuthority: true,
                     selectedPackage: true,
                     user: { select: { id: true, username: true } },
                     customer: { select: { id: true, name: true, email: true } },
@@ -185,11 +266,39 @@ export async function POST(request: NextRequest, context: RouteContext) {
                             beinLabelSnapshot: true,
                         },
                     },
+                    fulfillmentProof: {
+                        select: {
+                            id: true,
+                            operationId: true,
+                            beinAccountId: true,
+                            cardNumberSnapshot: true,
+                            invoiceNo: true,
+                            proofKind: true,
+                        },
+                    },
+                    manualFulfillmentEvidence: {
+                        select: {
+                            id: true,
+                            invoiceNo: true,
+                            beinAccountId: true,
+                            cardNumberSnapshot: true,
+                            packageNameSnapshot: true,
+                            providerAmount: true,
+                            currency: true,
+                            evidenceSource: true,
+                            evidenceNote: true,
+                            observedAt: true,
+                            actorUserId: true,
+                        },
+                    },
                     transactions: { select: { type: true, amount: true } },
                 },
             })
 
-            if (!operation || operation.status !== OperationStatus.REVIEW_REQUIRED) {
+            if (!operation || !canRecordFinancialReviewDecisionForStatus({
+                operationStatus: operation.status,
+                action,
+            })) {
                 throw new Error('OPERATION_NOT_REVIEWABLE')
             }
 
@@ -207,39 +316,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
             }
 
             const completedAt = new Date()
-            const nextStatus = action === 'BEIN_EXECUTED_NO_REFUND'
-                ? OperationStatus.COMPLETED
-                : action === 'REFUND_CUSTOMER'
-                    ? OperationStatus.FAILED
-                    : OperationStatus.REVIEW_REQUIRED
-            const guardedTransition = await tx.operation.updateMany({
-                where: { id: operationId, status: OperationStatus.REVIEW_REQUIRED },
-                data: action === 'BEIN_EXECUTED_NO_REFUND'
-                    ? {
-                        status: OperationStatus.COMPLETED,
-                        completedAt,
-                        responseMessage: 'Financial review closed: beIN charge confirmed.',
-                    }
-                    : action === 'REFUND_CUSTOMER'
-                        ? {
-                            status: OperationStatus.FAILED,
-                            responseMessage: 'Financial review closed: no beIN charge confirmed and reseller refund closed.',
-                        }
-                        : { responseMessage: operation.responseMessage },
-            })
-            if (guardedTransition.count !== 1) {
-                throw new Error('OPERATION_NOT_REVIEWABLE')
+            if (operation.status === OperationStatus.REVIEW_REQUIRED) {
+                const guardedTransition = await tx.operation.updateMany({
+                    where: { id: operationId, status: OperationStatus.REVIEW_REQUIRED },
+                    data: { responseMessage: operation.responseMessage },
+                })
+                if (guardedTransition.count !== 1) {
+                    throw new Error('OPERATION_NOT_REVIEWABLE')
+                }
             }
 
-            const refundApplied = action === 'REFUND_CUSTOMER'
-                ? await applyAdminRefund(tx, {
-                    operationId,
-                    userId: operation.user?.id ?? null,
-                    customerId: operation.customer?.id ?? null,
-                    amount: operation.amount,
-                    reason: note || getDefaultPaymentStatus(action) || 'Financial review refund',
-                })
-                : false
             const decisionInput = {
                 action,
                 note,
@@ -252,7 +338,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 ...(typeof manualVerification?.actualBeinDebitAmount === 'number'
                     ? { actualBeinDebitAmount: manualVerification.actualBeinDebitAmount }
                     : {}),
-                ...(action === 'REFUND_CUSTOMER' ? { refundApplied } : {}),
             }
             const nextMetadata = appendManualReviewDecision(extractFinancialReviewMetadata(operation.responseData), decisionInput)
             const decision = nextMetadata.latestDecision
@@ -264,40 +349,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 data: { responseData },
             })
 
-            if (action === 'BEIN_EXECUTED_NO_REFUND') {
-                const capture = await captureOperationSpendAwardRunInTransaction(
-                    tx,
-                    operationId,
-                    'ADMIN_FINANCIAL_REVIEW',
-                    completedAt
-                )
-                if (capture.outcome === 'CONFLICT') {
-                    throw new Error('AWARD_RUN_CONFLICT')
-                }
-            }
-
             return {
                 decision,
                 metadata: extractFinancialReviewMetadata(responseData),
-                awardOperationSpendPoints: shouldAwardOperationSpendPointsAfterFinancialReview({
-                    action,
-                    nextStatus,
-                }),
             }
         })
 
-        const { awardOperationSpendPoints, ...responsePayload } = result
-
-        if (awardOperationSpendPoints) {
-            await finalizeOperationSpendAwardRun(operationId).catch((error) => {
-                console.error('Financial review point finalization error:', {
-                    operationId,
-                    error: error instanceof Error ? error.message : String(error),
-                })
-            })
-        }
-
-        return NextResponse.json({ success: true, ...responsePayload })
+        return NextResponse.json({ success: true, ...result })
     } catch (error) {
         console.error('Financial review decision error:', error)
         if (error instanceof Error) {

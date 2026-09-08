@@ -27,7 +27,17 @@ import {
     recordLoginSuccess,
     shouldCountAsCredentialFailure,
 } from './bein-login-tracking';
-import { isAccountLocked } from '../pool/account-locking';
+import {
+    extendLock,
+    isAccountExecutionLeaseActive,
+    lockAccount,
+    unlockAccount,
+} from '../pool/account-locking';
+import {
+    decideProviderAccountConsumerAccess,
+    findActiveProviderAccountReservationForAccount,
+    isProviderAccountAutomationEligible,
+} from './provider-account-reservation';
 import { checkAndNotifyLowBalance } from '../utils/notification';
 import { BeinAccount, Proxy } from '@prisma/client';
 import { decryptAccountPassword } from './crypto';
@@ -70,6 +80,8 @@ interface KeepAliveStats {
 
 // HTTP client cache (per account)
 const httpClients = new Map<string, HttpClientService>();
+const KEEPALIVE_ACCOUNT_GUARD_TTL_SECONDS = 120;
+const KEEPALIVE_ACCOUNT_GUARD_HEARTBEAT_MS = 30_000;
 
 async function getCurrentBeinConnectionMode(): Promise<string> {
     try {
@@ -248,7 +260,7 @@ export class SessionKeepAliveService {
 
         // Get all active accounts
         const accounts = await prisma.beinAccount.findMany({
-            where: { isActive: true },
+            where: { isActive: true, automationExclusive: true },
             include: { proxy: true },
             orderBy: { priority: 'desc' }
         });
@@ -337,6 +349,99 @@ export class SessionKeepAliveService {
      * - Performs full login if session expired
      */
     async refreshSession(rawAccount: BeinAccount & { proxy?: Proxy | null }): Promise<AccountRefreshResult> {
+        const startTime = Date.now();
+        const accountId = rawAccount.id;
+        const username = rawAccount.username;
+        if (!isProviderAccountAutomationEligible(rawAccount)) {
+            return {
+                accountId,
+                username,
+                status: 'skipped_inactive',
+                durationMs: Date.now() - startTime,
+            };
+        }
+
+        const reservationBeforeGuard = await findActiveProviderAccountReservationForAccount(
+            prisma,
+            accountId
+        );
+        const accessBeforeGuard = decideProviderAccountConsumerAccess({
+            consumer: 'KEEPALIVE',
+            activeReservation: reservationBeforeGuard
+                ? {
+                    operationId: reservationBeforeGuard.operationId,
+                    reservationGeneration: reservationBeforeGuard.reservationGeneration,
+                }
+                : null,
+            requester: null,
+        });
+        if (!accessBeforeGuard.allowed || await isAccountExecutionLeaseActive(this.redis, accountId)) {
+            return {
+                accountId,
+                username,
+                status: 'skipped_locked',
+                durationMs: Date.now() - startTime,
+            };
+        }
+
+        const guardOwner = `keepalive-${process.pid}-${accountId}`;
+        const guardAcquired = await lockAccount(
+            this.redis,
+            accountId,
+            guardOwner,
+            KEEPALIVE_ACCOUNT_GUARD_TTL_SECONDS
+        );
+        if (!guardAcquired) {
+            return {
+                accountId,
+                username,
+                status: 'skipped_locked',
+                durationMs: Date.now() - startTime,
+            };
+        }
+
+        const heartbeat = setInterval(() => {
+            void extendLock(
+                this.redis,
+                accountId,
+                guardOwner,
+                KEEPALIVE_ACCOUNT_GUARD_TTL_SECONDS
+            ).catch(() => false);
+        }, KEEPALIVE_ACCOUNT_GUARD_HEARTBEAT_MS);
+        heartbeat.unref();
+
+        try {
+            // Recheck after acquiring Redis guard to close the DB/Redis race.
+            const reservationAfterGuard = await findActiveProviderAccountReservationForAccount(
+                prisma,
+                accountId
+            );
+            const accessAfterGuard = decideProviderAccountConsumerAccess({
+                consumer: 'KEEPALIVE',
+                activeReservation: reservationAfterGuard
+                    ? {
+                        operationId: reservationAfterGuard.operationId,
+                        reservationGeneration: reservationAfterGuard.reservationGeneration,
+                    }
+                    : null,
+                requester: null,
+            });
+            if (!accessAfterGuard.allowed || await isAccountExecutionLeaseActive(this.redis, accountId)) {
+                return {
+                    accountId,
+                    username,
+                    status: 'skipped_locked',
+                    durationMs: Date.now() - startTime,
+                };
+            }
+            return await this.refreshSessionWithGuard(rawAccount);
+        } finally {
+            clearInterval(heartbeat);
+            await unlockAccount(this.redis, accountId, guardOwner).catch(() => false);
+        }
+    }
+
+    private async refreshSessionWithGuard(rawAccount: BeinAccount & { proxy?: Proxy | null }): Promise<AccountRefreshResult> {
         // SECURITY: Decrypt encrypted password from DB
         const account = decryptAccountPassword(rawAccount);
         const startTime = Date.now();
@@ -346,19 +451,8 @@ export class SessionKeepAliveService {
 
         console.log(`[KeepAlive] Processing: ${username}`);
 
-        // 1. Check if account is locked (in use by an operation)
-        const locked = await isAccountLocked(this.redis, accountId);
-        if (locked) {
-            console.log(`[KeepAlive] ${username}: Skipped - account locked (in use)`);
-            return {
-                accountId,
-                username,
-                status: 'skipped_locked',
-                durationMs: Date.now() - startTime
-            };
-        }
-
-        // 2. Check existing session TTL in Redis
+        // Account access is already guarded by refreshSession.
+        // Check existing session TTL in Redis.
         const ttl = await getSessionTTL(accountId, route.routeKey);
         const ttlMinutes = ttl > 0 ? Math.floor(ttl / 60) : 0;
 

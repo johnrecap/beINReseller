@@ -57,6 +57,7 @@ function finalPayMayHaveStarted(status: string, responseData: unknown): boolean 
 
     if (data.finalPaySubmitted === true) return true
     if (
+        phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
         phase === 'FINAL_PAY_REQUEST_STARTED' ||
         phase === 'FINAL_PAY_SUBMITTED' ||
         phase === 'POST_FINAL_PAY_REVIEW'
@@ -81,16 +82,31 @@ export function decideWorkerRefundSafety(params: {
     responseData: unknown
     existingRefund: boolean
     allowFinalPayRefund?: boolean
+    operationType?: string
+    providerMutationStartedAt?: Date | null
+    providerPaymentState?: string | null
+    fulfillmentState?: string | null
+    fulfillmentVerificationOutcome?: string | null
 }): { refundAllowed: boolean; reason: string; finalPayMayHaveStarted: boolean } {
-    const finalPayStarted = finalPayMayHaveStarted(params.status, params.responseData)
+    const finalPayStarted = Boolean(params.providerMutationStartedAt) ||
+        finalPayMayHaveStarted(params.status, params.responseData)
     const data = parseResponseData(params.responseData)
     const auditSnapshot = data.auditSnapshot && typeof data.auditSnapshot === 'object'
         ? data.auditSnapshot as Record<string, unknown>
         : {}
-    const confirmedNonCharge =
-        params.allowFinalPayRefund === true ||
-        data.outcomeCategory === 'CONFIRMED_NOT_CHARGED' ||
-        auditSnapshot.outcomeCategory === 'CONFIRMED_NOT_CHARGED'
+    const renewalTypedNonCharge =
+        params.operationType === 'RENEW' &&
+        params.providerPaymentState === 'NOT_CHARGED' &&
+        params.fulfillmentState === 'NOT_FOUND' &&
+        params.fulfillmentVerificationOutcome === 'VALID_NO_MATCH'
+    const legacyNonCharge =
+        params.operationType !== 'RENEW' &&
+        (
+            params.allowFinalPayRefund === true ||
+            data.outcomeCategory === 'CONFIRMED_NOT_CHARGED' ||
+            auditSnapshot.outcomeCategory === 'CONFIRMED_NOT_CHARGED'
+        )
+    const confirmedNonCharge = renewalTypedNonCharge || legacyNonCharge
 
     if (params.status === 'COMPLETED' || params.status === 'REVIEW_REQUIRED') {
         return { refundAllowed: false, reason: 'terminal_status', finalPayMayHaveStarted: finalPayStarted }
@@ -129,13 +145,43 @@ export async function refundUser(
 
             const operation = await tx.operation.findUnique({
                 where: { id: operationId },
-                select: { status: true, responseData: true }
+                select: {
+                    userId: true,
+                    type: true,
+                    purpose: true,
+                    status: true,
+                    responseData: true,
+                    providerMutationStartedAt: true,
+                    providerPaymentState: true,
+                    fulfillmentState: true,
+                    fulfillmentVerificationOutcome: true,
+                }
             })
 
             if (!operation) {
                 throw new Error('REFUND_BLOCKED_MISSING_OPERATION')
             }
 
+            const deductions = await tx.transaction.findMany({
+                where: { operationId, type: 'OPERATION_DEDUCT' },
+                select: { id: true, userId: true, amount: true },
+            })
+            const canonicalRefundAmount = operation.type === 'RENEW'
+                ? Math.round(Math.abs(deductions.reduce((sum, entry) => sum + entry.amount, 0)) * 100) / 100
+                : amount
+            if (
+                canonicalRefundAmount <= 0 ||
+                (operation.type === 'RENEW' && (
+                    operation.userId !== userId ||
+                    deductions.length !== 1 ||
+                    deductions.some((entry) => entry.userId !== userId || entry.amount >= 0)
+                ))
+            ) {
+                throw new Error('REFUND_BLOCKED_CANONICAL_SETTLEMENT')
+            }
+
+            // Installment refund/status/points/reservations must commit in its dedicated finalizer.
+            if (operation.purpose === 'INSTALLMENT') return false
             const existingRefund = await tx.transaction.findFirst({
                 where: {
                     operationId,
@@ -146,10 +192,15 @@ export async function refundUser(
 
             const refundDecision = decideWorkerRefundSafety({
                 status: operation.status,
-                amount,
+                amount: canonicalRefundAmount,
                 responseData: operation.responseData,
                 existingRefund: !!existingRefund,
-                allowFinalPayRefund: options.allowFinalPayRefund === true
+                allowFinalPayRefund: options.allowFinalPayRefund === true,
+                operationType: operation.type,
+                providerMutationStartedAt: operation.providerMutationStartedAt,
+                providerPaymentState: operation.providerPaymentState,
+                fulfillmentState: operation.fulfillmentState,
+                fulfillmentVerificationOutcome: operation.fulfillmentVerificationOutcome,
             })
 
             if (!refundDecision.refundAllowed) {
@@ -163,7 +214,7 @@ export async function refundUser(
             const user = await tx.user.update({
                 where: { id: userId },
                 data: {
-                    balance: { increment: amount }
+                    balance: { increment: canonicalRefundAmount }
                 }
             })
 
@@ -173,7 +224,7 @@ export async function refundUser(
                     userId,
                     operationId,
                     type: 'REFUND',
-                    amount: amount,
+                    amount: canonicalRefundAmount,
                     balanceAfter: user.balance,
                     notes: `Auto-refund: ${reason}`
                 }
@@ -184,7 +235,7 @@ export async function refundUser(
                 data: {
                     userId,
                     title: 'Amount refunded',
-                    message: `Amount refunded: ${amount} SAR. Reason: ${reason}`,
+                    message: `Amount refunded: ${canonicalRefundAmount} SAR. Reason: ${reason}`,
                     type: 'info',
                     link: '/dashboard/transactions'
                 }
@@ -197,6 +248,7 @@ export async function refundUser(
     } catch (error: unknown) {
         if (error instanceof Error && error.message === 'REFUND_BLOCKED_SAFETY') return false
         if (error instanceof Error && error.message === 'REFUND_BLOCKED_MISSING_OPERATION') return false
+        if (error instanceof Error && error.message === 'REFUND_BLOCKED_CANONICAL_SETTLEMENT') return false
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
         throw error
     }

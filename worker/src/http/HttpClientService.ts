@@ -38,6 +38,80 @@ import {
     SignalRefreshResult,
     CheckCardForSignalResult
 } from './types';
+import { encodeSuccessfulControls } from './webforms-form';
+import {
+    scanSoldPackagesReport as runSoldPackagesReportScan,
+    type SoldReportScanOptions,
+    type SoldReportScanResult,
+    type SoldReportTransport
+} from './sold-packages-report';
+import {
+    DEFAULT_SOLD_PACKAGES_REPORT_PATH,
+    resolveSoldPackagesReportUrl,
+} from '../../../shared/operations/renewal-fulfillment-config';
+
+function getHttpErrorMessage(error: unknown): string {
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+        return error.message;
+    }
+    return 'Unknown error';
+}
+
+const SAFE_RETRY_METHODS = new Set(['get', 'head', 'options']);
+export { DEFAULT_SOLD_PACKAGES_REPORT_PATH, resolveSoldPackagesReportUrl };
+
+export function createAuthenticatedSoldReportTransport(input: {
+    axios: AxiosInstance;
+    loginUrl: string;
+    soldPackagesReportUrl: string;
+}): SoldReportTransport {
+    const reportUrl = resolveSoldPackagesReportUrl(input.loginUrl, input.soldPackagesReportUrl);
+
+    return {
+        freshGet: async () => {
+            const response = await input.axios.get<string>(reportUrl, {
+                headers: { Referer: input.loginUrl },
+                'axios-retry': { retries: 0 }
+            });
+            return response.data;
+        },
+        post: async (controls) => {
+            const response = await input.axios.post<string>(
+                reportUrl,
+                encodeSuccessfulControls(controls).toString(),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        Referer: reportUrl,
+                        Origin: new URL(reportUrl).origin
+                    },
+                    'axios-retry': { retries: 0 }
+                }
+            );
+            return response.data;
+        }
+    };
+}
+
+/**
+ * Provider form POSTs are stateful WebForms mutations and must never be
+ * replayed by the HTTP transport. Read-only requests keep a bounded retry.
+ */
+export function configureProviderRetryPolicy(instance: AxiosInstance): void {
+    axiosRetry(instance, {
+        retries: 3,
+        retryDelay: axiosRetry.exponentialDelay,
+        retryCondition: (error) => {
+            const method = error.config?.method?.toLowerCase();
+            if (!method || !SAFE_RETRY_METHODS.has(method)) return false;
+
+            return axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+                error.response?.status === 500 ||
+                error.response?.status === 502 ||
+                error.response?.status === 503;
+        }
+    });
+}
 
 function shouldAllowInsecureProxyTls(): boolean {
     return process.env.WORKER_ALLOW_INSECURE_PROXY_TLS === 'true';
@@ -82,15 +156,6 @@ export function classifyFinalPayOutcome(input: {
         return 'CONFIRMED_SUCCESS';
     }
 
-    if (
-        input.finalPaySubmitted &&
-        typeof input.beinBalanceBefore === 'number' &&
-        typeof input.beinBalanceAfter === 'number' &&
-        input.beinBalanceAfter >= input.beinBalanceBefore
-    ) {
-        return 'CONFIRMED_NOT_CHARGED';
-    }
-
     if (typeof balanceDecrease === 'number' && balanceDecrease > 0) {
         return 'UNCERTAIN_REVIEW_REQUIRED';
     }
@@ -99,7 +164,6 @@ export function classifyFinalPayOutcome(input: {
     if (
         normalized.includes('insufficient balance') ||
         normalized.includes('insufficient credit') ||
-        normalized.includes('balance unchanged') ||
         normalized.includes('transaction failed on bein')
     ) {
         return 'CONFIRMED_NOT_CHARGED';
@@ -325,7 +389,7 @@ export class HttpClientService {
             console.log('[HTTP] No proxy - using wrapper() for automatic cookie handling');
         }
 
-        this.setupAxiosRetry();
+        configureProviderRetryPolicy(this.axios);
     }
 
     /**
@@ -364,6 +428,21 @@ export class HttpClientService {
             return setting?.value || fallback;
         };
 
+        const loginUrl = get('bein_login_url', 'https://sbs.beinsports.net/Dealers/NLogin.aspx');
+        let soldPackagesReportUrl: string;
+        try {
+            soldPackagesReportUrl = resolveSoldPackagesReportUrl(
+                loginUrl,
+                get('bein_sold_packages_report_url', DEFAULT_SOLD_PACKAGES_REPORT_PATH)
+            );
+        } catch {
+            console.error('[HTTP] Invalid Sold Packages Report URL; using the same-origin default path');
+            soldPackagesReportUrl = resolveSoldPackagesReportUrl(
+                loginUrl,
+                DEFAULT_SOLD_PACKAGES_REPORT_PATH
+            );
+        }
+
         this.config = {
             captchaApiKey: get('captcha_2captcha_key'),
             captchaEnabled: get('captcha_enabled', 'true') === 'true',
@@ -371,11 +450,12 @@ export class HttpClientService {
             // AUDIT FIX 1.2: Configurable CAPTCHA solution field with fallback
             selCaptchaSolution: get('bein_sel_captcha_solution', 'Login1$ImageVerificationDealer$txtContent'),
 
-            loginUrl: get('bein_login_url', 'https://sbs.beinsports.net/Dealers/NLogin.aspx'),
+            loginUrl,
             renewUrl: get('bein_renew_url', '/Dealers/Pages/frmSellPackages.aspx'),
             checkUrl: get('bein_check_url', '/Dealers/Pages/frmCheck.aspx'),
             signalUrl: get('bein_signal_url', '/RefreshSignal'),
             installmentUrl: get('bein_installment_url', '/Dealers/Pages/frmPayMonthlyInstallment.aspx'),
+            soldPackagesReportUrl,
 
             sessionTimeout: parseInt(get('worker_session_timeout', '15')),
             maxRetries: parseInt(get('worker_max_retries', '3'))
@@ -414,6 +494,17 @@ export class HttpClientService {
         await this.loadConfig();
     }
 
+    async scanSoldPackagesReport(
+        options: SoldReportScanOptions = {}
+    ): Promise<SoldReportScanResult> {
+        const transport = createAuthenticatedSoldReportTransport({
+            axios: this.axios,
+            loginUrl: this.config.loginUrl,
+            soldPackagesReportUrl: this.config.soldPackagesReportUrl
+        });
+        return runSoldPackagesReportScan(transport, options);
+    }
+
     // =============================================
     // HELPER METHODS
     // =============================================
@@ -423,22 +514,6 @@ export class HttpClientService {
     // which Akamai uses for session validation. We now use createCookieAgent() from
     // 'http-cookie-agent/http' which properly wraps the proxy agent with cookie support.
     // See constructor and importSession() for the new implementation.
-
-    /**
-     * Setup axios retry configuration
-     * AUDIT FIX 5.1: Extracted to avoid duplication in constructor and importSession
-     */
-    private setupAxiosRetry(): void {
-        axiosRetry(this.axios, {
-            retries: 3,
-            retryDelay: axiosRetry.exponentialDelay,
-            retryCondition: (error) =>
-                axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-                error.response?.status === 500 ||
-                error.response?.status === 502 ||
-                error.response?.status === 503
-        });
-    }
 
     /**
      * Build full URL from relative path
@@ -929,7 +1004,7 @@ export class HttpClientService {
                 console.log('[HTTP] Session imported - using wrapper() for automatic cookie handling');
             }
 
-            this.setupAxiosRetry();
+            configureProviderRetryPolicy(this.axios);
 
             if (data.viewState) {
                 this.currentViewState = data.viewState;
@@ -1004,7 +1079,7 @@ export class HttpClientService {
             this.axios = wrapper(axios.create(axiosConfig));
         }
 
-        this.setupAxiosRetry();
+        configureProviderRetryPolicy(this.axios);
         console.log('[HTTP] Session reset (cookies cleared, axios rebuilt)');
     }
 
@@ -1166,8 +1241,8 @@ export class HttpClientService {
             console.log('[HTTP] validateSession: Session is valid ✅ (expiry extended)');
             return true;
 
-        } catch (error: any) {
-            console.error(`[HTTP] validateSession error: ${error.message}`);
+        } catch (error: unknown) {
+            console.error(`[HTTP] validateSession error: ${getHttpErrorMessage(error)}`);
             // Don't invalidate on network error - might be temporary
             return false;
         }
@@ -1203,8 +1278,8 @@ export class HttpClientService {
             try {
                 const ipCheckRes = await this.axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
                 console.log(`[HTTP] 🌐 Current IP (via proxy): ${ipCheckRes.data?.ip || 'unknown'}`);
-            } catch (ipErr: any) {
-                console.log(`[HTTP] ⚠️ IP check failed: ${ipErr.message}`);
+            } catch (ipErr: unknown) {
+                console.log(`[HTTP] ⚠️ IP check failed: ${getHttpErrorMessage(ipErr)}`);
             }
             // === END DEBUG ===
 
@@ -1299,9 +1374,9 @@ export class HttpClientService {
             // No CAPTCHA - proceed with login
             return await this.submitLogin(username, password, totpSecret);
 
-        } catch (error: any) {
-            console.error('[HTTP] Login error:', error.message);
-            return { success: false, error: `Login failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Login error:', getHttpErrorMessage(error));
+            return { success: false, error: `Login failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -1416,9 +1491,9 @@ export class HttpClientService {
             this.markSessionValid();
             return { success: true };
 
-        } catch (error: any) {
-            console.error('[HTTP] Submit login error:', error.message);
-            return { success: false, error: `Submit failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Submit login error:', getHttpErrorMessage(error));
+            return { success: false, error: `Submit failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -1555,9 +1630,9 @@ export class HttpClientService {
                 cardInfo: pageText.slice(0, 200)
             };
 
-        } catch (error: any) {
-            console.error('[HTTP] Check card error:', error.message);
-            return { success: false, error: `Check failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Check card error:', getHttpErrorMessage(error));
+            return { success: false, error: `Check failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -1608,12 +1683,12 @@ export class HttpClientService {
             console.log(`[HTTP] ========== RENEWAL SESSION STARTED ==========`);
             return packagesResult;
 
-        } catch (error: any) {
-            console.error(`[HTTP] Start renewal error: ${error.message}`);
+        } catch (error: unknown) {
+            console.error(`[HTTP] Start renewal error: ${getHttpErrorMessage(error)}`);
             return {
                 success: false,
                 packages: [],
-                error: `Start renewal failed: ${error.message}`
+                error: `Start renewal failed: ${getHttpErrorMessage(error)}`
             };
         }
     }
@@ -1917,9 +1992,9 @@ export class HttpClientService {
                 dealerBalance  // NEW: For balance verification
             };
 
-        } catch (error: any) {
-            console.error('[HTTP] Load packages error:', error.message);
-            return { success: false, packages: [], error: `Load failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Load packages error:', getHttpErrorMessage(error));
+            return { success: false, packages: [], error: `Load failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -2014,9 +2089,9 @@ export class HttpClientService {
             console.log('[HTTP] ⚠️ Could not extract balance from page');
             return { success: false, balance: null, error: 'Balance not found on page' };
 
-        } catch (err: any) {
-            console.error('[HTTP] Fetch balance error:', err.message);
-            return { success: false, balance: null, error: `Fetch failed: ${err.message}` };
+        } catch (err: unknown) {
+            console.error('[HTTP] Fetch balance error:', getHttpErrorMessage(err));
+            return { success: false, balance: null, error: `Fetch failed: ${getHttpErrorMessage(err)}` };
         }
     }
 
@@ -2032,7 +2107,7 @@ export class HttpClientService {
      * @param cardNumber - Card number (for re-extracting packages)
      * @returns Updated packages with discounted prices
      */
-    async applyPromoCode(promoCode: string, cardNumber: string): Promise<LoadPackagesResult> {
+    async applyPromoCode(promoCode: string, cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
         console.log(`[HTTP] Applying promo code: ${promoCode}`);
 
         try {
@@ -2090,11 +2165,12 @@ export class HttpClientService {
 
                 // Fallback: some responses return an intermediate page after promo submit.
                 // Re-loading packages with same session/card recovers the real package list.
-                const fallbackReload = await this.loadPackages(cardNumber);
+                const fallbackReload = await this.loadPackages(cardNumber, smartcardType);
                 if (fallbackReload.success && fallbackReload.packages.length > 0) {
                     console.log(`[HTTP] Promo fallback reload recovered ${fallbackReload.packages.length} packages`);
                     return {
-                        success: true,
+                        success: false,
+                        error: 'PROMO_REFRESH_UNVERIFIED',
                         packages: fallbackReload.packages,
                         stbNumber: fallbackReload.stbNumber,
                         dealerBalance: fallbackReload.dealerBalance
@@ -2115,9 +2191,9 @@ export class HttpClientService {
                 stbNumber: this.currentStbNumber || undefined
             };
 
-        } catch (error: any) {
-            console.error('[HTTP] Apply promo error:', error.message);
-            return { success: false, packages: [], error: `Promo failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Apply promo error:', getHttpErrorMessage(error));
+            return { success: false, packages: [], error: `Promo failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -2140,7 +2216,8 @@ export class HttpClientService {
         selectedPackage: AvailablePackage,
         promoCode?: string,
         stbNumber?: string,
-        skipFinalClick: boolean = false
+        skipFinalClick: boolean = false,
+        assertExecutionCurrent?: () => Promise<void>
     ): Promise<PurchaseResult> {
         console.log(`[HTTP] Completing purchase: ${selectedPackage.name} - ${selectedPackage.price} USD`);
 
@@ -2186,6 +2263,7 @@ export class HttpClientService {
             }
 
             console.log('[HTTP] POST add to cart...');
+            await assertExecutionCurrent?.();
             let res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(addFormData),
@@ -2193,6 +2271,8 @@ export class HttpClientService {
                     headers: this.buildPostHeaders(renewUrl)
                 }
             );
+
+            await assertExecutionCurrent?.();
 
             // Check for errors in response
             const addError = this.checkForErrors(res.data);
@@ -2211,6 +2291,7 @@ export class HttpClientService {
             };
 
             console.log('[HTTP] POST sell...');
+            await assertExecutionCurrent?.();
             res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(sellFormData),
@@ -2218,6 +2299,8 @@ export class HttpClientService {
                     headers: this.buildPostHeaders(renewUrl)
                 }
             );
+
+            await assertExecutionCurrent?.();
 
             // Check for errors
             const sellError = this.checkForErrors(res.data);
@@ -2239,6 +2322,7 @@ export class HttpClientService {
             };
 
             console.log(`[HTTP] POST STB: ${stb}`);
+            await assertExecutionCurrent?.();
             res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(stbFormData),
@@ -2246,6 +2330,8 @@ export class HttpClientService {
                     headers: this.buildPostHeaders(renewUrl)
                 }
             );
+
+            await assertExecutionCurrent?.();
 
             // Check for errors
             const stbError = this.checkForErrors(res.data);
@@ -2268,11 +2354,11 @@ export class HttpClientService {
             }
 
             // Step 4: Click OK to confirm
-            return await this.confirmPurchase();
+            return await this.confirmPurchase(undefined, undefined, assertExecutionCurrent);
 
-        } catch (error: any) {
-            console.error('[HTTP] Purchase error:', error.message);
-            return { success: false, message: `Purchase failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Purchase error:', getHttpErrorMessage(error));
+            return { success: false, message: `Purchase failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -2303,8 +2389,8 @@ export class HttpClientService {
 
             console.log('[HTTP] ⚠️ Could not extract balance from page');
             return null;
-        } catch (error: any) {
-            console.error('[HTTP] Error fetching balance:', error.message);
+        } catch (error: unknown) {
+            console.error('[HTTP] Error fetching balance:', getHttpErrorMessage(error));
             return null;
         }
     }
@@ -2320,7 +2406,8 @@ export class HttpClientService {
      */
     async confirmPurchase(
         expectedCost?: number,
-        onFinalPaySubmitted?: () => Promise<void>
+        onFinalProviderMutationStarted?: (stage: 'FINAL_OK') => Promise<void>,
+        assertExecutionCurrent?: () => Promise<void>
     ): Promise<PurchaseResult> {
         console.log('[HTTP] Confirming purchase...');
         let finalPaySubmitted = false;
@@ -2359,6 +2446,14 @@ export class HttpClientService {
             };
 
             console.log(`[HTTP] POST confirm (Ok) with STB: ${stb}...`);
+            if (!onFinalProviderMutationStarted) {
+                return withFinalPayOutcome({
+                    success: false,
+                    message: 'Final provider mutation marker callback is required'
+                }, false, expectedCost);
+            }
+            await onFinalProviderMutationStarted('FINAL_OK');
+            await assertExecutionCurrent?.();
             let res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(okFormData),
@@ -2366,6 +2461,8 @@ export class HttpClientService {
                     headers: this.buildPostHeaders(renewUrl)
                 }
             );
+
+            await assertExecutionCurrent?.();
 
             // Check for errors after OK
             const okError = this.checkForErrors(res.data);
@@ -2448,10 +2545,8 @@ export class HttpClientService {
             };
 
             console.log('[HTTP] POST Pay (Direct Payment)...');
-            if (onFinalPaySubmitted) {
-                await onFinalPaySubmitted();
-            }
             finalPaySubmitted = true;
+            await assertExecutionCurrent?.();
             res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(payFormData),
@@ -2459,6 +2554,8 @@ export class HttpClientService {
                     headers: this.buildPostHeaders(renewUrl)
                 }
             );
+
+            await assertExecutionCurrent?.();
 
             // Check for immediate errors
             const payError = this.checkForErrors(res.data);
@@ -2656,8 +2753,8 @@ export class HttpClientService {
                                 console.log(`[HTTP] Continuing delayed verification after unreadable retry ${retry}/${busyRetryChecks}`);
                             }
                         }
-                    } catch (retryErr: any) {
-                        console.log(`[HTTP] ⚠️ Retry ${retry} check failed: ${retryErr.message}`);
+                    } catch (retryErr: unknown) {
+                        console.log(`[HTTP] ⚠️ Retry ${retry} check failed: ${getHttpErrorMessage(retryErr)}`);
                     }
                 }
 
@@ -2739,9 +2836,9 @@ export class HttpClientService {
                 beinBalanceAfter: balanceAfter ?? undefined
             }, true, expectedCost);
 
-        } catch (error: any) {
-            console.error('[HTTP] Confirm error:', error.message);
-            return withFinalPayOutcome({ success: false, message: `Confirm failed: ${error.message}` }, finalPaySubmitted, expectedCost);
+        } catch (error: unknown) {
+            console.error('[HTTP] Confirm error:', getHttpErrorMessage(error));
+            return withFinalPayOutcome({ success: false, message: `Confirm failed: ${getHttpErrorMessage(error)}` }, finalPaySubmitted, expectedCost);
         }
     }
 
@@ -2780,8 +2877,8 @@ export class HttpClientService {
             });
 
             return this.extractDealerBalanceFromHtml(res.data);
-        } catch (error: any) {
-            console.error('[HTTP] Error getting balance from sell packages page:', error.message);
+        } catch (error: unknown) {
+            console.error('[HTTP] Error getting balance from sell packages page:', getHttpErrorMessage(error));
             return null;
         }
     }
@@ -2816,9 +2913,9 @@ export class HttpClientService {
             console.log('[HTTP] ✅ Purchase cancelled');
             return { success: true, message: 'Purchase cancelled' };
 
-        } catch (error: any) {
-            console.error('[HTTP] Cancel error:', error.message);
-            return { success: false, message: `Cancel failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Cancel error:', getHttpErrorMessage(error));
+            return { success: false, message: `Cancel failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -3063,9 +3160,9 @@ export class HttpClientService {
                 contracts
             };
 
-        } catch (error: any) {
-            console.error('[HTTP] Check card for signal error:', error.message);
-            return { success: false, error: `Check failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Check card for signal error:', getHttpErrorMessage(error));
+            return { success: false, error: `Check failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -3184,8 +3281,8 @@ export class HttpClientService {
             if (Object.keys(skippedRows).length > 0) {
                 console.log(`[HTTP] Skipped contract rows: ${JSON.stringify(skippedRows)}`);
             }
-        } catch (error: any) {
-            console.error('[HTTP] Error extracting contracts:', error.message);
+        } catch (error: unknown) {
+            console.error('[HTTP] Error extracting contracts:', getHttpErrorMessage(error));
         }
 
         return contracts;
@@ -3394,9 +3491,9 @@ export class HttpClientService {
                 };
             }
 
-        } catch (error: any) {
-            console.error('[HTTP] Signal activation error:', error.message);
-            return { success: false, error: `Activation failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Signal activation error:', getHttpErrorMessage(error));
+            return { success: false, error: `Activation failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -3654,8 +3751,8 @@ export class HttpClientService {
                             console.log(`[HTTP] ❌ Verification failed: count did not increase`);
                         }
                     }
-                } catch (verifyError: any) {
-                    console.log(`[HTTP] ⚠️ Verification request failed: ${verifyError.message}`);
+                } catch (verifyError: unknown) {
+                    console.log(`[HTTP] ⚠️ Verification request failed: ${getHttpErrorMessage(verifyError)}`);
                 }
             }
 
@@ -3696,9 +3793,9 @@ export class HttpClientService {
                 };
             }
 
-        } catch (error: any) {
-            console.error('[HTTP] Signal activation error:', error.message);
-            return { success: false, error: `Signal activation failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Signal activation error:', getHttpErrorMessage(error));
+            return { success: false, error: `Signal activation failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -4051,9 +4148,9 @@ export class HttpClientService {
             const $details = cheerio.load(detailsRes.data);
             return this.parseInstallmentDetails($details, cardNumber);
 
-        } catch (error: any) {
-            console.error('[HTTP] Load installment error:', error.message);
-            return { success: false, hasInstallment: false, error: `Load installment failed: ${error.message}` };
+        } catch (error: unknown) {
+            console.error('[HTTP] Load installment error:', getHttpErrorMessage(error));
+            return { success: false, hasInstallment: false, error: `Load installment failed: ${getHttpErrorMessage(error)}` };
         }
     }
 
@@ -4218,9 +4315,9 @@ export class HttpClientService {
                 if (cells.length >= 2) {
                     // IMPORTANT: Each cell has stacked values like: 180<br><span>180</span>
                     // Using .text() gives "180180" (concatenated). We need only the FIRST text node.
-                    const getFirstTextNode = (cell: any): string => {
+                    const getFirstTextNode = (cell: ReturnType<typeof $>): string => {
                         let firstText = '';
-                        $(cell).contents().each((_: number, node: any) => {
+                        $(cell).contents().each((_, node) => {
                             if (node.type === 'text') {
                                 const t = $(node).text().trim();
                                 if (t && !firstText) firstText = t;
@@ -4394,7 +4491,7 @@ export class HttpClientService {
      * 
      * @returns Payment result
      */
-    async payInstallment(): Promise<import('./types').PayInstallmentResult> {
+    async payInstallment(assertCurrent?: () => Promise<void>): Promise<import('./types').PayInstallmentResult> {
         console.log('[HTTP] Paying installment (two-step flow)...');
         let paySubmitted = false;
         let finalPaySubmitted = false;
@@ -4430,11 +4527,13 @@ export class HttpClientService {
             console.log('[HTTP] POST Step 1 - Clicking Pay Installment button...');
             paySubmitted = true;
             finalPaySubmitted = true;
+            await assertCurrent?.();
             const payRes = await this.axios.post(
                 installmentUrl,
                 this.buildFormData(payFormData),
                 {
-                    headers: this.buildPostHeaders(installmentUrl)
+                    headers: this.buildPostHeaders(installmentUrl),
+                    'axios-retry': { retries: 0 }
                 }
             );
 
@@ -4543,11 +4642,13 @@ export class HttpClientService {
 
                 console.log('[HTTP] POST Step 2 - Submitting Direct Payment...');
                 finalPaySubmitted = true;
+                await assertCurrent?.();
                 const confirmRes = await this.axios.post(
                     installmentUrl,
                     this.buildFormData(confirmFormData),
                     {
-                        headers: this.buildPostHeaders(installmentUrl)
+                        headers: this.buildPostHeaders(installmentUrl),
+                    'axios-retry': { retries: 0 }
                     }
                 );
 
@@ -4658,15 +4759,15 @@ export class HttpClientService {
                 }
             }
 
-        } catch (error: any) {
-            console.error('[HTTP] Pay installment error:', error.message);
+        } catch (error: unknown) {
+            console.error('[HTTP] Pay installment error:', getHttpErrorMessage(error));
             if (paySubmitted) {
                 return withFinalPayOutcome({
                     success: false,
-                    message: `Transaction status unknown - request submitted but confirmation failed: ${error.message}`
+                    message: `Transaction status unknown - request submitted but confirmation failed: ${getHttpErrorMessage(error)}`
                 }, true);
             }
-            return withFinalPayOutcome({ success: false, message: `Payment failed: ${error.message}` }, finalPaySubmitted);
+            return withFinalPayOutcome({ success: false, message: `Payment failed: ${getHttpErrorMessage(error)}` }, finalPaySubmitted);
         }
     }
 }

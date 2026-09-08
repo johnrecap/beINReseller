@@ -1,0 +1,45 @@
+{
+  "hashes": {
+    "shared/operations/package-quote.ts": "6f2227384d988cada50c4c2d1cd27ec3afecd522634e10683f7903bdd2f34da2",
+    "worker/src/lib/promo-quote.ts": "f5099a268c238a8ee73a565edf176abe5de963d9bb91f9d3beb213a9d2e646e6",
+    "src/lib/operation-dispatch.ts": "4e21b139a76cb06a48492a408fd43ab2c20f0037a96abb2a83d3e83ac585c850",
+    "src/lib/queue.ts": "7171bf0a1674013e12a6b027d901bfe082024028afbf3e98406f5a2f7046f8f1",
+    "worker/src/http-queue-processor.ts": "b92d8f83105b9f1e0cbc1239526eff12ee973d8df85bf0cde342896f32678bd8",
+    "worker/src/http/HttpClientService.ts": "9b4086bf3a4c4604e5e7b26cd060279e8611293b48b1fd76b17df117b693cafd",
+    "src/app/dashboard/renew/page.tsx": "a2bf9a30c40f3918a996e49e3cd467cc4d564485965bacd2a424ba7e3c39bb49",
+    "src/app/dashboard/operations/active/page.tsx": "42abb2bc3c3c4ae86e85da352a1a843ab5ea8f90ec7f8aaf8c6122c75585c8a5",
+    "src/app/api/operations/[id]/apply-promo/route.ts": "f69c6e5a711b62664f18880aa68636815a08d73c5c7153a6db48c8bf1cd35b71",
+    "src/app/api/operations/[id]/packages/route.ts": "625dd72b2e6e5347c69e42c411b1edd86809e4bdbdf4d4a7d7c57e5bc939cb95",
+    "src/app/api/operations/[id]/select-package/route.ts": "c277dbf76118bc09c7c96356b3063117bdb4c428f55375af089326d100b58645",
+    "src/app/api/operations/[id]/confirm-purchase/route.ts": "24b9ce3da7bc4093416963650450afe966dec16fb4aec582f64744b36612086d",
+    "src/i18n/translations/ar.ts": "492ff964d3ffda0a510fbed31e5ba87a2fff674dccaf3c1a61a2b2ee1c40819e",
+    "src/i18n/translations/en.ts": "848ec0d9b8fb287dda90e918e434383b72e7707c1c483497eb77352326505337",
+    "src/i18n/translations/bn.ts": "04a2124c8df0be11f23b584c769e4c8b82d72e8f0cf994b2a989da0458799262"
+  },
+  "bomPaths": [],
+  "addedMojibakeLines": 0,
+  "taskCount": 46,
+  "accepted": [
+    "T001",
+    "T002",
+    "T003",
+    "T004",
+    "T005",
+    "T006",
+    "T011",
+    "T015",
+    "T016",
+    "T017"
+  ],
+  "taskHash": "1612d63aead5ac71b87490552d5518ba7a09f8e05ec89b57121f2ea8cf2a049e",
+  "checklists": {
+    "requirements.md": {
+      "total": 16,
+      "open": 0
+    },
+    "safety-and-coverage.md": {
+      "total": 19,
+      "open": 0
+    }
+  }
+}

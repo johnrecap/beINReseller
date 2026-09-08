@@ -24,6 +24,7 @@ export interface BeINHttpConfig {
     checkUrl: string;
     signalUrl: string;
     installmentUrl: string;
+    soldPackagesReportUrl: string;
 
     // Session
     sessionTimeout: number;

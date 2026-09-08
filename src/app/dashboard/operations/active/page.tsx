@@ -6,13 +6,14 @@ import { Loader2, RefreshCw, ExternalLink, XCircle, Clock, AlertCircle, CheckCir
 import { useTranslation } from '@/hooks/useTranslation'
 import { OPERATION_WARNING_THRESHOLD_SECONDS } from '@/lib/operations/timing'
 
-type OperationStatus = 'PENDING' | 'PROCESSING' | 'AWAITING_CAPTCHA' | 'AWAITING_PACKAGE' | 'AWAITING_FINAL_CONFIRM' | 'COMPLETING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED'
+type OperationStatus = 'PENDING' | 'PROCESSING' | 'AWAITING_CAPTCHA' | 'AWAITING_PACKAGE' | 'AWAITING_FINAL_CONFIRM' | 'COMPLETING' | 'REVIEW_REQUIRED' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED'
 
 interface SelectedPackage {
     index: number
     name: string
     price: number
     checkboxSelector: string
+    quoteRevision?: number
 }
 
 interface Operation {
@@ -24,6 +25,10 @@ interface Operation {
     createdAt: string
     updatedAt: string
     responseMessage: string | null
+    messageKey?: string | null
+    nextAction?: string
+    providerPaymentState?: 'NOT_SUBMITTED' | 'CHARGED' | 'NOT_CHARGED' | 'UNKNOWN' | null
+    fulfillmentState?: 'UNVERIFIED' | 'VERIFYING' | 'VERIFIED' | 'NOT_FOUND' | 'CHECK_FAILED' | 'PROOF_CONFLICT' | null
     stbNumber?: string | null
     selectedPackage?: SelectedPackage | null
     finalConfirmExpiry?: string | null
@@ -61,6 +66,11 @@ const getStatusConfig = (t: ReturnType<typeof useTranslation>['t']) => ({
         color: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
         icon: <Loader2 className="w-4 h-4 animate-spin" />
     },
+    REVIEW_REQUIRED: {
+        label: t.operations.fulfillmentReviewPending,
+        color: 'bg-amber-500/10 text-amber-400 border border-amber-500/30',
+        icon: <AlertTriangle className="w-4 h-4" />
+    },
     COMPLETED: {
         label: t.status?.completed || 'Completed',
         color: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
@@ -83,6 +93,29 @@ const getStatusConfig = (t: ReturnType<typeof useTranslation>['t']) => ({
     },
 })
 
+const getOperationStatusLabel = (
+    operation: Operation,
+    fallback: string,
+    t: ReturnType<typeof useTranslation>['t']
+) => {
+    const key = operation.messageKey?.replace('operations.', '')
+    if (key && key in t.operations) return t.operations[key as keyof typeof t.operations]
+    if (operation.status === 'REVIEW_REQUIRED' && operation.responseMessage === 'PACKAGE_QUOTE_CHANGED') {
+        return t.operations.packageQuoteChangedReview
+    }
+    if (
+        operation.status === 'COMPLETING' &&
+        operation.providerPaymentState === 'CHARGED' &&
+        operation.fulfillmentState === 'VERIFYING'
+    ) {
+        return t.operations.providerChargedVerifyingFulfillment
+    }
+    if (operation.status === 'REVIEW_REQUIRED' && operation.providerPaymentState === 'CHARGED') {
+        return t.operations.providerChargedFulfillmentUnderReview
+    }
+    return fallback
+}
+
 // Filter Tabs Component
 interface FilterTab {
     id: OperationStatus
@@ -97,6 +130,7 @@ const getFilterTabs = (t: ReturnType<typeof useTranslation>['t']): FilterTab[] =
     { id: 'AWAITING_PACKAGE', label: t.activeOperations?.status?.awaiting_package || t.status?.awaitingPackage || 'Awaiting Package', icon: <Package className="w-4 h-4" />, color: '#3B82F6' },
     { id: 'AWAITING_FINAL_CONFIRM', label: t.activeOperations?.status?.awaiting_final_confirm || t.status?.awaitingFinalConfirm || 'Awaiting Confirm', icon: <AlertTriangle className="w-4 h-4" />, color: '#F97316' },
     { id: 'COMPLETING', label: t.activeOperations?.status?.completing || t.status?.completing || 'Completing', icon: <Loader2 className="w-4 h-4" />, color: '#00A651' },
+    { id: 'REVIEW_REQUIRED', label: t.operations.fulfillmentReviewPending, icon: <AlertTriangle className="w-4 h-4" />, color: '#F59E0B' },
     { id: 'PROCESSING', label: t.activeOperations?.status?.processing || t.status?.processing || 'Processing', icon: <RefreshCw className="w-4 h-4" />, color: '#06B6D4' },
 ]
 
@@ -338,7 +372,7 @@ export default function ActiveOperationsPage() {
                 // Filter only active operations (including AWAITING_FINAL_CONFIRM)
                 const now = Date.now()
                 const activeOps = data.operations.filter((op: Operation) =>
-                    ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'].includes(op.status) &&
+                    ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING', 'REVIEW_REQUIRED'].includes(op.status) &&
                     !(
                         ['AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM'].includes(op.status) &&
                         (
@@ -409,7 +443,10 @@ export default function ActiveOperationsPage() {
             const endpoint = installmentData
                 ? `/api/operations/${confirmingOperation.id}/confirm-installment`
                 : `/api/operations/${confirmingOperation.id}/confirm-purchase`
-            const res = await fetch(endpoint, { method: 'POST' })
+            const res = await fetch(endpoint, { method: 'POST', ...(!installmentData ? {
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quoteRevision: confirmingOperation.selectedPackage?.quoteRevision }),
+            } : {}) })
             const data = await res.json()
 
             if (res.ok) {
@@ -417,7 +454,9 @@ export default function ActiveOperationsPage() {
                 setInstallmentData(null)
                 fetchOperations()
             } else {
-                alert(data.error || t.activeOperations?.messages?.confirmFailed || 'Payment confirmation failed')
+                const key = data.messageKey?.replace('operations.', '')
+                alert(key && key in t.operations ? t.operations[key as keyof typeof t.operations]
+                    : data.error || t.activeOperations?.messages?.confirmFailed || 'Payment confirmation failed')
             }
         } catch {
             alert(t.common?.connectionError || 'Connection error')
@@ -587,7 +626,7 @@ export default function ActiveOperationsPage() {
                                                         <td className="px-6 py-4">
                                                             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${statusConfig.color} shadow-sm`}>
                                                                 {statusConfig.icon}
-                                                                {statusConfig.label}
+                                                                {getOperationStatusLabel(op, statusConfig.label, t)}
                                                             </span>
                                                         </td>
                                                         <td className="px-6 py-4">
@@ -660,7 +699,7 @@ export default function ActiveOperationsPage() {
                                                     </div>
                                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium ${statusConfig.color}`}>
                                                         {statusConfig.icon}
-                                                        {statusConfig.label}
+                                                        {getOperationStatusLabel(op, statusConfig.label, t)}
                                                     </span>
                                                 </div>
 

@@ -15,7 +15,11 @@
 
 import Redis from 'ioredis'
 import { getRedisConnection } from '../lib/redis'
-import { AccountPoolManager } from './account-pool-manager'
+import {
+    AccountPoolManager,
+    type ReservedAccountAcquisition,
+    type ReservedAccountAcquisitionRequest,
+} from './account-pool-manager'
 import { BeinAccount } from './types'
 
 // Queue configuration
@@ -39,6 +43,14 @@ interface QueueEntry {
 
 interface QueueWaitResult {
     account: BeinAccount | null
+    waitTimeMs: number
+    retriesAttempted: number
+    timedOut: boolean
+    error?: string
+}
+
+export interface ReservedQueueWaitResult {
+    acquisition: ReservedAccountAcquisition | null
     waitTimeMs: number
     retriesAttempted: number
     timedOut: boolean
@@ -146,6 +158,73 @@ export class AccountQueueManager {
         } finally {
             // Always remove from queue when done
             await this.leaveQueue(operationId)
+        }
+    }
+
+    /**
+     * Queue-aware counterpart for causal reservation plus fenced lease.
+     * Unlike the legacy method, the returned account is never detached from
+     * the exact ownership handle required by provider/session mutations.
+     */
+    async acquireReservedAccountWithQueue(
+        request: ReservedAccountAcquisitionRequest,
+        priority: number = 0,
+        maxWaitMs: number = QUEUE_CONFIG.maxWaitTimeMs
+    ): Promise<ReservedQueueWaitResult> {
+        const startTime = Date.now()
+        let retriesAttempted = 0
+        let pollInterval = QUEUE_CONFIG.pollIntervalMs
+        let acquisition = await this.poolManager.acquireReservedAccount(request)
+        if (acquisition) {
+            return {
+                acquisition,
+                waitTimeMs: Date.now() - startTime,
+                retriesAttempted,
+                timedOut: false,
+            }
+        }
+
+        await this.enterQueue(request.operationId, priority)
+        try {
+            while (Date.now() - startTime < maxWaitMs) {
+                if (await this.isOperationCancelled(request.operationId)) {
+                    return {
+                        acquisition: null,
+                        waitTimeMs: Date.now() - startTime,
+                        retriesAttempted,
+                        timedOut: false,
+                        error: 'Operation cancelled',
+                    }
+                }
+
+                await this.sleep(pollInterval)
+                retriesAttempted++
+                if (await this.getQueuePosition(request.operationId) <= 2) {
+                    acquisition = await this.poolManager.acquireReservedAccount(request)
+                    if (acquisition) {
+                        return {
+                            acquisition,
+                            waitTimeMs: Date.now() - startTime,
+                            retriesAttempted,
+                            timedOut: false,
+                        }
+                    }
+                }
+                pollInterval = Math.min(
+                    pollInterval * QUEUE_CONFIG.backoffMultiplier,
+                    QUEUE_CONFIG.maxPollIntervalMs
+                )
+            }
+
+            return {
+                acquisition: null,
+                waitTimeMs: Date.now() - startTime,
+                retriesAttempted,
+                timedOut: true,
+                error: `Queue wait timeout (${Math.round(maxWaitMs / 1000)} seconds)`,
+            }
+        } finally {
+            await this.leaveQueue(request.operationId)
         }
     }
 

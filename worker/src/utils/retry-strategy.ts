@@ -24,13 +24,13 @@ export async function withRetry<T>(
 ): Promise<T> {
     const opts = { ...DEFAULT_OPTIONS, ...options }
 
-    let lastError: Error = new Error('Unknown error')
+    let lastError: unknown = new Error('Unknown error')
     let delay = opts.initialDelayMs
 
     for (let attempt = 1; attempt <= opts.maxRetries; attempt++) {
         try {
             return await operation()
-        } catch (error: any) {
+        } catch (error: unknown) {
             lastError = error
 
             if (attempt === opts.maxRetries) {
@@ -38,7 +38,7 @@ export async function withRetry<T>(
                 break
             }
 
-            console.log(`⚠️ Attempt ${attempt} failed: ${error.message}. Retrying in ${delay}ms...`)
+            console.log(`⚠️ Attempt ${attempt} failed: ${(error instanceof Error ? error.message : 'Unknown error')}. Retrying in ${delay}ms...`)
 
             await sleep(delay)
             delay = Math.min(delay * opts.backoffMultiplier, opts.maxDelayMs)

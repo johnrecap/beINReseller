@@ -16,6 +16,11 @@
 import { getRedisConnection } from './redis';
 import { SessionData, HiddenFields } from '../http/types';
 import { gzipSync, gunzipSync } from 'zlib';
+import {
+    buildAccountExecutionLeaseKey,
+    buildAccountExecutionLeaseOwnerValue,
+    type AccountExecutionLeaseHandle,
+} from '../pool/account-locking';
 
 // Redis key prefixes
 const SESSION_PREFIX = 'bein:session:';
@@ -311,6 +316,68 @@ export async function saveSessionToCache(
     }
 }
 
+type FencedSessionRedisBoundary = {
+    eval(
+        script: string,
+        numberOfKeys: number,
+        ...args: Array<string | number>
+    ): Promise<unknown>
+}
+
+/**
+ * Store shared session state only while the exact execution lease is current.
+ * The lease comparison and cache write are one Redis operation, preventing a
+ * stale worker from overwriting a newer provider session after lease handoff.
+ */
+export async function saveSessionToCacheFenced(
+    redis: FencedSessionRedisBoundary,
+    input: {
+        accountId: string
+        routeKey: string
+        session: SessionData
+        ttlSeconds: number
+        lease: AccountExecutionLeaseHandle
+    }
+): Promise<boolean> {
+    if (
+        input.lease.accountId !== input.accountId ||
+        input.session.accountId !== input.accountId ||
+        !Number.isInteger(input.ttlSeconds) ||
+        input.ttlSeconds <= 0
+    ) {
+        return false
+    }
+
+    const now = Date.now()
+    const payload = JSON.stringify({
+        cookies: input.session.cookies,
+        ...(input.session.viewState
+            ? { viewStateCompressed: compressViewState(input.session.viewState) }
+            : {}),
+        accountId: input.accountId,
+        loginTimestamp: input.session.loginTimestamp || now,
+        expiresAt: input.session.expiresAt || now + input.ttlSeconds * 1000,
+        lastLoginTime: input.session.lastLoginTime || new Date(now).toISOString(),
+    })
+    const script = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            redis.call("set", KEYS[2], ARGV[2], "EX", ARGV[3])
+            return 1
+        end
+        return 0
+    `
+    const result = await redis.eval(
+        script,
+        2,
+        buildAccountExecutionLeaseKey(input.accountId),
+        buildSessionCacheKey(input.accountId, input.routeKey),
+        buildAccountExecutionLeaseOwnerValue(input.lease),
+        payload,
+        input.ttlSeconds
+    )
+    return result === 1
+}
+
 /**
  * Save operation-scoped session data for user confirmation flows.
  * Unlike shared account sessions, this may include operation-specific ViewState.
@@ -346,6 +413,61 @@ export async function saveOperationSessionToCache(
         console.error(`[Session Cache] Error saving operation session:`, error);
         throw error;
     }
+}
+
+/**
+ * Store operation-scoped provider state only while the exact account lease is
+ * still owned by the same operation and reservation generation.
+ */
+export async function saveOperationSessionToCacheFenced(
+    redis: FencedSessionRedisBoundary,
+    input: {
+        operationId: string
+        session: SessionData
+        ttlSeconds: number
+        route: SessionRouteContext
+        lease: AccountExecutionLeaseHandle
+    }
+): Promise<boolean> {
+    if (
+        input.lease.operationId !== input.operationId ||
+        input.lease.accountId !== input.route.accountId ||
+        input.session.accountId !== input.route.accountId ||
+        !Number.isInteger(input.ttlSeconds) ||
+        input.ttlSeconds <= 0
+    ) {
+        return false
+    }
+
+    const compressedViewState = input.session.viewState
+        ? compressViewState(input.session.viewState)
+        : undefined
+    const payload = JSON.stringify({
+        cookies: input.session.cookies,
+        viewStateCompressed: compressedViewState,
+        accountId: input.session.accountId,
+        loginTimestamp: input.session.loginTimestamp || Date.now(),
+        expiresAt: input.session.expiresAt,
+        lastLoginTime: input.session.lastLoginTime || new Date().toISOString(),
+        route: buildOperationSessionRouteMetadata(input.route),
+    })
+    const script = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            redis.call("set", KEYS[2], ARGV[2], "EX", ARGV[3])
+            return 1
+        end
+        return 0
+    `
+    const result = await redis.eval(
+        script,
+        2,
+        buildAccountExecutionLeaseKey(input.route.accountId),
+        `${OPERATION_SESSION_PREFIX}${input.operationId}`,
+        buildAccountExecutionLeaseOwnerValue(input.lease),
+        payload,
+        input.ttlSeconds
+    )
+    return result === 1
 }
 
 /**

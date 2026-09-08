@@ -51,6 +51,12 @@ worker/src/http/*.bak_*
 
 # Agent
 .agents/
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/web-project-memory/
+!.agents/skills/web-project-memory/**
 .agent
 .opencode
 .claude
@@ -60,6 +66,12 @@ worker/src/http/*.bak_*
 
 # Planning, mockups, and local tool metadata
 /docs/
+!/docs/
+/docs/*
+!/docs/PROJECT_GUIDE.md
+!/docs/deployment/
+/docs/deployment/*
+!/docs/deployment/audit-remediation-release.md
 /.vscode/
 /testsprite_tests/
 /tmp/

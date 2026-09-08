@@ -1,0 +1,155 @@
+TAP version 13
+# Subtest: T015 PostgreSQL dispatch: new-revision
+not ok 1 - T015 PostgreSQL dispatch: new-revision
+  ---
+  duration_ms: 2900.6578
+  type: 'test'
+  location: 'E:\\work\\panel_bien_sport\\bein-reseller-panel\\tests\\integration\\promo-dispatch-revision-db.test.ts:2:1229'
+  failureType: 'testCodeFailure'
+  error: 'OPERATION_DISPATCH_PAYLOAD_CONFLICT'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createOperationDispatch (E:\work\panel_bien_sport\bein-reseller-panel\src\lib\operation-dispatch.ts:62:19)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Proxy._transactionWithCallback (E:\work\panel_bien_sport\bein-reseller-panel\node_modules\@prisma\client\src\runtime\getPrismaClient.ts:694:18)
+    async <anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:20:18)
+    async withAuditOperationFixture (E:\work\panel_bien_sport\bein-reseller-panel\tests\helpers\audit-operation-fixtures.ts:28:9)
+    async TestContext.<anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:8:9)
+    async Test.run (node:internal/test_runner/test:1113:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)
+  ...
+# Subtest: T015 PostgreSQL dispatch: replay
+not ok 2 - T015 PostgreSQL dispatch: replay
+  ---
+  duration_ms: 708.3253
+  type: 'test'
+  location: 'E:\\work\\panel_bien_sport\\bein-reseller-panel\\tests\\integration\\promo-dispatch-revision-db.test.ts:2:1229'
+  failureType: 'testCodeFailure'
+  error: 'OPERATION_DISPATCH_PAYLOAD_CONFLICT'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createOperationDispatch (E:\work\panel_bien_sport\bein-reseller-panel\src\lib\operation-dispatch.ts:62:19)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Proxy._transactionWithCallback (E:\work\panel_bien_sport\bein-reseller-panel\node_modules\@prisma\client\src\runtime\getPrismaClient.ts:694:18)
+    async <anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:20:18)
+    async withAuditOperationFixture (E:\work\panel_bien_sport\bein-reseller-panel\tests\helpers\audit-operation-fixtures.ts:28:9)
+    async TestContext.<anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:8:9)
+    async Test.run (node:internal/test_runner/test:1113:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+  ...
+# Subtest: T015 PostgreSQL dispatch: changed-payload
+not ok 3 - T015 PostgreSQL dispatch: changed-payload
+  ---
+  duration_ms: 1166.0775
+  type: 'test'
+  location: 'E:\\work\\panel_bien_sport\\bein-reseller-panel\\tests\\integration\\promo-dispatch-revision-db.test.ts:2:1229'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    +   0
+    -   1
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 1
+  actual:
+    0: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    <anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:22:20)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async withAuditOperationFixture (E:\work\panel_bien_sport\bein-reseller-panel\tests\helpers\audit-operation-fixtures.ts:28:9)
+    async TestContext.<anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:8:9)
+    async Test.run (node:internal/test_runner/test:1113:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+  ...
+# Subtest: T015 PostgreSQL dispatch: final-payment-revision
+not ok 4 - T015 PostgreSQL dispatch: final-payment-revision
+  ---
+  duration_ms: 857.162
+  type: 'test'
+  location: 'E:\\work\\panel_bien_sport\\bein-reseller-panel\\tests\\integration\\promo-dispatch-revision-db.test.ts:2:1229'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async <anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:14:17)
+    async withAuditOperationFixture (E:\work\panel_bien_sport\bein-reseller-panel\tests\helpers\audit-operation-fixtures.ts:28:9)
+    async TestContext.<anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:8:9)
+    async Test.run (node:internal/test_runner/test:1113:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+  ...
+# Subtest: T015 PostgreSQL panel selection: current
+ok 5 - T015 PostgreSQL panel selection: current
+  ---
+  duration_ms: 676.8466
+  type: 'test'
+  ...
+# Subtest: T015 PostgreSQL panel selection: stale
+not ok 6 - T015 PostgreSQL panel selection: stale
+  ---
+  duration_ms: 882.9844
+  type: 'test'
+  location: 'E:\\work\\panel_bien_sport\\bein-reseller-panel\\tests\\integration\\promo-dispatch-revision-db.test.ts:2:2545'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    200 !== 409
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 409
+  actual: 200
+  operator: 'strictEqual'
+  stack: |-
+    <anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:44:20)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async withAuditOperationFixture (E:\work\panel_bien_sport\bein-reseller-panel\tests\helpers\audit-operation-fixtures.ts:28:9)
+    async TestContext.<anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:29:9)
+    async Test.run (node:internal/test_runner/test:1113:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+  ...
+# Subtest: T015 PostgreSQL panel selection: refreshing
+not ok 7 - T015 PostgreSQL panel selection: refreshing
+  ---
+  duration_ms: 1172.3279
+  type: 'test'
+  location: 'E:\\work\\panel_bien_sport\\bein-reseller-panel\\tests\\integration\\promo-dispatch-revision-db.test.ts:2:2545'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    200 !== 409
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 409
+  actual: 200
+  operator: 'strictEqual'
+  stack: |-
+    <anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:44:20)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async withAuditOperationFixture (E:\work\panel_bien_sport\bein-reseller-panel\tests\helpers\audit-operation-fixtures.ts:28:9)
+    async TestContext.<anonymous> (E:\work\panel_bien_sport\bein-reseller-panel\tests\integration\promo-dispatch-revision-db.test.ts:29:9)
+    async Test.run (node:internal/test_runner/test:1113:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 1
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19592.7483

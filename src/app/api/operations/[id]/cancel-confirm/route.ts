@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
-import { addOperationJob, operationsQueue } from '@/lib/queue'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { hasFinalPayStarted, mergeOperationPhaseEvidence } from '@/lib/operation-safety'
 import type { OperationStatus } from '@prisma/client'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import {
+    ensureGuardedRenewalOperationReservation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
-}
-
-function isDuplicateJobError(error: unknown): boolean {
-    const message = error instanceof Error ? error.message.toLowerCase() : ''
-    return message.includes('already exists') || message.includes('jobid')
+    return getAuthenticatedUser(request)
 }
 
 /**
@@ -96,18 +93,34 @@ export async function POST(
         // Uses updateMany with status filter - if two cancel calls arrive simultaneously,
         // only the first one matches AWAITING_FINAL_CONFIRM and succeeds (count=1).
         // The second call finds status=COMPLETING and gets count=0 → rejected.
-        const updated = await prisma.operation.updateMany({
-            where: { id, status: 'AWAITING_FINAL_CONFIRM' },
-            data: {
-                status: 'COMPLETING',
-                responseMessage: 'Cancelling operation...',
-                responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                    phase: 'CANCELLATION_CONFIRM',
-                    jobType: 'CANCEL_CONFIRM',
-                    finalPaySubmitted: false,
-                    cancelRequestedAt: new Date().toISOString(),
-                }),
+        const updated = await prisma.$transaction(async (tx) => {
+            await ensureGuardedRenewalOperationReservation(tx, {
+                operationId: id,
+                cardNumber: operation.cardNumber,
+            })
+            const result = await tx.operation.updateMany({
+                where: { id, status: 'AWAITING_FINAL_CONFIRM' },
+                data: {
+                    status: 'COMPLETING',
+                    responseMessage: 'Cancelling operation...',
+                    responseData: mergeOperationPhaseEvidence(operation.responseData, {
+                        phase: 'CANCELLATION_CONFIRM',
+                        jobType: 'CANCEL_CONFIRM',
+                        finalPaySubmitted: false,
+                        cancelRequestedAt: new Date().toISOString(),
+                    }),
+                },
+            })
+            if (result.count === 1) {
+                await createOperationDispatch(tx, {
+                    operationId: id,
+                    type: 'CANCEL_CONFIRM',
+                    cardNumber: operation.cardNumber,
+                    userId: authUser.id,
+                    amount: operation.amount,
+                })
             }
+            return result
         })
 
         if (updated.count === 0) {
@@ -118,37 +131,10 @@ export async function POST(
             )
         }
 
-        // 4. Add CANCEL_CONFIRM job to queue (only one will ever reach here)
-        const cancelJobId = `CANCEL_CONFIRM--${id}`
-        const existingJob = await operationsQueue.getJob(cancelJobId).catch(() => null)
-
-        try {
-            if (!existingJob) {
-                await addOperationJob({
-                    operationId: id,
-                    type: 'CANCEL_CONFIRM',
-                    cardNumber: operation.cardNumber,
-                    userId: authUser.id,
-                    amount: operation.amount,
-                })
-            }
-        } catch (queueError) {
-            if (!isDuplicateJobError(queueError)) {
-                console.error('Failed to queue cancel-confirm job:', queueError)
-
-                await prisma.operation.updateMany({
-                    where: { id, status: 'COMPLETING' },
-                    data: {
-                        status: 'AWAITING_FINAL_CONFIRM',
-                        responseMessage: 'Awaiting final confirmation'
-                    }
-                })
-
-                return NextResponse.json(
-                    { error: 'Could not start cancellation right now. Please try again.' },
-                    { status: 503 }
-                )
-            }
+        // 4. Deliver the durable outbox row; failure remains safe to retry.
+        const dispatchResult = await dispatchPendingOperationJobs({ operationIds: [id] })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch cancel-confirm; saved for retry:', id)
         }
 
         // 5. Return success
@@ -156,9 +142,16 @@ export async function POST(
             success: true,
             operationId: id,
             message: 'Cancelling operation...',
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {
+        if (isRenewalCreationBlockedError(error)) {
+            return NextResponse.json(
+                renewalCreationBlockedPayload(error),
+                { status: 409 }
+            )
+        }
         console.error('Cancel confirm error:', error)
         return NextResponse.json(
             { error: 'Server error' },

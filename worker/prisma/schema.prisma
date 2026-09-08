@@ -36,6 +36,75 @@ enum OperationStatus {
   EXPIRED // انتهت المهلة - تم الإلغاء تلقائياً
 }
 
+enum ProviderPaymentState {
+  NOT_SUBMITTED
+  CHARGED
+  NOT_CHARGED
+  UNKNOWN
+}
+
+enum FulfillmentState {
+  UNVERIFIED
+  VERIFYING
+  VERIFIED
+  NOT_FOUND
+  CHECK_FAILED
+  PROOF_CONFLICT
+}
+
+enum FulfillmentVerificationOutcome {
+  MATCHED
+  VALID_NO_MATCH
+  REPORT_ONLY
+  CONTRACT_ONLY
+  INCOMPLETE_SCAN
+  CHECK_FAILED
+  PROOF_CONFLICT
+}
+
+enum FulfillmentAuthority {
+  NONE
+  AUTOMATED_COMPOSITE
+  MANUAL_PROVIDER_CONFIRMATION
+}
+
+enum FulfillmentProofMode {
+  REVIEW_ONLY
+  ENFORCE
+}
+
+enum FulfillmentProofKind {
+  LEGACY_CONTRACT_ONLY
+  SOLD_REPORT_CONTRACT_CORRELATION
+}
+
+enum ProviderInvoiceClaimKind {
+  LEGACY_PROOF
+  SOLD_REPORT_CONTRACT_CORRELATION
+  MANUAL_PROVIDER_CONFIRMATION
+}
+
+enum FulfillmentVerificationState {
+  PENDING
+  VERIFYING
+  REVIEW_ONLY
+  VERIFIED
+  NO_MATCH
+  CONFLICT
+  CHECK_FAILED
+}
+
+enum ProviderMutationStage {
+  FINAL_OK
+  INSTALLMENT_PAY
+}
+
+enum OperationPurpose {
+  RENEWAL
+  INSTALLMENT
+  LEGACY_UNKNOWN
+}
+
 enum TransactionType {
   DEPOSIT
   WITHDRAW
@@ -49,6 +118,10 @@ enum IntegrityIssueType {
   BEIN_DEBIT_NO_USER_DEDUCT
   BEIN_DEBIT_USER_UNDERDEDUCTED
   TELEMETRY_MISSING
+  PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED
+  FULFILLMENT_PROOF_CONFLICT
+  DUPLICATE_RENEWAL_CHARGE_BURST
+  STRIPE_RENEWAL_REFUND_CONFLICT
 }
 
 enum IntegrityIssueSeverity {
@@ -70,6 +143,11 @@ enum WalletTransactionType {
   CREDIT // إضافة رصيد
   DEBIT // خصم (تجديد، شراء)
   REFUND // استرداد (عملية فاشلة)
+}
+
+enum StoreCreditLedgerEntryType {
+  DEBIT
+  REFUND
 }
 
 enum CreditRequestStatus {
@@ -162,24 +240,24 @@ enum WhatsAppNotificationStatus {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  username          String    @unique
-  email             String    @unique
-  passwordHash      String    @map("password_hash")
-  role              Role      @default(USER)
-  balance           Float     @default(0)
-  creditDebtLimitUsd Float    @default(0) @map("credit_debt_limit_usd")
-  isActive          Boolean   @default(true) @map("is_active")
-  lowBalanceAlert   Float     @default(50) @map("low_balance_alert")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  lastLoginAt       DateTime? @map("last_login_at")
-  deletedAt         DateTime? @map("deleted_at")
-  deletedBalance    Float?    @map("deleted_balance")
-  deletedByUserId   String?   @map("deleted_by_user_id")
-  purgedAt          DateTime? @map("purged_at")
-  purgedByUserId    String?   @map("purged_by_user_id")
-  passwordChangedAt DateTime? @map("password_changed_at")
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  email              String    @unique
+  passwordHash       String    @map("password_hash")
+  role               Role      @default(USER)
+  balance            Float     @default(0)
+  creditDebtLimitUsd Float     @default(0) @map("credit_debt_limit_usd")
+  isActive           Boolean   @default(true) @map("is_active")
+  lowBalanceAlert    Float     @default(50) @map("low_balance_alert")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  lastLoginAt        DateTime? @map("last_login_at")
+  deletedAt          DateTime? @map("deleted_at")
+  deletedBalance     Float?    @map("deleted_balance")
+  deletedByUserId    String?   @map("deleted_by_user_id")
+  purgedAt           DateTime? @map("purged_at")
+  purgedByUserId     String?   @map("purged_by_user_id")
+  passwordChangedAt  DateTime? @map("password_changed_at")
 
   // ===== Enhanced Activity Tracking =====
   lastOperationAt     DateTime? @map("last_operation_at")
@@ -199,37 +277,41 @@ model User {
   notifications Notification[]
 
   // RBAC Relations
-  managedUsers                 ManagerUser[]                @relation("ManagerToUsers")
-  managerLink                  ManagerUser[]                @relation("UserToManager")
-  managerActions               UserAction[]                 @relation("ManagerActions")
-  userActions                  UserAction[]                 @relation("UserActions")
-  agentProfile                 AgentProfile?                @relation("AgentProfileOwner")
-  agentAssignmentsAsAgent      AgentAssignment[]            @relation("AgentAssignmentsAgent")
-  agentAssignmentAsUser        AgentAssignment[]            @relation("AgentAssignmentsUser")
-  agentAssignmentsCreated      AgentAssignment[]            @relation("AgentAssignmentsAdmin")
-  creditRequests               CreditRequest[]              @relation("CreditRequestUser")
-  creditRequestsAsAgent        CreditRequest[]              @relation("CreditRequestAgent")
-  creditRequestDecisions       CreditRequest[]              @relation("CreditRequestDecider")
-  creditRequestHistory         CreditRequestStatusHistory[] @relation("CreditRequestHistoryActor")
-  creditDebtEntries            CreditDebtLedgerEntry[]      @relation("CreditDebtUser")
-  creditDebtEntriesRecorded    CreditDebtLedgerEntry[]      @relation("CreditDebtRecorder")
-  pointRulesOwned              PointRule[]                  @relation("PointRuleOwner")
-  pointRulesUpdated            PointRule[]                  @relation("PointRuleUpdater")
-  pointLedgerEntries           PointLedgerEntry[]           @relation("PointLedgerOwner")
-  pointLedgerCreated           PointLedgerEntry[]           @relation("PointLedgerCreator")
-  pointLedgerReleased          PointLedgerEntry[]           @relation("PointLedgerReleaser")
-  pointProgramSettingsUpdated  PointProgramSettings[]       @relation("PointProgramSettingsUpdater")
-  pointCashRedemptions         PointCashRedemption[]        @relation("PointCashRedemptionOwner")
-  eidRewardClaims              EidRewardClaim[]             @relation("EidRewardClaimOwner")
-  eidRewardAudienceOverrides   EidRewardAudienceOverride[]  @relation("EidRewardAudienceOverrideUser")
-  rewardsCreated               Reward[]                     @relation("RewardCreator")
-  rewardRedemptions            RewardRedemption[]           @relation("RewardRedemptionOwner")
-  rewardRedemptionDecisions    RewardRedemption[]           @relation("RewardRedemptionDecider")
-  whatsappNotificationsAsAgent WhatsAppNotificationLog[]    @relation("WhatsAppNotificationAgent")
-  whatsappHandoffsAsAgent      WhatsAppHandoffSnapshot[]    @relation("WhatsAppHandoffAgent")
-  integrityIssues              OperationIntegrityIssue[]    @relation("IntegrityIssueUser")
-  reviewedIntegrityIssues      OperationIntegrityIssue[]    @relation("IntegrityIssueReviewer")
-  beinSpendLedger              BeinAccountSpendLedger[]     @relation("BeinSpendLedgerUser")
+  managedUsers                      ManagerUser[]                        @relation("ManagerToUsers")
+  managerLink                       ManagerUser[]                        @relation("UserToManager")
+  managerActions                    UserAction[]                         @relation("ManagerActions")
+  userActions                       UserAction[]                         @relation("UserActions")
+  agentProfile                      AgentProfile?                        @relation("AgentProfileOwner")
+  agentAssignmentsAsAgent           AgentAssignment[]                    @relation("AgentAssignmentsAgent")
+  agentAssignmentAsUser             AgentAssignment[]                    @relation("AgentAssignmentsUser")
+  agentAssignmentsCreated           AgentAssignment[]                    @relation("AgentAssignmentsAdmin")
+  creditRequests                    CreditRequest[]                      @relation("CreditRequestUser")
+  creditRequestsAsAgent             CreditRequest[]                      @relation("CreditRequestAgent")
+  creditRequestDecisions            CreditRequest[]                      @relation("CreditRequestDecider")
+  creditRequestHistory              CreditRequestStatusHistory[]         @relation("CreditRequestHistoryActor")
+  creditDebtEntries                 CreditDebtLedgerEntry[]              @relation("CreditDebtUser")
+  creditDebtEntriesRecorded         CreditDebtLedgerEntry[]              @relation("CreditDebtRecorder")
+  pointRulesOwned                   PointRule[]                          @relation("PointRuleOwner")
+  pointRulesUpdated                 PointRule[]                          @relation("PointRuleUpdater")
+  pointLedgerEntries                PointLedgerEntry[]                   @relation("PointLedgerOwner")
+  pointLedgerCreated                PointLedgerEntry[]                   @relation("PointLedgerCreator")
+  pointLedgerReleased               PointLedgerEntry[]                   @relation("PointLedgerReleaser")
+  pointProgramSettingsUpdated       PointProgramSettings[]               @relation("PointProgramSettingsUpdater")
+  pointCashRedemptions              PointCashRedemption[]                @relation("PointCashRedemptionOwner")
+  eidRewardClaims                   EidRewardClaim[]                     @relation("EidRewardClaimOwner")
+  eidRewardAudienceOverrides        EidRewardAudienceOverride[]          @relation("EidRewardAudienceOverrideUser")
+  rewardsCreated                    Reward[]                             @relation("RewardCreator")
+  rewardRedemptions                 RewardRedemption[]                   @relation("RewardRedemptionOwner")
+  rewardRedemptionDecisions         RewardRedemption[]                   @relation("RewardRedemptionDecider")
+  whatsappNotificationsAsAgent      WhatsAppNotificationLog[]            @relation("WhatsAppNotificationAgent")
+  whatsappHandoffsAsAgent           WhatsAppHandoffSnapshot[]            @relation("WhatsAppHandoffAgent")
+  integrityIssues                   OperationIntegrityIssue[]            @relation("IntegrityIssueUser")
+  reviewedIntegrityIssues           OperationIntegrityIssue[]            @relation("IntegrityIssueReviewer")
+  beinSpendLedger                   BeinAccountSpendLedger[]             @relation("BeinSpendLedgerUser")
+  manualFulfillmentEvidenceAuthored OperationManualFulfillmentEvidence[] @relation("ManualFulfillmentEvidenceActor")
+  refundSettlementsOwned RenewalRefundSettlement[] @relation("RefundSettlementOwner")
+  refundSettlementsAuthored RenewalRefundSettlement[] @relation("RefundSettlementActor")
+  reviewAdjudications OperationReviewAdjudication[]
 
   @@index([lastLoginAt])
   @@index([lastOperationAt])
@@ -400,16 +482,16 @@ model PointRule {
 }
 
 model PointProgramSettings {
-  id                            String    @id @default("default")
-  pointsEnabled                 Boolean   @default(false) @map("points_enabled")
-  pointsStartAt                 DateTime? @map("points_start_at")
-  cashConversionPoints          Float     @default(0) @map("cash_conversion_points")
-  cashConversionAmountUsd       Float     @default(0) @map("cash_conversion_amount_usd")
-  managerOwnedUserPointsEnabled Boolean   @default(false) @map("manager_owned_user_points_enabled")
+  id                              String    @id @default("default")
+  pointsEnabled                   Boolean   @default(false) @map("points_enabled")
+  pointsStartAt                   DateTime? @map("points_start_at")
+  cashConversionPoints            Float     @default(0) @map("cash_conversion_points")
+  cashConversionAmountUsd         Float     @default(0) @map("cash_conversion_amount_usd")
+  managerOwnedUserPointsEnabled   Boolean   @default(false) @map("manager_owned_user_points_enabled")
   operationSpendSnapshotCutoverAt DateTime? @map("operation_spend_snapshot_cutover_at")
-  updatedByAdminId              String?   @map("updated_by_admin_id")
-  createdAt                     DateTime  @default(now()) @map("created_at")
-  updatedAt                     DateTime  @updatedAt @map("updated_at")
+  updatedByAdminId                String?   @map("updated_by_admin_id")
+  createdAt                       DateTime  @default(now()) @map("created_at")
+  updatedAt                       DateTime  @updatedAt @map("updated_at")
 
   updatedByAdmin User? @relation("PointProgramSettingsUpdater", fields: [updatedByAdminId], references: [id])
 
@@ -417,32 +499,32 @@ model PointProgramSettings {
 }
 
 model PointLedgerEntry {
-  id                      String                @id @default(cuid())
-  ownerUserId             String                @map("owner_user_id")
-  ownerRoleAtTime         Role                  @map("owner_role_at_time")
-  sourceType              PointLedgerSourceType @map("source_type")
-  sourceId                String                @map("source_id")
-  creditRequestId         String?               @map("credit_request_id")
-  operationId             String?               @map("operation_id")
+  id                       String                @id @default(cuid())
+  ownerUserId              String                @map("owner_user_id")
+  ownerRoleAtTime          Role                  @map("owner_role_at_time")
+  sourceType               PointLedgerSourceType @map("source_type")
+  sourceId                 String                @map("source_id")
+  creditRequestId          String?               @map("credit_request_id")
+  operationId              String?               @map("operation_id")
   operationSpendAwardRunId String?               @map("operation_spend_award_run_id")
-  points                  Float
-  status                  PointLedgerStatus     @default(PENDING)
-  ratePerThousandSnapshot Float?                @map("rate_per_thousand_snapshot")
-  amountUsdSnapshot       Float?                @map("amount_usd_snapshot")
-  createdById             String?               @map("created_by_id")
-  createdAt               DateTime              @default(now()) @map("created_at")
-  releasedAt              DateTime?             @map("released_at")
-  releasedByAdminId       String?               @map("released_by_admin_id")
-  notes                   String?
+  points                   Float
+  status                   PointLedgerStatus     @default(PENDING)
+  ratePerThousandSnapshot  Float?                @map("rate_per_thousand_snapshot")
+  amountUsdSnapshot        Float?                @map("amount_usd_snapshot")
+  createdById              String?               @map("created_by_id")
+  createdAt                DateTime              @default(now()) @map("created_at")
+  releasedAt               DateTime?             @map("released_at")
+  releasedByAdminId        String?               @map("released_by_admin_id")
+  notes                    String?
 
-  owner               User                 @relation("PointLedgerOwner", fields: [ownerUserId], references: [id])
-  creditRequest       CreditRequest?       @relation(fields: [creditRequestId], references: [id], onDelete: SetNull)
-  operation           Operation?           @relation("OperationPointLedgerEntries", fields: [operationId], references: [id], onDelete: SetNull)
+  owner                  User                    @relation("PointLedgerOwner", fields: [ownerUserId], references: [id])
+  creditRequest          CreditRequest?          @relation(fields: [creditRequestId], references: [id], onDelete: SetNull)
+  operation              Operation?              @relation("OperationPointLedgerEntries", fields: [operationId], references: [id], onDelete: SetNull)
   operationSpendAwardRun OperationSpendAwardRun? @relation(fields: [operationSpendAwardRunId], references: [id], onDelete: Restrict)
-  createdBy           User?                @relation("PointLedgerCreator", fields: [createdById], references: [id])
-  releasedByAdmin     User?                @relation("PointLedgerReleaser", fields: [releasedByAdminId], references: [id])
-  rewardRedemption    RewardRedemption?    @relation("RewardRedemptionLedger")
-  pointCashRedemption PointCashRedemption? @relation("PointCashRedemptionLedger")
+  createdBy              User?                   @relation("PointLedgerCreator", fields: [createdById], references: [id])
+  releasedByAdmin        User?                   @relation("PointLedgerReleaser", fields: [releasedByAdminId], references: [id])
+  rewardRedemption       RewardRedemption?       @relation("RewardRedemptionLedger")
+  pointCashRedemption    PointCashRedemption?    @relation("PointCashRedemptionLedger")
 
   @@unique([ownerUserId, sourceType, sourceId])
   @@unique([operationSpendAwardRunId, ownerUserId])
@@ -456,6 +538,7 @@ model PointLedgerEntry {
 }
 
 model OperationSpendAwardRun {
+  completionEffects OperationCompletionEffect[]
   id                                    String                       @id @default(cuid())
   operationId                           String                       @unique @map("operation_id")
   policyVersion                         String                       @map("policy_version")
@@ -619,12 +702,12 @@ model EidRewardClaim {
 }
 
 model EidRewardAudienceOverride {
-  id         String                           @id @default(cuid())
-  settingsId String                           @map("settings_id")
-  userId     String                           @map("user_id")
+  id         String                          @id @default(cuid())
+  settingsId String                          @map("settings_id")
+  userId     String                          @map("user_id")
   effect     EidRewardAudienceOverrideEffect
-  createdAt  DateTime                         @default(now()) @map("created_at")
-  updatedAt  DateTime                         @updatedAt @map("updated_at")
+  createdAt  DateTime                        @default(now()) @map("created_at")
+  updatedAt  DateTime                        @updatedAt @map("updated_at")
 
   settings EidRewardSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
   user     User              @relation("EidRewardAudienceOverrideUser", fields: [userId], references: [id])
@@ -729,6 +812,14 @@ model Operation {
   responseMessage String?         @map("response_message")
   responseData    Json?           @map("response_data")
 
+  providerPaymentState           ProviderPaymentState?           @map("provider_payment_state")
+  fulfillmentState               FulfillmentState?               @map("fulfillment_state")
+  fulfillmentVerificationOutcome FulfillmentVerificationOutcome? @map("fulfillment_verification_outcome")
+  fulfillmentAuthority           FulfillmentAuthority?           @default(NONE) @map("fulfillment_authority")
+  providerMutationStartedAt      DateTime?                       @map("provider_mutation_started_at")
+  providerMutationStage          ProviderMutationStage?          @map("provider_mutation_stage")
+  purpose                        OperationPurpose?               @map("purpose")
+
   // Captcha Fields
   captchaImage    String?   @map("captcha_image") // Base64
   captchaSolution String?   @map("captcha_solution")
@@ -762,15 +853,26 @@ model Operation {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
 
-  user                   User?                     @relation(fields: [userId], references: [id])
-  customer               Customer?                 @relation(fields: [customerId], references: [id])
-  beinAccount            BeinAccount?              @relation(fields: [beinAccountId], references: [id])
-  transactions           Transaction[]             @relation("OperationTransactions")
-  pointLedgerEntries     PointLedgerEntry[]        @relation("OperationPointLedgerEntries")
-  operationSpendAwardRun OperationSpendAwardRun?
-  integrityIssues        OperationIntegrityIssue[]
-  dispatches             OperationDispatch[]
-  chargedBeinSpendLedger BeinAccountSpendLedger?   @relation("OperationChargedBeinSpendLedger")
+  user                             User?                               @relation(fields: [userId], references: [id])
+  customer                         Customer?                           @relation(fields: [customerId], references: [id])
+  beinAccount                      BeinAccount?                        @relation(fields: [beinAccountId], references: [id])
+  transactions                     Transaction[]                       @relation("OperationTransactions")
+  pointLedgerEntries               PointLedgerEntry[]                  @relation("OperationPointLedgerEntries")
+  operationSpendAwardRun           OperationSpendAwardRun?
+  integrityIssues                  OperationIntegrityIssue[]
+  installmentEvidence              OperationInstallmentEvidence?
+  refundSettlements                RenewalRefundSettlement[]
+  reviewAdjudications               OperationReviewAdjudication[]
+  completionEffects                OperationCompletionEffect[]
+  dispatches                       OperationDispatch[]
+  chargedBeinSpendLedger           BeinAccountSpendLedger?             @relation("OperationChargedBeinSpendLedger")
+  fulfillmentProof                 OperationFulfillmentProof?
+  providerInvoiceClaim             ProviderInvoiceClaim?
+  manualFulfillmentEvidence        OperationManualFulfillmentEvidence?
+  fulfillmentVerification          OperationFulfillmentVerification?
+  fulfillmentBaselines             OperationFulfillmentBaseline[]
+  cardLifecycleReservation         CardLifecycleReservation?
+  providerAccountCausalReservation ProviderAccountCausalReservation?
 
   // Store App - Links to customer subscription purchase
   storeSubscription StoreSubscription?
@@ -784,6 +886,8 @@ model Operation {
   @@index([beinAccountId])
   @@index([heartbeatExpiry])
   @@index([status, heartbeatExpiry])
+  @@index([fulfillmentState, fulfillmentVerificationOutcome])
+  @@index([providerMutationStartedAt])
   @@map("operations")
 }
 
@@ -791,18 +895,22 @@ model OperationDispatch {
   id           String    @id @default(cuid())
   operationId  String    @map("operation_id")
   jobType      String    @map("job_type")
+  actionRevision Int     @default(0) @map("action_revision")
   payload      Json
   status       String    @default("PENDING")
   attempts     Int       @default(0)
   lastError    String?   @map("last_error")
   dispatchedAt DateTime? @map("dispatched_at")
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
 
-  @@unique([operationId, jobType])
+  @@unique([operationId, jobType, actionRevision])
   @@index([status, createdAt])
+  @@index([status, nextAttemptAt])
+  @@index([status, updatedAt])
   @@index([operationId])
   @@map("operation_dispatches")
 }
@@ -818,12 +926,12 @@ model Transaction {
   notes        String?
   createdAt    DateTime        @default(now()) @map("created_at")
 
-  user                User                 @relation("UserTransactions", fields: [userId], references: [id])
-  admin               User?                @relation("AdminTransactions", fields: [adminId], references: [id])
-  operation           Operation?           @relation("OperationTransactions", fields: [operationId], references: [id])
-  creditRequest       CreditRequest?       @relation("CreditRequestTransaction")
+  user                User                    @relation("UserTransactions", fields: [userId], references: [id])
+  admin               User?                   @relation("AdminTransactions", fields: [adminId], references: [id])
+  operation           Operation?              @relation("OperationTransactions", fields: [operationId], references: [id])
+  creditRequest       CreditRequest?          @relation("CreditRequestTransaction")
   creditDebtEntries   CreditDebtLedgerEntry[] @relation("TransactionCreditDebtEntries")
-  pointCashRedemption PointCashRedemption? @relation("PointCashRedemptionTransaction")
+  pointCashRedemption PointCashRedemption?    @relation("PointCashRedemptionTransaction")
 
   @@index([userId, createdAt])
   @@index([operationId, type])
@@ -997,6 +1105,7 @@ model Notification {
 
 model BeinAccount {
   id String @id @default(cuid())
+  installmentEvidence OperationInstallmentEvidence[]
 
   // ===== Login Credentials =====
   username   String  @unique // beIN email
@@ -1004,10 +1113,11 @@ model BeinAccount {
   totpSecret String? @map("totp_secret") // 2FA secret
 
   // ===== Status =====
-  isActive     Boolean @default(true) @map("is_active")
-  priority     Int     @default(0) // Higher = first in Round Robin
-  customerOnly Boolean @default(false) @map("customer_only") // للتطبيق فقط - Only for mobile app
-  label        String? // Optional display name
+  isActive            Boolean @default(true) @map("is_active")
+  priority            Int     @default(0) // Higher = first in Round Robin
+  customerOnly        Boolean @default(false) @map("customer_only") // للتطبيق فقط - Only for mobile app
+  automationExclusive Boolean @default(false) @map("automation_exclusive")
+  label               String? // Optional display name
 
   // ===== Rate Limiting =====
   lastUsedAt    DateTime? @map("last_used_at")
@@ -1038,10 +1148,15 @@ model BeinAccount {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // ===== Relations =====
-  operations      Operation[]
-  sessions        BeinAccountSession[]
-  integrityIssues OperationIntegrityIssue[]
-  spendLedger     BeinAccountSpendLedger[]  @relation("BeinSpendLedgerAccount")
+  operations                        Operation[]
+  sessions                          BeinAccountSession[]
+  integrityIssues                   OperationIntegrityIssue[]
+  spendLedger                       BeinAccountSpendLedger[]             @relation("BeinSpendLedgerAccount")
+  fulfillmentProofs                 OperationFulfillmentProof[]
+  providerInvoiceClaims             ProviderInvoiceClaim[]
+  manualFulfillmentEvidence         OperationManualFulfillmentEvidence[]
+  fulfillmentBaselines              OperationFulfillmentBaseline[]
+  providerAccountCausalReservations ProviderAccountCausalReservation[]
 
   // ===== Proxy Assignment =====
   proxyId String? @map("proxy_id")
@@ -1114,7 +1229,8 @@ model Proxy {
 model BeinAccountSpendLedger {
   id                      String          @id @default(cuid())
   operationId             String          @unique @map("operation_id")
-  userId                  String          @map("user_id")
+  userId                  String?         @map("user_id")
+  customerId              String?         @map("customer_id")
   beinAccountId           String          @map("bein_account_id")
   proxyId                 String?         @map("proxy_id")
   operationType           OperationType   @map("operation_type")
@@ -1136,16 +1252,225 @@ model BeinAccountSpendLedger {
   updatedAt               DateTime        @updatedAt @map("updated_at")
 
   operation   Operation   @relation("OperationChargedBeinSpendLedger", fields: [operationId], references: [id], onDelete: Cascade)
-  user        User        @relation("BeinSpendLedgerUser", fields: [userId], references: [id])
+  user        User?       @relation("BeinSpendLedgerUser", fields: [userId], references: [id], onDelete: Restrict)
+  customer    Customer?   @relation("BeinSpendLedgerCustomer", fields: [customerId], references: [id], onDelete: Restrict)
   beinAccount BeinAccount @relation("BeinSpendLedgerAccount", fields: [beinAccountId], references: [id])
   proxy       Proxy?      @relation("BeinSpendLedgerProxy", fields: [proxyId], references: [id])
 
   @@index([beinAccountId, chargedAt])
   @@index([userId, chargedAt])
+  @@index([customerId, chargedAt])
   @@index([operationType, chargedAt])
   @@index([cardNumberSnapshot, chargedAt])
   @@index([chargedAt])
   @@map("bein_account_spend_ledger")
+}
+
+model OperationFulfillmentProof {
+  id                   String               @id @default(cuid())
+  operationId          String               @unique @map("operation_id")
+  beinAccountId        String               @map("bein_account_id")
+  invoiceClaimId       String               @unique @map("invoice_claim_id")
+  cardNumberSnapshot   String               @map("card_number_snapshot")
+  invoiceNo            String               @map("invoice_no")
+  proofKind            FulfillmentProofKind @default(LEGACY_CONTRACT_ONLY) @map("proof_kind")
+  selectedPackageName  String?              @map("selected_package_name")
+  contractPackageName  String?              @map("contract_package_name")
+  contractStatus       String               @map("contract_status")
+  contractType         String?              @map("contract_type")
+  contractStartDate    String?              @map("contract_start_date")
+  contractExpiryDate   String?              @map("contract_expiry_date")
+  verificationSource   String               @map("verification_source")
+  providerCheckedAt    DateTime             @map("provider_checked_at")
+  baselineId           String?              @map("baseline_id")
+  sessionGeneration    String?              @map("session_generation")
+  baselineCapturedAt   DateTime?            @map("baseline_captured_at")
+  reportObservedAt     DateTime?            @map("report_observed_at")
+  contractObservedAt   DateTime?            @map("contract_observed_at")
+  reportRowFingerprint String?              @map("report_row_fingerprint")
+  providerAmount       Decimal?             @map("provider_amount") @db.Decimal(18, 2)
+  currency             String?
+  reportPackageName    String?              @map("report_package_name")
+  reportItemType       String?              @map("report_item_type")
+  dealerContextHash    String?              @map("dealer_context_hash")
+  verifiedAt           DateTime             @default(now()) @map("verified_at")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  operation    Operation                     @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  beinAccount  BeinAccount                   @relation(fields: [beinAccountId], references: [id], onDelete: Restrict)
+  invoiceClaim ProviderInvoiceClaim          @relation(fields: [invoiceClaimId, operationId, beinAccountId, invoiceNo], references: [id, operationId, beinAccountId, invoiceNo], onDelete: Restrict)
+  baseline     OperationFulfillmentBaseline? @relation(fields: [baselineId, operationId, beinAccountId], references: [id, operationId, beinAccountId], onDelete: Restrict)
+
+  @@unique([beinAccountId, invoiceNo])
+  @@unique([invoiceClaimId, operationId, beinAccountId, invoiceNo], map: "fulfillment_proof_claim_context_key")
+  @@index([cardNumberSnapshot, verifiedAt])
+  @@index([beinAccountId, providerCheckedAt])
+  @@map("operation_fulfillment_proofs")
+}
+
+model ProviderInvoiceClaim {
+  id            String                   @id @default(cuid())
+  operationId   String                   @unique @map("operation_id")
+  beinAccountId String                   @map("bein_account_id")
+  invoiceNo     String                   @map("invoice_no")
+  claimKind     ProviderInvoiceClaimKind @map("claim_kind")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+
+  operation      Operation                           @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  beinAccount    BeinAccount                         @relation(fields: [beinAccountId], references: [id], onDelete: Restrict)
+  proof          OperationFulfillmentProof?
+  manualEvidence OperationManualFulfillmentEvidence?
+
+  @@unique([beinAccountId, invoiceNo])
+  @@unique([id, operationId, beinAccountId, invoiceNo], map: "provider_invoice_claim_context_key")
+  @@index([claimKind, createdAt])
+  @@map("provider_invoice_claims")
+}
+
+model OperationManualFulfillmentEvidence {
+  id                  String   @id @default(cuid())
+  operationId         String   @unique @map("operation_id")
+  beinAccountId       String   @map("bein_account_id")
+  invoiceClaimId      String   @unique @map("invoice_claim_id")
+  invoiceNo           String   @map("invoice_no")
+  cardNumberSnapshot  String   @map("card_number_snapshot")
+  packageNameSnapshot String   @map("package_name_snapshot")
+  providerAmount      Decimal  @map("provider_amount") @db.Decimal(18, 2)
+  currency            String
+  evidenceSource      String   @map("evidence_source")
+  evidenceNote        String   @map("evidence_note")
+  observedAt          DateTime @map("observed_at")
+  actorUserId         String   @map("actor_user_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  operation    Operation            @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  beinAccount  BeinAccount          @relation(fields: [beinAccountId], references: [id], onDelete: Restrict)
+  invoiceClaim ProviderInvoiceClaim @relation(fields: [invoiceClaimId, operationId, beinAccountId, invoiceNo], references: [id, operationId, beinAccountId, invoiceNo], onDelete: Restrict)
+  actor        User                 @relation("ManualFulfillmentEvidenceActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([beinAccountId, observedAt])
+  @@index([actorUserId, createdAt])
+  @@unique([invoiceClaimId, operationId, beinAccountId, invoiceNo], map: "manual_evidence_claim_context_key")
+  @@map("operation_manual_fulfillment_evidence")
+}
+
+model OperationFulfillmentVerification {
+  id               String                          @id @default(cuid())
+  operationId      String                          @unique @map("operation_id")
+  state            FulfillmentVerificationState    @default(PENDING)
+  activeBaselineId String?                         @unique @map("active_baseline_id")
+  attemptCount     Int                             @default(0) @map("attempt_count")
+  nextCheckAt      DateTime?                       @map("next_check_at")
+  lastOutcome      FulfillmentVerificationOutcome? @map("last_outcome")
+  lastReasonCode   String?                         @map("last_reason_code")
+  startedAt        DateTime?                       @map("started_at")
+  terminalAt       DateTime?                       @map("terminal_at")
+  createdAt        DateTime                        @default(now()) @map("created_at")
+  updatedAt        DateTime                        @updatedAt @map("updated_at")
+
+  operation      Operation                                 @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  baselines      OperationFulfillmentBaseline[]            @relation("VerificationBaselines")
+  activeBaseline OperationFulfillmentBaseline?             @relation("ActiveVerificationBaseline", fields: [activeBaselineId], references: [id], onDelete: SetNull)
+  attempts       OperationFulfillmentVerificationAttempt[]
+
+  @@index([state, nextCheckAt])
+  @@map("operation_fulfillment_verifications")
+}
+
+model OperationFulfillmentBaseline {
+  id                 String    @id @default(cuid())
+  verificationId     String    @map("verification_id")
+  operationId        String    @map("operation_id")
+  beinAccountId      String    @map("bein_account_id")
+  cardNumberSnapshot String    @map("card_number_snapshot")
+  baselineSequence   Int       @map("baseline_sequence")
+  sessionGeneration  String    @map("session_generation")
+  dealerContextHash  String    @map("dealer_context_hash")
+  invoiceSet         Json      @map("invoice_set")
+  targetCardRows     Json      @map("target_card_rows")
+  pageCount          Int       @map("page_count")
+  rowCount           Int       @map("row_count")
+  firstPageWatermark String    @map("first_page_watermark")
+  scanAttemptCount   Int       @map("scan_attempt_count")
+  capturedAt         DateTime  @map("captured_at")
+  supersededAt       DateTime? @map("superseded_at")
+  supersededReason   String?   @map("superseded_reason")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  verification          OperationFulfillmentVerification          @relation("VerificationBaselines", fields: [verificationId], references: [id], onDelete: Cascade)
+  activeForVerification OperationFulfillmentVerification?         @relation("ActiveVerificationBaseline")
+  operation             Operation                                 @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  beinAccount           BeinAccount                               @relation(fields: [beinAccountId], references: [id], onDelete: Restrict)
+  attempts              OperationFulfillmentVerificationAttempt[]
+  proofs                OperationFulfillmentProof[]
+
+  @@unique([verificationId, baselineSequence])
+  @@unique([id, operationId, beinAccountId], map: "fulfillment_baseline_context_key")
+  @@index([operationId, supersededAt])
+  @@index([beinAccountId, capturedAt])
+  @@map("operation_fulfillment_baselines")
+}
+
+model OperationFulfillmentVerificationAttempt {
+  id                 String                         @id @default(cuid())
+  verificationId     String                         @map("verification_id")
+  baselineId         String?                        @map("baseline_id")
+  attemptNo          Int                            @map("attempt_no")
+  outcome            FulfillmentVerificationOutcome
+  completeScan       Boolean                        @map("complete_scan")
+  pageCount          Int                            @default(0) @map("page_count")
+  rowCount           Int                            @default(0) @map("row_count")
+  candidateCount     Int                            @default(0) @map("candidate_count")
+  candidateInvoiceNo String?                        @map("candidate_invoice_no")
+  reportObservedAt   DateTime?                      @map("report_observed_at")
+  contractObservedAt DateTime?                      @map("contract_observed_at")
+  reasonCode         String                         @map("reason_code")
+  retryDueAt         DateTime?                      @map("retry_due_at")
+  createdAt          DateTime                       @default(now()) @map("created_at")
+
+  verification OperationFulfillmentVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+  baseline     OperationFulfillmentBaseline?    @relation(fields: [baselineId], references: [id], onDelete: Restrict)
+
+  @@unique([verificationId, attemptNo])
+  @@index([outcome, createdAt])
+  @@index([retryDueAt])
+  @@map("operation_fulfillment_verification_attempts")
+}
+
+model CardLifecycleReservation {
+  id            String    @id @default(cuid())
+  operationId   String    @unique @map("operation_id")
+  cardNumber    String    @map("card_number")
+  acquiredAt    DateTime  @default(now()) @map("acquired_at")
+  renewedAt     DateTime  @default(now()) @map("renewed_at")
+  releasedAt    DateTime? @map("released_at")
+  releaseReason String?   @map("release_reason")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  @@index([cardNumber, releasedAt])
+  @@map("card_lifecycle_reservations")
+}
+
+model ProviderAccountCausalReservation {
+  id                    String    @id @default(cuid())
+  operationId           String    @unique @map("operation_id")
+  beinAccountId         String    @map("bein_account_id")
+  reservationGeneration Int       @default(1) @map("reservation_generation")
+  acquiredAt            DateTime  @default(now()) @map("acquired_at")
+  renewedAt             DateTime  @default(now()) @map("renewed_at")
+  automaticWindowEndsAt DateTime  @map("automatic_window_ends_at")
+  releasedAt            DateTime? @map("released_at")
+  releaseReason         String?   @map("release_reason")
+
+  operation   Operation   @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  beinAccount BeinAccount @relation(fields: [beinAccountId], references: [id], onDelete: Restrict)
+
+  @@index([beinAccountId, releasedAt])
+  @@index([automaticWindowEndsAt])
+  @@map("provider_account_causal_reservations")
 }
 
 // ===== Announcement Banner System =====
@@ -1284,6 +1609,9 @@ model Customer {
   payments           Payment[]
   operations         Operation[]
   walletTransactions WalletTransaction[]
+  storeCreditLedgerEntries StoreCreditLedgerEntry[]
+  beinSpendLedger BeinAccountSpendLedger[] @relation("BeinSpendLedgerCustomer")
+  refundSettlements RenewalRefundSettlement[]
 
   @@index([email])
   @@index([isActive])
@@ -1560,6 +1888,11 @@ model StoreSubscription {
   // Store Credit Used
   creditUsed Float @default(0) @map("credit_used") // Store credit applied
 
+  paymentClaimedAt DateTime? @map("payment_claimed_at")
+  paymentClaimExpiresAt DateTime? @map("payment_claim_expires_at")
+  paymentClaimKey String? @unique @map("payment_claim_key")
+  selectionRevision Int @default(0) @map("selection_revision")
+
   // Stripe
   stripePaymentIntentId String? @map("stripe_payment_intent_id")
 
@@ -1583,11 +1916,34 @@ model StoreSubscription {
   package   SubscriptionPackage? @relation(fields: [packageId], references: [id])
   payment   Payment?             @relation(fields: [paymentId], references: [id])
   operation Operation?           @relation(fields: [operationId], references: [id])
+  creditLedgerEntries StoreCreditLedgerEntry[]
+  refundSettlements RenewalRefundSettlement[]
 
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
+  @@index([status, paymentClaimExpiresAt])
   @@map("store_subscriptions")
+}
+
+model StoreCreditLedgerEntry {
+  id                 String                     @id @default(cuid())
+  subscriptionId     String                     @map("subscription_id")
+  customerId         String                     @map("customer_id")
+  entryType          StoreCreditLedgerEntryType @map("entry_type")
+  amountMinor        Int                        @map("amount_minor")
+  balanceBeforeMinor Int                        @map("balance_before_minor")
+  balanceAfterMinor  Int                        @map("balance_after_minor")
+  currency           String
+  reasonCode         String                     @map("reason_code")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+
+  subscription StoreSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  customer     Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([subscriptionId, entryType])
+  @@index([customerId, createdAt])
+  @@map("store_credit_ledger_entries")
 }
 
 // ===== Payment Status Enum =====
@@ -1640,6 +1996,8 @@ model Payment {
   customer     Customer           @relation(fields: [customerId], references: [id])
   order        Order?
   subscription StoreSubscription?
+  refundSettlements RenewalRefundSettlement[]
+  refundObservations RenewalRefundObservation[]
 
   @@index([customerId])
   @@index([status])
@@ -1715,4 +2073,169 @@ model WalletTransaction {
   @@index([customerId, createdAt])
   @@index([referenceType, referenceId])
   @@map("wallet_transactions")
+}
+
+model OperationInstallmentEvidence {
+  id String @id @default(cuid())
+  operationId String @unique @map("operation_id")
+  beinAccountId String @map("bein_account_id")
+  cardNumber String @map("card_number")
+  installmentId String @map("installment_id")
+  correlationKey String @unique @map("correlation_key")
+  mutationStartedAt DateTime @map("mutation_started_at")
+  observedAt DateTime @map("observed_at")
+  paymentState String @map("payment_state")
+  settlementState String @default("UNKNOWN") @map("settlement_state")
+  amount Decimal? @db.Decimal(18, 4)
+  currency String?
+  settlementReference String? @map("settlement_reference")
+  rejectionReference String? @map("rejection_reference")
+  evidenceVersion Int @default(1) @map("evidence_version")
+  reasonCode String @map("reason_code")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  beinAccount BeinAccount @relation(fields: [beinAccountId], references: [id], onDelete: Restrict)
+
+  @@index([beinAccountId, observedAt])
+  @@map("operation_installment_evidence")
+}
+
+model RenewalRefundSettlement {
+  id String @id @default(cuid())
+  operationId String @map("operation_id")
+  subscriptionId String? @map("subscription_id")
+  paymentId String? @map("payment_id")
+  source String
+  userId String? @map("user_id")
+  customerId String? @map("customer_id")
+  currency String
+  originalExternalMinor Int @default(0) @map("original_external_minor")
+  originalStoreCreditMinor Int @default(0) @map("original_store_credit_minor")
+  originalWalletMinor Int @default(0) @map("original_wallet_minor")
+  requestedExternalMinor Int @default(0) @map("requested_external_minor")
+  requestedStoreCreditMinor Int @default(0) @map("requested_store_credit_minor")
+  requestedWalletMinor Int @default(0) @map("requested_wallet_minor")
+  confirmedExternalMinor Int @default(0) @map("confirmed_external_minor")
+  confirmedStoreCreditMinor Int @default(0) @map("confirmed_store_credit_minor")
+  confirmedWalletMinor Int @default(0) @map("confirmed_wallet_minor")
+  reservedExternalMinor Int @default(0) @map("reserved_external_minor")
+  reservedStoreCreditMinor Int @default(0) @map("reserved_store_credit_minor")
+  reservedWalletMinor Int @default(0) @map("reserved_wallet_minor")
+  state String @default("REQUESTED")
+  reasonCode String? @map("reason_code")
+  actorId String @map("actor_id")
+  decisionNote String @map("decision_note")
+  commandKey String @unique @map("command_key")
+  payloadFingerprint String @map("payload_fingerprint")
+  cancellationEvidenceReference String? @map("cancellation_evidence_reference")
+  nextAttemptAt DateTime? @map("next_attempt_at")
+  attempts Int @default(0)
+  leaseOwner String? @map("lease_owner")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  subscription StoreSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  user User? @relation("RefundSettlementOwner", fields: [userId], references: [id], onDelete: Restrict)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  actor User @relation("RefundSettlementActor", fields: [actorId], references: [id], onDelete: Restrict)
+  requests RenewalRefundRequest[]
+
+  @@unique([operationId, source])
+  @@index([state, nextAttemptAt])
+  @@index([paymentId])
+  @@index([subscriptionId])
+  @@index([customerId])
+  @@index([userId])
+  @@map("renewal_refund_settlements")
+}
+
+model RenewalRefundRequest {
+  id String @id @default(cuid())
+  settlementId String @map("settlement_id")
+  sequence Int
+  amountMinor Int @map("amount_minor")
+  providerIdempotencyKey String @unique @map("provider_idempotency_key")
+  providerRefundId String? @unique @map("provider_refund_id")
+  payloadFingerprint String @map("payload_fingerprint")
+  status String @default("REQUESTED")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  settlement RenewalRefundSettlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  observations RenewalRefundObservation[]
+
+  @@unique([settlementId, sequence])
+  @@map("renewal_refund_requests")
+}
+
+model RenewalRefundObservation {
+  id String @id @default(cuid())
+  requestId String @map("request_id")
+  paymentId String @map("payment_id")
+  providerEventId String @unique @map("provider_event_id")
+  providerRefundId String @map("provider_refund_id")
+  amountMinor Int @map("amount_minor")
+  currency String
+  status String
+  observedAt DateTime @map("observed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  request RenewalRefundRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, observedAt])
+  @@index([paymentId])
+  @@map("renewal_refund_observations")
+}
+
+model OperationReviewAdjudication {
+  id String @id @default(cuid())
+  operationId String @map("operation_id")
+  actorId String @map("actor_id")
+  decisionKey String @unique @map("decision_key")
+  payloadFingerprint String @map("payload_fingerprint")
+  decisionKind String @map("decision_kind")
+  classification String
+  normalizedEvidence Json @map("normalized_evidence")
+  sourceReference String @map("source_reference")
+  observedAt DateTime @map("observed_at")
+  reasonCode String @map("reason_code")
+  decisionNote String @map("decision_note")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([operationId, createdAt])
+  @@map("operation_review_adjudications")
+}
+
+model OperationCompletionEffect {
+  id String @id @default(cuid())
+  operationId String @map("operation_id")
+  effectKind String @map("effect_kind")
+  completionSnapshot Json @map("completion_snapshot")
+  snapshotVersion Int @map("snapshot_version")
+  pointsAwardRunId String? @map("points_award_run_id")
+  state String @default("PENDING")
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
+  attempts Int @default(0)
+  leaseOwner String? @map("lease_owner")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  lastError String? @map("last_error")
+  deliveredAt DateTime? @map("delivered_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  pointsAwardRun OperationSpendAwardRun? @relation(fields: [pointsAwardRunId], references: [id], onDelete: Restrict)
+
+  @@unique([operationId, effectKind])
+  @@index([state, nextAttemptAt])
+  @@map("operation_completion_effects")
 }

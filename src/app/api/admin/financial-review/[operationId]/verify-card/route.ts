@@ -8,6 +8,34 @@ import {
     withFinancialReviewMetadata,
 } from '@/lib/financial-review/evidence'
 
+function hasReviewFinalPaymentEvidence(input: {
+    responseData: unknown
+    providerMutationStartedAt: Date | null
+    providerPaymentState: string | null
+}): boolean {
+    if (input.providerMutationStartedAt) return true
+    const responseData = input.responseData
+    const data = parseJsonRecord(responseData)
+    const auditSnapshot = parseJsonRecord(data?.auditSnapshot)
+    const phase = data?.operationPhase ?? data?.phase
+    const paymentState = input.providerPaymentState ?? data?.providerPaymentState
+    const outcomeCategory = data?.outcomeCategory ?? auditSnapshot?.outcomeCategory
+    const providerEvidenceState = data?.providerEvidenceState ?? auditSnapshot?.providerEvidenceState
+
+    return data?.finalPaySubmitted === true ||
+        phase === 'FINAL_PAY_REQUEST_STARTED' ||
+        phase === 'FINAL_PAY_SUBMITTED' ||
+        phase === 'POST_FINAL_PAY_REVIEW' ||
+        paymentState === 'CHARGED' ||
+        paymentState === 'NOT_CHARGED' ||
+        paymentState === 'UNKNOWN' ||
+        outcomeCategory === 'CONFIRMED_SUCCESS' ||
+        outcomeCategory === 'CONFIRMED_NOT_CHARGED' ||
+        outcomeCategory === 'UNCERTAIN_REVIEW_REQUIRED' ||
+        providerEvidenceState === 'confirmed-final-pay' ||
+        providerEvidenceState === 'contract-verified'
+}
+
 type RouteContext = {
     params: Promise<{ operationId: string }>
 }
@@ -35,11 +63,35 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 status: true,
                 responseData: true,
                 cardNumber: true,
+                providerMutationStartedAt: true,
+                providerPaymentState: true,
+                fulfillmentVerification: {
+                    select: {
+                        activeBaseline: {
+                            select: { id: true, supersededAt: true },
+                        },
+                    },
+                },
             },
         })
 
         if (!operation || operation.status !== OperationStatus.REVIEW_REQUIRED) {
             return NextResponse.json({ error: 'Operation is not reviewable' }, { status: 409 })
+        }
+        if (!hasReviewFinalPaymentEvidence(operation)) {
+            return NextResponse.json({
+                error: 'Final payment evidence is required before live fulfillment verification',
+                code: 'FINAL_PAY_EVIDENCE_REQUIRED',
+                messageKey: 'operations.fulfillmentReviewPending',
+            }, { status: 409 })
+        }
+        const activeBaseline = operation.fulfillmentVerification?.activeBaseline
+        if (!activeBaseline || activeBaseline.supersededAt) {
+            return NextResponse.json({
+                error: 'ACTIVE_FULFILLMENT_BASELINE_REQUIRED',
+                code: 'ACTIVE_FULFILLMENT_BASELINE_REQUIRED',
+                messageKey: 'operations.fulfillmentReviewPending',
+            }, { status: 409 })
         }
 
         const checkedAt = new Date().toISOString()
@@ -75,7 +127,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 attempts: 1,
                 removeOnComplete: true,
                 removeOnFail: true,
-                jobId: `VERIFY_REVIEW_CARD--${operationId}--${Date.now()}`,
+                jobId: `VERIFY_REVIEW_CARD--${operationId}--${activeBaseline.id}`,
             })
 
             const maxWaitMs = 45_000

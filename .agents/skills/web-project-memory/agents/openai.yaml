@@ -1,0 +1,7 @@
+interface:
+  display_name: "Web Project Memory"
+  short_description: "Keep compact source-linked memory for web projects"
+  default_prompt: "Use $web-project-memory to map this web project into PROJECT_MEMORY.md and keep affected records synchronized after changes."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import {
+    createGuardedRenewalOperation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) {
-        return session.user
-    }
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 // Validation schema
@@ -93,11 +93,11 @@ export async function POST(request: NextRequest) {
         }
 
         const operation = await prisma.$transaction(async (tx) => {
-            const createdOperation = await tx.operation.create({
+            const createdOperation = await createGuardedRenewalOperation(tx, {
+                cardNumber,
                 data: {
                     userId: authUser.id,
-                    type: 'RENEW', // Using RENEW type for installment operations
-                    cardNumber,
+                    purpose: 'INSTALLMENT',
                     amount: 0, // Will be set after loading installment details
                     status: 'PENDING',
                 },
@@ -156,6 +156,12 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Start installment error:', error)
+        if (isRenewalCreationBlockedError(error)) {
+            return NextResponse.json(
+                renewalCreationBlockedPayload(error),
+                { status: 409 }
+            )
+        }
         return NextResponse.json(
             { error: 'Server error' },
             { status: 500 }

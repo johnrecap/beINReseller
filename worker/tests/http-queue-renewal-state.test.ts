@@ -24,41 +24,27 @@ test('START_RENEWAL does not share one HttpClientService across card and package
     assert.ok(loadIndex > checkIndex);
 });
 
-test('confirmed provider success can repair automated review without overriding manual review', () => {
-    assert.match(source, /function hasManualFinancialReviewDecision/);
-    assert.match(source, /function confirmedProviderContextMatches/);
-    assert.match(source, /function completeConfirmedRenewalOperation/);
-
-    const helperStart = source.indexOf('async function completeConfirmedRenewalOperation');
-    const helperEnd = source.indexOf('function getErrMsg', helperStart);
-
-    assert.notEqual(helperStart, -1);
-    assert.notEqual(helperEnd, -1);
-
-    const helperSource = source.slice(helperStart, helperEnd);
-
-    assert.match(helperSource, /current\?\.status !== OperationStatus\.REVIEW_REQUIRED/);
-    assert.match(helperSource, /hasFinalPaymentStarted\(current\.status, current\.responseData\)/);
-    assert.match(helperSource, /hasManualFinancialReviewDecision\(current\.responseData\)/);
-    assert.match(helperSource, /confirmedProviderContextMatches\(current\.responseData, finalPayEvidence\)/);
-    assert.match(helperSource, /shouldRecordConfirmedProviderSpend\(finalPayEvidence\)/);
-    assert.match(helperSource, /prisma\.transaction\.findFirst/);
-    assert.match(helperSource, /type: 'REFUND'/);
-    assert.match(helperSource, /status: OperationStatus\.REVIEW_REQUIRED/);
-    assert.match(helperSource, /updatedAt: current\.updatedAt/);
+test('balance-only and legacy contract-only evidence cannot promote an automated review to completed', () => {
+    assert.doesNotMatch(source, /function completeConfirmedRenewalOperation/);
+    assert.doesNotMatch(source, /promoted automated review to COMPLETED/);
+    assert.match(source, /verifyRenewalFulfillmentWithProvider/);
+    assert.match(source, /SOLD_REPORT_CONTRACT_CORRELATION/);
+    assert.match(source, /LEGACY_CONTRACT_ONLY/);
+    assert.match(source, /fulfillmentProofMode/);
 });
 
-test('final pay request-started evidence blocks duplicate provider submission', () => {
-    assert.match(source, /phase === 'FINAL_PAY_REQUEST_STARTED'/);
-    assert.match(source, /reason: 'final_pay_already_started'/);
-    assert.match(source, /operationPhase: 'FINAL_PAY_REQUEST_STARTED'/);
-    assert.match(source, /shouldReclassifyConservativeNoCharge/);
-    assert.doesNotMatch(source, /operationPhase: 'FINAL_PAY_SUBMITTED',\s*jobType: 'CONFIRM_PURCHASE',\s*finalPaySubmitted: true,\s*finalPaySubmittedAt: new Date\(\)\.toISOString\(\),\s*dealerBalanceBefore: preFinalBeinBalance/s);
+test('final provider mutation barrier blocks duplicate OK and Pay submission', () => {
+    assert.match(source, /FINAL_PROVIDER_MUTATION_STARTED/);
+    assert.match(source, /FINAL_PAY_REQUEST_STARTED/);
+    assert.match(source, /reason: 'final_provider_mutation_already_started'/);
+    assert.match(source, /claimFinalProviderMutationStart/);
+    assert.match(source, /verificationOnly/);
+    assert.doesNotMatch(source, /FINAL_PROVIDER_MUTATION_STARTED[\s\S]{0,800}client\.confirmPurchase\(/);
 });
 
-test('confirmed renewal persists ledger and audit evidence before final completion', () => {
-    const branchStart = source.indexOf('if (result.success) {', source.indexOf('async function handleConfirmPurchaseHttp'));
-    const branchEnd = source.indexOf('} else if (outcomeDecision.reviewRequired', branchStart);
+test('confirmed provider charge persists ledger and audit then reviews without fulfillment proof', () => {
+    const branchStart = source.indexOf("if (providerPaymentState === 'CHARGED') {", source.indexOf('async function handleConfirmPurchaseHttp'));
+    const branchEnd = source.indexOf("} else if (terminalDecision.decision === 'REVIEW_REQUIRED')", branchStart);
 
     assert.notEqual(branchStart, -1);
     assert.notEqual(branchEnd, -1);
@@ -66,14 +52,15 @@ test('confirmed renewal persists ledger and audit evidence before final completi
     const successBranch = source.slice(branchStart, branchEnd);
     const ledgerIndex = successBranch.indexOf('recordConfirmedBeinSpend({');
     const auditIndex = successBranch.indexOf('mergeOperationAuditSnapshot(postPayResponseData, auditSnapshot)');
-    const completeIndex = successBranch.indexOf('completeConfirmedRenewalOperation(operationId');
 
     assert.ok(ledgerIndex >= 0);
     assert.ok(auditIndex > ledgerIndex);
-    assert.ok(completeIndex > auditIndex);
     assert.match(successBranch, /ledgerResultBlocksCompletion\(ledgerResult\)/);
     assert.match(successBranch, /status: 'REVIEW_REQUIRED'/);
     assert.match(successBranch, /responseData: postPayResponseData/);
+    assert.match(successBranch, /PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED/);
+    assert.doesNotMatch(successBranch, /status: 'COMPLETED'/);
+    assert.doesNotMatch(successBranch, /awardCompletedOperationPointsSafely/);
 });
 
 test('legacy direct purchase success is reviewed instead of completed without final-pay proof', () => {
@@ -90,22 +77,25 @@ test('legacy direct purchase success is reviewed instead of completed without fi
     assert.doesNotMatch(directBranch, /awardCompletedOperationPointsSafely/);
 });
 
-test('confirmed installment persists ledger and audit before final completion', () => {
-    const branchStart = source.indexOf('if (payResult.success) {');
-    const branchEnd = source.indexOf('if (payOutcomeDecision.reviewRequired', branchStart);
+test('installment HTTP result records debit independently and delegates unknown settlement to the finalizer', () => {
+    const branchStart = source.indexOf('// The legacy HTTP adapter exposes debit evidence');
+    const branchEnd = source.indexOf('installmentLeaseHeartbeat.stop()', branchStart);
 
     assert.notEqual(branchStart, -1);
     assert.notEqual(branchEnd, -1);
 
     const successBranch = source.slice(branchStart, branchEnd);
     const ledgerIndex = successBranch.indexOf('recordConfirmedBeinSpend({');
-    const auditIndex = successBranch.indexOf('mergeOperationAuditSnapshot(installmentPostPayResponseData, auditSnapshot)');
-    const completeIndex = successBranch.indexOf("status: 'COMPLETED'");
+    const evidenceIndex = successBranch.indexOf('prisma.operationInstallmentEvidence.updateMany(');
+    const observationIndex = successBranch.indexOf("'INSTALLMENT_OBSERVATION'");
+    const finalizerIndex = successBranch.indexOf('finalizeInstallmentSettlement(');
 
     assert.ok(ledgerIndex >= 0);
-    assert.ok(auditIndex > ledgerIndex);
-    assert.ok(completeIndex > auditIndex);
-    assert.match(successBranch, /ledgerResultBlocksCompletion\(ledgerResult\)/);
-    assert.match(successBranch, /status: 'REVIEW_REQUIRED'/);
-    assert.match(successBranch, /responseData: installmentCompletedResponseData/);
+    assert.ok(evidenceIndex > ledgerIndex);
+    assert.ok(observationIndex > evidenceIndex);
+    assert.ok(finalizerIndex > observationIndex);
+    assert.match(successBranch, /settlementState: 'UNKNOWN'/);
+    assert.match(successBranch, /ATTRIBUTABLE_INSTALLMENT_SETTLEMENT_REQUIRED/);
+    assert.match(successBranch, /expectedCorrelationKey: mutationClaim.correlationKey/);
+    assert.doesNotMatch(successBranch, /settlementState: 'SETTLED'|status: 'COMPLETED'|awardCompletedOperationPointsSafely/);
 });

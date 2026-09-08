@@ -39,14 +39,22 @@ test('preserves existing type, status, and date filters', () => {
     })
 })
 
-test('preserves active status expansion with card filter', () => {
+test('preserves active and fulfillment-review status expansion with card filter', () => {
     const where = buildOperationListWhere('user-1', new URLSearchParams({
         status: 'active',
         cardNumber: '7518695237',
     }))
 
     assert.deepEqual(where.status, {
-        in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'],
+        in: [
+            'PENDING',
+            'PROCESSING',
+            'AWAITING_CAPTCHA',
+            'AWAITING_PACKAGE',
+            'AWAITING_FINAL_CONFIRM',
+            'COMPLETING',
+            'REVIEW_REQUIRED',
+        ],
     })
     assert.deepEqual(where.cardNumber, { contains: '7518695237' })
 })

@@ -9,12 +9,47 @@ import { prisma } from '../lib/prisma'
 import { getRedisConnection } from '../lib/redis'
 import { PoolConfig, AccountHealth, PoolStatus, BeinAccount } from './types'
 import { checkRateLimit, recordRequest } from './rate-limiter'
-import { extendLock, isAccountLocked, lockAccount, unlockAccount } from './account-locking'
+import {
+    acquireAccountExecutionLease,
+    assertAccountExecutionLease,
+    extendLock,
+    isAccountExecutionLeaseActive,
+    isAccountLocked,
+    lockAccount,
+    releaseAccountExecutionLease,
+    renewAccountExecutionLease,
+    unlockAccount,
+    type AccountExecutionLeaseHandle,
+} from './account-locking'
 import { decryptAccountPassword } from '../lib/crypto'
+import {
+    acquireProviderAccountCausalReservation,
+    assertActiveProviderAccountReservation,
+    decideProviderAccountConsumerAccess,
+    findActiveProviderAccountReservationForAccount,
+    findActiveProviderAccountReservationForOperation,
+    isProviderAccountAutomationEligible,
+    renewProviderAccountCausalReservation,
+} from '../lib/provider-account-reservation'
+import type { ProviderAccountCausalReservation } from '@prisma/client'
 
 const COUNTER_KEY = 'bein:pool:counter'
 const COOLDOWN_PREFIX = 'bein:account:cooldown:'
 const ACCOUNT_LOCK_TTL_SECONDS = 300
+
+export interface ReservedAccountAcquisition {
+    account: BeinAccount
+    reservation: ProviderAccountCausalReservation
+    lease: AccountExecutionLeaseHandle
+}
+
+export interface ReservedAccountAcquisitionRequest {
+    operationId: string
+    leaseId: string
+    automaticWindowEndsAt: Date
+    excludeAccountIds?: string[]
+    minBalance?: number
+}
 
 export class AccountPoolManager {
     private redis: Redis
@@ -63,6 +98,10 @@ export class AccountPoolManager {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: Record<string, any> = {
             isActive: true,
+            automationExclusive: true,
+            providerAccountCausalReservations: {
+                none: { releasedAt: null },
+            },
             OR: [
                 { cooldownUntil: null },
                 { cooldownUntil: { lte: new Date() } },
@@ -113,6 +152,10 @@ export class AccountPoolManager {
                 console.log(`Skipping ${account.label || account.username}: lock was taken`)
                 continue
             }
+            if (!await this.confirmUnreservedConsumerLock(account.id, operationId)) {
+                console.log(`Skipping ${account.label || account.username}: causal reservation appeared after selection`)
+                continue
+            }
 
             return decryptAccountPassword(account)
         }
@@ -122,16 +165,195 @@ export class AccountPoolManager {
     }
 
     /**
+     * Acquire the durable provider-account reservation and its short fenced
+     * execution lease as one caller-visible result. Callers must retain the
+     * returned handle and use it for every provider mutation/session write.
+     */
+    async acquireReservedAccount(
+        input: ReservedAccountAcquisitionRequest
+    ): Promise<ReservedAccountAcquisition | null> {
+        if (!this.configLoaded) await this.loadConfig()
+        if (
+            !input.operationId.trim() ||
+            !input.leaseId.trim() ||
+            !Number.isFinite(input.automaticWindowEndsAt.getTime()) ||
+            input.automaticWindowEndsAt.getTime() <= Date.now()
+        ) {
+            return null
+        }
+
+        const existingReservation = await findActiveProviderAccountReservationForOperation(
+            prisma,
+            input.operationId
+        )
+        if (existingReservation) {
+            if (input.excludeAccountIds?.includes(existingReservation.beinAccountId)) return null
+            const account = await prisma.beinAccount.findUnique({
+                where: { id: existingReservation.beinAccountId },
+                include: { proxy: true },
+            })
+            if (
+                !account ||
+                !isProviderAccountAutomationEligible(account) ||
+                (input.minBalance !== undefined && (account.dealerBalance ?? -Infinity) < input.minBalance)
+            ) {
+                return null
+            }
+            const health = await this.checkAccountHealth(account.id, input.operationId)
+            if (!health.isAvailable) return null
+
+            const durableReservationRenewed = await renewProviderAccountCausalReservation(
+                prisma,
+                {
+                    operationId: input.operationId,
+                    beinAccountId: account.id,
+                    reservationGeneration: existingReservation.reservationGeneration,
+                    automaticWindowEndsAt: input.automaticWindowEndsAt,
+                }
+            )
+            if (!durableReservationRenewed) return null
+
+            const lease = await acquireAccountExecutionLease(this.redis, {
+                accountId: account.id,
+                operationId: input.operationId,
+                reservationGeneration: existingReservation.reservationGeneration,
+                leaseId: input.leaseId,
+                workerId: this.workerId,
+            })
+            if (!lease) return null
+            const reservationStillCurrent = await assertActiveProviderAccountReservation(prisma, {
+                operationId: input.operationId,
+                beinAccountId: account.id,
+                reservationGeneration: existingReservation.reservationGeneration,
+            })
+            if (!reservationStillCurrent) {
+                await releaseAccountExecutionLease(this.redis, lease)
+                return null
+            }
+            return {
+                account: decryptAccountPassword(account),
+                reservation: existingReservation,
+                lease,
+            }
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const whereClause: Record<string, any> = {
+            isActive: true,
+            automationExclusive: true,
+            providerAccountCausalReservations: { none: { releasedAt: null } },
+            OR: [
+                { cooldownUntil: null },
+                { cooldownUntil: { lte: new Date() } },
+            ],
+            ...(input.excludeAccountIds?.length
+                ? { id: { notIn: input.excludeAccountIds } }
+                : {}),
+            ...(input.minBalance !== undefined
+                ? { dealerBalance: { gte: input.minBalance } }
+                : {}),
+        }
+        if (this.customerOnly !== undefined) whereClause.customerOnly = this.customerOnly
+
+        const accounts = await prisma.beinAccount.findMany({
+            where: whereClause,
+            include: { proxy: true },
+            orderBy: [
+                { priority: 'desc' },
+                { dealerBalance: 'desc' },
+                { lastUsedAt: 'asc' },
+            ],
+        })
+        if (accounts.length === 0) return null
+        const counter = await this.redis.incr(COUNTER_KEY)
+        const startIndex = counter % accounts.length
+
+        for (let index = 0; index < accounts.length; index++) {
+            const account = accounts[(startIndex + index) % accounts.length]
+            const health = await this.checkAccountHealth(account.id)
+            if (!health.isAvailable) continue
+
+            const claim = await prisma.$transaction((tx) =>
+                acquireProviderAccountCausalReservation(tx, {
+                    operationId: input.operationId,
+                    beinAccountId: account.id,
+                    automaticWindowEndsAt: input.automaticWindowEndsAt,
+                })
+            )
+            if (claim.status !== 'ACQUIRED' && claim.status !== 'ALREADY_HELD') {
+                if (claim.status === 'OPERATION_ALREADY_RESERVED') return null
+                continue
+            }
+            const reservation = claim.reservation
+
+            // Close the keepalive/legacy race after the database claim.
+            const healthAfterClaim = await this.checkAccountHealth(account.id, input.operationId)
+            if (!healthAfterClaim.isAvailable) return null
+            const lease = await acquireAccountExecutionLease(this.redis, {
+                accountId: account.id,
+                operationId: input.operationId,
+                reservationGeneration: reservation.reservationGeneration,
+                leaseId: input.leaseId,
+                workerId: this.workerId,
+            })
+            if (!lease) return null
+
+            const reservationStillCurrent = await assertActiveProviderAccountReservation(prisma, {
+                operationId: input.operationId,
+                beinAccountId: account.id,
+                reservationGeneration: reservation.reservationGeneration,
+            })
+            if (!reservationStillCurrent) {
+                await releaseAccountExecutionLease(this.redis, lease)
+                return null
+            }
+            return {
+                account: decryptAccountPassword(account),
+                reservation,
+                lease,
+            }
+        }
+        return null
+    }
+
+    async assertExecutionLease(handle: AccountExecutionLeaseHandle): Promise<boolean> {
+        if (!await assertActiveProviderAccountReservation(prisma, {
+            operationId: handle.operationId,
+            beinAccountId: handle.accountId,
+            reservationGeneration: handle.reservationGeneration,
+        })) return false
+        return assertAccountExecutionLease(this.redis, handle)
+    }
+
+    async renewExecutionLease(handle: AccountExecutionLeaseHandle): Promise<boolean> {
+        if (!await renewAccountExecutionLease(this.redis, handle)) return false
+        const reservationRenewed = await renewProviderAccountCausalReservation(prisma, {
+            operationId: handle.operationId,
+            beinAccountId: handle.accountId,
+            reservationGeneration: handle.reservationGeneration,
+        })
+        if (!reservationRenewed) {
+            await releaseAccountExecutionLease(this.redis, handle)
+            return false
+        }
+        return true
+    }
+
+    async releaseExecutionLease(handle: AccountExecutionLeaseHandle): Promise<boolean> {
+        return releaseAccountExecutionLease(this.redis, handle)
+    }
+
+    /**
      * Mark an account as successfully used
      * Records the usage and resets consecutive failures
      */
-    async markAccountUsed(accountId: string, operationId?: string): Promise<void> {
+    async markAccountUsed(accountId: string, operationId?: string, options?: { durableCompletionCounters?: boolean }): Promise<void> {
         try {
         // Record request for rate limiting
         await recordRequest(this.redis, accountId, this.config.rateLimitWindowSeconds)
 
         // Update database
-        await prisma.beinAccount.update({
+        if (!options?.durableCompletionCounters) await prisma.beinAccount.update({
             where: { id: accountId },
             data: {
                 lastUsedAt: new Date(),
@@ -224,7 +446,35 @@ export class AccountPoolManager {
     /**
      * Check the health status of an account
      */
-    async checkAccountHealth(accountId: string): Promise<AccountHealth> {
+    async checkAccountHealth(
+        accountId: string,
+        allowedReservationOperationId?: string
+    ): Promise<AccountHealth> {
+        const [account, activeReservation] = await Promise.all([
+            prisma.beinAccount.findUnique({
+                where: { id: accountId },
+                select: { isActive: true, automationExclusive: true },
+            }),
+            findActiveProviderAccountReservationForAccount(prisma, accountId),
+        ])
+        if (!account || !isProviderAccountAutomationEligible(account)) {
+            return {
+                isAvailable: false,
+                reason: 'Account is not automation-exclusive and active',
+                requestsInWindow: 0,
+            }
+        }
+        if (
+            activeReservation &&
+            activeReservation.operationId !== allowedReservationOperationId
+        ) {
+            return {
+                isAvailable: false,
+                reason: 'Account has an active causal reservation',
+                requestsInWindow: 0,
+            }
+        }
+
         // Check cooldown in Redis (fast)
         const cooldownTTL = await this.redis.ttl(`${COOLDOWN_PREFIX}${accountId}`)
         if (cooldownTTL > 0) {
@@ -242,6 +492,14 @@ export class AccountPoolManager {
             return {
                 isAvailable: false,
                 reason: 'Locked by another worker',
+                requestsInWindow: 0,
+            }
+        }
+
+        if (await isAccountExecutionLeaseActive(this.redis, accountId)) {
+            return {
+                isAvailable: false,
+                reason: 'Account has an active execution lease',
                 requestsInWindow: 0,
             }
         }
@@ -279,7 +537,7 @@ export class AccountPoolManager {
         let rateLimited = 0
 
         for (const account of accounts) {
-            if (!account.isActive) continue
+            if (!isProviderAccountAutomationEligible(account)) continue
 
             const health = await this.checkAccountHealth(account.id)
             if (health.isAvailable) {
@@ -293,7 +551,7 @@ export class AccountPoolManager {
 
         return {
             totalAccounts: accounts.length,
-            activeAccounts: accounts.filter((a) => a.isActive).length,
+            activeAccounts: accounts.filter(isProviderAccountAutomationEligible).length,
             availableNow: available,
             inCooldown,
             rateLimited,
@@ -360,11 +618,12 @@ export class AccountPoolManager {
     /**
      * Release a lock for a specific account (cleanup)
      */
-    async releaseLock(accountId: string, operationId?: string): Promise<void> {
+    async releaseLock(accountId: string, operationId?: string): Promise<boolean> {
         const released = await unlockAccount(this.redis, accountId, this.workerId, operationId)
         if (released) {
             console.log(`Released lock for account ${accountId}`)
         }
+        return released
     }
 
     /**
@@ -448,6 +707,10 @@ export class AccountPoolManager {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: Record<string, any> = {
             isActive: true,
+            automationExclusive: true,
+            providerAccountCausalReservations: {
+                none: { releasedAt: null },
+            },
             id: { notIn: excludeAccountIds },
             OR: [
                 { cooldownUntil: null },
@@ -498,6 +761,10 @@ export class AccountPoolManager {
                 console.log(`Skipping ${account.label || account.username}: lock was taken`)
                 continue
             }
+            if (!await this.confirmUnreservedConsumerLock(account.id, operationId)) {
+                console.log(`Skipping ${account.label || account.username}: causal reservation appeared after selection`)
+                continue
+            }
 
             return decryptAccountPassword(account)
         }
@@ -517,6 +784,10 @@ export class AccountPoolManager {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const whereClause: Record<string, any> = {
             isActive: true,
+            automationExclusive: true,
+            providerAccountCausalReservations: {
+                none: { releasedAt: null },
+            },
             OR: [
                 { cooldownUntil: null },
                 { cooldownUntil: { lte: new Date() } },
@@ -548,6 +819,30 @@ export class AccountPoolManager {
      */
     getRedis(): Redis {
         return this.redis
+    }
+
+    private async confirmUnreservedConsumerLock(
+        accountId: string,
+        operationId?: string
+    ): Promise<boolean> {
+        const activeReservation = await findActiveProviderAccountReservationForAccount(
+            prisma,
+            accountId
+        )
+        const decision = decideProviderAccountConsumerAccess({
+            consumer: 'POOL_SELECTION',
+            activeReservation: activeReservation
+                ? {
+                    operationId: activeReservation.operationId,
+                    reservationGeneration: activeReservation.reservationGeneration,
+                }
+                : null,
+            requester: null,
+        })
+        if (decision.allowed) return true
+
+        await unlockAccount(this.redis, accountId, this.workerId, operationId)
+        return false
     }
 
     /**

@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { withRequestDeadline } from '@/lib/request-deadline'
 import {
     AlertTriangle,
     CheckCircle2,
@@ -21,6 +22,8 @@ import type {
     FinancialReviewPaymentStatus,
     FinancialReviewState,
 } from '@/lib/financial-review/types'
+import { useTranslation } from '@/hooks/useTranslation'
+import { validDecisionNote } from '../../../../shared/operations/review-decision-note'
 
 type ApiResponse = {
     summary: {
@@ -37,7 +40,31 @@ type ApiResponse = {
 type DecisionDialogState = {
     item: FinancialReviewItem
     action: FinancialReviewDecisionAction
+    decisionKey?: string
 } | null
+
+type ManualFulfillmentEvidencePayload = {
+    sourceReference?: string
+    invoiceNo: string
+    beinAccountId: string
+    cardNumberSnapshot: string
+    packageNameSnapshot: string
+    providerAmount: string
+    currency: 'USD'
+    evidenceSource: string
+    evidenceNote: string
+    observedAt: string
+}
+
+type ManualFulfillmentEvidenceDraft = Omit<ManualFulfillmentEvidencePayload, 'observedAt'> & {
+    observedAt: string
+}
+
+const MANUAL_EVIDENCE_SOURCES = [
+    'SBS_SOLD_REPORT_AND_ACTIVE_CONTRACT',
+    'SBS_INVOICE_DETAILS_AND_ACTIVE_CONTRACT',
+    'BEIN_SUPPORT_CONFIRMATION',
+] as const
 
 const tabs: Array<{ id: FinancialReviewState | 'all'; label: string }> = [
     { id: 'needs_decision', label: 'محتاج قرار' },
@@ -61,6 +88,28 @@ function formatUsd(value: number | null | undefined) {
     return amount === '-' ? '-' : `USD ${amount}`
 }
 
+function toDateTimeLocalValue(value: string | Date = new Date()) {
+    const date = value instanceof Date ? value : new Date(value)
+    if (!Number.isFinite(date.getTime())) return ''
+    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    return localDate.toISOString().slice(0, 16)
+}
+
+function createManualEvidenceDraft(item: FinancialReviewItem): ManualFulfillmentEvidenceDraft {
+    const existing = item.manualFulfillmentEvidence
+    return {
+        invoiceNo: existing?.invoiceNo || '',
+        beinAccountId: item.evidence.beinAccountId || item.beinAccount?.id || '',
+        cardNumberSnapshot: item.cardNumber,
+        packageNameSnapshot: existing?.packageNameSnapshot || item.packageName || item.evidence.selectedPackageName || '',
+        providerAmount: existing?.providerAmount || '',
+        currency: 'USD',
+        evidenceSource: existing?.evidenceSource || '',
+        evidenceNote: existing?.evidenceNote || '',
+        observedAt: toDateTimeLocalValue(existing?.observedAt),
+    }
+}
+
 function getBeinDebitSourceLabel(source: FinancialReviewItem['evidence']['beinDebitSource']) {
     switch (source) {
         case 'ledger':
@@ -75,6 +124,7 @@ function getBeinDebitSourceLabel(source: FinancialReviewItem['evidence']['beinDe
 }
 
 export default function FinancialReviewClient() {
+    const { t } = useTranslation()
     const [state, setState] = useState<FinancialReviewState | 'all'>('needs_decision')
     const [search, setSearch] = useState('')
     const [data, setData] = useState<ApiResponse | null>(null)
@@ -129,18 +179,43 @@ export default function FinancialReviewClient() {
         }
     }
 
-    const submitDecision = async (note: string, paymentStatus?: FinancialReviewPaymentStatus) => {
+    const submitDecision = async (
+        note: string,
+        paymentStatus?: FinancialReviewPaymentStatus,
+        manualFulfillmentEvidence?: ManualFulfillmentEvidencePayload
+    ) => {
         if (!dialog) return
+        const hasAutomatedCompositeProof =
+            dialog.item.evidence.fulfillmentVerified &&
+            Boolean(dialog.item.evidence.fulfillmentProofId) &&
+            dialog.item.evidence.fulfillmentAuthority === 'AUTOMATED_COMPOSITE'
+        if (
+            dialog.action === 'BEIN_EXECUTED_NO_REFUND' &&
+            !hasAutomatedCompositeProof &&
+            !manualFulfillmentEvidence
+        ) {
+            setError(t.operations.manualFulfillmentEvidenceRequired)
+            return
+        }
         setBusyOperationId(dialog.item.id)
         try {
+            const { response, payload } = await withRequestDeadline(async signal => {
             const response = await fetch(`/api/admin/financial-review/${dialog.item.id}/decision`, {
+                signal,
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: dialog.action,
                     note,
+                    decisionKey: dialog.decisionKey,
+                    sourceReference: manualFulfillmentEvidence?.sourceReference,
                     ...(dialog.action === 'BEIN_EXECUTED_NO_REFUND'
-                        ? { manualVerification: { cardRenewed: true, paymentStatus: paymentStatus || 'تم تأكيد الدفع' } }
+                        ? {
+                            manualVerification: {
+                                paymentStatus: paymentStatus || 'تم تأكيد الدفع'
+                            },
+                            manualFulfillmentEvidence,
+                        }
                         : {}),
                     ...(dialog.action === 'REFUND_CUSTOMER'
                         ? { manualVerification: { cardRenewed: false, paymentStatus: paymentStatus || 'لم يتم تأكيد الدفع' } }
@@ -148,7 +223,11 @@ export default function FinancialReviewClient() {
                 }),
             })
             const payload = await response.json().catch(() => ({}))
-            if (!response.ok) throw new Error(payload.error || 'تعذر حفظ القرار')
+            return { response, payload }
+            })
+            if (!response.ok) throw new Error(payload.error === 'INVALID_DECISION_NOTE'
+                ? t.admin.financialReview.decisionNoteValidation : response.status === 409
+                    ? t.admin.financialReview.capabilityChanged : payload.error || t.admin.financialReview.evidenceHold)
             setDialog(null)
             await fetchItems()
         } catch (err) {
@@ -245,7 +324,7 @@ export default function FinancialReviewClient() {
                                 item={item}
                                 busy={busyOperationId === item.id}
                                 onVerify={() => verifyCard(item)}
-                                onDecision={(action) => setDialog({ item, action })}
+                                onDecision={(action) => setDialog({ item, action, decisionKey: crypto.randomUUID() })}
                             />
                         ))
                     ) : (
@@ -279,11 +358,13 @@ function ReviewCard({
     onVerify: () => void
     onDecision: (action: FinancialReviewDecisionAction) => void
 }) {
+    const { t, locale, dir } = useTranslation()
     const [expanded, setExpanded] = useState(false)
     const owner = item.user || item.customer
     const latestCheck = item.review.latestCardVerification
     const latestDecision = item.review.latestDecision
     const canDecide = item.state === 'needs_decision' || item.state === 'follow_up'
+    const allowed = (action: FinancialReviewDecisionAction) => item.capabilities?.allowedActions.includes(action) === true
     const beinAccountName =
         item.evidence.beinAccountLabel ||
         item.evidence.beinUsername ||
@@ -291,6 +372,18 @@ function ReviewCard({
         item.beinAccount?.username ||
         '-'
     const beinDebitStatus = item.evidence.beinDebitConfirmed ? 'نعم - دليل موثوق' : 'لا يوجد دليل موثوق'
+    const fulfillmentAuthorityLabel = item.evidence.fulfillmentAuthority === 'AUTOMATED_COMPOSITE'
+        ? t.operations.automatedFulfillmentConfirmed
+        : item.evidence.fulfillmentAuthority === 'MANUAL_PROVIDER_CONFIRMATION'
+            ? t.operations.manualFulfillmentConfirmed
+            : t.admin.financialReview.noFulfillmentAuthority
+    const manualEvidenceSourceLabel = item.manualFulfillmentEvidence?.evidenceSource === 'SBS_SOLD_REPORT_AND_ACTIVE_CONTRACT'
+        ? t.admin.financialReview.sourceSoldReportAndContract
+        : item.manualFulfillmentEvidence?.evidenceSource === 'SBS_INVOICE_DETAILS_AND_ACTIVE_CONTRACT'
+            ? t.admin.financialReview.sourceInvoiceDetailsAndContract
+            : item.manualFulfillmentEvidence?.evidenceSource === 'BEIN_SUPPORT_CONFIRMATION'
+                ? t.admin.financialReview.sourceBeinSupport
+                : item.manualFulfillmentEvidence?.evidenceSource || '-'
 
     return (
         <article className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -318,6 +411,7 @@ function ReviewCard({
                         <Info label="حساب beIN المستخدم" value={beinAccountName} />
                         <Info label="حالة دليل beIN" value={item.evidence.providerEvidenceLabel || beinDebitStatus} />
                         <Info label="خصم beIN المؤكد" value={formatUsd(item.evidence.beinDebitAmount)} />
+                        <Info label={t.admin.financialReview.fulfillmentAuthority} value={fulfillmentAuthorityLabel} />
                     </div>
                 </div>
 
@@ -325,20 +419,25 @@ function ReviewCard({
                     <div className="flex flex-wrap gap-2 xl:max-w-[460px] xl:justify-end">
                         <button onClick={onVerify} disabled={busy} className="review-button">
                             <ShieldCheck className="h-4 w-4" />
-                            فحص مباشر من beIN
+                            {t.admin.financialReview.liveCheckAction}
                         </button>
-                        <button onClick={() => onDecision('BEIN_EXECUTED_NO_REFUND')} disabled={busy} className="review-button review-button-success">
+                        <button onClick={() => onDecision('BEIN_EXECUTED_NO_REFUND')} disabled={busy || !allowed('BEIN_EXECUTED_NO_REFUND')} className="review-button review-button-success disabled:opacity-40">
                             <CheckCircle2 className="h-4 w-4" />
-                            تم التجديد - بدون رد فلوس
+                            {t.admin.financialReview.completeAction}
                         </button>
-                        <button onClick={() => onDecision('REFUND_CUSTOMER')} disabled={busy} className="review-button review-button-danger">
+                        <button onClick={() => onDecision('REFUND_CUSTOMER')} disabled={busy || !allowed('REFUND_CUSTOMER')} className="review-button review-button-danger disabled:opacity-40">
                             <Wallet className="h-4 w-4" />
-                            رد فلوس للعميل
+                            {t.admin.financialReview.refundAction}
                         </button>
                         <button onClick={() => onDecision('KEEP_UNDER_REVIEW')} disabled={busy} className="review-button">
                             <Clock3 className="h-4 w-4" />
-                            متابعة لاحقا
+                            {t.admin.financialReview.followUpAction}
                         </button>
+                        {allowed('RESOLVE_PRE_MUTATION') && (
+                            <button onClick={() => onDecision('RESOLVE_PRE_MUTATION')} disabled={busy} className="review-button">
+                                {t.admin.financialReview.preMutationTitle}
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100 xl:max-w-[360px]">
@@ -346,6 +445,18 @@ function ReviewCard({
                     </div>
                 )}
             </div>
+
+            {item.capabilities && (
+                <div className="mt-4 rounded-lg border border-border bg-background p-3 text-sm" role="status">
+                    <strong>{t.admin.financialReview.classifications[item.capabilities.classification]}</strong>
+                    {item.capabilities.blockedReasonCodes.length > 0 && <p className="mt-1 text-muted-foreground">
+                        {item.capabilities.classification === 'INSTALLMENT' ? t.admin.financialReview.installmentHold
+                            : item.capabilities.classification === 'LEGACY_RENEWAL' ? t.admin.financialReview.legacyHold
+                            : item.capabilities.classification === 'CONFLICT' ? t.admin.financialReview.fundingHold
+                            : t.admin.financialReview.evidenceHold}
+                    </p>}
+                </div>
+            )}
 
             {latestCheck && (
                 <div className="mt-4 rounded-lg border border-sky-400/20 bg-sky-400/10 p-3 text-sm text-sky-100">
@@ -364,6 +475,44 @@ function ReviewCard({
                         </div>
                     )}
                 </div>
+            )}
+
+            {item.manualFulfillmentEvidence && (
+                <section
+                    className="mt-4 rounded-lg border border-violet-400/25 bg-violet-400/10 p-4"
+                    aria-label={t.admin.financialReview.manualEvidenceTitle}
+                    dir={dir}
+                >
+                    <div>
+                        <h3 className="font-semibold text-violet-100">
+                            {t.admin.financialReview.manualEvidenceTitle}
+                        </h3>
+                        <p className="mt-1 text-sm text-violet-100/80">
+                            {t.operations.manualFulfillmentConfirmed}
+                        </p>
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        <Info label={t.admin.financialReview.invoiceNo} value={item.manualFulfillmentEvidence.invoiceNo} valueDir="ltr" />
+                        <Info label={t.admin.financialReview.beinAccountId} value={item.manualFulfillmentEvidence.beinAccountId} valueDir="ltr" />
+                        <Info label={t.admin.financialReview.cardNumberSnapshot} value={item.manualFulfillmentEvidence.cardNumberSnapshot} valueDir="ltr" />
+                        <Info label={t.admin.financialReview.packageNameSnapshot} value={item.manualFulfillmentEvidence.packageNameSnapshot} />
+                        <Info
+                            label={t.admin.financialReview.providerAmount}
+                            value={`${item.manualFulfillmentEvidence.currency} ${item.manualFulfillmentEvidence.providerAmount}`}
+                            valueDir="ltr"
+                        />
+                        <Info label={t.admin.financialReview.evidenceSource} value={manualEvidenceSourceLabel} />
+                        <Info
+                            label={t.admin.financialReview.observedAt}
+                            value={new Date(item.manualFulfillmentEvidence.observedAt).toLocaleString(locale)}
+                        />
+                        <Info label={t.admin.financialReview.actorUserId} value={item.manualFulfillmentEvidence.actorUserId} valueDir="ltr" />
+                        <Info label={t.admin.financialReview.manualEvidenceId} value={item.manualFulfillmentEvidence.id} valueDir="ltr" />
+                        <div className="sm:col-span-2 xl:col-span-3">
+                            <Info label={t.admin.financialReview.evidenceNote} value={item.manualFulfillmentEvidence.evidenceNote} />
+                        </div>
+                    </div>
+                </section>
             )}
 
             {!item.evidence.beinDebitConfirmed && (
@@ -419,11 +568,19 @@ function ReviewCard({
     )
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({
+    label,
+    value,
+    valueDir = 'auto',
+}: {
+    label: string
+    value: string
+    valueDir?: 'auto' | 'ltr' | 'rtl'
+}) {
     return (
         <div className="min-w-0 rounded-md border border-border bg-background/70 p-3">
             <div className="text-xs text-muted-foreground">{label}</div>
-            <div className="mt-1 break-words text-sm font-semibold text-foreground">{value}</div>
+            <div dir={valueDir} className="mt-1 break-words text-sm font-semibold text-foreground">{value}</div>
         </div>
     )
 }
@@ -437,34 +594,123 @@ function DecisionDialog({
     state: NonNullable<DecisionDialogState>
     busy: boolean
     onClose: () => void
-    onSubmit: (note: string, paymentStatus?: FinancialReviewPaymentStatus) => void
+    onSubmit: (
+        note: string,
+        paymentStatus?: FinancialReviewPaymentStatus,
+        manualFulfillmentEvidence?: ManualFulfillmentEvidencePayload
+    ) => void
 }) {
     const [note, setNote] = useState('')
+    const [sourceReference, setSourceReference] = useState('')
+    const dialogRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        const previous = document.activeElement as HTMLElement | null
+        dialogRef.current?.querySelector<HTMLElement>('input:not([readonly]), textarea, button:not(:disabled)')?.focus()
+        return () => { if (previous?.isConnected) previous.focus() }
+    }, [])
+    const legacy = state.item.capabilities?.classification === 'LEGACY_RENEWAL'
+    const [manualEvidence, setManualEvidence] = useState<ManualFulfillmentEvidenceDraft>(() =>
+        createManualEvidenceDraft(state.item)
+    )
+    const { t, dir } = useTranslation()
+    const hasAutomatedCompositeProof =
+        state.item.evidence.fulfillmentVerified &&
+        Boolean(state.item.evidence.fulfillmentProofId) &&
+        state.item.evidence.fulfillmentAuthority === 'AUTOMATED_COMPOSITE'
+    const requiresManualEvidence =
+        state.action === 'BEIN_EXECUTED_NO_REFUND' && !hasAutomatedCompositeProof
+    const amountIsValid = /^\d+(?:\.\d{1,2})?$/.test(manualEvidence.providerAmount.trim()) &&
+        Number(manualEvidence.providerAmount) > 0
+    const observedAtDate = manualEvidence.observedAt ? new Date(manualEvidence.observedAt) : null
+    const observedAtIsValid = observedAtDate !== null && Number.isFinite(observedAtDate.getTime())
+    const hasLockedOperationContext = Boolean(
+        manualEvidence.beinAccountId.trim() && manualEvidence.cardNumberSnapshot.trim()
+    )
+    const manualEvidenceComplete = Boolean(
+        manualEvidence.invoiceNo.trim() &&
+        hasLockedOperationContext &&
+        manualEvidence.packageNameSnapshot.trim() &&
+        amountIsValid &&
+        manualEvidence.evidenceSource.trim() &&
+        manualEvidence.evidenceNote.trim() &&
+        observedAtIsValid && (!legacy || sourceReference.trim().length > 0)
+    )
+
+    function updateManualEvidence<K extends keyof ManualFulfillmentEvidenceDraft>(
+        field: K,
+        value: ManualFulfillmentEvidenceDraft[K]
+    ) {
+        setManualEvidence((current) => ({ ...current, [field]: value }))
+    }
+
+    function submit() {
+        if (!validDecisionNote(note, state.action !== 'KEEP_UNDER_REVIEW')) return
+        if (requiresManualEvidence) {
+            if (!manualEvidenceComplete || !observedAtDate) return
+            onSubmit(note, 'تم تأكيد الدفع', {
+                ...(legacy ? { sourceReference: sourceReference.trim() } : {}),
+                invoiceNo: manualEvidence.invoiceNo.trim(),
+                beinAccountId: manualEvidence.beinAccountId.trim(),
+                cardNumberSnapshot: manualEvidence.cardNumberSnapshot.trim(),
+                packageNameSnapshot: manualEvidence.packageNameSnapshot.trim(),
+                providerAmount: manualEvidence.providerAmount.trim(),
+                currency: manualEvidence.currency,
+                evidenceSource: manualEvidence.evidenceSource.trim(),
+                evidenceNote: manualEvidence.evidenceNote.trim(),
+                observedAt: observedAtDate.toISOString(),
+            })
+            return
+        }
+        onSubmit(note, copy.paymentStatus || undefined)
+    }
+
     const copy = {
+        RESOLVE_PRE_MUTATION: {
+            title: t.admin.financialReview.preMutationTitle,
+            body: t.admin.financialReview.preMutationDescription,
+            confirm: t.admin.financialReview.preMutationTitle,
+            paymentStatus: null,
+        },
         BEIN_EXECUTED_NO_REFUND: {
-            title: 'تأكيد أن التجديد تم',
-            body: 'استخدم هذا القرار فقط لو اتأكدت من موقع beIN أو من دليل واضح أن الكارت اتجدد بالفعل.',
-            confirm: 'تأكيد بدون رد فلوس',
+            title: t.admin.financialReview.manualDecisionTitle,
+            body: t.admin.financialReview.manualDecisionDescription,
+            confirm: t.admin.financialReview.manualDecisionConfirm,
             paymentStatus: 'تم تأكيد الدفع' as FinancialReviewPaymentStatus,
         },
         REFUND_CUSTOMER: {
-            title: 'رد فلوس للعميل',
-            body: 'سيتم إضافة مبلغ العملية لرصيد العميل مرة واحدة فقط، ولن يسمح النظام برد مكرر لنفس العملية.',
-            confirm: 'تنفيذ رد الفلوس',
+            title: t.admin.financialReview.refundAction,
+            body: t.admin.financialReview.refundDescription,
+            confirm: t.admin.financialReview.refundConfirm,
             paymentStatus: 'لم يتم تأكيد الدفع' as FinancialReviewPaymentStatus,
         },
         KEEP_UNDER_REVIEW: {
-            title: 'متابعة لاحقا',
-            body: 'سيتم نقل العملية لتبويب متابعة لاحقا مع حفظ سبب التأجيل.',
-            confirm: 'حفظ للمتابعة',
+            title: t.admin.financialReview.followUpAction,
+            body: t.admin.financialReview.followUpDescription,
+            confirm: t.admin.financialReview.followUpConfirm,
             paymentStatus: null,
         },
     }[state.action]
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" dir="rtl">
-            <div className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-xl">
-                <h3 className="text-xl font-bold text-foreground">{copy.title}</h3>
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            dir={dir}
+            role="dialog"
+            ref={dialogRef}
+            onKeyDown={event => {
+                if (event.key === 'Escape' && !busy) { event.preventDefault(); onClose(); return }
+                if (event.key !== 'Tab') return
+                const controls = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]') || [])]
+                    .filter(control => control.getClientRects().length > 0)
+                const first = controls[0], last = controls.at(-1)
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+            }}
+            aria-modal="true"
+            aria-labelledby="financial-review-decision-title"
+        >
+            <div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-xl">
+                <h3 id="financial-review-decision-title" className="text-xl font-bold text-foreground">{copy.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{copy.body}</p>
                 <div className="mt-4 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
                     كارت {state.item.cardNumber} - مبلغ {formatAmount(state.item.amount)} USD
@@ -475,26 +721,184 @@ function DecisionDialog({
                         <div className="mt-1 font-semibold text-[#9ffb06]">{copy.paymentStatus}</div>
                     </div>
                 )}
+                {requiresManualEvidence && (
+                    <div
+                        className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-4"
+                        aria-describedby="manual-fulfillment-evidence-help"
+                    >
+                        <h4 className="font-semibold text-foreground">
+                            {t.admin.financialReview.manualEvidenceFormTitle}
+                        </h4>
+                        <p id="manual-fulfillment-evidence-help" className="mt-1 text-sm text-muted-foreground">
+                            {t.admin.financialReview.manualEvidenceFormDescription}
+                        </p>
+
+                        {!hasLockedOperationContext && (
+                            <div className="mt-3 rounded-md border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">
+                                {t.admin.financialReview.missingOperationContext}
+                            </div>
+                        )}
+
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <label className="block text-sm font-medium text-foreground">
+                                {t.admin.financialReview.invoiceNo}
+                                <input
+                                    value={manualEvidence.invoiceNo}
+                                    onChange={(event) => updateManualEvidence('invoiceNo', event.target.value)}
+                                    autoFocus
+                                    required
+                                    maxLength={100}
+                                    autoComplete="off"
+                                    dir="ltr"
+                                    className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-[#9ffb06]/60"
+                                    placeholder={t.admin.financialReview.invoiceNoPlaceholder}
+                                />
+                            </label>
+                            <label className="block text-sm font-medium text-foreground">
+                                {t.admin.financialReview.beinAccountId}
+                                <input
+                                    value={manualEvidence.beinAccountId}
+                                    readOnly
+                                    aria-readonly="true"
+                                    dir="ltr"
+                                    className="mt-2 h-11 w-full rounded-lg border border-border bg-secondary/40 px-3 text-sm text-muted-foreground outline-none"
+                                />
+                            </label>
+                            <label className="block text-sm font-medium text-foreground">
+                                {t.admin.financialReview.cardNumberSnapshot}
+                                <input
+                                    value={manualEvidence.cardNumberSnapshot}
+                                    readOnly
+                                    aria-readonly="true"
+                                    dir="ltr"
+                                    className="mt-2 h-11 w-full rounded-lg border border-border bg-secondary/40 px-3 text-sm text-muted-foreground outline-none"
+                                />
+                            </label>
+                            <label className="block text-sm font-medium text-foreground">
+                                {t.admin.financialReview.packageNameSnapshot}
+                                <input
+                                    value={manualEvidence.packageNameSnapshot}
+                                    onChange={(event) => updateManualEvidence('packageNameSnapshot', event.target.value)}
+                                    required
+                                    maxLength={300}
+                                    className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-[#9ffb06]/60"
+                                />
+                            </label>
+                            <label className="block text-sm font-medium text-foreground">
+                                {t.admin.financialReview.providerAmount}
+                                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        min="0.01"
+                                        step="0.01"
+                                        value={manualEvidence.providerAmount}
+                                        onChange={(event) => updateManualEvidence('providerAmount', event.target.value)}
+                                        required
+                                        dir="ltr"
+                                        className="h-11 min-w-0 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-[#9ffb06]/60"
+                                        placeholder={t.admin.financialReview.providerAmountPlaceholder}
+                                    />
+                                    <input
+                                        value={manualEvidence.currency}
+                                        readOnly
+                                        aria-label={t.admin.financialReview.currency}
+                                        dir="ltr"
+                                        className="h-11 rounded-lg border border-border bg-secondary/40 px-3 text-center text-sm font-semibold text-muted-foreground outline-none"
+                                    />
+                                </div>
+                                {(state.item.packagePrice ?? state.item.evidence.selectedPackagePrice) !== null && (
+                                    <span className="mt-1 block text-xs text-muted-foreground">
+                                        {t.admin.financialReview.expectedPackageAmount}: {formatUsd(
+                                            state.item.packagePrice ?? state.item.evidence.selectedPackagePrice
+                                        )}
+                                    </span>
+                                )}
+                            </label>
+                            <label className="block text-sm font-medium text-foreground">
+                                {t.admin.financialReview.observedAt}
+                                <input
+                                    type="datetime-local"
+                                    value={manualEvidence.observedAt}
+                                    onChange={(event) => updateManualEvidence('observedAt', event.target.value)}
+                                    required
+                                    dir="ltr"
+                                    className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-[#9ffb06]/60"
+                                />
+                            </label>
+                            <label className="block text-sm font-medium text-foreground sm:col-span-2">
+                                {t.admin.financialReview.evidenceSource}
+                                <select
+                                    value={manualEvidence.evidenceSource}
+                                    onChange={(event) => updateManualEvidence('evidenceSource', event.target.value)}
+                                    required
+                                    className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-[#9ffb06]/60"
+                                >
+                                    <option value="">{t.admin.financialReview.evidenceSourcePlaceholder}</option>
+                                    {MANUAL_EVIDENCE_SOURCES.map((source) => (
+                                        <option key={source} value={source}>
+                                            {source === 'SBS_SOLD_REPORT_AND_ACTIVE_CONTRACT'
+                                                ? t.admin.financialReview.sourceSoldReportAndContract
+                                                : source === 'SBS_INVOICE_DETAILS_AND_ACTIVE_CONTRACT'
+                                                    ? t.admin.financialReview.sourceInvoiceDetailsAndContract
+                                                    : t.admin.financialReview.sourceBeinSupport}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className="block text-sm font-medium text-foreground sm:col-span-2">
+                                {t.admin.financialReview.evidenceNote}
+                                <textarea
+                                    value={manualEvidence.evidenceNote}
+                                    onChange={(event) => updateManualEvidence('evidenceNote', event.target.value)}
+                                    required
+                                    maxLength={2000}
+                                    rows={3}
+                                    className="mt-2 w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none transition focus:border-[#9ffb06]/60"
+                                    placeholder={t.admin.financialReview.evidenceNotePlaceholder}
+                                />
+                            </label>
+                        </div>
+                        <p
+                            className={`mt-3 text-xs ${manualEvidenceComplete ? 'text-emerald-200' : 'text-amber-100'}`}
+                            aria-live="polite"
+                        >
+                            {t.operations.manualFulfillmentEvidenceRequired}
+                        </p>
+                    </div>
+                )}
+                {legacy && requiresManualEvidence && <label className="mt-4 block text-sm font-medium text-foreground">
+                    {t.admin.financialReview.sourceReference}
+                    <input value={sourceReference} onChange={event => setSourceReference(event.target.value)}
+                        required maxLength={500} className="mt-2 w-full rounded-lg border border-border bg-background p-3" />
+                </label>}
                 <label className="mt-4 block text-sm font-medium text-foreground">
-                    ملاحظة اختيارية
+                    {state.action === 'KEEP_UNDER_REVIEW' ? t.common.optionalNote : t.admin.financialReview.decisionNoteRequired}
                     <textarea
                         value={note}
                         onChange={(event) => setNote(event.target.value)}
                         rows={4}
+                        required={state.action !== 'KEEP_UNDER_REVIEW'}
+                        maxLength={2000}
+                        aria-describedby="review-decision-note-hint"
                         className="mt-2 w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none focus:border-[#9ffb06]/60"
-                        placeholder="اكتب أي ملاحظة إضافية لو محتاج."
+                        placeholder={t.admin.financialReview.decisionNotePlaceholder}
                     />
                 </label>
-                <div className="mt-5 flex justify-end gap-2">
-                    <button onClick={onClose} disabled={busy} className="review-button">
-                        إلغاء
+                <p id="review-decision-note-hint" className="mt-2 text-xs text-muted-foreground" aria-live="polite">
+                    {state.action !== 'KEEP_UNDER_REVIEW' && t.admin.financialReview.decisionNoteValidation}
+                </p>
+                <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button onClick={onClose} disabled={busy} className="review-button w-full sm:w-auto">
+                        {t.common.cancel}
                     </button>
                     <button
-                        onClick={() => onSubmit(note, copy.paymentStatus || undefined)}
-                        disabled={busy}
-                        className="review-button review-button-success disabled:opacity-50"
+                        onClick={submit}
+                        disabled={busy || !validDecisionNote(note, state.action !== 'KEEP_UNDER_REVIEW') ||
+                            (requiresManualEvidence && !manualEvidenceComplete)}
+                        className="review-button review-button-success w-full disabled:opacity-50 sm:w-auto"
                     >
-                        {busy ? 'جاري الحفظ...' : copy.confirm}
+                        {busy ? t.admin.financialReview.savingDecision : copy.confirm}
                     </button>
                 </div>
             </div>

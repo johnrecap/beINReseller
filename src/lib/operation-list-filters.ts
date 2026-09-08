@@ -27,7 +27,7 @@ export function buildOperationListWhere(
 
     if (status === 'active') {
         where.status = {
-            in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'],
+            in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING', 'REVIEW_REQUIRED'],
         }
     } else if (status) {
         where.status = status as OperationStatus

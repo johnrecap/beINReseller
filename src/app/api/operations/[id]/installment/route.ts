@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { parseOperationResponseData } from '@/lib/operation-safety'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) {
-        return session.user
-    }
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 interface RouteParams {

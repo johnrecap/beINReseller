@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
 
@@ -9,19 +9,13 @@ import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter
 import { createNotification } from '@/lib/notification'
 import { roleHasPermission } from '@/lib/auth-utils'
 import { PERMISSIONS } from '@/lib/permissions'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { legacyRenewalRouteDisabledPayload } from '@/lib/operations/renewal-creation-guard'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    // Try web session first
-    const session = await auth()
-    if (session?.user?.id) {
-        return session.user
-    }
-    // Fall back to mobile token
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 // Validation schema
@@ -82,6 +76,20 @@ export async function POST(request: NextRequest) {
         }
 
         const { type, cardNumber, duration } = validationResult.data
+
+        if (type === 'CHECK_BALANCE') {
+            return NextResponse.json({ error: 'UNSUPPORTED_OPERATION_TYPE', code: 'UNSUPPORTED_OPERATION_TYPE',
+                messageKey: 'operations.unsupportedOperationType' }, { status: 400 })
+        }
+
+        // The Worker has no safe legacy `RENEW` job handler. Do not debit a user
+        // through this generic endpoint; guided renewal owns the causal workflow.
+        if ((type as string) === 'RENEW') {
+            return NextResponse.json(
+                legacyRenewalRouteDisabledPayload(),
+                { status: 409 }
+            )
+        }
 
         // 4. Calculate price from settings
         const price = await getOperationPriceFromDB(type, duration)
@@ -157,7 +165,7 @@ export async function POST(request: NextRequest) {
                     amount: -price,
                     balanceAfter: updatedUser.balance,
                     operationId: operation.id,
-                    notes: `Operation deduction ${type === 'RENEW' ? 'renewal' : type === 'CHECK_BALANCE' ? 'balance check' : 'signal activation'}`,
+                    notes: `Operation deduction ${type === 'RENEW' ? 'renewal' : 'signal activation'}`,
                 },
             })
 
@@ -196,7 +204,7 @@ export async function POST(request: NextRequest) {
             await createNotification({
                 userId: authUser.id,
                 title: 'Request received',
-                message: `Processing ${type === 'RENEW' ? 'renewal' : type === 'CHECK_BALANCE' ? 'balance check' : 'signal activation'} operation`,
+                message: `Processing ${type === 'RENEW' ? 'renewal' : 'signal activation'} operation`,
                 type: 'info',
                 link: '/dashboard/history'
             })

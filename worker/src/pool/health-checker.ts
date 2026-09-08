@@ -6,6 +6,10 @@
 import Redis from 'ioredis'
 import { prisma } from '../lib/prisma'
 import { AccountHealthReport } from './types'
+import {
+    findActiveProviderAccountReservationForAccount,
+    isProviderAccountAutomationEligible,
+} from '../lib/provider-account-reservation'
 
 /**
  * Get a detailed health report for a specific account
@@ -21,6 +25,10 @@ export async function getAccountHealthReport(
     if (!account) {
         throw new Error(`Account not found: ${accountId}`)
     }
+    const activeReservation = await findActiveProviderAccountReservationForAccount(
+        prisma,
+        accountId
+    )
 
     // Calculate success rate
     const totalOps = account.totalSuccess + account.totalFailures
@@ -36,11 +44,11 @@ export async function getAccountHealthReport(
     // Determine status
     let status: 'healthy' | 'warning' | 'critical' | 'disabled'
 
-    if (!account.isActive) {
+    if (!isProviderAccountAutomationEligible(account)) {
         status = 'disabled'
     } else if (account.consecutiveFailures >= 3 || successRate < 50) {
         status = 'critical'
-    } else if (account.consecutiveFailures >= 1 || successRate < 80) {
+    } else if (activeReservation || account.consecutiveFailures >= 1 || successRate < 80) {
         status = 'warning'
     } else {
         status = 'healthy'

@@ -1,0 +1,63 @@
+[
+  {
+    "width": 360,
+    "rtl": true,
+    "keyboard": true,
+    "pendingBlocksSelection": true,
+    "renameResetsSelection": true,
+    "draftNotApplied": true,
+    "explicitRemoval": true,
+    "selectionContract": true,
+    "finalConfirmContract": true,
+    "failureAndAmbiguousReplay": false,
+    "overflow": false,
+    "consoleErrors": []
+  },
+  {
+    "width": 768,
+    "rtl": false,
+    "keyboard": true,
+    "pendingBlocksSelection": true,
+    "renameResetsSelection": true,
+    "draftNotApplied": true,
+    "explicitRemoval": true,
+    "selectionContract": true,
+    "finalConfirmContract": true,
+    "failureAndAmbiguousReplay": false,
+    "overflow": false,
+    "consoleErrors": []
+  },
+  {
+    "width": 1280,
+    "rtl": false,
+    "keyboard": true,
+    "pendingBlocksSelection": true,
+    "renameResetsSelection": true,
+    "draftNotApplied": true,
+    "explicitRemoval": true,
+    "selectionContract": true,
+    "finalConfirmContract": true,
+    "failureAndAmbiguousReplay": true,
+    "overflow": false,
+    "consoleErrors": []
+  },
+  {
+    "consumer": "renew-resume",
+    "staleReplyRejected": true,
+    "boundedPolling": true,
+    "explicitResume": true,
+    "consoleErrors": []
+  },
+  {
+    "consumer": "active-operations",
+    "installment": false,
+    "requestContract": true,
+    "consoleErrors": []
+  },
+  {
+    "consumer": "active-operations",
+    "installment": true,
+    "requestContract": true,
+    "consoleErrors": []
+  }
+]

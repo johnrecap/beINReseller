@@ -1,0 +1,7 @@
+{
+  "database": "deshpanel_audit_test_20260907_v2",
+  "tableCount": 72,
+  "migrationCount": 36,
+  "nonemptyBusinessTables": [],
+  "invalidIndexes": 0
+}

@@ -6,8 +6,313 @@
 import Redis from 'ioredis'
 
 const LOCK_PREFIX = 'bein:account:lock:'
+const EXECUTION_LEASE_PREFIX = 'bein:account:execution-lease:'
+const FENCING_PREFIX = 'bein:account:fence:'
 const DEFAULT_LOCK_TTL = 300 // 5 minutes (accounts for long operations)
 const DEFAULT_STALE_LOCK_SECONDS = 300
+
+export const ACCOUNT_EXECUTION_LEASE_TTL_SECONDS = 120
+export const ACCOUNT_EXECUTION_LEASE_HEARTBEAT_SECONDS = 30
+
+export interface AccountExecutionLeaseHandle {
+  accountId: string
+  operationId: string
+  reservationGeneration: number
+  leaseId: string
+  fencingToken: number
+  workerId: string
+  acquiredAt: string
+}
+
+export interface AccountExecutionLeaseStatus {
+  active: boolean
+  owner: Omit<AccountExecutionLeaseHandle, 'accountId'> | null
+  ttlSeconds: number
+}
+
+type RedisExecutionLeaseBoundary = Pick<Redis, 'eval' | 'get' | 'ttl'>
+
+export function buildAccountExecutionLeaseKey(accountId: string): string {
+  return `${EXECUTION_LEASE_PREFIX}${accountId}`
+}
+
+function buildAccountExecutionFenceKey(accountId: string): string {
+  return `${FENCING_PREFIX}${accountId}`
+}
+
+export function buildAccountExecutionLeaseOwnerValue(
+  handle: AccountExecutionLeaseHandle
+): string {
+  return JSON.stringify({
+    operationId: handle.operationId,
+    reservationGeneration: handle.reservationGeneration,
+    leaseId: handle.leaseId,
+    fencingToken: handle.fencingToken,
+    workerId: handle.workerId,
+    acquiredAt: handle.acquiredAt,
+  })
+}
+
+export function parseAccountExecutionLeaseOwner(
+  value: string | null
+): Omit<AccountExecutionLeaseHandle, 'accountId'> | null {
+  if (!value) return null
+
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    if (
+      typeof parsed.operationId !== 'string' || !parsed.operationId ||
+      typeof parsed.reservationGeneration !== 'number' ||
+      !Number.isSafeInteger(parsed.reservationGeneration) ||
+      parsed.reservationGeneration <= 0 ||
+      typeof parsed.leaseId !== 'string' || !parsed.leaseId ||
+      typeof parsed.fencingToken !== 'number' ||
+      !Number.isSafeInteger(parsed.fencingToken) ||
+      parsed.fencingToken <= 0 ||
+      typeof parsed.workerId !== 'string' || !parsed.workerId ||
+      typeof parsed.acquiredAt !== 'string' || !Number.isFinite(new Date(parsed.acquiredAt).getTime())
+    ) {
+      return null
+    }
+
+    return {
+      operationId: parsed.operationId,
+      reservationGeneration: parsed.reservationGeneration,
+      leaseId: parsed.leaseId,
+      fencingToken: parsed.fencingToken,
+      workerId: parsed.workerId,
+      acquiredAt: parsed.acquiredAt,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function executionLeaseOwnerMatches(
+  currentOwner: string | null,
+  handle: AccountExecutionLeaseHandle
+): boolean {
+  const parsed = parseAccountExecutionLeaseOwner(currentOwner)
+  return !!parsed &&
+    parsed.operationId === handle.operationId &&
+    parsed.reservationGeneration === handle.reservationGeneration &&
+    parsed.leaseId === handle.leaseId &&
+    parsed.fencingToken === handle.fencingToken &&
+    parsed.workerId === handle.workerId &&
+    parsed.acquiredAt === handle.acquiredAt
+}
+
+export async function acquireAccountExecutionLease(
+  redis: RedisExecutionLeaseBoundary,
+  input: Omit<AccountExecutionLeaseHandle, 'fencingToken' | 'acquiredAt'> & {
+    ttlSeconds?: number
+    acquiredAt?: string
+  }
+): Promise<AccountExecutionLeaseHandle | null> {
+  const ttlSeconds = input.ttlSeconds ?? ACCOUNT_EXECUTION_LEASE_TTL_SECONDS
+  if (
+    !input.accountId.trim() ||
+    !input.operationId.trim() ||
+    !Number.isSafeInteger(input.reservationGeneration) ||
+    input.reservationGeneration <= 0 ||
+    !input.leaseId.trim() ||
+    !input.workerId.trim() ||
+    !Number.isSafeInteger(ttlSeconds) ||
+    ttlSeconds <= 0
+  ) {
+    return null
+  }
+
+  const acquiredAt = input.acquiredAt ?? new Date().toISOString()
+  if (!Number.isFinite(new Date(acquiredAt).getTime())) return null
+
+  const templateHandle: AccountExecutionLeaseHandle = {
+    accountId: input.accountId,
+    operationId: input.operationId,
+    reservationGeneration: input.reservationGeneration,
+    leaseId: input.leaseId,
+    fencingToken: 0,
+    workerId: input.workerId,
+    acquiredAt,
+  }
+  const template = buildAccountExecutionLeaseOwnerValue(templateHandle)
+  const marker = '"fencingToken":0'
+  const markerIndex = template.indexOf(marker)
+  if (markerIndex < 0) return null
+  const ownerPrefix = template.slice(0, markerIndex + '"fencingToken":'.length)
+  const ownerSuffix = template.slice(markerIndex + marker.length)
+  const script = `
+    if redis.call("exists", KEYS[1]) == 1 then
+      return nil
+    end
+    local token = redis.call("incr", KEYS[2])
+    local owner = ARGV[1] .. tostring(token) .. ARGV[2]
+    redis.call("set", KEYS[1], owner, "EX", ARGV[3])
+    return { owner, tostring(token) }
+  `
+  const result = await redis.eval(
+    script,
+    2,
+    buildAccountExecutionLeaseKey(input.accountId),
+    buildAccountExecutionFenceKey(input.accountId),
+    ownerPrefix,
+    ownerSuffix,
+    ttlSeconds
+  ) as [string, string] | null
+
+  if (!result) return null
+  const fencingToken = Number(result[1])
+  if (!Number.isSafeInteger(fencingToken) || fencingToken <= 0) return null
+
+  return { ...templateHandle, fencingToken }
+}
+
+/**
+ * Atomically converts the exact legacy lock observed by a caller into a
+ * fenced execution lease. A duplicate invocation cannot delete or step over
+ * another invocation's legacy owner between separate Redis commands.
+ */
+export async function transitionAccountLockToExecutionLease(
+  redis: RedisExecutionLeaseBoundary,
+  input: Omit<AccountExecutionLeaseHandle, 'fencingToken' | 'acquiredAt'> & {
+    expectedLegacyOwner: string
+    ttlSeconds?: number
+    acquiredAt?: string
+  }
+): Promise<AccountExecutionLeaseHandle | null> {
+  const ttlSeconds = input.ttlSeconds ?? ACCOUNT_EXECUTION_LEASE_TTL_SECONDS
+  if (
+    !input.expectedLegacyOwner ||
+    !input.accountId.trim() ||
+    !input.operationId.trim() ||
+    !Number.isSafeInteger(input.reservationGeneration) ||
+    input.reservationGeneration <= 0 ||
+    !input.leaseId.trim() ||
+    !input.workerId.trim() ||
+    !Number.isSafeInteger(ttlSeconds) ||
+    ttlSeconds <= 0
+  ) {
+    return null
+  }
+
+  const acquiredAt = input.acquiredAt ?? new Date().toISOString()
+  if (!Number.isFinite(new Date(acquiredAt).getTime())) return null
+  const templateHandle: AccountExecutionLeaseHandle = {
+    accountId: input.accountId,
+    operationId: input.operationId,
+    reservationGeneration: input.reservationGeneration,
+    leaseId: input.leaseId,
+    fencingToken: 0,
+    workerId: input.workerId,
+    acquiredAt,
+  }
+  const template = buildAccountExecutionLeaseOwnerValue(templateHandle)
+  const marker = '"fencingToken":0'
+  const markerIndex = template.indexOf(marker)
+  if (markerIndex < 0) return null
+  const ownerPrefix = template.slice(0, markerIndex + '"fencingToken":'.length)
+  const ownerSuffix = template.slice(markerIndex + marker.length)
+  const script = `
+    if redis.call("get", KEYS[1]) ~= ARGV[1] then
+      return nil
+    end
+    if redis.call("exists", KEYS[2]) == 1 then
+      return nil
+    end
+    local token = redis.call("incr", KEYS[3])
+    local owner = ARGV[2] .. tostring(token) .. ARGV[3]
+    redis.call("del", KEYS[1])
+    redis.call("set", KEYS[2], owner, "EX", ARGV[4])
+    return { owner, tostring(token) }
+  `
+  const result = await redis.eval(
+    script,
+    3,
+    `${LOCK_PREFIX}${input.accountId}`,
+    buildAccountExecutionLeaseKey(input.accountId),
+    buildAccountExecutionFenceKey(input.accountId),
+    input.expectedLegacyOwner,
+    ownerPrefix,
+    ownerSuffix,
+    ttlSeconds
+  ) as [string, string] | null
+
+  if (!result) return null
+  const fencingToken = Number(result[1])
+  if (!Number.isSafeInteger(fencingToken) || fencingToken <= 0) return null
+  return { ...templateHandle, fencingToken }
+}
+
+export async function assertAccountExecutionLease(
+  redis: RedisExecutionLeaseBoundary,
+  handle: AccountExecutionLeaseHandle
+): Promise<boolean> {
+  const current = await redis.get(buildAccountExecutionLeaseKey(handle.accountId))
+  return executionLeaseOwnerMatches(current, handle)
+}
+
+export async function renewAccountExecutionLease(
+  redis: RedisExecutionLeaseBoundary,
+  handle: AccountExecutionLeaseHandle,
+  ttlSeconds: number = ACCOUNT_EXECUTION_LEASE_TTL_SECONDS
+): Promise<boolean> {
+  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0) return false
+
+  const script = `
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      return redis.call("expire", KEYS[1], ARGV[2])
+    end
+    return 0
+  `
+  const result = await redis.eval(
+    script,
+    1,
+    buildAccountExecutionLeaseKey(handle.accountId),
+    buildAccountExecutionLeaseOwnerValue(handle),
+    ttlSeconds
+  )
+  return result === 1
+}
+
+export async function releaseAccountExecutionLease(
+  redis: RedisExecutionLeaseBoundary,
+  handle: AccountExecutionLeaseHandle
+): Promise<boolean> {
+  const script = `
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      return redis.call("del", KEYS[1])
+    end
+    return 0
+  `
+  const result = await redis.eval(
+    script,
+    1,
+    buildAccountExecutionLeaseKey(handle.accountId),
+    buildAccountExecutionLeaseOwnerValue(handle)
+  )
+  return result === 1
+}
+
+export async function getAccountExecutionLeaseStatus(
+  redis: RedisExecutionLeaseBoundary,
+  accountId: string
+): Promise<AccountExecutionLeaseStatus> {
+  const key = buildAccountExecutionLeaseKey(accountId)
+  const [rawOwner, ttlSeconds] = await Promise.all([redis.get(key), redis.ttl(key)])
+  const owner = parseAccountExecutionLeaseOwner(rawOwner)
+  return {
+    active: !!owner && ttlSeconds > 0,
+    owner,
+    ttlSeconds,
+  }
+}
+
+export async function isAccountExecutionLeaseActive(
+  redis: RedisExecutionLeaseBoundary,
+  accountId: string
+): Promise<boolean> {
+  return (await getAccountExecutionLeaseStatus(redis, accountId)).active
+}
 
 export interface AccountLockOwner {
   raw: string | null
@@ -32,6 +337,7 @@ export interface AccountLockStatus {
   ageSeconds: number | null
   ttlSeconds: number | null
   legacy: boolean
+  handoffReady: boolean
 }
 
 export function buildAccountLockOwnerValue(input: {
@@ -87,10 +393,15 @@ export function canAcquireAccountLock(
   const parsed = parseAccountLockOwner(currentOwner)
 
   if (!currentOwner) return { allowed: true, reason: 'no_lock' }
-  if (operationId && parsed.operationId === operationId) {
+  if (isAccountLockHandoffReady(currentOwner)) return { allowed: false, reason: 'different_owner' }
+  if (
+    operationId &&
+    parsed.operationId === operationId &&
+    parsed.workerId === workerId
+  ) {
     return { allowed: true, reason: 'same_operation' }
   }
-  if (parsed.workerId === workerId && (!parsed.operationId || !operationId)) {
+  if (parsed.workerId === workerId && !parsed.operationId) {
     return { allowed: true, reason: 'same_worker' }
   }
 
@@ -105,10 +416,14 @@ export function canReleaseAccountLock(
   const parsed = parseAccountLockOwner(currentOwner)
 
   if (!currentOwner) return { allowed: false, reason: 'no_lock' }
-  if (operationId && parsed.operationId === operationId) {
+  if (
+    operationId &&
+    parsed.operationId === operationId &&
+    parsed.workerId === workerId
+  ) {
     return { allowed: true, reason: 'same_operation' }
   }
-  if (parsed.workerId === workerId) {
+  if (parsed.workerId === workerId && !parsed.operationId) {
     return { allowed: true, reason: 'same_worker' }
   }
 
@@ -138,7 +453,34 @@ export function getAccountLockStatusFromOwner(
     ageSeconds,
     ttlSeconds: options.ttlSeconds ?? null,
     legacy: parsed.legacy,
+    handoffReady: isAccountLockHandoffReady(currentOwner),
   }
+}
+
+function isAccountLockHandoffReady(value: string | null): boolean {
+  try { return !!value && JSON.parse(value).handoffReady === true } catch { return false }
+}
+
+/** Park only our exact owner after the last HTTP/session write and before publishing
+ * the next stage. Retain the TTL and exclusion until a continuation atomically
+ * converts this marker to an execution lease; a running owner is never stolen. */
+export async function parkAccountLockForHandoff(
+  redis: RedisExecutionLeaseBoundary, accountId: string, workerId: string, operationId: string
+): Promise<boolean> {
+  const key = `${LOCK_PREFIX}${accountId}`
+  const raw = await redis.get(key)
+  const owner = parseAccountLockOwner(raw)
+  if (!raw || owner.workerId !== workerId || owner.operationId !== operationId ||
+      isAccountLockHandoffReady(raw)) return false
+  const parked = JSON.stringify({ workerId, operationId, acquiredAt: owner.acquiredAt, handoffReady: true })
+  const result = await redis.eval(`
+    if redis.call("get", KEYS[1]) ~= ARGV[1] then return 0 end
+    local ttl = redis.call("pttl", KEYS[1])
+    if ttl <= 0 then return 0 end
+    redis.call("set", KEYS[1], ARGV[2], "PX", ttl)
+    return 1
+  `, 1, key, raw, parked)
+  return result === 1
 }
 
 /**
@@ -159,10 +501,24 @@ export async function lockAccount(
 
   const currentOwner = await redis.get(key)
   const decision = canAcquireAccountLock(currentOwner, workerId, operationId)
-  if (!decision.allowed) return false
+  if (!decision.allowed || !currentOwner) return false
 
-  await redis.set(key, ownerValue, 'EX', ttlSeconds)
-  return true
+  const script = `
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      redis.call("set", KEYS[1], ARGV[2], "EX", ARGV[3])
+      return 1
+    end
+    return 0
+  `
+  const replaced = await redis.eval(
+    script,
+    1,
+    key,
+    currentOwner,
+    ownerValue,
+    ttlSeconds
+  )
+  return replaced === 1
 }
 
 /**

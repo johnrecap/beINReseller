@@ -18,8 +18,10 @@ export interface BeinSpendLedgerDetailRow {
     ledgerId: string;
     operationId: string;
     chargedAt: Date;
-    panelUserId: string;
+    panelUserId: string | null;
     panelUsername: string | null;
+    customerId: string | null;
+    customerName: string | null;
     beinAccountId: string;
     beinUsernameSnapshot: string;
     beinLabelSnapshot: string | null;
@@ -182,7 +184,7 @@ function bucketEndFor(start: Date, groupBy: BeinSpendGroupBy, maxTo: Date): Date
 }
 
 function toDetailRow(row: Prisma.BeinAccountSpendLedgerGetPayload<{
-    include: { user: { select: { username: true } } }
+    include: { user: { select: { username: true } }; customer: { select: { name: true } } }
 }>): BeinSpendLedgerDetailRow {
     return {
         ledgerId: row.id,
@@ -190,6 +192,8 @@ function toDetailRow(row: Prisma.BeinAccountSpendLedgerGetPayload<{
         chargedAt: row.chargedAt,
         panelUserId: row.userId,
         panelUsername: row.user?.username || null,
+        customerId: row.customerId,
+        customerName: row.customer?.name || null,
         beinAccountId: row.beinAccountId,
         beinUsernameSnapshot: row.beinUsernameSnapshot,
         beinLabelSnapshot: row.beinLabelSnapshot,
@@ -298,6 +302,7 @@ export async function getBeinSpendOperations(
         prisma.beinAccountSpendLedger.findMany({
             where,
             include: {
+                customer: { select: { name: true } },
                 user: {
                     select: { username: true },
                 },

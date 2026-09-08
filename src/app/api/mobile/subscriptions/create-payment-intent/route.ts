@@ -13,6 +13,41 @@ import { prisma } from '@/lib/prisma'
 import { withCustomerAuth, CustomerTokenPayload } from '@/lib/customer-auth'
 import { getStripeSecretKey, getMarkupPercentage, calculateCustomerPrice, toStripeAmount, CURRENCY_CONFIG } from '@/lib/store-pricing'
 import Stripe from 'stripe'
+import {
+    ensureGuardedRenewalOperationReservation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
+import {
+    isMobileRenewalPaymentSafetyError,
+    MobileRenewalProviderPayment,
+    persistMobileRenewalPaymentIntent,
+} from '@/lib/mobile-renewal-payment-finalization'
+
+const REUSABLE_PAYMENT_INTENT_STATUSES = new Set<Stripe.PaymentIntent.Status>([
+    'requires_payment_method',
+    'requires_confirmation',
+    'requires_action',
+    'requires_capture',
+    'processing',
+])
+
+const PAYMENT_INTENT_REVIEW_REQUIRED_RESPONSE = {
+    success: false,
+    code: 'PAYMENT_INTENT_REVIEW_REQUIRED',
+    error: 'An existing payment attempt must be reviewed before retrying.',
+} as const
+
+function providerPaymentSnapshot(paymentIntent: Stripe.PaymentIntent): MobileRenewalProviderPayment {
+    return {
+        id: paymentIntent.id,
+        status: paymentIntent.status,
+        amount: paymentIntent.amount,
+        amountReceived: paymentIntent.amount_received,
+        currency: paymentIntent.currency,
+        metadata: paymentIntent.metadata,
+    }
+}
 
 export const POST = withCustomerAuth(async (request: NextRequest, customer: CustomerTokenPayload) => {
     try {
@@ -54,6 +89,11 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
             )
         }
 
+        await prisma.$transaction((tx) => ensureGuardedRenewalOperationReservation(tx, {
+            operationId: operation.id,
+            cardNumber: operation.cardNumber,
+        }))
+
         // Get selected package from operation
         const selectedPackage = operation.selectedPackage as { name: string; price: number } | null
         if (!selectedPackage || !selectedPackage.price) {
@@ -88,6 +128,64 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         // Initialize Stripe
         const stripe = new Stripe(stripeSecretKey, { apiVersion: '2026-01-28.clover' })
 
+        const existingPayments = await prisma.payment.findMany({
+            where: {
+                type: 'SUBSCRIPTION',
+                metadata: {
+                    path: ['operationId'],
+                    equals: operation.id,
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 2,
+        })
+
+        if (existingPayments.length > 1) {
+            return NextResponse.json(
+                PAYMENT_INTENT_REVIEW_REQUIRED_RESPONSE,
+                { status: 409 }
+            )
+        }
+
+        const existingPayment = existingPayments[0]
+        if (existingPayment) {
+            const existingIntent = await stripe.paymentIntents.retrieve(
+                existingPayment.stripePaymentIntentId
+            )
+            const persistence = await prisma.$transaction((tx) =>
+                persistMobileRenewalPaymentIntent(tx, {
+                    provider: providerPaymentSnapshot(existingIntent),
+                    operationId: operation.id,
+                    customerId: customer.customerId,
+                    cardNumber: operation.cardNumber,
+                    packageName: selectedPackage.name,
+                    beinPrice: selectedPackage.price,
+                    customerPrice,
+                    currency: currencyConfig.code,
+                })
+            )
+            if (
+                persistence === 'ALREADY_PERSISTED' &&
+                REUSABLE_PAYMENT_INTENT_STATUSES.has(existingIntent.status) &&
+                existingIntent.client_secret
+            ) {
+                return NextResponse.json({
+                    success: true,
+                    clientSecret: existingIntent.client_secret,
+                    paymentIntentId: existingIntent.id,
+                    amount: existingPayment.amount,
+                    currency: existingPayment.currency,
+                    currencySymbol: currencyConfig.symbol,
+                    reused: true,
+                })
+            }
+
+            return NextResponse.json(
+                PAYMENT_INTENT_REVIEW_REQUIRED_RESPONSE,
+                { status: 409 }
+            )
+        }
+
         // Create PaymentIntent
         const paymentIntent = await stripe.paymentIntents.create({
             amount: toStripeAmount(customerPrice, country),
@@ -100,32 +198,35 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
                 beinPrice: selectedPackage.price.toString(),
                 customerPrice: customerPrice.toString()
             }
+        }, {
+            idempotencyKey: `mobile-renewal:${operation.id}`,
         })
 
-        // Update operation with payment amount (keep status as AWAITING_FINAL_CONFIRM)
-        // Status will change to COMPLETING after Stripe webhook confirms payment
-        await prisma.operation.update({
-            where: { id: operationId },
-            data: {
-                amount: customerPrice
-            }
-        })
-
-        // Create payment record for tracking
-        await prisma.payment.create({
-            data: {
+        // The second guarded transaction records the exact provider/local link.
+        // If operation or package state changed during Stripe I/O, it records the
+        // attempt for audit but never moves the operation back to a payment state.
+        const persistence = await prisma.$transaction((tx) =>
+            persistMobileRenewalPaymentIntent(tx, {
+                provider: providerPaymentSnapshot(paymentIntent),
+                operationId: operation.id,
                 customerId: customer.customerId,
-                stripePaymentIntentId: paymentIntent.id,
-                amount: customerPrice,
+                cardNumber: operation.cardNumber,
+                packageName: selectedPackage.name,
+                beinPrice: selectedPackage.price,
+                customerPrice,
                 currency: currencyConfig.code,
-                status: 'PENDING',
-                type: 'SUBSCRIPTION',
-                metadata: {
-                    operationId: operation.id,
-                    source: 'mobile_renewal'
-                }
-            }
-        })
+            })
+        )
+        if (
+            persistence === 'RECORDED_REVIEW_REQUIRED' ||
+            !REUSABLE_PAYMENT_INTENT_STATUSES.has(paymentIntent.status) ||
+            !paymentIntent.client_secret
+        ) {
+            return NextResponse.json(
+                PAYMENT_INTENT_REVIEW_REQUIRED_RESPONSE,
+                { status: 409 }
+            )
+        }
 
         return NextResponse.json({
             success: true,
@@ -137,6 +238,18 @@ export const POST = withCustomerAuth(async (request: NextRequest, customer: Cust
         })
 
     } catch (error) {
+        if (isRenewalCreationBlockedError(error)) {
+            return NextResponse.json(
+                { success: false, ...renewalCreationBlockedPayload(error) },
+                { status: 409 }
+            )
+        }
+        if (isMobileRenewalPaymentSafetyError(error)) {
+            return NextResponse.json(
+                PAYMENT_INTENT_REVIEW_REQUIRED_RESPONSE,
+                { status: 409 }
+            )
+        }
         console.error('Create payment intent error:', error)
         return NextResponse.json(
             { success: false, error: 'Error creating payment request' },

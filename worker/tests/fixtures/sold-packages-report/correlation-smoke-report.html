@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><title>Sold Packages Details Report</title></head>
+<body>
+<form method="post" action="./frmSoldPackagesReport.aspx" id="form1">
+  <input type="hidden" name="__VIEWSTATE" value="fixture-only-view-state">
+  <input type="hidden" name="__EVENTVALIDATION" value="fixture-only-event-validation">
+  <select name="ctl00$ContentPlaceHolder1$ddlDealer" id="ContentPlaceHolder1_ddlDealer">
+    <option value="DEALER-001" selected>Synthetic Dealer</option>
+    <option value="DEALER-002">Other Dealer</option>
+  </select>
+  <select name="ctl00$ContentPlaceHolder1$ddlItemType" id="ContentPlaceHolder1_ddlItemType">
+    <option value="ALL" selected>All</option>
+    <option value="Card_CISCO">Card_CISCO</option>
+  </select>
+  <input type="text" name="ctl00$ContentPlaceHolder1$txtFromDate" value="24/08/2026">
+  <input type="text" name="ctl00$ContentPlaceHolder1$txtToDate" value="24/08/2026">
+  <table id="ContentPlaceHolder1_GridView1" class="Round" rules="all">
+    <tr class="GridHeader">
+      <th>Subscriber</th>
+      <th>Country</th>
+      <th>Invoice No</th>
+      <th>Smart Card / CAM Serial</th>
+      <th>Item Type</th>
+      <th>Package</th>
+      <th>Contract Start</th>
+      <th>Contract Expiry</th>
+      <th>Amount USD</th>
+    </tr>
+    <tr class="GridRow" style="background-color:orange">
+      <td colspan="9">Synthetic Dealer - Total Sold Packages: 1</td>
+    </tr>
+    <tr class="GridRow">
+      <td></td>
+      <td></td>
+      <td>053000123</td>
+      <td>7517687161</td>
+      <td>Card_CISCO</td>
+      <td>Add Premium 12 Months Save 25%</td>
+      <td>24/08/2026</td>
+      <td>23/08/2027</td>
+      <td>174.0000</td>
+    </tr>
+  </table>
+</form>
+</body>
+</html>

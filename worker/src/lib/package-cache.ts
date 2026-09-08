@@ -72,8 +72,8 @@ export async function cachePackages(
         
         const maskedCard = cardNumber.slice(0, 4) + '****';
         console.log(`[PackageCache] 💾 Cached ${packages.length} packages for ${maskedCard} (TTL: ${PACKAGE_CACHE_TTL_MIN} min)`);
-    } catch (error: any) {
-        console.error(`[PackageCache] ⚠️ Failed to cache packages:`, error.message);
+    } catch (error: unknown) {
+        console.error(`[PackageCache] ⚠️ Failed to cache packages:`, (error instanceof Error ? error.message : 'Unknown error'));
     }
 }
 
@@ -103,8 +103,8 @@ export async function getCachedPackages(cardNumber: string): Promise<CachedPacka
         console.log(`[PackageCache] ✅ HIT for ${maskedCard} (${ageMin} min old, ${remainingMin} min remaining, ${data.packages.length} packages)`);
         
         return data;
-    } catch (error: any) {
-        console.error(`[PackageCache] ⚠️ Failed to get cached packages:`, error.message);
+    } catch (error: unknown) {
+        console.error(`[PackageCache] ⚠️ Failed to get cached packages:`, (error instanceof Error ? error.message : 'Unknown error'));
         cacheMetrics.packageMisses++;
         return null;
     }
@@ -124,8 +124,8 @@ export async function cacheSTB(cardNumber: string, stbNumber: string): Promise<v
         
         const maskedCard = cardNumber.slice(0, 4) + '****';
         console.log(`[PackageCache] 💾 Cached STB ${stbNumber} for ${maskedCard} (TTL: ${STB_CACHE_TTL_MIN} min)`);
-    } catch (error: any) {
-        console.error(`[PackageCache] ⚠️ Failed to cache STB:`, error.message);
+    } catch (error: unknown) {
+        console.error(`[PackageCache] ⚠️ Failed to cache STB:`, (error instanceof Error ? error.message : 'Unknown error'));
     }
 }
 
@@ -149,8 +149,8 @@ export async function getCachedSTB(cardNumber: string): Promise<string | null> {
         
         cacheMetrics.stbMisses++;
         return null;
-    } catch (error: any) {
-        console.error(`[PackageCache] ⚠️ Failed to get cached STB:`, error.message);
+    } catch (error: unknown) {
+        console.error(`[PackageCache] ⚠️ Failed to get cached STB:`, (error instanceof Error ? error.message : 'Unknown error'));
         cacheMetrics.stbMisses++;
         return null;
     }
@@ -167,8 +167,8 @@ export async function invalidatePackageCache(cardNumber: string): Promise<void> 
         
         const maskedCard = cardNumber.slice(0, 4) + '****';
         console.log(`[PackageCache] 🗑️ Invalidated package cache for ${maskedCard}`);
-    } catch (error: any) {
-        console.error(`[PackageCache] ⚠️ Failed to invalidate cache:`, error.message);
+    } catch (error: unknown) {
+        console.error(`[PackageCache] ⚠️ Failed to invalidate cache:`, (error instanceof Error ? error.message : 'Unknown error'));
     }
 }
 
@@ -183,8 +183,8 @@ export async function invalidateSTBCache(cardNumber: string): Promise<void> {
         
         const maskedCard = cardNumber.slice(0, 4) + '****';
         console.log(`[PackageCache] 🗑️ Invalidated STB cache for ${maskedCard}`);
-    } catch (error: any) {
-        console.error(`[PackageCache] ⚠️ Failed to invalidate STB cache:`, error.message);
+    } catch (error: unknown) {
+        console.error(`[PackageCache] ⚠️ Failed to invalidate STB cache:`, (error instanceof Error ? error.message : 'Unknown error'));
     }
 }
 

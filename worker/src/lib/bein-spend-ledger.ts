@@ -1,5 +1,8 @@
 import { OperationStatus, Prisma } from '@prisma/client';
 import { prisma } from './prisma';
+import type { PrismaClient } from '@prisma/client';
+import { resolveAuditOwner } from '../../../shared/operations/audit-financial-context';
+import { lockFinancialOperation } from '../../../shared/operations/financial-lock';
 
 const BALANCE_EPSILON = 0.01;
 
@@ -11,7 +14,8 @@ export type BeinSpendLedgerResult =
 
 export interface RecordConfirmedBeinSpendInput {
     operationId: string;
-    userId: string;
+    userId?: string | null;
+    customerId?: string | null;
     beinAccountId: string;
     dealerBalanceBefore: number | null;
     dealerBalanceAfter: number | null;
@@ -23,7 +27,7 @@ export interface RecordConfirmedBeinSpendInput {
 }
 
 function toPositiveSpendAmount(before: number | null, after: number | null): number | null {
-    if (before === null || after === null) return null;
+    if (before === null || after === null || !Number.isFinite(before) || !Number.isFinite(after)) return null;
 
     const spendAmount = Number((before - after).toFixed(4));
     if (spendAmount <= 0 || spendAmount < BALANCE_EPSILON) return null;
@@ -63,7 +67,7 @@ function sameLedgerInput(
     }
 ): boolean {
     return existing.beinAccountId === input.beinAccountId &&
-        Math.abs(existing.spendAmount - input.spendAmount) < BALANCE_EPSILON &&
+        existing.spendAmount.toFixed(4) === input.spendAmount.toFixed(4) &&
         existing.evidenceSource === input.evidenceSource &&
         nullableMoneyMatches(existing.dealerBalanceBefore, input.dealerBalanceBefore) &&
         nullableMoneyMatches(existing.dealerBalanceAfter, input.dealerBalanceAfter);
@@ -71,7 +75,7 @@ function sameLedgerInput(
 
 function nullableMoneyMatches(left: number | null, right: number | null): boolean {
     if (left === null || right === null) return left === right;
-    return Math.abs(left - right) < BALANCE_EPSILON;
+    return Number.isFinite(left) && Number.isFinite(right) && left.toFixed(4) === right.toFixed(4);
 }
 
 function toPositiveExplicitSpendAmount(value: number | null | undefined): number | null {
@@ -80,7 +84,7 @@ function toPositiveExplicitSpendAmount(value: number | null | undefined): number
     return spendAmount > BALANCE_EPSILON ? spendAmount : null;
 }
 
-async function flagOperationAccountConflict(operationId: string): Promise<void> {
+async function flagOperationAccountConflict(operationId: string, prisma: Prisma.TransactionClient): Promise<void> {
     await prisma.operation.updateMany({
         where: {
             id: operationId,
@@ -94,7 +98,8 @@ async function flagOperationAccountConflict(operationId: string): Promise<void> 
 }
 
 export async function recordConfirmedBeinSpend(
-    input: RecordConfirmedBeinSpendInput
+    input: RecordConfirmedBeinSpendInput,
+    db: Pick<PrismaClient, '$transaction'> = prisma
 ): Promise<BeinSpendLedgerResult> {
     if (input.evidenceSource === 'BALANCE_DELTA' && (
         (input.balanceBeforeSource !== undefined || input.balanceAfterSource !== undefined) &&
@@ -127,10 +132,26 @@ export async function recordConfirmedBeinSpend(
         };
     }
 
+    return db.$transaction(async prisma => {
+    if (!await lockFinancialOperation(prisma, input.operationId)) {
+        return { status: 'missing_balance_delta', reason: 'Operation was not found.' };
+    }
+    const lockedOwner = await prisma.operation.findUniqueOrThrow({ where: { id: input.operationId },
+        select: { userId: true, customerId: true } });
+    let owner: ReturnType<typeof resolveAuditOwner>;
+    try {
+        owner = resolveAuditOwner(lockedOwner);
+        if (input.userId != null || input.customerId != null) resolveAuditOwner(input, lockedOwner);
+    } catch {
+        await flagOperationAccountConflict(input.operationId, prisma);
+        return { status: 'conflict_review_required', ledgerId: '', reason: 'Confirmed spend owner conflicts with locked operation.' };
+    }
     const existing = await prisma.beinAccountSpendLedger.findUnique({
         where: { operationId: input.operationId },
         select: {
             id: true,
+            userId: true,
+            customerId: true,
             beinAccountId: true,
             spendAmount: true,
             dealerBalanceBefore: true,
@@ -140,7 +161,7 @@ export async function recordConfirmedBeinSpend(
     });
 
     if (existing) {
-        const duplicateMatches = sameLedgerInput(existing, {
+        const duplicateMatches = existing.userId === lockedOwner.userId && existing.customerId === lockedOwner.customerId && sameLedgerInput(existing, {
             beinAccountId: input.beinAccountId,
             spendAmount,
             dealerBalanceBefore,
@@ -223,7 +244,8 @@ export async function recordConfirmedBeinSpend(
         const row = await prisma.beinAccountSpendLedger.create({
             data: {
                 operationId: input.operationId,
-                userId: input.userId,
+                userId: owner.kind === 'RESELLER' ? owner.id : null,
+                customerId: owner.kind === 'CUSTOMER' ? owner.id : null,
                 beinAccountId: input.beinAccountId,
                 proxyId: account.proxyId,
                 operationType: operation.type,
@@ -247,7 +269,7 @@ export async function recordConfirmedBeinSpend(
         });
 
         if (accountConflict) {
-            await flagOperationAccountConflict(input.operationId);
+            await flagOperationAccountConflict(input.operationId, prisma);
             return {
                 status: 'conflict_review_required',
                 ledgerId: row.id,
@@ -257,17 +279,8 @@ export async function recordConfirmedBeinSpend(
 
         return { status: 'created', ledgerId: row.id, spendAmount: row.spendAmount };
     } catch (error: unknown) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            const duplicate = await prisma.beinAccountSpendLedger.findUnique({
-                where: { operationId: input.operationId },
-                select: { id: true, spendAmount: true },
-            });
-
-            if (duplicate) {
-                return { status: 'already_recorded', ledgerId: duplicate.id, spendAmount: duplicate.spendAmount };
-            }
-        }
-
+        // A legacy writer may still race. Roll back; retry must re-check the full locked context.
         throw error;
     }
+    });
 }

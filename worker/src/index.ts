@@ -17,7 +17,7 @@
  */
 
 import 'dotenv/config'
-import { Worker } from 'bullmq'
+import { Worker, type ConnectionOptions } from 'bullmq'
 import { processOperationHttp, closeAllHttpClients } from './http-queue-processor'
 import { initializePoolManager, AccountPoolManager } from './pool'
 import { getRedisConnection, closeRedisConnection } from './lib/redis'
@@ -66,7 +66,8 @@ async function main() {
             return processOperationHttp(job, accountPool!)
         },
         {
-            connection: connection as any,
+            // BullMQ's nested ioredis copy has distinct nominal connector types.
+            connection: connection as unknown as ConnectionOptions,
             concurrency: WORKER_CONCURRENCY,
             limiter: {
                 max: WORKER_RATE_LIMIT,

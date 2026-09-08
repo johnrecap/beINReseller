@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import { operationsQueue } from '@/lib/queue'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { getCustomerFromRequest } from '@/lib/customer-auth'
 import { refundUser, refundCustomer } from '@/lib/refund'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { decideOperationCancellationSafety, getOperationPhaseEvidence } from '@/lib/operation-safety'
+import { finalizeWebPreMutationRenewalTermination } from '@/lib/operations/pre-mutation-renewal-finalization'
 import type { OperationStatus } from '@prisma/client'
 
 const SAFE_CANCEL_STATUSES: OperationStatus[] = [
@@ -23,17 +23,8 @@ const SAFE_CANCEL_STATUSES: OperationStatus[] = [
  * Returns an object with either userId or customerId for ownership checks
  */
 async function getAuthUser(request: NextRequest): Promise<{ userId?: string; customerId?: string } | null> {
-    // Try web session first (reseller panel)
-    const session = await auth()
-    if (session?.user?.id) {
-        return { userId: session.user.id }
-    }
-
-    // Try mobile token (reseller mobile app)
-    const mobileUser = getMobileUserFromRequest(request)
-    if (mobileUser?.id) {
-        return { userId: mobileUser.id }
-    }
+    const panelUser = await getAuthenticatedUser(request)
+    if (panelUser) return { userId: panelUser.id }
 
     // Try customer token (customer mobile app)
     const customer = getCustomerFromRequest(request)
@@ -94,6 +85,68 @@ export async function POST(
                 { error: 'Unauthorized' },
                 { status: 403 }
             )
+        }
+
+        if (operation.type === 'RENEW') {
+            const cancellation = await finalizeWebPreMutationRenewalTermination({
+                operationId: id,
+                terminalStatus: 'CANCELLED',
+                allowedStatuses: SAFE_CANCEL_STATUSES,
+                responseMessage: 'Cancelled by user',
+                releaseReason: 'USER_CANCELLED_PRE_MUTATION',
+                activity: authUser.userId
+                    ? {
+                        userId: authUser.userId,
+                        action: 'OPERATION_CANCELLED',
+                        details: {
+                            operationId: id,
+                            operationType: operation.type,
+                            cardNumber: operation.cardNumber,
+                            settlement: 'ATOMIC_PRE_MUTATION',
+                        },
+                        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+                    }
+                    : undefined,
+            })
+
+            if (cancellation.status === 'REVIEW_REQUIRED') {
+                return NextResponse.json({
+                    success: true,
+                    message: 'Cancellation is under manual review because final payment may have started.',
+                    refunded: 0,
+                    reviewRequired: true,
+                    reasonCode: cancellation.reason,
+                })
+            }
+            if (cancellation.status === 'EVIDENCE_CONFLICT') {
+                return NextResponse.json(
+                    {
+                        error: 'Operation state changed and can no longer be cancelled.',
+                        reasonCode: cancellation.reason,
+                    },
+                    { status: 409 }
+                )
+            }
+
+            // The durable transaction has already blocked pending dispatch and
+            // released reservations. Queue cleanup is best-effort defense in depth.
+            try {
+                const jobs = await operationsQueue.getJobs(['waiting', 'active', 'delayed', 'paused'])
+                for (const job of jobs) {
+                    if (job.data?.operationId === id) await job.remove()
+                }
+            } catch (queueError) {
+                console.error('Unable to remove a terminal renewal job from the queue:', queueError)
+            }
+
+            return NextResponse.json({
+                success: true,
+                message: cancellation.refundAmount > 0
+                    ? 'Operation cancelled and amount refunded'
+                    : 'Operation cancelled',
+                refunded: cancellation.refundAmount,
+                previouslyRefunded: cancellation.status === 'ALREADY_TERMINATED',
+            })
         }
 
         const [existingRefund, existingCustomerRefund, latestDeductTx] = await Promise.all([

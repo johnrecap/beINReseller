@@ -11,6 +11,23 @@ interface RecoveryProofLedger {
     evidenceConfidence?: string | null
 }
 
+interface RecoveryFulfillmentProof {
+    id: string
+    operationId: string
+    beinAccountId: string
+    cardNumberSnapshot: string
+    invoiceNo: string
+    proofKind?: 'LEGACY_CONTRACT_ONLY' | 'SOLD_REPORT_CONTRACT_CORRELATION' | string | null
+}
+
+interface RecoveryManualFulfillmentEvidence {
+    id: string
+    operationId: string
+    beinAccountId: string
+    cardNumberSnapshot: string
+    invoiceNo: string
+}
+
 export interface RecoveryProviderBalanceRepairEvidence {
     beinAccountId: string
     cardNumber: string | null
@@ -30,17 +47,15 @@ function toNullableNumber(value: unknown): number | null {
     return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-function getAuditSnapshot(responseData: unknown): Record<string, unknown> | null {
-    const data = parseOperationResponseData(responseData)
-    return data.auditSnapshot && typeof data.auditSnapshot === 'object' && !Array.isArray(data.auditSnapshot)
-        ? data.auditSnapshot as Record<string, unknown>
-        : null
-}
-
 function getRecord(value: unknown): Record<string, unknown> | null {
     return value && typeof value === 'object' && !Array.isArray(value)
         ? value as Record<string, unknown>
         : null
+}
+
+function getAuditSnapshot(responseData: unknown): Record<string, unknown> | null {
+    const data = parseOperationResponseData(responseData)
+    return getRecord(data.auditSnapshot)
 }
 
 function toNullableString(value: unknown): string | null {
@@ -67,74 +82,91 @@ function auditDebitAmount(auditSnapshot: Record<string, unknown>): number | null
     return delta > MONEY_EPSILON ? delta : null
 }
 
-export function hasRecoveryProviderCompletionProof(input: {
+function hasLegacyInstallmentRecoveryProof(input: {
     responseData: unknown
     chargedBeinSpendLedger?: RecoveryProofLedger | null
 }): boolean {
+    const data = parseOperationResponseData(input.responseData)
+    if (data.jobType !== 'CONFIRM_INSTALLMENT') return false
+
     const ledger = input.chargedBeinSpendLedger
     if (!ledger?.id) return false
-
     const ledgerSpend = toNullableNumber(ledger.spendAmount)
     if (ledgerSpend === null || ledgerSpend <= MONEY_EPSILON) return false
 
     const auditSnapshot = getAuditSnapshot(input.responseData)
     if (!auditSnapshot) return false
-
-    if (ledger.evidenceConfidence === 'CONTRACT_VERIFIED') {
-        if (auditSnapshot.providerEvidenceState !== 'contract-verified') return false
-        if (auditSnapshot.outcomeCategory !== 'CONFIRMED_SUCCESS') return false
-        if (auditSnapshot.chargedBeinLedgerId !== ledger.id) return false
-        if (
-            ledger.beinAccountId &&
-            typeof auditSnapshot.beinAccountId === 'string' &&
-            auditSnapshot.beinAccountId !== ledger.beinAccountId
-        ) {
-            return false
-        }
-        return true
-    }
-
-    if (ledger.evidenceConfidence && ledger.evidenceConfidence !== 'CONFIRMED_FINAL_PAY') {
-        return false
-    }
-
-    if (auditSnapshot.providerEvidenceState !== 'confirmed-final-pay') return false
     if (auditSnapshot.outcomeCategory !== 'CONFIRMED_SUCCESS') return false
     if (auditSnapshot.chargedBeinLedgerId !== ledger.id) return false
     if (
         ledger.beinAccountId &&
         typeof auditSnapshot.beinAccountId === 'string' &&
         auditSnapshot.beinAccountId !== ledger.beinAccountId
-    ) {
-        return false
+    ) return false
+
+    if (ledger.evidenceConfidence === 'CONTRACT_VERIFIED') {
+        return auditSnapshot.providerEvidenceState === 'contract-verified'
     }
+    if (ledger.evidenceConfidence && ledger.evidenceConfidence !== 'CONFIRMED_FINAL_PAY') return false
+    if (auditSnapshot.providerEvidenceState !== 'confirmed-final-pay') return false
     if (auditSnapshot.beinBalanceBeforeSource !== 'final_pay_ok_page') return false
     if (
         auditSnapshot.beinBalanceAfterSource !== 'final_pay_result_page' &&
         auditSnapshot.beinBalanceAfterSource !== 'final_pay_balance_check'
-    ) {
-        return false
-    }
+    ) return false
 
     const auditBefore = toNullableNumber(auditSnapshot.beinBalanceBefore)
     const auditAfter = toNullableNumber(auditSnapshot.beinBalanceAfter)
     const ledgerBefore = toNullableNumber(ledger.dealerBalanceBefore)
     const ledgerAfter = toNullableNumber(ledger.dealerBalanceAfter)
     if (
-        auditBefore === null ||
-        auditAfter === null ||
-        ledgerBefore === null ||
-        ledgerAfter === null ||
+        auditBefore === null || auditAfter === null ||
+        ledgerBefore === null || ledgerAfter === null ||
         !moneyMatches(auditBefore, ledgerBefore) ||
         !moneyMatches(auditAfter, ledgerAfter)
-    ) {
-        return false
-    }
+    ) return false
 
     const auditSpend = auditDebitAmount(auditSnapshot)
-    if (auditSpend === null) return false
+    return auditSpend !== null && Math.abs(auditSpend - ledgerSpend) <= MONEY_EPSILON
+}
 
-    return Math.abs(auditSpend - ledgerSpend) <= MONEY_EPSILON
+export function hasRecoveryProviderCompletionProof(input: {
+    responseData: unknown
+    chargedBeinSpendLedger?: RecoveryProofLedger | null
+    fulfillmentProof?: RecoveryFulfillmentProof | null
+    manualFulfillmentEvidence?: RecoveryManualFulfillmentEvidence | null
+    fulfillmentAuthority?: string | null
+    operationId?: string
+    beinAccountId?: string | null
+    cardNumber?: string | null
+}): boolean {
+    const responseData = parseOperationResponseData(input.responseData)
+    if (responseData.jobType === 'CONFIRM_INSTALLMENT') {
+        return hasLegacyInstallmentRecoveryProof(input)
+    }
+    const fulfillmentAuthority = input.fulfillmentAuthority ?? responseData.fulfillmentAuthority
+    const proof = input.fulfillmentProof
+    if (
+        fulfillmentAuthority === 'AUTOMATED_COMPOSITE' &&
+        proof?.id &&
+        proof.proofKind === 'SOLD_REPORT_CONTRACT_CORRELATION' &&
+        proof.invoiceNo.trim() &&
+        input.operationId && proof.operationId === input.operationId &&
+        input.beinAccountId && proof.beinAccountId === input.beinAccountId &&
+        input.cardNumber && proof.cardNumberSnapshot === input.cardNumber
+    ) {
+        return true
+    }
+
+    const manual = input.manualFulfillmentEvidence
+    return Boolean(
+        fulfillmentAuthority === 'MANUAL_PROVIDER_CONFIRMATION' &&
+        manual?.id &&
+        manual.invoiceNo.trim() &&
+        input.operationId && manual.operationId === input.operationId &&
+        input.beinAccountId && manual.beinAccountId === input.beinAccountId &&
+        input.cardNumber && manual.cardNumberSnapshot === input.cardNumber
+    )
 }
 
 export function getRecoveryProviderBalanceRepairEvidence(input: {

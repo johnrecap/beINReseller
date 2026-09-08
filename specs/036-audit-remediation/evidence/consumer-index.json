@@ -1,0 +1,6754 @@
+{
+  "schemaVersion": 1,
+  "baseline": "baseline-sources.json",
+  "capturedAt": "2026-09-06T23:13:39.840098+00:00",
+  "scope": "Reference inventory; line numbers are source anchors. Discovery indexes do not assert full behavior review of every importer. Human-reviewed boundaries are in consumer-inventory.md.",
+  "groups": {
+    "operationRoutes": [
+      {
+        "path": "src/app/api/operations/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/bulk/route.ts",
+        "lines": [
+          44
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/create/route.ts",
+        "lines": [
+          42
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-activate/route.ts",
+        "lines": [
+          39
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-check/route.ts",
+        "lines": [
+          39
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-refresh/route.ts",
+        "lines": [
+          39
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/start-installment/route.ts",
+        "lines": [
+          40
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/start-renewal/route.ts",
+        "lines": [
+          66
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/route.ts",
+        "lines": [
+          19
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/apply-promo/route.ts",
+        "lines": [
+          37
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/cancel/route.ts",
+        "lines": [
+          48
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/cancel-confirm/route.ts",
+        "lines": [
+          31
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/captcha/route.ts",
+        "lines": [
+          19,
+          77
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-installment/route.ts",
+        "lines": [
+          39
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-purchase/route.ts",
+        "lines": [
+          37
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/heartbeat/route.ts",
+        "lines": [
+          46,
+          242
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/installment/route.ts",
+        "lines": [
+          28
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/packages/route.ts",
+        "lines": [
+          24
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/select-package/route.ts",
+        "lines": [
+          47
+        ],
+        "ownerTasks": [
+          "T027",
+          "T028",
+          "T029"
+        ],
+        "evidenceLevel": "GUARD_AND_OWNERSHIP_READ",
+        "kind": "SOURCE"
+      }
+    ],
+    "spend": [
+      {
+        "path": "src/app/api/admin/financial-review/route.ts",
+        "lines": [
+          50,
+          51,
+          71
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/financial-review/[operationId]/decision/route.ts",
+        "lines": [
+          224
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/bein-spend/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/bein-spend/operations/route.ts",
+        "lines": [
+          7
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/route.ts",
+        "lines": [
+          50,
+          94
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/bein-spend-ledger.ts",
+        "lines": [
+          133,
+          184,
+          210,
+          298,
+          309
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operation-detail-audit.ts",
+        "lines": [
+          54,
+          75,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operation-safety.ts",
+        "lines": [
+          76,
+          184
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/renewal-payment-refund-finalization.ts",
+        "lines": [
+          475,
+          670
+        ],
+        "ownerTasks": [
+          "T010",
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/financial-review/evidence.ts",
+        "lines": [
+          27,
+          175
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/financial-review-refund-finalization.ts",
+        "lines": [
+          74,
+          187
+        ],
+        "ownerTasks": [
+          "T010",
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/pre-mutation-renewal-finalization.ts",
+        "lines": [
+          130,
+          240
+        ],
+        "ownerTasks": [
+          "T010",
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/recovery-proof.ts",
+        "lines": [
+          87,
+          92,
+          135
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/recovery.ts",
+        "lines": [
+          96,
+          132,
+          260,
+          276,
+          277,
+          287,
+          308,
+          344,
+          396,
+          450,
+          467,
+          484
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/http-queue-processor.ts",
+        "lines": [
+          32,
+          392,
+          673,
+          676,
+          678,
+          2934,
+          3137,
+          3444,
+          5782,
+          5948
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/bein-spend-ledger.ts",
+        "lines": [
+          96,
+          130,
+          223,
+          261
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/renewal-no-charge-finalization.ts",
+        "lines": [
+          82,
+          121
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "scripts/bein-spend-ledger-simulations.ts",
+        "lines": [
+          6,
+          7,
+          38,
+          52,
+          73,
+          95,
+          102,
+          103,
+          114
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "scripts/reconcile-renewal-fulfillment.ts",
+        "lines": [
+          24,
+          71,
+          106,
+          204,
+          214,
+          218,
+          220,
+          221,
+          262
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "scripts/refund-safe-review-not-charged.ts",
+        "lines": [
+          70,
+          119,
+          125
+        ],
+        "ownerTasks": [
+          "T010",
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "tests/integration/operation-bein-account-link.test.ts",
+        "lines": [
+          31,
+          48,
+          58,
+          61,
+          70,
+          85,
+          101,
+          110,
+          127,
+          141,
+          146
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-finalization-claim-guard-db.test.ts",
+        "lines": [
+          157,
+          268
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-finalization-db.test.ts",
+        "lines": [
+          160,
+          292,
+          531
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-reconciliation-db.test.ts",
+        "lines": [
+          42,
+          120
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/bein-spend-ledger-filters.test.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/bein-spend-report-card-search.test.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/final-payment-guardrails.test.ts",
+        "lines": [
+          77,
+          308,
+          371
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/financial-review-evidence-provenance.test.ts",
+        "lines": [
+          34,
+          113,
+          134,
+          272,
+          288
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-detail-redaction.test.ts",
+        "lines": [
+          31,
+          64,
+          83
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-recovery-foundation.test.ts",
+        "lines": [
+          68
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-recovery-proof.test.ts",
+        "lines": [
+          16,
+          45,
+          73,
+          86
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "worker/tests/http-queue-renewal-state.test.ts",
+        "lines": [
+          53,
+          88
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "worker/tests/renewal-fulfillment-orchestration.test.ts",
+        "lines": [
+          381
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      }
+    ],
+    "queue": [
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/check-balance/route.ts",
+        "lines": [
+          22
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/financial-review/[operationId]/verify-card/route.ts",
+        "lines": [
+          44
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/cron/dispatch-operation-jobs/route.ts",
+        "lines": [
+          2,
+          24,
+          25
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/cron/timeout-operations/route.ts",
+        "lines": [
+          4,
+          33
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/signal/route.ts",
+        "lines": [
+          11,
+          117
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/bulk/route.ts",
+        "lines": [
+          6,
+          187,
+          227
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/create/route.ts",
+        "lines": [
+          7,
+          184,
+          197
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-activate/route.ts",
+        "lines": [
+          5,
+          136,
+          144
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-check/route.ts",
+        "lines": [
+          5,
+          121,
+          131
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-refresh/route.ts",
+        "lines": [
+          5,
+          119,
+          129
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/start-installment/route.ts",
+        "lines": [
+          5,
+          127,
+          137
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/start-renewal/route.ts",
+        "lines": [
+          5,
+          267,
+          278
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/apply-promo/route.ts",
+        "lines": [
+          5,
+          105,
+          114
+        ],
+        "ownerTasks": [
+          "T016",
+          "T030",
+          "T031"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/cancel/route.ts",
+        "lines": [
+          4,
+          144,
+          234
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/cancel-confirm/route.ts",
+        "lines": [
+          7,
+          118,
+          138
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-installment/route.ts",
+        "lines": [
+          9,
+          201,
+          210
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-purchase/route.ts",
+        "lines": [
+          5,
+          6,
+          188,
+          230,
+          240
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/select-package/route.ts",
+        "lines": [
+          10,
+          192,
+          222
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/start/route.ts",
+        "lines": [
+          15,
+          124,
+          134
+        ],
+        "ownerTasks": [
+          "T014",
+          "T022",
+          "T030",
+          "T031",
+          "T041"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/confirm/route.ts",
+        "lines": [
+          12,
+          75,
+          87
+        ],
+        "ownerTasks": [
+          "T014",
+          "T022",
+          "T030",
+          "T031",
+          "T041"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/confirm-payment/route.ts",
+        "lines": [
+          16,
+          124,
+          238
+        ],
+        "ownerTasks": [
+          "T014",
+          "T022",
+          "T030",
+          "T031",
+          "T041"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/select-package/route.ts",
+        "lines": [
+          16,
+          433,
+          475,
+          491
+        ],
+        "ownerTasks": [
+          "T014",
+          "T022",
+          "T030",
+          "T031",
+          "T041"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/webhooks/stripe/route.ts",
+        "lines": [
+          19,
+          160,
+          262
+        ],
+        "ownerTasks": [
+          "T014",
+          "T022",
+          "T030",
+          "T031",
+          "T041"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/mobile-renewal-payment-finalization.ts",
+        "lines": [
+          2,
+          125,
+          372
+        ],
+        "ownerTasks": [
+          "T014",
+          "T022",
+          "T030",
+          "T031",
+          "T041"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operation-dispatch.ts",
+        "lines": [
+          3,
+          54,
+          83,
+          131,
+          140,
+          233,
+          284
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/queue.ts",
+        "lines": [
+          29,
+          46,
+          62,
+          63,
+          70,
+          78,
+          84
+        ],
+        "ownerTasks": [
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/store-subscription-payment-finalization.ts",
+        "lines": [
+          2,
+          169
+        ],
+        "ownerTasks": [
+          "T014",
+          "T022",
+          "T030",
+          "T031",
+          "T041"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/maintenance/operation-maintenance-runner.ts",
+        "lines": [
+          5,
+          155
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/maintenance/renewal-fulfillment-verification-maintenance.ts",
+        "lines": [
+          98
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/customer-index.ts",
+        "lines": [
+          69
+        ],
+        "ownerTasks": [
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/http-queue-processor.ts",
+        "lines": [
+          4070
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/index.ts",
+        "lines": [
+          62
+        ],
+        "ownerTasks": [
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "tests/unit/renewal-creation-guard.test.ts",
+        "lines": [
+          101,
+          102
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/start-renewal-review-guard.test.ts",
+        "lines": [
+          37
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/store-subscription-payment-claim.test.ts",
+        "lines": [
+          226
+        ],
+        "ownerTasks": [
+          "T030",
+          "T031",
+          "T041",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      }
+    ],
+    "award": [
+      {
+        "path": "src/app/api/admin/financial-review/[operationId]/decision/route.ts",
+        "lines": [
+          17,
+          182
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/correct-balance/route.ts",
+        "lines": [
+          4,
+          235
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-installment/route.ts",
+        "lines": [
+          8,
+          222
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-purchase/route.ts",
+        "lines": [
+          13,
+          255
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/notification.ts",
+        "lines": [
+          46
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/refund.ts",
+        "lines": [
+          16,
+          153
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/maintenance/operation-spend-award-run-maintenance.ts",
+        "lines": [
+          3,
+          165
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/financial-review-refund-finalization.ts",
+        "lines": [
+          10,
+          274
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/manual-fulfillment-finalization.ts",
+        "lines": [
+          10,
+          281
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/pre-mutation-renewal-finalization.ts",
+        "lines": [
+          3,
+          278,
+          353
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/recovery.ts",
+        "lines": [
+          27,
+          28,
+          30,
+          605,
+          665,
+          741
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/points/operation-awards.ts",
+        "lines": [
+          54,
+          58,
+          61
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/points/operation-spend-award-runs.ts",
+        "lines": [
+          4,
+          5,
+          90,
+          104,
+          108
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/points/reversals.ts",
+        "lines": [
+          58
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/services/activityTracker.ts",
+        "lines": [
+          97,
+          544
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/http-queue-processor.ts",
+        "lines": [
+          29,
+          35,
+          36,
+          173,
+          4153,
+          4571,
+          4845,
+          5499,
+          5857,
+          5880
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/activity-tracker.ts",
+        "lines": [
+          14,
+          100
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/fulfillment-finalization.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/points.ts",
+        "lines": [
+          12,
+          13,
+          135,
+          153,
+          162
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "shared/points/operation-spend-award-runs.ts",
+        "lines": [
+          739,
+          1125
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "tests/integration/operation-spend-award-run.test.ts",
+        "lines": [
+          7,
+          8,
+          300,
+          301
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/operation-spend-completion-writers.test.ts",
+        "lines": [
+          42,
+          62,
+          71,
+          75,
+          93,
+          105,
+          118,
+          119
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/financial-review-decision-safety.test.ts",
+        "lines": [
+          279
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-spend-award-run-maintenance.test.ts",
+        "lines": [
+          46
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-spend-award-runs.test.ts",
+        "lines": [
+          4,
+          5,
+          240,
+          269,
+          275,
+          281,
+          315,
+          321,
+          327,
+          388,
+          396,
+          414,
+          435,
+          450,
+          461,
+          482,
+          491,
+          528,
+          538,
+          556,
+          569,
+          580,
+          582,
+          595,
+          600,
+          612,
+          627,
+          634
+        ],
+        "ownerTasks": [
+          "T032",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      }
+    ],
+    "financialWrites": [
+      {
+        "path": "src/app/api/admin/credit-requests/[id]/decision/route.ts",
+        "lines": [
+          159
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/customers/[id]/balance/route.ts",
+        "lines": [
+          82
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/points/release/route.ts",
+        "lines": [
+          55
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/rewards/redemptions/[id]/decision/route.ts",
+        "lines": [
+          91
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/route.ts",
+        "lines": [
+          514,
+          588
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/balance/route.ts",
+        "lines": [
+          90
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/correct-balance/route.ts",
+        "lines": [
+          217
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/users/route.ts",
+        "lines": [
+          239,
+          251
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/users/[id]/route.ts",
+        "lines": [
+          170,
+          181
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/users/[id]/balance/route.ts",
+        "lines": [
+          98,
+          111
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/store/orders/route.ts",
+        "lines": [
+          153,
+          209
+        ],
+        "ownerTasks": [
+          "T019",
+          "T021",
+          "T022",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/signal/route.ts",
+        "lines": [
+          91
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/wallet/webhook/route.ts",
+        "lines": [
+          132
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/bulk/route.ts",
+        "lines": [
+          197
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/create/route.ts",
+        "lines": [
+          163
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-installment/route.ts",
+        "lines": [
+          190
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-purchase/route.ts",
+        "lines": [
+          177
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/refund.ts",
+        "lines": [
+          131,
+          287
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/eid-rewards/claim.ts",
+        "lines": [
+          218
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/financial-review-refund-finalization.ts",
+        "lines": [
+          212,
+          256
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/pre-mutation-renewal-finalization.ts",
+        "lines": [
+          320,
+          338
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/recovery.ts",
+        "lines": [
+          287,
+          308,
+          644
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/points/cash-redemption.ts",
+        "lines": [
+          147,
+          158
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/points/operation-awards.ts",
+        "lines": [
+          164
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/points/operation-spend-award-runs.ts",
+        "lines": [
+          77
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/points/reversals.ts",
+        "lines": [
+          85
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/bein-spend-ledger.ts",
+        "lines": [
+          223
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/fulfillment-finalization.ts",
+        "lines": [
+          204
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/points.ts",
+        "lines": [
+          128
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/pre-mutation-renewal-finalization.ts",
+        "lines": [
+          169,
+          195
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/renewal-no-charge-finalization.ts",
+        "lines": [
+          159,
+          180
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/utils/error-handler.ts",
+        "lines": [
+          219
+        ],
+        "ownerTasks": [
+          "T008",
+          "T010",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "shared/points/operation-spend-award-runs.ts",
+        "lines": [
+          1050
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "scripts/refund-safe-review-not-charged.ts",
+        "lines": [
+          146,
+          173
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "tests/integration/admin-agent-assignments.test.ts",
+        "lines": [
+          155,
+          165
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/pre-mutation-renewal-finalization-db.test.ts",
+        "lines": [
+          61
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-finalization-claim-guard-db.test.ts",
+        "lines": [
+          86,
+          157
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-finalization-db.test.ts",
+        "lines": [
+          92,
+          160,
+          531
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-reconciliation-db.test.ts",
+        "lines": [
+          42
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/user-ownership-transfer-concurrency.test.ts",
+        "lines": [
+          323,
+          368
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      }
+    ],
+    "refundAndStoreCredit": [
+      {
+        "path": "src/app/api/admin/financial-review/[operationId]/decision/route.ts",
+        "lines": [
+          17,
+          182
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/cron/cleanup-stuck-operations/route.ts",
+        "lines": [
+          284
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/cancel/route.ts",
+        "lines": [
+          348,
+          354
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-installment/route.ts",
+        "lines": [
+          8,
+          222
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-purchase/route.ts",
+        "lines": [
+          13,
+          255
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/cancel/route.ts",
+        "lines": [
+          57,
+          132,
+          161
+        ],
+        "ownerTasks": [
+          "T019",
+          "T021",
+          "T022",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/select-package/route.ts",
+        "lines": [
+          144,
+          215,
+          410,
+          591,
+          610
+        ],
+        "ownerTasks": [
+          "T019",
+          "T021",
+          "T022",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/refund.ts",
+        "lines": [
+          24,
+          178
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/renewal-payment-refund-finalization.ts",
+        "lines": [
+          501,
+          557,
+          647,
+          748
+        ],
+        "ownerTasks": [
+          "T019",
+          "T021",
+          "T022",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/store-subscription-payment-finalization.ts",
+        "lines": [
+          78,
+          119
+        ],
+        "ownerTasks": [
+          "T019",
+          "T021",
+          "T022",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/store-subscription.ts",
+        "lines": [
+          111,
+          157,
+          170,
+          212,
+          256
+        ],
+        "ownerTasks": [
+          "T019",
+          "T021",
+          "T022",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/maintenance/operation-spend-award-run-maintenance.ts",
+        "lines": [
+          3,
+          165
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/manual-fulfillment-finalization.ts",
+        "lines": [
+          10,
+          281
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/recovery.ts",
+        "lines": [
+          27,
+          28,
+          605,
+          741
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/points/operation-spend-award-runs.ts",
+        "lines": [
+          4,
+          5,
+          90,
+          104,
+          108
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/http-queue-processor.ts",
+        "lines": [
+          35,
+          36,
+          173,
+          1390,
+          4571,
+          4845,
+          5499,
+          5694,
+          5857,
+          6012
+        ],
+        "ownerTasks": [
+          "T008",
+          "T010",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/fulfillment-finalization.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/points.ts",
+        "lines": [
+          12,
+          13,
+          135,
+          153,
+          162
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/utils/error-handler.ts",
+        "lines": [
+          129
+        ],
+        "ownerTasks": [
+          "T008",
+          "T010",
+          "T033",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "shared/points/operation-spend-award-runs.ts",
+        "lines": [
+          739,
+          1125
+        ],
+        "ownerTasks": [
+          "T021",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      }
+    ],
+    "locks": [
+      {
+        "path": "src/lib/mobile-renewal-payment-finalization.ts",
+        "lines": [
+          3,
+          172,
+          180,
+          181,
+          415,
+          422
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/refund.ts",
+        "lines": [
+          37,
+          191
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/renewal-payment-refund-finalization.ts",
+        "lines": [
+          3,
+          7,
+          202,
+          441,
+          442,
+          450,
+          451,
+          453,
+          455
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/store-subscription-payment-finalization.ts",
+        "lines": [
+          56
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/store-subscription.ts",
+        "lines": [
+          90,
+          240
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/credit-requests/debt.ts",
+        "lines": [
+          170
+        ],
+        "ownerTasks": [
+          "T003",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/account-lock-release.ts",
+        "lines": [],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/card-lifecycle-reservation.ts",
+        "lines": [
+          80,
+          99
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/financial-review-refund-finalization.ts",
+        "lines": [
+          55
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/manual-fulfillment-finalization.ts",
+        "lines": [
+          145
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/pre-mutation-renewal-finalization.ts",
+        "lines": [
+          100,
+          109
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/renewal-creation-guard.ts",
+        "lines": [
+          2,
+          70,
+          143
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/fulfillment-baseline.ts",
+        "lines": [
+          184,
+          211,
+          226,
+          267,
+          521,
+          568,
+          585,
+          709,
+          720,
+          730
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/fulfillment-finalization.ts",
+        "lines": [
+          426,
+          447,
+          468,
+          486,
+          503,
+          526
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/fulfillment-proof.ts",
+        "lines": [
+          456
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/pre-mutation-renewal-finalization.ts",
+        "lines": [
+          81
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/provider-account-reservation.ts",
+        "lines": [
+          91
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/lib/renewal-no-charge-finalization.ts",
+        "lines": [
+          62
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "worker/src/utils/error-handler.ts",
+        "lines": [
+          144
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/cancel/route.ts",
+        "lines": [
+          110,
+          111
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/select-package/route.ts",
+        "lines": [
+          119,
+          120,
+          585
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/webhooks/stripe/route.ts",
+        "lines": [
+          387
+        ],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/financial-review/[operationId]/decision/route.ts",
+        "lines": [],
+        "ownerTasks": [
+          "T003",
+          "T021"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "shared/db/ownership-evidence-lock.ts",
+        "lines": [
+          98,
+          111,
+          128
+        ],
+        "ownerTasks": [
+          "T003",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      }
+    ],
+    "ui": [
+      {
+        "path": "src/app/dashboard/operations/active/page.tsx",
+        "lines": [
+          360,
+          400,
+          422,
+          436,
+          437,
+          460
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/renew/page.tsx",
+        "lines": [
+          262,
+          276,
+          353,
+          380,
+          442,
+          497,
+          536,
+          567
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/components/admin/financial-review/FinancialReviewClient.tsx",
+        "lines": [
+          141,
+          165,
+          198
+        ],
+        "ownerTasks": [
+          "T026",
+          "T045"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/components/admin/reports/BeinSpendReportClient.tsx",
+        "lines": [
+          154,
+          155
+        ],
+        "ownerTasks": [
+          "T010",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/components/history/HistoryPageClient.tsx",
+        "lines": [
+          47
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/components/history/OperationsTable.tsx",
+        "lines": [
+          119
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/components/operations/BulkRenewForm.tsx",
+        "lines": [
+          45
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/components/renewal/InstallmentPaymentFlow.tsx",
+        "lines": [
+          258,
+          300,
+          333,
+          379
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/components/renewal/SignalRefreshFlow.tsx",
+        "lines": [
+          64,
+          133,
+          162
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/hooks/useOperationHeartbeat.ts",
+        "lines": [
+          69,
+          128
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/operations/client-timeout.ts",
+        "lines": [
+          9
+        ],
+        "ownerTasks": [
+          "T017",
+          "T044",
+          "T045",
+          "T047"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      }
+    ],
+    "authShared": [
+      {
+        "path": "src/app/api/admin/agent-assignments/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/agents/[id]/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/analytics/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/analytics/activity/route.ts",
+        "lines": [
+          17
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/announcement/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/announcement/[id]/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/login-failures/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/low-balance/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/assign-proxy/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/check-balance/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/login-failures/reset/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/low-balance/reactivate/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/reset/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/toggle/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-accounts/[id]/unlock/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/bein-config/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/credit-requests/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/credit-requests/[id]/decision/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/credit-requests/[id]/escalate/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/credit-requests/[id]/notification-retry/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/dashboard/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/eid-rewards/claims/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/eid-rewards/settings/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/eid-rewards/transactions/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/financial-review/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/financial-review/[operationId]/decision/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/financial-review/[operationId]/verify-card/route.ts",
+        "lines": [
+          5
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/logs/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/customers/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/customers/[id]/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/customers/[id]/balance/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/orders/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/orders/[id]/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/payments/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/settings/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/mobile-app/subscriptions/route.ts",
+        "lines": [
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/notification-settings/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/notification-settings/telegram/test/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/points/release/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/points/settings/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/proxies/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/proxies/import/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/proxies/[id]/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/proxies/[id]/test/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/recovery-health/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/balance-movements/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/bein-spend/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/bein-spend/operations/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/credit-payments/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/integrity/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/integrity/backfill-balances/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/integrity/scan/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/integrity/summary/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/integrity/[id]/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/points-analysis/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/reports/points-analysis/owners/[id]/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/rewards/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/rewards/redemptions/[id]/decision/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/rewards/[id]/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/seed-pool-settings/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/store/categories/route.ts",
+        "lines": [
+          6
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/store/categories/[id]/route.ts",
+        "lines": [
+          6
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/store/products/route.ts",
+        "lines": [
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/store/products/[id]/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/store/settings/route.ts",
+        "lines": [
+          6
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/store/shipping/route.ts",
+        "lines": [
+          6
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/store/shipping/[id]/route.ts",
+        "lines": [
+          6
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/upload/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/user-ownership/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/user-ownership/targets/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/route.ts",
+        "lines": [
+          7
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/counts/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/deleted/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/inactive/route.ts",
+        "lines": [
+          18
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/activity/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/balance/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/correct-balance/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/permanent/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/restore/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/users/[id]/stats/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/admin/worker-status/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/agent/dashboard/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/credit-debts/[userId]/route.ts",
+        "lines": [
+          5
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/credit-requests/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/eid-rewards/claim/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/eid-rewards/redeem/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/eid-rewards/status/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/actions/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/dashboard/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/users/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/users/deleted/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/users/[id]/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/users/[id]/balance/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/manager/users/[id]/stats/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/auth/forgot-password/route.ts",
+        "lines": [
+          15
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/auth/login/route.ts",
+        "lines": [
+          14
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/auth/refresh/route.ts",
+        "lines": [
+          14
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/auth/register/route.ts",
+        "lines": [
+          19
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/auth/reset-password/route.ts",
+        "lines": [
+          17
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/auth/verify-otp/route.ts",
+        "lines": [
+          15
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/login/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/profile/route.ts",
+        "lines": [
+          10
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/profile/addresses/route.ts",
+        "lines": [
+          10
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/profile/addresses/[id]/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/profile/password/route.ts",
+        "lines": [
+          10
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/store/orders/route.ts",
+        "lines": [
+          10
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/store/orders/[id]/route.ts",
+        "lines": [
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/store/products/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/store/products/[id]/route.ts",
+        "lines": [
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/active/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/check/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/create-payment-intent/route.ts",
+        "lines": [
+          13
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/history/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/renew/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/signal/route.ts",
+        "lines": [
+          10
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/subscriptions/status/[operationId]/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/wallet/route.ts",
+        "lines": [
+          10
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/wallet/add/route.ts",
+        "lines": [
+          13
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/mobile/wallet/transactions/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/notifications/route.ts",
+        "lines": [
+          5
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/bulk/route.ts",
+        "lines": [
+          8,
+          10
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/create/route.ts",
+        "lines": [
+          10,
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-activate/route.ts",
+        "lines": [
+          7,
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-check/route.ts",
+        "lines": [
+          7,
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/signal-refresh/route.ts",
+        "lines": [
+          7,
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/start-installment/route.ts",
+        "lines": [
+          7,
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/start-renewal/route.ts",
+        "lines": [
+          7,
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/apply-promo/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/cancel/route.ts",
+        "lines": [
+          5,
+          6
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/cancel-confirm/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/captcha/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-installment/route.ts",
+        "lines": [
+          5
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/confirm-purchase/route.ts",
+        "lines": [
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/heartbeat/route.ts",
+        "lines": [
+          19
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/installment/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/packages/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/operations/[id]/select-package/route.ts",
+        "lines": [
+          5
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/permissions/global/route.ts",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/points/cash-redemptions/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/points/wallet/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/prices/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/rewards/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/rewards/redemptions/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/settings/route.ts",
+        "lines": [
+          5
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/addresses/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/addresses/[id]/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/auth/forgot-password/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/auth/login/route.ts",
+        "lines": [
+          13
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/auth/me/route.ts",
+        "lines": [
+          14
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/auth/register/route.ts",
+        "lines": [
+          13
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/auth/verify-email/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/orders/route.ts",
+        "lines": [
+          10
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/orders/[id]/route.ts",
+        "lines": [
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/orders/[id]/cancel/route.ts",
+        "lines": [
+          9
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/history/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/start/route.ts",
+        "lines": [
+          13
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/cancel/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/captcha/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/confirm/route.ts",
+        "lines": [
+          11
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/confirm-payment/route.ts",
+        "lines": [
+          14
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/heartbeat/route.ts",
+        "lines": [
+          12
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/store/subscriptions/[id]/select-package/route.ts",
+        "lines": [
+          14
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/transactions/route.ts",
+        "lines": [
+          5
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/user/activity/route.ts",
+        "lines": [
+          13
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/user/activity/history/route.ts",
+        "lines": [
+          14
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/user/change-password/route.ts",
+        "lines": [
+          6
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/user/profile/route.ts",
+        "lines": [
+          4
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/user/recent-operations/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/api/user/stats/route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/layout.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/agents/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/analytics/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/bein-accounts/login-failures/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/bein-accounts/low-balance/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/credit-requests/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/eid-rewards/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/financial-review/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/logs/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/permissions/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/points/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/recovery-health/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/reports/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/reports/bein-spend/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/reports/integrity/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/rewards/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/admin/users/activity/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/agent/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/credit-requests/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/history/layout.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/history/page.tsx",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/manager/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/operations/layout.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/operations/bulk/page.tsx",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/profile/page.tsx",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/renew/layout.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/rewards/page.tsx",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/app/dashboard/transactions/page.tsx",
+        "lines": [
+          2
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/api-middleware.ts",
+        "lines": [
+          6,
+          8
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/credit-requests/permissions.ts",
+        "lines": [
+          1
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/permissions/guards.ts",
+        "lines": [
+          4,
+          5
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      },
+      {
+        "path": "src/lib/users/password-reset-route.ts",
+        "lines": [
+          3
+        ],
+        "ownerTasks": [
+          "T029",
+          "T049"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "SOURCE"
+      }
+    ],
+    "regression": [
+      {
+        "path": "tests/integration/admin-permissions.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          7,
+          20,
+          35,
+          54,
+          85
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/admin-points-settings-save.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          8,
+          68
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/manager-permission-enforcement.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          26,
+          50
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/mobile-renewal-payment-finalization-db.test.ts",
+        "lines": [
+          1,
+          2,
+          9
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/operation-dispatch-watchdog.test.ts",
+        "lines": [
+          1,
+          2,
+          6,
+          87,
+          136
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/operation-points-completion-parity.test.ts",
+        "lines": [
+          1,
+          3
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/operation-spend-award-run.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          284
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/operation-spend-completion-writers.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          20,
+          47,
+          67,
+          81,
+          112
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/points-cash-redemption.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          5,
+          36
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-finalization-claim-guard-db.test.ts",
+        "lines": [
+          1,
+          2,
+          212
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-finalization-db.test.ts",
+        "lines": [
+          1,
+          2,
+          299,
+          356,
+          392,
+          443,
+          508,
+          556,
+          597,
+          644
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-proof-db.test.ts",
+        "lines": [
+          1,
+          2,
+          150,
+          173,
+          204,
+          250
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-fulfillment-reconciliation-db.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          8,
+          15
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/renewal-payment-refund-finalization-db.test.ts",
+        "lines": [
+          1,
+          2,
+          9,
+          229,
+          390,
+          502
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/store-subscription-payment-finalization-db.test.ts",
+        "lines": [
+          1,
+          2,
+          9
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/integration/user-ownership-transfer-concurrency.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          297
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/admin-credit-requests-source-group-filter.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          11,
+          33,
+          44
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/admin-users-ownership-filter.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          9,
+          22,
+          33
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/agent-assignment-transfer.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          58,
+          80,
+          152,
+          184,
+          202,
+          223,
+          240,
+          263,
+          290
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/bein-spend-ledger-filters.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          10,
+          17,
+          34,
+          48,
+          63
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/bein-spend-report-card-search.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          7,
+          27,
+          39,
+          45,
+          55,
+          72,
+          91
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/credit-debt-payment-report.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          9,
+          20,
+          31,
+          46
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/credit-request-debt.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          9,
+          32,
+          47,
+          65,
+          79
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/credit-request-ownership.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          10,
+          37,
+          43,
+          48,
+          56,
+          71,
+          84
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/credit-request-telegram.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          12,
+          27,
+          41,
+          55
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/credit-request-whatsapp-handoff.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          57,
+          75,
+          91,
+          109,
+          124,
+          138
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/financial-review-points-awards.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          5,
+          13,
+          21
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/hierarchical-password-reset.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          30,
+          55,
+          82,
+          109,
+          174
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/mobile-renewal-payment-finalization.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          37,
+          98,
+          131,
+          154
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-spend-award-run-maintenance.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          11,
+          34,
+          53
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-spend-award-runs.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          237,
+          264,
+          299,
+          353,
+          408,
+          427,
+          448,
+          480,
+          501
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-spend-award-schema.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          12,
+          33
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-spend-award-snapshot.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          68,
+          135,
+          153,
+          171,
+          189,
+          248,
+          270
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-spend-cutover.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          8,
+          16,
+          27,
+          38,
+          61
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/operation-spend-release-preflight.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          90,
+          108,
+          120,
+          150
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/ownership-evidence-lock.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          9,
+          41,
+          69
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/ownership-transfer-request.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          18,
+          29,
+          44,
+          57
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/panel-password-self-service.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          12,
+          23,
+          45,
+          56,
+          63,
+          80
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/permission-evaluator.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          7,
+          19,
+          39,
+          60,
+          80,
+          95,
+          113
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/points-access.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          5,
+          12
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/points-admin-settings-normalization.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          7,
+          8,
+          10,
+          36,
+          57,
+          81,
+          88
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/points-analysis.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          21,
+          40,
+          69,
+          96,
+          126,
+          148
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/points-calculation.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          9,
+          10,
+          12,
+          23,
+          30,
+          48,
+          55,
+          71,
+          84
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/points-operation-awards.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          8,
+          10,
+          26,
+          44,
+          75,
+          90,
+          105,
+          123,
+          138
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/points-operation-spend-policy.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          15,
+          38,
+          51,
+          63,
+          73,
+          87,
+          100,
+          124
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/points-routing-audit.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          5,
+          38,
+          62
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/refund-unique-index-migration.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          6
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/renewal-fulfillment-admin-config.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          26,
+          27,
+          28,
+          54,
+          88,
+          121,
+          156
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/renewal-fulfillment-correlation-smoke.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          61
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/renewal-fulfillment-locales.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          9,
+          23,
+          31,
+          40,
+          52
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/renewal-fulfillment-proof.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          83,
+          90,
+          94,
+          103,
+          112,
+          119,
+          132
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/renewal-fulfillment-reconciliation.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          8,
+          17,
+          31,
+          49,
+          82
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/renewal-fulfillment-state.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          11,
+          19,
+          31,
+          51,
+          70,
+          79,
+          97,
+          106,
+          117
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/renewal-fulfillment-verification-maintenance.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          19,
+          26,
+          59,
+          80,
+          90
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/renewal-payment-refund-finalization.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          30,
+          39,
+          48,
+          63,
+          73
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/store-subscription-payment-claim.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          34,
+          51,
+          62,
+          77,
+          94,
+          112,
+          123
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/user-ownership-classification.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          44,
+          57,
+          68,
+          87,
+          98,
+          110,
+          121
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/user-ownership-conflict-audit.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          5,
+          9
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/user-ownership-transfer.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          62,
+          82,
+          103,
+          118,
+          133,
+          159,
+          185,
+          219,
+          261
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "tests/unit/worker-points-awards.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          8,
+          21,
+          35,
+          66,
+          79,
+          98
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "worker/tests/error-handler-refund-safety.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          7,
+          23,
+          39,
+          55,
+          70,
+          87,
+          96
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "worker/tests/fulfillment-correlation.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          69,
+          84,
+          100,
+          118,
+          137,
+          183,
+          193
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "worker/tests/fulfillment-finalization-guard.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          113,
+          118,
+          128,
+          158
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      },
+      {
+        "path": "worker/tests/renewal-fulfillment-orchestration.test.ts",
+        "lines": [
+          1,
+          2,
+          3,
+          4,
+          20,
+          35,
+          52,
+          67,
+          88,
+          102,
+          117,
+          130
+        ],
+        "ownerTasks": [
+          "T049",
+          "T050"
+        ],
+        "evidenceLevel": "REFERENCE_DISCOVERY",
+        "kind": "TEST_OR_FIXTURE"
+      }
+    ]
+  }
+}

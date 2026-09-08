@@ -11,8 +11,13 @@ import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { successResponse, errorResponse, handleApiError, validationErrorResponse } from '@/lib/api-response'
 import { getStoreCustomerFromRequest } from '@/lib/store-auth'
-import { addOperationJob } from '@/lib/queue'
 import { getMarkupPercentage } from '@/lib/store-pricing'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import {
+    createGuardedRenewalOperation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
 
 // Validation schema
 const startSchema = z.object({
@@ -53,31 +58,16 @@ export async function POST(request: NextRequest) {
         })
 
         if (existingSubscription) {
-            // Auto-cancel if older than 10 minutes
+            // Age alone is not evidence that provider/payment work never began.
+            // Never cancel or release money while that evidence is ambiguous.
             const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
 
             if (existingSubscription.createdAt < tenMinutesAgo) {
-                // Cancel the old subscription
-                await prisma.storeSubscription.update({
-                    where: { id: existingSubscription.id },
-                    data: {
-                        status: 'CANCELLED',
-                        resultMessage: 'Automatically cancelled due to timeout'
-                    }
-                })
-
-                // Also cancel the operation if exists
-                if (existingSubscription.operationId) {
-                    await prisma.operation.update({
-                        where: { id: existingSubscription.operationId },
-                        data: {
-                            status: 'CANCELLED',
-                            responseMessage: 'Automatically cancelled due to timeout'
-                        }
-                    }).catch(() => { }) // Ignore if operation doesn't exist
-                }
-
-                console.log(`[Store] Auto-cancelled expired subscription ${existingSubscription.id}`)
+                return errorResponse(
+                    'The previous renewal requires review before another renewal can start',
+                    409,
+                    'SUBSCRIPTION_REVIEW_REQUIRED'
+                )
             } else {
                 return errorResponse(
                     'There is an active operation for this card',
@@ -98,61 +88,54 @@ export async function POST(request: NextRequest) {
 
         const currency = fullCustomer?.country === 'EG' ? 'EGP' : 'SAR'
 
-        // 6. Create Operation (using existing reseller system)
-        const operation = await prisma.operation.create({
-            data: {
-                customerId: customer.id, // Store customer ID (not userId!)
-                type: 'RENEW',
+        // 6-8. Create the operation, durable card claim, store row, and outbox
+        // atomically. Queue delivery is retryable after commit.
+        const { operation, subscription } = await prisma.$transaction(async (tx) => {
+            const operation = await createGuardedRenewalOperation(tx, {
                 cardNumber,
-                amount: 0, // Will be set after package selection
-                status: 'PENDING',
-            },
-        })
+                data: {
+                    customerId: customer.id,
+                    amount: 0,
+                    status: 'PENDING',
+                    providerPaymentState: 'NOT_SUBMITTED',
+                    fulfillmentState: 'UNVERIFIED',
+                },
+            })
 
-        // 7. Create StoreSubscription
-        const subscription = await prisma.storeSubscription.create({
-            data: {
-                customerId: customer.id,
-                cardNumber,
-                status: 'PENDING',
-                currency,
-                price: 0, // Will be set after package selection
-                markupPercent,
-                operationId: operation.id,
-            },
-            select: {
-                id: true,
-                cardNumber: true,
-                status: true,
-                currency: true,
-                createdAt: true,
-            }
-        })
+            const subscription = await tx.storeSubscription.create({
+                data: {
+                    customerId: customer.id,
+                    cardNumber,
+                    status: 'PENDING',
+                    currency,
+                    price: 0,
+                    markupPercent,
+                    operationId: operation.id,
+                },
+                select: {
+                    id: true,
+                    cardNumber: true,
+                    status: true,
+                    currency: true,
+                    createdAt: true,
+                },
+            })
 
-        // 8. Add job to queue to fetch packages from beIN
-        try {
-            await addOperationJob({
+            await createOperationDispatch(tx, {
                 operationId: operation.id,
                 type: 'START_RENEWAL',
                 cardNumber,
                 customerId: customer.id,
             })
-        } catch (queueError) {
-            console.error('Failed to add job to queue:', queueError)
 
-            // Update statuses to FAILED
-            await prisma.$transaction([
-                prisma.operation.update({
-                    where: { id: operation.id },
-                    data: { status: 'FAILED', responseMessage: 'Failed to add operation to queue' }
-                }),
-                prisma.storeSubscription.update({
-                    where: { id: subscription.id },
-                    data: { status: 'FAILED', resultMessage: 'Failed to add operation to queue' }
-                })
-            ])
+            return { operation, subscription }
+        })
 
-            return errorResponse('Failed to start operation, please try again', 500, 'QUEUE_ERROR')
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [operation.id],
+        })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch store renewal; saved for retry:', operation.id)
         }
 
         // 9. Return subscription info
@@ -166,9 +149,14 @@ export async function POST(request: NextRequest) {
                 createdAt: subscription.createdAt.toISOString(),
             },
             message: 'Fetching available packages...',
+            queued: dispatchResult.failed === 0,
         }, 'Operation started successfully', 201)
 
     } catch (error) {
+        if (isRenewalCreationBlockedError(error)) {
+            const payload = renewalCreationBlockedPayload(error)
+            return errorResponse(payload.error, 409, payload.code)
+        }
         return handleApiError(error)
     }
 }

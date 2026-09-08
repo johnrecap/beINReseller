@@ -12,16 +12,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
 import { OperationStatus } from '@prisma/client'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
 import { HEARTBEAT_REDIS_TTL_SECONDS, HEARTBEAT_STALE_SECONDS } from '@/lib/operations/timing'
 import { planHeartbeatTimeoutAction } from '@/lib/operations/lock-timeouts'
 import { releaseAccountLockSafely } from '@/lib/operations/account-lock-release'
 import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
+import { finalizeWebPreMutationRenewalTermination } from '@/lib/operations/pre-mutation-renewal-finalization'
 
 // Configuration
 const HEARTBEAT_TTL_SECONDS = HEARTBEAT_STALE_SECONDS
@@ -37,9 +37,7 @@ const HEARTBEAT_REQUIRED_STATUSES: OperationStatus[] = [
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 export async function POST(
@@ -64,6 +62,7 @@ export async function POST(
             },
             select: {
                 id: true,
+                type: true,
                 status: true,
                 beinAccountId: true,
                 finalConfirmExpiry: true,
@@ -87,6 +86,48 @@ export async function POST(
             })
 
             if (timeoutPlan.action === 'cancel_before_pay' && (operation.amount ?? 0) <= 0) {
+                if (operation.type === 'RENEW') {
+                    const renewalTermination = await finalizeWebPreMutationRenewalTermination({
+                        operationId: operation.id,
+                        terminalStatus: 'EXPIRED',
+                        allowedStatuses: [operation.status],
+                        responseMessage: 'Operation cancelled because the customer left before final Pay.',
+                        releaseReason: 'CUSTOMER_UNLOAD_PRE_MUTATION',
+                    })
+
+                    if (renewalTermination.status === 'EVIDENCE_CONFLICT') {
+                        return NextResponse.json(
+                            {
+                                error: 'Operation state changed',
+                                expired: false,
+                                status: operation.status,
+                            },
+                            { status: 409 }
+                        )
+                    }
+                    if (renewalTermination.status === 'REVIEW_REQUIRED') {
+                        await redis.del(`operation:heartbeat:${operation.id}`).catch(() => undefined)
+                        return NextResponse.json(
+                            {
+                                success: false,
+                                expired: false,
+                                reviewRequired: true,
+                                status: 'REVIEW_REQUIRED',
+                            },
+                            { status: 409 }
+                        )
+                    }
+
+                    await releaseAccountLockSafely(redis, operation.beinAccountId, operation.id)
+                    await redis.del(`operation:heartbeat:${operation.id}`).catch(() => undefined)
+
+                    return NextResponse.json({
+                        success: true,
+                        expired: true,
+                        status: 'EXPIRED',
+                    })
+                }
+
                 await prisma.operation.updateMany({
                     where: {
                         id,

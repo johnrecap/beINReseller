@@ -1,24 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
+import { assertRenewalReadiness, renewalReadinessErrorPayload } from '@/lib/renewal-readiness'
 import prisma from '@/lib/prisma'
 import {
     createOperationDispatch,
     dispatchPendingOperationJobs,
     recordOperationDispatchEvidence,
 } from '@/lib/operation-dispatch'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { Prisma } from '@prisma/client'
+import { lockFinancialOperation } from '../../../../../../shared/operations/financial-lock'
+import { assertFinalQuote, canonicalJson, quoteErrorPayload } from '../../../../../../shared/operations/package-quote'
 import { buildRenewalFinalConfirmationEvidence } from '@/lib/operation-final-confirmation'
 import { finalizeOperationSpendAwardRun } from '@/lib/points/operation-spend-award-runs'
+import {
+    ensureGuardedRenewalOperationReservation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 /**
@@ -56,6 +61,10 @@ export async function POST(
         }
 
         const { id } = await params
+        const body = await request.json().catch(() => null)
+        if (!Number.isInteger(body?.quoteRevision) || body.quoteRevision < 0 || body.quoteRevision > 2147483647) {
+            throw new Error('STALE_PACKAGE_QUOTE')
+        }
 
         // 2. Get operation
         const operation = await prisma.operation.findUnique({
@@ -115,10 +124,29 @@ export async function POST(
         }
 
         // Deduct balance NOW - only if not already deducted (deployment safety)
+        const readConfirmedQuote = async (tx: Prisma.TransactionClient) => {
+            if (!await lockFinancialOperation(tx, id)) throw new Error('OPERATION_NOT_CONFIRMABLE')
+            const current = await tx.operation.findUnique({ where: { id } })
+            if (!current || current.userId !== authUser.id || current.status !== 'AWAITING_FINAL_CONFIRM' ||
+                current.amount !== operation.amount) throw new Error('OPERATION_NOT_CONFIRMABLE')
+            assertFinalQuote(current, body.quoteRevision)
+            if (canonicalJson(current.selectedPackage) !== canonicalJson(operation.selectedPackage)) {
+                throw new Error('PACKAGE_QUOTE_CONFLICT')
+            }
+            await assertRenewalReadiness(tx, { operationId: id, beinAccountId: current.beinAccountId,
+                minBalance: dealerPrice, lockAssignedAccount: true })
+            return current
+        }
         let finalAmount = dealerPrice
         if (operation.amount === 0) {
             // NEW flow: deferred payment — deduct at confirm time
             await prisma.$transaction(async (tx) => {
+                const current = await readConfirmedQuote(tx)
+                await ensureGuardedRenewalOperationReservation(tx, {
+                    operationId: id,
+                    cardNumber: operation.cardNumber,
+                })
+
                 // Race guard: ensure operation is still confirmable before charging.
                 const operationGuard = await tx.operation.updateMany({
                     where: {
@@ -135,7 +163,7 @@ export async function POST(
                         status: 'COMPLETING',
                         amount: dealerPrice,
                         responseMessage: 'Confirming payment...',
-                        responseData: buildRenewalFinalConfirmationEvidence(operation.responseData, 'CONFIRM_PURCHASE'),
+                        responseData: buildRenewalFinalConfirmationEvidence(current.responseData, 'CONFIRM_PURCHASE'),
                         finalConfirmExpiry: null,
                         heartbeatExpiry: null,
                     }
@@ -188,6 +216,12 @@ export async function POST(
             console.log(`Operation ${id} already has amount ${operation.amount} - skipping deduction (legacy flow)`)
             finalAmount = operation.amount
             await prisma.$transaction(async (tx) => {
+                const current = await readConfirmedQuote(tx)
+                await ensureGuardedRenewalOperationReservation(tx, {
+                    operationId: id,
+                    cardNumber: operation.cardNumber,
+                })
+
                 const operationGuard = await tx.operation.updateMany({
                     where: {
                         id,
@@ -202,7 +236,7 @@ export async function POST(
                         status: 'COMPLETING',
                         amount: finalAmount,
                         responseMessage: 'Confirming payment...',
-                        responseData: buildRenewalFinalConfirmationEvidence(operation.responseData, 'CONFIRM_PURCHASE'),
+                        responseData: buildRenewalFinalConfirmationEvidence(current.responseData, 'CONFIRM_PURCHASE'),
                         finalConfirmExpiry: null,
                         heartbeatExpiry: null,
                     },
@@ -250,6 +284,16 @@ export async function POST(
         })
 
     } catch (error) {
+        const readinessError = renewalReadinessErrorPayload(error)
+        if (readinessError) return NextResponse.json(readinessError, { status: 503 })
+        const quoteError = quoteErrorPayload(error)
+        if (quoteError) return NextResponse.json(quoteError, { status: 409 })
+        if (isRenewalCreationBlockedError(error)) {
+            return NextResponse.json(
+                renewalCreationBlockedPayload(error),
+                { status: 409 }
+            )
+        }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
             return NextResponse.json(
                 { error: 'Operation is already being processed' },

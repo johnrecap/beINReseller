@@ -2,6 +2,7 @@
 // Run with: npx ts-node scripts/seed-pool-settings.ts
 
 import { PrismaClient } from '@prisma/client'
+import { normalizeProviderAccountCredentialUsername } from '../src/lib/provider-account-identity'
 
 const prisma = new PrismaClient()
 
@@ -41,9 +42,10 @@ async function migrateExistingAccount() {
     const totpSecret = await prisma.setting.findUnique({ where: { key: 'bein_totp_secret' } })
 
     if (username?.value && password?.value) {
+        const credentialUsername = normalizeProviderAccountCredentialUsername(username.value)
         // Check if already migrated
-        const existing = await prisma.beinAccount.findUnique({
-            where: { username: username.value }
+        const existing = await prisma.beinAccount.findFirst({
+            where: { username: { equals: credentialUsername, mode: 'insensitive' } }
         })
 
         if (existing) {
@@ -54,7 +56,7 @@ async function migrateExistingAccount() {
         // Migrate existing account
         const account = await prisma.beinAccount.create({
             data: {
-                username: username.value,
+                username: credentialUsername,
                 password: password.value,
                 totpSecret: totpSecret?.value || null,
                 label: 'الحساب الأصلي',

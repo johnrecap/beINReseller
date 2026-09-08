@@ -4,6 +4,7 @@ export type FinancialReviewDecisionAction =
     | 'BEIN_EXECUTED_NO_REFUND'
     | 'REFUND_CUSTOMER'
     | 'KEEP_UNDER_REVIEW'
+    | 'RESOLVE_PRE_MUTATION'
 
 export type CardVerificationOutcome =
     | 'LIKELY_RENEWED'
@@ -90,9 +91,39 @@ export interface FinancialReviewEvidence {
     hasCustomerWalletDebit: boolean
     hasRefund: boolean
     financiallyImpacted: boolean
+    fulfillmentVerified: boolean
+    fulfillmentProofId: string | null
+    fulfillmentAuthority: 'NONE' | 'AUTOMATED_COMPOSITE' | 'MANUAL_PROVIDER_CONFIRMATION'
+    manualEvidenceId: string | null
+}
+
+export interface FinancialReviewManualFulfillmentEvidenceInput {
+    invoiceNo: string
+    cardNumber: string
+    packageName: string
+    providerAmount: string
+    currency: string
+    evidenceSource: string
+    evidenceNote: string
+    observedAt: string
+}
+
+export interface FinancialReviewManualFulfillmentEvidenceAudit {
+    id: string
+    invoiceNo: string
+    beinAccountId: string
+    cardNumberSnapshot: string
+    packageNameSnapshot: string
+    providerAmount: string
+    currency: string
+    evidenceSource: string
+    evidenceNote: string
+    observedAt: string
+    actorUserId: string
 }
 
 export interface FinancialReviewItem {
+    capabilities?: import('./capabilities').ReviewCapabilities
     id: string
     type: string
     cardNumber: string
@@ -109,4 +140,5 @@ export interface FinancialReviewItem {
     packagePrice: number | null
     evidence: FinancialReviewEvidence
     review: FinancialReviewMetadata
+    manualFulfillmentEvidence: FinancialReviewManualFulfillmentEvidenceAudit | null
 }

@@ -4,6 +4,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { Save, Loader2, Eye, EyeOff, HelpCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
+import { isRenewalFulfillmentEnforcementReason } from '../../../shared/operations/renewal-fulfillment-config'
+import type {
+    RenewalFulfillmentEnforcementReason,
+    RenewalFulfillmentProofMode,
+} from '../../../shared/operations/renewal-fulfillment-config'
 
 interface ConfigSection {
     title: string
@@ -14,9 +19,26 @@ interface ConfigSection {
 interface ConfigField {
     key: string
     label: string
-    type: 'text' | 'password' | 'checkbox' | 'number'
+    type: 'text' | 'password' | 'checkbox' | 'number' | 'select'
     placeholder?: string
     hint?: string
+    options?: Array<{ value: string; label: string; disabled?: boolean }>
+    status?: string
+    statusAvailable?: boolean
+}
+
+interface RenewalFulfillmentEnforcementStatus {
+    available: boolean
+    reason: RenewalFulfillmentEnforcementReason
+    effectiveMode: RenewalFulfillmentProofMode
+    verifiedAt: string | null
+}
+
+const DEFAULT_ENFORCEMENT_STATUS: RenewalFulfillmentEnforcementStatus = {
+    available: false,
+    reason: 'LIVE_SMOKE_ATTESTATION_MISSING',
+    effectiveMode: 'REVIEW_ONLY',
+    verifiedAt: null,
 }
 
 export default function BeINConfigForm() {
@@ -24,7 +46,26 @@ export default function BeINConfigForm() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [config, setConfig] = useState<Record<string, string>>({})
+    const [readiness, setReadiness] = useState<{ eligibleAccountCount: number; requestedMode: string; effectiveMode: string; reasonCode: string } | null>(null)
     const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
+    const [enforcementStatus, setEnforcementStatus] =
+        useState<RenewalFulfillmentEnforcementStatus>(DEFAULT_ENFORCEMENT_STATUS)
+
+    const enforcementReasonLabels: Record<RenewalFulfillmentEnforcementReason, string> = {
+        LIVE_SMOKE_ATTESTATION_VALID:
+            t.admin.config.enforcement.reasons.liveSmokeAttestationValid,
+        LIVE_SMOKE_ATTESTATION_MISSING:
+            t.admin.config.enforcement.reasons.liveSmokeAttestationMissing,
+        LIVE_SMOKE_ATTESTATION_INVALID:
+            t.admin.config.enforcement.reasons.liveSmokeAttestationInvalid,
+        LIVE_SMOKE_ATTESTATION_STALE:
+            t.admin.config.enforcement.reasons.liveSmokeAttestationStale,
+        LIVE_SMOKE_ATTESTATION_FROM_FUTURE:
+            t.admin.config.enforcement.reasons.liveSmokeAttestationFromFuture,
+        LIVE_SMOKE_RELEASE_MISMATCH:
+            t.admin.config.enforcement.reasons.liveSmokeReleaseMismatch,
+    }
+    const enforcementStatusText = enforcementReasonLabels[enforcementStatus.reason]
 
     const CONFIG_SECTIONS: ConfigSection[] = useMemo(() => [
         {
@@ -43,6 +84,12 @@ export default function BeINConfigForm() {
                 { key: 'bein_renew_url', label: t.admin.config.fields.renewPage, type: 'text', placeholder: '/Renew' },
                 { key: 'bein_check_url', label: t.admin.config.fields.checkPage, type: 'text', placeholder: '/CheckBalance' },
                 { key: 'bein_signal_url', label: t.admin.config.fields.signalPage, type: 'text', placeholder: '/RefreshSignal' },
+                {
+                    key: 'bein_sold_packages_report_url',
+                    label: t.admin.config.fields.soldPackagesReportPage,
+                    type: 'text',
+                    placeholder: '/Dealers/Reports/frmSoldPackagesReport.aspx',
+                },
             ]
         },
         {
@@ -92,6 +139,52 @@ export default function BeINConfigForm() {
             ]
         },
         {
+            title: t.admin.config.sections.fulfillmentProof,
+            icon: '🛡️',
+            fields: [
+                {
+                    key: 'bein_renewal_fulfillment_proof_mode',
+                    label: t.admin.config.fields.fulfillmentProofMode,
+                    type: 'select',
+                    hint: t.admin.config.hints.fulfillmentProofMode,
+                    options: [
+                        {
+                            value: 'REVIEW_ONLY',
+                            label: t.admin.config.options.fulfillmentProofModes.reviewOnly,
+                        },
+                        {
+                            value: 'ENFORCE',
+                            label: t.admin.config.options.fulfillmentProofModes.enforce,
+                            disabled: !enforcementStatus.available,
+                        },
+                    ],
+                    status: enforcementStatusText,
+                    statusAvailable: enforcementStatus.available,
+                },
+                {
+                    key: 'bein_sold_report_page_cap',
+                    label: t.admin.config.fields.soldReportPageCap,
+                    type: 'number',
+                    placeholder: '100',
+                    hint: t.admin.config.hints.soldReportPageCap,
+                },
+                {
+                    key: 'bein_sold_report_scan_attempts',
+                    label: t.admin.config.fields.soldReportScanAttempts,
+                    type: 'number',
+                    placeholder: '2',
+                    hint: t.admin.config.hints.soldReportScanAttempts,
+                },
+                {
+                    key: 'bein_renewal_verification_delays_ms',
+                    label: t.admin.config.fields.renewalVerificationDelays,
+                    type: 'text',
+                    placeholder: '0,5000,15000,30000',
+                    hint: t.admin.config.hints.renewalVerificationDelays,
+                },
+            ],
+        },
+        {
             title: t.admin.config.sections.advanced,
             icon: '⚙️',
             fields: [
@@ -134,13 +227,40 @@ export default function BeINConfigForm() {
                 { key: 'sidebar_show_low_balance', label: 'Balance Alert Monitor', type: 'checkbox' as const },
             ]
         },
-    ], [t])
+    ], [t, enforcementStatus.available, enforcementStatusText])
 
     useEffect(() => {
         fetch('/api/admin/bein-config')
             .then(res => res.json())
             .then(data => {
-                if (!data.error) setConfig(data)
+                if (!data.error) {
+                    if (data.renewalReadiness && Number.isInteger(data.renewalReadiness.eligibleAccountCount)) {
+                        setReadiness(data.renewalReadiness)
+                    }
+                    const status = data.renewalFulfillmentEnforcement
+                    if (
+                        status &&
+                        typeof status.available === 'boolean' &&
+                        isRenewalFulfillmentEnforcementReason(status.reason) &&
+                        (status.effectiveMode === 'REVIEW_ONLY' || status.effectiveMode === 'ENFORCE') &&
+                        (status.verifiedAt === null || typeof status.verifiedAt === 'string')
+                    ) {
+                        setEnforcementStatus(status as RenewalFulfillmentEnforcementStatus)
+                    }
+                    const settings = Object.entries(data).reduce<Record<string, string>>(
+                        (result, [key, value]) => {
+                            if (
+                                key !== 'renewalFulfillmentEnforcement' &&
+                                typeof value === 'string'
+                            ) {
+                                result[key] = value
+                            }
+                            return result
+                        },
+                        {}
+                    )
+                    setConfig(settings)
+                }
                 setLoading(false)
             })
             .catch(() => {
@@ -153,6 +273,15 @@ export default function BeINConfigForm() {
     const PROTECTED_CODE = '1419'
 
     const handleChange = (key: string, value: string | boolean) => {
+        if (
+            key === 'bein_renewal_fulfillment_proof_mode' &&
+            value === 'ENFORCE' &&
+            !enforcementStatus.available
+        ) {
+            toast.error(enforcementStatusText)
+            return
+        }
+
         // Password protection for sidebar visibility toggles
         if (PROTECTED_KEYS.includes(key) && value === true) {
             const code = window.prompt('Enter security code:')
@@ -166,6 +295,13 @@ export default function BeINConfigForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (
+            config.bein_renewal_fulfillment_proof_mode === 'ENFORCE' &&
+            !enforcementStatus.available
+        ) {
+            toast.error(enforcementStatusText)
+            return
+        }
         setSaving(true)
 
         try {
@@ -175,7 +311,19 @@ export default function BeINConfigForm() {
                 body: JSON.stringify(config),
             })
 
-            if (!res.ok) throw new Error(t.admin.config.messages.saveError)
+            if (!res.ok) {
+                const payload: { error?: string; reason?: string } = await res.json().catch(() => ({}))
+                if (payload.error === 'RENEWAL_FULFILLMENT_ENFORCEMENT_UNAVAILABLE') {
+                    const reason = isRenewalFulfillmentEnforcementReason(payload.reason)
+                        ? payload.reason
+                        : 'LIVE_SMOKE_ATTESTATION_INVALID'
+                    toast.error(
+                        enforcementReasonLabels[reason]
+                    )
+                    return
+                }
+                throw new Error(t.admin.config.messages.saveError)
+            }
 
             toast.success(t.admin.config.messages.saveSuccess)
         } catch {
@@ -200,6 +348,13 @@ export default function BeINConfigForm() {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto pb-24">
+            {readiness && <section className="rounded-xl border border-border bg-card p-4 space-y-2" aria-label={t.operations.readinessTitle}>
+                <h2 className="font-semibold">{t.operations.readinessTitle}</h2>
+                <p>{t.operations.readinessAccounts}: {readiness.eligibleAccountCount}</p>
+                <p>{t.operations.readinessModes}: <bdi>{readiness.requestedMode} / {readiness.effectiveMode}</bdi></p>
+                {readiness.reasonCode === 'NO_ELIGIBLE_PROVIDER_ACCOUNT' && <p role="status">{t.operations.readinessNoAccounts}</p>}
+                <p className="text-sm text-muted-foreground">{t.operations.readinessLocalOnly}</p>
+            </section>}
             {CONFIG_SECTIONS.map((section, idx) => (
                 <div key={idx} className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
                     <div className="bg-gradient-to-r from-secondary to-card p-4 border-b border-border">
@@ -232,13 +387,33 @@ export default function BeINConfigForm() {
                                             )}
                                         </label>
                                         <div className="relative">
-                                            <input
-                                                type={field.type === 'password' && !showPasswords[field.key] ? 'password' : field.type === 'number' ? 'number' : 'text'}
-                                                value={config[field.key] || ''}
-                                                onChange={(e) => handleChange(field.key, e.target.value)}
-                                                placeholder={field.placeholder}
-                                                className="w-full px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] transition-all dir-ltr text-left bg-background text-foreground"
-                                            />
+                                            {field.type === 'select' ? (
+                                                <select
+                                                    value={config[field.key] || ''}
+                                                    onChange={(e) => handleChange(field.key, e.target.value)}
+                                                    aria-label={field.label}
+                                                    aria-describedby={field.status ? `${field.key}-status` : undefined}
+                                                    className="w-full px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] transition-all bg-background text-foreground"
+                                                >
+                                                    {field.options?.map((option) => (
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                            disabled={option.disabled}
+                                                        >
+                                                            {option.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <input
+                                                    type={field.type === 'password' && !showPasswords[field.key] ? 'password' : field.type === 'number' ? 'number' : 'text'}
+                                                    value={config[field.key] || ''}
+                                                    onChange={(e) => handleChange(field.key, e.target.value)}
+                                                    placeholder={field.placeholder}
+                                                    className="w-full px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] transition-all dir-ltr text-left bg-background text-foreground"
+                                                />
+                                            )}
                                             {field.type === 'password' && (
                                                 <button
                                                     type="button"
@@ -249,6 +424,19 @@ export default function BeINConfigForm() {
                                                 </button>
                                             )}
                                         </div>
+                                        {field.status && (
+                                            <p
+                                                id={`${field.key}-status`}
+                                                role="status"
+                                                className={`mt-2 text-sm ${
+                                                    field.statusAvailable
+                                                        ? 'text-muted-foreground'
+                                                        : 'text-destructive'
+                                                }`}
+                                            >
+                                                {field.status}
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>

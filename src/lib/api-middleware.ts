@@ -3,7 +3,7 @@ import { Session } from 'next-auth'
 import { auth } from '@/lib/auth'
 import { checkRateLimit, RateLimitConfig, rateLimitHeaders, RATE_LIMITS } from '@/lib/rate-limiter'
 import { errorResponse, ERROR_MESSAGES } from '@/lib/api-response'
-import { hasRole, RoleLevel, roleHasPermission, roleHasAnyPermission, AuthenticatedUser } from '@/lib/auth-utils'
+import { getAuthenticatedUser, hasRole, RoleLevel, roleHasPermission, roleHasAnyPermission } from '@/lib/auth-utils'
 import { Permission } from '@/lib/permissions'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
 
@@ -23,6 +23,7 @@ export type AuthorizedApiHandler = (
 
 interface WithAuthOptions {
     requiredRole?: RoleLevel
+    currentUser?: boolean
 }
 
 /**
@@ -73,9 +74,12 @@ export function withAuth(
     handler: AuthorizedApiHandler,
     options: WithAuthOptions = {}
 ) {
-    return async (req: NextRequest, context?: RouteContext) => {
+    return async (req: NextRequest, context: RouteContext) => {
         // 1. Check Authentication (Web session OR Mobile token)
-        const session = await getAuthSession(req)
+        const currentUser = options.currentUser ? await getAuthenticatedUser(req) : null
+        const session = options.currentUser
+            ? (currentUser ? { user: { ...currentUser, passwordChangedAt: 0 }, expires: '' } as Session : null)
+            : await getAuthSession(req)
         if (!session?.user?.id) {
             return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401, 'UNAUTHORIZED')
         }

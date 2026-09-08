@@ -4,6 +4,7 @@ import type {
     FinancialReviewMetadata,
     FinancialReviewPaymentStatus,
     FinancialReviewEvidence,
+    FinancialReviewManualFulfillmentEvidenceInput,
 } from './types'
 
 type DecisionInput = Omit<FinancialReviewDecision, 'paymentStatus'> & {
@@ -20,11 +21,34 @@ type DecisionGuardInput = {
     action: FinancialReviewDecisionAction
     evidence: FinancialReviewEvidence
     manualVerification?: FinancialReviewManualVerification | null
+    manualFulfillmentEvidence?: FinancialReviewManualFulfillmentEvidenceInput | null
 }
 
 type DecisionGuardResult = {
     allowed: boolean
-    reason?: 'MISSING_PROVIDER_CHARGE_EVIDENCE' | 'PROVIDER_CHARGE_EVIDENCE_CONFLICT' | 'MISSING_MANUAL_NO_CHARGE_VERIFICATION'
+    reason?:
+        | 'MISSING_PROVIDER_CHARGE_EVIDENCE'
+        | 'PROVIDER_CHARGE_EVIDENCE_CONFLICT'
+        | 'MISSING_MANUAL_NO_CHARGE_VERIFICATION'
+        | 'CONFIRMED_NO_CHARGE_EVIDENCE_REQUIRED'
+}
+
+function hasCompleteManualFulfillmentEvidence(
+    evidence: FinancialReviewManualFulfillmentEvidenceInput | null | undefined
+): boolean {
+    if (!evidence) return false
+    const observedAt = new Date(evidence.observedAt)
+    return Boolean(
+        evidence.invoiceNo.trim() &&
+        evidence.cardNumber.trim() &&
+        evidence.packageName.trim() &&
+        /^\d+(?:\.\d{1,2})?$/.test(evidence.providerAmount.trim()) &&
+        Number(evidence.providerAmount) > 0 &&
+        /^[A-Z]{3}$/.test(evidence.currency.trim()) &&
+        evidence.evidenceSource.trim() &&
+        evidence.evidenceNote.trim() &&
+        Number.isFinite(observedAt.getTime())
+    )
 }
 
 export function canRecordFinancialReviewDecisionForStatus(input: {
@@ -53,18 +77,25 @@ export function normalizeManualVerificationForAction(
 
     if (action === 'BEIN_EXECUTED_NO_REFUND') {
         return {
-            cardRenewed: true,
+            ...(typeof manualVerification?.cardRenewed === 'boolean'
+                ? { cardRenewed: manualVerification.cardRenewed }
+                : {}),
             paymentStatus: 'تم تأكيد الدفع',
             ...(typeof actualBeinDebitAmount === 'number' ? { actualBeinDebitAmount } : {}),
         }
     }
 
     if (action === 'REFUND_CUSTOMER') {
-        return {
-            cardRenewed: false,
-            paymentStatus: 'لم يتم تأكيد الدفع',
+        const normalized = {
+            ...(typeof manualVerification?.cardRenewed === 'boolean'
+                ? { cardRenewed: manualVerification.cardRenewed }
+                : {}),
+            ...(manualVerification?.paymentStatus
+                ? { paymentStatus: manualVerification.paymentStatus }
+                : {}),
             ...(typeof actualBeinDebitAmount === 'number' ? { actualBeinDebitAmount } : {}),
         }
+        return Object.keys(normalized).length > 0 ? normalized : null
     }
 
     return manualVerification || null
@@ -106,9 +137,12 @@ export function isFinancialReviewDecisionAllowed(input: DecisionGuardInput): Dec
 
     if (input.action === 'BEIN_EXECUTED_NO_REFUND') {
         if (
-            trustedProviderCharge ||
-            input.manualVerification?.cardRenewed === true ||
-            input.manualVerification?.paymentStatus === 'تم تأكيد الدفع'
+            (
+                input.evidence.fulfillmentVerified &&
+                Boolean(input.evidence.fulfillmentProofId) &&
+                input.evidence.fulfillmentAuthority === 'AUTOMATED_COMPOSITE'
+            ) ||
+            hasCompleteManualFulfillmentEvidence(input.manualFulfillmentEvidence)
         ) {
             return { allowed: true }
         }
@@ -119,12 +153,5 @@ export function isFinancialReviewDecisionAllowed(input: DecisionGuardInput): Dec
         return { allowed: false, reason: 'PROVIDER_CHARGE_EVIDENCE_CONFLICT' }
     }
 
-    if (
-        input.manualVerification?.cardRenewed === false ||
-        input.manualVerification?.paymentStatus === 'لم يتم تأكيد الدفع'
-    ) {
-        return { allowed: true }
-    }
-
-    return { allowed: false, reason: 'MISSING_MANUAL_NO_CHARGE_VERIFICATION' }
+    return { allowed: false, reason: 'CONFIRMED_NO_CHARGE_EVIDENCE_REQUIRED' }
 }

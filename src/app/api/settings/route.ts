@@ -16,6 +16,12 @@ import {
     normalizeMaintenanceSettingsForAdmin,
     normalizeMaintenanceSettingsUpdate,
 } from '@/lib/maintenance/effective-status'
+import {
+    RENEWAL_FULFILLMENT_LIVE_SMOKE_ATTESTATION_SETTING_KEY,
+    RENEWAL_FULFILLMENT_PROOF_MODE_SETTING_KEY,
+    evaluateRenewalFulfillmentEnforcement,
+    isRenewalFulfillmentProofMode,
+} from '../../../../shared/operations/renewal-fulfillment-config'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -45,6 +51,14 @@ export async function GET(request: NextRequest) {
             acc[curr.key] = curr.value
             return acc
         }, {} as Record<string, string>)
+
+        const enforcement = evaluateRenewalFulfillmentEnforcement({
+            requestedMode: settingsMap[RENEWAL_FULFILLMENT_PROOF_MODE_SETTING_KEY],
+            attestationValue:
+                settingsMap[RENEWAL_FULFILLMENT_LIVE_SMOKE_ATTESTATION_SETTING_KEY],
+        })
+        delete settingsMap[RENEWAL_FULFILLMENT_LIVE_SMOKE_ATTESTATION_SETTING_KEY]
+        settingsMap[RENEWAL_FULFILLMENT_PROOF_MODE_SETTING_KEY] = enforcement.effectiveMode
 
         return NextResponse.json(
             normalizeBeinConnectionSettingsForAdmin(
@@ -83,6 +97,50 @@ export async function PUT(request: NextRequest) {
         }
 
         const normalizedBody = normalizeMaintenanceSettingsUpdate(body as Record<string, unknown>)
+
+        if (Object.prototype.hasOwnProperty.call(
+            normalizedBody,
+            RENEWAL_FULFILLMENT_LIVE_SMOKE_ATTESTATION_SETTING_KEY
+        )) {
+            return NextResponse.json(
+                { error: 'RENEWAL_FULFILLMENT_LIVE_SMOKE_ATTESTATION_READ_ONLY' },
+                { status: 400 }
+            )
+        }
+
+        if (Object.prototype.hasOwnProperty.call(
+            normalizedBody,
+            RENEWAL_FULFILLMENT_PROOF_MODE_SETTING_KEY
+        )) {
+            const requestedMode = normalizedBody[RENEWAL_FULFILLMENT_PROOF_MODE_SETTING_KEY]
+            if (!isRenewalFulfillmentProofMode(requestedMode)) {
+                return NextResponse.json(
+                    { error: 'INVALID_RENEWAL_FULFILLMENT_PROOF_MODE' },
+                    { status: 400 }
+                )
+            }
+            if (requestedMode === 'ENFORCE') {
+                const liveSmokeAttestation = await prisma.setting.findUnique({
+                    where: {
+                        key: RENEWAL_FULFILLMENT_LIVE_SMOKE_ATTESTATION_SETTING_KEY,
+                    },
+                    select: { value: true },
+                })
+                const enforcement = evaluateRenewalFulfillmentEnforcement({
+                    requestedMode,
+                    attestationValue: liveSmokeAttestation?.value,
+                })
+                if (!enforcement.enforcementAvailable) {
+                    return NextResponse.json(
+                        {
+                            error: 'RENEWAL_FULFILLMENT_ENFORCEMENT_UNAVAILABLE',
+                            reason: enforcement.reason,
+                        },
+                        { status: 409 }
+                    )
+                }
+            }
+        }
 
         if (BEIN_LOGIN_FAILURE_THRESHOLD_SETTING_KEY in normalizedBody) {
             const validation = validateBeinLoginFailureThreshold(
@@ -124,7 +182,8 @@ export async function PUT(request: NextRequest) {
         const SENSITIVE_KEYS = [
             'bein_password',
             'bein_totp_secret',
-            'captcha_2captcha_key'
+            'captcha_2captcha_key',
+            RENEWAL_FULFILLMENT_LIVE_SMOKE_ATTESTATION_SETTING_KEY,
         ]
 
         const safeDetails = Object.fromEntries(

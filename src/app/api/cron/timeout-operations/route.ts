@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
 import { runDispatchWatchdog } from '@/lib/operation-dispatch'
+import { syncPendingStoreSubscriptionSettlements } from '@/lib/store-subscription'
 
 // This endpoint should be called by a cron job every 5 minutes
 // Example: Vercel Cron, or external service like cron-job.org
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
             maxAttempts: 3,
             limit: 50,
         })
+        const storeSubscriptionSettlements = await syncPendingStoreSubscriptionSettlements(50)
 
         // Timeout settings (in minutes)
         const PROCESSING_TIMEOUT = 5        // 5 minutes for PROCESSING
@@ -108,8 +110,11 @@ export async function GET(request: Request) {
             refunded: refundedCount,
             skipped: skippedCount,
             dispatchWatchdog,
-            errors: errors.length > 0 || dispatchWatchdog.errors.length > 0
-                ? [...errors, ...dispatchWatchdog.errors]
+            storeSubscriptionSettlements,
+            errors: errors.length > 0 ||
+                dispatchWatchdog.errors.length > 0 ||
+                storeSubscriptionSettlements.errors.length > 0
+                ? [...errors, ...dispatchWatchdog.errors, ...storeSubscriptionSettlements.errors]
                 : undefined,
             timestamp: new Date().toISOString(),
         })

@@ -14,8 +14,16 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getStripeSecretKey } from '@/lib/store-pricing'
+import { CURRENCY_CONFIG, getStripeSecretKey, toStripeAmount } from '@/lib/store-pricing'
 import Stripe from 'stripe'
+import { dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import { finalizeMobileRenewalPayment } from '@/lib/mobile-renewal-payment-finalization'
+import {
+    finalizeStoreSubscriptionPayment,
+    markStoreSubscriptionPaymentReviewRequired,
+} from '@/lib/store-subscription-payment-finalization'
+import { STORE_PAYMENT_INTENT_REVIEW_REQUIRED_CODE } from '@/lib/store-subscription-payment-claim'
+import { finalizeRenewalPaymentRefund } from '@/lib/renewal-payment-refund-finalization'
 
 /**
  * Get webhook secret from settings
@@ -85,7 +93,7 @@ export async function POST(request: NextRequest) {
                 break
 
             case 'charge.refunded':
-                await handleRefund(event.data.object as Stripe.Charge)
+                await handleRefund(event.data.object as Stripe.Charge, stripe)
                 break
 
             default:
@@ -126,45 +134,54 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
         return
     }
 
-    // Skip if already processed
-    if (payment.status === 'SUCCEEDED') {
-        console.log(`Payment already processed: ${paymentIntentId}`)
-        return
-    }
-
-    // Update payment status
-    await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: 'SUCCEEDED' }
-    })
-
     // =========================================================
     // Handle MOBILE RENEWAL payments (from customer app)
     // =========================================================
-    if (metadata.source === 'mobile_renewal' && metadata.operationId) {
-        console.log(`[Webhook] Mobile renewal payment detected for operation: ${metadata.operationId}`)
+    const localPaymentMetadata = payment.metadata &&
+        typeof payment.metadata === 'object' &&
+        !Array.isArray(payment.metadata)
+        ? payment.metadata
+        : null
+    if (metadata.source === 'mobile_renewal' || localPaymentMetadata?.source === 'mobile_renewal') {
+        const finalization = await prisma.$transaction((tx) =>
+            finalizeMobileRenewalPayment(tx, {
+                provider: {
+                    id: paymentIntent.id,
+                    status: paymentIntent.status,
+                    amount: paymentIntent.amount,
+                    amountReceived: paymentIntent.amount_received,
+                    currency: paymentIntent.currency,
+                    metadata: paymentIntent.metadata,
+                },
+            })
+        )
 
-        // Update operation status to COMPLETING (worker will call confirmPurchase)
-        await prisma.operation.update({
-            where: { id: metadata.operationId },
-            data: { status: 'COMPLETING' }
-        })
+        if (finalization.shouldDispatch) {
+            const dispatchResult = await dispatchPendingOperationJobs({
+                operationIds: [finalization.operationId],
+            })
+            console.log(`[Webhook] CONFIRM_PURCHASE dispatch for ${finalization.operationId}: ${dispatchResult.failed === 0 ? 'queued' : 'saved for retry'}`)
+        } else {
+            console.log(`[Webhook] Mobile renewal payment replay ignored safely: ${paymentIntentId}`)
+        }
+        return
+    }
 
-        // Queue job to complete the purchase (call confirmPurchase on worker)
-        const { addCustomerOperationJob } = await import('@/lib/queue')
-        await addCustomerOperationJob({
-            operationId: metadata.operationId,
-            type: 'CONFIRM_PURCHASE',
-            customerId: metadata.customerId,
-            amount: parseFloat(metadata.customerPrice || '0')
-        })
-
-        console.log(`[Webhook] Queued CONFIRM_PURCHASE job for operation: ${metadata.operationId}`)
+    // Skip if already processed
+    if (
+        payment.status === 'SUCCEEDED' &&
+        !(payment.type === 'SUBSCRIPTION' && payment.subscription?.status === 'AWAITING_PAYMENT')
+    ) {
+        console.log(`Payment already processed: ${paymentIntentId}`)
         return
     }
 
     // Handle based on payment type (existing logic for store orders/subscriptions)
     if (payment.type === 'ORDER' && payment.order) {
+        await prisma.payment.update({
+            where: { id: payment.id },
+            data: { status: 'SUCCEEDED' }
+        })
         // Update order status to PAID
         if (payment.order.status === 'PENDING') {
             await prisma.order.update({
@@ -179,18 +196,70 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
     } else if (payment.type === 'SUBSCRIPTION' && payment.subscription) {
         // Update subscription status
         if (payment.subscription.status === 'AWAITING_PAYMENT') {
-            await prisma.storeSubscription.update({
-                where: { id: payment.subscription.id },
-                data: { status: 'PAID' }
-            })
-
-            // Signal worker to continue (update operation if linked)
-            if (payment.subscription.operationId) {
-                await prisma.operation.update({
+            const operation = payment.subscription.operationId
+                ? await prisma.operation.findUnique({
                     where: { id: payment.subscription.operationId },
-                    data: { status: 'PROCESSING' }
+                    select: { id: true, cardNumber: true, selectedPackage: true },
                 })
+                : null
+
+            if (!operation) {
+                throw new Error('STORE_RENEWAL_OPERATION_NOT_FOUND')
             }
+
+            const country = payment.subscription.currency === CURRENCY_CONFIG.EG.code ? 'EG' : 'SA'
+            const expectedCurrency = CURRENCY_CONFIG[country]
+            const expectedProviderAmount = (
+                payment.subscription.price - payment.subscription.creditUsed
+            )
+            const selectedPackage = (
+                operation.selectedPackage &&
+                typeof operation.selectedPackage === 'object' &&
+                !Array.isArray(operation.selectedPackage)
+            )
+                ? operation.selectedPackage as Record<string, unknown>
+                : null
+            if (
+                typeof selectedPackage?.index !== 'number' ||
+                typeof selectedPackage.name !== 'string' ||
+                typeof selectedPackage.price !== 'number' ||
+                paymentIntent.status !== 'succeeded' ||
+                payment.subscription.currency !== expectedCurrency.code ||
+                payment.currency !== expectedCurrency.code ||
+                !Number.isFinite(expectedProviderAmount) ||
+                expectedProviderAmount <= 0 ||
+                paymentIntent.metadata.source !== 'store_renewal' ||
+                paymentIntent.metadata.subscriptionId !== payment.subscription.id ||
+                paymentIntent.metadata.operationId !== operation.id ||
+                paymentIntent.metadata.customerId !== payment.customerId ||
+                paymentIntent.metadata.packageIndex !== selectedPackage.index.toString() ||
+                paymentIntent.metadata.packageName !== selectedPackage.name ||
+                paymentIntent.metadata.beinPrice !== selectedPackage.price.toString() ||
+                paymentIntent.metadata.customerPrice !== payment.subscription.price.toString() ||
+                paymentIntent.metadata.creditUsed !== payment.subscription.creditUsed.toString() ||
+                toStripeAmount(payment.amount, country) !==
+                    toStripeAmount(expectedProviderAmount, country) ||
+                paymentIntent.amount !== toStripeAmount(expectedProviderAmount, country) ||
+                paymentIntent.currency !== expectedCurrency.stripeCode
+            ) {
+                await prisma.$transaction((tx) => markStoreSubscriptionPaymentReviewRequired(tx, {
+                    subscriptionId: payment.subscription!.id,
+                    operationId: operation.id,
+                    cardNumber: operation.cardNumber,
+                    reasonCode: STORE_PAYMENT_INTENT_REVIEW_REQUIRED_CODE,
+                }))
+                console.error(`Store subscription payment requires review: ${paymentIntentId}`)
+                return
+            }
+
+            await prisma.$transaction((tx) => finalizeStoreSubscriptionPayment(tx, {
+                subscriptionId: payment.subscription!.id,
+                operationId: operation.id,
+                cardNumber: operation.cardNumber,
+                customerId: payment.customerId,
+                paymentIntentId,
+            }))
+            await dispatchPendingOperationJobs({ operationIds: [operation.id] })
             console.log(`Subscription ${payment.subscription.id} payment confirmed`)
         }
     }
@@ -219,14 +288,22 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
         return
     }
 
-    // Update payment status
-    await prisma.payment.update({
-        where: { id: payment.id },
+    // A delayed failure event must never downgrade succeeded/refunded truth.
+    const update = await prisma.payment.updateMany({
+        where: {
+            id: payment.id,
+            status: { in: ['PENDING', 'PROCESSING'] },
+        },
         data: {
             status: 'FAILED',
             failureMessage: errorMessage,
         }
     })
+
+    if (update.count === 0) {
+        console.log(`Ignored stale payment failure for: ${paymentIntentId}`)
+        return
+    }
 
     // For subscriptions, we don't automatically fail - customer can retry
     // For orders, we keep status as PENDING - customer can retry payment
@@ -236,7 +313,7 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
 /**
  * Handle refund
  */
-async function handleRefund(charge: Stripe.Charge) {
+async function handleRefund(charge: Stripe.Charge, stripe: Stripe) {
     // Get payment intent ID from charge
     const paymentIntentId = typeof charge.payment_intent === 'string'
         ? charge.payment_intent
@@ -263,39 +340,68 @@ async function handleRefund(charge: Stripe.Charge) {
         return
     }
 
-    // Calculate refunded amount
-    const refundedAmount = charge.amount_refunded / 100 // Convert from cents
-    const isFullRefund = charge.refunded
+    const providerPaymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+    const localMetadata = payment.metadata &&
+        typeof payment.metadata === 'object' &&
+        !Array.isArray(payment.metadata)
+        ? payment.metadata as Record<string, unknown>
+        : null
+    const providerSource = providerPaymentIntent.metadata.source
+    const localSource = typeof localMetadata?.source === 'string'
+        ? localMetadata.source
+        : null
+    const renewalRefund = !!payment.subscription ||
+        ['store_renewal', 'mobile_renewal'].includes(providerSource) ||
+        ['store_renewal', 'mobile_renewal'].includes(localSource || '')
 
-    // Update payment status
-    await prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-            status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
-            refundedAmount,
-            refundedAt: new Date(),
-        }
-    })
-
-    // Update order if applicable
-    if (payment.order && isFullRefund) {
-        await prisma.order.update({
-            where: { id: payment.order.id },
-            data: { status: 'REFUNDED' }
-        })
-        console.log(`Order ${payment.order.orderNumber} marked as REFUNDED`)
+    if (renewalRefund) {
+        const result = await prisma.$transaction((tx) => finalizeRenewalPaymentRefund(tx, {
+            charge: {
+                id: charge.id,
+                paymentIntentId,
+                amount: charge.amount,
+                amountRefunded: charge.amount_refunded,
+                currency: charge.currency,
+                refunded: charge.refunded,
+            },
+            paymentIntent: {
+                id: providerPaymentIntent.id,
+                status: providerPaymentIntent.status,
+                amount: providerPaymentIntent.amount,
+                amountReceived: providerPaymentIntent.amount_received,
+                currency: providerPaymentIntent.currency,
+                metadata: providerPaymentIntent.metadata,
+            },
+        }))
+        console.log(
+            `Renewal refund ${result.result}: ${result.operationId} (${result.source})`
+        )
+        return
     }
 
-    // Update subscription if applicable
-    if (payment.subscription && isFullRefund) {
-        await prisma.storeSubscription.update({
-            where: { id: payment.subscription.id },
+    // Non-renewal order refund remains atomic so the Payment and Order cannot
+    // disagree when a webhook is replayed or the process exits mid-handler.
+    const refundedAmount = charge.amount_refunded / 100 // Convert from cents
+    const isFullRefund = charge.refunded
+    await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "payments" WHERE id = ${payment.id} FOR UPDATE`
+        await tx.payment.update({
+            where: { id: payment.id },
             data: {
-                status: 'REFUNDED',
+                status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+                refundedAmount,
                 refundedAt: new Date(),
             }
         })
-        console.log(`Subscription ${payment.subscription.id} marked as REFUNDED`)
+        if (payment.order && isFullRefund) {
+            await tx.order.update({
+                where: { id: payment.order.id },
+                data: { status: 'REFUNDED' }
+            })
+        }
+    })
+    if (payment.order && isFullRefund) {
+        console.log(`Order ${payment.order.orderNumber} marked as REFUNDED`)
     }
 }
 

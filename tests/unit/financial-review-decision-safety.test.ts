@@ -1,5 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
     appendManualReviewDecision,
     canRecordFinancialReviewDecisionForStatus,
@@ -41,6 +43,10 @@ const baseEvidence: FinancialReviewEvidence = {
     legacyStoredBeinDebitAmount: null,
     differenceAmount: null,
     manualVerification: null,
+    fulfillmentVerified: false,
+    fulfillmentProofId: null,
+    fulfillmentAuthority: 'NONE',
+    manualEvidenceId: null,
 }
 
 test('adds default payment status for no-refund and refund decisions while preserving history', () => {
@@ -94,48 +100,135 @@ test('blocks refund and no-refund for incomplete evidence without manual verific
     }).allowed, false)
 })
 
-test('normalizes no-refund action into manual paid confirmation even when the old field is absent', () => {
+test('does not synthesize manual renewal confirmation from no-refund action', () => {
     const manualVerification = normalizeManualVerificationForAction('BEIN_EXECUTED_NO_REFUND')
 
-    assert.equal(manualVerification?.cardRenewed, true)
-    assert.equal(manualVerification?.paymentStatus, 'تم تأكيد الدفع')
+    assert.equal(manualVerification?.cardRenewed, undefined)
     assert.equal(isFinancialReviewDecisionAllowed({
         action: 'BEIN_EXECUTED_NO_REFUND',
         evidence: baseEvidence,
         manualVerification,
-    }).allowed, true)
+    }).allowed, false)
 })
 
-test('normalizes refund action into manual not-paid confirmation even when the old field is absent', () => {
+test('does not synthesize no-charge evidence from the refund action', () => {
     const manualVerification = normalizeManualVerificationForAction('REFUND_CUSTOMER')
 
-    assert.equal(manualVerification?.cardRenewed, false)
-    assert.equal(manualVerification?.paymentStatus, 'لم يتم تأكيد الدفع')
-    assert.equal(isFinancialReviewDecisionAllowed({
+    assert.equal(manualVerification, null)
+    const result = isFinancialReviewDecisionAllowed({
         action: 'REFUND_CUSTOMER',
         evidence: baseEvidence,
         manualVerification,
-    }).allowed, true)
+    })
+    assert.equal(result.allowed, false)
+    assert.equal(result.reason, 'CONFIRMED_NO_CHARGE_EVIDENCE_REQUIRED')
 })
 
-test('allows no-refund when manual verification confirms renewal', () => {
+test('cardRenewed=true alone cannot complete a renewal review', () => {
     const result = isFinancialReviewDecisionAllowed({
         action: 'BEIN_EXECUTED_NO_REFUND',
         evidence: baseEvidence,
         manualVerification: { cardRenewed: true },
     })
 
+    assert.equal(result.allowed, false)
+})
+
+test('allows no-refund when a unique automated composite proof exists', () => {
+    const result = isFinancialReviewDecisionAllowed({
+        action: 'BEIN_EXECUTED_NO_REFUND',
+        evidence: {
+            ...baseEvidence,
+            fulfillmentVerified: true,
+            fulfillmentProofId: 'proof-1',
+            fulfillmentAuthority: 'AUTOMATED_COMPOSITE',
+        },
+    })
+
     assert.equal(result.allowed, true)
 })
 
-test('allows refund when manual verification confirms no renewal and no trusted provider debit exists', () => {
+test('allows no-refund only with complete structured manual provider evidence', () => {
+    const result = isFinancialReviewDecisionAllowed({
+        action: 'BEIN_EXECUTED_NO_REFUND',
+        evidence: baseEvidence,
+        manualFulfillmentEvidence: {
+            invoiceNo: '53005727',
+            cardNumber: '7517687161',
+            packageName: 'Add Premium 12 Months',
+            providerAmount: '174.00',
+            currency: 'USD',
+            evidenceSource: 'SBS_INVOICE_DETAILS',
+            evidenceNote: 'Invoice and active contract checked in SBS.',
+            observedAt: '2026-08-24T12:00:00.000Z',
+        },
+    })
+
+    assert.equal(result.allowed, true)
+})
+
+test('rejects incomplete manual provider evidence', () => {
+    const result = isFinancialReviewDecisionAllowed({
+        action: 'BEIN_EXECUTED_NO_REFUND',
+        evidence: baseEvidence,
+        manualFulfillmentEvidence: {
+            invoiceNo: '53005727',
+            cardNumber: '7517687161',
+            packageName: '',
+            providerAmount: '174.00',
+            currency: 'USD',
+            evidenceSource: 'SBS_INVOICE_DETAILS',
+            evidenceNote: 'Invoice checked.',
+            observedAt: '2026-08-24T12:00:00.000Z',
+        },
+    })
+
+    assert.equal(result.allowed, false)
+})
+
+test('does not accept a fulfillment proof from a different beIN account', () => {
+    const source = readFileSync(join(process.cwd(), 'src', 'lib', 'financial-review', 'evidence.ts'), 'utf8')
+
+    assert.match(source, /operation\.fulfillmentProof\.beinAccountId === operation\.beinAccount\.id/)
+})
+
+test('admin decision route delegates structured manual completion to one atomic finalizer', () => {
+    const source = readFileSync(
+        join(process.cwd(), 'src', 'app', 'api', 'admin', 'financial-review', '[operationId]', 'decision', 'route.ts'),
+        'utf8'
+    )
+
+    assert.match(source, /finalizeManualRenewalFulfillment/)
+    assert.match(source, /manualFulfillmentEvidence/)
+    assert.match(source, /hasAutomatedCompositeProof/)
+    assert.match(source, /SOLD_REPORT_CONTRACT_CORRELATION/)
+    assert.doesNotMatch(source, /cardRenewed\s*===\s*true[\s\S]{0,600}status:\s*OperationStatus\.COMPLETED/)
+})
+
+test('does not allow no-refund from provider charge evidence alone', () => {
+    const result = isFinancialReviewDecisionAllowed({
+        action: 'BEIN_EXECUTED_NO_REFUND',
+        evidence: {
+            ...baseEvidence,
+            providerEvidenceState: 'confirmed-final-pay',
+            beinDebitConfirmed: true,
+            beinDebitAmount: 92,
+            beinDebitSource: 'audit_snapshot',
+        },
+    })
+
+    assert.equal(result.allowed, false)
+})
+
+test('manual no-renewal flags cannot replace a terminal no-charge verification', () => {
     const result = isFinancialReviewDecisionAllowed({
         action: 'REFUND_CUSTOMER',
         evidence: baseEvidence,
         manualVerification: { cardRenewed: false },
     })
 
-    assert.equal(result.allowed, true)
+    assert.equal(result.allowed, false)
+    assert.equal(result.reason, 'CONFIRMED_NO_CHARGE_EVIDENCE_REQUIRED')
 })
 
 test('blocks refund when trusted provider debit exists unless escalated outside automatic flow', () => {
@@ -167,4 +260,46 @@ test('does not allow refund decisions on already completed operations', () => {
         operationStatus: 'COMPLETED',
         action: 'REFUND_CUSTOMER',
     }), false)
+})
+
+test('admin refund delegates to the strict atomic no-charge finalizer', () => {
+    const routeSource = readFileSync(
+        join(process.cwd(), 'src', 'app', 'api', 'admin', 'financial-review', '[operationId]', 'decision', 'route.ts'),
+        'utf8'
+    )
+    const finalizerSource = readFileSync(
+        join(process.cwd(), 'src', 'lib', 'operations', 'financial-review-refund-finalization.ts'),
+        'utf8'
+    )
+
+    assert.match(routeSource, /finalizeStrictFinancialReviewRefund/)
+    assert.doesNotMatch(routeSource, /applyAdminRefund/)
+    assert.doesNotMatch(routeSource, /providerPaymentState:\s*'NOT_CHARGED'/)
+    assert.match(finalizerSource, /fulfillmentVerificationOutcome === 'VALID_NO_MATCH'/)
+    assert.match(finalizerSource, /createOperationPointReversalsInTransaction/)
+    assert.match(finalizerSource, /operationIntegrityIssue\.updateMany/)
+    assert.match(finalizerSource, /type: 'OPERATION_DEDUCT'/)
+    assert.match(finalizerSource, /type: 'DEBIT'/)
+    assert.match(finalizerSource, /CANONICAL_SETTLEMENT_REQUIRED/)
+    assert.match(finalizerSource, /operation\.storeSubscription \|\| customerProviderPayments\.length > 0/)
+    assert.doesNotMatch(finalizerSource, /increment: operation\.amount/)
+})
+
+test('manual completion cannot promote an unsubmitted or unmarked provider mutation', () => {
+    const routeSource = readFileSync(
+        join(process.cwd(), 'src', 'app', 'api', 'admin', 'financial-review', '[operationId]', 'decision', 'route.ts'),
+        'utf8'
+    )
+    const finalizerSource = readFileSync(
+        join(process.cwd(), 'src', 'lib', 'operations', 'manual-fulfillment-finalization.ts'),
+        'utf8'
+    )
+
+    assert.match(routeSource, /classifyFinancialReview\(operationState\)/)
+    assert.match(routeSource, /allowedActions\.includes\('BEIN_EXECUTED_NO_REFUND'\)/)
+    assert.doesNotMatch(routeSource, /providerPaymentState:[\s\S]{0,220}'NOT_CHARGED'/)
+    assert.match(finalizerSource, /operation\.type !== 'RENEW'/)
+    assert.match(finalizerSource, /operation\.providerMutationStage !== 'FINAL_OK'/)
+    assert.match(finalizerSource, /evidenceWithinMutationWindow/)
+    assert.match(finalizerSource, /operation\.providerPaymentState !== input\.providerPaymentState/)
 })

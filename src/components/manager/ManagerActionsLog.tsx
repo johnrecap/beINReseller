@@ -14,7 +14,7 @@ import { useTranslation } from "@/hooks/useTranslation"
 interface Action {
     id: string
     actionType: string
-    details: any
+    details: unknown
     createdAt: string
     user: {
         username: string

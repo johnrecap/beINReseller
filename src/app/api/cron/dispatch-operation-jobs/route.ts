@@ -21,8 +21,8 @@ export async function GET(request: Request) {
             )
         }
 
-        const result = await dispatchPendingOperationJobs({ limit: 50, maxAttempts: 3 })
-        const watchdog = await runDispatchWatchdog({ limit: 50, maxAttempts: 3 })
+        const result = await dispatchPendingOperationJobs({ limit: 50 })
+        const watchdog = await runDispatchWatchdog({ limit: 50 })
         return NextResponse.json({ success: true, ...result, watchdog })
     } catch (error) {
         console.error('[Dispatch Cron] Failed to dispatch pending operation jobs:', error)

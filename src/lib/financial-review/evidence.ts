@@ -23,6 +23,7 @@ type ReviewOperation = {
     user: { id: string; username: string } | null
     customer: { id: string; name: string; email: string } | null
     beinAccount: { id: string; username: string | null; label: string | null } | null
+    fulfillmentAuthority?: 'NONE' | 'AUTOMATED_COMPOSITE' | 'MANUAL_PROVIDER_CONFIRMATION' | null
     chargedBeinSpendLedger: {
         id: string
         beinAccountId: string
@@ -32,6 +33,27 @@ type ReviewOperation = {
         evidenceConfidence: string
         beinUsernameSnapshot: string
         beinLabelSnapshot: string | null
+    } | null
+    fulfillmentProof?: {
+        id: string
+        operationId: string
+        beinAccountId: string
+        cardNumberSnapshot: string
+        invoiceNo: string
+        proofKind?: string | null
+    } | null
+    manualFulfillmentEvidence?: {
+        id: string
+        invoiceNo: string
+        beinAccountId: string
+        cardNumberSnapshot: string
+        packageNameSnapshot: string
+        providerAmount: { toString(): string } | number | string
+        currency: string
+        evidenceSource: string
+        evidenceNote: string
+        observedAt: Date
+        actorUserId: string
     } | null
     transactions: Array<{ type: string; amount: number }>
 }
@@ -230,6 +252,18 @@ export function buildFinancialReviewItem(
         hasCustomerWalletDebit,
         hasRefund,
         financiallyImpacted,
+        fulfillmentVerified: Boolean(
+            operation.fulfillmentProof &&
+            operation.fulfillmentProof.proofKind === 'SOLD_REPORT_CONTRACT_CORRELATION' &&
+            operation.fulfillmentProof.operationId === operation.id &&
+            operation.beinAccount &&
+            operation.fulfillmentProof.beinAccountId === operation.beinAccount.id &&
+            operation.fulfillmentProof.cardNumberSnapshot === operation.cardNumber &&
+            operation.fulfillmentProof.invoiceNo.trim()
+        ),
+        fulfillmentProofId: operation.fulfillmentProof?.id || null,
+        fulfillmentAuthority: operation.fulfillmentAuthority ?? 'NONE',
+        manualEvidenceId: operation.manualFulfillmentEvidence?.id || null,
     }
 
     const state = deriveState(review, evidence)
@@ -251,5 +285,20 @@ export function buildFinancialReviewItem(
         packagePrice: packageInfo.price,
         evidence,
         review,
+        manualFulfillmentEvidence: operation.manualFulfillmentEvidence
+            ? {
+                id: operation.manualFulfillmentEvidence.id,
+                invoiceNo: operation.manualFulfillmentEvidence.invoiceNo,
+                beinAccountId: operation.manualFulfillmentEvidence.beinAccountId,
+                cardNumberSnapshot: operation.manualFulfillmentEvidence.cardNumberSnapshot,
+                packageNameSnapshot: operation.manualFulfillmentEvidence.packageNameSnapshot,
+                providerAmount: String(operation.manualFulfillmentEvidence.providerAmount),
+                currency: operation.manualFulfillmentEvidence.currency,
+                evidenceSource: operation.manualFulfillmentEvidence.evidenceSource,
+                evidenceNote: operation.manualFulfillmentEvidence.evidenceNote,
+                observedAt: operation.manualFulfillmentEvidence.observedAt.toISOString(),
+                actorUserId: operation.manualFulfillmentEvidence.actorUserId,
+            }
+            : null,
     }
 }

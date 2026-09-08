@@ -62,51 +62,30 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
 
-        // 4. Sync status from operation if needed
+        // 4. Project operation progress without mutating financial state from a GET request.
         const operation = subscription.operation
+        let effectiveStatus = subscription.status
+        let settlementPending = false
         if (operation) {
-            // Update subscription status based on operation status
-            let newStatus = subscription.status
-
-            switch (operation.status) {
-                case 'AWAITING_PACKAGE':
-                    if (subscription.status === 'PENDING') {
-                        newStatus = 'AWAITING_PACKAGE'
-                    }
-                    break
-                case 'AWAITING_CAPTCHA':
-                    if (subscription.status === 'PAID' || subscription.status === 'PROCESSING') {
-                        newStatus = 'AWAITING_CAPTCHA'
-                    }
-                    break
-                case 'COMPLETING':
-                    if (subscription.status !== 'COMPLETED') {
-                        newStatus = 'COMPLETING'
-                    }
-                    break
-                case 'COMPLETED':
-                    newStatus = 'COMPLETED'
-                    break
-                case 'FAILED':
-                case 'CANCELLED':
-                case 'EXPIRED':
-                    newStatus = 'FAILED'
-                    break
-            }
-
-            if (newStatus !== subscription.status) {
-                await prisma.storeSubscription.update({
-                    where: { id: subscription.id },
-                    data: {
-                        status: newStatus,
-                        ...(newStatus === 'COMPLETED' && { completedAt: new Date() }),
-                        ...(newStatus === 'FAILED' && {
-                            failedAt: new Date(),
-                            resultMessage: operation.error || operation.responseMessage
-                        }),
-                    }
-                })
-                subscription.status = newStatus
+            const subscriptionTerminal = ['COMPLETED', 'FAILED', 'REFUNDED', 'CANCELLED'].includes(
+                subscription.status
+            )
+            if (!subscriptionTerminal) {
+                if (operation.status === 'AWAITING_PACKAGE' && subscription.status === 'PENDING') {
+                    effectiveStatus = 'AWAITING_PACKAGE'
+                } else if (
+                    operation.status === 'AWAITING_CAPTCHA' &&
+                    ['PAID', 'PROCESSING'].includes(subscription.status)
+                ) {
+                    effectiveStatus = 'AWAITING_CAPTCHA'
+                } else if (operation.status === 'COMPLETING') {
+                    effectiveStatus = 'COMPLETING'
+                } else if (operation.status === 'COMPLETED') {
+                    effectiveStatus = 'COMPLETED'
+                } else if (['FAILED', 'CANCELLED', 'EXPIRED'].includes(operation.status)) {
+                    // A terminal provider operation still needs a separate atomic cash/credit settlement.
+                    settlementPending = true
+                }
             }
         }
 
@@ -114,17 +93,21 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const response: Record<string, unknown> = {
             id: subscription.id,
             cardNumber: subscription.cardNumber,
-            status: subscription.status,
+            status: effectiveStatus,
             currency: subscription.currency,
             price: subscription.price,
             packageName: subscription.packageName,
             creditUsed: subscription.creditUsed,
             createdAt: subscription.createdAt.toISOString(),
             updatedAt: subscription.updatedAt.toISOString(),
+            ...(settlementPending && {
+                settlementPending: true,
+                settlementReasonCode: 'STORE_SUBSCRIPTION_SETTLEMENT_PENDING',
+            }),
         }
 
         // Add status-specific data
-        switch (subscription.status) {
+        switch (effectiveStatus) {
             case 'AWAITING_PACKAGE':
                 // Include available packages with markup
                 if (operation?.availablePackages) {

@@ -39,12 +39,15 @@ async function getDbAuthenticatedUser(
     userId: string,
     tokenIssuedAt?: number
 ): Promise<AuthenticatedUser | null> {
+    // Another credential family can have customerId but no panel id when
+    // deployments share a signing secret. Deny before querying Prisma.
+    if (typeof userId !== 'string' || !userId.trim()) return null
     const dbUser = await prisma.user.findUnique({
         where: { id: userId },
         select: authenticatedUserSelect,
     })
 
-    if (!dbUser || !dbUser.isActive) return null
+    if (!dbUser || !dbUser.isActive || dbUser.deletedAt) return null
 
     if (
         dbUser.passwordChangedAt &&

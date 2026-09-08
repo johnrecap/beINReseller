@@ -7,6 +7,7 @@ import {
     type CustomerWalletDebitLookup,
 } from '@/lib/financial-review/evidence'
 import type { FinancialReviewState } from '@/lib/financial-review/types'
+import { classifyFinancialReview, reviewCapabilitySelect } from '@/lib/financial-review/capabilities'
 
 const REVIEW_STATES: FinancialReviewState[] = ['needs_decision', 'follow_up', 'refunded', 'bein_executed']
 const CLOSED_REVIEW_DECISION_FILTERS: Prisma.OperationWhereInput[] = [
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
                 } : {}),
             },
             select: {
+                ...reviewCapabilitySelect,
                 id: true,
                 type: true,
                 cardNumber: true,
@@ -63,6 +65,7 @@ export async function GET(request: NextRequest) {
                 updatedAt: true,
                 responseMessage: true,
                 responseData: true,
+                fulfillmentAuthority: true,
                 selectedPackage: true,
                 user: { select: { id: true, username: true } },
                 customer: { select: { id: true, name: true, email: true } },
@@ -79,7 +82,32 @@ export async function GET(request: NextRequest) {
                         beinLabelSnapshot: true,
                     },
                 },
-                transactions: { select: { type: true, amount: true } },
+                fulfillmentProof: {
+                    select: {
+                        id: true,
+                        operationId: true,
+                        beinAccountId: true,
+                        cardNumberSnapshot: true,
+                        invoiceNo: true,
+                        proofKind: true,
+                    },
+                },
+                manualFulfillmentEvidence: {
+                    select: {
+                        id: true,
+                        invoiceNo: true,
+                        beinAccountId: true,
+                        cardNumberSnapshot: true,
+                        packageNameSnapshot: true,
+                        providerAmount: true,
+                        currency: true,
+                        evidenceSource: true,
+                        evidenceNote: true,
+                        observedAt: true,
+                        actorUserId: true,
+                    },
+                },
+                transactions: { select: { type: true, amount: true, userId: true } },
             },
             orderBy: { updatedAt: 'desc' },
             take: 300,
@@ -103,12 +131,19 @@ export async function GET(request: NextRequest) {
         )
 
         const allItems = operations
-            .map((operation) => buildFinancialReviewItem(operation, walletDebitLookup))
+            .map((operation) => {
+                const item = buildFinancialReviewItem(operation, walletDebitLookup)
+                return item ? { ...item, capabilities: classifyFinancialReview(operation) } : null
+            })
             .filter((item): item is NonNullable<typeof item> => Boolean(item))
 
-        const items = stateParam && stateParam !== 'all' && REVIEW_STATES.includes(stateParam)
+        const filteredItems = stateParam && stateParam !== 'all' && REVIEW_STATES.includes(stateParam)
             ? allItems.filter((item) => item.state === stateParam)
             : allItems
+        const items = filteredItems.map((item) => ({
+            ...item,
+            manualEvidenceId: item.evidence.manualEvidenceId,
+        }))
 
         const summary = {
             total: allItems.length,

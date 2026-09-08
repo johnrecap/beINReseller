@@ -1,7 +1,6 @@
 import type { OperationStatus, OperationType, Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import redis from '@/lib/redis'
-import { refundUser } from '@/lib/refund'
 import {
     classifyRecovery,
     type RecoveryDecision,
@@ -28,6 +27,9 @@ import {
     captureOperationSpendAwardRunInTransaction,
     finalizeOperationSpendAwardRun,
 } from '@/lib/points/operation-spend-award-runs'
+import { createOperationPointReversalsInTransaction } from '@/lib/points/reversals'
+import { lockFinancialOperation } from '../../../shared/operations/financial-lock'
+import { resolveAuditOwner } from '../../../shared/operations/audit-financial-context'
 
 export interface RecoverOperationResult {
     operationId: string
@@ -88,6 +90,8 @@ function getExpectedAccountLockOwner(responseData: unknown): string | null {
 
 const RECOVERY_LEDGER_SELECT = {
     id: true,
+    userId: true,
+    customerId: true,
     beinAccountId: true,
     spendAmount: true,
     dealerBalanceBefore: true,
@@ -97,6 +101,8 @@ const RECOVERY_LEDGER_SELECT = {
 
 type RecoveryLedgerRow = {
     id: string
+    userId: string | null
+    customerId: string | null
     beinAccountId: string
     spendAmount: number
     dealerBalanceBefore: number | null
@@ -115,6 +121,7 @@ type RecoveryBeinAccountSnapshot = {
 type RecoveryRepairOperation = {
     id: string
     userId: string | null
+    customerId: string | null
     type: OperationType
     status: OperationStatus
     cardNumber: string
@@ -259,7 +266,8 @@ async function repairConfirmedProviderRecoveryEvidence(
     responseData: Prisma.InputJsonObject
     chargedBeinSpendLedger: RecoveryLedgerRow
 } | null> {
-    if (isTerminalOperationStatus(operation.status) || !operation.userId) return null
+    if (isTerminalOperationStatus(operation.status)) return null
+    try { resolveAuditOwner(operation) } catch { return null }
 
     const evidence = getRecoveryProviderBalanceRepairEvidence({
         responseData: operation.responseData,
@@ -281,6 +289,7 @@ async function repairConfirmedProviderRecoveryEvidence(
 
     let ledger: RecoveryLedgerRow
     if (existingLedger) {
+        if (existingLedger.userId !== operation.userId || existingLedger.customerId !== operation.customerId) return null
         if (!ledgerMatchesRepairEvidence(existingLedger, evidence)) return null
         ledger = existingLedger.evidenceConfidence === 'CONFIRMED_FINAL_PAY'
             ? existingLedger
@@ -309,6 +318,7 @@ async function repairConfirmedProviderRecoveryEvidence(
             data: {
                 operationId: operation.id,
                 userId: operation.userId,
+                customerId: operation.customerId,
                 beinAccountId: evidence.beinAccountId,
                 proxyId: account.proxyId,
                 operationType: operation.type,
@@ -367,18 +377,19 @@ export async function recoverOperationIfNeeded(
 
     const now = options?.now ?? new Date()
     let shouldReleaseAccountLock = false
-    let safeRefundRequiresReview = false
+    let atomicRefundApplied = false
     let result: RecoverOperationResult | null = null
 
     try {
         result = await prisma.$transaction(async (tx) => {
+            await lockFinancialOperation(tx, operationId)
             const operation = await tx.operation.findUnique({
                 where: { id: operationId },
                 include: {
                     transactions: {
                         where: { type: { in: ['OPERATION_DEDUCT', 'REFUND'] } },
                         orderBy: { createdAt: 'desc' },
-                        select: { id: true, type: true, amount: true, balanceAfter: true, createdAt: true },
+                        select: { id: true, userId: true, type: true, amount: true, balanceAfter: true, createdAt: true },
                     },
                     dispatches: {
                         where: { jobType: 'CONFIRM_PURCHASE' },
@@ -395,6 +406,25 @@ export async function recoverOperationIfNeeded(
                     },
                     chargedBeinSpendLedger: {
                         select: RECOVERY_LEDGER_SELECT,
+                    },
+                    fulfillmentProof: {
+                        select: {
+                            id: true,
+                            operationId: true,
+                            beinAccountId: true,
+                            cardNumberSnapshot: true,
+                            invoiceNo: true,
+                            proofKind: true,
+                        },
+                    },
+                    manualFulfillmentEvidence: {
+                        select: {
+                            id: true,
+                            operationId: true,
+                            beinAccountId: true,
+                            cardNumberSnapshot: true,
+                            invoiceNo: true,
+                        },
                     },
                 },
             })
@@ -438,7 +468,7 @@ export async function recoverOperationIfNeeded(
                 heartbeatExpiry: operation.heartbeatExpiry,
                 updatedAt: operation.updatedAt,
                 now,
-                customerDeductTransactionExists: hasDeduct || operation.amount > 0,
+                customerDeductTransactionExists: hasDeduct || Boolean(customerWalletDebit),
                 refundTransactionExists: hasRefund,
                 dispatchPending: dispatch?.status === 'PENDING',
                 dispatchFailed: !!dispatch?.lastError || dispatch?.status === 'FAILED',
@@ -446,6 +476,12 @@ export async function recoverOperationIfNeeded(
                 providerChargeCompletionProof: hasRecoveryProviderCompletionProof({
                     responseData: recoveryResponseData,
                     chargedBeinSpendLedger: recoveryLedger,
+                    fulfillmentProof: operation.fulfillmentProof,
+                    manualFulfillmentEvidence: operation.manualFulfillmentEvidence,
+                    fulfillmentAuthority: operation.fulfillmentAuthority,
+                    operationId: operation.id,
+                    beinAccountId: operation.beinAccountId,
+                    cardNumber: operation.cardNumber,
                 }),
                 source,
             })
@@ -463,9 +499,64 @@ export async function recoverOperationIfNeeded(
             let decision = classifier.decision
             let nextStatus = getRecoveryStatus(decision)
 
+            const recoveryEvidence = parseOperationResponseData(recoveryResponseData)
+            const legacyProviderMutationMarker =
+                recoveryEvidence.operationPhase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
+                recoveryEvidence.operationPhase === 'FINAL_PAY_REQUEST_STARTED' ||
+                recoveryEvidence.phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
+                recoveryEvidence.phase === 'FINAL_PAY_REQUEST_STARTED'
+            const providerMutationMayHaveStarted = Boolean(
+                operation.providerMutationStartedAt || legacyProviderMutationMarker
+            )
+
+            if (decision === 'RETRY_DISPATCH' && providerMutationMayHaveStarted) {
+                decision = 'REVIEW_REQUIRED'
+                nextStatus = 'REVIEW_REQUIRED'
+            }
+            // Financial installment closure and post-mutation negative renewal closure require
+            // the dedicated locked evidence finalizers; recovery must not infer them from JSON.
+            if ((operation.purpose === 'INSTALLMENT' && (providerMutationMayHaveStarted || operation.amount > 0) &&
+                    ['COMPLETE', 'SAFE_REFUND', 'EXPIRE', 'CANCEL', 'RETRY_DISPATCH'].includes(decision)) ||
+                (operation.type === 'RENEW' && providerMutationMayHaveStarted && decision === 'SAFE_REFUND') ||
+                (recoveryLedger && (recoveryLedger.userId !== operation.userId || recoveryLedger.customerId !== operation.customerId))) {
+                decision = 'REVIEW_REQUIRED'
+                nextStatus = 'REVIEW_REQUIRED'
+            }
+
+            if (
+                decision === 'SAFE_REFUND' &&
+                operation.type === 'RENEW' &&
+                providerMutationMayHaveStarted &&
+                !(
+                    operation.providerPaymentState === 'NOT_CHARGED' &&
+                    operation.fulfillmentState === 'NOT_FOUND' &&
+                    operation.fulfillmentVerificationOutcome === 'VALID_NO_MATCH'
+                )
+            ) {
+                decision = 'REVIEW_REQUIRED'
+                nextStatus = 'REVIEW_REQUIRED'
+            }
+
             if (decision === 'SAFE_REFUND' && !operation.userId && financialExposureForReview) {
                 decision = 'REVIEW_REQUIRED'
                 nextStatus = 'REVIEW_REQUIRED'
+            }
+
+            let canonicalRefundAmount: number | null = null
+            if (decision === 'SAFE_REFUND' && operation.userId) {
+                const deductions = operation.transactions.filter(txn => txn.type === 'OPERATION_DEDUCT')
+                const validCanonicalDeduction =
+                    deductions.length === 1 &&
+                    deductions[0].userId === operation.userId &&
+                    Number.isFinite(deductions[0].amount) &&
+                    deductions[0].amount < 0
+                canonicalRefundAmount = validCanonicalDeduction
+                    ? Math.round(Math.abs(deductions[0].amount) * 100) / 100
+                    : null
+                if (financialExposureForReview && !canonicalRefundAmount) {
+                    decision = 'REVIEW_REQUIRED'
+                    nextStatus = 'REVIEW_REQUIRED'
+                }
             }
 
             if (decision === 'NO_ACTION') {
@@ -540,6 +631,92 @@ export async function recoverOperationIfNeeded(
                     if (capture.outcome === 'CONFLICT') {
                         throw new Error('AWARD_RUN_CONFLICT')
                     }
+                    await tx.operationIntegrityIssue.updateMany({
+                        where: {
+                            operationId: operation.id,
+                            issueType: {
+                                in: [
+                                    'PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED',
+                                    'FULFILLMENT_PROOF_CONFLICT',
+                                ],
+                            },
+                            status: { in: ['OPEN', 'ACKNOWLEDGED'] },
+                        },
+                        data: {
+                            status: 'RESOLVED',
+                            reviewedAt: now,
+                            reviewNote: 'Resolved atomically by proof-authorized recovery completion.',
+                        },
+                    })
+                }
+
+                if (
+                    decision === 'SAFE_REFUND' &&
+                    nextStatus === 'FAILED' &&
+                    operation.userId &&
+                    canonicalRefundAmount
+                ) {
+                    const user = await tx.user.update({
+                        where: { id: operation.userId },
+                        data: { balance: { increment: canonicalRefundAmount } },
+                        select: { id: true, balance: true },
+                    })
+                    const refund = await tx.transaction.create({
+                        data: {
+                            userId: user.id,
+                            operationId: operation.id,
+                            type: 'REFUND',
+                            amount: canonicalRefundAmount,
+                            balanceAfter: user.balance,
+                            notes: `Atomic recovery refund: ${message}`,
+                        },
+                        select: { id: true },
+                    })
+                    await Promise.all([
+                        tx.notification.create({
+                            data: {
+                                userId: user.id,
+                                title: 'Amount refunded',
+                                message: `Amount ${canonicalRefundAmount} refunded after safe operation recovery.`,
+                                type: 'info',
+                                link: '/dashboard/transactions',
+                            },
+                        }),
+                        createOperationPointReversalsInTransaction({
+                            db: tx,
+                            operationId: operation.id,
+                            reason: 'refund',
+                        }),
+                        tx.operationIntegrityIssue.updateMany({
+                            where: { operationId: operation.id, status: { in: ['OPEN', 'ACKNOWLEDGED'] } },
+                            data: {
+                                status: 'RESOLVED',
+                                reviewedAt: now,
+                                reviewNote: `Resolved atomically by recovery refund ${refund.id}.`,
+                            },
+                        }),
+                    ])
+                    atomicRefundApplied = true
+                }
+
+                if (
+                    (
+                        decision !== 'SAFE_REFUND' &&
+                        ['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(nextStatus)
+                    ) ||
+                    (decision === 'SAFE_REFUND' && nextStatus === 'FAILED')
+                ) {
+                    const releaseReason = `SAFE_TERMINAL:RECOVERY_${decision}`
+                    await Promise.all([
+                        tx.cardLifecycleReservation.updateMany({
+                            where: { operationId: operation.id, releasedAt: null },
+                            data: { releasedAt: now, releaseReason },
+                        }),
+                        tx.providerAccountCausalReservation.updateMany({
+                            where: { operationId: operation.id, releasedAt: null },
+                            data: { releasedAt: now, releaseReason },
+                        }),
+                    ])
                 }
             }
 
@@ -566,8 +743,6 @@ export async function recoverOperationIfNeeded(
             }
 
             shouldReleaseAccountLock = decision !== 'RETRY_DISPATCH'
-            safeRefundRequiresReview = financialExposureForReview
-
             return {
                 operationId,
                 changed: true,
@@ -577,43 +752,10 @@ export async function recoverOperationIfNeeded(
                 reason: classifier.reason,
                 financialImpact: classifier.financialImpact,
                 reviewRequired: decision === 'REVIEW_REQUIRED',
-                refundApplied: false,
+                refundApplied: atomicRefundApplied,
                 lockReleased: false,
             }
         })
-
-        if (result.decision === 'SAFE_REFUND') {
-            const operation = await prisma.operation.findUnique({
-                where: { id: operationId },
-                select: { userId: true, amount: true, responseMessage: true },
-            })
-            const refunded = operation?.userId && operation.amount > 0
-                ? await refundUser(operationId, operation.userId, operation.amount, operation.responseMessage || result.reason)
-                : false
-            result.refundApplied = refunded
-            if (!refunded && result.decision === 'SAFE_REFUND') {
-                if (safeRefundRequiresReview) {
-                    await prisma.operation.updateMany({
-                        where: { id: operationId, status: 'FAILED' },
-                        data: {
-                            status: 'REVIEW_REQUIRED',
-                            responseMessage: 'Safe refund was not applied; manual review required.',
-                        },
-                    })
-                    result.newStatus = 'REVIEW_REQUIRED'
-                    result.reviewRequired = true
-                } else {
-                    await prisma.operation.updateMany({
-                        where: { id: operationId, status: 'FAILED' },
-                        data: {
-                            responseMessage: 'Operation failed safely: no customer deduction found; no refund required.',
-                        },
-                    })
-                    result.newStatus = 'FAILED'
-                    result.reviewRequired = false
-                }
-            }
-        }
 
         if (result.newStatus === 'COMPLETED') {
             await finalizeOperationSpendAwardRun(operationId).catch((error) => {

@@ -1,5 +1,7 @@
 'use client'
 
+import { withRequestDeadline } from '@/lib/request-deadline'
+
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
@@ -18,6 +20,7 @@ import { SignalRefreshFlow, InstallmentPaymentFlow } from '@/components/renewal'
 import { Zap } from 'lucide-react'
 import { requestPrePayOperationExpiry } from '@/lib/operations/client-timeout'
 import { OPERATION_WARNING_THRESHOLD_SECONDS } from '@/lib/operations/timing'
+import { useTranslation } from '@/hooks/useTranslation'
 
 // Renewal Mode Type
 type RenewalMode = 'signal-refresh' | 'package-renewal' | 'installment'
@@ -28,7 +31,9 @@ interface AvailablePackage {
     index: number
     name: string
     price: number
-    checkboxSelector: string
+    quoteRevision: number
+    packageKey: string
+    appliedPromoCode?: string | null
 }
 
 interface OperationResult {
@@ -182,6 +187,7 @@ function FinalConfirmTimer({
 
 export default function RenewWizardPage() {
     const { data: session } = useSession()
+    const { t } = useTranslation()
     const isAdmin = session?.user?.role === 'ADMIN'
     const searchParams = useSearchParams()
     const { balance, refetch: refetchBalance } = useBalance()
@@ -196,10 +202,19 @@ export default function RenewWizardPage() {
     const [packages, setPackages] = useState<AvailablePackage[]>([])
     const [selectedPackageIndex, setSelectedPackageIndex] = useState<number | null>(null)
     const [promoCode, setPromoCode] = useState('')
+    const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null)
+    const [quoteRevision, setQuoteRevision] = useState(0)
+    const [quoteState, setQuoteState] = useState<'PENDING' | 'READY' | 'FAILED'>('PENDING')
+    const [quotePollStopped, setQuotePollStopped] = useState(false)
+    const quoteRef = useRef({ operationId: '', revision: -1, state: 'PENDING' })
+    const promoRequestRef = useRef<{ operationId: string; actionRevision: number; promoAction: 'APPLY' | 'REMOVE'; promoCode?: string } | null>(null)
+    const operationRef = useRef(operationId)
+    operationRef.current = operationId
     const [captchaImage, setCaptchaImage] = useState<string | null>(null)
     const [captchaSolution, setCaptchaSolution] = useState('')
     const [captchaSubmitted, setCaptchaSubmitted] = useState(false)  // Track if user already submitted CAPTCHA
     const [result, setResult] = useState<OperationResult | null>(null)
+    const [fulfillmentStatusMessage, setFulfillmentStatusMessage] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [stbNumber, setStbNumber] = useState<string | null>(null)
     const [finalConfirmExpiry, setFinalConfirmExpiry] = useState<string | null>(null)  // For final confirm timer
@@ -210,8 +225,38 @@ export default function RenewWizardPage() {
     const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
     const pollStartTimeRef = useRef<number>(0)  // Track when polling started for adaptive intervals
     const pollErrorCountRef = useRef<number>(0)
+    const statusPollGeneration = useRef(0)
+    const statusPollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const startRenewalInFlightRef = useRef(false)
     const MAX_POLL_ERROR_RETRIES = 5
+
+    const consumeQuote = useCallback((id: string, data: { quoteRevision?: number; quoteState?: string; packages?: AvailablePackage[]; appliedPromoCode?: string | null }) => {
+        if (operationRef.current !== id || !Number.isInteger(data.quoteRevision) ||
+            !['PENDING', 'READY', 'FAILED'].includes(data.quoteState || '')) return false
+        const previous = quoteRef.current
+        const revision = data.quoteRevision as number
+        if (previous.operationId === id && (revision < previous.revision ||
+            (revision === previous.revision && previous.state !== 'PENDING' && data.quoteState === 'PENDING'))) return false
+        if (previous.operationId !== id || revision !== previous.revision || data.quoteState !== previous.state) {
+            setSelectedPackageIndex(null)
+            setShowConfirmation(false)
+        }
+        quoteRef.current = { operationId: id, revision, state: data.quoteState! }
+        setQuoteRevision(revision)
+        setQuoteState(data.quoteState as 'PENDING' | 'READY' | 'FAILED')
+        setPackages(data.packages || [])
+        setAppliedPromoCode(data.appliedPromoCode || null)
+        if (data.quoteState !== 'PENDING') {
+            promoRequestRef.current = null
+            setQuotePollStopped(false)
+        }
+        return true
+    }, [])
+
+    const quoteErrorMessage = (data: { messageKey?: string; error?: string }) => {
+        const key = data.messageKey?.replace('operations.', '')
+        return key && key in t.operations ? t.operations[key as keyof typeof t.operations] : data.error || t.operations.packageQuoteFailed
+    }
 
     // Set dynamic page title
     useEffect(() => {
@@ -246,6 +291,7 @@ export default function RenewWizardPage() {
     // Poll for operation status — adaptive intervals for fast response
     const pollStatus = useCallback(async () => {
         if (!operationId) return
+        const generation = statusPollGeneration.current
 
         // Adaptive interval: fast at start, slow down over time
         const getNextInterval = () => {
@@ -256,29 +302,41 @@ export default function RenewWizardPage() {
         }
 
         try {
-            const res = await fetch(`/api/operations/${operationId}/packages`)
-            const data = await res.json()
+            const { res, data } = await withRequestDeadline(async signal => {
+                const res = await fetch(`/api/operations/${operationId}/packages`, { signal })
+                return { res, data: await res.json() }
+            })
+            if (operationRef.current !== operationId || generation !== statusPollGeneration.current) return
+            if (!res.ok) throw new Error('STATUS_POLL_FAILED')
             pollErrorCountRef.current = 0
+
+            if (data.confirmationExpired || data.settlementState === 'REFUND_PENDING') {
+                setResult({ success: false, message: data.confirmationExpired
+                    ? t.operations.confirmationExpired : t.operations.refundSettlementPending })
+                setStep('result')
+                return
+            }
 
             if (data.status === 'AWAITING_CAPTCHA') {
                 // Only skip showing CAPTCHA if user already submitted a solution
                 // (worker is still processing it)
                 if (captchaSubmitted) {
                     // User already submitted CAPTCHA, worker is processing it
-                    setTimeout(pollStatus, getNextInterval())
+                    statusPollTimer.current = setTimeout(pollStatus, getNextInterval())
                     return
                 }
 
                 // First time seeing CAPTCHA - show it
                 const captchaRes = await fetch(`/api/operations/${operationId}/captcha`)
                 const captchaData = await captchaRes.json()
+                if (generation !== statusPollGeneration.current) return
                 if (captchaData.captchaImage) {
                     setCaptchaImage(captchaData.captchaImage)
                     setStep('captcha')
                 }
             } else if (data.status === 'AWAITING_PACKAGE') {
                 // Packages ready
-                setPackages(data.packages || [])
+                consumeQuote(operationId, data)
                 setStbNumber(data.stbNumber)
                 setFinalConfirmExpiry(data.finalConfirmExpiry || null)
                 setStep('packages')
@@ -300,7 +358,11 @@ export default function RenewWizardPage() {
             } else if (data.status === 'REVIEW_REQUIRED') {
                 setResult({
                     success: false,
-                    message: data.message || 'Payment outcome is under review to prevent wrong charge/refund'
+                    message: data.messageKey === 'operations.packageQuoteChangedReview'
+                        ? t.operations.packageQuoteChangedReview
+                        : data.messageKey === 'operations.providerChargedFulfillmentUnderReview'
+                        ? t.operations.providerChargedFulfillmentUnderReview
+                        : t.operations.fulfillmentReviewPending
                 })
                 setStep('result')
             } else if (data.status === 'AWAITING_FINAL_CONFIRM') {
@@ -310,9 +372,16 @@ export default function RenewWizardPage() {
                 setFinalConfirmExpiry(data.finalConfirmExpiry || null)
                 setStep('awaiting-final-confirm')
             } else if (data.status === 'PENDING' || data.status === 'PROCESSING' || data.status === 'COMPLETING') {
-                setTimeout(pollStatus, getNextInterval())
+                setFulfillmentStatusMessage(
+                    data.status === 'COMPLETING' &&
+                    data.messageKey === 'operations.providerChargedVerifyingFulfillment'
+                        ? t.operations.providerChargedVerifyingFulfillment
+                        : null
+                )
+                statusPollTimer.current = setTimeout(pollStatus, getNextInterval())
             }
         } catch {
+            if (generation !== statusPollGeneration.current) return
             pollErrorCountRef.current += 1
             if (pollErrorCountRef.current >= MAX_POLL_ERROR_RETRIES) {
                 setResult({
@@ -322,14 +391,45 @@ export default function RenewWizardPage() {
                 setStep('result')
                 return
             }
-            setTimeout(pollStatus, 2000)
+            statusPollTimer.current = setTimeout(pollStatus, 2000)
         }
-    }, [operationId, refetchBalance, captchaSubmitted])
+    }, [operationId, refetchBalance, captchaSubmitted, t, consumeQuote])
+
+    useEffect(() => {
+        if (!operationId || step !== 'packages' || quoteState !== 'PENDING' || quotePollStopped) return
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout>
+        const controller = new AbortController()
+        const deadline = Date.now() + 45_000
+        const pollQuote = async () => {
+            try {
+                const { res, data } = await withRequestDeadline(async signal => {
+                    const res = await fetch(`/api/operations/${operationId}/packages`, { signal })
+                    return { res, data: await res.json() }
+                }, Math.max(0, deadline - Date.now()), controller.signal)
+                if (cancelled || operationRef.current !== operationId) return
+                if (res.ok && data.status !== 'AWAITING_PACKAGE') {
+                    setStep('processing')
+                    return
+                }
+                if (res.ok && consumeQuote(operationId, data) && data.quoteState !== 'PENDING') return
+            } catch { /* Keep the authoritative selection blocked until status is known. */ }
+            if (cancelled) return
+            if (Date.now() >= deadline) { setQuotePollStopped(true); return }
+            timer = setTimeout(pollQuote, 1500)
+        }
+        timer = setTimeout(pollQuote, 750)
+        return () => { cancelled = true; clearTimeout(timer); controller.abort() }
+    }, [operationId, step, quoteState, quotePollStopped, consumeQuote])
 
     useEffect(() => {
         if (step === 'processing' || step === 'completing') {
             // Poll immediately — no dead wait
             pollStatus()
+        }
+        return () => {
+            statusPollGeneration.current += 1
+            if (statusPollTimer.current) clearTimeout(statusPollTimer.current)
         }
     }, [step, pollStatus])
 
@@ -339,14 +439,16 @@ export default function RenewWizardPage() {
 
         setIsConfirmLoading(true)
         try {
-            const res = await fetch(`/api/operations/${operationId}/confirm-purchase`, { method: 'POST' })
+            const res = await fetch(`/api/operations/${operationId}/confirm-purchase`, { method: 'POST',
+                headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quoteRevision: selectedPackageInfo?.quoteRevision }) })
             const data = await res.json()
 
             if (res.ok) {
                 setStep('completing')
                 toast.success('Completing final purchase...')
             } else {
-                toast.error(data.error || 'Failed to confirm payment')
+                toast.error(quoteErrorMessage(data))
+                if (res.status === 409) { setSelectedPackageInfo(null); setStep('processing') }
             }
         } catch {
             toast.error('Connection error')
@@ -436,6 +538,10 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (!res.ok) {
+                if (data.code === 'RENEWAL_FULFILLMENT_REVIEW_PENDING') {
+                    toast.error(t.operations.fulfillmentReviewPending)
+                    return
+                }
                 // Check if this is a duplicate operation error (API returns operationId)
                 if (
                     data.operationId &&
@@ -455,7 +561,7 @@ export default function RenewWizardPage() {
                         }
                     )
                 } else {
-                    toast.error(data.error || 'Error')
+                    toast.error(quoteErrorMessage(data))
                 }
                 return
             }
@@ -506,7 +612,7 @@ export default function RenewWizardPage() {
 
     // Select package
     const handleSelectPackage = async () => {
-        if (selectedPackageIndex === null || !operationId) return
+        if (selectedPackageIndex === null || !operationId || quoteState !== 'READY' || loading) return
 
         const selectedPkg = packages.find(p => p.index === selectedPackageIndex)
         if (!selectedPkg) return
@@ -523,13 +629,19 @@ export default function RenewWizardPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     packageIndex: selectedPackageIndex,
-                    promoCode: promoCode || undefined,
+                    quoteRevision,
+                    packageKey: selectedPkg.packageKey,
                 }),
             })
             const data = await res.json()
 
             if (!res.ok) {
-                toast.error(data.error || 'An error occurred')
+                toast.error(quoteErrorMessage(data))
+                if (res.status === 409) {
+                    setShowConfirmation(false)
+                    setSelectedPackageIndex(null)
+                    setStep('processing')
+                }
                 return
             }
 
@@ -543,40 +655,52 @@ export default function RenewWizardPage() {
         }
     }
 
-    // Apply promo code and refresh packages
-    const handleApplyPromo = async () => {
-        if (!operationId || !promoCode) return
-
+    // An ambiguous HTTP retry reuses the exact request identity, never a new promo attempt.
+    const handleApplyPromo = async (promoAction: 'APPLY' | 'REMOVE' = 'APPLY', retry = false) => {
+        if (!operationId || loading || (!retry && quoteState === 'PENDING')) return
+        const saved = retry ? promoRequestRef.current : null
+        if (!saved && promoAction === 'APPLY' && !promoCode.trim()) return
+        const request = saved || { operationId, actionRevision: quoteRevision + 1, promoAction,
+            ...(promoAction === 'APPLY' ? { promoCode: promoCode.trim() } : {}) }
+        promoRequestRef.current = request
+        quoteRef.current = { operationId, revision: request.actionRevision, state: 'PENDING' }
+        setQuoteRevision(request.actionRevision)
+        setQuoteState('PENDING')
+        setQuotePollStopped(false)
+        setSelectedPackageIndex(null)
+        setShowConfirmation(false)
         setLoading(true)
         try {
-            const res = await fetch(`/api/operations/${operationId}/apply-promo`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ promoCode }),
+            const { res, data } = await withRequestDeadline(async signal => {
+                const res = await fetch(`/api/operations/${operationId}/apply-promo`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(request), signal,
+                })
+                return { res, data: await res.json() }
             })
-            const data = await res.json()
-
+            if (operationRef.current !== operationId) return
             if (!res.ok) {
-                toast.error(data.error || 'Failed to apply promo code')
+                // A server rejection is definitive. Reload its current revision;
+                // transport failures instead retain this request for identical replay.
+                promoRequestRef.current = null
+                quoteRef.current = { operationId, revision: -1, state: 'PENDING' }
+                toast.error(quoteErrorMessage(data))
+                setStep('processing')
                 return
             }
-
-            // Update packages with new prices
-            if (data.packages && data.packages.length > 0) {
-                setPackages(data.packages)
-                setSelectedPackageIndex(null) // Reset selection
-                setShowConfirmation(false)
-                toast.success('Code applied! Prices updated')
-            } else if (data.processing) {
-                toast.info(data.message || 'Promo application is still processing')
-            } else {
-                toast.warning('Code applied but packages unchanged')
-            }
+            consumeQuote(operationId, data)
         } catch {
-            toast.error('Error applying promo code')
+            if (operationRef.current !== operationId) return
+            setQuotePollStopped(true)
+            toast.error(t.operations.packageQuoteRetry)
         } finally {
             setLoading(false)
         }
+    }
+
+    const handleQuoteRetry = () => {
+        if (promoRequestRef.current) void handleApplyPromo('APPLY', true)
+        else setQuotePollStopped(false)
     }
 
     // Reset wizard
@@ -588,11 +712,18 @@ export default function RenewWizardPage() {
         setPackages([])
         setSelectedPackageIndex(null)
         setPromoCode('')
+        setAppliedPromoCode(null)
+        setQuoteRevision(0)
+        setQuoteState('PENDING')
+        setQuotePollStopped(false)
+        quoteRef.current = { operationId: '', revision: -1, state: 'PENDING' }
+        promoRequestRef.current = null
         setCaptchaImage(null)
         setCaptchaSolution('')
         setCaptchaSubmitted(false)  // Reset CAPTCHA submitted state
         setShowConfirmation(false)  // Reset confirmation dialog
         setResult(null)
+        setFulfillmentStatusMessage(null)
         setStbNumber(null)
         setFinalConfirmExpiry(null)
         setSelectedPackageInfo(null)
@@ -616,7 +747,7 @@ export default function RenewWizardPage() {
             </div>
 
             {/* Mode Toggle Tabs */}
-            <div className="flex justify-center gap-2 mb-6">
+            <div className="flex flex-wrap justify-center gap-2 mb-6">
                 <button
                     onClick={() => setRenewalMode('signal-refresh')}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${renewalMode === 'signal-refresh'
@@ -817,7 +948,7 @@ export default function RenewWizardPage() {
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Package className="h-5 w-5 text-green-500" />
-                                    {'Select Package'}
+                                    {t.renew.packages.title}
                                 </CardTitle>
                                 <CardDescription>
                                     {stbNumber && <span>{'Receiver #:'} <strong dir="ltr">{stbNumber}</strong></span>}
@@ -835,32 +966,50 @@ export default function RenewWizardPage() {
                                 )}
                                 {packages.length > 0 && (
                                     <div>
-                                        <Label htmlFor="promoCode">{'Promo code (optional)'}</Label>
-                                        <div className="flex gap-2 mt-2">
+                                        <Label htmlFor="promoCode">{t.renew.packages.promoLabel}</Label>
+                                        <div className="flex flex-wrap gap-2 mt-2">
                                             <Input
                                                 id="promoCode"
                                                 type="text"
                                                 value={promoCode}
                                                 onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                                                placeholder="Add promo code here"
+                                                aria-describedby="promo-quote-status"
                                                 dir="ltr"
                                                 className="flex-1"
                                             />
                                             <Button
                                                 type="button"
                                                 variant="outline"
-                                                onClick={handleApplyPromo}
-                                                disabled={!promoCode || loading}
+                                                onClick={() => handleApplyPromo()}
+                                                disabled={!promoCode.trim() || loading || quoteState === 'PENDING'}
                                                 className="shrink-0"
                                             >
                                                 {loading ? (
                                                     <Loader2 className="h-4 w-4 animate-spin" />
                                                 ) : (
-                                                    'Apply'
+                                                    t.renew.packages.applyPromo
                                                 )}
                                             </Button>
                                         </div>
+                                        <p className="text-sm text-muted-foreground mt-2">{t.operations.promoDraftHelp}</p>
+                                        {(appliedPromoCode || quoteState === 'FAILED') && (
+                                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                {appliedPromoCode && <span>{t.operations.promoAppliedCode} <bdi>{appliedPromoCode}</bdi></span>}
+                                                <Button type="button" variant="outline" onClick={() => handleApplyPromo('REMOVE')}
+                                                    disabled={loading || quoteState === 'PENDING'}>{t.operations.promoRemove}</Button>
+                                            </div>
+                                        )}
                                     </div>
+                                )}
+                                <div id="promo-quote-status" role="status" aria-live="polite" aria-atomic="true" className="text-sm break-words">
+                                    {quoteState === 'PENDING' ? (quotePollStopped ? t.operations.packageQuoteRetry : t.operations.packageQuotePending)
+                                        : quoteState === 'FAILED' ? t.operations.packageQuoteFailed
+                                            : quoteRevision > 0 ? t.operations.packageQuoteUpdated : null}
+                                </div>
+                                {quotePollStopped && quoteState === 'PENDING' && (
+                                    <Button type="button" variant="outline" onClick={handleQuoteRetry} disabled={loading}>
+                                        {t.operations.packageQuoteResume}
+                                    </Button>
                                 )}
                                 {packages.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">
@@ -870,23 +1019,26 @@ export default function RenewWizardPage() {
                                 ) : (
                                     <div className="space-y-3">
                                         {packages.map((pkg) => (
-                                            <div
-                                                key={pkg.index}
-                                                onClick={() => setSelectedPackageIndex(pkg.index)}
-                                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedPackageIndex === pkg.index
+                                            <button
+                                                type="button"
+                                                key={pkg.packageKey}
+                                                disabled={loading || quoteState !== 'READY'}
+                                                aria-pressed={selectedPackageIndex === pkg.index}
+                                                onClick={() => { setSelectedPackageIndex(pkg.index); setShowConfirmation(false) }}
+                                                className={`w-full text-start p-4 rounded-xl border-2 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 ${selectedPackageIndex === pkg.index
                                                     ? 'border-[#00A651] bg-[#00A651]/10'
                                                     : 'border-gray-200 dark:border-gray-700 hover:border-[#00A651]/50'
                                                     }`}
                                             >
-                                                <div className="flex justify-between items-center">
-                                                    <div>
-                                                        <div className="font-bold">{pkg.name}</div>
+                                                <div className="flex flex-wrap gap-3 justify-between items-center">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="font-bold break-words"><bdi>{pkg.name}</bdi></div>
                                                     </div>
                                                     <div className="text-lg font-bold text-[#00A651]">
                                                         {pkg.price} USD
                                                     </div>
                                                 </div>
-                                            </div>
+                                            </button>
                                         ))}
                                     </div>
                                 )}
@@ -903,76 +1055,76 @@ export default function RenewWizardPage() {
                                         </div>
 
                                         {/* Show confirmation only when package is selected */}
-                                        {selectedPackageIndex !== null && !showConfirmation && (
+                                        {quoteState === 'READY' && selectedPackageIndex !== null && !showConfirmation && (
                                             <Button
                                                 onClick={() => setShowConfirmation(true)}
                                                 disabled={loading}
                                                 className="w-full bg-[#00A651] hover:bg-[#008f45]"
                                             >
-                                                {'View details and confirm'}
+                                                {t.renew.packages.showDetails}
                                             </Button>
                                         )}
 
                                         {/* Confirmation Dialog */}
-                                        {showConfirmation && selectedPackageIndex !== null && (
-                                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-6 space-y-4">
+                                        {quoteState === 'READY' && showConfirmation && selectedPackageIndex !== null && (
+                                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-4 sm:p-6 space-y-4">
                                                 <div className="text-center">
                                                     <h3 className="text-xl font-bold text-amber-800 dark:text-amber-200 mb-2">
-                                                        ⚠️ {'Confirm Purchase'}
+                                                        ⚠️ {t.renew.packages.confirmTitle}
                                                     </h3>
                                                     <p className="text-gray-600 dark:text-gray-400 text-sm">
-                                                        {'Please review the details before proceeding'}
+                                                        {t.renew.packages.confirmMessage}
                                                     </p>
                                                 </div>
 
                                                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 space-y-3">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-gray-600 dark:text-gray-400">{'Selected package:'}</span>
-                                                        <span className="font-bold text-lg">
+                                                    <div className="flex flex-wrap gap-2 justify-between items-center">
+                                                        <span className="text-gray-600 dark:text-gray-400">{t.renew.packages.selectedPackage}</span>
+                                                        <span className="font-bold text-lg break-words min-w-0">
                                                             {packages.find(p => p.index === selectedPackageIndex)?.name}
                                                         </span>
                                                     </div>
                                                     <hr className="border-gray-200 dark:border-gray-700" />
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-gray-600 dark:text-gray-400">{'Total amount:'}</span>
-                                                        <span className="font-bold text-2xl text-green-600 dark:text-green-400">
+                                                    <div className="flex flex-wrap gap-2 justify-between items-center">
+                                                        <span className="text-gray-600 dark:text-gray-400">{t.renew.packages.totalAmount}</span>
+                                                        <span className="font-bold text-2xl whitespace-nowrap text-green-600 dark:text-green-400" dir="ltr">
                                                             {packages.find(p => p.index === selectedPackageIndex)?.price} USD
                                                         </span>
                                                     </div>
-                                                    {promoCode && (
+                                                    {appliedPromoCode && (
                                                         <>
                                                             <hr className="border-gray-200 dark:border-gray-700" />
                                                             <div className="flex justify-between items-center">
-                                                                <span className="text-gray-600 dark:text-gray-400">{'Promo code:'}</span>
+                                                                <span className="text-gray-600 dark:text-gray-400">{t.operations.promoAppliedCode}</span>
                                                                 <span className="font-mono bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
-                                                                    {promoCode}
+                                                                    {appliedPromoCode}
                                                                 </span>
                                                             </div>
                                                         </>
                                                     )}
                                                 </div>
 
-                                                <div className="flex gap-3">
+                                                <div className="flex flex-wrap gap-3">
                                                     <Button
                                                         variant="outline"
                                                         onClick={() => setShowConfirmation(false)}
                                                         disabled={loading}
-                                                        className="flex-1"
+                                                        className="flex-1 min-w-32 h-auto whitespace-normal py-3"
                                                     >
-                                                        {'Edit selection'}
+                                                        {t.renew.packages.editChoice}
                                                     </Button>
                                                     <Button
                                                         onClick={handleSelectPackage}
                                                         disabled={loading}
-                                                        className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600"
+                                                        className="flex-1 min-w-32 h-auto whitespace-normal py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600"
                                                     >
                                                         {loading ? (
                                                             <>
                                                                 <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                                                {'Purchasing...'}
+                                                                {t.renew.packages.purchasing}
                                                             </>
                                                         ) : (
-                                                            '✓ ' + ('Confirm — Complete Purchase')
+                                                            t.renew.packages.confirmPurchase
                                                         )}
                                                     </Button>
                                                 </div>
@@ -989,7 +1141,9 @@ export default function RenewWizardPage() {
                         <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
                             <CardContent className="py-12 text-center">
                                 <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">{'Completing purchase...'}</h3>
+                                <h3 className="text-xl font-semibold mb-2">
+                                    {fulfillmentStatusMessage || 'Completing purchase...'}
+                                </h3>
                                 <p className="text-muted-foreground">{'Do not close this page'}</p>
                             </CardContent>
                         </Card>

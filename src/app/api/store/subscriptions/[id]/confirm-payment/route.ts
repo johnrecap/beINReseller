@@ -12,7 +12,20 @@ import Stripe from 'stripe'
 import prisma from '@/lib/prisma'
 import { successResponse, errorResponse, handleApiError, validationErrorResponse } from '@/lib/api-response'
 import { getStoreCustomerFromRequest } from '@/lib/store-auth'
-import { getStripeSecretKey } from '@/lib/store-pricing'
+import { CURRENCY_CONFIG, getStripeSecretKey, toStripeAmount } from '@/lib/store-pricing'
+import { dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import {
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
+import {
+    finalizeStoreSubscriptionPayment,
+    markStoreSubscriptionPaymentReviewRequired,
+} from '@/lib/store-subscription-payment-finalization'
+import {
+    matchesPersistedStorePaymentSelection,
+    STORE_PAYMENT_INTENT_REVIEW_REQUIRED_CODE,
+} from '@/lib/store-subscription-payment-claim'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -54,7 +67,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                         status: true,
                         selectedPackage: true,
                     }
-                }
+                },
+                payment: {
+                    select: {
+                        id: true,
+                        customerId: true,
+                        stripePaymentIntentId: true,
+                        amount: true,
+                        currency: true,
+                        status: true,
+                    },
+                },
             }
         })
         
@@ -67,8 +90,48 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return errorResponse('Unauthorized access to this subscription', 403, 'FORBIDDEN')
         }
         
-        // 5. Check status
+        if (
+            !subscription.operation ||
+            subscription.stripePaymentIntentId !== paymentIntentId
+        ) {
+            return errorResponse('Payment does not match this subscription', 400, 'PAYMENT_MISMATCH')
+        }
+        if (
+            !subscription.payment ||
+            subscription.payment.customerId !== customer.id ||
+            subscription.payment.stripePaymentIntentId !== paymentIntentId
+        ) {
+            await prisma.$transaction((tx) => markStoreSubscriptionPaymentReviewRequired(tx, {
+                subscriptionId: subscription.id,
+                operationId: subscription.operation!.id,
+                cardNumber: subscription.operation!.cardNumber,
+                reasonCode: STORE_PAYMENT_INTENT_REVIEW_REQUIRED_CODE,
+            }))
+            return errorResponse(
+                STORE_PAYMENT_INTENT_REVIEW_REQUIRED_CODE,
+                409,
+                STORE_PAYMENT_INTENT_REVIEW_REQUIRED_CODE
+            )
+        }
+
+        // A signed webhook or a concurrent request may have already finalized
+        // the exact persisted payment. Do not create or dispatch a second one.
         if (subscription.status !== 'AWAITING_PAYMENT') {
+            if (
+                ['PAID', 'PROCESSING', 'AWAITING_CAPTCHA', 'COMPLETING', 'COMPLETED'].includes(subscription.status) &&
+                subscription.payment.status === 'SUCCEEDED'
+            ) {
+                const dispatchResult = await dispatchPendingOperationJobs({
+                    operationIds: [subscription.operation.id],
+                })
+                return successResponse({
+                    subscriptionId: subscription.id,
+                    status: 'PAID',
+                    message: 'Payment confirmed successfully. Processing operation...',
+                    queued: dispatchResult.failed === 0,
+                    reused: true,
+                })
+            }
             return errorResponse('Subscription is not awaiting payment', 400, 'INVALID_STATUS')
         }
         
@@ -87,8 +150,69 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return errorResponse('Invalid payment intent ID', 400, 'INVALID_PAYMENT_INTENT')
         }
         
-        // 7. Verify payment belongs to this subscription
-        if (paymentIntent.metadata.subscriptionId !== subscription.id) {
+        const country = subscription.currency === CURRENCY_CONFIG.EG.code ? 'EG' : 'SA'
+        const expectedLocalAmount = subscription.price - subscription.creditUsed
+        const expectedAmount = toStripeAmount(expectedLocalAmount, country)
+        const expectedCurrency = CURRENCY_CONFIG[country].stripeCode
+        const rawSelectedPackage = (
+            subscription.operation.selectedPackage &&
+            typeof subscription.operation.selectedPackage === 'object' &&
+            !Array.isArray(subscription.operation.selectedPackage)
+        )
+            ? subscription.operation.selectedPackage as Record<string, unknown>
+            : null
+        const selectedPackage = (
+            typeof rawSelectedPackage?.index === 'number' &&
+            typeof rawSelectedPackage.name === 'string' &&
+            typeof rawSelectedPackage.price === 'number'
+        )
+            ? {
+                index: rawSelectedPackage.index,
+                name: rawSelectedPackage.name,
+                price: rawSelectedPackage.price,
+            }
+            : null
+        const selectionConsistent = (
+            !!selectedPackage &&
+            matchesPersistedStorePaymentSelection({
+                persisted: {
+                    status: subscription.status,
+                    packageName: subscription.packageName,
+                    packagePrice: subscription.packagePrice,
+                    price: subscription.price,
+                    creditUsed: subscription.creditUsed,
+                    stripePaymentIntentId: subscription.stripePaymentIntentId,
+                    paymentId: subscription.paymentId,
+                    paymentStatus: subscription.payment.status,
+                    updatedAt: subscription.updatedAt,
+                    selectedPackage: rawSelectedPackage,
+                },
+                selectedPackage,
+                customerPrice: subscription.price,
+            })
+        )
+
+        // 7. Verify the provider object against the immutable local claim.
+        if (
+            !selectionConsistent ||
+            subscription.currency !== CURRENCY_CONFIG[country].code ||
+            !Number.isFinite(expectedLocalAmount) ||
+            expectedLocalAmount <= 0 ||
+            toStripeAmount(subscription.payment.amount, country) !== expectedAmount ||
+            paymentIntent.id !== subscription.stripePaymentIntentId ||
+            paymentIntent.metadata.source !== 'store_renewal' ||
+            paymentIntent.metadata.subscriptionId !== subscription.id ||
+            paymentIntent.metadata.operationId !== subscription.operation.id ||
+            paymentIntent.metadata.customerId !== customer.id ||
+            paymentIntent.metadata.packageIndex !== selectedPackage?.index.toString() ||
+            paymentIntent.metadata.packageName !== selectedPackage?.name ||
+            paymentIntent.metadata.beinPrice !== selectedPackage?.price.toString() ||
+            paymentIntent.metadata.customerPrice !== subscription.price.toString() ||
+            paymentIntent.metadata.creditUsed !== subscription.creditUsed.toString() ||
+            paymentIntent.amount !== expectedAmount ||
+            paymentIntent.currency !== expectedCurrency ||
+            subscription.payment.currency !== CURRENCY_CONFIG[country].code
+        ) {
             return errorResponse('Payment does not match this subscription', 400, 'PAYMENT_MISMATCH')
         }
         
@@ -101,62 +225,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             )
         }
         
-        // 9. Create Payment record
-        const payment = await prisma.payment.create({
-            data: {
-                customerId: customer.id,
-                stripePaymentIntentId: paymentIntent.id,
-                amount: subscription.price - subscription.creditUsed,
-                currency: subscription.currency,
-                status: 'SUCCEEDED',
-                type: 'SUBSCRIPTION',
-                metadata: {
-                    subscriptionId: subscription.id,
-                    packageName: subscription.packageName,
-                    creditUsed: subscription.creditUsed,
-                },
-            }
+        // 9-11. Persist payment truth, advance the operation, and create the
+        // retryable outbox row in one card-serialized transaction.
+        await prisma.$transaction((tx) => finalizeStoreSubscriptionPayment(tx, {
+            subscriptionId: subscription.id,
+            operationId: subscription.operation!.id,
+            cardNumber: subscription.operation!.cardNumber,
+            customerId: customer.id,
+            paymentIntentId: paymentIntent.id,
+        }))
+
+        const dispatchResult = await dispatchPendingOperationJobs({
+            operationIds: [subscription.operation!.id],
         })
-        
-        // 10. Update subscription and operation
-        await prisma.$transaction([
-            prisma.storeSubscription.update({
-                where: { id: subscription.id },
-                data: {
-                    status: 'PAID',
-                    paymentId: payment.id,
-                }
-            }),
-            prisma.operation.update({
-                where: { id: subscription.operation!.id },
-                data: {
-                    status: 'COMPLETING',
-                }
-            })
-        ])
-        
-        // 11. Continue operation - add job to queue
-        try {
-            const { addOperationJob } = await import('@/lib/queue')
-            await addOperationJob({
-                operationId: subscription.operation!.id,
-                type: 'COMPLETE_PURCHASE',
-                cardNumber: subscription.operation!.cardNumber,
-                userId: customer.id,
-                amount: subscription.packagePrice || 0,
-            })
-        } catch (queueError) {
-            console.error('Failed to add complete job to queue:', queueError)
-            // Don't fail - the operation is in COMPLETING state and can be retried
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch store complete-purchase; saved for retry:', subscription.operation!.id)
         }
         
         return successResponse({
             subscriptionId: subscription.id,
             status: 'PAID',
             message: 'Payment confirmed successfully. Processing operation...',
+            queued: dispatchResult.failed === 0,
         })
         
     } catch (error) {
+        if (isRenewalCreationBlockedError(error)) {
+            const payload = renewalCreationBlockedPayload(error)
+            return errorResponse(payload.error, 409, payload.code)
+        }
         return handleApiError(error)
     }
 }

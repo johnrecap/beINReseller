@@ -34,8 +34,10 @@ interface OperationsResponse {
         ledgerId: string
         operationId: string
         chargedAt: string
-        panelUserId: string
+        panelUserId: string | null
         panelUsername: string | null
+        customerId?: string | null
+        customerName?: string | null
         beinAccountId: string
         beinUsernameSnapshot: string
         beinLabelSnapshot: string | null
@@ -334,7 +336,7 @@ export default function BeinSpendReportClient() {
                             {(operations?.items || []).map((item) => (
                                 <tr key={item.ledgerId} className="border-t border-border">
                                     <td className="px-4 py-3 font-mono text-xs">{item.operationId}</td>
-                                    <td className="px-4 py-3">{item.panelUsername || item.panelUserId}</td>
+                                    <td className="px-4 py-3">{item.panelUsername || item.panelUserId || item.customerName || item.customerId}</td>
                                     <td className="px-4 py-3">{accountDisplay(item.beinUsernameSnapshot, item.beinLabelSnapshot)}</td>
                                     <td className="px-4 py-3">{item.cardNumber}</td>
                                     <td className="px-4 py-3">{item.selectedPackageName || item.operationType}</td>

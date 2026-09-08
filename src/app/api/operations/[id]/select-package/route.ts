@@ -1,39 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth-utils'
+import { assertRenewalReadiness, renewalReadinessErrorPayload } from '@/lib/renewal-readiness'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
-import { addOperationJob, operationsQueue } from '@/lib/queue'
-import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { lockFinancialOperation } from '../../../../../../shared/operations/financial-lock'
+import { selectQuotedPackage, quoteErrorPayload } from '../../../../../../shared/operations/package-quote'
 import { withRateLimit, RATE_LIMITS, rateLimitHeaders } from '@/lib/rate-limiter'
 import { planRenewalPackageSelection } from '@/lib/operations/lock-timeouts'
 import { releaseAccountLockSafely } from '@/lib/operations/account-lock-release'
 import redis from '@/lib/redis'
+import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
+import {
+    ensureGuardedRenewalOperationReservation,
+    isRenewalCreationBlockedError,
+    renewalCreationBlockedPayload,
+} from '@/lib/operations/renewal-creation-guard'
 
 // Validation schema
 const selectPackageSchema = z.object({
     packageIndex: z.number().int().min(0),
+    quoteRevision: z.number().int().min(0).max(2147483647),
+    packageKey: z.string().optional(),
     promoCode: z.string().optional(),
 })
-
-interface AvailablePackage {
-    index: number
-    name: string
-    price: number
-    checkboxSelector: string
-}
-
-function isDuplicateJobError(error: unknown): boolean {
-    const message = error instanceof Error ? error.message.toLowerCase() : ''
-    return message.includes('already exists') || message.includes('jobid')
-}
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
-    const session = await auth()
-    if (session?.user?.id) return session.user
-    return getMobileUserFromRequest(request)
+    return getAuthenticatedUser(request)
 }
 
 /**
@@ -83,10 +78,9 @@ export async function POST(
             )
         }
 
-        const { packageIndex, promoCode } = validationResult.data
-
         // 3. Get operation with transaction lock
         const result = await prisma.$transaction(async (tx) => {
+            if (!await lockFinancialOperation(tx, id)) throw new Error('OPERATION_NOT_FOUND')
             // Get operation
             const operation = await tx.operation.findUnique({
                 where: { id },
@@ -97,6 +91,7 @@ export async function POST(
                     status: true,
                     stbNumber: true,
                     availablePackages: true,
+                    promoCode: true,
                     finalConfirmExpiry: true,
                     responseData: true,
                     beinAccountId: true,
@@ -117,16 +112,14 @@ export async function POST(
                 throw new Error('INVALID_STATUS')
             }
 
-            // Parse and validate package selection
-            const packages = operation.availablePackages as AvailablePackage[] | null
-            if (!packages || !Array.isArray(packages)) {
-                throw new Error('NO_PACKAGES')
-            }
+            await ensureGuardedRenewalOperationReservation(tx, {
+                operationId: operation.id,
+                cardNumber: operation.cardNumber,
+            })
 
-            const selectedPackage = packages.find(p => p.index === packageIndex)
-            if (!selectedPackage) {
-                throw new Error('PACKAGE_NOT_FOUND')
-            }
+            const { selectedPackage, promoCode } = selectQuotedPackage(operation, validationResult.data)
+            await assertRenewalReadiness(tx, { operationId: id, beinAccountId: operation.beinAccountId,
+                minBalance: Number(selectedPackage.price), lockAssignedAccount: true })
 
             // Get user balance
             const user = await tx.user.findUnique({
@@ -143,7 +136,7 @@ export async function POST(
                 operation,
                 selectedPackage,
                 userBalance: user.balance,
-                promoCode,
+                promoCode: promoCode ?? undefined,
             })
 
             if (selectionPlan.kind === 'expired') {
@@ -184,6 +177,15 @@ export async function POST(
                 throw new Error('STATUS_RACE_OR_EXPIRED')
             }
 
+            await createOperationDispatch(tx, {
+                operationId: operation.id,
+                type: 'COMPLETE_PURCHASE',
+                cardNumber: operation.cardNumber,
+                promoCode: promoCode ?? undefined,
+                userId: authUser.id,
+                amount: 0,
+            })
+
             // No transaction record yet — created at confirm-purchase
 
             return {
@@ -204,37 +206,10 @@ export async function POST(
             )
         }
 
-        // 4. Add job to queue to complete purchase
-        const completeJobId = `COMPLETE_PURCHASE--${id}`
-        const existingJob = await operationsQueue.getJob(completeJobId).catch(() => null)
-        try {
-            if (!existingJob) {
-                await addOperationJob({
-                    operationId: id,
-                    type: 'COMPLETE_PURCHASE',
-                    cardNumber: result.operation.cardNumber,
-                    promoCode,
-                    userId: authUser.id,
-                    amount: 0,  // No money deducted yet — deduction at confirm-purchase
-                })
-            }
-        } catch (queueError) {
-            if (!isDuplicateJobError(queueError)) {
-                console.error('Failed to add complete job to queue:', queueError)
-
-                await prisma.operation.updateMany({
-                    where: { id, status: 'COMPLETING', amount: 0 },
-                    data: {
-                        status: 'AWAITING_PACKAGE',
-                        responseMessage: 'Queue unavailable. Please retry package selection.'
-                    }
-                })
-
-                return NextResponse.json(
-                    { error: 'Could not start purchase right now. Please try again.' },
-                    { status: 503 }
-                )
-            }
+        // 4. Dispatch the durable outbox row; failure remains retryable.
+        const dispatchResult = await dispatchPendingOperationJobs({ operationIds: [id] })
+        if (dispatchResult.failed > 0) {
+            console.error('Failed to dispatch complete-purchase job; saved for retry:', id)
         }
 
         // 5. Return success
@@ -245,9 +220,20 @@ export async function POST(
             amount: result.selectedPackage.price,
             newBalance: result.newBalance,
             message: 'Completing purchase...',
+            queued: dispatchResult.failed === 0,
         })
 
     } catch (error) {
+        const readinessError = renewalReadinessErrorPayload(error)
+        if (readinessError) return NextResponse.json(readinessError, { status: 503 })
+        const quoteError = quoteErrorPayload(error)
+        if (quoteError) return NextResponse.json(quoteError, { status: 409 })
+        if (isRenewalCreationBlockedError(error)) {
+            return NextResponse.json(
+                renewalCreationBlockedPayload(error),
+                { status: 409 }
+            )
+        }
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error('Select package error:', errorMessage)
 

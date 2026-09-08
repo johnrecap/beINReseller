@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { encryptSecret } from '@/lib/crypto'
+import { normalizeProviderAccountCredentialUsername } from '@/lib/provider-account-identity'
 
 const poolSettings = [
     { key: 'pool_round_robin_enabled', value: 'true' },
@@ -43,14 +44,15 @@ export async function POST(request: NextRequest) {
 
         let accountMigrated = false
         if (username?.value && password?.value) {
-            const existing = await prisma.beinAccount.findUnique({
-                where: { username: username.value }
+            const credentialUsername = normalizeProviderAccountCredentialUsername(username.value)
+            const existing = await prisma.beinAccount.findFirst({
+                where: { username: { equals: credentialUsername, mode: 'insensitive' } }
             })
 
             if (!existing) {
                 await prisma.beinAccount.create({
                     data: {
-                        username: username.value,
+                        username: credentialUsername,
                         password: encryptSecret(password.value),
                         totpSecret: totpSecret?.value ? encryptSecret(totpSecret.value) : null,
                         label: 'Original account',
@@ -59,9 +61,9 @@ export async function POST(request: NextRequest) {
                     }
                 })
                 accountMigrated = true
-                results.push(`✅ Migrated existing account: ${username.value}`)
+                results.push(`✅ Migrated existing account: ${credentialUsername}`)
             } else {
-                results.push(`⏭️ Account already exists: ${username.value}`)
+                results.push(`⏭️ Account already exists: ${credentialUsername}`)
             }
         }
 

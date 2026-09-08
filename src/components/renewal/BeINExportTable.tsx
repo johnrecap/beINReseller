@@ -49,12 +49,16 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
         return () => window.removeEventListener('resize', calculateScale)
     }, [])
 
-    // Measure actual table height after render
+    // offsetHeight excludes the CSS transform; apply the scale only once.
     useEffect(() => {
-        if (tableRef.current) {
-            const height = tableRef.current.getBoundingClientRect().height
-            setTableHeight(height)
-        }
+        const table = tableRef.current
+        if (!table) return
+        const measure = () => setTableHeight(table.offsetHeight)
+        measure()
+        if (typeof ResizeObserver === 'undefined') return
+        const observer = new ResizeObserver(measure)
+        observer.observe(table)
+        return () => observer.disconnect()
     }, [contracts])
 
     // Status color helper
@@ -65,8 +69,8 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
         return { bg: '#ffcccc', text: '#990000' } // Cancelled or other
     }
 
-    // Table content component (reused for both visible and export)
-    const TableContent = () => (
+    // Reuse markup without creating a new component type on every render.
+    const tableContent = (
         <>
             {/* Card Number */}
             <div style={{ 
@@ -183,7 +187,7 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                         transformOrigin: 'top center'
                     }}
                 >
-                    <TableContent />
+                    {tableContent}
                 </div>
             </div>
 
@@ -207,7 +211,7 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                         width: `${TABLE_WIDTH}px`
                     }}
                 >
-                    <TableContent />
+                    {tableContent}
                 </div>
             </div>
         </div>

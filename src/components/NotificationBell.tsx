@@ -1,7 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Bell, CheckCheck, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
+import { withRequestDeadline } from '@/lib/request-deadline'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
@@ -22,6 +26,10 @@ export default function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false)
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
+    const { load, loading, error, cancel } = usePanelRequest()
+    const [busy, setBusy] = useState(false)
+    const busyRef = useRef(false)
+    const bellRef = useRef<HTMLButtonElement>(null)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
     const getDateLocale = () => {
@@ -32,26 +40,19 @@ export default function NotificationBell() {
         }
     }
 
-    const fetchNotifications = async () => {
-        try {
-            const res = await fetch('/api/notifications?limit=10')
-            if (res.ok) {
-                const data = await res.json()
-                setNotifications(data.notifications)
-                setUnreadCount(data.unreadCount)
-            }
-        } catch {
-        }
-    }
+    const fetchNotifications = useCallback(async () => {
+        if (busyRef.current) return
+        await load<{ notifications: Notification[]; unreadCount: number }>('/api/notifications?limit=10', data => {
+            setNotifications(data.notifications)
+            setUnreadCount(data.unreadCount)
+        })
+    }, [load])
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional initial fetch
-        fetchNotifications()
-
-        // Poll for new notifications every 30 seconds
+        void fetchNotifications()
         const interval = setInterval(fetchNotifications, 30000)
-        return () => clearInterval(interval)
-    }, [])
+        return () => { clearInterval(interval); cancel() }
+    }, [fetchNotifications, cancel])
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -63,31 +64,29 @@ export default function NotificationBell() {
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    const markAsRead = async (notificationId: string) => {
+    const markRead = async (notificationId?: string): Promise<boolean> => {
+        if (busyRef.current) return false
+        busyRef.current = true
+        setBusy(true)
+        cancel()
         try {
-            await fetch('/api/notifications', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notificationId }),
-            })
-            setNotifications(prev =>
-                prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
-            )
-            setUnreadCount(prev => Math.max(0, prev - 1))
+            await withRequestDeadline(async signal => {
+                const response = await fetch('/api/notifications', {
+                    method: 'PUT', signal, headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(notificationId ? { notificationId } : { markAll: true }),
+                })
+                if (!response.ok) throw new Error('NOTIFICATION_UPDATE_FAILED')
+            }, 15_000)
+            setNotifications(prev => prev.map(n => !notificationId || n.id === notificationId ? { ...n, read: true } : n))
+            setUnreadCount(prev => notificationId ? Math.max(0, prev - 1) : 0)
+            return true
         } catch {
-        }
-    }
-
-    const markAllAsRead = async () => {
-        try {
-            await fetch('/api/notifications', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ markAll: true }),
-            })
-            setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-            setUnreadCount(0)
-        } catch {
+            toast.error(t.common.error)
+            return false
+        } finally {
+            busyRef.current = false
+            setBusy(false)
+            void fetchNotifications()
         }
     }
 
@@ -105,9 +104,12 @@ export default function NotificationBell() {
     }
 
     return (
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative" ref={dropdownRef} onKeyDown={event => { if (event.key === 'Escape') { setIsOpen(false); bellRef.current?.focus() } }}>
             {/* Bell Button */}
             <button
+                ref={bellRef}
+                aria-expanded={isOpen}
+                aria-controls="panel-notifications"
                 onClick={() => setIsOpen(!isOpen)}
                 className="relative p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
                 aria-label={t.notifications?.title || 'Notifications'}
@@ -122,13 +124,14 @@ export default function NotificationBell() {
 
             {/* Dropdown */}
             {isOpen && (
-                <div className="absolute left-0 top-full mt-2 w-80 bg-card rounded-xl shadow-2xl border border-border overflow-hidden z-50" dir="rtl">
+                <div id="panel-notifications" className="absolute end-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-card rounded-xl shadow-2xl border border-border overflow-hidden z-50" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary">
                         <h3 className="font-bold text-foreground">{t.notifications?.title || 'Notifications'}</h3>
                         {unreadCount > 0 && (
                             <button
-                                onClick={markAllAsRead}
+                                disabled={busy}
+                                onClick={() => markRead()}
                                 className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
                                 <CheckCheck className="w-4 h-4" />
@@ -137,23 +140,26 @@ export default function NotificationBell() {
                         )}
                     </div>
 
+                    {error !== null && <PanelLoadError status={error} retry={fetchNotifications} />}
+                    {error !== null && notifications.length > 0 && <p className="px-4 text-xs">{t.panelUi.staleData}</p>}
                     {/* Notifications List */}
                     <div className="max-h-96 overflow-y-auto">
-                        {notifications.length === 0 ? (
+                        {loading && notifications.length === 0 ? <p role="status" className="p-4">{t.common.loading}</p> : error !== null && notifications.length === 0 ? null : notifications.length === 0 ? (
                             <div className="p-8 text-center text-muted-foreground">
                                 <Bell className="w-12 h-12 mx-auto mb-2 opacity-30" />
                                 <p>{t.notifications?.noNotifications || 'No notifications'}</p>
                             </div>
                         ) : (
                             notifications.map((notification) => (
-                                <div
+                                <button
+                                    type="button" disabled={busy}
                                     key={notification.id}
                                     className={cn(
-                                        'flex gap-3 p-4 border-b border-border hover:bg-secondary transition-colors cursor-pointer',
-                                        !notification.read && 'bg-blue-50/50'
+                                        'w-full text-start flex gap-3 p-4 border-b border-border hover:bg-secondary transition-colors cursor-pointer',
+                                        !notification.read && 'bg-blue-500/10'
                                     )}
-                                    onClick={() => {
-                                        if (!notification.read) markAsRead(notification.id)
+                                    onClick={async () => {
+                                        if (!notification.read && !await markRead(notification.id)) return
                                         if (notification.link) {
                                             window.location.href = notification.link
                                         }
@@ -184,7 +190,7 @@ export default function NotificationBell() {
                                             <div className="w-2 h-2 bg-blue-500 rounded-full" />
                                         </div>
                                     )}
-                                </div>
+                                </button>
                             ))
                         )}
                     </div>

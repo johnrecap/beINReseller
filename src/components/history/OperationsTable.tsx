@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
-import { ChevronRight, ChevronLeft, FileX, XCircle, Loader2 } from 'lucide-react'
+import { FileX, XCircle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { PanelTablePagination, SortableTableHead } from '@/components/ui/PanelTableControls'
 import { useTranslation } from '@/hooks/useTranslation'
 
 interface Operation {
@@ -15,6 +17,11 @@ interface Operation {
     status: string
     responseMessage?: string
     createdAt: string
+    messageKey?: string | null
+    settlementState?: string
+    nextAction?: string
+    confirmationExpired?: boolean
+    reviewRequired?: boolean
 }
 
 interface OperationsTableProps {
@@ -22,8 +29,26 @@ interface OperationsTableProps {
     loading?: boolean
     page: number
     totalPages: number
+    total: number
+    sortConfig: { key: 'date' | 'amount' | 'status'; direction: 'asc' | 'desc' }
+    onSortChange: (sort: OperationsTableProps['sortConfig']) => void
     onPageChange: (page: number) => void
     onRefresh?: () => void
+}
+
+function OperationProgress({ operation }: { operation: Operation }) {
+    const { t } = useTranslation()
+    const message = operation.messageKey?.startsWith('operations.')
+        ? (t.operations as Record<string, string>)[operation.messageKey.slice('operations.'.length)] : null
+    const action = operation.nextAction
+    return <div className="mt-1 space-y-1 text-xs whitespace-normal">
+        {message && <p>{message}</p>}
+        {operation.settlementState === 'REFUNDED' && <p>{t.panelUi.refunded}</p>}
+        {operation.settlementState === 'UNCONFIRMED' && <p>{t.panelUi.settlementUnconfirmed}</p>}
+        {action && <p>{t.panelUi.nextAction}: {({ CONTACT_ADMIN: t.panelUi.contactAdmin, CONTINUE: t.panelUi.continueOperation,
+            VIEW_ACTIVE_OPERATION: t.panelUi.viewActive, VIEW_HISTORY: t.panelUi.viewHistory, WAIT: t.panelUi.wait } as Record<string, string>)[action] ?? action}</p>}
+        {(action === 'CONTINUE' || action === 'VIEW_ACTIVE_OPERATION') && <a className="underline" href="/dashboard/operations/active">{t.panelUi.viewActive}</a>}
+    </div>
 }
 
 const statusColors: Record<string, string> = {
@@ -46,28 +71,21 @@ const typeColors: Record<string, string> = {
     SIGNAL_REFRESH: 'bg-[#00A651]/10 text-[#00A651] border border-[#00A651]/30',
 }
 
-const statusFallbackLabels: Record<string, string> = {
-    REVIEW_REQUIRED: 'قيد مراجعة الإدارة',
-    AWAITING_PACKAGE: 'Awaiting Package',
-    AWAITING_FINAL_CONFIRM: 'Awaiting Final Confirm',
-    COMPLETING: 'Completing',
-    EXPIRED: 'Expired',
-}
-
-// Statuses that can be cancelled (FAILED is excluded - auto-refunded by worker)
+// Cancellation admission is separate from the persisted settlement outcome.
 const CANCELLABLE_STATUSES = ['PENDING', 'AWAITING_CAPTCHA']
 
 export default function OperationsTable({
     operations,
     loading,
     page,
-    totalPages,
+    total,
+    sortConfig,
+    onSortChange,
     onPageChange,
     onRefresh,
 }: OperationsTableProps) {
     const { t, language } = useTranslation()
     const [cancellingId, setCancellingId] = useState<string | null>(null)
-    const [sortConfig, setSortConfig] = useState<{ key: keyof Operation | 'date', direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' })
 
     const getDateLocale = () => {
         switch (language) {
@@ -79,34 +97,17 @@ export default function OperationsTable({
 
     const getStatusLabel = (status: string) =>
         (t.status as Record<string, string>)?.[
-        status === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : status.toLowerCase()
-        ] ?? statusFallbackLabels[status] ?? status ?? 'Unknown'
+        status.toLowerCase().replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase())
+        ] ?? status
 
-    const handleSort = (key: keyof Operation | 'date') => {
-        setSortConfig(current => ({
+    const handleSort = (key: 'date' | 'amount' | 'status') => {
+        onSortChange({
             key,
-            direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
-        }))
+            direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+        })
     }
 
-    const sortedOperations = [...operations].sort((a, b) => {
-        const { key, direction } = sortConfig
-        let aValue: string | number | undefined
-        let bValue: string | number | undefined
-
-        if (key === 'date') {
-            aValue = new Date(a.createdAt).getTime()
-            bValue = new Date(b.createdAt).getTime()
-        } else {
-            aValue = a[key as keyof Operation] as string | number | undefined
-            bValue = b[key as keyof Operation] as string | number | undefined
-        }
-
-        if (aValue === undefined || bValue === undefined) return 0
-        if (aValue < bValue) return direction === 'asc' ? -1 : 1
-        if (aValue > bValue) return direction === 'asc' ? 1 : -1
-        return 0
-    })
+    const sortedOperations = operations
 
     const handleCancel = async (operation: Operation) => {
         const confirmed = window.confirm(
@@ -122,7 +123,7 @@ export default function OperationsTable({
             const data = await res.json()
 
             if (res.ok) {
-                toast.success(t.history.refundMessage)
+                toast.success(t.panelUi.cancelAccepted)
                 onRefresh?.()
             } else {
                 toast.error(data.error || t.common.error)
@@ -171,90 +172,85 @@ export default function OperationsTable({
         <div className="bg-card rounded-xl shadow-sm overflow-hidden animate-in fade-in duration-500">
             {/* Desktop Table */}
             <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                    <thead className="bg-[#1a1d26]/50 border-b border-border">
-                        <tr>
-                            <th className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[60px]">#</th>
-                            <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[180px]">{t.history.type}</th>
-                            <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[140px]">{t.history.cardNumber}</th>
-                            <th
-                                className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[120px] cursor-pointer hover:text-foreground transition-colors group"
-                                onClick={() => handleSort('amount')}
-                            >
-                                <div className="flex items-center justify-end gap-1">
+                <Table panel className="w-full">
+                    <TableHeader className="bg-[#1a1d26]/50 border-b border-border">
+                        <TableRow>
+                            <TableHead className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[60px]">#</TableHead>
+                            <TableHead className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[180px]">{t.history.type}</TableHead>
+                            <TableHead className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[140px]">{t.history.cardNumber}</TableHead>
+                            <SortableTableHead
+                                className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[120px] cursor-pointer hover:text-foreground transition-colors group" onSort={() => handleSort('amount')} direction={sortConfig.key === 'amount' ? sortConfig.direction : undefined}>
+                                <div className="flex items-center justify-start gap-1">
                                     {t.history.amount}
                                     <span className={`transition-opacity ${sortConfig.key === 'amount' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
                                         {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                     </span>
                                 </div>
-                            </th>
-                            <th
-                                className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[140px] cursor-pointer hover:text-foreground transition-colors group"
-                                onClick={() => handleSort('status')}
-                            >
-                                <div className="flex items-center justify-end gap-1">
+                            </SortableTableHead>
+                            <SortableTableHead
+                                className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[140px] cursor-pointer hover:text-foreground transition-colors group" onSort={() => handleSort('status')} direction={sortConfig.key === 'status' ? sortConfig.direction : undefined}>
+                                <div className="flex items-center justify-start gap-1">
                                     {t.history.status}
                                     <span className={`transition-opacity ${sortConfig.key === 'status' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
                                         {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                     </span>
                                 </div>
-                            </th>
-                            <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[250px]">{t.history.result}</th>
-                            <th
-                                className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[180px] cursor-pointer hover:text-foreground transition-colors group"
-                                onClick={() => handleSort('date')}
-                            >
-                                <div className="flex items-center justify-end gap-1">
+                            </SortableTableHead>
+                            <TableHead className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[250px]">{t.history.result}</TableHead>
+                            <SortableTableHead
+                                className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[180px] cursor-pointer hover:text-foreground transition-colors group" onSort={() => handleSort('date')} direction={sortConfig.key === 'date' ? sortConfig.direction : undefined}>
+                                <div className="flex items-center justify-start gap-1">
                                     {t.history.date}
                                     <span className={`transition-opacity ${sortConfig.key === 'date' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
                                         {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                     </span>
                                 </div>
-                            </th>
-                            <th className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[80px]">{t.history.actions}</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
+                            </SortableTableHead>
+                            <TableHead className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[80px]">{t.history.actions}</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-border">
                         {sortedOperations.map((op, index) => (
-                            <tr
+                            <TableRow
                                 key={op.id}
                                 className="hover:bg-muted/30 transition-colors animate-in fade-in fill-mode-both"
                                 style={{ animationDelay: `${index * 50}ms` }}
                             >
-                                <td className="px-6 py-4 text-sm text-muted-foreground text-center font-medium">
+                                <TableCell className="px-6 py-4 text-sm text-muted-foreground text-center font-medium">
                                     {(page - 1) * 10 + index + 1}
-                                </td>
-                                <td className="px-6 py-4">
+                                </TableCell>
+                                <TableCell className="px-6 py-4">
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${typeColors[op.type] || 'bg-gray-100 dark:bg-gray-800'} transition-transform hover:scale-105`}>
                                         {(t.operations as Record<string, string>)[op.type === 'CHECK_BALANCE' ? 'checkBalance' : op.type === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || op.type}
                                     </span>
-                                </td>
-                                <td className="px-6 py-4 font-mono text-sm text-foreground">
+                                </TableCell>
+                                <TableCell className="px-6 py-4 font-mono text-sm text-foreground">
                                     <span className="bg-muted px-2 py-1 rounded text-xs tracking-wider">
                                         {op.cardNumber}
                                     </span>
-                                </td>
-                                <td className="px-6 py-4 text-sm font-bold text-foreground dir-ltr text-right">
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-sm font-bold text-foreground dir-ltr text-start">
                                     {op.amount > 0 ? (
                                         <span className="text-white">{op.amount.toFixed(2)} USD</span>
                                     ) : (
                                         <span className="text-muted-foreground">-</span>
                                     )}
-                                </td>
-                                <td className="px-6 py-4">
+                                </TableCell>
+                                <TableCell className="px-6 py-4">
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusColors[op.status] || 'bg-gray-100 dark:bg-gray-800'} transition-transform hover:scale-105`}>
                                         {getStatusLabel(op.status)}
                                     </span>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-muted-foreground">
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-sm text-muted-foreground">
                                     <div className="max-w-[250px] truncate" title={op.responseMessage || ''}>
+                                        <OperationProgress operation={op} />
                                         {op.responseMessage || '-'}
                                     </div>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-muted-foreground dir-ltr text-right">
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-sm text-muted-foreground dir-ltr text-start">
                                     {format(new Date(op.createdAt), 'HH:mm dd/MM/yyyy', { locale: getDateLocale() })}
-                                </td>
-                                <td className="px-6 py-4 text-center">
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-center">
                                     {CANCELLABLE_STATUSES.includes(op.status) ? (
                                         <button
                                             onClick={() => handleCancel(op)}
@@ -271,11 +267,11 @@ export default function OperationsTable({
                                     ) : (
                                         <span className="text-xs text-muted-foreground">-</span>
                                     )}
-                                </td>
-                            </tr>
+                                </TableCell>
+                            </TableRow>
                         ))}
-                    </tbody>
-                </table>
+                    </TableBody>
+                </Table>
             </div>
 
             {/* Mobile List View */}
@@ -291,7 +287,7 @@ export default function OperationsTable({
                                 <span className="font-mono text-sm font-medium text-foreground bg-muted/50 px-2 py-0.5 rounded w-fit mb-1">
                                     {op.cardNumber}
                                 </span>
-                                <span className="text-xs text-muted-foreground dir-ltr text-right w-fit">
+                                <span className="text-xs text-muted-foreground dir-ltr text-start w-fit">
                                     {format(new Date(op.createdAt), 'HH:mm dd/MM/yyyy', { locale: getDateLocale() })}
                                 </span>
                             </div>
@@ -331,6 +327,7 @@ export default function OperationsTable({
                             )}
                         </div>
 
+                        <OperationProgress operation={op} />
                         {op.responseMessage && (
                             <div className="mt-3 pt-3 border-t border-border border-dashed text-xs text-muted-foreground">
                                 {op.responseMessage}
@@ -340,36 +337,7 @@ export default function OperationsTable({
                 ))}
             </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
-                    <p className="text-sm text-muted-foreground hidden sm:block">
-                        {t.pagination?.page || 'Showing'} {(page - 1) * 10 + 1}-{Math.min(page * 10, operations.length + (page - 1) * 10)} {t.pagination?.of || 'of'} {totalPages * 10}
-                    </p>
-                    <div className="flex gap-2 w-full sm:w-auto justify-between sm:justify-start">
-                        <button
-                            onClick={() => onPageChange(page - 1)}
-                            disabled={page <= 1}
-                            aria-label="Previous page"
-                            className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                        <div className="flex items-center gap-1 px-2">
-                            <span className="text-sm font-medium">{page}</span>
-                            <span className="text-sm text-muted-foreground">/ {totalPages}</span>
-                        </div>
-                        <button
-                            onClick={() => onPageChange(page + 1)}
-                            disabled={page >= totalPages}
-                            aria-label="Next page"
-                            className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-            )}
+            <PanelTablePagination page={page} total={total} onPageChange={onPageChange} />
         </div>
     )
 }

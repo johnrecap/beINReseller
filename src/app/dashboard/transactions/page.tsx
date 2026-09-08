@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { requireAuth } from '@/lib/auth-utils'
 import TransactionsTable from '@/components/transactions/TransactionsTable'
-import { Wallet } from 'lucide-react'
+import TransactionsHeading from '@/components/transactions/TransactionsHeading'
 
 export const metadata = {
     title: 'Transactions | Desh Panel',
@@ -12,19 +12,8 @@ export default async function TransactionsPage() {
     await requireAuth()
 
     return (
-        <div className="space-y-6" dir="rtl">
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
-                <div className="flex items-center gap-4 w-full sm:w-auto">
-                    <div className="w-12 h-12 rounded-full bg-[#3B82F6] flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
-                        <Wallet className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-foreground">Financial Transactions</h1>
-                        <p className="text-muted-foreground text-sm font-medium">Balance transaction history (purchases, withdrawals, operations)</p>
-                    </div>
-                </div>
-            </div>
+        <div className="space-y-6">
+            <TransactionsHeading />
 
             {/* Transactions Table */}
             <Suspense fallback={

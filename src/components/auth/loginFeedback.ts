@@ -34,11 +34,8 @@ export function mapAuthErrorToLoginFeedback(error: string | null | undefined): L
     }
 
     if (
-        !error ||
-        error === "Configuration" ||
         error === "CredentialsSignin" ||
-        error === "invalid_credentials" ||
-        error === "CallbackRouteError"
+        error === "invalid_credentials"
     ) {
         return { status: "invalid_credentials" }
     }

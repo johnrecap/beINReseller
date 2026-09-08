@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
+import { useTranslation } from '@/hooks/useTranslation'
 import { Clock } from 'lucide-react'
 import HistoryFilters, { FilterValues } from '@/components/history/HistoryFilters'
 import OperationsTable from '@/components/history/OperationsTable'
@@ -18,8 +21,11 @@ interface Operation {
 
 export default function HistoryPageClient() {
     const { data: session } = useSession()
+    const { t } = useTranslation()
+    const { load, loading, error, cancel } = usePanelRequest()
+    const [total, setTotal] = useState(0)
+    const [sortConfig, setSortConfig] = useState<{ key: 'date' | 'amount' | 'status'; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' })
     const [operations, setOperations] = useState<Operation[]>([])
-    const [loading, setLoading] = useState(true)
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [filters, setFilters] = useState<FilterValues>({
@@ -31,37 +37,23 @@ export default function HistoryPageClient() {
     })
 
     const fetchOperations = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams({
-                page: page.toString(),
-                limit: '10',
-            })
-
-            if (filters.type) params.append('type', filters.type)
-            if (filters.status) params.append('status', filters.status)
-            if (filters.cardNumber.trim()) params.append('cardNumber', filters.cardNumber.trim())
-            if (filters.from) params.append('from', filters.from)
-            if (filters.to) params.append('to', filters.to)
-
-            const res = await fetch(`/api/operations?${params}`)
-            const data = await res.json()
-
-            if (res.ok) {
-                setOperations(data.operations)
-                setTotalPages(data.totalPages)
-            }
-        } catch {
-        } finally {
-            setLoading(false)
-        }
-    }, [page, filters])
+        const params = new URLSearchParams({ page: String(page), limit: '10',
+            sortBy: sortConfig.key === 'date' ? 'createdAt' : sortConfig.key, sortOrder: sortConfig.direction })
+        for (const [key, value] of Object.entries(filters)) if (value.trim()) params.set(key, value.trim())
+        await load<{ operations: Operation[]; totalPages: number; total: number }>(`/api/operations?${params}`, data => {
+            setOperations(data.operations)
+            setTotalPages(data.totalPages)
+            setTotal(data.total)
+            if (page > Math.max(1, data.totalPages)) setPage(Math.max(1, data.totalPages))
+        })
+    }, [page, filters, sortConfig, load])
 
     useEffect(() => {
         if (session) {
             fetchOperations()
         }
-    }, [session, fetchOperations])
+        return cancel
+    }, [session, fetchOperations, cancel])
 
     const handleFilter = (newFilters: FilterValues) => {
         setFilters(newFilters)
@@ -81,8 +73,8 @@ export default function HistoryPageClient() {
                         <Clock className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">Operations History</h1>
-                        <p className="text-muted-foreground text-sm font-medium">View all past operations</p>
+                        <h1 className="text-2xl font-bold text-foreground">{t.panelUi.historyTitle}</h1>
+                        <p className="text-muted-foreground text-sm font-medium">{t.panelUi.historyDescription}</p>
                     </div>
                 </div>
             </div>
@@ -91,14 +83,17 @@ export default function HistoryPageClient() {
             <HistoryFilters onFilter={handleFilter} loading={loading} />
 
             {/* Table */}
-            <OperationsTable
+            {error !== null ? <PanelLoadError status={error} retry={fetchOperations} /> : <OperationsTable
                 operations={operations}
                 loading={loading}
                 page={page}
                 totalPages={totalPages}
+                total={total}
+                sortConfig={sortConfig}
+                onSortChange={(sort) => { setSortConfig(sort); setPage(1) }}
                 onPageChange={handlePageChange}
                 onRefresh={fetchOperations}
-            />
+            />}
         </div>
     )
 }

@@ -3,11 +3,12 @@ import { cn } from "@/lib/utils"
 
 const Table = React.forwardRef<
     HTMLTableElement,
-    React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
+    React.HTMLAttributes<HTMLTableElement> & { panel?: boolean }
+>(({ className, panel = false, ...props }, ref) => (
     <div className="relative w-full overflow-auto">
         <table
             ref={ref}
+            data-panel-table={panel || undefined}
             className={cn("w-full caption-bottom text-sm", className)}
             {...props}
         />

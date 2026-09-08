@@ -35,7 +35,7 @@ const authenticatedUserSelect = {
     passwordChangedAt: true,
 } as const
 
-async function getDbAuthenticatedUser(
+export async function getDbAuthenticatedUser(
     userId: string,
     tokenIssuedAt?: number
 ): Promise<AuthenticatedUser | null> {

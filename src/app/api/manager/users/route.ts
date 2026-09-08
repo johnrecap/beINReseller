@@ -58,11 +58,13 @@ export async function GET(request: NextRequest) {
         const whereManager = userRole === 'ADMIN' ? {} : { managerId }
 
         const where: Record<string, unknown> = {
-            ...whereManager
+            ...whereManager,
+            user: { deletedAt: null },
         }
 
         if (search) {
             where.user = {
+                deletedAt: null,
                 OR: [
                     { username: { contains: search, mode: 'insensitive' } },
                     { email: { contains: search, mode: 'insensitive' } }

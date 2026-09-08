@@ -25,10 +25,10 @@ export default function DashboardShell({ children }: DashboardShellProps) {
                 dir === 'rtl' ? "lg:mr-[var(--sidebar-width)]" : "lg:ml-[var(--sidebar-width)]"
             )}>
                 {/* Header */}
-                <Header title={t.common.controlPanel} onMenuClick={() => setSidebarOpen(true)} />
+                <Header sidebarOpen={sidebarOpen} title={t.common.controlPanel} onMenuClick={() => setSidebarOpen(true)} />
 
                 {/* Page Content */}
-                <main className="p-[var(--page-padding-mobile)] lg:p-[var(--page-padding)] max-w-[var(--content-max-width)] mx-auto">
+                <main className="min-w-0 p-[var(--page-padding-mobile)] lg:p-[var(--page-padding)] max-w-[var(--content-max-width)] mx-auto">
                     {children}
                 </main>
             </div>

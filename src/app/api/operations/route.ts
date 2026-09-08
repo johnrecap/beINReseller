@@ -1,3 +1,5 @@
+import { auth } from '@/lib/auth'
+import { panelListQuery } from '@/lib/panel-list-query'
 import { NextResponse } from 'next/server'
 import { withAuth } from '@/lib/api-middleware'
 import prisma from '@/lib/prisma'
@@ -12,15 +14,18 @@ export const GET = withAuth(async (request: Request, session) => {
 
         // Parse query params
         const { searchParams } = new URL(request.url)
-        const page = parseInt(searchParams.get('page') || '1')
-        const limit = parseInt(searchParams.get('limit') || '10')
+        const webSession = await auth()
+        const query = webSession?.user?.id ? panelListQuery(searchParams, ['createdAt', 'amount', 'status'] as const) : null
+        if (webSession?.user?.id && !query) return NextResponse.json({ error: 'Invalid pagination or sorting', code: 'INVALID_LIST_QUERY' }, { status: 400 })
+        const page = query?.page ?? parseInt(searchParams.get('page') || '1')
+        const limit = query?.limit ?? parseInt(searchParams.get('limit') || '10')
         const where = buildOperationListWhere(session.user.id, searchParams)
 
         // Get operations with pagination
         const [operations, total] = await Promise.all([
             prisma.operation.findMany({
                 where,
-                orderBy: { createdAt: 'desc' },
+                orderBy: query ? [{ [query.sortBy]: query.sortOrder }, { id: query.sortOrder }] : { createdAt: 'desc' },
                 skip: (page - 1) * limit,
                 take: limit,
                 select: {

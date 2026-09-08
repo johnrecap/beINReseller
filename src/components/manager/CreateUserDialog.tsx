@@ -147,7 +147,7 @@ export function CreateUserDialog() {
                     {t.manager?.users?.addUser || 'Add User'}
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent panel closeLabel={t.panelUi.close} className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>{t.manager?.dialogs?.createUser?.title || 'Add New User'}</DialogTitle>
                     <DialogDescription>

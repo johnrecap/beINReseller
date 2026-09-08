@@ -3,13 +3,14 @@ import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { markAsRead, markAllAsRead } from '@/lib/notification'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { getDbAuthenticatedUser } from '@/lib/auth-utils'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
     const session = await auth()
-    if (session?.user?.id) return session.user
+    if (session?.user?.id) return getDbAuthenticatedUser(session.user.id, session.user.passwordChangedAt || 0)
     return getMobileUserFromRequest(request)
 }
 

@@ -13,34 +13,39 @@ import {
 } from '@/components/auth/loginFeedback'
 
 import { FloatingInput } from '@/components/ui/FloatingInput'
+import { safePanelRedirect } from '@/lib/auth/safe-panel-redirect'
+import { withRequestDeadline } from '@/lib/request-deadline'
 
 async function fetchLoginAttemptFeedback(loginName: string): Promise<LoginFeedback | null> {
     try {
-        const response = await fetch('/api/auth/login-attempt-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ loginName }),
-        })
-        if (!response.ok) {
-            return null
-        }
-
-        const data = await response.json()
-        if (data.status === 'cooldown_active') {
-            return {
-                status: 'cooldown_active',
-                cooldownSeconds: Number(data.cooldownSeconds) || 0,
+        return await withRequestDeadline(async (signal) => {
+            const response = await fetch('/api/auth/login-attempt-status', {
+                signal,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ loginName }),
+            })
+            if (!response.ok) {
+                return null
             }
-        }
 
-        if (data.status === 'invalid_credentials') {
-            return {
-                status: 'invalid_credentials',
-                remainingAttempts: typeof data.remainingAttempts === 'number' ? data.remainingAttempts : undefined,
+            const data = await response.json()
+            if (data.status === 'cooldown_active') {
+                return {
+                    status: 'cooldown_active',
+                    cooldownSeconds: Number(data.cooldownSeconds) || 0,
+                }
             }
-        }
 
-        return mapAuthErrorToLoginFeedback(data.status)
+            if (data.status === 'invalid_credentials') {
+                return {
+                    status: 'invalid_credentials',
+                    remainingAttempts: typeof data.remainingAttempts === 'number' ? data.remainingAttempts : undefined,
+                }
+            }
+
+            return mapAuthErrorToLoginFeedback(data.status)
+        }, 5_000)
     } catch {
         return null
     }
@@ -50,7 +55,7 @@ export default function LoginForm() {
     const { t } = useTranslation()
     const router = useRouter()
     const searchParams = useSearchParams()
-    const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
+    const requestedCallback = searchParams.get('callbackUrl')
 
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
@@ -87,15 +92,19 @@ export default function LoginForm() {
         setIsLoading(true)
 
         try {
+            const callbackUrl = safePanelRedirect(requestedCallback, window.location.origin)
             const result = await signIn('credentials', {
                 username: submittedLoginName,
                 password,
                 redirect: false,
+                redirectTo: callbackUrl,
             })
 
-            if (result?.error) {
-                const attemptFeedback = await fetchLoginAttemptFeedback(submittedLoginName)
-                const nextFeedback = attemptFeedback || mapAuthErrorToLoginFeedback(result.error)
+            if (!result?.ok || result.error) {
+                const primary = mapAuthErrorToLoginFeedback(result?.code || result?.error)
+                const attemptFeedback = primary.status === 'invalid_credentials' || primary.status === 'cooldown_active'
+                    ? await fetchLoginAttemptFeedback(submittedLoginName) : null
+                const nextFeedback = attemptFeedback || primary
                 setFeedback(nextFeedback)
 
                 if (nextFeedback.status === 'cooldown_active') {
@@ -119,7 +128,7 @@ export default function LoginForm() {
         <form onSubmit={handleSubmit} className="space-y-6 w-full">
             {/* Error Alert */}
             {visibleFeedback && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-200 text-sm px-4 py-3 rounded-xl flex items-center gap-2 animate-in slide-in-from-top-2">
+                <div id="login-feedback" role="alert" className="bg-red-500/10 border border-red-500/20 text-red-200 text-sm px-4 py-3 rounded-xl flex items-center gap-2 animate-in slide-in-from-top-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     <span>{getLoginFeedbackMessage({
                         ...visibleFeedback,
@@ -134,6 +143,9 @@ export default function LoginForm() {
                 {/* Username Field */}
                 <FloatingInput
                     id="username"
+                    autoComplete="username"
+                    aria-describedby={visibleFeedback ? 'login-feedback' : undefined}
+                    panel
                     label={t.auth.username}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
@@ -146,6 +158,10 @@ export default function LoginForm() {
                 <div className="relative">
                     <FloatingInput
                         id="password"
+                        autoComplete="current-password"
+                        aria-describedby={visibleFeedback ? 'login-feedback' : undefined}
+                        panel
+                        className="pe-12"
                         type={showPassword ? 'text' : 'password'}
                         label={t.auth.password}
                         value={password}
@@ -157,7 +173,9 @@ export default function LoginForm() {
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute left-3 top-1/2 -translate-y-[calc(50%-10px)] text-slate-400 hover:text-white transition-colors p-2 z-20"
+                        aria-label={showPassword ? t.panelUi.hidePassword : t.panelUi.showPassword}
+                        aria-pressed={showPassword}
+                        className="absolute end-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-2 z-20"
                     >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>

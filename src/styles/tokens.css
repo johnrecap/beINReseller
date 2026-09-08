@@ -161,6 +161,21 @@
 }
 
 /* RTL Support */
+[data-panel-table] {
+    --panel-table-cell-block: 1rem;
+    --panel-table-cell-inline: 1.5rem;
+    --panel-table-border: var(--border);
+    --panel-table-heading: var(--muted-foreground);
+}
+[data-panel-table] :is(th, td) {
+    padding-block: var(--panel-table-cell-block);
+    padding-inline: var(--panel-table-cell-inline);
+    text-align: start;
+    border-color: var(--panel-table-border);
+}
+[data-panel-table] th { color: var(--panel-table-heading); }
+[data-panel-dialog] [data-dialog-header] { text-align: start; }
+
 [dir="rtl"] {
     --page-start: right;
     --page-end: left;

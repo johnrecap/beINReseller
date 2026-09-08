@@ -3,8 +3,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
-import { ChevronRight, ChevronLeft, Wallet } from 'lucide-react'
+import { Wallet } from 'lucide-react'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { PanelTablePagination, SortableTableHead } from '@/components/ui/PanelTableControls'
 import { useTranslation } from '@/hooks/useTranslation'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import TransactionStats from './TransactionStats'
 
 interface Transaction {
@@ -41,9 +45,9 @@ export default function TransactionsTable() {
 
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [stats, setStats] = useState({ totalDeposits: 0, totalDeductions: 0, currentBalance: 0 })
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error, cancel } = usePanelRequest()
+    const [total, setTotal] = useState(0)
     const [page, setPage] = useState(1)
-    const [totalPages, setTotalPages] = useState(1)
     const [sortConfig, setSortConfig] = useState<{ key: 'amount' | 'balanceAfter' | 'date', direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' })
 
     const getDateLocale = () => {
@@ -55,55 +59,32 @@ export default function TransactionsTable() {
     }
 
     const handleSort = (key: 'amount' | 'balanceAfter' | 'date') => {
+        setPage(1)
         setSortConfig(current => ({
             key,
             direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
         }))
     }
 
-    const sortedTransactions = [...transactions].sort((a, b) => {
-        const { key, direction } = sortConfig
-        let aValue: number
-        let bValue: number
-
-        if (key === 'date') {
-            aValue = new Date(a.createdAt).getTime()
-            bValue = new Date(b.createdAt).getTime()
-        } else if (key === 'amount') {
-            aValue = a.amount
-            bValue = b.amount
-        } else {
-            aValue = a.balanceAfter
-            bValue = b.balanceAfter
-        }
-
-        if (aValue < bValue) return direction === 'asc' ? -1 : 1
-        if (aValue > bValue) return direction === 'asc' ? 1 : -1
-        return 0
-    })
+    const sortedTransactions = transactions
 
     const fetchTransactions = useCallback(async () => {
-        setLoading(true)
-        try {
-            const res = await fetch(`/api/transactions?page=${page}&limit=10`)
-            const data = await res.json()
-
-            if (res.ok) {
-                setTransactions(data.transactions)
-                setTotalPages(data.totalPages)
-                if (data.stats) {
-                    setStats(data.stats)
-                }
-            }
-        } catch {
-        } finally {
-            setLoading(false)
-        }
-    }, [page])
+        const params = new URLSearchParams({ page: String(page), limit: '10',
+            sortBy: sortConfig.key === 'date' ? 'createdAt' : sortConfig.key, sortOrder: sortConfig.direction })
+        await load<{ transactions: Transaction[]; totalPages: number; total: number; stats: typeof stats }>(`/api/transactions?${params}`, data => {
+            setTransactions(data.transactions)
+            setTotal(data.total)
+            setStats(data.stats)
+            if (page > Math.max(1, data.totalPages)) setPage(Math.max(1, data.totalPages))
+        })
+    }, [page, sortConfig, load])
 
     useEffect(() => {
-        fetchTransactions()
-    }, [fetchTransactions])
+        void fetchTransactions()
+        return cancel
+    }, [fetchTransactions, cancel])
+
+    if (error !== null) return <PanelLoadError status={error} retry={fetchTransactions} />
 
     if (loading) {
         return (
@@ -147,85 +128,79 @@ export default function TransactionsTable() {
             <div className="bg-card rounded-xl shadow-sm overflow-hidden">
                 {/* Desktop Table */}
                 <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-[#1a1d26]/50 border-b border-border">
-                            <tr>
-                                <th className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[60px]">#</th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[150px]">{t.transactions.type}</th>
-                                <th
-                                    className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[140px] cursor-pointer hover:text-foreground transition-colors group"
-                                    onClick={() => handleSort('amount')}
-                                >
-                                    <div className="flex items-center justify-end gap-1">
+                    <Table panel className="w-full">
+                        <TableHeader className="bg-[#1a1d26]/50 border-b border-border">
+                            <TableRow>
+                                <TableHead className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[60px]">#</TableHead>
+                                <TableHead className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[150px]">{t.transactions.type}</TableHead>
+                                <SortableTableHead
+                                    className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[140px] cursor-pointer hover:text-foreground transition-colors group" onSort={() => handleSort('amount')} direction={sortConfig.key === 'amount' ? sortConfig.direction : undefined}>
+                                    <div className="flex items-center justify-start gap-1">
                                         {t.transactions.amount}
                                         <span className={`transition-opacity ${sortConfig.key === 'amount' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
                                             {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                         </span>
                                     </div>
-                                </th>
-                                <th
-                                    className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[140px] cursor-pointer hover:text-foreground transition-colors group"
-                                    onClick={() => handleSort('balanceAfter')}
-                                >
-                                    <div className="flex items-center justify-end gap-1">
+                                </SortableTableHead>
+                                <SortableTableHead
+                                    className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[140px] cursor-pointer hover:text-foreground transition-colors group" onSort={() => handleSort('balanceAfter')} direction={sortConfig.key === 'balanceAfter' ? sortConfig.direction : undefined}>
+                                    <div className="flex items-center justify-start gap-1">
                                         {t.transactions.balanceAfter}
                                         <span className={`transition-opacity ${sortConfig.key === 'balanceAfter' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
                                             {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                         </span>
                                     </div>
-                                </th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[250px]">{t.transactions.notes}</th>
-                                <th
-                                    className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[180px] cursor-pointer hover:text-foreground transition-colors group"
-                                    onClick={() => handleSort('date')}
-                                >
-                                    <div className="flex items-center justify-end gap-1">
+                                </SortableTableHead>
+                                <TableHead className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[250px]">{t.transactions.notes}</TableHead>
+                                <SortableTableHead
+                                    className="px-6 py-4 text-start text-xs font-semibold text-muted-foreground uppercase tracking-wider w-[180px] cursor-pointer hover:text-foreground transition-colors group" onSort={() => handleSort('date')} direction={sortConfig.key === 'date' ? sortConfig.direction : undefined}>
+                                    <div className="flex items-center justify-start gap-1">
                                         {t.transactions.date}
                                         <span className={`transition-opacity ${sortConfig.key === 'date' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
                                             {sortConfig.direction === 'asc' ? '↑' : '↓'}
                                         </span>
                                     </div>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
+                                </SortableTableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-border">
                             {sortedTransactions.map((tx, index) => (
-                                <tr
+                                <TableRow
                                     key={tx.id}
                                     className="hover:bg-muted/30 transition-colors animate-in fade-in fill-mode-both"
                                     style={{ animationDelay: `${index * 50}ms` }}
                                 >
-                                    <td className="px-6 py-4 text-sm text-muted-foreground text-center font-medium">
+                                    <TableCell className="px-6 py-4 text-sm text-muted-foreground text-center font-medium">
                                         {(page - 1) * 10 + index + 1}
-                                    </td>
-                                    <td className="px-6 py-4">
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4">
                                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${typeColors[tx.type] || 'bg-gray-100 dark:bg-gray-800'} transition-transform hover:scale-105`}>
                                             {getTypeLabel(tx.type)}
                                         </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-base font-bold dir-ltr text-right">
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4 text-base font-bold dir-ltr text-start">
                                         <span className={tx.amount > 0 ? 'text-[#00A651]' : tx.amount < 0 ? 'text-[#ED1C24]' : 'text-muted-foreground'}>
                                             {tx.amount > 0 ? '+' : ''}{tx.amount.toFixed(2)} {t.transactions?.currency}
                                         </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-base font-mono text-foreground dir-ltr text-right">
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4 text-base font-mono text-foreground dir-ltr text-start">
                                         {tx.balanceAfter.toFixed(2)} {t.transactions?.currency}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4 text-sm text-muted-foreground">
                                         <div className="max-w-[250px] truncate" title={tx.notes || ''}>
                                             {tx.notes || '-'}
                                         </div>
                                         {tx.operationId && (
                                             <span className="block text-xs text-muted-foreground/70 font-mono mt-1">Op: #{tx.operationId.slice(-4)}</span>
                                         )}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-muted-foreground dir-ltr text-right">
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4 text-sm text-muted-foreground dir-ltr text-start">
                                         {format(new Date(tx.createdAt), 'HH:mm dd/MM/yyyy', { locale: getDateLocale() })}
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
 
                 {/* Mobile Card View */}
@@ -269,36 +244,7 @@ export default function TransactionsTable() {
                     ))}
                 </div>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
-                        <p className="text-sm text-muted-foreground hidden sm:block">
-                            {t.transactions?.showingRange?.replace('{start}', String((page - 1) * 10 + 1)).replace('{end}', String(Math.min(page * 10, transactions.length + (page - 1) * 10))).replace('{total}', String(totalPages * 10))}
-                        </p>
-                        <div className="flex gap-2 w-full sm:w-auto justify-between sm:justify-start">
-                            <button
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page <= 1}
-                                title={t.pagination?.previous || 'Previous'}
-                                className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
-                            <div className="flex items-center gap-1 px-2">
-                                <span className="text-sm font-medium">{page}</span>
-                                <span className="text-sm text-muted-foreground">/ {totalPages}</span>
-                            </div>
-                            <button
-                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                disabled={page >= totalPages}
-                                title={t.pagination?.next || 'Next'}
-                                className="p-2 rounded-lg border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
-                )}
+            <PanelTablePagination page={page} total={total} onPageChange={setPage} />
             </div>
         </div>
     )

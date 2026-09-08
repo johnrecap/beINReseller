@@ -74,7 +74,7 @@ export default function HistoryFilters({ onFilter, loading }: HistoryFiltersProp
                     >
                         <option value="">{t.common.all}</option>
                         {Object.entries(OPERATION_STATUS_LABELS).map(([value]) => (
-                            <option key={value} value={value}>{(t.status as Record<string, string>)?.[value === 'AWAITING_CAPTCHA' ? 'awaitingCaptcha' : (typeof value === 'string' ? value.toLowerCase() : value)] ?? value}</option>
+                            <option key={value} value={value}>{(t.status as Record<string, string>)[value.toLowerCase().replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase())] ?? value}</option>
                         ))}
                     </select>
                 </div>

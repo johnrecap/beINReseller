@@ -69,6 +69,7 @@ worker/src/http/*.bak_*
 !/docs/
 /docs/*
 !/docs/PROJECT_GUIDE.md
+!/docs/PANEL_UI_REPAIRS.md
 !/docs/deployment/
 /docs/deployment/*
 !/docs/deployment/audit-remediation-release.md
@@ -83,3 +84,7 @@ worker/src/http/*.bak_*
 /CODEX_SKILLS_SETUP_PROMPT.md
 /CODEX_UPDATE_BRIDGE_SKILLS_PROMPT.md
 /DASHBOARD_PROMPTS.md
+
+# Local verification artifacts and Python cache are not source checkpoints.
+/output/
+__pycache__/

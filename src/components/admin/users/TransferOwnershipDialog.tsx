@@ -217,7 +217,7 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
                 if (!open && !submitting) onClose()
             }}
         >
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent panel closeLabel={t.panelUi.close} className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{t.common.transferOwner}: {user.username}</DialogTitle>
                     <DialogDescription>{t.common.transferPreservesAccountData}</DialogDescription>

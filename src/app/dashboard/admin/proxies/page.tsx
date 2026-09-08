@@ -392,7 +392,7 @@ export default function ProxiesPage() {
                                 {t.adminProxies?.import?.button || 'Bulk Import'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent dir="rtl" className="max-w-3xl">
+                        <DialogContent panel closeLabel={t.panelUi.close} dir="rtl" className="max-w-3xl">
                             <DialogHeader>
                                 <DialogTitle>{t.adminProxies?.import?.title || 'Bulk Proxy Import'}</DialogTitle>
                             </DialogHeader>
@@ -514,7 +514,7 @@ export default function ProxiesPage() {
                                 {t.adminProxies?.addProxy || 'Add Proxy'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent dir="rtl" className="max-w-md">
+                        <DialogContent panel closeLabel={t.panelUi.close} dir="rtl" className="max-w-md">
                             <DialogHeader>
                                 <DialogTitle>{t.adminProxies?.dialogs?.addTitle || 'Add New Proxy'}</DialogTitle>
                             </DialogHeader>
@@ -754,7 +754,7 @@ export default function ProxiesPage() {
 
             {/* Edit Dialog */}
             <Dialog open={!!editProxy} onOpenChange={(open) => !open && setEditProxy(null)}>
-                <DialogContent dir="rtl" className="max-w-md">
+                <DialogContent panel closeLabel={t.panelUi.close} dir="rtl" className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>{t.adminProxies?.dialogs?.editTitle || 'Edit Proxy'}</DialogTitle>
                     </DialogHeader>

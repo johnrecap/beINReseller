@@ -25,9 +25,7 @@ export const authConfig = {
             }
 
             if (isOnAuth) {
-                if (isLoggedIn) {
-                    return Response.redirect(new URL('/dashboard', nextUrl))
-                }
+                // The login server page checks revocation against current user state.
                 return true
             }
 

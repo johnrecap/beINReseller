@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Loader2 } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
 
 interface EditUserDialogProps {
@@ -12,7 +13,7 @@ interface EditUserDialogProps {
 }
 
 export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: EditUserDialogProps) {
-    const { t } = useTranslation()
+    const { t, dir } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -50,13 +51,11 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
     if (!isOpen || !user) return null
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+        <Dialog open={isOpen} onOpenChange={open => { if (!open) onClose() }}>
+            <DialogContent panel closeLabel={t.panelUi.close} dir={dir} className="rounded-xl max-w-md p-0 bg-card text-foreground" aria-describedby={undefined}>
                 <div className="flex justify-between items-center p-4 border-b border-gray-100">
-                    <h3 className="font-bold text-foreground">{t.admin.users.dialogs.editTitle}: {user.username}</h3>
-                    <button onClick={onClose} title={t.admin?.users?.actions?.cancel || 'Close'} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
-                        <X className="w-5 h-5" />
-                    </button>
+                    <DialogTitle className="font-bold text-foreground pe-8">{t.admin.users.dialogs.editTitle}: {user.username}</DialogTitle>
+
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
@@ -110,7 +109,7 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     )
 }

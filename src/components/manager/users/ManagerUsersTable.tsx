@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { Search, Ban, CheckCircle, Wallet, ArrowRight, ArrowLeft, Trash2, AlertTriangle, BarChart2, KeyRound } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
@@ -44,7 +46,7 @@ interface ManagerUsersTableProps {
 export default function ManagerUsersTable({ managerBalance, onBalanceChange }: ManagerUsersTableProps) {
     const { t, language } = useTranslation()
     const [users, setUsers] = useState<User[]>([])
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error, cancel } = usePanelRequest()
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [search, setSearch] = useState('')
@@ -69,29 +71,22 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
 
     // Debounce Search
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedSearch(search), 500)
+        const timer = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 500)
         return () => clearTimeout(timer)
     }, [search])
 
     const fetchUsers = useCallback(async () => {
-        setLoading(true)
-        try {
-            const res = await fetch(`/api/manager/users?page=${page}&limit=10&search=${debouncedSearch}`)
-            const data = await res.json()
-            if (res.ok) {
-                setUsers(data.users)
-                setTotalPages(data.totalPages)
-                setCanResetPasswords(Boolean(data.capabilities?.canResetPasswords))
-            }
-        } catch {
-        } finally {
-            setLoading(false)
-        }
-    }, [page, debouncedSearch])
+        const params = new URLSearchParams({ page: String(page), limit: '10', search: debouncedSearch })
+        await load<{ users: User[]; totalPages: number; capabilities?: { canResetPasswords?: boolean } }>(`/api/manager/users?${params}`, data => {
+            setUsers(data.users)
+            const pages = Math.max(1, data.totalPages)
+            setTotalPages(pages)
+            if (page > pages) setPage(pages)
+            setCanResetPasswords(Boolean(data.capabilities?.canResetPasswords))
+        })
+    }, [page, debouncedSearch, load])
 
-    useEffect(() => {
-        fetchUsers()
-    }, [fetchUsers])
+    useEffect(() => { void fetchUsers(); return cancel }, [fetchUsers, cancel])
 
     const handleToggleStatus = async (user: User) => {
         const action = user.isActive ? (t.admin?.users?.actions?.disable || 'Disable') : (t.admin?.users?.actions?.enable || 'Enable')
@@ -163,8 +158,9 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                 </div>
             </div>
 
+            {error !== null && <PanelLoadError status={error} retry={fetchUsers} />}
             {/* Table */}
-            <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
+            <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border" hidden={error !== null}>
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-secondary border-b border-border">

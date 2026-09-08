@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, type KeyboardEvent } from 'react'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { Plus, Search, Edit2, Ban, CheckCircle, Wallet, ArrowRight, ArrowLeft, BarChart2, Trash2, Users, X, Link2, RefreshCw, UserPlus, Shuffle, CreditCard, KeyRound } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
@@ -124,11 +126,12 @@ export default function UsersTable() {
     const [users, setUsers] = useState<User[]>([])
     const [distributors, setDistributors] = useState<Distributor[]>([])
     const [agents, setAgents] = useState<Agent[]>([])
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error, cancel } = usePanelRequest()
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [search, setSearch] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
+    const { load: loadCounts, loading: countsLoading, error: countsError, cancel: cancelCounts } = usePanelRequest()
     const [counts, setCounts] = useState<TabCounts>({ distributors: 0, agents: 0, users: 0, totalBalance: null })
     const [refreshing, setRefreshing] = useState(false)
     const [userCreationDisabled, setUserCreationDisabled] = useState(false)
@@ -168,26 +171,12 @@ export default function UsersTable() {
 
     // Fetch counts for tab badges
     const fetchCounts = useCallback(async () => {
-        try {
-            const res = await fetch('/api/admin/users/counts')
-            const data = await res.json()
-            if (res.ok) {
-                setCounts({
-                    distributors: typeof data.distributors === 'number' ? data.distributors : 0,
-                    agents: typeof data.agents === 'number' ? data.agents : 0,
-                    users: typeof data.users === 'number' ? data.users : 0,
-                    totalBalance: typeof data.totalBalance === 'number' && Number.isFinite(data.totalBalance)
-                        ? data.totalBalance
-                        : null,
-                })
-            }
-        } catch {
-        }
-    }, [])
+        await loadCounts<TabCounts>('/api/admin/users/counts', data => {
+            setCounts(data)
+        })
+    }, [loadCounts])
 
-    useEffect(() => {
-        fetchCounts()
-    }, [fetchCounts])
+    useEffect(() => { void fetchCounts(); return cancelCounts }, [fetchCounts, cancelCounts])
 
     const fetchPermissionState = useCallback(async () => {
         try {
@@ -205,41 +194,20 @@ export default function UsersTable() {
     }, [fetchPermissionState])
 
     const fetchData = useCallback(async () => {
-        setLoading(true)
-        try {
-            let url = `/api/admin/users?page=${page}&limit=10&search=${debouncedSearch}&roleFilter=${activeTab}`
+        const params = new URLSearchParams({ page: String(page), limit: '10', search: debouncedSearch, roleFilter: activeTab })
+        if (activeTab === 'users' && ownerFilter) params.set(ownerFilter.kind === 'agent' ? 'agentId' : 'managerId', ownerFilter.id)
+        await load<{ users: (User & Distributor & Agent)[]; totalPages: number; capabilities?: { canResetPasswords?: boolean } }>(`/api/admin/users?${params}`, data => {
+            setCanResetPasswords(Boolean(data.capabilities?.canResetPasswords))
+            if (activeTab === 'distributors') setDistributors(data.users)
+            else if (activeTab === 'agents') setAgents(data.users)
+            else setUsers(data.users)
+            const pages = Math.max(1, data.totalPages)
+            setTotalPages(pages)
+            if (page > pages) setPage(pages)
+        })
+    }, [page, debouncedSearch, activeTab, ownerFilter, load])
 
-            if (activeTab === 'users' && ownerFilter) {
-                const ownerFilterParam = ownerFilter.kind === 'agent' ? 'agentId' : 'managerId'
-                url += `&${ownerFilterParam}=${encodeURIComponent(ownerFilter.id)}`
-            }
-
-            const res = await fetch(url)
-            const data = await res.json()
-            if (res.ok) {
-                setCanResetPasswords(Boolean(data.capabilities?.canResetPasswords))
-                if (activeTab === 'distributors') {
-                    setDistributors(data.users)
-                } else if (activeTab === 'agents') {
-                    setAgents(data.users)
-                } else {
-                    setUsers(data.users)
-                }
-                const nextTotalPages = Math.max(1, data.totalPages || 1)
-                setTotalPages(nextTotalPages)
-                if (page > nextTotalPages) {
-                    setPage(nextTotalPages)
-                }
-            }
-        } catch {
-        } finally {
-            setLoading(false)
-        }
-    }, [page, debouncedSearch, activeTab, ownerFilter])
-
-    useEffect(() => {
-        fetchData()
-    }, [fetchData])
+    useEffect(() => { void fetchData(); return cancel }, [fetchData, cancel])
 
     const handleRefresh = async () => {
         setRefreshing(true)
@@ -715,6 +683,8 @@ export default function UsersTable() {
 
     return (
         <div className="space-y-4">
+            {countsError !== null && <PanelLoadError status={countsError} retry={fetchCounts} />}
+            {error !== null && <PanelLoadError status={error} retry={fetchData} />}
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)}>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -723,19 +693,19 @@ export default function UsersTable() {
                         <TabsTrigger value="distributors" className="gap-2">
                             {t.admin?.users?.tabs?.distributors || 'Distributors'}
                             <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
-                                {counts.distributors}
+                                {countsLoading || countsError !== null ? '—' : counts.distributors}
                             </span>
                         </TabsTrigger>
                         <TabsTrigger value="users" className="gap-2">
                             {t.admin?.users?.tabs?.users || 'Users'}
                             <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                                {counts.users}
+                                {countsLoading || countsError !== null ? '—' : counts.users}
                             </span>
                         </TabsTrigger>
                         <TabsTrigger value="agents" className="gap-2">
                             {(t.admin?.users?.tabs as { agents?: string } | undefined)?.agents || 'مندوبين'}
                             <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400">
-                                {counts.agents}
+                                {countsLoading || countsError !== null ? '—' : counts.agents}
                             </span>
                         </TabsTrigger>
                         </TabsList>
@@ -746,7 +716,7 @@ export default function UsersTable() {
                                 {t.admin?.users?.summary?.totalBalance || 'Total balance: users, agents, managers'}
                             </span>
                             <span className="font-bold text-foreground dir-ltr text-right">
-                                {totalUserBalanceLabel ?? '-'}
+                                {countsLoading || countsError !== null ? '—' : totalUserBalanceLabel ?? '-'}
                             </span>
                         </div>
                     </div>
@@ -824,7 +794,7 @@ export default function UsersTable() {
                 <TabsContent value="distributors">
                     <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
                         <div className="overflow-x-auto">
-                            <table className="w-full">
+                            <table hidden={error !== null} className="w-full">
                                 <thead className="bg-secondary border-b border-border">
                                     <tr>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
@@ -881,7 +851,7 @@ export default function UsersTable() {
                 <TabsContent value="agents">
                     <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
                         <div className="overflow-x-auto">
-                            <table className="w-full">
+                            <table hidden={error !== null} className="w-full">
                                 <thead className="bg-secondary border-b border-border">
                                     <tr>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
@@ -938,7 +908,7 @@ export default function UsersTable() {
                 <TabsContent value="users">
                     <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
                         <div className="overflow-x-auto">
-                            <table className="w-full">
+                            <table hidden={error !== null} className="w-full">
                                 <thead className="bg-secondary border-b border-border">
                                     <tr>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>

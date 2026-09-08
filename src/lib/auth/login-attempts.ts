@@ -54,6 +54,7 @@ export type LoginAttemptResult =
     }
 
 export type LoginAttemptStore = {
+    recordFailure(key: string, seed: StoredLoginAttemptWindow, now: number): Promise<StoredLoginAttemptWindow>
     get(key: string): Promise<StoredLoginAttemptWindow | null>
     set(key: string, value: StoredLoginAttemptWindow, ttlSeconds: number): Promise<void>
     delete(key: string): Promise<void>
@@ -68,6 +69,17 @@ export class InMemoryLoginAttemptStore implements LoginAttemptStore {
     private readonly records = new Map<string, { value: StoredLoginAttemptWindow; expiresAt: number }>()
 
     constructor(private readonly now: () => number = () => Date.now()) { }
+
+    async recordFailure(key: string, seed: StoredLoginAttemptWindow, now: number): Promise<StoredLoginAttemptWindow> {
+        const record = this.records.get(key)
+        const previous = record && record.expiresAt > now ? record.value : null
+        if (previous?.cooldownUntil && previous.cooldownUntil > now) return previous
+        const value = { ...seed, failedCount: Math.min(MAX_LOGIN_FAILURES, (previous?.failedCount ?? 0) + 1),
+            firstFailedAt: previous?.firstFailedAt ?? now }
+        value.cooldownUntil = value.failedCount >= MAX_LOGIN_FAILURES ? now + LOGIN_COOLDOWN_SECONDS * 1000 : null
+        this.records.set(key, { value, expiresAt: value.cooldownUntil ?? now + LOGIN_ATTEMPT_WINDOW_SECONDS * 1000 })
+        return value
+    }
 
     async get(key: string): Promise<StoredLoginAttemptWindow | null> {
         const record = this.records.get(key)
@@ -96,6 +108,12 @@ export class InMemoryLoginAttemptStore implements LoginAttemptStore {
 }
 
 class RedisLoginAttemptStore implements LoginAttemptStore {
+    async recordFailure(key: string, seed: StoredLoginAttemptWindow, now: number): Promise<StoredLoginAttemptWindow> {
+        const { redis } = await import("@/lib/redis")
+        const raw = await redis.eval(LOGIN_FAILURE_SCRIPT, 1, key, JSON.stringify(seed), now,
+            MAX_LOGIN_FAILURES, LOGIN_COOLDOWN_SECONDS, LOGIN_ATTEMPT_WINDOW_SECONDS)
+        return JSON.parse(String(raw)) as StoredLoginAttemptWindow
+    }
     async get(key: string): Promise<StoredLoginAttemptWindow | null> {
         const { redis } = await import("@/lib/redis")
         const raw = await redis.get(key)
@@ -116,6 +134,30 @@ class RedisLoginAttemptStore implements LoginAttemptStore {
         await redis.del(key)
     }
 }
+
+// GET/modify/SET and expiry happen as one Redis operation across all web processes.
+export const LOGIN_FAILURE_SCRIPT = `
+local raw = redis.call('GET', KEYS[1])
+local next = cjson.decode(ARGV[1])
+local now = tonumber(ARGV[2])
+if raw then
+    local previous = cjson.decode(raw)
+    if previous.cooldownUntil ~= cjson.null and previous.cooldownUntil > now then return raw end
+    if previous.cooldownUntil == cjson.null then
+        next.failedCount = previous.failedCount
+        next.firstFailedAt = previous.firstFailedAt
+    end
+end
+next.failedCount = math.min(tonumber(ARGV[3]), next.failedCount + 1)
+local ttl = tonumber(ARGV[5])
+if next.failedCount >= tonumber(ARGV[3]) then
+    ttl = tonumber(ARGV[4])
+    next.cooldownUntil = now + ttl * 1000
+end
+local encoded = cjson.encode(next)
+redis.call('SET', KEYS[1], encoded, 'EX', ttl)
+return encoded
+`
 
 const fallbackStore = new InMemoryLoginAttemptStore()
 const redisStore = new RedisLoginAttemptStore()
@@ -167,25 +209,6 @@ async function readWindow(
             throw error
         }
         return { store: fallbackStore, value: await fallbackStore.get(key) }
-    }
-}
-
-async function writeWindow(
-    store: LoginAttemptStore,
-    key: string,
-    value: StoredLoginAttemptWindow,
-    ttlSeconds: number,
-    options: LoginAttemptOptions | undefined
-): Promise<LoginAttemptStore> {
-    try {
-        await store.set(key, value, ttlSeconds)
-        return store
-    } catch (error) {
-        if (options?.store) {
-            throw error
-        }
-        await fallbackStore.set(key, value, ttlSeconds)
-        return fallbackStore
     }
 }
 
@@ -245,10 +268,9 @@ export async function getLoginAttemptStatus(
 ): Promise<LoginAttemptResult> {
     const now = options?.now?.() ?? Date.now()
     const key = buildLoginAttemptKey(input)
-    const { store, value } = await readWindow(key, options)
+    const { value } = await readWindow(key, options)
 
     if (value?.cooldownUntil && value.cooldownUntil <= now) {
-        await deleteWindow(store, key, options)
         return toStatus(null, now)
     }
 
@@ -263,32 +285,18 @@ export async function recordFailedLoginAttempt(
     const now = options?.now?.() ?? Date.now()
     const exactLoginName = normalizeSubmittedLoginName(input.loginName)
     const key = buildLoginAttemptKey(input)
-    const { store, value } = await readWindow(key, options)
-    const currentStatus = toStatus(value, now)
-
-    if (currentStatus.status === "cooldown_active") {
-        return currentStatus
+    const seed: StoredLoginAttemptWindow = {
+        exactLoginName, contextFingerprint: buildLoginContextFingerprint(input),
+        failedCount: 0, firstFailedAt: now, lastFailedAt: now,
+        cooldownUntil: null, lastReasonCategory: reasonCategory,
     }
-
-    const failedCount = Math.min(MAX_LOGIN_FAILURES, (value?.failedCount ?? 0) + 1)
-    const cooldownUntil = failedCount >= MAX_LOGIN_FAILURES
-        ? now + LOGIN_COOLDOWN_SECONDS * 1_000
-        : null
-    const nextWindow: StoredLoginAttemptWindow = {
-        exactLoginName,
-        contextFingerprint: buildLoginContextFingerprint(input),
-        failedCount,
-        firstFailedAt: value?.firstFailedAt ?? now,
-        lastFailedAt: now,
-        cooldownUntil,
-        lastReasonCategory: reasonCategory,
+    let nextWindow: StoredLoginAttemptWindow
+    try {
+        nextWindow = await (await getActiveStore(options)).recordFailure(key, seed, now)
+    } catch (error) {
+        if (options?.store) throw error
+        nextWindow = await fallbackStore.recordFailure(key, seed, now)
     }
-
-    const ttlSeconds = cooldownUntil
-        ? LOGIN_COOLDOWN_SECONDS
-        : LOGIN_ATTEMPT_WINDOW_SECONDS
-
-    await writeWindow(store, key, nextWindow, ttlSeconds, options)
 
     return toStatus(nextWindow, now)
 }
@@ -300,4 +308,5 @@ export async function clearLoginAttemptWindow(
     const key = buildLoginAttemptKey(input)
     const store = await getActiveStore(options)
     await deleteWindow(store, key, options)
+    if (!options?.store) await fallbackStore.delete(key)
 }

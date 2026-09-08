@@ -13,7 +13,7 @@ test('AuthJS Configuration and CredentialsSignin never display raw error text', 
     const configuration = mapAuthErrorToLoginFeedback('Configuration')
     const credentials = mapAuthErrorToLoginFeedback('CredentialsSignin')
 
-    assert.equal(configuration.status, 'invalid_credentials')
+    assert.equal(configuration.status, 'unexpected_error')
     assert.equal(credentials.status, 'invalid_credentials')
     assert.notEqual(getLoginFeedbackMessage(configuration, en.auth), 'Configuration')
     assert.notEqual(getLoginFeedbackMessage(credentials, en.auth), 'CredentialsSignin')

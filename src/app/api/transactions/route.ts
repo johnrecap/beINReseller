@@ -1,15 +1,17 @@
+import { panelListQuery } from '@/lib/panel-list-query'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { getMobileUserFromRequest } from '@/lib/mobile-auth'
+import { getDbAuthenticatedUser } from '@/lib/auth-utils'
 
 /**
  * Helper to get authenticated user from session OR mobile token
  */
 async function getAuthUser(request: NextRequest) {
     const session = await auth()
-    if (session?.user?.id) return session.user
+    if (session?.user?.id) return getDbAuthenticatedUser(session.user.id, session.user.passwordChangedAt || 0)
     return getMobileUserFromRequest(request)
 }
 
@@ -26,8 +28,11 @@ export async function GET(request: NextRequest) {
 
         // Parse query params
         const { searchParams } = new URL(request.url)
-        const page = parseInt(searchParams.get('page') || '1')
-        const limit = parseInt(searchParams.get('limit') || '10')
+        const webSession = await auth()
+        const query = webSession?.user?.id ? panelListQuery(searchParams, ['createdAt', 'amount', 'balanceAfter'] as const) : null
+        if (webSession?.user?.id && !query) return NextResponse.json({ error: 'Invalid pagination or sorting', code: 'INVALID_LIST_QUERY' }, { status: 400 })
+        const page = query?.page ?? parseInt(searchParams.get('page') || '1')
+        const limit = query?.limit ?? parseInt(searchParams.get('limit') || '10')
 
         // Build where clause
         const where: Prisma.TransactionWhereInput = {
@@ -39,7 +44,7 @@ export async function GET(request: NextRequest) {
             // 1. Get paginated transactions
             prisma.transaction.findMany({
                 where,
-                orderBy: { createdAt: 'desc' },
+                orderBy: query ? [{ [query.sortBy]: query.sortOrder }, { id: query.sortOrder }] : { createdAt: 'desc' },
                 skip: (page - 1) * limit,
                 take: limit,
                 select: {

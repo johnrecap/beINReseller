@@ -1,5 +1,7 @@
 # Project Guide
 
+**Panel UI repairs, 2026-09-08:** The pre-repair checkpoint `bd42692` is verified on GitHub branch `034-web-project-memory`. Fourteen bounded panel login/session, list/sorting, notification, responsive-dialog/sidebar and token/localization repairs are implemented locally on `codex/panel-ui-repairs`. See [delivery and verification](PANEL_UI_REPAIRS.md). The store/native app remain excluded; no production deployment or restored database change. The shared table foundation is incremental: 35 native table instances remain outside it. Earlier 036 release-gate counts below are separate from this UI repair checklist.
+
 **Audit remediation, 2026-09-08:** Current scope is 45/57 tasks accepted. Export-table geometry, manager dashboard DTO/query, maintenance lifecycle and worker exception handling are repaired. See [extended verification](../specs/036-audit-remediation/evidence/extended-quality-verification.md) for exact current checks and remaining lint/database/provider gates. Production remains unaccepted.
 
 PM2 now requires `PANEL_WORKER_COUNT` (1..32); both ecosystem profiles derive the same panel worker IDs from `deployment/panel-workers.cjs`. Select the count from authorized live evidence, never assume 8 or 10. Root `bein-maintenance` owns periodic recovery/effects, uses per-cycle leader tokens and drains current work on SIGINT/SIGTERM with a configured five-minute PM2 kill window; do not configure duplicate cron scheduling. Existing customer process definitions remain outside this change.

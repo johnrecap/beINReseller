@@ -7,10 +7,11 @@ interface FloatingInputProps extends React.InputHTMLAttributes<HTMLInputElement>
     label: string
     icon?: React.ReactNode
     error?: string
+    panel?: boolean
 }
 
 export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
-    ({ className, label, icon, error, id, value, onChange, ...props }, ref) => {
+    ({ className, label, icon, error, id, value, onChange, panel = false, ...props }, ref) => {
         const [isFocused, setIsFocused] = useState(false)
         const hasValue = value && value.toString().length > 0
 
@@ -25,7 +26,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
                     {/* Icon */}
                     {icon && (
                         <div className={cn(
-                            "pl-4 pr-2 transition-colors duration-200",
+                            panel ? "ps-4 pe-2 transition-colors duration-200" : "pl-4 pr-2 transition-colors duration-200",
                             isFocused ? "text-white" : "text-slate-500"
                         )}>
                             {icon}
@@ -54,7 +55,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
                         <label
                             htmlFor={id}
                             className={cn(
-                                "absolute right-2 transition-all duration-200 pointer-events-none",
+                                panel ? "absolute start-2 transition-all duration-200 pointer-events-none" : "absolute right-2 transition-all duration-200 pointer-events-none",
                                 isFocused || hasValue
                                     ? "top-2 text-[10px] text-[#00A651] font-bold uppercase tracking-wider"
                                     : "top-1/2 -translate-y-1/2 text-slate-500 text-sm"

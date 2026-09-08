@@ -1,72 +1,20 @@
-'use client'
+import { auth } from '@/lib/auth'
+import { getDbAuthenticatedUser } from '@/lib/auth-utils'
+import { redirect } from 'next/navigation'
+import LoginPageClient from '@/components/auth/LoginPageClient'
 
-import { Suspense, useEffect } from 'react'
-import LoginForm from "@/components/auth/LoginForm"
-import { LoginCard } from "@/components/auth/LoginCard"
-import { useTranslation } from '@/hooks/useTranslation'
-import BrandLogo from '@/components/brand/BrandLogo'
-
-function LoginPageContent() {
-    const { t } = useTranslation()
-    
-    // Set dynamic page title
-    useEffect(() => {
-        document.title = 'Login | Desh Panel'
-    }, [])
-    
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
-
-            {/* Background Video */}
-            <div className="login-video-bg">
-                <video
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="absolute inset-0 w-full h-full object-cover"
-                >
-                    <source src="/videos/promo.webm" type="video/webm" />
-                    <source src="/videos/promo.mp4" type="video/mp4" />
-                </video>
-            </div>
-
-            {/* Dark Overlay */}
-            <div className="login-video-overlay" />
-
-            {/* Login Card */}
-            <LoginCard>
-                <div className="flex flex-col items-center w-full">
-
-                    {/* Logo with Breathing Animation */}
-                    <div className="mb-8 text-center">
-                        <div className="logo-breathe mb-4">
-                            <BrandLogo className="mx-auto h-32 w-72 rounded-2xl" compact />
-                        </div>
-                        <p className="text-slate-500 text-sm">
-                            Reseller Management System
-                        </p>
-                    </div>
-
-                    <LoginForm />
-
-                    <p className="text-center text-[10px] text-slate-600 mt-8 tracking-wide">
-                        &copy; 2026 Desh Panel
-                    </p>
-                </div>
-            </LoginCard>
-        </div>
-    )
-}
-
-export default function LoginPage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center bg-[#0f1218]">
-                <div className="w-8 h-8 border-2 border-[#00A651] border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        }>
-            <LoginPageContent />
-        </Suspense>
-    )
+export default async function LoginPage() {
+    let valid = false
+    let revoked = false
+    try {
+        const session = await auth()
+        if (session?.user?.id) {
+            valid = !!await getDbAuthenticatedUser(session.user.id, session.user.passwordChangedAt || 0)
+            revoked = !valid
+        }
+    } catch {
+        return <LoginPageClient unavailable />
+    }
+    if (valid) redirect('/dashboard')
+    return <LoginPageClient revoked={revoked} />
 }

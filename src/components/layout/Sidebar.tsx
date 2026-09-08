@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { SidebarFrame } from './SidebarFrame'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
@@ -84,7 +85,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     // Permission-based visibility
     const canRenew = canAccessSubscription(userRole)
-    const sectionLabel = (ar: string, en: string) => dir === 'rtl' ? ar : en
     // Base links for all authenticated users
     const baseLinks = [
         { href: '/dashboard', label: t.sidebar.home, icon: Home },
@@ -98,13 +98,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     ] : []
 
     const requestCreditLinks = requestCreditVisible ? [
-        { href: '/dashboard/credit-requests', label: sectionLabel('طلب الرصيد', 'Request Credit'), icon: WalletCards },
+        { href: '/dashboard/credit-requests', label: t.panelUi.requestCredit, icon: WalletCards },
     ] : []
 
     // Common links for all users
     const commonLinks = [
         { href: '/dashboard/transactions', label: t.sidebar.transactions, icon: CreditCard },
-        ...(creditRewardsNavigationReady ? [{ href: '/dashboard/rewards', label: 'Rewards', icon: Gift }] : []),
+        ...(creditRewardsNavigationReady ? [{ href: '/dashboard/rewards', label: t.panelUi.rewards, icon: Gift }] : []),
         { href: '/dashboard/profile', label: t.sidebar.profile, icon: User },
     ]
 
@@ -124,26 +124,26 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const adminLinks = [
         { href: '/dashboard/admin', label: t.sidebar.mainMenu, icon: Home },
         { href: '/dashboard/admin/users', label: t.sidebar.users, icon: Users },
-        { href: '/dashboard/admin/permissions', label: 'Permission Controls', icon: ShieldCheck },
-        ...(adminCreditRequestsReady ? [{ href: '/dashboard/admin/credit-requests', label: 'Credit Requests', icon: ShieldCheck }] : []),
+        { href: '/dashboard/admin/permissions', label: t.panelUi.permissions, icon: ShieldCheck },
+        ...(adminCreditRequestsReady ? [{ href: '/dashboard/admin/credit-requests', label: t.panelUi.creditRequests, icon: ShieldCheck }] : []),
         ...(creditAgentAdminNavigationReady ? [
-            { href: '/dashboard/admin/agents', label: 'Agents', icon: Users },
-            { href: '/dashboard/admin/points', label: 'Points Settings', icon: DollarSign },
+            { href: '/dashboard/admin/agents', label: t.panelUi.agents, icon: Users },
+            { href: '/dashboard/admin/points', label: t.panelUi.pointsSettings, icon: DollarSign },
         ] : []),
         ...(creditRewardsNavigationReady ? [
-            { href: '/dashboard/admin/rewards', label: 'Rewards', icon: WalletCards },
+            { href: '/dashboard/admin/rewards', label: t.panelUi.rewards, icon: WalletCards },
         ] : []),
-        { href: '/dashboard/admin/eid-rewards', label: 'Eid Rewards', icon: Gift },
+        { href: '/dashboard/admin/eid-rewards', label: t.panelUi.eidRewards, icon: Gift },
         { href: REPORT_CENTER_HREF, label: 'Reports Center', icon: BarChart3 },
         { href: '/dashboard/admin/users/activity', label: t.sidebar.activityMonitoring || 'Activity Monitoring', icon: Activity },
         { href: '/dashboard/admin/deleted-users', label: t.sidebar.deletedAccounts, icon: Trash2 },
         { href: '/dashboard/admin/bein-accounts', label: t.sidebar.beinAccounts, icon: Users },
-        ...(sidebarSettings.sidebar_show_login_failures ? [{ href: '/dashboard/admin/bein-accounts/login-failures', label: 'Account Login Monitor', icon: AlertTriangle }] : []),
-        ...(sidebarSettings.sidebar_show_low_balance ? [{ href: '/dashboard/admin/bein-accounts/low-balance', label: 'Balance Alert Monitor', icon: DollarSign }] : []),
+        ...(sidebarSettings.sidebar_show_login_failures ? [{ href: '/dashboard/admin/bein-accounts/login-failures', label: t.panelUi.loginMonitor, icon: AlertTriangle }] : []),
+        ...(sidebarSettings.sidebar_show_low_balance ? [{ href: '/dashboard/admin/bein-accounts/low-balance', label: t.panelUi.balanceMonitor, icon: DollarSign }] : []),
         { href: '/dashboard/admin/proxies', label: t.sidebar.proxyManagement, icon: Globe },
         { href: '/dashboard/admin/analytics', label: t.sidebar.analytics, icon: BarChart3 },
-        { href: '/dashboard/admin/financial-review', label: 'مراجعة العمليات', icon: ShieldCheck },
-        { href: '/dashboard/admin/recovery-health', label: 'Recovery Health', icon: ShieldAlert },
+        { href: '/dashboard/admin/financial-review', label: t.panelUi.financialReview, icon: ShieldCheck },
+        { href: '/dashboard/admin/recovery-health', label: t.panelUi.recoveryHealth, icon: ShieldAlert },
         { href: '/dashboard/admin/reports/integrity', label: t.sidebar.integrityReports || 'Integrity Reports', icon: AlertTriangle },
         { href: '/dashboard/admin/reports/bein-spend', label: t.sidebar.beinSpendReport || 'beIN Spend Report', icon: WalletCards },
         { href: '/dashboard/admin/bein-config', label: t.sidebar.beinConfig, icon: Bot },
@@ -153,13 +153,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const adminLinkLabels: Record<string, string> = {
-        '/dashboard/admin/credit-requests': sectionLabel('طلبات الرصيد', 'Credit Requests'),
-        '/dashboard/admin/agents': sectionLabel('المناديب', 'Agents'),
-        '/dashboard/admin/points': sectionLabel('إعدادات النقاط', 'Points Settings'),
-        '/dashboard/admin/rewards': sectionLabel('المكافآت', 'Rewards'),
-        '/dashboard/admin/eid-rewards': sectionLabel('عيدية العيد', 'Eid Rewards'),
-        '/dashboard/admin/financial-review': sectionLabel('مراجعة العمليات', 'Financial Review'),
-        '/dashboard/admin/recovery-health': sectionLabel('صحة الاسترداد', 'Recovery Health'),
+        '/dashboard/admin/credit-requests': t.panelUi.creditRequests,
+        '/dashboard/admin/agents': t.panelUi.agents,
+        '/dashboard/admin/points': t.panelUi.pointsSettings,
+        '/dashboard/admin/rewards': t.panelUi.rewards,
+        '/dashboard/admin/eid-rewards': t.panelUi.eidRewards,
+        '/dashboard/admin/financial-review': t.panelUi.financialReview,
+        '/dashboard/admin/recovery-health': t.panelUi.recoveryHealth,
     }
 
     const pickAdminLinks = (hrefs: string[]): SidebarLink[] => hrefs
@@ -172,12 +172,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const adminSections: SidebarSection[] = [
         {
-            title: sectionLabel('لوحة الإدارة', 'Admin Overview'),
+            title: t.panelUi.adminOverview,
             exact: true,
             links: pickAdminLinks(['/dashboard/admin']),
         },
         {
-            title: sectionLabel('المستخدمين والمناديب', 'People & Agents'),
+            title: t.panelUi.peopleAgents,
             links: pickAdminLinks([
                 '/dashboard/admin/users',
                 '/dashboard/admin/permissions',
@@ -187,7 +187,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             ]),
         },
         {
-            title: sectionLabel('طلبات ومراجعة العمليات', 'Requests & Reviews'),
+            title: t.panelUi.requestsReviews,
             links: pickAdminLinks([
                 '/dashboard/admin/credit-requests',
                 '/dashboard/admin/financial-review',
@@ -195,7 +195,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             ]),
         },
         {
-            title: sectionLabel('beIN والتشغيل', 'beIN Operations'),
+            title: t.panelUi.beinOperations,
             links: pickAdminLinks([
                 '/dashboard/admin/bein-accounts',
                 '/dashboard/admin/proxies',
@@ -203,13 +203,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             ]),
         },
         {
-            title: sectionLabel('التقارير والمراقبة', 'Reports & Monitoring'),
+            title: t.panelUi.reportsMonitoring,
             links: pickAdminLinks([
                 REPORT_CENTER_HREF,
             ]),
         },
         {
-            title: sectionLabel('النظام والمحتوى', 'System & Content'),
+            title: t.panelUi.systemContent,
             links: pickAdminLinks([
                 '/dashboard/admin/settings',
                 '/dashboard/admin/settings/announcements',
@@ -273,15 +273,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     if (status === 'loading') {
         return (
             <>
-                {/* Overlay for mobile */}
-                {isOpen && (
-                    <div
-                        className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-                        onClick={onClose}
-                    />
-                )}
 
-            <aside
+            <SidebarFrame isOpen={isOpen} onClose={onClose}
                 className={cn(
                     "stitch-sidebar fixed top-0 bottom-0 z-[var(--z-modal)] w-[var(--sidebar-width)] transition-transform duration-300 ease-in-out border-r",
                     dir === 'rtl' ? "right-0 border-l border-r-0" : "left-0",
@@ -309,23 +302,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             </div>
                         </div>
                     </div>
-                </aside>
+                </SidebarFrame>
             </>
         )
     }
 
     return (
         <>
-            {/* Overlay for mobile */}
-            {isOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-                    onClick={onClose}
-                />
-            )}
 
             {/* Sidebar */}
-                <aside
+                <SidebarFrame isOpen={isOpen} onClose={onClose}
                     className={cn(
                     "stitch-sidebar fixed top-0 bottom-0 z-[var(--z-modal)] w-[var(--sidebar-width)] transition-transform duration-300 ease-in-out border-r",
                     dir === 'rtl' ? "right-0 border-l border-r-0" : "left-0",
@@ -339,15 +325,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <div className="border-b border-white/5 px-6 py-8">
                         <div className="mb-3 flex items-center gap-3">
                             <div className="h-2 w-2 rounded-full bg-[#9ffb06] shadow-[0_0_10px_#9ffb06]" />
-                            <span className="stitch-label text-[#c0caae]">System Status Indicator</span>
+                            <span className="stitch-label text-[#c0caae]">{t.panelUi.systemStatus}</span>
                             <div className={cn("lg:hidden", dir === 'rtl' ? "mr-auto" : "ml-auto")}>
-                                <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 text-[#c0caae] hover:text-[#9ffb06]">
+                                <Button variant="ghost" size="sm" onClick={onClose} aria-label={t.panelUi.close} className="h-8 w-8 p-0 text-[#c0caae] hover:text-[#9ffb06]">
                                     <X className="h-5 w-5" />
                                 </Button>
                             </div>
                         </div>
                         <p className="mt-1 text-sm text-[#c0caae]">
-                            {session?.user?.role?.toLowerCase() || 'user'} active
+                            {(t.admin.users.roles as Record<string, string>)[(userRole || 'USER').toLowerCase()] || userRole} · {t.admin.users.table.active}
                         </p>
                     </div>
 
@@ -365,7 +351,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                         {/* Agent Menu: planned routes stay hidden until server guards and pages exist. */}
                         {agentLinks.length > 0 && (
-                            renderSection('Agent Panel', agentLinks)
+                            renderSection(t.panelUi.agentPanel, agentLinks)
                         )}
 
                         {/* Admin Menu */}
@@ -388,7 +374,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             <div className="flex flex-col">
                                 <span className="text-sm font-medium text-white">{session?.user?.username}</span>
                                 <span className="text-xs capitalize text-[#c0caae]">
-                                    {session?.user?.role?.toLowerCase() || 'User'}
+                                    {(t.admin.users.roles as Record<string, string>)[(userRole || 'USER').toLowerCase()] || userRole}
                                 </span>
                             </div>
                         </div>
@@ -402,14 +388,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         </Button>
                     </div>
                 </div>
-            </aside>
+            </SidebarFrame>
         </>
     )
 }
 
-export function MobileMenuButton({ onClick }: { onClick: () => void }) {
+export function MobileMenuButton({ onClick, expanded = false }: { onClick: () => void; expanded?: boolean }) {
+    const { t } = useTranslation()
     return (
-        <Button variant="ghost" size="sm" onClick={onClick} className="lg:hidden">
+        <Button id="panel-menu-button" aria-label={t.panelUi.menu} aria-expanded={expanded} variant="ghost" size="sm" onClick={onClick} className="lg:hidden">
             <Menu className="h-5 w-5" />
         </Button>
     )

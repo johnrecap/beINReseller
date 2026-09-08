@@ -1,5 +1,7 @@
 'use client'
 
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -104,11 +106,11 @@ interface PoolStatus {
 export default function BeinAccountsPage() {
     const { data: session, status } = useSession()
     const router = useRouter()
-    const { t } = useTranslation()
+    const { t, dir } = useTranslation()
     const [accounts, setAccounts] = useState<BeinAccount[]>([])
     const [poolStatus, setPoolStatus] = useState<PoolStatus | null>(null)
     const [proxies, setProxies] = useState<Proxy[]>([])
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error, cancel } = usePanelRequest()
     const [addDialogOpen, setAddDialogOpen] = useState(false)
     const [editAccount, setEditAccount] = useState<BeinAccount | null>(null)
     const [unlockAccount, setUnlockAccount] = useState<BeinAccount | null>(null)
@@ -137,19 +139,12 @@ export default function BeinAccountsPage() {
     const totalBeinDealerBalanceLabel = formatBeinDealerBalanceUsd(totalBeinDealerBalance)
 
     const fetchAccounts = useCallback(async () => {
-        try {
-            const res = await fetch('/api/admin/bein-accounts')
-            const data = await res.json()
-            if (data.success) {
-                setAccounts(data.accounts)
-                setPoolStatus(data.poolStatus)
-            }
-        } catch {
-            toast.error(t.adminBeinAccounts?.messages?.loadFailed || 'Failed to load accounts')
-        } finally {
-            setLoading(false)
-        }
-    }, [t])
+        await load<{ success: boolean; accounts: BeinAccount[]; poolStatus: PoolStatus }>('/api/admin/bein-accounts', data => {
+            if (!data.success) throw new Error('ACCOUNTS_LOAD_FAILED')
+            setAccounts(data.accounts)
+            setPoolStatus(data.poolStatus)
+        })
+    }, [load])
 
     const fetchProxies = useCallback(async () => {
         try {
@@ -171,7 +166,8 @@ export default function BeinAccountsPage() {
                 fetchProxies()
             }
         }
-    }, [status, session, router, fetchAccounts, fetchProxies])
+        return cancel
+    }, [status, session, router, fetchAccounts, fetchProxies, cancel])
 
     const handleAddAccount = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -364,6 +360,8 @@ export default function BeinAccountsPage() {
         )
     }
 
+    if (error !== null) return <PanelLoadError status={error} retry={fetchAccounts} />
+
     if (status === 'loading' || loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -373,9 +371,9 @@ export default function BeinAccountsPage() {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 min-w-0">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
                         <Users className="w-6 h-6 text-white" />
@@ -385,7 +383,7 @@ export default function BeinAccountsPage() {
                         <p className="text-muted-foreground text-sm">{t.adminBeinAccounts?.subtitle || 'Manage bot accounts for smart distribution'}</p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={fetchAccounts}>
                         <RefreshCw className="h-4 w-4 ml-2" />
                         {t.adminBeinAccounts?.refresh || t.common?.refresh || 'Refresh'}
@@ -397,7 +395,7 @@ export default function BeinAccountsPage() {
                                 {t.adminBeinAccounts?.addAccount || 'Add Account'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent dir="rtl">
+                        <DialogContent panel closeLabel={t.panelUi.close} dir={dir}>
                             <DialogHeader>
                                 <DialogTitle>{t.adminBeinAccounts?.dialogs?.addTitle || 'Add New Account'}</DialogTitle>
                             </DialogHeader>
@@ -547,7 +545,7 @@ export default function BeinAccountsPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <Table panel>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>{t.adminBeinAccounts?.table?.account || 'Account'}</TableHead>
@@ -721,7 +719,7 @@ export default function BeinAccountsPage() {
                     setUnlockReason('')
                 }
             }}>
-                <DialogContent dir="rtl">
+                <DialogContent panel closeLabel={t.panelUi.close} dir={dir}>
                     <DialogHeader>
                         <DialogTitle>Force unlock beIN account</DialogTitle>
                     </DialogHeader>
@@ -765,7 +763,7 @@ export default function BeinAccountsPage() {
 
             {/* Edit Dialog */}
             <Dialog open={!!editAccount} onOpenChange={(open) => !open && setEditAccount(null)}>
-                <DialogContent dir="rtl">
+                <DialogContent panel closeLabel={t.panelUi.close} dir={dir}>
                     <DialogHeader>
                         <DialogTitle>{t.adminBeinAccounts?.dialogs?.editTitle || 'Edit Account'}</DialogTitle>
                     </DialogHeader>

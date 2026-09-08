@@ -6,17 +6,19 @@ The maintainer confirmed that approval of this entire plan authorizes its batche
 
 | Batch | State | Scope / acceptance |
 | --- | --- | --- |
-| FIX-01 | COMPLETE | Reconciliation found 14 current command-hook consumers. Checkpoint: 4a2833e on codex/panel-ui-repairs; later changes local. Saved passing evidence: proxies 88, review 79, beIN dialogs 77, installments 40 and corrected PDF raster 6. These precede the latest command-hook changes and do not accept them. |
+| FIX-01 | COMPLETE | Reconciliation found 14 current command-hook consumers. Checkpoint: 4a2833e on codex/panel-ui-repairs; later source changes are saved as e663e14. Saved passing evidence: proxies 88, review 79, beIN dialogs 77, installments 40 and corrected PDF raster 6. These precede the latest command-hook changes and do not accept them. |
 | FIX-02 | COMPLETE | Action/entity-scoped uncertainty, retained input, bounded response delivery, independent actions and explicit nonfinancial reconciliation; verify all 14 consumers. |
 | FIX-03 | COMPLETE | Active detail generation, current server state/expiry and authorization fencing. Expanded active suite: 42 passing cases, including stale selection/state and 401/403 detail refusal. |
 | FIX-04 | COMPLETE | Active confirmation/cancellation use 45-second response-body deadlines and operation-key uncertainty. Three actual deadline cases permit safe dismissal without another payment/cancel command. |
 | FIX-05 | COMPLETE | Remaining in-scope prose/states use ar/en/bn catalogs; admin Eid excluded. |
 | FIX-06 | COMPLETE | Local bounded verification executed: 1170 combined browser cases, 51 layout cases, 826 units, root types, 74-file clean scoped lint and final isolated build. Full repository lint remains failed in unchanged excluded files; this is not full CI/release acceptance. |
-| FIX-07 | IN_PROGRESS | Synchronize guide/memory/evidence; inspect commit contents, commit/push the approved branch and verify remote equality; no deployment. |
+| FIX-07 | COMPLETE | Source snapshot `e663e1427adb8d42f79f36886085f26350817194` saved and pushed to origin/codex/panel-ui-repairs; ls-remote matched and the tree was clean. This final report/ledger update is documentation-only. Checkpoint 4a2833e remains available; no deployment. |
 
 These are sub-batches, not extra accepted WEB/036 tasks. Counters remain 14/14, 7/12 and 45/57; release NOT_APPROVED. Latest applicable evidence supersedes historical counts below. The 850-case checkpoint is preserved as panel-ui-850-checkpoint-verification.json; the generic output filename now holds the 1170-case FIX combined run (the prior narrower overwrite is historical).
 
 Additional findings: WEB-BUG-31 (beIN read/mutation/focus defects, repaired with 77 synthetic cases); WEB-BUG-32 (action/entity fence and retained uncertainty repaired; combined and actual-deadline tests pass); WEB-BUG-33 (stale active detail and unbounded commands repaired; 42 passing cases). WEB-BUG-34 (admin Eid configuration admission/read failures) is deferred; popup tests do not accept the admin page.
+
+Source changes and test additions are saved in `e663e14` (81 files); this report records local acceptance, not production approval. All seven FIX sub-batches are complete within their approved scope. Remaining broader WEB acceptance and the failed repository-wide lint are listed below.
 
 ## FIX implementation and current verification details
 

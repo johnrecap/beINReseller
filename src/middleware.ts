@@ -6,7 +6,8 @@ export default NextAuth(authConfig).auth
 
 export const config = {
     matcher: [
-        // Match all routes except static files and api routes
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$|api).*)',
+        // Only protected panel pages need the edge session check. Public login
+        // media must not rotate an old JWT after the login page signs it out.
+        '/dashboard/:path*',
     ],
 }

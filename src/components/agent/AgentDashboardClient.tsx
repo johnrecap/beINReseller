@@ -1,6 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { PanelDialog } from '@/components/ui/dialog'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import {
     AlertCircle,
     CheckCircle2,
@@ -11,6 +13,8 @@ import {
     Users,
     WalletCards,
 } from 'lucide-react'
+import { usePanelRequest, usePanelCommand } from '@/hooks/usePanelRequest'
+import { PanelLoadError, PanelCommandWarning } from '@/components/ui/PanelLoadError'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/hooks/useTranslation'
 import ResetPasswordDialog from '@/components/users/ResetPasswordDialog'
@@ -76,9 +80,9 @@ type AgentDashboardData = {
 
 type PaymentUser = AgentDashboardData['assignedUsers'][number]
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, language: string) {
     if (!value) return '-'
-    return new Intl.DateTimeFormat('en', {
+    return new Intl.DateTimeFormat(language, {
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(new Date(value))
@@ -96,8 +100,9 @@ function formatPoints(value: number) {
 }
 
 function StatusBadge({ status }: { status: CreditRequestStatus | null }) {
+    const { t } = useTranslation()
     if (!status) {
-        return <span className="text-xs text-muted-foreground">No requests</span>
+        return <span className="text-xs text-muted-foreground">{t.panelUi.operationalCopy.noRequests}</span>
     }
 
     const className = {
@@ -107,20 +112,21 @@ function StatusBadge({ status }: { status: CreditRequestStatus | null }) {
         CANCELLED: 'border-slate-400/40 bg-slate-400/10 text-slate-300',
     }[status]
 
-    return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${className}`}>{status}</span>
+    return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${className}`}>{{PENDING:t.status.pending,APPROVED:t.panelUi.operationalCopy.approved,REJECTED:t.panelUi.operationalCopy.rejected,CANCELLED:t.status.cancelled}[status] || status}</span>
 }
 
 function DebtSummaryCell({ summary }: { summary: CreditDebtSummary | null }) {
+    const { t } = useTranslation()
     if (!summary) return <span className="text-xs text-muted-foreground">-</span>
 
     return (
         <div className="space-y-1 text-xs">
             <div className="font-semibold text-foreground">
-                Debt {formatUsd(summary.outstandingDebtUsd)} / {formatUsd(summary.creditDebtLimitUsd)}
+                {t.panelUi.creditControl.debt} {formatUsd(summary.outstandingDebtUsd)} / {formatUsd(summary.creditDebtLimitUsd)}
             </div>
-            <div className="text-muted-foreground">Pending {formatUsd(summary.pendingRequestedUsd)}</div>
+            <div className="text-muted-foreground">{t.status.pending} {formatUsd(summary.pendingRequestedUsd)}</div>
             <div className={summary.availableUsd > 0 ? 'text-emerald-300' : 'text-amber-300'}>
-                Remaining {formatUsd(summary.availableUsd)}
+                {t.panelUi.creditControl.remaining} {formatUsd(summary.availableUsd)}
             </div>
         </div>
     )
@@ -157,69 +163,60 @@ function EmptyState({ title }: { title: string }) {
 }
 
 export default function AgentDashboardClient() {
-    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
+    const { t, language } = useTranslation()
     const [data, setData] = useState<AgentDashboardData | null>(null)
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error: loadError, cancel } = usePanelRequest()
+    const paymentPending = useRef(false)
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
     const [paymentUser, setPaymentUser] = useState<PaymentUser | null>(null)
+    const { request: command, unconfirmed } = usePanelCommand(paymentUser?.id)
     const [resetUser, setResetUser] = useState<PaymentUser | null>(null)
 
-    const loadData = useCallback(async () => {
-        setLoading(true)
-        setError(null)
-
-        try {
-            const response = await fetch('/api/agent/dashboard', { cache: 'no-store' })
-            const payload = await response.json().catch(() => null)
-
-            if (!response.ok) {
-                throw new Error(payload?.error || 'Failed to load agent dashboard')
-            }
-
-            setData(payload)
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load agent dashboard')
-        } finally {
-            setLoading(false)
-        }
-    }, [])
+    const loadData = useCallback(() => {
+        setData(null)
+        return load<AgentDashboardData>('/api/agent/dashboard', setData)
+    }, [load])
 
     useEffect(() => {
-        loadData()
-    }, [loadData])
+        const timer = window.setTimeout(() => void loadData(), 0)
+        return () => { window.clearTimeout(timer); cancel() }
+    }, [loadData, cancel])
 
     const summaryCards = useMemo(() => {
         if (!data) return []
 
         return [
-            { label: 'Assigned Users', value: data.summary.assignedUsers, icon: Users, tone: 'text-sky-300' },
-            { label: 'Requests Today', value: data.summary.requestsToday, icon: Clock3, tone: 'text-cyan-300' },
-            { label: 'Pending Requests', value: data.summary.pendingRequests, icon: AlertCircle, tone: 'text-amber-300' },
-            { label: 'Approved Requests', value: data.summary.approvedRequests, icon: CheckCircle2, tone: 'text-emerald-300' },
-            { label: 'Pending Points', value: formatPoints(data.summary.pendingPoints), icon: WalletCards, tone: 'text-violet-300' },
-            { label: 'Available Points', value: formatPoints(data.summary.availablePoints), icon: WalletCards, tone: 'text-lime-300' },
+            { label: t.panelUi.operationalCopy.assignedUsers, value: data.summary.assignedUsers, icon: Users, tone: 'text-sky-300' },
+            { label: t.panelUi.operationalCopy.requestsToday, value: data.summary.requestsToday, icon: Clock3, tone: 'text-cyan-300' },
+            { label: t.panelUi.operationalCopy.pendingRequests, value: data.summary.pendingRequests, icon: AlertCircle, tone: 'text-amber-300' },
+            { label: t.panelUi.operationalCopy.approvedRequests, value: data.summary.approvedRequests, icon: CheckCircle2, tone: 'text-emerald-300' },
+            { label: t.panelUi.operationalCopy.pendingPoints, value: formatPoints(data.summary.pendingPoints), icon: WalletCards, tone: 'text-violet-300' },
+            { label: t.panelUi.operationalCopy.availablePoints, value: formatPoints(data.summary.availablePoints), icon: WalletCards, tone: 'text-lime-300' },
         ]
-    }, [data])
+    }, [data, t])
 
     async function recordPayment(amountUsd: string, note: string) {
-        if (!paymentUser) return
+        if (unconfirmed || !paymentUser || paymentPending.current) return
+        paymentPending.current = true
 
         setBusyId(`payment-${paymentUser.id}`)
         setError(null)
         try {
-            const response = await fetch(`/api/credit-debts/${paymentUser.id}`, {
+            const response = await command(`/api/credit-debts/${paymentUser.id}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ amountUsd, note }),
             })
             const payload = await response.json().catch(() => null)
-            if (!response.ok) throw new Error(payload?.error || 'Failed to record payment')
+            if (!response.ok) throw new Error(payload?.error || t.panelUi.operationalCopy.recordPaymentFailed)
             setPaymentUser(null)
             await loadData()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to record payment')
+            setError(err instanceof Error ? err.message : t.panelUi.operationalCopy.recordPaymentFailed)
         } finally {
+            paymentPending.current = false
             setBusyId(null)
         }
     }
@@ -228,8 +225,8 @@ export default function AgentDashboardClient() {
         <div className="mx-auto max-w-7xl space-y-6 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
-                    <p className="text-sm text-muted-foreground">Assigned user credit control</p>
-                    <h1 className="text-3xl font-bold text-foreground">Agent Dashboard</h1>
+                    <p className="text-sm text-muted-foreground">{t.panelUi.operationalCopy.assignedCreditControl}</p>
+                    <h1 className="text-3xl font-bold text-foreground">{t.panelUi.operationalCopy.agentDashboard}</h1>
                     {data && (
                         <p className="mt-2 text-sm text-muted-foreground">
                             {data.agent.displayName}
@@ -245,11 +242,12 @@ export default function AgentDashboardClient() {
                     className="gap-2"
                 >
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                    Refresh
+                    {t.common.refresh}
                 </Button>
             </div>
 
-            {error && (
+            {loadError !== null && <PanelLoadError status={loadError} retry={() => void loadData()} />}
+            <PanelCommandWarning show={unconfirmed} />            {error && (
                 <div className="rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200" role="alert">
                     {error}
                 </div>
@@ -257,7 +255,7 @@ export default function AgentDashboardClient() {
 
             {loading && !data ? (
                 <div className="rounded-lg border border-border bg-card p-8 text-center text-muted-foreground">
-                    Loading agent dashboard...
+                    {t.panelUi.operationalCopy.loadingAgentDashboard}
                 </div>
             ) : data ? (
                 <>
@@ -269,41 +267,41 @@ export default function AgentDashboardClient() {
 
                     <section className="rounded-lg border border-border bg-card">
                         <div className="border-b border-border p-4">
-                            <h2 className="text-xl font-semibold text-foreground">Assigned Users</h2>
-                            <p className="text-sm text-muted-foreground">Balances, debt capacity, and payment recording.</p>
+                            <h2 className="text-xl font-semibold text-foreground">{t.panelUi.operationalCopy.assignedUsers}</h2>
+                            <p className="text-sm text-muted-foreground">{t.panelUi.operationalCopy.assignedBalancesHint}</p>
                         </div>
                         {data.assignedUsers.length === 0 ? (
                             <div className="p-4">
-                                <EmptyState title="No users are assigned to this agent yet." />
+                                <EmptyState title={t.panelUi.operationalCopy.noAssignedUsers} />
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-muted/40 text-muted-foreground">
-                                        <tr>
-                                            <th className="px-4 py-3 text-start font-medium">Username</th>
-                                            <th className="px-4 py-3 text-start font-medium">Balance</th>
-                                            <th className="px-4 py-3 text-start font-medium">Debt / Limit</th>
-                                            <th className="px-4 py-3 text-start font-medium">Source Group</th>
-                                            <th className="px-4 py-3 text-start font-medium">Status</th>
-                                            <th className="px-4 py-3 text-start font-medium">Last Request</th>
-                                            <th className="px-4 py-3 text-start font-medium">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
+                                <Table panel density="compact" className="w-full text-sm">
+                                    <TableHeader className="bg-muted/40 text-muted-foreground">
+                                        <TableRow>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.auth.username}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.profile.balance}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.debtLimit}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.common.sourceGroupLabel}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.common.status}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.lastRequest}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.common.actions}</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
                                         {data.assignedUsers.map((item) => (
-                                            <tr key={item.id} className="border-t border-border">
-                                                <td className="px-4 py-3 font-semibold text-foreground">{item.username}</td>
-                                                <td className="px-4 py-3 text-foreground">{formatUsd(item.balance)}</td>
-                                                <td className="px-4 py-3"><DebtSummaryCell summary={item.creditDebt} /></td>
-                                                <td className="px-4 py-3 text-muted-foreground">
+                                            <TableRow key={item.id} className="border-t border-border">
+                                                <TableCell className="px-4 py-3 font-semibold text-foreground">{item.username}</TableCell>
+                                                <TableCell className="px-4 py-3 text-foreground">{formatUsd(item.balance)}</TableCell>
+                                                <TableCell className="px-4 py-3"><DebtSummaryCell summary={item.creditDebt} /></TableCell>
+                                                <TableCell className="px-4 py-3 text-muted-foreground">
                                                     {item.sourceGroup || t.common.withoutGroup}
-                                                </td>
-                                                <td className="px-4 py-3">
+                                                </TableCell>
+                                                <TableCell className="px-4 py-3">
                                                     <StatusBadge status={item.lastRequestStatus} />
-                                                </td>
-                                                <td className="px-4 py-3 text-muted-foreground">{formatDate(item.lastRequestAt)}</td>
-                                                <td className="px-4 py-3">
+                                                </TableCell>
+                                                <TableCell className="px-4 py-3 text-muted-foreground">{formatDate(item.lastRequestAt, language)}</TableCell>
+                                                <TableCell className="px-4 py-3">
                                                     <div className="flex flex-wrap gap-2">
                                                         {data.capabilities.canResetPasswords && item.isActive && (
                                                             <Button
@@ -323,61 +321,61 @@ export default function AgentDashboardClient() {
                                                             disabled={(item.creditDebt?.outstandingDebtUsd || 0) <= 0 || busyId === `payment-${item.id}`}
                                                         >
                                                             <CreditCard className="h-3.5 w-3.5" />
-                                                            Payment
+                                                            {t.panelUi.operationalCopy.payment}
                                                         </Button>
                                                     </div>
-                                                </td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
                                         ))}
-                                    </tbody>
-                                </table>
+                                    </TableBody>
+                                </Table>
                             </div>
                         )}
                     </section>
 
                     <section className="rounded-lg border border-border bg-card">
                         <div className="border-b border-border p-4">
-                            <h2 className="text-xl font-semibold text-foreground">Credit Requests</h2>
-                            <p className="text-sm text-muted-foreground">Recent requests for assigned users. Credit request decisions are admin-only.</p>
+                            <h2 className="text-xl font-semibold text-foreground">{t.panelUi.operationalCopy.creditRequests}</h2>
+                            <p className="text-sm text-muted-foreground">{t.panelUi.operationalCopy.assignedRequestsHint}</p>
                         </div>
                         {data.creditRequests.length === 0 ? (
                             <div className="p-4">
-                                <EmptyState title="No credit requests found for your assigned users." />
+                                <EmptyState title={t.panelUi.operationalCopy.noAssignedRequests} />
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-muted/40 text-muted-foreground">
-                                        <tr>
-                                            <th className="px-4 py-3 text-start font-medium">Order ID</th>
-                                            <th className="px-4 py-3 text-start font-medium">Username</th>
-                                            <th className="px-4 py-3 text-start font-medium">Amount</th>
-                                            <th className="px-4 py-3 text-start font-medium">Debt / Limit</th>
-                                            <th className="px-4 py-3 text-start font-medium">Payment</th>
-                                            <th className="px-4 py-3 text-start font-medium">Source Group</th>
-                                            <th className="px-4 py-3 text-start font-medium">Status</th>
-                                            <th className="px-4 py-3 text-start font-medium">Created</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
+                                <Table panel density="compact" className="w-full text-sm">
+                                    <TableHeader className="bg-muted/40 text-muted-foreground">
+                                        <TableRow>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.orderId}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.auth.username}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.forms.amount}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.debtLimit}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.payment}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.common.sourceGroupLabel}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.common.status}</TableHead>
+                                            <TableHead className="px-4 py-3 text-start font-medium">{tableText.manager.users.table.created}</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
                                         {data.creditRequests.map((item) => (
-                                            <tr key={item.id} className="border-t border-border">
-                                                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{item.requestNumber}</td>
-                                                <td className="px-4 py-3 font-semibold text-foreground">{item.username}</td>
-                                                <td className="px-4 py-3 text-foreground">{formatUsd(item.amountUsd)}</td>
-                                                <td className="px-4 py-3"><DebtSummaryCell summary={item.debtSummary} /></td>
-                                                <td className="px-4 py-3 text-muted-foreground">{item.paymentMethod}</td>
-                                                <td className="px-4 py-3 text-muted-foreground">
+                                            <TableRow key={item.id} className="border-t border-border">
+                                                <TableCell className="px-4 py-3 font-mono text-xs text-muted-foreground">{item.requestNumber}</TableCell>
+                                                <TableCell className="px-4 py-3 font-semibold text-foreground">{item.username}</TableCell>
+                                                <TableCell className="px-4 py-3 text-foreground">{formatUsd(item.amountUsd)}</TableCell>
+                                                <TableCell className="px-4 py-3"><DebtSummaryCell summary={item.debtSummary} /></TableCell>
+                                                <TableCell className="px-4 py-3 text-muted-foreground">{item.paymentMethod}</TableCell>
+                                                <TableCell className="px-4 py-3 text-muted-foreground">
                                                     {item.sourceGroup || t.common.withoutGroup}
-                                                </td>
-                                                <td className="px-4 py-3">
+                                                </TableCell>
+                                                <TableCell className="px-4 py-3">
                                                     <StatusBadge status={item.status} />
-                                                </td>
-                                                <td className="px-4 py-3 text-muted-foreground">{formatDate(item.createdAt)}</td>
-                                            </tr>
+                                                </TableCell>
+                                                <TableCell className="px-4 py-3 text-muted-foreground">{formatDate(item.createdAt, language)}</TableCell>
+                                            </TableRow>
                                         ))}
-                                    </tbody>
-                                </table>
+                                    </TableBody>
+                                </Table>
                             </div>
                         )}
                     </section>
@@ -388,7 +386,9 @@ export default function AgentDashboardClient() {
                 <PaymentDialog
                     user={paymentUser}
                     busy={busyId === `payment-${paymentUser.id}`}
-                    onClose={() => setPaymentUser(null)}
+                    error={error}
+                    unconfirmed={unconfirmed}
+                    onClose={() => { if (!paymentPending.current) setPaymentUser(null) }}
                     onSubmit={recordPayment}
                 />
             )}
@@ -406,26 +406,33 @@ export default function AgentDashboardClient() {
 
 function PaymentDialog({
     user,
+    error,
+    unconfirmed,
     busy,
     onClose,
     onSubmit,
 }: {
     user: PaymentUser
+    error?: string | null
+    unconfirmed: boolean
     busy: boolean
     onClose: () => void
     onSubmit: (amountUsd: string, note: string) => void
 }) {
+    const { t } = useTranslation()
     const [amountUsd, setAmountUsd] = useState('')
     const [note, setNote] = useState('')
     const debt = user.creditDebt?.outstandingDebtUsd || 0
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <PanelDialog onClose={onClose} busy={busy} title={<>{t.panelUi.operationalCopy.recordPaymentTitle}</>} className="max-w-md">
             <div className="w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-xl">
-                <h3 className="text-xl font-bold text-foreground">Record Payment</h3>
+                <h3 className="text-xl font-bold text-foreground">{t.panelUi.operationalCopy.recordPaymentTitle}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                    {user.username} owes {formatUsd(debt)}.
+                    {t.panelUi.operationalCopy.paymentDebt.replace('{user}', user.username).replace('{amount}', formatUsd(debt))}
                 </p>
+                <PanelCommandWarning show={unconfirmed} />
+                {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
                 <form
                     className="mt-4 space-y-4"
                     onSubmit={(event) => {
@@ -434,7 +441,7 @@ function PaymentDialog({
                     }}
                 >
                     <label className="block text-sm font-medium text-foreground">
-                        Amount USD
+                        {t.panelUi.operationalCopy.amountUsd}
                         <input
                             type="number"
                             min="0.01"
@@ -447,21 +454,21 @@ function PaymentDialog({
                         />
                     </label>
                     <label className="block text-sm font-medium text-foreground">
-                        Note
+                        {t.panelTable.note}
                         <input
                             value={note}
                             onChange={(event) => setNote(event.target.value)}
                             maxLength={500}
                             className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-green-500"
-                            placeholder="Optional"
+                            placeholder={t.panelUi.operationalCopy.optional}
                         />
                     </label>
                     <div className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Back</Button>
-                        <Button type="submit" loading={busy} disabled={debt <= 0}>Record payment</Button>
+                        <Button type="button" variant="outline" onClick={onClose} disabled={busy}>{t.common.back}</Button>
+                        <Button type="submit" loading={busy} disabled={unconfirmed || debt <= 0}>{t.panelUi.operationalCopy.recordPayment}</Button>
                     </div>
                 </form>
             </div>
-        </div>
+        </PanelDialog>
     )
 }

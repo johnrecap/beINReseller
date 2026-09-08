@@ -1,5 +1,6 @@
 'use client'
 
+import { TableRow, TableCell, Table, TableHeader, TableHead, TableBody } from '@/components/ui/table'
 import { useState, useEffect, useCallback, type KeyboardEvent } from 'react'
 import { usePanelRequest } from '@/hooks/usePanelRequest'
 import { PanelLoadError } from '@/components/ui/PanelLoadError'
@@ -316,7 +317,7 @@ export default function UsersTable() {
 
     // Render distributor row
     const renderDistributorRow = (distributor: Distributor) => (
-        <tr
+        <TableRow
             key={distributor.id}
             className="hover:bg-secondary transition-colors group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             onClick={() => openDistributorUsers(distributor)}
@@ -324,7 +325,7 @@ export default function UsersTable() {
             tabIndex={0}
             aria-label={`${t.admin.users.filters.filterByDistributor}: ${distributor.username}`}
         >
-            <td className="px-4 py-3">
+            <TableCell className="px-4 py-3">
                 <div>
                     <p className="font-semibold text-foreground">{distributor.username}</p>
                     <p className="text-xs text-muted-foreground dir-ltr text-right">{distributor.email}</p>
@@ -335,12 +336,12 @@ export default function UsersTable() {
                         {distributor.role === 'ADMIN' ? (t.admin?.users?.roles?.admin || 'Admin') : (t.admin?.users?.roles?.manager || 'Manager')}
                     </span>
                 </div>
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <p className="font-bold text-foreground dir-ltr text-right">{(distributor.balance ?? 0).toLocaleString()} {t.header.currency}</p>
                 {renderPointSummary(distributor.points)}
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${distributor.isActive
                     ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                     : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
@@ -348,18 +349,18 @@ export default function UsersTable() {
                     {distributor.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
                     {distributor.isActive ? t.admin.users.table.active : t.admin.users.table.inactive}
                 </span>
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-muted-foreground" />
                     <span className="font-semibold text-foreground">{distributor.managedUsersCount}</span>
                     <span className="text-xs text-muted-foreground">{t.admin?.users?.tabs?.users || 'users'}</span>
                 </div>
-            </td>
-            <td className="px-4 py-3 text-xs text-muted-foreground">
+            </TableCell>
+            <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                 {format(new Date(distributor.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
-            </td>
-            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+            </TableCell>
+            <TableCell className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2 justify-end">
                     {canResetPasswords && distributor.isActive && distributor.role !== 'ADMIN' && (
                         <button
@@ -410,12 +411,12 @@ export default function UsersTable() {
                         <Trash2 className="w-4 h-4" />
                     </button>
                 </div>
-            </td>
-        </tr>
+            </TableCell>
+        </TableRow>
     )
 
     const renderAgentRow = (agent: Agent) => (
-        <tr
+        <TableRow
             key={agent.id}
             className="hover:bg-secondary transition-colors group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             onClick={() => openAgentUsers(agent)}
@@ -423,7 +424,7 @@ export default function UsersTable() {
             tabIndex={0}
             aria-label={`${t.admin.users.filters.filterByAgent}: ${agent.profile.displayName || agent.username}`}
         >
-            <td className="px-4 py-3">
+            <TableCell className="px-4 py-3">
                 <div>
                     <p className="font-semibold text-foreground">{agent.profile.displayName || agent.username}</p>
                     <p className="text-xs text-muted-foreground">{agent.username}</p>
@@ -432,12 +433,12 @@ export default function UsersTable() {
                         {(t.admin?.users?.roles as { agent?: string } | undefined)?.agent || 'مندوب'}
                     </span>
                 </div>
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <p className="font-bold text-foreground dir-ltr text-right">{(agent.balance ?? 0).toLocaleString()} {t.header.currency}</p>
                 {renderPointSummary(agent.points)}
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <div className="space-y-1">
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${agent.isActive && agent.profile.isActive
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
@@ -450,18 +451,18 @@ export default function UsersTable() {
                         <p className="text-xs text-muted-foreground">{agent.profile.defaultSourceGroup}</p>
                     )}
                 </div>
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-muted-foreground" />
                     <span className="font-semibold text-foreground">{agent.assignedUsersCount}</span>
                     <span className="text-xs text-muted-foreground">{t.admin?.users?.tabs?.users || 'users'}</span>
                 </div>
-            </td>
-            <td className="px-4 py-3 text-xs text-muted-foreground">
+            </TableCell>
+            <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                 {format(new Date(agent.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
-            </td>
-            <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+            </TableCell>
+            <TableCell className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                 <div className="flex items-center gap-2 justify-end">
                     {canResetPasswords && agent.isActive && (
                         <button
@@ -524,20 +525,20 @@ export default function UsersTable() {
                         <Trash2 className="w-4 h-4" />
                     </button>
                 </div>
-            </td>
-        </tr>
+            </TableCell>
+        </TableRow>
     )
 
     // Render user row
     const renderUserRow = (user: User) => (
-        <tr key={user.id} className="hover:bg-secondary transition-colors group">
-            <td className="px-4 py-3">
+        <TableRow key={user.id} className="hover:bg-secondary transition-colors group">
+            <TableCell className="px-4 py-3">
                 <div>
                     <p className="font-semibold text-foreground">{user.username}</p>
                     <p className="text-xs text-muted-foreground dir-ltr text-right">{user.email}</p>
                 </div>
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 {user.currentOwner?.label || user.creatorUsername ? (
                     <div>
                         <p className="font-medium text-foreground">{user.currentOwner?.label || user.creatorUsername}</p>
@@ -567,13 +568,13 @@ export default function UsersTable() {
                 ) : (
                     <span className="text-muted-foreground text-xs">-</span>
                 )}
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <p className="font-bold text-foreground dir-ltr text-right">{(user.balance ?? 0).toLocaleString()} {t.header.currency}</p>
                 {renderPointSummary(user.points)}
                 {renderCreditDebtSummary(user.creditDebt)}
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <div className="flex flex-col gap-1">
                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.isActive
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
@@ -593,15 +594,15 @@ export default function UsersTable() {
                         }
                     </span>
                 </div>
-            </td>
-            <td className="px-4 py-3 text-xs text-muted-foreground">
+            </TableCell>
+            <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                 <p>{user.operationCount ?? 0} {t.admin.users.table.operation}</p>
                 <p>{user.transactionCount ?? 0} {t.admin.users.table.transaction}</p>
-            </td>
-            <td className="px-4 py-3 text-xs text-muted-foreground">
+            </TableCell>
+            <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                 {format(new Date(user.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
-            </td>
-            <td className="px-4 py-3">
+            </TableCell>
+            <TableCell className="px-4 py-3">
                 <div className="flex items-center gap-2 justify-end">
                     {canResetPasswords && user.isActive && (
                         <button
@@ -666,18 +667,18 @@ export default function UsersTable() {
                         <Trash2 className="w-4 h-4" />
                     </button>
                 </div>
-            </td>
-        </tr>
+            </TableCell>
+        </TableRow>
     )
 
     // Render loading skeleton
     const renderLoadingSkeleton = (colCount: number) => (
         [...Array(5)].map((_, i) => (
-            <tr key={i} className="animate-pulse">
+            <TableRow key={i} className="animate-pulse">
                 {[...Array(colCount)].map((_, j) => (
-                    <td key={j} className="p-4"><div className="h-4 bg-muted rounded w-20"></div></td>
+                    <TableCell key={j} className="p-4"><div className="h-4 bg-muted rounded w-20"></div></TableCell>
                 ))}
-            </tr>
+            </TableRow>
         ))
     )
 
@@ -687,9 +688,9 @@ export default function UsersTable() {
             {error !== null && <PanelLoadError status={error} retry={fetchData} />}
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)}>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-                        <TabsList className="bg-muted/50">
+                <div className="flex flex-col gap-4">
+                    <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
+                        <TabsList className="h-auto max-w-full flex-wrap justify-start gap-1 bg-muted/50">
                         <TabsTrigger value="distributors" className="gap-2">
                             {t.admin?.users?.tabs?.distributors || 'Distributors'}
                             <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
@@ -722,15 +723,15 @@ export default function UsersTable() {
                     </div>
 
                     {/* Header Actions */}
-                    <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                        <div className="relative flex-1 sm:w-64">
-                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
+                    <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
+                        <div className="relative min-w-0 flex-1 basis-64">
+                            <Search className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                             <input
                                 type="text"
                                 placeholder={t.admin.users.actions.searchPlaceholder}
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full pr-10 pl-4 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground"
+                                className="w-full ps-10 pe-4 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground"
                             />
                         </div>
                         <button
@@ -794,29 +795,29 @@ export default function UsersTable() {
                 <TabsContent value="distributors">
                     <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
                         <div className="overflow-x-auto">
-                            <table hidden={error !== null} className="w-full">
-                                <thead className="bg-secondary border-b border-border">
-                                    <tr>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.managedUsersCount || 'Users Count'}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
+                            <Table panel density="compact" hidden={error !== null} className="w-full">
+                                <TableHeader className="bg-secondary border-b border-border">
+                                    <TableRow>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.managedUsersCount || 'Users Count'}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</TableHead>
+                                        <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody className="divide-y divide-border">
                                     {loading ? (
                                         renderLoadingSkeleton(6)
                                     ) : distributors.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="p-8 text-center text-muted-foreground">{t.admin?.users?.table?.noDistributors || 'No distributors found'}</td>
-                                        </tr>
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="p-8 text-center text-muted-foreground">{t.admin?.users?.table?.noDistributors || 'No distributors found'}</TableCell>
+                                        </TableRow>
                                     ) : (
                                         distributors.map(renderDistributorRow)
                                     )}
-                                </tbody>
-                            </table>
+                                </TableBody>
+                            </Table>
                         </div>
 
                         {/* Pagination */}
@@ -851,29 +852,29 @@ export default function UsersTable() {
                 <TabsContent value="agents">
                     <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
                         <div className="overflow-x-auto">
-                            <table hidden={error !== null} className="w-full">
-                                <thead className="bg-secondary border-b border-border">
-                                    <tr>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.managedUsersCount || 'Users Count'}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
+                            <Table panel density="compact" hidden={error !== null} className="w-full">
+                                <TableHeader className="bg-secondary border-b border-border">
+                                    <TableRow>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.managedUsersCount || 'Users Count'}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</TableHead>
+                                        <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody className="divide-y divide-border">
                                     {loading ? (
                                         renderLoadingSkeleton(6)
                                     ) : agents.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="p-8 text-center text-muted-foreground">{(t.admin?.users?.table as { noAgents?: string } | undefined)?.noAgents || 'No agents found'}</td>
-                                        </tr>
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="p-8 text-center text-muted-foreground">{(t.admin?.users?.table as { noAgents?: string } | undefined)?.noAgents || 'No agents found'}</TableCell>
+                                        </TableRow>
                                     ) : (
                                         agents.map(renderAgentRow)
                                     )}
-                                </tbody>
-                            </table>
+                                </TableBody>
+                            </Table>
                         </div>
 
                         {totalPages > 1 && (
@@ -908,30 +909,30 @@ export default function UsersTable() {
                 <TabsContent value="users">
                     <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
                         <div className="overflow-x-auto">
-                            <table hidden={error !== null} className="w-full">
-                                <thead className="bg-secondary border-b border-border">
-                                    <tr>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.manager || 'Distributor'}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.activity}</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
+                            <Table panel density="compact" hidden={error !== null} className="w-full">
+                                <TableHeader className="bg-secondary border-b border-border">
+                                    <TableRow>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.user}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.manager || 'Distributor'}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.balance}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.status}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.activity}</TableHead>
+                                        <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.users.table.created}</TableHead>
+                                        <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin.users.table.actions}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody className="divide-y divide-border">
                                     {loading ? (
                                         renderLoadingSkeleton(7)
                                     ) : users.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={7} className="p-8 text-center text-muted-foreground">{t.admin.users.table.noUsers}</td>
-                                        </tr>
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="p-8 text-center text-muted-foreground">{t.admin.users.table.noUsers}</TableCell>
+                                        </TableRow>
                                     ) : (
                                         users.map(renderUserRow)
                                     )}
-                                </tbody>
-                            </table>
+                                </TableBody>
+                            </Table>
                         </div>
 
                         {/* Pagination */}

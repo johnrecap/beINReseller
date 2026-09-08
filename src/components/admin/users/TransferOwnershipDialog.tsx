@@ -1,6 +1,8 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { usePanelRequest, usePanelCommand } from '@/hooks/usePanelRequest'
+import { PanelLoadError, PanelCommandWarning } from '@/components/ui/PanelLoadError'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { buildOwnershipTransferRequest } from '@/lib/users/ownership-transfer-request'
@@ -62,6 +64,7 @@ function optionsForType(targets: TargetsResponse['targets'] | null, type: Target
 
 export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, user }: TransferOwnershipDialogProps) {
     const { t } = useTranslation()
+    const { request: command, unconfirmed } = usePanelCommand(isOpen ? user?.id : null)
     const [targets, setTargets] = useState<TargetsResponse['targets'] | null>(null)
     const [targetOwnerType, setTargetOwnerType] = useState<TargetType>('ADMIN')
     const [targetOwnerId, setTargetOwnerId] = useState('')
@@ -70,11 +73,11 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
     const [sourceGroupTouched, setSourceGroupTouched] = useState(false)
     const [whatsappGroupUrlTouched, setWhatsappGroupUrlTouched] = useState(false)
     const [reason, setReason] = useState('')
-    const [loadingTargets, setLoadingTargets] = useState(false)
+    const { load, loading: loadingTargets, error: readError, cancel } = usePanelRequest()
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [ownershipChanged, setOwnershipChanged] = useState(false)
-    const [loadAttempt, setLoadAttempt] = useState(0)
+    const submittingRef = useRef(false)
 
     const ownerOptions = useMemo(
         () => optionsForType(targets, targetOwnerType),
@@ -88,47 +91,28 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
         && user?.currentOwner.type === 'AGENT'
         && user.currentOwner.id === selectedOwner?.id
 
+    const loadTargets = useCallback(async () => {
+        setError(null)
+        setTargets(null)
+        setTargetOwnerId('')
+        await load<TargetsResponse>('/api/admin/user-ownership/targets', payload => {
+            setTargets(payload.targets)
+            setTargetOwnerType('ADMIN')
+            setTargetOwnerId('')
+            setSourceGroup('')
+            setWhatsappGroupUrl('')
+            setSourceGroupTouched(false)
+            setWhatsappGroupUrlTouched(false)
+            setReason('')
+            setOwnershipChanged(false)
+        })
+    }, [load])
+
     useEffect(() => {
         if (!isOpen) return
-
-        let cancelled = false
-        async function loadTargets() {
-            setLoadingTargets(true)
-            setError(null)
-            setTargets(null)
-
-            try {
-                const response = await fetch('/api/admin/user-ownership/targets', { cache: 'no-store' })
-                if (!response.ok) {
-                    throw new Error(t.common.loadTransferTargetsFailed)
-                }
-
-                const payload = await response.json()
-
-                if (cancelled) return
-                setTargets(payload.targets)
-                setTargetOwnerType('ADMIN')
-                setTargetOwnerId('')
-                setSourceGroup('')
-                setWhatsappGroupUrl('')
-                setSourceGroupTouched(false)
-                setWhatsappGroupUrlTouched(false)
-                setReason('')
-                setOwnershipChanged(false)
-            } catch (err) {
-                if (!cancelled) {
-                    setError(err instanceof Error ? err.message : t.common.loadTransferTargetsFailed)
-                }
-            } finally {
-                if (!cancelled) setLoadingTargets(false)
-            }
-        }
-
-        void loadTargets()
-        return () => {
-            cancelled = true
-        }
-    }, [isOpen, loadAttempt, t.common.loadTransferTargetsFailed])
+        const timer = setTimeout(() => void loadTargets(), 0)
+        return () => { clearTimeout(timer); cancel() }
+    }, [isOpen, user?.id, loadTargets, cancel])
 
     useEffect(() => {
         if (targetOwnerId && !ownerOptions.some((target) => target.id === targetOwnerId)) {
@@ -156,8 +140,9 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
 
     async function submitTransfer(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
-        if (!user || !targetOwnerId) return
+        if (unconfirmed || !user || !targetOwnerId || submittingRef.current || loadingTargets || readError !== null || !selectedOwner || ownershipChanged) return
 
+        submittingRef.current = true
         setSubmitting(true)
         setError(null)
         setOwnershipChanged(false)
@@ -175,7 +160,7 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
                 whatsappGroupUrlTouched,
             })
 
-            const response = await fetch('/api/admin/user-ownership', {
+            const response = await command('/api/admin/user-ownership', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody),
@@ -198,6 +183,7 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
         } catch (err) {
             setError(err instanceof Error ? err.message : t.common.transferOwnershipFailed)
         } finally {
+            submittingRef.current = false
             setSubmitting(false)
         }
     }
@@ -214,7 +200,7 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
         <Dialog
             open={isOpen}
             onOpenChange={(open) => {
-                if (!open && !submitting) onClose()
+                if (!open && !submittingRef.current) onClose()
             }}
         >
             <DialogContent panel closeLabel={t.panelUi.close} className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
@@ -224,6 +210,7 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
                 </DialogHeader>
 
                 <form onSubmit={submitTransfer} className="space-y-4">
+                    {readError !== null && <PanelLoadError status={readError} retry={() => void loadTargets()} />}
                     <label className="block space-y-2">
                         <span className="text-sm font-medium text-foreground">{t.common.targetType}</span>
                         <select
@@ -327,6 +314,7 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
                         />
                     </label>
 
+                    <PanelCommandWarning show={unconfirmed} />
                     {error && (
                         <div className="space-y-2 rounded-lg bg-red-50 p-3 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400" role="alert">
                             {error}
@@ -344,7 +332,7 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
                             ) : !targets && !loadingTargets ? (
                                 <button
                                     type="button"
-                                    onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+                                    onClick={() => void loadTargets()}
                                     className="block font-semibold underline underline-offset-2"
                                 >
                                     {t.common.retry}
@@ -356,14 +344,14 @@ export default function TransferOwnershipDialog({ isOpen, onClose, onSuccess, us
                     <DialogFooter className="gap-3 pt-2 sm:space-x-0">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={() => { if (!submittingRef.current) onClose() }}
                             className="flex-1 px-4 py-2 text-sm font-medium text-muted-foreground bg-secondary rounded-lg hover:bg-secondary/80"
                         >
                             {t.common.cancel}
                         </button>
                         <button
                             type="submit"
-                            disabled={submitting || loadingTargets || !targetOwnerId || ownershipChanged}
+                            disabled={unconfirmed || submitting || loadingTargets || readError !== null || !selectedOwner || ownershipChanged}
                             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2"
                         >
                             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}

@@ -4,6 +4,7 @@ import { SessionProvider } from 'next-auth/react'
 import { ThemeProvider } from 'next-themes'
 import { ReactNode, useEffect } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
+import { usePathname } from 'next/navigation'
 
 interface ProvidersProps {
     children: ReactNode
@@ -21,8 +22,13 @@ function LanguageSync() {
 }
 
 export default function Providers({ children }: ProvidersProps) {
+    const isPanelLogin = usePathname() === '/login'
     return (
-        <SessionProvider>
+        <SessionProvider
+            key={isPanelLogin ? 'panel-login' : 'application'}
+            session={isPanelLogin ? null : undefined}
+            refetchOnWindowFocus={!isPanelLogin}
+        >
             <ThemeProvider
                 attribute="class"
                 defaultTheme="dark"

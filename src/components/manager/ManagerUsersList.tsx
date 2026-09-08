@@ -75,7 +75,7 @@ export function ManagerUsersList({ users }: ManagerUsersListProps) {
 
     return (
         <div className="rounded-md border">
-            <Table>
+            <Table panel density="compact">
                 <TableHeader>
                     <TableRow>
                         <TableHead className={textAlign}>{t.manager?.users?.table?.user || 'Username'}</TableHead>

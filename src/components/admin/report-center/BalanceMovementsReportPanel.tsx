@@ -1,5 +1,10 @@
 'use client'
 
+import { useTranslation } from '@/hooks/useTranslation'
+import { en as exportText } from '@/i18n/translations/en'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toPng } from 'html-to-image'
@@ -259,78 +264,84 @@ function waitForPaint() {
     })
 }
 
-function MovementRows({ rows }: { rows: MovementRow[] }) {
+function MovementRows({ rows, exportMode = false }: { rows: MovementRow[]; exportMode?: boolean }) {
+    const { t: localeText } = useTranslation()
+    const t = exportMode ? exportText : localeText
+    const { t: tableText } = useTranslation()
+    // Keep the existing PDF document independent of interactive panel primitives/tokens.
+    const RowsTable = exportMode ? 'table' : Table
+    const RowsHeader = exportMode ? 'thead' : TableHeader
+    const RowsBody = exportMode ? 'tbody' : TableBody
+    const Row = exportMode ? 'tr' : TableRow
+    const Head = exportMode ? 'th' : TableHead
+    const Cell = exportMode ? 'td' : TableCell
+    const headings = exportMode
+        ? ['Date', 'Recipient', t.panelUi.reportCopy.currentOwner, t.panelUi.reportCopy.actor, 'Category', t.panelUi.reportCopy.source, 'Amount', t.panelUi.reportCopy.balanceAfter, t.transactions.notes]
+        : [tableText.common.date, tableText.panelTable.recipient, tableText.panelTable.currentOwner, tableText.panelTable.actor, tableText.panelTable.category, tableText.panelTable.source, tableText.forms.amount, tableText.forms.balanceAfter, tableText.transactions.notes]
     if (rows.length === 0) {
         return (
             <div className="rounded-lg border border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                No balance increases match the current filters.
+                {t.panelUi.reportCopy.noMovements}
             </div>
         )
     }
 
     return (
         <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="min-w-[1240px] w-full text-sm">
-                <thead className="bg-muted/30 text-muted-foreground">
-                    <tr>
-                        <th className="px-4 py-3 text-start font-medium">Date</th>
-                        <th className="px-4 py-3 text-start font-medium">Recipient</th>
-                        <th className="px-4 py-3 text-start font-medium">Current owner</th>
-                        <th className="px-4 py-3 text-start font-medium">Actor</th>
-                        <th className="px-4 py-3 text-start font-medium">Category</th>
-                        <th className="px-4 py-3 text-start font-medium">Source</th>
-                        <th className="px-4 py-3 text-start font-medium">Amount</th>
-                        <th className="px-4 py-3 text-start font-medium">Balance after</th>
-                        <th className="px-4 py-3 text-start font-medium">Notes</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
+            <RowsTable {...(exportMode ? {} : {panel: true, density: 'compact' as const})} className="min-w-[1240px] w-full text-sm">
+                <RowsHeader className="bg-muted/30 text-muted-foreground">
+                    <Row>
+                        {headings.map(heading => <Head key={heading} className="px-4 py-3 text-start font-medium">{heading}</Head>)}
+                    </Row>
+                </RowsHeader>
+                <RowsBody className="divide-y divide-border">
                     {rows.map((row) => (
-                        <tr key={row.id} className="hover:bg-muted/20">
-                            <td className="px-4 py-3">
+                        <Row key={row.id} className="hover:bg-muted/20">
+                            <Cell className="px-4 py-3">
                                 <span className="block font-medium text-foreground">{row.createdAtCairoDate}</span>
                                 <span className="block text-xs text-muted-foreground">{formatDateTime(row.createdAt)}</span>
-                            </td>
-                            <td className="px-4 py-3">
+                            </Cell>
+                            <Cell className="px-4 py-3">
                                 <span className="block font-semibold text-foreground">{row.recipient.username}</span>
                                 <span className="block text-xs text-muted-foreground">{row.recipient.role}</span>
                                 <span className="block text-xs text-muted-foreground">{row.recipient.email}</span>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">{ownerLabel(row.recipient.currentOwner)}</td>
-                            <td className="px-4 py-3">
+                            </Cell>
+                            <Cell className="px-4 py-3 text-muted-foreground">{ownerLabel(row.recipient.currentOwner)}</Cell>
+                            <Cell className="px-4 py-3">
                                 {row.actor ? (
                                     <>
                                         <span className="block font-medium text-foreground">{row.actor.username}</span>
                                         <span className="block text-xs text-muted-foreground">{row.actor.role}</span>
                                     </>
                                 ) : (
-                                    <span className="text-xs text-muted-foreground">System / unavailable</span>
+                                    <span className="text-xs text-muted-foreground">{t.panelUi.reportCopy.systemUnavailable}</span>
                                 )}
-                            </td>
-                            <td className="px-4 py-3">
+                            </Cell>
+                            <Cell className="px-4 py-3">
                                 <span className={`rounded-full px-2 py-1 text-xs ${bucketTone(row.bucket.key)}`}>
                                     {row.bucket.label}
                                 </span>
-                            </td>
-                            <td className="px-4 py-3">
+                            </Cell>
+                            <Cell className="px-4 py-3">
                                 <span className={`rounded-full px-2 py-1 text-xs ${sourceTone(row.source.key)}`}>
                                     {row.source.label}
                                 </span>
-                            </td>
-                            <td className="px-4 py-3 font-semibold text-emerald-300">{formatUsd(row.amount)}</td>
-                            <td className="px-4 py-3 text-foreground">{formatUsd(row.balanceAfter)}</td>
-                            <td className="max-w-[260px] px-4 py-3 text-muted-foreground">
+                            </Cell>
+                            <Cell className="px-4 py-3 font-semibold text-emerald-300">{formatUsd(row.amount)}</Cell>
+                            <Cell className="px-4 py-3 text-foreground">{formatUsd(row.balanceAfter)}</Cell>
+                            <Cell className="max-w-[260px] px-4 py-3 text-muted-foreground">
                                 <span className="line-clamp-2">{row.notes || '-'}</span>
-                            </td>
-                        </tr>
+                            </Cell>
+                        </Row>
                     ))}
-                </tbody>
-            </table>
+                </RowsBody>
+            </RowsTable>
         </div>
     )
 }
 
 function FilterSummary({ data }: { data: BalanceMovementsResponse }) {
+    const t = exportText
     const filters = data.filters
     const values = [
         `Recipient: ${filters.recipientRole}`,
@@ -346,7 +357,7 @@ function FilterSummary({ data }: { data: BalanceMovementsResponse }) {
         <div className="rounded-lg border border-border bg-card p-4">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
                 <FileText className="h-4 w-4 text-primary" />
-                Report filters
+                {t.panelUi.reportCopy.reportFilters}
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                 {values.map((value) => (
@@ -366,16 +377,18 @@ function ReportContent({
     loading: boolean
     exportMode?: boolean
 }) {
+    const { t: localeText } = useTranslation()
+    const t = exportMode ? exportText : localeText
     const summary = data?.summary ?? EMPTY_SUMMARY
     const cards = [
-        { label: 'Total increases', value: formatUsd(summary.totalAmount), detail: `${summary.movementCount} movements`, icon: Wallet },
-        { label: 'Admin to managers', value: formatUsd(summary.adminToManagersAmount), detail: `${summary.adminToManagersCount} movements`, icon: Users },
-        { label: 'Admin to users', value: formatUsd(summary.adminToUsersAmount), detail: `${summary.adminToUsersCount} movements`, icon: Users },
-        { label: 'Managers to users', value: formatUsd(summary.managerToUsersAmount), detail: `${summary.managerToUsersCount} movements`, icon: Users },
-        { label: 'System / legacy increases', value: formatUsd(summary.systemAmount), detail: `${summary.systemCount} movements`, icon: RefreshCw },
-        { label: 'Recipients', value: summary.recipientsCount, detail: `${summary.actorsCount} recorded actors`, icon: Users },
-        { label: 'Average increase', value: formatUsd(summary.averageAmount), icon: Wallet },
-        { label: 'Last movement', value: formatDateTime(summary.lastMovementAt), icon: CalendarDays },
+        { label: t.panelUi.reportCopy.totalIncreases, value: formatUsd(summary.totalAmount), detail: t.panelUi.reportCopy.movements.replace('{count}', String(summary.movementCount)), icon: Wallet },
+        { label: t.panelUi.reportCopy.adminManagers, value: formatUsd(summary.adminToManagersAmount), detail: t.panelUi.reportCopy.movements.replace('{count}', String(summary.adminToManagersCount)), icon: Users },
+        { label: t.panelUi.reportCopy.adminUsers, value: formatUsd(summary.adminToUsersAmount), detail: t.panelUi.reportCopy.movements.replace('{count}', String(summary.adminToUsersCount)), icon: Users },
+        { label: t.panelUi.reportCopy.managerUsers, value: formatUsd(summary.managerToUsersAmount), detail: t.panelUi.reportCopy.movements.replace('{count}', String(summary.managerToUsersCount)), icon: Users },
+        { label: t.panelUi.reportCopy.systemIncreases, value: formatUsd(summary.systemAmount), detail: t.panelUi.reportCopy.movements.replace('{count}', String(summary.systemCount)), icon: RefreshCw },
+        { label: t.panelUi.reportCopy.recipients, value: summary.recipientsCount, detail: t.panelUi.reportCopy.actorsCount.replace('{count}', String(summary.actorsCount)), icon: Users },
+        { label: t.panelUi.reportCopy.averageIncrease, value: formatUsd(summary.averageAmount), icon: Wallet },
+        { label: t.panelUi.reportCopy.lastMovement, value: formatDateTime(summary.lastMovementAt), icon: CalendarDays },
     ]
 
     return (
@@ -386,7 +399,7 @@ function ReportContent({
                 <div className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
-                        Current owner labels are based on current ownership. Older movements may not prove historical ownership unless the original record stored it.
+                        {t.panelUi.reportCopy.currentOwnershipHint}
                     </p>
                 </div>
             </div>
@@ -399,25 +412,26 @@ function ReportContent({
 
             {loading ? (
                 <div className="rounded-lg border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-                    Loading balance movements...
+                    {t.panelUi.reportCopy.loadingMovements}
                 </div>
             ) : (
-                <MovementRows rows={data?.rows ?? []} />
+                <MovementRows rows={data?.rows ?? []} exportMode={exportMode} />
             )}
         </div>
     )
 }
 
 export default function BalanceMovementsReportPanel() {
+    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const exportRef = useRef<HTMLDivElement>(null)
     const [data, setData] = useState<BalanceMovementsResponse | null>(null)
     const [exportData, setExportData] = useState<BalanceMovementsResponse | null>(null)
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error } = usePanelRequest()
     const [downloading, setDownloading] = useState(false)
-    const [error, setError] = useState('')
     const [downloadError, setDownloadError] = useState('')
     const [form, setForm] = useState<FormState>(() => initialForm(searchParams))
 
@@ -438,14 +452,10 @@ export default function BalanceMovementsReportPanel() {
         : []
 
     async function loadReport(params = searchParams) {
-        setLoading(true)
-        setError('')
-        try {
-            const query = new URLSearchParams(params.toString())
-            query.delete('tab')
-            const response = await fetch(`/api/admin/reports/balance-movements?${query.toString()}`, { cache: 'no-store' })
-            const payload = await response.json()
-            if (!response.ok) throw new Error(payload.error || 'Failed to load balance movements')
+        const query = new URLSearchParams(params.toString())
+        query.delete('tab')
+        setData(null)
+        await load<BalanceMovementsResponse>(`/api/admin/reports/balance-movements?${query.toString()}`, payload => {
             setData(payload)
             setForm({
                 range: payload.filters.range,
@@ -459,11 +469,7 @@ export default function BalanceMovementsReportPanel() {
                 ownerId: payload.filters.ownerId,
                 userSearch: payload.filters.userSearch,
             })
-        } catch (loadError) {
-            setError(loadError instanceof Error ? loadError.message : 'Failed to load balance movements')
-        } finally {
-            setLoading(false)
-        }
+        })
     }
 
     useEffect(() => {
@@ -486,7 +492,7 @@ export default function BalanceMovementsReportPanel() {
         query.set('export', 'all')
         const response = await fetch(`/api/admin/reports/balance-movements?${query.toString()}`, { cache: 'no-store' })
         const payload = await response.json()
-        if (!response.ok) throw new Error(payload.error || 'Failed to load PDF export data')
+        if (!response.ok) throw new Error(payload.error || t.panelUi.reportCopy.pdfDataFailed)
         return payload as BalanceMovementsResponse
     }
 
@@ -498,11 +504,13 @@ export default function BalanceMovementsReportPanel() {
             setExportData(fullReport)
             await waitForPaint()
 
-            if (!exportRef.current) throw new Error('PDF export surface was not ready')
+            if (!exportRef.current) throw new Error(t.panelUi.reportCopy.pdfSurfaceFailed)
             const dataUrl = await toPng(exportRef.current, {
                 backgroundColor: '#020617',
                 pixelRatio: 2,
                 cacheBust: true,
+                // Keep the real surface offscreen, but place its raster clone inside the image viewport.
+                style: { position: 'static', left: 'auto', top: 'auto' },
             })
             const { jsPDF } = await import('jspdf')
             const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
@@ -528,7 +536,7 @@ export default function BalanceMovementsReportPanel() {
 
             pdf.save(`balance-movements-${fullReport.filters.fromInput}-${fullReport.filters.toInput}.pdf`)
         } catch (pdfError) {
-            setDownloadError(pdfError instanceof Error ? pdfError.message : 'Failed to create PDF')
+            setDownloadError(pdfError instanceof Error ? pdfError.message : t.panelUi.reportCopy.pdfCreateFailed)
         } finally {
             setExportData(null)
             setDownloading(false)
@@ -540,9 +548,9 @@ export default function BalanceMovementsReportPanel() {
             <div className="rounded-lg border border-border bg-card p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h2 className="text-xl font-bold text-foreground">Balance Movements</h2>
+                        <h2 className="text-xl font-bold text-foreground">{t.panelUi.reportCopy.balanceMovements}</h2>
                         <p className="text-sm text-muted-foreground">
-                            Admin and manager balance increases with source, recipient, and current ownership analysis.
+                            {t.panelUi.reportCopy.balanceMovementsHint}
                         </p>
                     </div>
                     <button
@@ -552,13 +560,13 @@ export default function BalanceMovementsReportPanel() {
                         className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        Download PDF
+                        {t.panelUi.reportCopy.downloadPdf}
                     </button>
                 </div>
 
                 <form onSubmit={applyFilters} className="mt-5 grid gap-3 md:grid-cols-6">
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Recipient type</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.recipientType}</span>
                         <select
                             value={form.recipientRole}
                             onChange={(event) => setForm((current) => ({
@@ -570,14 +578,14 @@ export default function BalanceMovementsReportPanel() {
                             }))}
                             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
                         >
-                            <option value="ALL">All recipients</option>
-                            <option value="MANAGER">Managers</option>
-                            <option value="USER">Users</option>
+                            <option value="ALL">{t.panelUi.reportCopy.allRecipients}</option>
+                            <option value="MANAGER">{t.panelUi.reportCopy.managers}</option>
+                            <option value="USER">{t.panelUi.reportCopy.users}</option>
                         </select>
                     </label>
 
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Actor</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.actor}</span>
                         <select
                             value={form.actorRole}
                             onChange={(event) => setForm((current) => ({
@@ -587,22 +595,22 @@ export default function BalanceMovementsReportPanel() {
                             }))}
                             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
                         >
-                            <option value="ALL">All actors</option>
-                            <option value="ADMIN">Admin</option>
-                            <option value="MANAGER">Manager</option>
-                            <option value="SYSTEM">System source</option>
+                            <option value="ALL">{t.panelUi.reportCopy.allActors}</option>
+                            <option value="ADMIN">{t.panelUi.reportCopy.admin}</option>
+                            <option value="MANAGER">{t.panelUi.reportCopy.manager}</option>
+                            <option value="SYSTEM">{t.panelUi.reportCopy.systemSource}</option>
                         </select>
                     </label>
 
                     {form.actorRole !== 'ALL' && form.actorRole !== 'SYSTEM' && (
                         <label className="space-y-1 text-sm">
-                            <span className="text-muted-foreground">Actor account</span>
+                            <span className="text-muted-foreground">{t.panelUi.reportCopy.actorAccount}</span>
                             <select
                                 value={form.actorId}
                                 onChange={(event) => setForm((current) => ({ ...current, actorId: event.target.value }))}
                                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
                             >
-                                <option value="">All</option>
+                                <option value="">{t.common.all}</option>
                                 {actorOptions.map((actor) => (
                                     <option key={actor.id} value={actor.id}>{actor.username}</option>
                                 ))}
@@ -612,13 +620,13 @@ export default function BalanceMovementsReportPanel() {
 
                     {form.recipientRole === 'MANAGER' && (
                         <label className="space-y-1 text-sm">
-                            <span className="text-muted-foreground">Manager recipient</span>
+                            <span className="text-muted-foreground">{t.panelUi.reportCopy.managerRecipient}</span>
                             <select
                                 value={form.recipientId}
                                 onChange={(event) => setForm((current) => ({ ...current, recipientId: event.target.value }))}
                                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
                             >
-                                <option value="">All managers</option>
+                                <option value="">{t.panelUi.reportCopy.allManagers}</option>
                                 {recipientOptions.map((manager) => (
                                     <option key={manager.id} value={manager.id}>{manager.username}</option>
                                 ))}
@@ -627,23 +635,23 @@ export default function BalanceMovementsReportPanel() {
                     )}
 
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Range</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.range}</span>
                         <select
                             value={form.range}
                             onChange={(event) => setForm((current) => ({ ...current, range: event.target.value as BalanceReportRange }))}
                             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
                         >
-                            <option value="today">Today</option>
-                            <option value="week">This week</option>
-                            <option value="month">This month</option>
-                            <option value="custom">Custom</option>
+                            <option value="today">{t.panelUi.reportCopy.today}</option>
+                            <option value="week">{t.panelUi.reportCopy.thisWeek}</option>
+                            <option value="month">{t.panelUi.reportCopy.thisMonth}</option>
+                            <option value="custom">{t.panelUi.reportCopy.custom}</option>
                         </select>
                     </label>
 
                     {form.range === 'custom' && (
                         <>
                             <label className="space-y-1 text-sm">
-                                <span className="text-muted-foreground">From</span>
+                                <span className="text-muted-foreground">{t.panelUi.reportCopy.from}</span>
                                 <input
                                     type="date"
                                     value={form.from}
@@ -652,7 +660,7 @@ export default function BalanceMovementsReportPanel() {
                                 />
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-muted-foreground">To</span>
+                                <span className="text-muted-foreground">{t.panelUi.reportCopy.to}</span>
                                 <input
                                     type="date"
                                     value={form.to}
@@ -666,7 +674,7 @@ export default function BalanceMovementsReportPanel() {
                     {form.recipientRole !== 'MANAGER' && (
                         <>
                             <label className="space-y-1 text-sm">
-                                <span className="text-muted-foreground">Current user owner</span>
+                                <span className="text-muted-foreground">{t.panelUi.reportCopy.currentUserOwner}</span>
                                 <select
                                     value={form.ownerType}
                                     onChange={(event) => setForm((current) => ({
@@ -676,47 +684,47 @@ export default function BalanceMovementsReportPanel() {
                                     }))}
                                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
                                 >
-                                    <option value="">All owners</option>
-                                    <option value="ADMIN">Admin</option>
-                                    <option value="MANAGER">Manager</option>
-                                    <option value="AGENT">Agent</option>
+                                    <option value="">{t.panelUi.reportCopy.allOwners}</option>
+                                    <option value="ADMIN">{t.panelUi.reportCopy.admin}</option>
+                                    <option value="MANAGER">{t.panelUi.reportCopy.manager}</option>
+                                    <option value="AGENT">{t.common.ownerAgent}</option>
                                 </select>
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-muted-foreground">Owner account</span>
+                                <span className="text-muted-foreground">{t.panelUi.reportCopy.ownerAccount}</span>
                                 <select
                                     value={form.ownerId}
                                     onChange={(event) => setForm((current) => ({ ...current, ownerId: event.target.value, recipientId: '' }))}
                                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"
                                 >
-                                    <option value="">All</option>
+                                    <option value="">{t.common.all}</option>
                                     {ownerOptions.map((owner) => (
                                         <option key={owner.id} value={owner.id}>{owner.username}</option>
                                     ))}
                                 </select>
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-muted-foreground">User search</span>
+                                <span className="text-muted-foreground">{t.panelUi.reportCopy.userSearch}</span>
                                 <div className="relative">
                                     <Search className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <input
                                         type="search"
                                         value={form.userSearch}
                                         onChange={(event) => setForm((current) => ({ ...current, userSearch: event.target.value, recipientId: '' }))}
-                                        placeholder="Username or email"
+                                        placeholder={t.panelUi.reportCopy.usernameEmail}
                                         className="w-full rounded-lg border border-border bg-background px-3 py-2 pe-9 text-foreground"
                                     />
                                 </div>
                             </label>
                             <label className="space-y-1 text-sm">
-                                <span className="text-muted-foreground">User recipient</span>
+                                <span className="text-muted-foreground">{t.panelUi.reportCopy.userRecipient}</span>
                                 <select
                                     value={form.recipientRole === 'USER' ? form.recipientId : ''}
                                     disabled={form.recipientRole !== 'USER'}
                                     onChange={(event) => setForm((current) => ({ ...current, recipientId: event.target.value }))}
                                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    <option value="">All matching users</option>
+                                    <option value="">{t.panelUi.reportCopy.allMatchingUsers}</option>
                                     {(data?.lookups.users ?? []).map((user) => (
                                         <option key={user.id} value={user.id}>
                                             {user.username} - {ownerLabel(user.currentOwner)}
@@ -732,28 +740,25 @@ export default function BalanceMovementsReportPanel() {
                         className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-secondary md:self-end"
                     >
                         <RefreshCw className="h-4 w-4" />
-                        Apply
+                        {t.panelUi.reportCopy.apply}
                     </button>
                 </form>
             </div>
 
-            {error && (
-                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-                    {error}
-                </div>
-            )}
+            {error !== null && <PanelLoadError status={error} retry={() => void loadReport()} />}
             {downloadError && (
                 <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-                    PDF export failed: {downloadError}
+                    {t.panelUi.reportCopy.pdfFailed} {downloadError}
                 </div>
             )}
 
-            <ReportContent data={data} loading={loading} />
+            {loading && <p role="status" className="p-6 text-center text-muted-foreground">{tableText.common.loading}</p>}
+            {data && !loading && error === null && <div data-panel-report-results className="contents"><ReportContent data={data} loading={false} /></div>}
 
             {data && data.pagination.totalPages > 1 && (
                 <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm">
                     <span className="text-muted-foreground">
-                        Page {data.pagination.page} of {data.pagination.totalPages}
+                        {t.panelUi.reportCopy.page} {data.pagination.page} {t.panelUi.reportCopy.of} {data.pagination.totalPages}
                     </span>
                     <div className="flex gap-2">
                         <button
@@ -762,7 +767,7 @@ export default function BalanceMovementsReportPanel() {
                             disabled={data.pagination.page <= 1}
                             className="rounded-lg border border-border px-3 py-1.5 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            Previous
+                            {t.panelUi.reportCopy.previous}
                         </button>
                         <button
                             type="button"
@@ -770,7 +775,7 @@ export default function BalanceMovementsReportPanel() {
                             disabled={data.pagination.page >= data.pagination.totalPages}
                             className="rounded-lg border border-border px-3 py-1.5 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            Next
+                            {t.panelUi.reportCopy.next}
                         </button>
                     </div>
                 </div>

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { withRequestDeadline } from '@/lib/request-deadline'
 import {
     Plus,
     RefreshCw,
@@ -17,6 +18,8 @@ import {
     Server,
     Upload
 } from 'lucide-react'
+import { usePanelRequest, readPanelJson, PanelRequestError } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -97,12 +100,25 @@ const initialFormData = {
     isActive: true
 }
 
+async function proxyCommand(url: string, init: RequestInit) {
+    return withRequestDeadline(async signal => {
+        const response = await fetch(url, { ...init, signal })
+        if (!response.ok) throw new Error('PROXY_REQUEST_REJECTED')
+        return response.json()
+    })
+}
+
 export default function ProxiesPage() {
     const { data: session, status } = useSession()
     const router = useRouter()
-    const { t } = useTranslation()
+    const { t, dir } = useTranslation()
     const [proxies, setProxies] = useState<Proxy[]>([])
-    const [loading, setLoading] = useState(true)
+    const { run, loading, error: readError } = usePanelRequest()
+    const mutationPending = useRef(false)
+    const [mutationBusy, setMutationBusy] = useState(false)
+    const [mutationError, setMutationError] = useState<string | null>(null)
+    const previewedText = useRef<string | null>(null)
+    const editOpener = useRef<HTMLElement | null>(null)
     const [addDialogOpen, setAddDialogOpen] = useState(false)
     const [editProxy, setEditProxy] = useState<Proxy | null>(null)
     const [testingProxyId, setTestingProxyId] = useState<string | null>(null)
@@ -122,18 +138,12 @@ export default function ProxiesPage() {
     const [formData, setFormData] = useState(initialFormData)
 
     const fetchProxies = useCallback(async () => {
-        try {
-            const res = await fetch('/api/admin/proxies')
-            const data = await res.json()
-            if (data.success) {
-                setProxies(data.proxies)
-            }
-        } catch {
-            toast.error(t.adminProxies?.messages?.loadFailed || 'Failed to load proxies')
-        } finally {
-            setLoading(false)
-        }
-    }, [t])
+        await run(async signal => {
+            const data = await readPanelJson<{success: boolean; proxies: Proxy[]}>('/api/admin/proxies', signal)
+            if (!data.success) throw new PanelRequestError(500)
+            return data.proxies
+        }, setProxies)
+    }, [run])
 
     useEffect(() => {
         if (status === 'authenticated') {
@@ -145,11 +155,22 @@ export default function ProxiesPage() {
         }
     }, [status, session, router, fetchProxies])
 
+    function beginMutation() {
+        if (mutationPending.current) return false
+        mutationPending.current = true
+        setMutationBusy(true)
+        setMutationError(null)
+        return true
+    }
+    function endMutation() { mutationPending.current = false; setMutationBusy(false) }
+    function notifyError(message: string) { setMutationError(message); toast.error(message) }
+
     const handleAddProxy = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!beginMutation()) return
         setSubmitting(true)
         try {
-            const res = await fetch('/api/admin/proxies', {
+            const data = await proxyCommand('/api/admin/proxies', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -161,18 +182,18 @@ export default function ProxiesPage() {
                     isActive: formData.isActive
                 })
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(t.adminProxies?.messages?.addSuccess || 'Proxy added successfully')
                 setAddDialogOpen(false)
                 setFormData(initialFormData)
                 fetchProxies()
             } else {
-                toast.error(data.error)
+                notifyError(data.error || t.panelUi.actionFailed)
             }
         } catch {
-            toast.error(t.adminProxies?.messages?.addFailed || 'Failed to add proxy')
+            notifyError(t.adminProxies?.messages?.addFailed || 'Failed to add proxy')
         } finally {
+            endMutation()
             setSubmitting(false)
         }
     }
@@ -185,6 +206,8 @@ export default function ProxiesPage() {
     }
 
     const handleImportDialogChange = (open: boolean) => {
+        if (mutationPending.current) return
+        setMutationError(null)
         setImportDialogOpen(open)
         if (!open) {
             resetImportDialog()
@@ -192,9 +215,12 @@ export default function ProxiesPage() {
     }
 
     const handlePreviewImport = async () => {
+        if (!importText.trim() || !beginMutation()) return
+        previewedText.current = null
+        setImportPreview(null)
         setPreviewingImport(true)
         try {
-            const res = await fetch('/api/admin/proxies/import', {
+            const data = await proxyCommand('/api/admin/proxies/import', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -203,8 +229,8 @@ export default function ProxiesPage() {
                     isActive: true,
                 }),
             })
-            const data = await res.json()
             if (data.success) {
+                previewedText.current = importText
                 setImportPreview({
                     summary: data.summary,
                     validRows: data.validRows || [],
@@ -213,20 +239,22 @@ export default function ProxiesPage() {
                 })
             } else {
                 setImportPreview(null)
-                toast.error(data.error || t.adminProxies?.messages?.importPreviewFailed || 'Failed to preview import')
+                notifyError(data.error || t.adminProxies?.messages?.importPreviewFailed || 'Failed to preview import')
             }
         } catch {
             setImportPreview(null)
-            toast.error(t.adminProxies?.messages?.importPreviewFailed || 'Failed to preview import')
+            notifyError(t.adminProxies?.messages?.importPreviewFailed || 'Failed to preview import')
         } finally {
+            endMutation()
             setPreviewingImport(false)
         }
     }
 
     const handleCommitImport = async () => {
+        if (!importPreview || importPreview.summary.validCount === 0 || previewedText.current !== importText || !beginMutation()) return
         setCommittingImport(true)
         try {
-            const res = await fetch('/api/admin/proxies/import', {
+            const data = await proxyCommand('/api/admin/proxies/import', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -235,29 +263,30 @@ export default function ProxiesPage() {
                     isActive: true,
                 }),
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(
                     `${t.adminProxies?.messages?.importSuccess || 'Imported proxies'}: ${data.summary?.importedCount || 0}`
                 )
-                handleImportDialogChange(false)
+                setImportDialogOpen(false)
+                resetImportDialog()
                 fetchProxies()
             } else {
-                toast.error(data.error || t.adminProxies?.messages?.importFailed || 'Failed to import proxies')
+                notifyError(data.error || t.adminProxies?.messages?.importFailed || 'Failed to import proxies')
             }
         } catch {
-            toast.error(t.adminProxies?.messages?.importFailed || 'Failed to import proxies')
+            notifyError(t.adminProxies?.messages?.importFailed || 'Failed to import proxies')
         } finally {
+            endMutation()
             setCommittingImport(false)
         }
     }
 
     const handleUpdateProxy = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!editProxy) return
+        if (!editProxy || !beginMutation()) return
         setSubmitting(true)
         try {
-            const res = await fetch(`/api/admin/proxies/${editProxy.id}`, {
+            const data = await proxyCommand(`/api/admin/proxies/${editProxy.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -269,76 +298,84 @@ export default function ProxiesPage() {
                     isActive: formData.isActive
                 })
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(t.adminProxies?.messages?.updateSuccess || 'Proxy updated successfully')
                 setEditProxy(null)
                 setFormData(initialFormData)
                 fetchProxies()
             } else {
-                toast.error(data.error)
+                notifyError(data.error || t.panelUi.actionFailed)
             }
         } catch {
-            toast.error(t.adminProxies?.messages?.updateFailed || 'Failed to update proxy')
+            notifyError(t.adminProxies?.messages?.updateFailed || 'Failed to update proxy')
         } finally {
+            endMutation()
             setSubmitting(false)
         }
     }
 
     const handleDeleteProxy = async (proxy: Proxy) => {
+        if (mutationPending.current) return
         if (!confirm(t.adminProxies?.messages?.deleteConfirm || 'Are you sure you want to delete this proxy?')) return
+        if (!beginMutation()) return
         try {
-            const res = await fetch(`/api/admin/proxies/${proxy.id}`, {
+            const data = await proxyCommand(`/api/admin/proxies/${proxy.id}`, {
                 method: 'DELETE'
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(data.message)
                 fetchProxies()
             } else {
-                toast.error(data.error)
+                notifyError(data.error || t.panelUi.actionFailed)
             }
         } catch {
-            toast.error(t.adminProxies?.messages?.deleteFailed || 'Failed to delete proxy')
+            notifyError(t.adminProxies?.messages?.deleteFailed || 'Failed to delete proxy')
+        } finally {
+            endMutation()
         }
     }
 
     const handleTestProxy = async (proxy: Proxy) => {
+        if (!beginMutation()) return
         setTestingProxyId(proxy.id)
         try {
-            const res = await fetch(`/api/admin/proxies/${proxy.id}/test`, {
+            const data = await proxyCommand(`/api/admin/proxies/${proxy.id}/test`, {
                 method: 'POST'
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(`${t.adminProxies?.messages?.testSuccess || 'Connection successful'}: ${data.result.ip}`)
                 fetchProxies()
             } else {
-                toast.error(data.error || t.adminProxies?.messages?.testFailed || 'Connection failed')
+                notifyError(data.error || t.adminProxies?.messages?.testFailed || 'Connection failed')
             }
         } catch {
-            toast.error(t.adminProxies?.messages?.testError || 'Failed to test proxy')
+            notifyError(t.adminProxies?.messages?.testError || 'Failed to test proxy')
         } finally {
+            endMutation()
             setTestingProxyId(null)
         }
     }
 
     const handleToggleStatus = async (proxy: Proxy) => {
+        if (!beginMutation()) return
         try {
-            const res = await fetch(`/api/admin/proxies/${proxy.id}`, {
+            const data = await proxyCommand(`/api/admin/proxies/${proxy.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     isActive: !proxy.isActive
                 })
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(t.adminProxies?.messages?.statusChanged || 'Proxy status changed')
                 fetchProxies()
+            } else {
+                notifyError(t.adminProxies.messages.statusChangeFailed)
             }
         } catch {
-            toast.error(t.adminProxies?.messages?.statusChangeFailed || 'Failed to change status')
+            notifyError(t.adminProxies?.messages?.statusChangeFailed || 'Failed to change status')
+        } finally {
+            endMutation()
         }
     }
 
@@ -355,7 +392,7 @@ export default function ProxiesPage() {
         return <Badge variant="outline" className="gap-1">{t.adminProxies?.status?.new || 'New'}</Badge>
     }
 
-    if (status === 'loading' || loading) {
+    if (status === 'loading' || (loading && proxies.length === 0)) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -363,14 +400,18 @@ export default function ProxiesPage() {
         )
     }
 
+    if (readError !== null) return <PanelLoadError status={readError} retry={() => void fetchProxies()} />
+
     const activeProxies = proxies.filter(p => p.isActive).length
     const totalProxies = proxies.length
     const failedProxies = proxies.filter(p => p.failureCount > 0).length
 
     return (
         <div className="space-y-6 p-6">
+            {loading && <p role="status" className="text-sm text-muted-foreground">{t.common.loading} {t.panelUi.staleData}</p>}
+            {mutationError && <p role="alert" className="text-sm text-destructive">{mutationError}</p>}
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center shadow-lg">
                         <Globe className="w-6 h-6 text-white" />
@@ -380,7 +421,7 @@ export default function ProxiesPage() {
                         <p className="text-muted-foreground text-sm">{t.adminProxies?.subtitle || 'Manage IP addresses and beIN connections'}</p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={fetchProxies}>
                         <RefreshCw className="h-4 w-4 ml-2" />
                         {t.adminProxies?.refresh || t.common?.refresh || 'Refresh'}
@@ -392,16 +433,17 @@ export default function ProxiesPage() {
                                 {t.adminProxies?.import?.button || 'Bulk Import'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent panel closeLabel={t.panelUi.close} dir="rtl" className="max-w-3xl">
+                        <DialogContent panel closeLabel={t.panelUi.close} dir={dir} className="max-w-3xl">
                             <DialogHeader>
                                 <DialogTitle>{t.adminProxies?.import?.title || 'Bulk Proxy Import'}</DialogTitle>
                             </DialogHeader>
+                            {mutationError && <p role="alert" className="text-sm text-destructive">{mutationError}</p>}
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="proxy-import-text">
                                         {t.adminProxies?.import?.textareaLabel || 'Proxy list'}
                                     </Label>
-                                    <textarea
+                                    <textarea disabled={mutationBusy}
                                         id="proxy-import-text"
                                         value={importText}
                                         onChange={(e) => {
@@ -499,7 +541,7 @@ export default function ProxiesPage() {
                                     <Button
                                         type="button"
                                         onClick={handleCommitImport}
-                                        disabled={committingImport || !importPreview || importPreview.summary.validCount === 0}
+                                        disabled={mutationBusy || !importPreview || importPreview.summary.validCount === 0}
                                     >
                                         {committingImport ? t.adminProxies?.import?.importing || 'Importing...' : t.adminProxies?.import?.import || 'Import'}
                                     </Button>
@@ -507,17 +549,18 @@ export default function ProxiesPage() {
                             </div>
                         </DialogContent>
                     </Dialog>
-                    <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+                    <Dialog open={addDialogOpen} onOpenChange={open => { if (!mutationPending.current) { setAddDialogOpen(open); setMutationError(null) } }}>
                         <DialogTrigger asChild>
                             <Button>
                                 <Plus className="h-4 w-4 ml-2" />
                                 {t.adminProxies?.addProxy || 'Add Proxy'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent panel closeLabel={t.panelUi.close} dir="rtl" className="max-w-md">
+                        <DialogContent panel closeLabel={t.panelUi.close} dir={dir} className="max-w-md">
                             <DialogHeader>
                                 <DialogTitle>{t.adminProxies?.dialogs?.addTitle || 'Add New Proxy'}</DialogTitle>
                             </DialogHeader>
+                            {mutationError && <p role="alert" className="text-sm text-destructive">{mutationError}</p>}
                             <form onSubmit={handleAddProxy} className="space-y-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="label">{t.adminProxies?.dialogs?.label || 'Label'} *</Label>
@@ -583,10 +626,10 @@ export default function ProxiesPage() {
                                     {t.adminProxies?.dialogs?.noAuthHint || 'Leave username and password empty if no authentication required'}
                                 </p>
                                 <DialogFooter>
-                                    <DialogClose asChild>
+                                    <DialogClose asChild disabled={mutationBusy}>
                                         <Button type="button" variant="outline">{t.common?.cancel || 'Cancel'}</Button>
                                     </DialogClose>
-                                    <Button type="submit" disabled={submitting}>
+                                    <Button type="submit" disabled={mutationBusy}>
                                         {submitting ? t.adminProxies?.dialogs?.adding || 'Adding...' : t.adminProxies?.dialogs?.add || 'Add'}
                                     </Button>
                                 </DialogFooter>
@@ -653,7 +696,7 @@ export default function ProxiesPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <Table panel density="compact">
                         <TableHeader>
                             <TableRow>
                                 <TableHead>{t.adminProxies?.table?.label || 'Label'}</TableHead>
@@ -701,7 +744,7 @@ export default function ProxiesPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => handleTestProxy(proxy)}
-                                                    disabled={testingProxyId === proxy.id}
+                                                    disabled={mutationBusy}
                                                     title={t.adminProxies?.actions?.testConnection || 'Test Connection'}
                                                 >
                                                     <Activity className={`h-4 w-4 ${testingProxyId === proxy.id ? 'animate-spin' : ''}`} />
@@ -710,6 +753,7 @@ export default function ProxiesPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => handleToggleStatus(proxy)}
+                                                    disabled={mutationBusy}
                                                     title={proxy.isActive ? t.adminProxies?.actions?.disable || 'Disable' : t.adminProxies?.actions?.enable || 'Enable'}
                                                 >
                                                     <div className={`h-2 w-2 rounded-full ${proxy.isActive ? 'bg-green-600' : 'bg-gray-300'}`} />
@@ -718,6 +762,8 @@ export default function ProxiesPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => {
+                                                        editOpener.current = document.activeElement as HTMLElement
+                                                        setMutationError(null)
                                                         setEditProxy(proxy)
                                                         setFormData({
                                                             host: proxy.host,
@@ -738,7 +784,7 @@ export default function ProxiesPage() {
                                                     onClick={() => handleDeleteProxy(proxy)}
                                                     title={t.adminProxies?.actions?.delete || 'Delete'}
                                                     className="text-red-600 hover:text-red-700"
-                                                    disabled={proxy.accountsCount > 0}
+                                                    disabled={mutationBusy || proxy.accountsCount > 0}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
@@ -753,11 +799,14 @@ export default function ProxiesPage() {
             </Card>
 
             {/* Edit Dialog */}
-            <Dialog open={!!editProxy} onOpenChange={(open) => !open && setEditProxy(null)}>
-                <DialogContent panel closeLabel={t.panelUi.close} dir="rtl" className="max-w-md">
+            <Dialog open={!!editProxy} onOpenChange={open => { if (!open && !mutationPending.current) setEditProxy(null) }}>
+                <DialogContent panel closeLabel={t.panelUi.close} dir={dir} className="max-w-md" onCloseAutoFocus={event => {
+                    if (editOpener.current?.isConnected) { event.preventDefault(); editOpener.current.focus() }
+                }}>
                     <DialogHeader>
                         <DialogTitle>{t.adminProxies?.dialogs?.editTitle || 'Edit Proxy'}</DialogTitle>
                     </DialogHeader>
+                            {mutationError && <p role="alert" className="text-sm text-destructive">{mutationError}</p>}
                     <form onSubmit={handleUpdateProxy} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="edit-label">{t.adminProxies?.dialogs?.label || 'Label'} *</Label>
@@ -820,10 +869,10 @@ export default function ProxiesPage() {
                             {t.adminProxies?.dialogs?.keepPasswordHint || 'Leave password empty to keep current'}
                         </p>
                         <DialogFooter>
-                            <DialogClose asChild>
+                            <DialogClose asChild disabled={mutationBusy}>
                                 <Button type="button" variant="outline">{t.common?.cancel || 'Cancel'}</Button>
                             </DialogClose>
-                            <Button type="submit" disabled={submitting}>
+                            <Button type="submit" disabled={mutationBusy}>
                                 {submitting ? t.adminProxies?.dialogs?.saving || 'Saving...' : t.common?.save || 'Save'}
                             </Button>
                         </DialogFooter>

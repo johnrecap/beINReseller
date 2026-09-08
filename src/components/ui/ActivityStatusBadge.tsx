@@ -14,7 +14,7 @@ export function ActivityStatusBadge({
     showDays = false,
     size = 'md' 
 }: ActivityStatusBadgeProps) {
-    const { locale } = useTranslation()
+    const { t } = useTranslation()
     const config = ACTIVITY_STATUS[status]
     
     const sizeClasses = {
@@ -32,7 +32,7 @@ export function ActivityStatusBadge({
     return (
         <span className={`inline-flex items-center gap-1.5 rounded-full font-medium ${sizeClasses[size]} ${config.bgClass} ${config.textClass}`}>
             <span className={`${dotSizeClasses[size]} rounded-full ${config.dotClass}`} />
-            {config.label[locale as 'ar' | 'en'] || config.label.en}
+            {t.activity.status[status]}
             {showDays && (
                 <span className="opacity-70">({config.days})</span>
             )}

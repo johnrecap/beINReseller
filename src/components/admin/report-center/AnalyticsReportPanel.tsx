@@ -1,9 +1,12 @@
 'use client'
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { useTranslation } from '@/hooks/useTranslation'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import {
     BarChart3,
     TrendingUp,
@@ -65,7 +68,7 @@ export default function AnalyticsReportPanel() {
     const { data: session, status } = useSession()
     const { t, dir } = useTranslation()
     const [data, setData] = useState<AnalyticsData | null>(null)
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error, cancel } = usePanelRequest()
     const [period, setPeriod] = useState(30)
 
     // Set dynamic page title
@@ -77,28 +80,23 @@ export default function AnalyticsReportPanel() {
         if (status === 'unauthenticated') {
             redirect('/login')
         }
-        if (session?.user?.role !== 'ADMIN') {
+        if (status === 'authenticated' && session?.user?.role !== 'ADMIN') {
             redirect('/dashboard')
         }
     }, [session, status])
 
-    const fetchAnalytics = useCallback(async () => {
-        setLoading(true)
-        try {
-            const res = await fetch(`/api/admin/analytics?days=${period}`)
-            if (res.ok) {
-                const result = await res.json()
-                setData(result)
-            }
-        } catch {
-        } finally {
-            setLoading(false)
-        }
-    }, [period])
+    const fetchAnalytics = useCallback(() => {
+        setData(null)
+        return load<AnalyticsData>(`/api/admin/analytics?days=${period}`, setData)
+    }, [period, load])
 
     useEffect(() => {
-        fetchAnalytics()
-    }, [period, fetchAnalytics])
+        if (status !== 'authenticated' || session?.user?.role !== 'ADMIN') return
+        const timer = setTimeout(() => void fetchAnalytics(), 0)
+        return () => { clearTimeout(timer); cancel() }
+    }, [fetchAnalytics, cancel, session?.user?.role, status])
+
+    if (error !== null) return <PanelLoadError status={error} retry={() => void fetchAnalytics()} />
 
     if (loading || !data) {
         return (
@@ -117,7 +115,7 @@ export default function AnalyticsReportPanel() {
     return (
         <div className="p-6 space-y-6" dir={dir}>
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl text-white">
                         <BarChart3 className="w-6 h-6" />
@@ -279,40 +277,40 @@ export default function AnalyticsReportPanel() {
                     {t.analytics?.topResellers?.title || 'Top 10 Resellers'}
                 </h3>
                 <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-border">
-                                <th className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.rank || '#'}</th>
-                                <th className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.reseller || 'Reseller'}</th>
-                                <th className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.operationsCount || 'Operations Count'}</th>
-                                <th className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.totalRevenue || 'Total Revenue'}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <Table panel density="compact" className="w-full">
+                        <TableHeader>
+                            <TableRow className="border-b border-border">
+                                <TableHead className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.rank || '#'}</TableHead>
+                                <TableHead className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.reseller || 'Reseller'}</TableHead>
+                                <TableHead className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.operationsCount || 'Operations Count'}</TableHead>
+                                <TableHead className={`${dir === 'rtl' ? 'text-right' : 'text-left'} py-3 px-4 font-medium text-muted-foreground`}>{t.analytics?.topResellers?.totalRevenue || 'Total Revenue'}</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {data.topUsers.map((reseller, index) => (
-                                <tr key={reseller.id} className="border-b border-border/50 hover:bg-secondary">
-                                    <td className="py-3 px-4">
+                                <TableRow key={reseller.id} className="border-b border-border/50 hover:bg-secondary">
+                                    <TableCell className="py-3 px-4">
                                         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${index === 0 ? 'bg-yellow-500' :
                                             index === 1 ? 'bg-gray-400' :
                                                 index === 2 ? 'bg-amber-700' : 'bg-gray-300'
                                             }`}>
                                             {index + 1}
                                         </span>
-                                    </td>
-                                    <td className="py-3 px-4 font-medium text-foreground">{reseller.username}</td>
-                                    <td className="py-3 px-4 text-muted-foreground">{(reseller.operationsCount ?? 0).toLocaleString()}</td>
-                                    <td className="py-3 px-4 text-green-600 font-medium">{reseller.totalRevenue.toFixed(2)} {t.header?.currency || 'USD'}</td>
-                                </tr>
+                                    </TableCell>
+                                    <TableCell className="py-3 px-4 font-medium text-foreground">{reseller.username}</TableCell>
+                                    <TableCell className="py-3 px-4 text-muted-foreground">{(reseller.operationsCount ?? 0).toLocaleString()}</TableCell>
+                                    <TableCell className="py-3 px-4 text-green-600 font-medium">{reseller.totalRevenue.toFixed(2)} {t.header?.currency || 'USD'}</TableCell>
+                                </TableRow>
                             ))}
                             {data.topUsers.length === 0 && (
-                                <tr>
-                                    <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                                <TableRow>
+                                    <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
                                         {t.analytics?.topResellers?.noData || 'No data available'}
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
         </div>

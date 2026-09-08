@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-09-08
-> Last synchronized commit: bd42692c1259ec5428ad8c4fc4cfb2adf2870e8c
+> Last synchronized commit: 4a2833e48a0ca033cbf0b9c6fc0faab080275da9
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:63a97d653a0418469b6712815167b8e985cfc36c84888f3ca41de6a7aa0a9bbc
+> Working tree fingerprint: SHA256:9c3dde38de02f6f7e5519bc3ccaae1dbbcc71339b50951018ef07cda8a7e8310
 
 ## 1. Project Identity
 
@@ -22,7 +22,7 @@
 
 - Current product shape: Next.js 16/React 19/TypeScript panel and APIs, Prisma 7/PostgreSQL, Redis/BullMQ, and separate HTTP automation workers.
 - High-risk domains: operation state transitions, beIN account/session evidence, balances/refunds/ledgers, points/rewards, ownership/permissions, credential changes, queue dispatch/recovery, and production migration/build order.
-- Latest active work: `WORK-006` / `FEAT-022`: fourteen bounded panel UI/auth/list repairs locally implemented, GitHub checkpoint verified, 33 mocked browser groups and isolated Redis race passed; isolated Next build passed. New repair branch is local, not deployed. Existing `WORK-005` / 036 remains 45/57 accepted with provider/database/release gates open. Source: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`.
+- Latest active work: `WORK-007` / `FEAT-023`: accepted WEB completion is 7/12 accepted; 42 panel tables opt into common tokens, provider/document exceptions are preserved, 15 modal shells migrated and actual isolated AuthJS cookie behavior verified. Five tasks retain page/action/localization acceptance work. `WORK-006` UI repairs remain 14/14 with GitHub checkpoint 4a2833e verified. `WORK-005` / 036 remains 45/57 accepted; no production/provider acceptance. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
 - Historical discovery inventory (2026-08-25; not recounted or runtime-validated during 036 planning): Git reports 998 tracked paths; the live source tree contains 40 App Router pages, 205 API route handlers, 133 component files, 131 `src/lib` files, 61 Prisma models, 35 Prisma enums, 34 ordered migration directories, 48 Worker source files, 88 unit tests, 30 integration tests, 21 Worker test files, and 25 feature-spec directories. These counts are discovery only; the current delivery explicitly excludes mobile/store/application execution and does not claim those flows were validated.
 - Completeness rule: this ledger records every material subsystem, feature family, contract boundary, data family, job, integration, operational topology, risk, and authoritative discovery path. It deliberately does not copy implementation bodies, generated output, live data, or secret values because those remain source evidence and would defeat token-efficient retrieval.
 - Start project work by locating a `FEAT-*` or layer record, then open its linked runtime, data, auth, job, test, spec, and operations sources.
@@ -160,7 +160,7 @@
 
 ### FE-002 — Shared component and style system
 
-- Panel repairs 2026-09-08: Panel table opt-in tokens and shared sort/pagination now serve history/transactions; viewport-bounded panel dialogs preserve default consumers. There are 9 shared instances and 35 native table instances; only 3 opt into the panel table tokens. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
+- Web completion 2026-09-08: 42 shared panel Table instances in 30 files opt into inherited root/compact padding, border/heading/hover tokens and keyboard scroll. Two native provider/document consumers retain their visual contract. Fifteen legacy modal shells use PanelDialog, including opener focus restoration without a Radix trigger; default Dialog/Table consumers keep prior behavior. Sources: `docs/PANEL_UI_REPAIRS.md`; `src/components/ui/dialog.tsx`; `src/components/ui/table.tsx`; `UPD-20260908-005`.
 
 - State: VERIFIED
 - Sources: `src/components/ui`; `src/components/shared`; `src/styles`; `components.json`; `package.json`
@@ -168,6 +168,8 @@
 - Connections: `SRC-003`, `FE-003`, `TEST-001`
 
 ### FE-003 — Localization and RTL-aware content
+
+- Web completion 2026-09-08 / FIX-05: operational permissions/agents/credit forms, report panels and financial-review UI copy use existing ar/en/bn catalogs. Native/provider text and API/stored payment-status values stay unchanged. Balance PDF retains its English document contract independently of page language. The report records residual API-derived/other-page localization limits; do not claim whole-project text completion. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
 
 - Panel repairs 2026-09-08: Panel login/history/transactions/sidebar copy uses matching ar/en/bn panelUi catalogs; logical input/table/dialog positioning is verified in 33 mocked browser groups. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
@@ -181,6 +183,8 @@
 - Connections: `FE-001`, `FE-002`, `TEST-001`
 
 ### FE-004 — Client form and state primitives
+
+- Web completion 2026-09-08 / FIX-02: usePanelRequest returns acceptance success for explicit nonfinancial reloads. usePanelCommand retains action/entity uncertainty across child close/selection changes, includes response-body delivery in its 45-second deadline, and exposes scoped admission plus explicit nonfinancial reconciliation. Financial callers do not infer non-execution from GET or replay automatically. Its fence lasts only for the mounted owner, not across reloads/tabs. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
 
 - Panel repairs 2026-09-08: usePanelRequest owns a cancellable request generation, a 15-second whole-response deadline and explicit HTTP/auth failure state; affected lists reject obsolete responses and do not present failures as empty balances. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
@@ -209,6 +213,8 @@
 
 ### FE-007 — Reseller operational workspace
 
+- Web completion 2026-09-08 / FIX-03/04: active installment details check current selection/list state, complete server data and future confirmation expiry; old or unauthorized responses cannot reopen confirmation. Confirm/cancel keep quoteRevision and use operation-scoped uncertainty/deadlines with safe dismissal and history follow-up. Forty-two active cases pass; the separate installment suite has 40. T007/T008 provider settlement remains deferred. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
+
 - Panel repairs 2026-09-08: History/transactions sort the full web query server-side with an ID tie-breaker and show actual totals. History consumes projected settlement/nextAction/messageKey without inferring refunds from terminal status. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
 - Local backlog 2026-09-08: Server review capabilities drive actions; legacy retry preserves a decision key/source reference; required notes and focus behavior verified. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
@@ -222,6 +228,8 @@
 - Phase 4: Quote-state polling, draft/applied-code separation, explicit removal, keyboard controls and stale-result fencing implemented; both panel final-confirm consumers send quoteRevision. Mocked 360/768/1280 and Arabic RTL passed. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### FE-008 — Role operations and administration workspace
+
+- Web completion 2026-09-08: User/admin/manager/agent/report tables now share panel tokens. Deleted-user reads have explicit HTTP errors and page clamping; report failures cannot appear as successful zero totals. Operational lists reject obsolete/refused responses; credit pagination is wired and permission initialization avoids duplicate reads. Integrity summary/list commits together and checks rejected actions. Remaining role/action matrices and custom forms stay open in WEB-05/06/09/10/12. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`. Earlier dated results are historical.
 
 - Panel repairs 2026-09-08: Admin/manager search encodes special characters and clamps pages; manager deleted-user filtering precedes count/pagination. Panel edit/beIN dialogs and mobile sidebar focus/viewport behavior are repaired. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
@@ -554,6 +562,8 @@
 
 ### AUTH-001 — Panel web credentials and database-backed JWT sessions
 
+- Web completion 2026-09-08: Actual synthetic Next/AuthJS requests reproduced cookie restoration after sign-out through public login media/session refetches. Middleware now matches dashboard pages only and login mounts an anonymous SessionProvider. Five real HTTP cases pass for login/logout, inactive/deleted/password-changed revocation and lookup outage; public media cannot rotate a JWT. Sources also include `src/middleware.ts`, `src/components/providers/Providers.tsx` and `tests/browser/panel-auth-http.cjs`. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`. Earlier dated results are historical.
+
 - Panel repairs 2026-09-08: Login server entry checks current user before redirect; revoked sessions clear through official POST sign-out once before the form. Database lookup failure is recoverable, not treated as revocation. Transactions/notifications refresh the existing web identity before domain access, preserving the bearer branch. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
 - Local backlog 2026-09-08: Persisted role/owner/revocation cases pass; malformed panel IDs fail before Prisma; four existing ADMIN exceptions remain. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
@@ -844,6 +854,8 @@
 
 ### TEST-001 — Fast unit and source-contract suites
 
+- Web completion 2026-09-08: Final full unit gate passes 826 cases across 103 files with no skips/TODO; focused auth/list rerun passes 28. This does not close database/provider/production gates. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`. Earlier dated results are historical.
+
 - Extended quality 2026-09-08: 802 distinct unit cases passed (801 full-suite plus one later PM2 case); final manager/maintenance set 12/12. No PostgreSQL tests in this extension. Sources: `specs/036-audit-remediation/evidence/extended-quality-verification.md`; `UPD-20260908-003`. Earlier dated results are historical.
 
 - Local backlog 2026-09-08: Final gate passes 790 tests/100 files, zero skips/TODO, including actual API and maintenance privacy regressions. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
@@ -874,6 +886,8 @@
 - Phase 4: 14 synthetic PostgreSQL cases pass with zero skips, including final-confirm concurrency and applied-code removal. All 71 business tables empty afterwards; no restored/interactive/provider access. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### TEST-003 — Static, schema, build, and Worker checks
+
+- Web completion 2026-09-08 / FIX-06: latest combined component-browser gate has 1170 passes and zero page errors; bounded cohorts include 826 unit passes without skips, 42 active-operation cases, 126 operational-dialog cases, 166 general dialog cases, 84 report cases, 51 short-window/200%-equivalent layout cases and six corrected-reference actual PDF comparisons. Overlapping cohorts are not additive. Repository-wide lint reports 7 errors/29 warnings in unchanged source; no full CI success. Current combined/browser/build state and later results are authoritative in the report. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
 
 - Panel repairs 2026-09-08: Panel repair verification includes successful isolated Next/Turbopack compilation/types/page generation, root types, scoped lint and 33 browser groups. Build used placeholder endpoints and socket guard; expected blocked Redis logs do not establish live connectivity. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
@@ -1130,6 +1144,8 @@
 
 ### FEAT-008 — Public shell, login, session, and dashboard entry
 
+- Web completion 2026-09-08: Real loopback AuthJS cookie transport and API denial were verified with disposable users, restricted synthetic DB, own ephemeral Redis/Next and an egress guard. Public login asset cookie rotation is repaired; live production behavior remains unverified. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`. Earlier dated results are historical.
+
 - Panel repairs 2026-09-08: Revoked-cookie redirect loops, unsafe login callbacks, configuration-error mislabeling and password toggle overlap are repaired. Guidance request and cookie cleanup waits are bounded to five seconds; synthetic server/browser verification only. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
 - State: VERIFIED
@@ -1140,6 +1156,8 @@
 - Impact: auth, UI, API, session, content
 
 ### FEAT-009 — Panel profiles, user administration, balances, and ledgers
+
+- Web completion 2026-09-08: panel table/modal adoption preserves API/financial contracts. Current acceptance tests cover retained failed input, duplicate admission, cross-user reads, stale/forbidden response hiding and scoped unknown outcomes. These are isolated synthetic client tests, not production/provider acceptance. Admin Eid settings remain deferred. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
 
 - Panel repairs 2026-09-08: User query encoding/page bounds, deleted-user pagination, transaction failure states/server sorting/real totals and themed edit dialogs are repaired without changing money policy. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
@@ -1278,6 +1296,14 @@
 - Current state: UI-01 through UI-14 are locally implemented and verified within the report's scope. Current appearance and excluded consumer defaults are preserved; real production sessions/provider actions are unverified.
 - Connections: `AUTH-001`, `AUTH-006`, `FE-002`, `FE-003`, `FE-007`, `FE-008`, `API-008`, `WORK-006`, `RISK-011`
 
+### FEAT-023 — Web completion tables, forms and HTTP acceptance
+
+- State: VERIFIED
+- Status: PARTIAL
+- Sources: `docs/PANEL_UI_REPAIRS.md`; `src/components/ui/table.tsx`; `src/components/ui/dialog.tsx`; `src/hooks/usePanelRequest.ts`; `src/middleware.ts`; `tests/browser/panel-ui-repairs.cjs`; `tests/browser/panel-auth-http.cjs`
+- Current state: WEB-01/02/03/04/08/11 are accepted; remaining six tasks have implementation but incomplete positive-data, role/action, localization and export/state acceptance. Mobile uses internal table scrolling; provider document output, deferred settlement and excluded native/store implementation are preserved. No release approved/deployed.
+- Connections: `WORK-007`, `FE-002`, `FE-003`, `FE-004`, `FE-007`, `FE-008`, `AUTH-001`, `TEST-003`, `RISK-011`
+
 ### FEAT-021 — Audit remediation and release-readiness plan
 
 - Extended quality 2026-09-08: 45/57 tasks accepted locally; T067-T069 complete. 802 distinct unit and 221 distinct worker cases pass; four export browser scenarios and isolated builds/types pass. In-scope lint has zero errors; full lint retains seven excluded mobile/customer errors and 41 warnings. Fresh database baseline, provider evidence and release gates remain open. Sources: `specs/036-audit-remediation/evidence/extended-quality-verification.md`; `UPD-20260908-003`. Earlier dated results are historical.
@@ -1329,6 +1355,8 @@
 
 ### IMPACT-002 — Identity ownership and permission blast radius
 
+- Web completion 2026-09-08: Middleware scope and login SessionProvider affect JWT rotation and cleanup across login assets, protected dashboard pages and API clients. Real HTTP revocation tests cover the change; API authorization/ownership policies and bearer implementation were not changed in this continuation. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`. Earlier dated results are historical.
+
 - Panel repairs 2026-09-08: Current-session helper is exported/reused only in the identified web branches; revoked identities deny before data access. Default bearer paths, ownership policy, schema and financial behavior remain. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
 - State: VERIFIED
@@ -1358,6 +1386,8 @@
 - Connections: `JOB-001`, `JOB-006`, `JOB-007`, `JOB-008`, `INT-001`, `INT-005`, `FEAT-010`, `FEAT-011`, `FEAT-012`, `FEAT-014`
 
 ### IMPACT-006 — Content, localization, and notification blast radius
+
+- Web completion 2026-09-08 / FIX-05: new operational/report/review labels, placeholders and fallback messages use matching three-language catalogs. Provider/API enum and financial-status payloads remain exact; existing PDF document copy stays stable. Whole-repository localization remains partial. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
 
 - Panel repairs 2026-09-08: Panel-only opt-in primitives avoid CSS changes to excluded default consumers. All new copy is catalog-backed; provider payload text is unchanged. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`. Earlier dated results are historical.
 
@@ -1789,14 +1819,22 @@
 
 - State: VERIFIED
 - Sources: `docs/PANEL_UI_REPAIRS.md`; `tests/unit/panel-ui-repairs.test.ts`; `tests/integration/panel-login-redis.test.ts`; `tests/browser/panel-ui-repairs.cjs`; `user:approved checkpoint upload and panel implementation without subagents`
-- Current state: Fourteen bounded repairs locally complete on codex/panel-ui-repairs; checkpoint bd42692 verified on origin/034-web-project-memory before implementation. Repair branch not pushed/deployed. No schema/provider/restored-data changes. Existing 036 release gates are separate.
+- Current state: Fourteen bounded repairs are locally complete and pushed as 4a2833e48a0ca033cbf0b9c6fc0faab080275da9 on origin/codex/panel-ui-repairs; earlier bd42692 remains on origin/034-web-project-memory. New completion work is tracked separately in WORK-007 and remains local. No deployment or provider/restored-data changes; 036 release gates remain separate.
 - Connections: `FEAT-022`, `WORK-005`, `TEST-001`, `TEST-003`, `RISK-011`
+
+### WORK-007 — Accepted twelve-task web completion continuation
+
+- State: PARTIAL
+- Sources: `docs/PANEL_UI_REPAIRS.md`; `docs/PROJECT_GUIDE.md`; `tests/browser/panel-ui-repairs.cjs`; `tests/browser/panel-auth-http.cjs`; `tests/helpers/panel-http-network-guard.cjs`; `user:implement accepted WEB-01..WEB-12 plan without subagents and excluding native app/store`
+- Current state: 7/12 accepted, five tasks open for bounded implementation/acceptance described in the report. All 42 shared tables opt in; two provider exceptions, 15 modal migrations, current-request report/deleted-list handling and real cookie repair are implemented locally. No native/store/provider/business DB work. 036 remains 45/57; WEB results do not silently close its task IDs.
+- Next: complete operation/permission action matrices, report positive-data/export parity, installment view-only states, remaining dialog forms and locale/race coverage; then refresh WEB-12 acceptance. T037/T038 and migration provenance remain separate old tasks; T007/T008 deferred and external gates require explicit access.
+- Connections: `FEAT-023`, `WORK-005`, `WORK-006`, `TEST-001`, `TEST-003`, `AUTH-001`, `RISK-011`
 
 ### RISK-011 — Remaining panel table and integration coverage
 
 - State: VERIFIED
 - Sources: `docs/PANEL_UI_REPAIRS.md`; `src/components`; `src/app/dashboard`; `src/styles/tokens.css`
-- Current state: 35 native HTML tables remain in 23 panel files; 9 instances use shared Table, 3 opt into panel table tokens. Export/provider layouts need separate visual contracts. Browser mocks and isolated builds do not prove production auth/provider/settlement behavior; memory rate-limit fallback is per process.
+- Current state: Table source adoption is complete (42 shared panel instances plus two documented provider exceptions), but six WEB tasks still need per-page role/action/localization/export/state acceptance. Five actual synthetic auth HTTP cases do not prove live provider/settlement or production safety. T007/T008 remain deferred, T052 migration provenance unresolved, external/release gates open. Rate-limit memory fallback remains per process.
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
@@ -1804,7 +1842,7 @@
 
 - State: VERIFIED
 - Sources: `PROJECT_MEMORY.md`; `.agents/skills/web-project-memory/scripts/project_memory.py`; `command:git status --porcelain=v1`; `command:git diff`
-- Current state: Synchronized on 2026-09-08 at commit `bd42692c1259ec5428ad8c4fc4cfb2adf2870e8c` against a `DIRTY` tree with fingerprint `SHA256:63a97d653a0418469b6712815167b8e985cfc36c84888f3ca41de6a7aa0a9bbc`; this ledger is excluded from the content signal. WORK-006 records fourteen local panel repairs; final checks: 826 unit cases, 33 browser groups, one isolated Redis race, root types/lint and isolated Next build pass. WORK-005 remains 45/57 accepted with provider/database/release gates open. Source: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-004`.
+- Current state: Synchronization metadata in the header identifies the current source baseline; the ledger itself is excluded from its fingerprint. WORK-007 records partial web completion (7/12), WORK-006 retains the verified 14-repair GitHub checkpoint, and WORK-005 remains 45/57. Evidence and remaining acceptance are in `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
 - Connections: `WORK-001`, `WORK-003`, `WORK-004`, `TEST-004`, `TEST-008`, `UPD-20260823-002`, `UPD-20260823-003`, `UPD-20260824-001`, `UPD-20260824-002`
 - Phase 4 test evidence: T015 test authoring accepted after explicit user approval of synthetic Q04; Q02 4 pass / 6 fail, Q04 1 pass / 6 fail, zero skips. All failures are pre-fix evidence, not accepted runtime behavior. All 71 synthetic business tables were empty before/after. Source: `specs/036-audit-remediation/evidence/phase-4-verification.md`; `UPD-20260907-013`.
 - Phase 4: Latest synchronized delta UPD-20260907-015: Phase 4 implementation, verification and Spec Kit reconciliation; RUNTIME_CHANGE_NOT_DEPLOYED. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
@@ -1889,3 +1927,17 @@
 - Affected IDs: `FE-002`, `FE-003`, `FE-004`, `FE-007`, `FE-008`, `AUTH-001`, `AUTH-006`, `API-008`, `FEAT-008`, `FEAT-009`, `FEAT-016`, `FEAT-022`, `IMPACT-002`, `IMPACT-006`, `TEST-003`, `WORK-006`, `RISK-011`, `FRESH-001`
 - Delta: Verified pre-change GitHub checkpoint; implemented current-session login/API handling, atomic failures, safe redirects, bounded latest-request list state, server sorting/counts, progress presentation, notification mutation handling, responsive modal/sidebar behavior and limited reusable table/token/localization repairs. Updated guide and delivery evidence.
 - Impact: PANEL_RUNTIME_CHANGE_NOT_DEPLOYED. No subagents, native-app/store implementation, provider/production access, restored-data mutation, package/schema/migration changes. Thirty-three browser groups, actual isolated Redis concurrency and isolated Next build passed; detailed test counts and remaining boundaries are in the report.
+
+### UPD-20260908-005 — Web completion, session verification and approved FIX batches
+
+- Date: 2026-09-08
+- State: VERIFIED
+- Sources: `docs/PANEL_UI_REPAIRS.md`; `docs/PROJECT_GUIDE.md`; `src/components/ui`; `src/styles/tokens.css`; `src/hooks/usePanelRequest.ts`; `src/middleware.ts`; `src/components/providers/Providers.tsx`; `tests/browser/panel-ui-repairs.cjs`; `tests/browser/panel-auth-http.cjs`; `tests/helpers/panel-http-network-guard.cjs`
+- Additional sources: `tests/browser/panel-operations-cases.cjs`; `tests/browser/panel-report-cases.cjs`; `tests/browser/panel-installment-cases.cjs`; `tests/browser/panel-dialog-cases.cjs`; `tests/browser/fixtures/panel-ui-entry.jsx`; `tests/browser/fixtures/panel-operations-data.js`; `src/components/admin/ActivityOverviewCards.tsx`; `src/components/admin/report-center`
+- Affected IDs: `FE-002`, `FE-003`, `FE-004`, `FE-007`, `FE-008`, `AUTH-001`, `FEAT-008`, `FEAT-009`, `FEAT-023`, `IMPACT-002`, `IMPACT-006`, `TEST-001`, `TEST-003`, `WORK-006`, `WORK-007`, `RISK-011`, `FRESH-001`
+- Delta: Pushed prior repairs as checkpoint 4a2833e; classified/migrated panel tables, preserved conditional PDF rendering, expanded existing modal/request composition and fixed real login cookie restoration. WEB-04 accepted after user/statistics matrix. Current completed browser cohort is 850 groups; subsequent proxy suite passes 81 and expanded installment suite passes 40, with overlap kept explicit. Active operations pass 30 groups; six forms pass 166; operational decision/escalation/handoff/payment dialogs pass 126; financial reports pass 84 and balance-export source-surface parity passes six. Installment polling/expiry now uses server-owned status and neutral follow-up, guards repeated commands and retains rejected confirmation. Financial-review repair passes 67 browser groups; Eid popup accessibility/admission/recovery passes 26 browser and 32 unit groups. WEB-07 is accepted with 40 installment groups and 15 actual provider PNG baseline comparisons. Blank balance-PDF raster was reproduced at checkpoint; clone-position fix is under raster acceptance (WEB-BUG-30). None establishes provider or settlement correctness.
+- Impact: PANEL_RUNTIME_CHANGE_NOT_DEPLOYED. No subagents, native/store implementation, package/schema/migration/worker changes, provider traffic, business DB writes or production access. WEB completion is partial (7/12 accepted); 036 remains 45/57. Test/build evidence and its limits are in the report.
+
+- Continuation sources for `UPD-20260908-005`: `tests/browser/panel-dialog-cases.cjs`; `tests/browser/panel-financial-cases.cjs`; `tests/browser/panel-balance-export.cjs`; `tests/browser/panel-active-cases.cjs`; `tests/browser/panel-operation-dialog-cases.cjs`; `tests/browser/panel-proxy-cases.cjs`; `tests/browser/panel-installment-cases.cjs`; `tests/browser/panel-review-cases.cjs`; `src/components/renewal/InstallmentPaymentFlow.tsx`; `src/components/admin/financial-review/FinancialReviewClient.tsx`. Latest complete unit gate passes 826/103 files with zero skips; subsequent Eid unit gate passes 32 (overlapping). Six actual corrected-reference PDF comparisons pass; 1170 combined browser cases, 51 layout cases, root types and the final isolated build pass. Repository-wide lint remains 7 errors/29 warnings in unchanged source; scoped 74-file lint passes. The report is the authority for saved commit and remaining acceptance. No 036 acceptance or release approval changed.
+
+- FIX continuation for `UPD-20260908-005`: whole-plan approval supersedes repeated batch confirmation; no subagents. Sources: `src/hooks/usePanelRequest.ts`; `src/components/ui/PanelLoadError.tsx`; `src/app/dashboard/operations/active/page.tsx`; `tests/browser/panel-command-cases.cjs`; `tests/browser/panel-acceptance-cases.cjs`; `src/i18n/translations/ar.ts`; `src/i18n/translations/en.ts`; `src/i18n/translations/bn.ts`; `docs/PANEL_UI_REPAIRS.md`. Admin Eid settings/claims/transactions and installment settlement remain deferred. FIX evidence does not automatically close remaining WEB or 036 acceptance gates.

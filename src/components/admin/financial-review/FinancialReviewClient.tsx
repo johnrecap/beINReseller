@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { PanelDialog } from '@/components/ui/dialog'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
 import { withRequestDeadline } from '@/lib/request-deadline'
 import {
     AlertTriangle,
@@ -66,12 +69,12 @@ const MANUAL_EVIDENCE_SOURCES = [
     'BEIN_SUPPORT_CONFIRMATION',
 ] as const
 
-const tabs: Array<{ id: FinancialReviewState | 'all'; label: string }> = [
-    { id: 'needs_decision', label: 'محتاج قرار' },
-    { id: 'follow_up', label: 'متابعة لاحقا' },
-    { id: 'refunded', label: 'تم رد الفلوس' },
-    { id: 'bein_executed', label: 'تم التأكيد بدون رد' },
-    { id: 'all', label: 'الكل' },
+const getTabs = (t: ReturnType<typeof useTranslation>['t']): Array<{ id: FinancialReviewState | 'all'; label: string }> => [
+    { id: 'needs_decision', label: t.panelUi.reviewCopy.needsDecision },
+    { id: 'follow_up', label: t.panelUi.reviewCopy.followUp },
+    { id: 'refunded', label: t.panelUi.reviewCopy.refunded },
+    { id: 'bein_executed', label: t.panelUi.reviewCopy.executed },
+    { id: 'all', label: t.panelUi.reviewCopy.all },
 ]
 
 function formatAmount(value: number | null | undefined) {
@@ -110,71 +113,63 @@ function createManualEvidenceDraft(item: FinancialReviewItem): ManualFulfillment
     }
 }
 
-function getBeinDebitSourceLabel(source: FinancialReviewItem['evidence']['beinDebitSource']) {
+function getBeinDebitSourceLabel(source: FinancialReviewItem['evidence']['beinDebitSource'], t: ReturnType<typeof useTranslation>['t']) {
     switch (source) {
         case 'ledger':
-            return 'سجل خصم beIN مؤكد'
+            return t.panelUi.reviewCopy.confirmedDebitLog
         case 'audit_snapshot':
-            return 'لقطة العملية'
+            return t.panelUi.reviewCopy.snapshot
         case 'manual_verification':
-            return 'تأكيد يدوي من الأدمن'
+            return t.panelUi.reviewCopy.manualAdmin
         case 'none':
-            return 'لا يوجد دليل خصم'
+            return t.panelUi.reviewCopy.noDebitEvidence
     }
 }
 
 export default function FinancialReviewClient() {
-    const { t } = useTranslation()
+    const { t, dir } = useTranslation()
+    const tabs = getTabs(t)
     const [state, setState] = useState<FinancialReviewState | 'all'>('needs_decision')
     const [search, setSearch] = useState('')
     const [data, setData] = useState<ApiResponse | null>(null)
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error: readError } = usePanelRequest()
+    const mutationPending = useRef(false)
     const [error, setError] = useState<string | null>(null)
     const [dialog, setDialog] = useState<DecisionDialogState>(null)
     const [busyOperationId, setBusyOperationId] = useState<string | null>(null)
 
-    const fetchItems = useCallback(async () => {
-        setLoading(true)
-        setError(null)
-        try {
-            const params = new URLSearchParams({
-                state,
-                days: '90',
-                ...(search.trim() ? { q: search.trim() } : {}),
-            })
-            const response = await fetch(`/api/admin/financial-review?${params}`, { cache: 'no-store' })
-            if (!response.ok) throw new Error('تعذر تحميل قائمة المراجعة')
-            setData(await response.json())
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'تعذر تحميل قائمة المراجعة')
-        } finally {
-            setLoading(false)
-        }
-    }, [search, state])
+    const fetchItems = useCallback(() => {
+        const params = new URLSearchParams({ state, days: '90', ...(search.trim() ? { q: search.trim() } : {}) })
+        return load<ApiResponse>(`/api/admin/financial-review?${params}`, setData)
+    }, [search, state, load])
 
+    useEffect(() => { void fetchItems() }, [fetchItems])
     useEffect(() => {
-        fetchItems()
-    }, [fetchItems])
+        if (readError === 401 || readError === 403) { setDialog(null); setData(null) }
+    }, [readError])
 
     const summaryCards = useMemo(() => [
-        { label: 'محتاج قرار', value: data?.summary.needsDecision || 0, icon: AlertTriangle, tone: 'text-amber-300' },
-        { label: 'متابعة لاحقا', value: data?.summary.followUp || 0, icon: Clock3, tone: 'text-sky-300' },
-        { label: 'تم رد الفلوس', value: data?.summary.refunded || 0, icon: RotateCcw, tone: 'text-emerald-300' },
-        { label: 'تم التأكيد بدون رد', value: data?.summary.beinExecuted || 0, icon: ShieldCheck, tone: 'text-[#9ffb06]' },
-    ], [data])
+        { label: t.panelUi.reviewCopy.needsDecision, value: data?.summary.needsDecision || 0, icon: AlertTriangle, tone: 'text-amber-300' },
+        { label: t.panelUi.reviewCopy.followUp, value: data?.summary.followUp || 0, icon: Clock3, tone: 'text-sky-300' },
+        { label: t.panelUi.reviewCopy.refunded, value: data?.summary.refunded || 0, icon: RotateCcw, tone: 'text-emerald-300' },
+        { label: t.panelUi.reviewCopy.executed, value: data?.summary.beinExecuted || 0, icon: ShieldCheck, tone: 'text-[#9ffb06]' },
+    ], [data, t])
 
     const verifyCard = async (item: FinancialReviewItem) => {
+        if (mutationPending.current || loading || readError !== null) return
+        mutationPending.current = true
+        setError(null)
         setBusyOperationId(item.id)
         try {
-            const response = await fetch(`/api/admin/financial-review/${item.id}/verify-card`, {
-                method: 'POST',
-            })
-            const payload = await response.json().catch(() => ({}))
-            if (!response.ok) throw new Error(payload.error || 'تعذر تشغيل فحص beIN المباشر')
+            const response = await withRequestDeadline(signal => fetch(`/api/admin/financial-review/${item.id}/verify-card`, {
+                method: 'POST', signal,
+            }))
+            if (!response.ok) throw new Error(t.panelUi.actionFailed)
             await fetchItems()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'تعذر تشغيل فحص beIN المباشر')
+            setError(err instanceof Error && err.message === t.panelUi.actionFailed ? err.message : t.panelUi.actionFailed)
         } finally {
+            mutationPending.current = false
             setBusyOperationId(null)
         }
     }
@@ -184,7 +179,7 @@ export default function FinancialReviewClient() {
         paymentStatus?: FinancialReviewPaymentStatus,
         manualFulfillmentEvidence?: ManualFulfillmentEvidencePayload
     ) => {
-        if (!dialog) return
+        if (!dialog || mutationPending.current || readError !== null) return
         const hasAutomatedCompositeProof =
             dialog.item.evidence.fulfillmentVerified &&
             Boolean(dialog.item.evidence.fulfillmentProofId) &&
@@ -197,6 +192,8 @@ export default function FinancialReviewClient() {
             setError(t.operations.manualFulfillmentEvidenceRequired)
             return
         }
+        mutationPending.current = true
+        setError(null)
         setBusyOperationId(dialog.item.id)
         try {
             const { response, payload } = await withRequestDeadline(async signal => {
@@ -227,43 +224,44 @@ export default function FinancialReviewClient() {
             })
             if (!response.ok) throw new Error(payload.error === 'INVALID_DECISION_NOTE'
                 ? t.admin.financialReview.decisionNoteValidation : response.status === 409
-                    ? t.admin.financialReview.capabilityChanged : payload.error || t.admin.financialReview.evidenceHold)
-            setDialog(null)
+                    ? t.admin.financialReview.capabilityChanged : t.admin.financialReview.evidenceHold)
             await fetchItems()
+            setDialog(null)
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'تعذر حفظ القرار')
+            setError(err instanceof Error && [t.admin.financialReview.decisionNoteValidation, t.admin.financialReview.capabilityChanged, t.admin.financialReview.evidenceHold].includes(err.message) ? err.message : t.panelUi.actionFailed)
         } finally {
+            mutationPending.current = false
             setBusyOperationId(null)
         }
     }
 
     return (
-        <div className="min-h-screen bg-background p-6" dir="rtl">
+        <div className="min-h-screen bg-background p-4 sm:p-6" dir={dir}>
             <div className="mx-auto flex max-w-7xl flex-col gap-6">
                 <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-2">
                         <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-sm text-amber-200">
                             <AlertTriangle className="h-4 w-4" />
-                            العمليات المشكوك فيها فقط
+                            {t.panelUi.reviewCopy.suspectOnly}
                         </div>
                         <div>
-                            <h1 className="text-3xl font-bold text-foreground">مراجعة العمليات</h1>
+                            <h1 className="text-3xl font-bold text-foreground">{t.panelUi.reviewCopy.reviewTitle}</h1>
                             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-                                راجع بس العمليات المشكوك فيها أو غير المكتملة اللي اتخصم فيها رصيد ومحتاجين نتأكد هل التجديد تم ولا لا.
+                                {t.panelUi.reviewCopy.reviewHint}
                             </p>
                         </div>
                     </div>
                     <button
                         onClick={fetchItems}
-                        disabled={loading}
+                        disabled={loading || busyOperationId !== null}
                         className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground transition hover:bg-secondary disabled:opacity-60"
                     >
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                        تحديث القائمة
+                        {t.panelUi.reviewCopy.refreshList}
                     </button>
                 </header>
 
-                <section className="grid gap-3 md:grid-cols-4">
+                {data && readError === null && <section className="grid gap-3 md:grid-cols-4">
                     {summaryCards.map((card) => {
                         const Icon = card.icon
                         return (
@@ -276,7 +274,7 @@ export default function FinancialReviewClient() {
                             </div>
                         )
                     })}
-                </section>
+                </section>}
 
                 <section className="rounded-lg border border-border bg-card p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -285,6 +283,7 @@ export default function FinancialReviewClient() {
                                 <button
                                     key={tab.id}
                                     onClick={() => setState(tab.id)}
+                                    disabled={busyOperationId !== null}
                                     className={`rounded-lg border px-4 py-2 text-sm transition ${state === tab.id
                                         ? 'border-[#9ffb06]/60 bg-[#9ffb06]/10 text-[#9ffb06]'
                                         : 'border-border bg-background text-muted-foreground hover:text-foreground'
@@ -298,48 +297,52 @@ export default function FinancialReviewClient() {
                             <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <input
                                 value={search}
+                                disabled={busyOperationId !== null}
                                 onChange={(event) => setSearch(event.target.value)}
-                                placeholder="بحث برقم العملية، الكارت، العميل، أو حساب beIN"
+                                placeholder={t.panelUi.reviewCopy.search}
                                 className="h-11 w-full rounded-lg border border-border bg-background pr-10 pl-3 text-sm text-foreground outline-none transition focus:border-[#9ffb06]/60"
                             />
                         </div>
                     </div>
                 </section>
 
-                {error && (
-                    <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+                {error && !dialog && (
+                    <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
                         {error}
                     </div>
                 )}
 
-                <section className="flex flex-col gap-4">
-                    {loading ? (
+                {readError !== null && <PanelLoadError status={readError} retry={fetchItems} />}
+                {loading && data && <p role="status">{t.common.loading} {t.panelUi.staleData}</p>}
+                {readError === null && <section className="flex flex-col gap-4">
+                    {loading && !data ? (
                         <div className="rounded-lg border border-border bg-card p-8 text-center text-muted-foreground">
-                            جاري تحميل العمليات...
+                            {t.panelUi.reviewCopy.loading}
                         </div>
                     ) : data?.items.length ? (
                         data.items.map((item) => (
                             <ReviewCard
                                 key={item.id}
                                 item={item}
-                                busy={busyOperationId === item.id}
+                                busy={busyOperationId !== null || loading}
                                 onVerify={() => verifyCard(item)}
-                                onDecision={(action) => setDialog({ item, action, decisionKey: crypto.randomUUID() })}
+                                onDecision={(action) => { if (!mutationPending.current && !loading) { setError(null); setDialog({ item, action, decisionKey: crypto.randomUUID() }) } }}
                             />
                         ))
                     ) : (
                         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-8 text-center text-emerald-200">
-                            لا توجد عمليات مشكوك فيها في هذا الفلتر.
+                            {t.panelUi.reviewCopy.noOperations}
                         </div>
                     )}
-                </section>
+                </section>}
             </div>
 
-            {dialog && (
+            {dialog && readError === null && (
                 <DecisionDialog
                     state={dialog}
                     busy={busyOperationId === dialog.item.id}
-                    onClose={() => setDialog(null)}
+                    onClose={() => { if (!mutationPending.current) setDialog(null) }}
+                    error={error}
                     onSubmit={submitDecision}
                 />
             )}
@@ -371,7 +374,7 @@ function ReviewCard({
         item.beinAccount?.label ||
         item.beinAccount?.username ||
         '-'
-    const beinDebitStatus = item.evidence.beinDebitConfirmed ? 'نعم - دليل موثوق' : 'لا يوجد دليل موثوق'
+    const beinDebitStatus = item.evidence.beinDebitConfirmed ? t.panelUi.reviewCopy.trustedEvidence : t.panelUi.reviewCopy.noTrustedEvidence
     const fulfillmentAuthorityLabel = item.evidence.fulfillmentAuthority === 'AUTOMATED_COMPOSITE'
         ? t.operations.automatedFulfillmentConfirmed
         : item.evidence.fulfillmentAuthority === 'MANUAL_PROVIDER_CONFIRMATION'
@@ -397,20 +400,20 @@ function ReviewCard({
                             {item.type}
                         </span>
                         <span className="rounded-full border border-border bg-background px-3 py-1 text-sm text-muted-foreground">
-                            {new Date(item.updatedAt).toLocaleString('ar-EG')}
+                            {new Date(item.updatedAt).toLocaleString(locale)}
                         </span>
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-foreground">كارت {item.cardNumber}</h2>
+                        <h2 className="text-xl font-bold text-foreground">{t.panelUi.reviewCopy.card} {item.cardNumber}</h2>
                         <p className="mt-1 text-sm text-muted-foreground">{item.evidence.reason}</p>
                     </div>
                     <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                        <Info label="العميل" value={owner?.username || '-'} />
-                        <Info label="خصم العميل من النظام" value={formatUsd(item.evidence.userDeductTotal ?? item.amount)} />
-                        <Info label="الباقة المختارة" value={item.packageName || '-'} />
-                        <Info label="حساب beIN المستخدم" value={beinAccountName} />
-                        <Info label="حالة دليل beIN" value={item.evidence.providerEvidenceLabel || beinDebitStatus} />
-                        <Info label="خصم beIN المؤكد" value={formatUsd(item.evidence.beinDebitAmount)} />
+                        <Info label={t.panelUi.reviewCopy.customer} value={owner?.username || '-'} />
+                        <Info label={t.panelUi.reviewCopy.userDeduction} value={formatUsd(item.evidence.userDeductTotal ?? item.amount)} />
+                        <Info label={t.panelUi.reviewCopy.selectedPackage} value={item.packageName || '-'} />
+                        <Info label={t.panelUi.reviewCopy.beinAccount} value={beinAccountName} />
+                        <Info label={t.panelUi.reviewCopy.evidenceStatus} value={item.evidence.providerEvidenceLabel || beinDebitStatus} />
+                        <Info label={t.panelUi.reviewCopy.confirmedDebit} value={formatUsd(item.evidence.beinDebitAmount)} />
                         <Info label={t.admin.financialReview.fulfillmentAuthority} value={fulfillmentAuthorityLabel} />
                     </div>
                 </div>
@@ -441,7 +444,7 @@ function ReviewCard({
                     </div>
                 ) : (
                     <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100 xl:max-w-[360px]">
-                        تم قفل قرار هذه العملية. القرار محفوظ في السجل ولا يحتاج إجراء جديد.
+                        {t.panelUi.reviewCopy.decisionLocked}
                     </div>
                 )}
             </div>
@@ -460,18 +463,18 @@ function ReviewCard({
 
             {latestCheck && (
                 <div className="mt-4 rounded-lg border border-sky-400/20 bg-sky-400/10 p-3 text-sm text-sky-100">
-                    آخر فحص: {latestCheck.summary}
+                    {t.panelUi.reviewCopy.lastCheck} {latestCheck.summary}
                 </div>
             )}
 
             {latestDecision && (
                 <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-100">
                     <div className="font-semibold">
-                        آخر قرار: {latestDecision.paymentStatus || item.stateLabel}
+                        {t.panelUi.reviewCopy.lastDecision} {latestDecision.paymentStatus || item.stateLabel}
                     </div>
                     {latestDecision.note && (
                         <div className="mt-1 text-emerald-50/90">
-                            ملاحظة الأدمن: {latestDecision.note}
+                            {t.panelUi.reviewCopy.adminNote} {latestDecision.note}
                         </div>
                     )}
                 </div>
@@ -517,51 +520,51 @@ function ReviewCard({
 
             {!item.evidence.beinDebitConfirmed && (
                 <div className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">
-                    {item.evidence.providerEvidenceLabel}. راجع الكارت أو موقع beIN قبل القرار.
+                    {item.evidence.providerEvidenceLabel}{t.panelUi.reviewCopy.checkBeforeDecision}
                 </div>
             )}
 
             {item.evidence.legacyStoredBeinDebitAmount !== null && (
                 <div className="mt-4 rounded-lg border border-yellow-400/25 bg-yellow-400/10 p-3 text-sm text-yellow-100">
-                    الرقم القديم المسجل من beIN هو {formatUsd(item.evidence.legacyStoredBeinDebitAmount)}، ظاهر للمراجعة فقط وليس خصما مؤكدا.
+                    {t.panelUi.reviewCopy.oldAmountPrefix} {formatUsd(item.evidence.legacyStoredBeinDebitAmount)}{t.panelUi.reviewCopy.oldAmountSuffix}
                 </div>
             )}
 
             <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
                 <button onClick={() => setExpanded((value) => !value)} className="review-button">
                     {expanded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    {expanded ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
+                    {expanded ? t.panelUi.reviewCopy.hideDetails : t.panelUi.reviewCopy.showDetails}
                 </button>
                 <button
                     onClick={() => navigator.clipboard?.writeText(item.id)}
                     className="review-button"
                 >
                     <Copy className="h-4 w-4" />
-                    نسخ رقم العملية
+                    {t.panelUi.reviewCopy.copyId}
                 </button>
                 <Link href={`/dashboard/history?search=${encodeURIComponent(item.id)}`} className="review-button">
-                    فتح العملية الأصلية
+                    {t.panelUi.reviewCopy.openOriginal}
                 </Link>
             </div>
 
             {expanded && (
                 <div className="mt-4 grid gap-3 rounded-lg border border-border bg-background p-4 text-sm md:grid-cols-2 xl:grid-cols-3">
-                    <Info label="رقم العملية" value={shortId(item.id)} />
-                    <Info label="سبب دخول المراجعة" value={item.evidence.reasonCode || '-'} />
-                    <Info label="تم رد سابق؟" value={item.evidence.hasRefund ? 'نعم' : 'لا'} />
-                    <Info label="خصم العميل من النظام" value={formatUsd(item.evidence.userDeductTotal)} />
-                    <Info label="رصيد المستخدم قبل/بعد" value={`${formatAmount(item.evidence.userBalanceBefore)} -> ${formatAmount(item.evidence.userBalanceAfter)}`} />
-                    <Info label="حساب beIN المستخدم" value={beinAccountName} />
-                    <Info label="رصيد beIN قبل" value={formatUsd(item.evidence.beinBalanceBefore)} />
-                    <Info label="رصيد beIN بعد" value={formatUsd(item.evidence.beinBalanceAfter)} />
-                    <Info label="حالة دليل beIN" value={item.evidence.providerEvidenceLabel || beinDebitStatus} />
-                    <Info label="خصم beIN المؤكد" value={formatUsd(item.evidence.beinDebitAmount)} />
-                    <Info label="فرق العميل عن beIN" value={formatUsd(item.evidence.differenceAmount)} />
-                    <Info label="رقم beIN قديم غير موثوق" value={formatUsd(item.evidence.legacyStoredBeinDebitAmount)} />
-                    <Info label="مصدر دليل beIN" value={getBeinDebitSourceLabel(item.evidence.beinDebitSource)} />
-                    <Info label="ثقة الدليل" value={item.evidence.beinEvidenceConfidence || '-'} />
-                    <Info label="رسالة النظام" value={item.evidence.responseMessage || '-'} />
-                    <Info label="وقت الدليل" value={item.evidence.capturedAt ? new Date(item.evidence.capturedAt).toLocaleString('ar-EG') : '-'} />
+                    <Info label={t.panelUi.reviewCopy.operationId} value={shortId(item.id)} />
+                    <Info label={t.panelUi.reviewCopy.reviewReason} value={item.evidence.reasonCode || '-'} />
+                    <Info label={t.panelUi.reviewCopy.previousRefund} value={item.evidence.hasRefund ? t.panelUi.reviewCopy.yes : t.panelUi.reviewCopy.no} />
+                    <Info label={t.panelUi.reviewCopy.userDeduction} value={formatUsd(item.evidence.userDeductTotal)} />
+                    <Info label={t.panelUi.reviewCopy.userBalance} value={`${formatAmount(item.evidence.userBalanceBefore)} -> ${formatAmount(item.evidence.userBalanceAfter)}`} />
+                    <Info label={t.panelUi.reviewCopy.beinAccount} value={beinAccountName} />
+                    <Info label={t.panelUi.reviewCopy.beinBefore} value={formatUsd(item.evidence.beinBalanceBefore)} />
+                    <Info label={t.panelUi.reviewCopy.beinAfter} value={formatUsd(item.evidence.beinBalanceAfter)} />
+                    <Info label={t.panelUi.reviewCopy.evidenceStatus} value={item.evidence.providerEvidenceLabel || beinDebitStatus} />
+                    <Info label={t.panelUi.reviewCopy.confirmedDebit} value={formatUsd(item.evidence.beinDebitAmount)} />
+                    <Info label={t.panelUi.reviewCopy.difference} value={formatUsd(item.evidence.differenceAmount)} />
+                    <Info label={t.panelUi.reviewCopy.legacyAmount} value={formatUsd(item.evidence.legacyStoredBeinDebitAmount)} />
+                    <Info label={t.panelUi.reviewCopy.evidenceSource} value={getBeinDebitSourceLabel(item.evidence.beinDebitSource, t)} />
+                    <Info label={t.panelUi.reviewCopy.confidence} value={item.evidence.beinEvidenceConfidence || '-'} />
+                    <Info label={t.panelUi.reviewCopy.systemMessage} value={item.evidence.responseMessage || '-'} />
+                    <Info label={t.panelUi.reviewCopy.evidenceTime} value={item.evidence.capturedAt ? new Date(item.evidence.capturedAt).toLocaleString('ar-EG') : '-'} />
                 </div>
             )}
         </article>
@@ -588,11 +591,13 @@ function Info({
 function DecisionDialog({
     state,
     busy,
+    error,
     onClose,
     onSubmit,
 }: {
     state: NonNullable<DecisionDialogState>
     busy: boolean
+    error: string | null
     onClose: () => void
     onSubmit: (
         note: string,
@@ -602,17 +607,11 @@ function DecisionDialog({
 }) {
     const [note, setNote] = useState('')
     const [sourceReference, setSourceReference] = useState('')
-    const dialogRef = useRef<HTMLDivElement>(null)
-    useEffect(() => {
-        const previous = document.activeElement as HTMLElement | null
-        dialogRef.current?.querySelector<HTMLElement>('input:not([readonly]), textarea, button:not(:disabled)')?.focus()
-        return () => { if (previous?.isConnected) previous.focus() }
-    }, [])
     const legacy = state.item.capabilities?.classification === 'LEGACY_RENEWAL'
     const [manualEvidence, setManualEvidence] = useState<ManualFulfillmentEvidenceDraft>(() =>
         createManualEvidenceDraft(state.item)
     )
-    const { t, dir } = useTranslation()
+    const { t } = useTranslation()
     const hasAutomatedCompositeProof =
         state.item.evidence.fulfillmentVerified &&
         Boolean(state.item.evidence.fulfillmentProofId) &&
@@ -692,33 +691,17 @@ function DecisionDialog({
     }[state.action]
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-            dir={dir}
-            role="dialog"
-            ref={dialogRef}
-            onKeyDown={event => {
-                if (event.key === 'Escape' && !busy) { event.preventDefault(); onClose(); return }
-                if (event.key !== 'Tab') return
-                const controls = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]') || [])]
-                    .filter(control => control.getClientRects().length > 0)
-                const first = controls[0], last = controls.at(-1)
-                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
-                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
-            }}
-            aria-modal="true"
-            aria-labelledby="financial-review-decision-title"
-        >
-            <div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-xl">
+        <PanelDialog title={copy.title} onClose={onClose} busy={busy} className="max-w-2xl">
+            <div className="w-full rounded-lg border border-border bg-card p-5 shadow-xl">
                 <h3 id="financial-review-decision-title" className="text-xl font-bold text-foreground">{copy.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{copy.body}</p>
                 <div className="mt-4 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
-                    كارت {state.item.cardNumber} - مبلغ {formatAmount(state.item.amount)} USD
+                    {t.panelUi.reviewCopy.card} {state.item.cardNumber} - {t.panelUi.reviewCopy.amount} {formatAmount(state.item.amount)} USD
                 </div>
                 {copy.paymentStatus && (
                     <div className="mt-4 rounded-lg border border-[#9ffb06]/25 bg-[#9ffb06]/10 p-3 text-sm text-foreground">
-                        <div className="text-xs text-muted-foreground">حالة الدفع التي سيتم حفظها</div>
-                        <div className="mt-1 font-semibold text-[#9ffb06]">{copy.paymentStatus}</div>
+                        <div className="text-xs text-muted-foreground">{t.panelUi.reviewCopy.paymentToSave}</div>
+                        <div className="mt-1 font-semibold text-[#9ffb06]">{copy.paymentStatus === 'تم تأكيد الدفع' ? t.panelUi.reviewCopy.paymentConfirmed : t.panelUi.reviewCopy.paymentUnconfirmed}</div>
                     </div>
                 )}
                 {requiresManualEvidence && (
@@ -888,6 +871,7 @@ function DecisionDialog({
                 <p id="review-decision-note-hint" className="mt-2 text-xs text-muted-foreground" aria-live="polite">
                     {state.action !== 'KEEP_UNDER_REVIEW' && t.admin.financialReview.decisionNoteValidation}
                 </p>
+                {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
                 <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <button onClick={onClose} disabled={busy} className="review-button w-full sm:w-auto">
                         {t.common.cancel}
@@ -902,6 +886,6 @@ function DecisionDialog({
                     </button>
                 </div>
             </div>
-        </div>
+        </PanelDialog>
     )
 }

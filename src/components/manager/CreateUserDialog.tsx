@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -8,6 +8,8 @@ import * as z from "zod"
 import { Loader2, Plus, AlertTriangle, Wallet } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "@/hooks/useTranslation"
+import { usePanelRequest, usePanelCommand } from "@/hooks/usePanelRequest"
+import { PanelLoadError, PanelCommandWarning } from "@/components/ui/PanelLoadError"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -35,9 +37,12 @@ export function CreateUserDialog() {
     const [open, setOpen] = useState(false)
     const [emailWarning, setEmailWarning] = useState("")
     const [managerBalance, setManagerBalance] = useState<number | null>(null)
-    const [loadingBalance, setLoadingBalance] = useState(false)
+    const { load, loading: loadingBalance, error: balanceError, cancel } = usePanelRequest()
+    const submitting = useRef(false)
+    const [saving, setSaving] = useState(false)
     const router = useRouter()
     const { t, language } = useTranslation()
+    const { request: command, unconfirmed } = usePanelCommand(open ? 'create' : null)
 
     // Dynamic validation schema with translations
     const formSchema = z.object({
@@ -64,31 +69,23 @@ export function CreateUserDialog() {
         },
     })
 
-    const { isSubmitting } = form.formState
+    const isSubmitting = form.formState.isSubmitting || saving
     const watchUsername = form.watch("username")
     const watchEmail = form.watch("email")
     const watchBalance = form.watch("balance")
 
     // Fetch manager's balance when dialog opens
     const fetchManagerBalance = useCallback(async () => {
-        setLoadingBalance(true)
-        try {
-            const response = await fetch("/api/manager/dashboard")
-            if (response.ok) {
-                const data = await response.json()
-                setManagerBalance(data.stats?.managerBalance || 0)
-            }
-        } catch {
-        } finally {
-            setLoadingBalance(false)
-        }
-    }, [])
+        setManagerBalance(null)
+        await load<{ stats: { managerBalance: number } }>("/api/manager/dashboard", data => setManagerBalance(data.stats.managerBalance))
+    }, [load])
 
     useEffect(() => {
         if (open) {
-            fetchManagerBalance()
+            const timer = setTimeout(() => void fetchManagerBalance(), 0)
+            return () => { clearTimeout(timer); cancel() }
         }
-    }, [open, fetchManagerBalance])
+    }, [open, fetchManagerBalance, cancel])
 
     // Generate email from username when user finishes typing
     const handleUsernameBlur = () => {
@@ -116,8 +113,12 @@ export function CreateUserDialog() {
     const isBalanceCloseToLimit = managerBalance !== null && !isBalanceExceeding && watchBalance > managerBalance * 0.8
 
     async function onSubmit(values: FormData) {
+        if (unconfirmed || submitting.current || loadingBalance || balanceError !== null || managerBalance === null || isBalanceExceeding) return
+        submitting.current = true
+        setSaving(true)
+        form.clearErrors('root')
         try {
-            const response = await fetch("/api/manager/users", {
+            const response = await command("/api/manager/users", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(values),
@@ -135,12 +136,17 @@ export function CreateUserDialog() {
             router.refresh()
 
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : (t.manager?.messages?.error || "An error occurred"))
+            const message = error instanceof Error ? error.message : t.manager.messages.error
+            form.setError('root', {message})
+            toast.error(message)
+        } finally {
+            submitting.current = false
+            setSaving(false)
         }
     }
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={next => { if (!submitting.current) setOpen(next) }}>
             <DialogTrigger asChild>
                 <Button>
                     <Plus className="ml-2 h-4 w-4" />
@@ -156,7 +162,8 @@ export function CreateUserDialog() {
                 </DialogHeader>
 
                 {/* Manager Balance Display */}
-                <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-lg border">
+                {balanceError !== null && <PanelLoadError status={balanceError} retry={() => void fetchManagerBalance()} />}
+                {balanceError === null && <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted rounded-lg border">
                     <div className="flex items-center gap-2">
                         <Wallet className="h-4 w-4 text-[#00A651]" />
                         <span className="text-sm text-muted-foreground">{t.manager?.dialogs?.createUser?.availableBalance || 'Your available balance'}:</span>
@@ -168,10 +175,12 @@ export function CreateUserDialog() {
                             ${managerBalance?.toFixed(2) || "0.00"}
                         </span>
                     )}
-                </div>
+                </div>}
 
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <PanelCommandWarning show={unconfirmed} />
+                        {form.formState.errors.root && <p role="alert" className="text-sm text-destructive">{form.formState.errors.root.message}</p>}
                         <FormField
                             control={form.control}
                             name="username"
@@ -261,7 +270,7 @@ export function CreateUserDialog() {
                         <DialogFooter>
                             <Button
                                 type="submit"
-                                disabled={isSubmitting || isBalanceExceeding}
+                                disabled={unconfirmed || isSubmitting || isBalanceExceeding || loadingBalance || balanceError !== null || managerBalance === null}
                             >
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 {t.manager?.dialogs?.createUser?.create || 'Create'}

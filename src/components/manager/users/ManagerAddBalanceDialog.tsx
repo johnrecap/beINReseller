@@ -1,6 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { PanelCommandWarning } from '@/components/ui/PanelLoadError'
+import { usePanelCommand } from '@/hooks/usePanelRequest'
+import { PanelDialog } from '@/components/ui/dialog'
+import { useState, useRef } from 'react'
 import { Wallet, X, Loader2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
 
@@ -24,14 +27,18 @@ export default function ManagerAddBalanceDialog({
     managerBalance 
 }: ManagerAddBalanceDialogProps) {
     const { t } = useTranslation()
+    const { request: command, unconfirmed } = usePanelCommand(isOpen ? userId : null)
     const [loading, setLoading] = useState(false)
+    const submitting = useRef(false)
     const [error, setError] = useState<string | null>(null)
     const [operationType, setOperationType] = useState<OperationType>('deposit')
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
+        if (unconfirmed || submitting.current) return
         if (!userId) return
 
+        submitting.current = true
         setLoading(true)
         setError(null)
 
@@ -43,7 +50,7 @@ export default function ManagerAddBalanceDialog({
         const amount = operationType === 'withdraw' ? -rawAmount : rawAmount
 
         try {
-            const res = await fetch(`/api/manager/users/${userId}/balance`, {
+            const res = await command(`/api/manager/users/${userId}/balance`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ amount, notes }),
@@ -58,14 +65,16 @@ export default function ManagerAddBalanceDialog({
             onSuccess()
             onClose()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error')
+            setError(err instanceof Error ? err.message : t.admin.users.messages.error)
         } finally {
+            submitting.current = false
             setLoading(false)
         }
     }
 
     // Reset state when dialog closes
     const handleClose = () => {
+        if (submitting.current) return
         setOperationType('deposit')
         setError(null)
         onClose()
@@ -76,8 +85,11 @@ export default function ManagerAddBalanceDialog({
     const isDeposit = operationType === 'deposit'
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-card rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+        <PanelDialog onClose={handleClose} busy={loading} title={<>
+                        <Wallet className="w-5 h-5" />
+                        {isDeposit ? (t.admin?.users?.dialogs?.depositBalance || 'Deposit Balance') : (t.admin?.users?.dialogs?.withdrawBalance || 'Withdraw Balance')}
+                    </>} className="max-w-sm">
+            <div className="bg-card rounded-xl shadow-xl w-full max-w-sm animate-in fade-in zoom-in duration-200">
                 {/* Header */}
                 <div className={`flex justify-between items-center p-4 border-b border-border ${isDeposit ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
                     <h3 className={`font-bold flex items-center gap-2 ${isDeposit ? 'text-green-800 dark:text-green-400' : 'text-red-800 dark:text-red-400'}`}>
@@ -165,8 +177,9 @@ export default function ManagerAddBalanceDialog({
                         />
                     </div>
 
+                    <PanelCommandWarning show={unconfirmed} />
                     {error && (
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg">
+                        <div role="alert" className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg">
                             {error}
                         </div>
                     )}
@@ -181,7 +194,7 @@ export default function ManagerAddBalanceDialog({
                         </button>
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={unconfirmed || loading}
                             className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-lg flex items-center justify-center gap-2 ${isDeposit
                                     ? 'bg-green-600 hover:bg-green-700'
                                     : 'bg-red-600 hover:bg-red-700'
@@ -193,6 +206,6 @@ export default function ManagerAddBalanceDialog({
                     </div>
                 </form>
             </div>
-        </div>
+        </PanelDialog>
     )
 }

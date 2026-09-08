@@ -1,6 +1,9 @@
 'use client'
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { useState, useEffect, useCallback } from 'react'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { ArrowRight, ArrowLeft, User, Calendar, Wallet, BarChart2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
@@ -21,7 +24,7 @@ interface DeletedUser {
 export default function ManagerDeletedUsersTable() {
     const { t, language, dir } = useTranslation()
     const [users, setUsers] = useState<DeletedUser[]>([])
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error, cancel } = usePanelRequest()
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
 
@@ -33,57 +36,54 @@ export default function ManagerDeletedUsersTable() {
     const currentLocale = localeMap[language as keyof typeof localeMap] || enUS
     const textAlign = dir === 'rtl' ? 'text-right' : 'text-left'
 
-    const fetchUsers = useCallback(async () => {
-        setLoading(true)
-        try {
-            const res = await fetch(`/api/manager/users/deleted?page=${page}&limit=10`)
-            const data = await res.json()
-            if (res.ok) {
-                setUsers(data.users)
-                setTotalPages(data.totalPages)
-            }
-        } catch {
-        } finally {
-            setLoading(false)
-        }
-    }, [page])
+    const fetchUsers = useCallback(() => {
+        setUsers([])
+        return load<{ users: DeletedUser[]; totalPages: number }>(`/api/manager/users/deleted?page=${page}&limit=10`, data => {
+            const lastPage = Math.max(1, data.totalPages)
+            setTotalPages(lastPage)
+            if (page > lastPage) { setPage(lastPage); return }
+            setUsers(data.users)
+        })
+    }, [page, load])
 
     useEffect(() => {
-        fetchUsers()
-    }, [fetchUsers])
+        const timer = window.setTimeout(() => void fetchUsers(), 0)
+        return () => { window.clearTimeout(timer); cancel() }
+    }, [fetchUsers, cancel])
 
     return (
         <div className="space-y-4">
+            {error !== null && <PanelLoadError status={error} retry={() => void fetchUsers()} />}
             {/* Table */}
-            <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
+            <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border" hidden={error !== null}>
                 <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-secondary border-b border-border">
-                            <tr>
-                                <th className={`px-4 py-3 ${textAlign} text-xs font-medium text-muted-foreground`}>{t.manager?.users?.table?.user || 'User'}</th>
-                                <th className={`px-4 py-3 ${textAlign} text-xs font-medium text-muted-foreground`}>{t.manager?.deletedUsers?.balanceAtDeletion || 'Balance at Deletion'}</th>
-                                <th className={`px-4 py-3 ${textAlign} text-xs font-medium text-muted-foreground`}>{t.common?.operations || 'Operations'}</th>
-                                <th className={`px-4 py-3 ${textAlign} text-xs font-medium text-muted-foreground`}>{t.manager?.deletedUsers?.table?.deletedAt || 'Deleted At'}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
+                    <Table panel density="compact" className="w-full">
+                        <TableHeader className="bg-secondary border-b border-border">
+                            <TableRow>
+                                <TableHead className={`px-4 py-3 ${textAlign} text-xs font-medium text-muted-foreground`}>{t.manager?.users?.table?.user || 'User'}</TableHead>
+                                <TableHead className={`px-4 py-3 ${textAlign} text-xs font-medium text-muted-foreground`}>{t.manager?.deletedUsers?.balanceAtDeletion || 'Balance at Deletion'}</TableHead>
+                                <TableHead className={`px-4 py-3 ${textAlign} text-xs font-medium text-muted-foreground`}>{t.common?.operations || 'Operations'}</TableHead>
+                                <TableHead className={`px-4 py-3 ${textAlign} text-xs font-medium text-muted-foreground`}>{t.manager?.deletedUsers?.table?.deletedAt || 'Deleted At'}</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-border">
                             {loading ? (
                                 [...Array(5)].map((_, i) => (
-                                    <tr key={i} className="animate-pulse">
-                                        <td className="p-4"><div className="h-4 bg-muted rounded w-24"></div></td>
-                                        <td className="p-4"><div className="h-4 bg-muted rounded w-20"></div></td>
-                                        <td className="p-4"><div className="h-4 bg-muted rounded w-16"></div></td>
-                                        <td className="p-4"><div className="h-4 bg-muted rounded w-24"></div></td>
-                                    </tr>
+                                    <TableRow key={i} className="animate-pulse">
+                                        <TableCell className="p-4"><div className="h-4 bg-muted rounded w-24"></div></TableCell>
+                                        <TableCell className="p-4"><div className="h-4 bg-muted rounded w-20"></div></TableCell>
+                                        <TableCell className="p-4"><div className="h-4 bg-muted rounded w-16"></div></TableCell>
+                                        <TableCell className="p-4"><div className="h-4 bg-muted rounded w-24"></div></TableCell>
+                                    </TableRow>
                                 ))
                             ) : users.length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} className="p-8 text-center text-muted-foreground">{t.manager?.deletedUsers?.noDeletedUsers || 'No deleted accounts'}</td>
-                                </tr>
+                                <TableRow>
+                                    <TableCell colSpan={4} className="p-8 text-center text-muted-foreground">{t.manager?.deletedUsers?.noDeletedUsers || 'No deleted accounts'}</TableCell>
+                                </TableRow>
                             ) : (
                                 users.map((user) => (
-                                    <tr key={user.id} className="hover:bg-secondary transition-colors">
-                                        <td className="px-4 py-3">
+                                    <TableRow key={user.id} className="hover:bg-secondary transition-colors">
+                                        <TableCell className="px-4 py-3">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
                                                     <User className="w-4 h-4 text-red-600 dark:text-red-400" />
@@ -93,30 +93,30 @@ export default function ManagerDeletedUsersTable() {
                                                     <p className="text-xs text-muted-foreground">{user.email}</p>
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3">
                                             <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                                                 <Wallet className="w-4 h-4" />
                                                 <span className="font-bold">${(user.deletedBalance ?? 0).toLocaleString()}</span>
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                                             <div className="flex items-center gap-1">
                                                 <BarChart2 className="w-3 h-3" />
                                                 <span>{user.operationCount} {t.common?.operations || 'operations'}</span>
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                                             <div className="flex items-center gap-1">
                                                 <Calendar className="w-3 h-3" />
                                                 {format(new Date(user.deletedAt), 'dd/MM/yyyy HH:mm', { locale: currentLocale })}
                                             </div>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 ))
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
 
                 {/* Pagination */}

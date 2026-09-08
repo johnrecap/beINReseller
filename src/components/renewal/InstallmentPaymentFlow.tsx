@@ -1,7 +1,12 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState, useEffect, useRef } from 'react'
+import { PanelDialog } from '@/components/ui/dialog'
+import { Table, TableBody, TableRow, TableCell, TableHeader, TableHead } from '@/components/ui/table'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { usePanelRequest, readPanelJson, PanelRequestError } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
+import { withRequestDeadline } from '@/lib/request-deadline'
 import { useTranslation } from '@/hooks/useTranslation'
 import { useBalance } from '@/hooks/useBalance'
 import { Loader2, CreditCard, CheckCircle, XCircle, Clock, AlertTriangle, DollarSign, Package, User, ShieldCheck } from 'lucide-react'
@@ -36,7 +41,7 @@ interface SubscriberInfo {
     remarks: string
 }
 
-type FlowStep = 'input' | 'loading' | 'details' | 'confirming' | 'success' | 'error' | 'no-installment'
+type FlowStep = 'input' | 'loading' | 'details' | 'confirming' | 'success' | 'error' | 'no-installment' | 'attention'
 
 // Installment Confirm Dialog - Modal matching FinalConfirmDialog design from Active Operations page
 function InstallmentConfirmDialog({
@@ -48,6 +53,7 @@ function InstallmentConfirmDialog({
     onClose,
     onExpire,
     isLoading,
+    error,
     t
 }: {
     installment: InstallmentInfo
@@ -58,6 +64,7 @@ function InstallmentConfirmDialog({
     onClose: () => void
     onExpire: () => void
     isLoading: boolean
+    error: string | null
     t: any
 }) {
     const inst = t.installment || {}
@@ -102,8 +109,8 @@ function InstallmentConfirmDialog({
     const insufficientBalance = balance < installment.dealerPrice
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" dir="rtl">
-            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+        <PanelDialog onClose={onClose} busy={isLoading} title={<>{inst.confirmTitle}</>} className="max-w-md">
+            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 text-white">
                     <div className="flex items-center gap-3">
@@ -175,6 +182,8 @@ function InstallmentConfirmDialog({
                         </div>
                     )}
 
+                    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+
                     {/* Actions */}
                     <div className="flex gap-3 pt-2">
                         <button
@@ -186,7 +195,7 @@ function InstallmentConfirmDialog({
                         </button>
                         <button
                             onClick={onConfirm}
-                            disabled={isLoading || insufficientBalance}
+                            disabled={isLoading || insufficientBalance || timeLeft <= 0}
                             className="flex-1 px-4 py-3 bg-[#00A651] hover:bg-[#008f45] text-white rounded-xl font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
                         >
                             {isLoading ? (
@@ -204,7 +213,7 @@ function InstallmentConfirmDialog({
                     </div>
                 </div>
             </div>
-        </div>
+        </PanelDialog>
     )
 }
 
@@ -215,7 +224,8 @@ function InstallmentConfirmDialog({
  * Step 3: Execute payment -> Show result
  */
 export function InstallmentPaymentFlow() {
-    const { t } = useTranslation()
+    const { t, language } = useTranslation()
+    const tableText = t
     const { balance, refetch: refetchBalance } = useBalance()
     const inst = (t as any).installment || {}
 
@@ -230,9 +240,15 @@ export function InstallmentPaymentFlow() {
     const [timeLeft, setTimeLeft] = useState<number>(60)
     const [isConfirmLoading, setIsConfirmLoading] = useState(false)
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-    const hasWarned = useRef(false)
+    const mutationPending = useRef(false)
+    const [confirmError, setConfirmError] = useState<string | null>(null)
+    const [pollRevision, setPollRevision] = useState(0)
+    const { run, error: readError, cancel: cancelRead } = usePanelRequest()
+    const expireConfirmation = useCallback(() => {
+        if (!mutationPending.current) setShowConfirmDialog(false)
+    }, [])
 
-    // Countdown timer for details header display only (auto-cancel handled inside dialog)
+    // The local countdown controls confirmation availability, never server settlement.
     useEffect(() => {
         if (!confirmExpiry || step !== 'details') return
 
@@ -246,97 +262,80 @@ export function InstallmentPaymentFlow() {
         updateTimer()
         const interval = setInterval(updateTimer, 1000)
         return () => clearInterval(interval)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [confirmExpiry, step])
 
-    // Poll for operation status
+    // Read ownership stays with the server. A local timeout never proves cancellation or refund.
     useEffect(() => {
-        if (!operationId || step !== 'loading') return
+        if (step === 'details' && timeLeft <= 0) expireConfirmation()
+    }, [step, timeLeft, expireConfirmation])
 
-        const pollInterval = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/operations/${operationId}/installment`)
-                const data = await res.json()
-
+    useEffect(() => {
+        if (!operationId || !['loading', 'details', 'confirming'].includes(step)) return
+        let stopped = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const poll = async () => {
+            let accepted = false
+            await run(signal => readPanelJson<{
+                status: string; installment?: InstallmentInfo; subscriber?: SubscriberInfo;
+                finalConfirmExpiry?: string; message?: string;
+            }>(`/api/operations/${operationId}/installment`, signal), data => {
+                if (mutationPending.current) { accepted = true; return }
                 if (data.status === 'AWAITING_FINAL_CONFIRM') {
-                    clearInterval(pollInterval)
-                    if (data.installment) {
-                        setInstallment(data.installment)
-                        setSubscriber(data.subscriber)
-                        setConfirmExpiry(data.finalConfirmExpiry)
-                        hasWarned.current = false
-                        setStep('details')
-                    }
+                    if (!data.installment || !Number.isFinite(data.installment.dealerPrice) ||
+                        data.installment.dealerPrice <= 0 || !data.finalConfirmExpiry ||
+                        !Number.isFinite(Date.parse(data.finalConfirmExpiry))) throw new PanelRequestError(0)
+                    setInstallment(data.installment)
+                    setSubscriber(data.subscriber || null)
+                    setConfirmExpiry(data.finalConfirmExpiry)
+                    if (step !== 'confirming') setStep('details')
                 } else if (data.status === 'COMPLETED') {
-                    clearInterval(pollInterval)
-                    // Check if no installment found
-                    if (data.message?.includes('No installments') || data.message?.includes('لا توجد أقساط')) {
-                        setResultMessage(data.message)
-                        setStep('no-installment')
-                    } else {
-                        setResultMessage(data.message || inst.success)
-                        setStep('success')
-                        refetchBalance()
-                    }
-                } else if (data.status === 'FAILED') {
-                    clearInterval(pollInterval)
-                    setError(data.message || inst.failed)
-                    setStep('error')
-                }
-            } catch {
-            }
-        }, 2000)
-
-        return () => clearInterval(pollInterval)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [operationId, step, refetchBalance])
-
-    // Poll for confirming status
-    useEffect(() => {
-        if (!operationId || step !== 'confirming') return
-
-        const pollInterval = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/operations/${operationId}/installment`)
-                const data = await res.json()
-
-                if (data.status === 'COMPLETED') {
-                    clearInterval(pollInterval)
+                    setShowConfirmDialog(false)
+                    const noInstallment = data.message?.includes('No installments') || data.message?.includes('لا توجد أقساط')
                     setResultMessage(data.message || inst.success)
-                    setStep('success')
-                    refetchBalance()
-                } else if (data.status === 'FAILED') {
-                    clearInterval(pollInterval)
-                    setError(data.message || inst.failed)
-                    setStep('error')
-                    refetchBalance()
+                    setStep(noInstallment ? 'no-installment' : 'success')
+                    void refetchBalance()
+                } else if (['PENDING', 'PROCESSING', 'COMPLETING'].includes(data.status)) {
+                    setShowConfirmDialog(false)
+                    if (step === 'details') setStep('confirming')
+                } else {
+                    setShowConfirmDialog(false)
+                    setError(data.status === 'REVIEW_REQUIRED' ? t.panelUi.reviewRequired : t.panelUi.installmentFollowUp)
+                    setStep('attention')
                 }
-            } catch {
-            }
-        }, 2000)
+                accepted = true
+            })
+            // Failed reads stop until an explicit read-only retry. Slow requests never overlap.
+            if (!stopped && accepted) timer = setTimeout(poll, 2000)
+        }
+        void poll()
+        return () => { stopped = true; clearTimeout(timer); cancelRead() }
+    }, [operationId, step, pollRevision, run, cancelRead, refetchBalance, inst.success, t.panelUi.reviewRequired, t.panelUi.installmentFollowUp])
 
-        return () => clearInterval(pollInterval)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [operationId, step, refetchBalance])
+    useEffect(() => {
+        if (readError !== null) setShowConfirmDialog(false)
+    }, [readError])
 
     // Start loading installment
     const handleStart = async () => {
+        if (mutationPending.current) return
         if (cardNumber.length < 10) {
             toast.error(inst.cardError)
             return
         }
 
+        mutationPending.current = true
         setError(null)
         setStep('loading')
 
         try {
-            const res = await fetch('/api/operations/start-installment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cardNumber })
+            const { res, data } = await withRequestDeadline(async signal => {
+                const res = await fetch('/api/operations/start-installment', {
+                    method: 'POST', signal,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cardNumber })
+                })
+                return { res, data: await res.json() }
             })
-
-            const data = await res.json()
 
             if (!res.ok) {
                 if (data.operationId) {
@@ -348,61 +347,61 @@ export function InstallmentPaymentFlow() {
                             }
                         }
                     })
-                    setStep('input')
+                    setOperationId(data.operationId)
+                    setError(inst.existingOperation)
+                    setStep('attention')
                     return
                 }
-                throw new Error(data.error || inst.startFailed)
+                if (res.status >= 500) throw new Error('UNCONFIRMED_COMMAND')
+                setError(res.status === 401 ? t.panelUi.sessionExpired : res.status === 403 ? t.panelUi.accessDenied : inst.startFailed)
+                setStep('error')
+                return
             }
 
+            if (typeof data.operationId !== 'string' || !data.operationId) throw new Error('UNCONFIRMED_COMMAND')
             setOperationId(data.operationId)
             toast.success(inst.loadingInstallment)
-        } catch (err: any) {
-            setError(err.message)
-            setStep('error')
+        } catch {
+            setError(t.panelUi.installmentUnconfirmed)
+            setStep('attention')
+        } finally {
+            mutationPending.current = false
         }
     }
 
-    // Confirm payment
+    // Submit once locally; uncertain transport results are followed through the existing operation.
     const handleConfirm = async () => {
-        if (!operationId) return
-
-        // Check balance
-        if (installment && balance < installment.dealerPrice) {
+        if (!operationId || mutationPending.current || readError !== null || !confirmExpiry ||
+            Date.parse(confirmExpiry) <= Date.now()) return
+        if (!installment || balance < installment.dealerPrice) {
             toast.error(inst.insufficientBalance)
             return
         }
-
+        mutationPending.current = true
+        cancelRead()
+        setConfirmError(null)
         setIsConfirmLoading(true)
-        setShowConfirmDialog(false)
-
         try {
-            const res = await fetch(`/api/operations/${operationId}/confirm-installment`, {
-                method: 'POST'
-            })
-
-            const data = await res.json()
-
+            const res = await withRequestDeadline(signal => fetch(`/api/operations/${operationId}/confirm-installment`, {
+                method: 'POST', signal
+            }))
             if (!res.ok) {
-                throw new Error(data.error || inst.confirmFailed)
+                if (res.status >= 500) throw new Error('UNCONFIRMED_COMMAND')
+                setConfirmError(res.status === 401 ? t.panelUi.sessionExpired : res.status === 403 ? t.panelUi.accessDenied : inst.confirmFailed)
+                return
             }
-
             setShowConfirmDialog(false)
             setStep('confirming')
             toast.success(inst.processingPayment)
-        } catch (err: any) {
-            toast.error(err.message)
+        } catch {
+            setShowConfirmDialog(false)
+            setError(t.panelUi.installmentUnconfirmed)
+            setStep('attention')
         } finally {
+            mutationPending.current = false
             setIsConfirmLoading(false)
+            setPollRevision(value => value + 1)
         }
-    }
-
-    // Cancel operation
-    const handleCancel = async (isAutoCancel = false) => {
-        setStep('error')
-        setError(isAutoCancel
-            ? (inst.expiredCancel)
-            : (inst.manualCancel)
-        )
     }
 
     // Reset flow
@@ -416,25 +415,30 @@ export function InstallmentPaymentFlow() {
         setResultMessage(null)
         setConfirmExpiry(null)
         setShowConfirmDialog(false)
-        hasWarned.current = false
+        setConfirmError(null)
     }
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto space-y-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
             {/* Installment Confirm Dialog */}
-            {showConfirmDialog && installment && confirmExpiry && (
+            {showConfirmDialog && readError === null && installment && confirmExpiry && (
                 <InstallmentConfirmDialog
                     installment={installment}
                     cardNumber={cardNumber}
                     balance={balance}
                     confirmExpiry={confirmExpiry}
                     onConfirm={handleConfirm}
-                    onClose={() => setShowConfirmDialog(false)}
-                    onExpire={() => handleCancel(true)}
+                    onClose={() => { if (!mutationPending.current) setShowConfirmDialog(false) }}
+                    onExpire={expireConfirmation}
+                    error={confirmError}
                     isLoading={isConfirmLoading}
                     t={t}
                 />
             )}
+            {operationId && <a href="/dashboard/operations/active" className="inline-block underline">{t.panelUi.viewActive}</a>}
+            {readError !== null && <PanelLoadError status={readError} retry={() => setPollRevision(value => value + 1)} />}
+            {readError === null && <>
+            {step === 'details' && timeLeft <= 0 && <p role="status" className="rounded-xl border border-border p-4">{t.panelUi.installmentExpired}</p>}
             {/* Input Step */}
             {step === 'input' && (
                 <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
@@ -501,14 +505,14 @@ export function InstallmentPaymentFlow() {
                     <div className="space-y-4">
                         {/* beIN-style Purple Header Bar — "Contract Information" + Timer + Pay Button */}
                         <div
-                            className="flex items-center justify-between rounded-t-xl px-5 py-3"
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-t-xl px-5 py-3"
                             style={{ background: 'linear-gradient(135deg, #602D92 0%, #7B3FA8 50%, #964DA7 100%)' }}
                         >
                             <span className="text-white font-bold text-base tracking-wide flex items-center gap-2">
                                 <Package className="h-5 w-5" />
                                 {inst.contractInfo}
                             </span>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
                                 {/* Timer */}
                                 <span className={`flex items-center gap-1 text-sm font-mono font-bold px-3 py-1 rounded-full ${timeLeft <= 10
                                     ? 'bg-red-500/20 text-red-300 animate-pulse'
@@ -519,8 +523,8 @@ export function InstallmentPaymentFlow() {
                                 </span>
                                 {/* Pay Installment Button */}
                                 <Button
-                                    onClick={() => setShowConfirmDialog(true)}
-                                    disabled={timeLeft <= 0}
+                                    onClick={() => { setConfirmError(null); setShowConfirmDialog(true) }}
+                                    disabled={timeLeft <= 0 || isConfirmLoading}
                                     size="sm"
                                     className="bg-white/20 hover:bg-white/30 text-white border border-white/30 font-bold text-xs px-4 py-1.5 rounded-lg transition-all disabled:opacity-40"
                                 >
@@ -531,87 +535,87 @@ export function InstallmentPaymentFlow() {
                         </div>
 
                         {/* Main Table — matches original beIN Sport table */}
-                        <div className="border border-[#ccc] rounded-b-xl overflow-hidden bg-white" dir="ltr">
-                            <table className="w-full text-sm border-collapse">
-                                <tbody>
+                        <div data-panel-table-document className="border border-[#ccc] rounded-b-xl overflow-hidden bg-white" dir="ltr">
+                            <Table panel density="compact" className="w-full text-sm border-collapse">
+                                <TableBody>
                                     {/* Package Row */}
-                                    <tr className="border-b border-[#ddd]">
-                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd] w-[140px]">
+                                    <TableRow className="border-b border-[#ddd]">
+                                        <TableCell className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd] w-[140px]">
                                             {inst.packageLabel}:
-                                        </td>
-                                        <td className="px-4 py-2.5 text-[#333] font-medium" colSpan={3}>
+                                        </TableCell>
+                                        <TableCell className="px-4 py-2.5 text-[#333] font-medium" colSpan={3}>
                                             {installment.package}
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
 
                                     {/* Months To Pay Row */}
-                                    <tr className="border-b border-[#ddd]">
-                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
+                                    <TableRow className="border-b border-[#ddd]">
+                                        <TableCell className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             {inst.monthsToPay}:
-                                        </td>
-                                        <td className="px-4 py-2.5" colSpan={3}>
+                                        </TableCell>
+                                        <TableCell className="px-4 py-2.5" colSpan={3}>
                                             <span className="bg-[#e8e8e8] text-[#333] border border-[#ccc] px-3 py-1 rounded text-xs font-medium">
                                                 {installment.monthsToPay}
                                             </span>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
 
                                     {/* Installment Amounts Table — matching beIN grid */}
-                                    <tr className="border-b border-[#ddd]">
-                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd] w-[140px] align-top">
+                                    <TableRow className="border-b border-[#ddd]">
+                                        <TableCell className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd] w-[140px] align-top">
                                             {inst.installmentAmount}:
-                                        </td>
-                                        <td className="p-0" colSpan={3}>
-                                            <table className="w-full text-xs border-collapse">
-                                                <thead>
-                                                    <tr className="bg-[#e8e8e8] border-b border-[#ddd]">
-                                                        <th className="px-4 py-1.5 text-[#333] font-semibold text-center border-r border-[#ddd]">Installment 1</th>
-                                                        <th className="px-4 py-1.5 text-[#333] font-semibold text-center">Installment 2</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr>
-                                                        <td className="px-4 py-1.5 text-[#333] text-center border-r border-[#ddd] font-mono">{installment.installment1}</td>
-                                                        <td className="px-4 py-1.5 text-[#333] text-center font-mono">{installment.installment2}</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                        <TableCell className="p-0" colSpan={3}>
+                                            <Table panel density="compact" className="w-full text-xs border-collapse">
+                                                <TableHeader>
+                                                    <TableRow className="bg-[#e8e8e8] border-b border-[#ddd]">
+                                                        <TableHead className="px-4 py-1.5 text-[#333] font-semibold text-center border-r border-[#ddd]">{tableText.panelTable.installmentOne}</TableHead>
+                                                        <TableHead className="px-4 py-1.5 text-[#333] font-semibold text-center">{tableText.panelTable.installmentTwo}</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    <TableRow>
+                                                        <TableCell className="px-4 py-1.5 text-[#333] text-center border-r border-[#ddd] font-mono">{installment.installment1}</TableCell>
+                                                        <TableCell className="px-4 py-1.5 text-[#333] text-center font-mono">{installment.installment2}</TableCell>
+                                                    </TableRow>
+                                                </TableBody>
+                                            </Table>
+                                        </TableCell>
+                                    </TableRow>
 
                                     {/* Contract Dates & Prices — single row matching beIN */}
-                                    <tr className="border-b border-[#ddd]">
-                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
+                                    <TableRow className="border-b border-[#ddd]">
+                                        <TableCell className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             {inst.contractStartDate}:
-                                        </td>
-                                        <td className="px-4 py-2.5 text-[#333] text-xs font-mono border-r border-[#ddd]">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-2.5 text-[#333] text-xs font-mono border-r border-[#ddd]">
                                             {installment.contractStartDate || '-'}
-                                        </td>
-                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             {inst.contractExpiryDate}:
-                                        </td>
-                                        <td className="px-4 py-2.5 text-[#333] text-xs font-mono">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-2.5 text-[#333] text-xs font-mono">
                                             {installment.contractExpiryDate || '-'}
-                                        </td>
-                                    </tr>
-                                    <tr className="border-b border-[#ddd]">
-                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
+                                        </TableCell>
+                                    </TableRow>
+                                    <TableRow className="border-b border-[#ddd]">
+                                        <TableCell className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             {inst.invoicePrice}:
-                                        </td>
-                                        <td className="px-4 py-2.5 text-[#333] text-xs font-bold border-r border-[#ddd]">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-2.5 text-[#333] text-xs font-bold border-r border-[#ddd]">
                                             {installment.invoicePrice}
-                                        </td>
-                                        <td className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-2.5 bg-[#f0f0f0] text-[#333] font-semibold text-xs whitespace-nowrap border-r border-[#ddd]">
                                             {inst.dealerPrice}:
-                                        </td>
-                                        <td className="px-4 py-2.5 text-xs font-bold text-[#00A651]">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-2.5 text-xs font-bold text-[#00A651]">
                                             {installment.dealerPrice}
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
 
                                     {/* Subscriber Information Section */}
-                                    <tr>
-                                        <td colSpan={4} className="p-0">
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="p-0">
                                             {/* Section Header */}
                                             <div
                                                 className="px-4 py-2 text-xs font-bold text-white/90 flex items-center gap-2 border-b border-[#ddd]"
@@ -620,105 +624,105 @@ export function InstallmentPaymentFlow() {
                                                 <User className="h-3.5 w-3.5" />
                                                 {inst.subscriberInfo}
                                             </div>
-                                            <table className="w-full text-xs border-collapse">
-                                                <tbody>
+                                            <Table panel density="compact" className="w-full text-xs border-collapse">
+                                                <TableBody>
                                                     {/* Name | Email */}
-                                                    <tr className="border-b border-[#ddd]">
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] w-[120px]">
+                                                    <TableRow className="border-b border-[#ddd]">
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] w-[120px]">
                                                             {inst.subscriberName}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333] border-r border-[#ddd]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333] border-r border-[#ddd]">
                                                             {subscriber?.name || '-'}
-                                                        </td>
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] w-[120px]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] w-[120px]">
                                                             {inst.subscriberEmail}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333]">
                                                             {subscriber?.email || '-'}
-                                                        </td>
-                                                    </tr>
+                                                        </TableCell>
+                                                    </TableRow>
                                                     {/* Mobile | City */}
-                                                    <tr className="border-b border-[#ddd]">
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
+                                                    <TableRow className="border-b border-[#ddd]">
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             {inst.mobile}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.mobile || '-'}
-                                                        </td>
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             {inst.city}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333]">
                                                             {subscriber?.city || '-'}
-                                                        </td>
-                                                    </tr>
+                                                        </TableCell>
+                                                    </TableRow>
                                                     {/* Country */}
-                                                    <tr className="border-b border-[#ddd]">
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
+                                                    <TableRow className="border-b border-[#ddd]">
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             {inst.country}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333]" colSpan={3}>
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333]" colSpan={3}>
                                                             {subscriber?.country || '-'}
-                                                        </td>
-                                                    </tr>
+                                                        </TableCell>
+                                                    </TableRow>
                                                     {/* Home Tel | Work Tel */}
-                                                    <tr className="border-b border-[#ddd]">
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
+                                                    <TableRow className="border-b border-[#ddd]">
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             {inst.homeTel}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.homeTel || '-'}
-                                                        </td>
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             {inst.workTel}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333] font-mono">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333] font-mono">
                                                             {subscriber?.workTel || '-'}
-                                                        </td>
-                                                    </tr>
+                                                        </TableCell>
+                                                    </TableRow>
                                                     {/* Fax | STB Model */}
-                                                    <tr className="border-b border-[#ddd]">
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
+                                                    <TableRow className="border-b border-[#ddd]">
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             {inst.fax}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333] font-mono border-r border-[#ddd]">
                                                             {subscriber?.fax || '-'}
-                                                        </td>
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd]">
                                                             {inst.stbModel}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333] font-mono">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333] font-mono">
                                                             {subscriber?.stbModel || '-'}
-                                                        </td>
-                                                    </tr>
+                                                        </TableCell>
+                                                    </TableRow>
                                                     {/* Address | Remarks */}
-                                                    <tr>
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] align-top">
+                                                    <TableRow>
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] align-top">
                                                             {inst.address}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333] border-r border-[#ddd] align-top">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333] border-r border-[#ddd] align-top">
                                                             {subscriber?.address || '-'}
-                                                        </td>
-                                                        <td className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] align-top">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 bg-[#f0f0f0] text-[#333] font-semibold whitespace-nowrap border-r border-[#ddd] align-top">
                                                             {inst.remarks}:
-                                                        </td>
-                                                        <td className="px-3 py-2 text-[#333] align-top">
+                                                        </TableCell>
+                                                        <TableCell className="px-3 py-2 text-[#333] align-top">
                                                             {subscriber?.remarks || '-'}
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                </TableBody>
+                                            </Table>
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
                         </div>
 
                         {/* Bottom Pay Button (mobile-friendly) */}
                         <div className="pt-1">
                             <Button
-                                onClick={() => setShowConfirmDialog(true)}
-                                disabled={timeLeft <= 0}
+                                onClick={() => { setConfirmError(null); setShowConfirmDialog(true) }}
+                                disabled={timeLeft <= 0 || isConfirmLoading}
                                 className="w-full py-3 text-base font-bold text-white rounded-xl transition-all shadow-lg"
                                 style={{ background: 'linear-gradient(135deg, #602D92 0%, #964DA7 100%)' }}
                             >
@@ -787,6 +791,10 @@ export function InstallmentPaymentFlow() {
                 )
             }
 
+            {step === 'attention' && <Card><CardContent className="py-8 space-y-4">
+                <p role="alert">{error}</p>
+                <a href="/dashboard/operations/active" className="underline">{t.panelUi.viewActive}</a>
+            </CardContent></Card>}
             {/* Error Step */}
             {
                 step === 'error' && (
@@ -806,6 +814,7 @@ export function InstallmentPaymentFlow() {
                     </Card>
                 )
             }
+            </>}
         </div >
     )
 }

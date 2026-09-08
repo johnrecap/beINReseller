@@ -3,12 +3,18 @@ import { cn } from "@/lib/utils"
 
 const Table = React.forwardRef<
     HTMLTableElement,
-    React.HTMLAttributes<HTMLTableElement> & { panel?: boolean }
->(({ className, panel = false, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    React.HTMLAttributes<HTMLTableElement> & { panel?: boolean; density?: 'comfortable' | 'compact' }
+>(({ className, panel = false, density = 'comfortable', ...props }, ref) => (
+    <div
+        data-panel-table-scroll={panel || undefined}
+        tabIndex={panel && !props.hidden ? 0 : undefined}
+        hidden={props.hidden}
+        className={cn("relative w-full overflow-auto", panel && "min-w-0 max-w-full rounded-[inherit] focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring")}
+    >
         <table
             ref={ref}
             data-panel-table={panel || undefined}
+            data-density={panel ? density : undefined}
             className={cn("w-full caption-bottom text-sm", className)}
             {...props}
         />

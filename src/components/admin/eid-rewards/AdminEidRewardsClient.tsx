@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslation } from '@/hooks/useTranslation'
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Gift, Plus, RefreshCw, Save, Search, Trash2, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -594,16 +595,17 @@ export default function AdminEidRewardsClient() {
 }
 
 function AuditTable({ rows, kind }: { rows: ClaimRow[] | TransactionRow[]; kind: 'claims' | 'transactions' }) {
+    const { t: tableText } = useTranslation()
     return (
         <section className="rounded-lg border border-border bg-card p-4">
-            <Table>
+            <Table panel density="compact">
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="text-right">المستخدم</TableHead>
-                        <TableHead className="text-right">الدور</TableHead>
-                        <TableHead className="text-right">النقاط</TableHead>
-                        <TableHead className="text-right">القيمة</TableHead>
-                        <TableHead className="text-right">التاريخ</TableHead>
+                        <TableHead className="text-right">{tableText.activity.table.user}</TableHead>
+                        <TableHead className="text-right">{tableText.activity.table.role}</TableHead>
+                        <TableHead className="text-right">{tableText.panelTable.points}</TableHead>
+                        <TableHead className="text-right">{tableText.panelTable.value}</TableHead>
+                        <TableHead className="text-right">{tableText.common.date}</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>

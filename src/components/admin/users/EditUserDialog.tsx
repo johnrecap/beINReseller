@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { PanelCommandWarning } from '@/components/ui/PanelLoadError'
+import { usePanelCommand } from '@/hooks/usePanelRequest'
+import { useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -14,13 +16,16 @@ interface EditUserDialogProps {
 
 export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: EditUserDialogProps) {
     const { t, dir } = useTranslation()
+    const { request: command, unconfirmed } = usePanelCommand(isOpen ? user?.id : null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const submitting = useRef(false)
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        if (!user) return
+        if (unconfirmed || !user || submitting.current) return
 
+        submitting.current = true
         setLoading(true)
         setError(null)
 
@@ -29,7 +34,7 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
         const isActive = formData.get('isActive') === 'on'
 
         try {
-            const res = await fetch(`/api/admin/users/${user.id}`, {
+            const res = await command(`/api/admin/users/${user.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, isActive }),
@@ -44,6 +49,7 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
         } catch (err) {
             setError(err instanceof Error ? err.message : t.admin.users.messages.error)
         } finally {
+            submitting.current = false
             setLoading(false)
         }
     }
@@ -51,7 +57,7 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
     if (!isOpen || !user) return null
 
     return (
-        <Dialog open={isOpen} onOpenChange={open => { if (!open) onClose() }}>
+        <Dialog open={isOpen} onOpenChange={open => { if (!open && !submitting.current) onClose() }}>
             <DialogContent panel closeLabel={t.panelUi.close} dir={dir} className="rounded-xl max-w-md p-0 bg-card text-foreground" aria-describedby={undefined}>
                 <div className="flex justify-between items-center p-4 border-b border-gray-100">
                     <DialogTitle className="font-bold text-foreground pe-8">{t.admin.users.dialogs.editTitle}: {user.username}</DialogTitle>
@@ -85,8 +91,9 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
                         </label>
                     </div>
 
+                    <PanelCommandWarning show={unconfirmed} />
                     {error && (
-                        <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg">
+                        <div role="alert" className="p-3 bg-red-50 text-red-600 text-xs rounded-lg">
                             {error}
                         </div>
                     )}
@@ -94,14 +101,15 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
                     <div className="flex gap-3 pt-2">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={() => { if (!submitting.current) onClose() }}
+                            disabled={loading}
                             className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                         >
                             {t.admin.users.actions.cancel}
                         </button>
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={unconfirmed || loading}
                             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
                         >
                             {loading && <Loader2 className="w-4 h-4 animate-spin" />}

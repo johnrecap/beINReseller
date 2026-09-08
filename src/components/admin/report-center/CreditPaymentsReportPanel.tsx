@@ -1,5 +1,9 @@
 'use client'
 
+import { useTranslation } from '@/hooks/useTranslation'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarDays, CreditCard, RefreshCw, Search, Users } from 'lucide-react'
@@ -125,72 +129,75 @@ function SummaryCard({
 }
 
 function DetailRows({ rows }: { rows: CreditPaymentRow[] }) {
+    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
     if (rows.length === 0) {
         return (
             <div className="rounded-lg border border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                No recorded debt payments match the current filters.
+                {t.panelUi.reportCopy.noDebtPayments}
             </div>
         )
     }
 
     return (
         <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="min-w-[1100px] w-full text-sm">
-                <thead className="bg-muted/30 text-muted-foreground">
-                    <tr>
-                        <th className="px-4 py-3 text-start font-medium">Date</th>
-                        <th className="px-4 py-3 text-start font-medium">User</th>
-                        <th className="px-4 py-3 text-start font-medium">Amount</th>
-                        <th className="px-4 py-3 text-start font-medium">Debt After</th>
-                        <th className="px-4 py-3 text-start font-medium">Recorded By</th>
-                        <th className="px-4 py-3 text-start font-medium">Owner</th>
-                        <th className="px-4 py-3 text-start font-medium">Note</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
+            <Table panel density="compact" className="min-w-[1100px] w-full text-sm">
+                <TableHeader className="bg-muted/30 text-muted-foreground">
+                    <TableRow>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.common.date}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.activity.table.user}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.forms.amount}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.debtAfter}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.recordedBy}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.owner}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.note}</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-border">
                     {rows.map((row) => (
-                        <tr key={row.id} className="hover:bg-muted/20">
-                            <td className="px-4 py-3">
+                        <TableRow key={row.id} className="hover:bg-muted/20">
+                            <TableCell className="px-4 py-3">
                                 <span className="block font-medium text-foreground">{row.createdAtCairoDate}</span>
                                 <span className="block text-xs text-muted-foreground">{formatDateTime(row.createdAt)}</span>
-                            </td>
-                            <td className="px-4 py-3">
+                            </TableCell>
+                            <TableCell className="px-4 py-3">
                                 <span className="block font-semibold text-foreground">{row.user.username}</span>
                                 <span className="block text-xs text-muted-foreground">{row.user.email}</span>
-                            </td>
-                            <td className="px-4 py-3 font-semibold text-emerald-300">{formatUsd(row.amountUsd)}</td>
-                            <td className="px-4 py-3 text-foreground">{formatUsd(row.debtAfterUsd)}</td>
-                            <td className="px-4 py-3">
+                            </TableCell>
+                            <TableCell className="px-4 py-3 font-semibold text-emerald-300">{formatUsd(row.amountUsd)}</TableCell>
+                            <TableCell className="px-4 py-3 text-foreground">{formatUsd(row.debtAfterUsd)}</TableCell>
+                            <TableCell className="px-4 py-3">
                                 {row.recordedBy ? (
                                     <>
                                         <span className="block font-medium text-foreground">{row.recordedBy.username}</span>
                                         <span className="block text-xs text-muted-foreground">{row.recordedBy.role}</span>
                                     </>
                                 ) : (
-                                    <span className="text-xs text-muted-foreground">Unavailable</span>
+                                    <span className="text-xs text-muted-foreground">{t.panelUi.reportCopy.unavailable}</span>
                                 )}
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground">
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-muted-foreground">
                                 {row.ownerLabelSnapshot || row.ownerTypeSnapshot || row.ownerIdSnapshot || '-'}
-                            </td>
-                            <td className="max-w-[260px] px-4 py-3 text-muted-foreground">
+                            </TableCell>
+                            <TableCell className="max-w-[260px] px-4 py-3 text-muted-foreground">
                                 <span className="line-clamp-2">{row.note || '-'}</span>
-                            </td>
-                        </tr>
+                            </TableCell>
+                        </TableRow>
                     ))}
-                </tbody>
-            </table>
+                </TableBody>
+            </Table>
         </div>
     )
 }
 
 export default function CreditPaymentsReportPanel() {
+    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const [data, setData] = useState<CreditPaymentsResponse | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
+    const { load, loading, error } = usePanelRequest()
     const [form, setForm] = useState({
         range: searchParams.get('range') || 'today',
         from: searchParams.get('from') || '',
@@ -202,22 +209,18 @@ export default function CreditPaymentsReportPanel() {
     const cards = useMemo(() => {
         const summary = data?.summary ?? EMPTY_SUMMARY
         return [
-            { label: 'Total Paid', value: formatUsd(summary.totalPaidUsd), icon: CreditCard },
-            { label: 'Payments', value: summary.paymentCount, icon: CalendarDays },
-            { label: 'Users', value: summary.usersCount, icon: Users },
-            { label: 'Recorders', value: summary.recordersCount, icon: Users },
+            { label: t.panelUi.reportCopy.totalPaid, value: formatUsd(summary.totalPaidUsd), icon: CreditCard },
+            { label: t.panelUi.reportCopy.payments, value: summary.paymentCount, icon: CalendarDays },
+            { label: t.panelUi.reportCopy.users, value: summary.usersCount, icon: Users },
+            { label: t.panelUi.reportCopy.recorders, value: summary.recordersCount, icon: Users },
         ]
-    }, [data?.summary])
+    }, [data?.summary, t])
 
     async function loadReport(params = searchParams) {
-        setLoading(true)
-        setError('')
-        try {
-            const query = new URLSearchParams(params.toString())
-            query.delete('tab')
-            const response = await fetch(`/api/admin/reports/credit-payments?${query.toString()}`, { cache: 'no-store' })
-            const payload = await response.json()
-            if (!response.ok) throw new Error(payload.error || 'Failed to load credit payments')
+        const query = new URLSearchParams(params.toString())
+        query.delete('tab')
+        setData(null)
+        await load<CreditPaymentsResponse>(`/api/admin/reports/credit-payments?${query.toString()}`, payload => {
             setData(payload)
             setForm({
                 range: payload.filters.range,
@@ -226,11 +229,7 @@ export default function CreditPaymentsReportPanel() {
                 userSearch: payload.filters.userSearch,
                 recordedBySearch: payload.filters.recordedBySearch,
             })
-        } catch (loadError) {
-            setError(loadError instanceof Error ? loadError.message : 'Failed to load credit payments')
-        } finally {
-            setLoading(false)
-        }
+        })
     }
 
     useEffect(() => {
@@ -256,9 +255,9 @@ export default function CreditPaymentsReportPanel() {
             <div className="rounded-lg border border-border bg-card p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h2 className="text-xl font-bold text-foreground">Credit Payments</h2>
+                        <h2 className="text-xl font-bold text-foreground">{t.panelUi.reportCopy.creditPayments}</h2>
                         <p className="text-sm text-muted-foreground">
-                            Recorded payments that reduce user credit debt.
+                            {t.panelUi.reportCopy.creditPaymentsHint}
                         </p>
                     </div>
                     <button
@@ -267,26 +266,26 @@ export default function CreditPaymentsReportPanel() {
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-foreground hover:bg-muted"
                     >
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh
+                        {t.common.refresh}
                     </button>
                 </div>
 
                 <form onSubmit={applyFilters} className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-6">
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Range</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.range}</span>
                         <select
                             value={form.range}
                             onChange={(event) => setForm((current) => ({ ...current, range: event.target.value }))}
                             className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
                         >
-                            <option value="today">Today</option>
-                            <option value="week">This week</option>
-                            <option value="month">This month</option>
-                            <option value="custom">Custom</option>
+                            <option value="today">{t.panelUi.reportCopy.today}</option>
+                            <option value="week">{t.panelUi.reportCopy.thisWeek}</option>
+                            <option value="month">{t.panelUi.reportCopy.thisMonth}</option>
+                            <option value="custom">{t.panelUi.reportCopy.custom}</option>
                         </select>
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">From</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.from}</span>
                         <input
                             type="date"
                             value={form.from}
@@ -296,7 +295,7 @@ export default function CreditPaymentsReportPanel() {
                         />
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">To</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.to}</span>
                         <input
                             type="date"
                             value={form.to}
@@ -306,21 +305,21 @@ export default function CreditPaymentsReportPanel() {
                         />
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">User</span>
+                        <span className="text-muted-foreground">{t.admin.users.roles.user}</span>
                         <input
                             value={form.userSearch}
                             onChange={(event) => setForm((current) => ({ ...current, userSearch: event.target.value }))}
                             className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
-                            placeholder="Username or email"
+                            placeholder={t.panelUi.reportCopy.usernameEmail}
                         />
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Recorded By</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.recordedBy}</span>
                         <input
                             value={form.recordedBySearch}
                             onChange={(event) => setForm((current) => ({ ...current, recordedBySearch: event.target.value }))}
                             className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
-                            placeholder="Admin or agent"
+                            placeholder={t.panelUi.reportCopy.adminAgent}
                         />
                     </label>
                     <div className="flex items-end">
@@ -329,18 +328,16 @@ export default function CreditPaymentsReportPanel() {
                             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                         >
                             <Search className="h-4 w-4" />
-                            Apply
+                            {t.panelUi.reportCopy.apply}
                         </button>
                     </div>
                 </form>
             </div>
 
-            {error && (
-                <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-                    {error}
-                </div>
-            )}
+            {error !== null && <PanelLoadError status={error} retry={() => void loadReport()} />}
 
+            {loading && <p role="status" className="p-6 text-center text-muted-foreground">{tableText.common.loading}</p>}
+            {data && !loading && error === null && <div data-panel-report-results className="contents">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {cards.map((card) => (
                     <SummaryCard key={card.label} {...card} />
@@ -350,37 +347,37 @@ export default function CreditPaymentsReportPanel() {
             <div className="rounded-lg border border-border bg-card p-5">
                 <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h3 className="text-lg font-semibold text-foreground">Daily totals</h3>
+                        <h3 className="text-lg font-semibold text-foreground">{t.panelUi.reportCopy.dailyTotals}</h3>
                         <p className="text-sm text-muted-foreground">
-                            {data?.filters.fromInput ?? '-'} to {data?.filters.toInput ?? '-'}
+                            {data?.filters.fromInput ?? '-'} {t.panelUi.reportCopy.to} {data?.filters.toInput ?? '-'}
                         </p>
                     </div>
-                    {loading && <span className="text-sm text-muted-foreground">Loading...</span>}
+                    {loading && <span className="text-sm text-muted-foreground">{t.common.loading}</span>}
                 </div>
                 {data?.daily.length ? (
                     <div className="overflow-x-auto rounded-lg border border-border">
-                        <table className="w-full min-w-[520px] text-sm">
-                            <thead className="bg-muted/30 text-muted-foreground">
-                                <tr>
-                                    <th className="px-4 py-3 text-start font-medium">Day</th>
-                                    <th className="px-4 py-3 text-start font-medium">Total Paid</th>
-                                    <th className="px-4 py-3 text-start font-medium">Payments</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
+                        <Table panel density="compact" className="w-full min-w-[520px] text-sm">
+                            <TableHeader className="bg-muted/30 text-muted-foreground">
+                                <TableRow>
+                                    <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.day}</TableHead>
+                                    <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.totalPaid}</TableHead>
+                                    <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.payments}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody className="divide-y divide-border">
                                 {data.daily.map((day) => (
-                                    <tr key={day.date}>
-                                        <td className="px-4 py-3 font-semibold text-foreground">{day.date}</td>
-                                        <td className="px-4 py-3 font-bold text-emerald-300">{formatUsd(day.totalPaidUsd)}</td>
-                                        <td className="px-4 py-3 text-muted-foreground">{day.paymentCount}</td>
-                                    </tr>
+                                    <TableRow key={day.date}>
+                                        <TableCell className="px-4 py-3 font-semibold text-foreground">{day.date}</TableCell>
+                                        <TableCell className="px-4 py-3 font-bold text-emerald-300">{formatUsd(day.totalPaidUsd)}</TableCell>
+                                        <TableCell className="px-4 py-3 text-muted-foreground">{day.paymentCount}</TableCell>
+                                    </TableRow>
                                 ))}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
                 ) : (
                     <div className="rounded-lg border border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                        No daily totals for the current filters.
+                        {t.panelUi.reportCopy.noDailyTotals}
                     </div>
                 )}
             </div>
@@ -388,9 +385,9 @@ export default function CreditPaymentsReportPanel() {
             <div className="rounded-lg border border-border bg-card p-5">
                 <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h3 className="text-lg font-semibold text-foreground">Payment ledger</h3>
+                        <h3 className="text-lg font-semibold text-foreground">{t.panelUi.reportCopy.paymentLedger}</h3>
                         <p className="text-sm text-muted-foreground">
-                            {data?.pagination.total ?? 0} recorded payments.
+                            {data?.pagination.total ?? 0} {t.panelUi.reportCopy.recordedPayments}
                         </p>
                     </div>
                 </div>
@@ -403,10 +400,10 @@ export default function CreditPaymentsReportPanel() {
                             onClick={() => changePage(data.pagination.page - 1)}
                             className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50"
                         >
-                            Previous
+                            {t.panelUi.reportCopy.previous}
                         </button>
                         <span className="text-sm text-muted-foreground">
-                            Page {data.pagination.page} / {data.pagination.totalPages}
+                            {t.panelUi.reportCopy.page} {data.pagination.page} / {data.pagination.totalPages}
                         </span>
                         <button
                             type="button"
@@ -414,11 +411,12 @@ export default function CreditPaymentsReportPanel() {
                             onClick={() => changePage(data.pagination.page + 1)}
                             className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50"
                         >
-                            Next
+                            {t.panelUi.reportCopy.next}
                         </button>
                     </div>
                 )}
             </div>
+            </div>}
         </section>
     )
 }

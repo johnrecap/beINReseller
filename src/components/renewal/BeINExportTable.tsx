@@ -1,7 +1,5 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-
 interface Contract {
     type: string
     status: string
@@ -17,49 +15,13 @@ interface BeINExportTableProps {
 }
 
 /**
- * BeINExportTable - Renders contracts table with responsive scaling
+ * BeINExportTable - Renders a readable, internally scrolling provider document
  * Desktop: Full size table
- * Mobile: Same table scaled down to fit screen width (centered)
+ * Mobile: Full-size table scrolls inside the available viewport
  * Export: Hidden full-size table for image download
  */
 export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps) {
-    const [scaleFactor, setScaleFactor] = useState(1)
-    const tableRef = useRef<HTMLDivElement>(null)
-    const [tableHeight, setTableHeight] = useState<number>(0)
     const TABLE_WIDTH = 850
-
-    // Calculate scale factor based on screen width
-    useEffect(() => {
-        const calculateScale = () => {
-            if (typeof window === 'undefined') return
-            
-            const screenWidth = window.innerWidth
-            const availableWidth = screenWidth - 80 // more padding for better fit
-            
-            if (availableWidth < TABLE_WIDTH) {
-                const newScale = availableWidth / TABLE_WIDTH
-                setScaleFactor(Math.max(newScale, 0.30)) // minimum 30% scale
-            } else {
-                setScaleFactor(1)
-            }
-        }
-        
-        calculateScale()
-        window.addEventListener('resize', calculateScale)
-        return () => window.removeEventListener('resize', calculateScale)
-    }, [])
-
-    // offsetHeight excludes the CSS transform; apply the scale only once.
-    useEffect(() => {
-        const table = tableRef.current
-        if (!table) return
-        const measure = () => setTableHeight(table.offsetHeight)
-        measure()
-        if (typeof ResizeObserver === 'undefined') return
-        const observer = new ResizeObserver(measure)
-        observer.observe(table)
-        return () => observer.disconnect()
-    }, [contracts])
 
     // Status color helper
     const getStatusColor = (status: string) => {
@@ -157,34 +119,26 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
         </>
     )
 
-    // Calculate the scaled height for the container
-    const scaledContainerHeight = tableHeight > 0 ? tableHeight * scaleFactor : 'auto'
-
     return (
-        <div style={{ position: 'relative', width: '100%' }}>
-            {/* Container that holds the scaled table with proper height */}
+        <div style={{ position: 'relative', width: '100%', minWidth: 0 }}>
+            {/* Screen containment does not alter the export document below. */}
             <div 
+                tabIndex={0}
+                className="max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 style={{ 
                     width: '100%',
-                    height: typeof scaledContainerHeight === 'number' ? `${scaledContainerHeight}px` : 'auto',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'flex-start'
+                    overscrollBehaviorX: 'contain'
                 }}
             >
-                {/* Visible Scaled Table */}
+                {/* Visible full-size table */}
                 <div
-                    ref={tableRef}
                     style={{ 
                         backgroundColor: '#ffffff', 
                         padding: '20px',
                         fontFamily: 'Arial, Helvetica, sans-serif',
                         fontSize: '12px',
                         width: `${TABLE_WIDTH}px`,
-                        flexShrink: 0,
-                        transform: scaleFactor < 1 ? `scale(${scaleFactor})` : 'none',
-                        transformOrigin: 'top center'
+                        marginInline: 'auto'
                     }}
                 >
                     {tableContent}

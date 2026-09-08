@@ -1,6 +1,9 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { FormEvent, useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { usePanelRequest, usePanelCommand } from '@/hooks/usePanelRequest'
+import { PanelLoadError, PanelCommandWarning } from '@/components/ui/PanelLoadError'
 import { AlertCircle, CheckCircle2, RefreshCw, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,27 +36,27 @@ type CreditRequestsResponse = {
     requests: CreditRequestListItem[]
 }
 
-const blockedMessages: Record<string, string> = {
-    NOT_USER: 'Credit requests are available only for customer accounts.',
-    INACTIVE_USER: 'This account cannot request credit right now.',
-    MANAGER_OWNED: 'Credit requests are not available for users managed by a manager.',
-    UNOWNED: 'Credit requests are not available until this account is assigned to admin or an agent.',
-    NO_ACTIVE_AGENT_ASSIGNMENT: 'Credit requests are available only for users assigned to an agent.',
-    CREDIT_LIMIT_NOT_CONFIGURED: 'Your credit request limit is not configured yet.',
-    CREDIT_LIMIT_EXCEEDED: 'Your current pending requests and unpaid debt have used the full credit request limit.',
-}
+const getBlockedMessages = (t: ReturnType<typeof useTranslation>['t']): Record<string, string> => ({
+    NOT_USER: t.panelUi.operationalCopy.onlyCustomers,
+    INACTIVE_USER: t.panelUi.operationalCopy.inactiveCredit,
+    MANAGER_OWNED: t.panelUi.operationalCopy.managerCreditBlocked,
+    UNOWNED: t.panelUi.operationalCopy.unownedCredit,
+    NO_ACTIVE_AGENT_ASSIGNMENT: t.panelUi.operationalCopy.noActiveAssignment,
+    CREDIT_LIMIT_NOT_CONFIGURED: t.panelUi.operationalCopy.creditLimitMissing,
+    CREDIT_LIMIT_EXCEEDED: t.panelUi.operationalCopy.creditCapacityUsed,
+})
 
-function ownerDescription(eligibility: Eligibility | undefined, withoutGroupLabel: string) {
+function ownerDescription(eligibility: Eligibility | undefined, t: ReturnType<typeof useTranslation>['t']) {
     if (!eligibility) return ''
     if (eligibility.ownerType === 'AGENT') {
-        return `Agent: ${eligibility.agentName || eligibility.ownerLabel || '-'} | Group: ${eligibility.sourceGroup || withoutGroupLabel}`
+        return t.panelUi.operationalCopy.ownerGroup.replace('{agent}', eligibility.agentName || eligibility.ownerLabel || '-').replace('{group}', eligibility.sourceGroup || t.common.withoutGroup)
     }
 
-    return `Owner: ${eligibility.ownerLabel || 'Admin direct'}`
+    return t.panelUi.operationalCopy.ownerDirect.replace('{owner}', eligibility.ownerLabel || t.panelUi.operationalCopy.adminDirect)
 }
 
-function formatDate(value: string) {
-    return new Intl.DateTimeFormat('en', {
+function formatDate(value: string, language: string) {
+    return new Intl.DateTimeFormat(language, {
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(new Date(value))
@@ -64,11 +67,12 @@ function formatUsd(value: number) {
 }
 
 function DebtSummaryPanel({ summary }: { summary: CreditDebtSummary }) {
+    const { t } = useTranslation()
     const items = [
-        { label: 'Limit', value: formatUsd(summary.creditDebtLimitUsd) },
-        { label: 'Current debt', value: formatUsd(summary.outstandingDebtUsd) },
-        { label: 'Pending requests', value: formatUsd(summary.pendingRequestedUsd) },
-        { label: 'Available', value: formatUsd(summary.availableUsd) },
+        { label: t.panelUi.creditControl.limit, value: formatUsd(summary.creditDebtLimitUsd) },
+        { label: t.panelUi.operationalCopy.currentDebt, value: formatUsd(summary.outstandingDebtUsd) },
+        { label: t.panelUi.operationalCopy.pendingRequestsMetric, value: formatUsd(summary.pendingRequestedUsd) },
+        { label: t.panelUi.operationalCopy.available, value: formatUsd(summary.availableUsd) },
     ]
 
     return (
@@ -84,6 +88,7 @@ function DebtSummaryPanel({ summary }: { summary: CreditDebtSummary }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+    const { t } = useTranslation()
     const className = status === 'PENDING'
         ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300'
         : status === 'APPROVED'
@@ -92,58 +97,48 @@ function StatusBadge({ status }: { status: string }) {
 
     return (
         <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${className}`}>
-            {status}
+            {({PENDING:t.status.pending,APPROVED:t.panelUi.operationalCopy.approved,REJECTED:t.panelUi.operationalCopy.rejected,CANCELLED:t.status.cancelled} as Record<string, string>)[status] || status}
         </span>
     )
 }
 
 export default function RequestCreditForm() {
-    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
+    const { t, language } = useTranslation()
     const [data, setData] = useState<CreditRequestsResponse | null>(null)
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error: loadError, cancel } = usePanelRequest()
+    const { request: command, unconfirmed } = usePanelCommand()
+    const mutationPending = useRef(false)
     const [submitting, setSubmitting] = useState(false)
     const [amountUsd, setAmountUsd] = useState('')
     const [paymentMethod, setPaymentMethod] = useState('')
     const [notes, setNotes] = useState('')
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-    const loadData = useCallback(async () => {
-        setLoading(true)
-        try {
-            const response = await fetch('/api/credit-requests', { cache: 'no-store' })
-            const payload = await response.json()
-
-            if (!response.ok) {
-                throw new Error(payload.error || 'Failed to load credit requests')
-            }
-
-            setData(payload)
-        } catch (error) {
-            setMessage({
-                type: 'error',
-                text: error instanceof Error ? error.message : 'Failed to load credit requests',
-            })
-        } finally {
-            setLoading(false)
-        }
-    }, [])
+    const loadData = useCallback(() => {
+        setData(null)
+        return load<CreditRequestsResponse>('/api/credit-requests', setData)
+    }, [load])
 
     useEffect(() => {
-        void loadData()
-    }, [loadData])
+        const timer = window.setTimeout(() => void loadData(), 0)
+        return () => { window.clearTimeout(timer); cancel() }
+    }, [loadData, cancel])
 
     const blockedMessage = useMemo(() => {
         if (!data || data.eligibility.canRequest) return null
-        return blockedMessages[data.eligibility.reason] || 'Credit request is not available for this account.'
-    }, [data])
+        return getBlockedMessages(t)[data.eligibility.reason] || t.panelUi.operationalCopy.creditUnavailable
+    }, [data, t])
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
+        if (unconfirmed || mutationPending.current || !data?.eligibility.canRequest) return
+        mutationPending.current = true
         setSubmitting(true)
         setMessage(null)
 
         try {
-            const response = await fetch('/api/credit-requests', {
+            const response = await command('/api/credit-requests', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -155,7 +150,7 @@ export default function RequestCreditForm() {
             const payload = await response.json()
 
             if (!response.ok) {
-                throw new Error(payload.error || 'Failed to submit credit request')
+                throw new Error(payload.error || t.panelUi.operationalCopy.submitCreditFailed)
             }
 
             setAmountUsd('')
@@ -163,34 +158,37 @@ export default function RequestCreditForm() {
             setNotes('')
             setMessage({
                 type: 'success',
-                text: 'Credit request submitted and is pending admin review.',
+                text: t.panelUi.operationalCopy.submittedCredit,
             })
             await loadData()
         } catch (error) {
             setMessage({
                 type: 'error',
-                text: error instanceof Error ? error.message : 'Failed to submit credit request',
+                text: error instanceof Error ? error.message : t.panelUi.operationalCopy.submitCreditFailed,
             })
         } finally {
+            mutationPending.current = false
             setSubmitting(false)
         }
     }
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Request Credit</h1>
+                    <h1 className="text-3xl font-bold text-white">{t.panelUi.operationalCopy.requestCredit}</h1>
                     <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-                        Submit a balance request for admin review.
+                        {t.panelUi.operationalCopy.requestCreditHint}
                     </p>
                 </div>
                 <Button variant="outline" onClick={() => void loadData()} loading={loading}>
                     <RefreshCw className="h-4 w-4" />
-                    Refresh
+                    {t.common.refresh}
                 </Button>
             </div>
 
+            {loadError !== null && <PanelLoadError status={loadError} retry={() => void loadData()} />}
+            <PanelCommandWarning show={unconfirmed} />
             {message && (
                 <div role={message.type === 'error' ? 'alert' : 'status'} className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${
                     message.type === 'success'
@@ -209,10 +207,10 @@ export default function RequestCreditForm() {
             {loading && !data ? (
                 <Card>
                     <CardContent className="pt-6 text-sm text-[var(--color-text-secondary)]">
-                        Loading...
+                        {t.common.loading}
                     </CardContent>
                 </Card>
-            ) : blockedMessage ? (
+            ) : !data ? null : blockedMessage ? (
                 <Card>
                     <CardContent className="flex items-center gap-3 pt-6 text-sm text-yellow-300">
                         <AlertCircle className="h-5 w-5" />
@@ -222,15 +220,15 @@ export default function RequestCreditForm() {
             ) : (
                 <Card>
                     <CardHeader>
-                        <CardTitle>New Credit Request</CardTitle>
+                        <CardTitle>{t.panelUi.operationalCopy.newCreditRequest}</CardTitle>
                         <CardDescription>
-                            {ownerDescription(data?.eligibility, t.common.withoutGroup)}
+                            {ownerDescription(data?.eligibility, t)}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
-                                <Label htmlFor="amountUsd">Amount USD</Label>
+                                <Label htmlFor="amountUsd">{t.panelUi.operationalCopy.amountUsd}</Label>
                                 <Input
                                     id="amountUsd"
                                     type="number"
@@ -244,7 +242,7 @@ export default function RequestCreditForm() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="paymentMethod">Payment Method</Label>
+                                <Label htmlFor="paymentMethod">{t.panelUi.operationalCopy.paymentMethod}</Label>
                                 <Input
                                     id="paymentMethod"
                                     value={paymentMethod}
@@ -254,7 +252,7 @@ export default function RequestCreditForm() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="notes">Notes</Label>
+                                <Label htmlFor="notes">{t.transactions.notes}</Label>
                                 <Input
                                     id="notes"
                                     value={notes}
@@ -266,10 +264,10 @@ export default function RequestCreditForm() {
                                 <Button
                                     type="submit"
                                     loading={submitting}
-                                    disabled={!data?.eligibility.canRequest || data.eligibility.debtSummary.availableUsd <= 0}
+                                    disabled={unconfirmed || !data?.eligibility.canRequest || data.eligibility.debtSummary.availableUsd <= 0}
                                 >
                                     <Send className="h-4 w-4" />
-                                    Submit Request
+                                    {t.panelUi.operationalCopy.submitRequest}
                                 </Button>
                             </div>
                         </form>
@@ -277,54 +275,54 @@ export default function RequestCreditForm() {
                 </Card>
             )}
 
-            <Card>
+            {data && <Card>
                 <CardHeader>
-                    <CardTitle>Recent Requests</CardTitle>
+                    <CardTitle>{t.panelUi.operationalCopy.recentRequests}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {!data?.requests.length ? (
                         <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-[var(--color-text-secondary)]">
-                            No credit requests yet.
+                            {t.panelUi.operationalCopy.noCreditRequests}
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="border-b border-white/10 text-[var(--color-text-secondary)]">
-                                    <tr>
-                                        <th className="py-3 text-start">Order ID</th>
-                                        <th className="py-3 text-start">Amount</th>
-                                        <th className="py-3 text-start">Payment</th>
-                                        <th className="py-3 text-start">Owner</th>
-                                        <th className="py-3 text-start">Status</th>
-                                        <th className="py-3 text-start">Notification</th>
-                                        <th className="py-3 text-start">Created</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                            <Table panel density="compact" className="w-full text-sm">
+                                <TableHeader className="border-b border-white/10 text-[var(--color-text-secondary)]">
+                                    <TableRow>
+                                        <TableHead className="py-3 text-start">{tableText.panelTable.orderId}</TableHead>
+                                        <TableHead className="py-3 text-start">{tableText.forms.amount}</TableHead>
+                                        <TableHead className="py-3 text-start">{tableText.panelTable.payment}</TableHead>
+                                        <TableHead className="py-3 text-start">{tableText.panelTable.owner}</TableHead>
+                                        <TableHead className="py-3 text-start">{tableText.common.status}</TableHead>
+                                        <TableHead className="py-3 text-start">{tableText.panelTable.notification}</TableHead>
+                                        <TableHead className="py-3 text-start">{tableText.manager.users.table.created}</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
                                     {data.requests.map((request) => (
-                                        <tr key={request.id} className="border-b border-white/5">
-                                            <td className="py-3 font-mono text-xs">{request.requestNumber}</td>
-                                            <td className="py-3 font-semibold">USD {request.amountUsd.toFixed(2)}</td>
-                                            <td className="py-3">{request.paymentMethod}</td>
-                                            <td className="py-3">
+                                        <TableRow key={request.id} className="border-b border-white/5">
+                                            <TableCell className="py-3 font-mono text-xs">{request.requestNumber}</TableCell>
+                                            <TableCell className="py-3 font-semibold">USD {request.amountUsd.toFixed(2)}</TableCell>
+                                            <TableCell className="py-3">{request.paymentMethod}</TableCell>
+                                            <TableCell className="py-3">
                                                 <div>{request.ownerLabel || request.agentName || '-'}</div>
                                                 {request.ownerType === 'AGENT' ? (
                                                     <div className="text-xs text-[var(--color-text-secondary)]">
                                                         {request.sourceGroup || t.common.withoutGroup}
                                                     </div>
                                                 ) : null}
-                                            </td>
-                                            <td className="py-3"><StatusBadge status={request.status} /></td>
-                                            <td className="py-3">{request.notificationStatus || '-'}</td>
-                                            <td className="py-3 text-[var(--color-text-secondary)]">{formatDate(request.createdAt)}</td>
-                                        </tr>
+                                            </TableCell>
+                                            <TableCell className="py-3"><StatusBadge status={request.status} /></TableCell>
+                                            <TableCell className="py-3">{request.notificationStatus || '-'}</TableCell>
+                                            <TableCell className="py-3 text-[var(--color-text-secondary)]">{formatDate(request.createdAt, language)}</TableCell>
+                                        </TableRow>
                                     ))}
-                                </tbody>
-                            </table>
+                                </TableBody>
+                            </Table>
                         </div>
                     )}
                 </CardContent>
-            </Card>
+            </Card>}
         </div>
     )
 }

@@ -1,6 +1,8 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { PanelCommandWarning } from '@/components/ui/PanelLoadError'
+import { usePanelCommand } from '@/hooks/usePanelRequest'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,6 +37,7 @@ export default function ResetPasswordDialog({
     user,
 }: ResetPasswordDialogProps) {
     const { t, dir } = useTranslation()
+    const { request: command, unconfirmed } = usePanelCommand(isOpen ? `${scope}:${user?.id}` : null)
     const copy = t.passwordReset
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
@@ -42,6 +45,7 @@ export default function ResetPasswordDialog({
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
+    const submittingRef = useRef(false)
 
     useEffect(() => {
         setNewPassword('')
@@ -54,7 +58,7 @@ export default function ResetPasswordDialog({
 
     async function submitPasswordReset(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
-        if (!user || submitting) return
+        if (unconfirmed || !user || submittingRef.current) return
 
         if (newPassword.length < 6) {
             setError(copy.minLength)
@@ -66,10 +70,11 @@ export default function ResetPasswordDialog({
             return
         }
 
+        submittingRef.current = true
         setSubmitting(true)
         setError(null)
         try {
-            const response = await fetch(
+            const response = await command(
                 '/api/' + scope + '/users/' + user.id + '/reset-password',
                 {
                     method: 'POST',
@@ -97,6 +102,7 @@ export default function ResetPasswordDialog({
                     : copy.errors.SERVER_ERROR
             )
         } finally {
+            submittingRef.current = false
             setSubmitting(false)
         }
     }
@@ -105,7 +111,7 @@ export default function ResetPasswordDialog({
         <Dialog
             open={isOpen}
             onOpenChange={(open) => {
-                if (!open && !submitting) onClose()
+                if (!open && !submittingRef.current) onClose()
             }}
         >
             <DialogContent panel closeLabel={t.panelUi.close} className="sm:max-w-md" dir={dir}>
@@ -127,6 +133,7 @@ export default function ResetPasswordDialog({
                         </div>
                     </div>
 
+                    <PanelCommandWarning show={unconfirmed} />
                     {error && (
                         <div role="alert" className="rounded-lg bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-300">
                             {error}
@@ -195,13 +202,13 @@ export default function ResetPasswordDialog({
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={onClose}
+                            onClick={() => { if (!submittingRef.current) onClose() }}
                             disabled={submitting}
                         >
                             {success ? t.common.close : t.common.cancel}
                         </Button>
                         {!success && (
-                            <Button type="submit" disabled={submitting}>
+                            <Button type="submit" disabled={unconfirmed || submitting}>
                                 {submitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
                                 {submitting ? copy.submitting : copy.submit}
                             </Button>

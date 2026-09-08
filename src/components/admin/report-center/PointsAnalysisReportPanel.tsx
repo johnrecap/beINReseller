@@ -1,5 +1,9 @@
 'use client'
 
+import { useTranslation } from '@/hooks/useTranslation'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Coins, Filter, RefreshCw, Search, Undo2, Wallet } from 'lucide-react'
@@ -53,16 +57,16 @@ function formatMoney(value: number, currency = 'USD'): string {
     return `${currency} ${value.toFixed(2)}`
 }
 
-function summaryCards(summary: PointAnalysisSummary, currency: string) {
+function summaryCards(summary: PointAnalysisSummary, currency: string, t: ReturnType<typeof useTranslation>['t']) {
     return [
-        { label: 'Earned', value: formatPoints(summary.earnedPoints), icon: Coins },
-        { label: 'Available', value: formatPoints(summary.availablePoints), icon: Wallet },
-        { label: 'Converted', value: formatPoints(summary.convertedPoints), icon: Wallet },
-        { label: 'Converted balance', value: formatMoney(summary.convertedBalanceAmount, currency), icon: Wallet },
-        { label: 'Reversed', value: formatPoints(summary.reversedPoints), icon: Undo2 },
-        { label: 'Pending', value: formatPoints(summary.pendingPoints), icon: Coins },
-        { label: 'Cancelled', value: formatPoints(summary.cancelledPoints), icon: Undo2 },
-        { label: 'Legacy/manual', value: formatPoints(summary.legacyPoints), icon: Filter },
+        { label: t.panelUi.reportCopy.earned, value: formatPoints(summary.earnedPoints), icon: Coins },
+        { label: t.panelUi.operationalCopy.available, value: formatPoints(summary.availablePoints), icon: Wallet },
+        { label: t.panelUi.reportCopy.converted, value: formatPoints(summary.convertedPoints), icon: Wallet },
+        { label: t.panelUi.reportCopy.convertedAmount, value: formatMoney(summary.convertedBalanceAmount, currency), icon: Wallet },
+        { label: t.panelUi.reportCopy.reversed, value: formatPoints(summary.reversedPoints), icon: Undo2 },
+        { label: t.status.pending, value: formatPoints(summary.pendingPoints), icon: Coins },
+        { label: t.status.cancelled, value: formatPoints(summary.cancelledPoints), icon: Undo2 },
+        { label: t.panelUi.reportCopy.legacyManual, value: formatPoints(summary.legacyPoints), icon: Filter },
     ]
 }
 
@@ -76,6 +80,7 @@ function buildQuery(params: Record<string, string>) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+    const { t } = useTranslation()
     const tone = status === 'AVAILABLE'
         ? 'bg-emerald-500/15 text-emerald-300'
         : status === 'REDEEMED'
@@ -84,39 +89,41 @@ function StatusBadge({ status }: { status: string }) {
                 ? 'bg-red-500/15 text-red-300'
                 : 'bg-amber-500/15 text-amber-300'
 
-    return <span className={`rounded-full px-2 py-1 text-xs ${tone}`}>{status}</span>
+    return <span className={`rounded-full px-2 py-1 text-xs ${tone}`}>{({ AVAILABLE: t.panelUi.operationalCopy.available, REDEEMED: t.panelUi.reportCopy.redeemed, CANCELLED: t.status.cancelled, PENDING: t.status.pending } as Record<string, string>)[status] || status}</span>
 }
 
 function PointsRowsTable({ rows, onOwnerClick }: {
     rows: PointsAnalysisRow[]
     onOwnerClick: (ownerId: string) => void
 }) {
+    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
     if (rows.length === 0) {
         return (
             <div className="rounded-lg border border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                No point movements match the current filters.
+                {t.panelUi.reportCopy.noPoints}
             </div>
         )
     }
 
     return (
         <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="min-w-[1100px] w-full text-sm">
-                <thead className="bg-muted/30 text-muted-foreground">
-                    <tr>
-                        <th className="px-4 py-3 text-start font-medium">Owner</th>
-                        <th className="px-4 py-3 text-start font-medium">Source</th>
-                        <th className="px-4 py-3 text-start font-medium">Status</th>
-                        <th className="px-4 py-3 text-start font-medium">Points</th>
-                        <th className="px-4 py-3 text-start font-medium">Money</th>
-                        <th className="px-4 py-3 text-start font-medium">Reference</th>
-                        <th className="px-4 py-3 text-start font-medium">Date</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
+            <Table panel density="compact" className="min-w-[1100px] w-full text-sm">
+                <TableHeader className="bg-muted/30 text-muted-foreground">
+                    <TableRow>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.owner}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.source}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.common.status}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.points}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.money}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.panelTable.reference}</TableHead>
+                        <TableHead className="px-4 py-3 text-start font-medium">{tableText.common.date}</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-border">
                     {rows.map((row) => (
-                        <tr key={row.ledgerEntryId} className="hover:bg-muted/20">
-                            <td className="px-4 py-3">
+                        <TableRow key={row.ledgerEntryId} className="hover:bg-muted/20">
+                            <TableCell className="px-4 py-3">
                                 <button
                                     type="button"
                                     onClick={() => onOwnerClick(row.owner.id)}
@@ -125,48 +132,49 @@ function PointsRowsTable({ rows, onOwnerClick }: {
                                     <span className="block font-semibold">{row.owner.username}</span>
                                     <span className="block text-xs text-muted-foreground">{row.owner.role}</span>
                                 </button>
-                            </td>
-                            <td className="px-4 py-3">
+                            </TableCell>
+                            <TableCell className="px-4 py-3">
                                 <span className="block font-medium text-foreground">{row.sourceLabel}</span>
                                 <span className="block text-xs text-muted-foreground">{row.sourceType}</span>
-                            </td>
-                            <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
-                            <td className="px-4 py-3 font-semibold">{formatPoints(row.points)}</td>
-                            <td className="px-4 py-3">
+                            </TableCell>
+                            <TableCell className="px-4 py-3"><StatusBadge status={row.status} /></TableCell>
+                            <TableCell className="px-4 py-3 font-semibold">{formatPoints(row.points)}</TableCell>
+                            <TableCell className="px-4 py-3">
                                 {row.redemptionRef
                                     ? formatMoney(row.redemptionRef.balanceAmountUsd)
                                     : row.amountUsdSnapshot !== null
                                         ? formatMoney(row.amountUsdSnapshot)
                                         : '-'}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                                 {row.operationRef?.cardNumber
-                                    ? `Card ${row.operationRef.cardNumber}`
+                                    ? t.panelUi.reportCopy.cardReference.replace('{id}', row.operationRef.cardNumber)
                                     : row.redemptionRef
-                                        ? `Redemption ${row.redemptionRef.id.slice(0, 8)}`
+                                        ? t.panelUi.reportCopy.redemptionReference.replace('{id}', row.redemptionRef.id.slice(0, 8))
                                         : row.transactionRef
-                                            ? `Transaction ${row.transactionRef.id.slice(0, 8)}`
-                                            : 'Reference unavailable'}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">{row.createdAtDisplay}</td>
-                        </tr>
+                                            ? t.panelUi.reportCopy.transactionReference.replace('{id}', row.transactionRef.id.slice(0, 8))
+                                            : t.panelUi.reportCopy.referenceUnavailable}
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-xs text-muted-foreground">{row.createdAtDisplay}</TableCell>
+                        </TableRow>
                     ))}
-                </tbody>
-            </table>
+                </TableBody>
+            </Table>
         </div>
     )
 }
 
 export default function PointsAnalysisReportPanel() {
+    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const [data, setData] = useState<PointsAnalysisResponse | null>(null)
     const [ownerData, setOwnerData] = useState<OwnerTimelineResponse | null>(null)
     const [selectedOwnerId, setSelectedOwnerId] = useState('')
-    const [loading, setLoading] = useState(true)
-    const [ownerLoading, setOwnerLoading] = useState(false)
-    const [error, setError] = useState('')
+    const { load, loading, error } = usePanelRequest()
+    const { load: loadOwnerRequest, loading: ownerLoading, error: ownerError, cancel: cancelOwner } = usePanelRequest()
     const [form, setForm] = useState({
         ownerSearch: searchParams.get('ownerSearch') ?? '',
         role: searchParams.get('role') ?? '',
@@ -178,38 +186,24 @@ export default function PointsAnalysisReportPanel() {
     })
 
     const currency = data?.settings.currencyLabel ?? 'USD'
-    const cards = useMemo(() => summaryCards(data?.summary ?? EMPTY_SUMMARY, currency), [data?.summary, currency])
+    const cards = useMemo(() => summaryCards(data?.summary ?? EMPTY_SUMMARY, currency, t), [data?.summary, currency, t])
 
     async function loadReport(params = searchParams) {
-        setLoading(true)
-        setError('')
-        try {
-            const query = new URLSearchParams(params.toString())
-            query.delete('tab')
-            const response = await fetch(`/api/admin/reports/points-analysis?${query.toString()}`)
-            const payload = await response.json()
-            if (!response.ok) throw new Error(payload.error || 'Failed to load points analysis')
+        const query = new URLSearchParams(params.toString())
+        query.delete('tab')
+        setData(null)
+        cancelOwner()
+        setSelectedOwnerId('')
+        setOwnerData(null)
+        await load<PointsAnalysisResponse>(`/api/admin/reports/points-analysis?${query.toString()}`, payload => {
             setData(payload)
-        } catch (loadError) {
-            setError(loadError instanceof Error ? loadError.message : 'Failed to load points analysis')
-        } finally {
-            setLoading(false)
-        }
+        })
     }
 
     async function loadOwner(ownerId: string) {
         setSelectedOwnerId(ownerId)
-        setOwnerLoading(true)
-        try {
-            const response = await fetch(`/api/admin/reports/points-analysis/owners/${encodeURIComponent(ownerId)}`)
-            const payload = await response.json()
-            if (!response.ok) throw new Error(payload.error || 'Failed to load owner timeline')
-            setOwnerData(payload)
-        } catch {
-            setOwnerData(null)
-        } finally {
-            setOwnerLoading(false)
-        }
+        setOwnerData(null)
+        await loadOwnerRequest<OwnerTimelineResponse>(`/api/admin/reports/points-analysis/owners/${encodeURIComponent(ownerId)}`, setOwnerData)
     }
 
     useEffect(() => {
@@ -235,9 +229,9 @@ export default function PointsAnalysisReportPanel() {
             <div className="rounded-lg border border-border bg-card p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h2 className="text-xl font-bold text-foreground">Points Analysis</h2>
+                        <h2 className="text-xl font-bold text-foreground">{t.panelUi.reportCopy.pointsAnalysis}</h2>
                         <p className="text-sm text-muted-foreground">
-                            Read-only audit of where points came from, what is still available, and what converted to balance.
+                            {t.panelUi.reportCopy.pointsHint}
                         </p>
                     </div>
                     <button
@@ -246,81 +240,81 @@ export default function PointsAnalysisReportPanel() {
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-foreground hover:bg-muted"
                     >
                         <RefreshCw className="h-4 w-4" />
-                        Refresh
+                        {t.common.refresh}
                     </button>
                 </div>
 
                 <form onSubmit={applyFilters} className="mt-5 grid gap-3 md:grid-cols-4">
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Owner</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.owner}</span>
                         <input
                             value={form.ownerSearch}
                             onChange={(event) => setForm((current) => ({ ...current, ownerSearch: event.target.value }))}
                             className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
-                            placeholder="Username or email"
+                            placeholder={t.panelUi.reportCopy.usernameEmail}
                         />
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Role</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.role}</span>
                         <select
                             value={form.role}
                             onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
                             className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
                         >
-                            <option value="">All roles</option>
-                            <option value="ADMIN">Admin</option>
-                            <option value="MANAGER">Manager</option>
-                            <option value="AGENT">Agent</option>
-                            <option value="USER">User</option>
+                            <option value="">{t.panelUi.reportCopy.allRoles}</option>
+                            <option value="ADMIN">{t.panelUi.reportCopy.admin}</option>
+                            <option value="MANAGER">{t.panelUi.reportCopy.manager}</option>
+                            <option value="AGENT">{t.common.ownerAgent}</option>
+                            <option value="USER">{t.admin.users.roles.user}</option>
                         </select>
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Source</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.source}</span>
                         <select
                             value={form.sourceType}
                             onChange={(event) => setForm((current) => ({ ...current, sourceType: event.target.value }))}
                             className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
                         >
-                            <option value="">All sources</option>
-                            <option value="OPERATION_SPEND">Operation spend</option>
-                            <option value="EID_REWARD">Eid reward</option>
-                            <option value="POINT_CASH_REDEMPTION">Converted to balance</option>
-                            <option value="POINT_REVERSAL">Reversal</option>
-                            <option value="ADMIN_ADJUSTMENT">Admin/manual</option>
+                            <option value="">{t.panelUi.reportCopy.allSources}</option>
+                            <option value="OPERATION_SPEND">{t.panelUi.reportCopy.operationSpend}</option>
+                            <option value="EID_REWARD">{t.panelUi.reportCopy.eidReward}</option>
+                            <option value="POINT_CASH_REDEMPTION">{t.panelUi.reportCopy.convertedBalance}</option>
+                            <option value="POINT_REVERSAL">{t.panelUi.reportCopy.reversal}</option>
+                            <option value="ADMIN_ADJUSTMENT">{t.panelUi.reportCopy.adminManual}</option>
                         </select>
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">State</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.state}</span>
                         <select
                             value={form.conversionState}
                             onChange={(event) => setForm((current) => ({ ...current, conversionState: event.target.value }))}
                             className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
                         >
-                            <option value="">All states</option>
-                            <option value="available">Available</option>
-                            <option value="converted">Converted</option>
-                            <option value="reversed">Reversed</option>
-                            <option value="pending">Pending</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="legacy">Legacy/manual</option>
+                            <option value="">{t.panelUi.reportCopy.allStates}</option>
+                            <option value="available">{t.panelUi.operationalCopy.available}</option>
+                            <option value="converted">{t.panelUi.reportCopy.converted}</option>
+                            <option value="reversed">{t.panelUi.reportCopy.reversed}</option>
+                            <option value="pending">{t.status.pending}</option>
+                            <option value="cancelled">{t.status.cancelled}</option>
+                            <option value="legacy">{t.panelUi.reportCopy.legacyManual}</option>
                         </select>
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Status</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.status}</span>
                         <select
                             value={form.status}
                             onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
                             className="h-10 w-full rounded-md border border-border bg-background px-3 text-foreground"
                         >
-                            <option value="">All statuses</option>
-                            <option value="PENDING">Pending</option>
-                            <option value="AVAILABLE">Available</option>
-                            <option value="REDEEMED">Redeemed</option>
-                            <option value="CANCELLED">Cancelled</option>
+                            <option value="">{t.panelUi.reportCopy.allStatusesLower}</option>
+                            <option value="PENDING">{t.status.pending}</option>
+                            <option value="AVAILABLE">{t.panelUi.operationalCopy.available}</option>
+                            <option value="REDEEMED">{t.panelUi.reportCopy.redeemed}</option>
+                            <option value="CANCELLED">{t.status.cancelled}</option>
                         </select>
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">From</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.from}</span>
                         <input
                             type="date"
                             value={form.from}
@@ -329,7 +323,7 @@ export default function PointsAnalysisReportPanel() {
                         />
                     </label>
                     <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">To</span>
+                        <span className="text-muted-foreground">{t.panelUi.reportCopy.to}</span>
                         <input
                             type="date"
                             value={form.to}
@@ -343,18 +337,17 @@ export default function PointsAnalysisReportPanel() {
                             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                         >
                             <Search className="h-4 w-4" />
-                            Apply filters
+                            {t.panelUi.reportCopy.applyFilters}
                         </button>
                     </div>
                 </form>
             </div>
 
-            {error && (
-                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-                    {error}
-                </div>
-            )}
+            {error !== null && <PanelLoadError status={error} retry={() => void loadReport()} />}
+            {selectedOwnerId && ownerError !== null && <PanelLoadError status={ownerError} retry={() => void loadOwner(selectedOwnerId)} />}
 
+            {loading && <p role="status" className="p-6 text-center text-muted-foreground">{tableText.common.loading}</p>}
+            {data && !loading && error === null && <div data-panel-report-results className="contents">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {cards.map((card) => {
                     const Icon = card.icon
@@ -373,12 +366,12 @@ export default function PointsAnalysisReportPanel() {
             <div className="rounded-lg border border-border bg-card p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                        <h3 className="text-lg font-semibold text-foreground">Point movement ledger</h3>
+                        <h3 className="text-lg font-semibold text-foreground">{t.panelUi.reportCopy.pointLedger}</h3>
                         <p className="text-sm text-muted-foreground">
-                            {data?.pagination.total ?? 0} rows across {data?.summary.ownersCount ?? 0} owners.
+                            {data?.pagination.total ?? 0} {t.panelUi.reportCopy.rowsAcross} {data?.summary.ownersCount ?? 0} {t.panelUi.reportCopy.owners}
                         </p>
                     </div>
-                    {loading && <span className="text-sm text-muted-foreground">Loading...</span>}
+                    {loading && <span className="text-sm text-muted-foreground">{t.common.loading}</span>}
                 </div>
                 <PointsRowsTable rows={data?.rows ?? []} onOwnerClick={loadOwner} />
                 {data && data.pagination.totalPages > 1 && (
@@ -389,10 +382,10 @@ export default function PointsAnalysisReportPanel() {
                             onClick={() => changePage(data.pagination.page - 1)}
                             className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50"
                         >
-                            Previous
+                            {t.panelUi.reportCopy.previous}
                         </button>
                         <span className="text-sm text-muted-foreground">
-                            Page {data.pagination.page} / {data.pagination.totalPages}
+                            {t.panelUi.reportCopy.page} {data.pagination.page} / {data.pagination.totalPages}
                         </span>
                         <button
                             type="button"
@@ -400,49 +393,50 @@ export default function PointsAnalysisReportPanel() {
                             onClick={() => changePage(data.pagination.page + 1)}
                             className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50"
                         >
-                            Next
+                            {t.panelUi.reportCopy.next}
                         </button>
                     </div>
                 )}
             </div>
 
-            {(selectedOwnerId || ownerLoading) && (
+            {selectedOwnerId && (
                 <div className="rounded-lg border border-border bg-card p-5">
                     <div className="mb-4 flex items-center justify-between">
                         <div>
-                            <h3 className="text-lg font-semibold text-foreground">Owner timeline</h3>
+                            <h3 className="text-lg font-semibold text-foreground">{t.panelUi.reportCopy.ownerTimeline}</h3>
                             <p className="text-sm text-muted-foreground">
                                 {ownerData
                                     ? `${ownerData.owner.username} - ${ownerData.owner.role}`
                                     : ownerLoading
-                                        ? 'Loading owner timeline...'
-                                        : 'Owner timeline unavailable'}
+                                        ? t.panelUi.reportCopy.loadingTimeline
+                                        : t.panelUi.reportCopy.timelineUnavailable}
                             </p>
                         </div>
                         <button
                             type="button"
                             onClick={() => {
+                                cancelOwner()
                                 setSelectedOwnerId('')
                                 setOwnerData(null)
                             }}
                             className="rounded-md border border-border px-3 py-2 text-sm"
                         >
-                            Close
+                            {t.common.close}
                         </button>
                     </div>
                     {ownerData && (
                         <>
                             <div className="mb-4 grid gap-3 sm:grid-cols-3">
                                 <div className="rounded-md bg-muted/20 p-3">
-                                    <div className="text-xs text-muted-foreground">Available</div>
+                                    <div className="text-xs text-muted-foreground">{t.panelUi.operationalCopy.available}</div>
                                     <div className="text-lg font-semibold">{formatPoints(ownerData.summary.availablePoints)}</div>
                                 </div>
                                 <div className="rounded-md bg-muted/20 p-3">
-                                    <div className="text-xs text-muted-foreground">Converted</div>
+                                    <div className="text-xs text-muted-foreground">{t.panelUi.reportCopy.converted}</div>
                                     <div className="text-lg font-semibold">{formatPoints(ownerData.summary.convertedPoints)}</div>
                                 </div>
                                 <div className="rounded-md bg-muted/20 p-3">
-                                    <div className="text-xs text-muted-foreground">Balance credited</div>
+                                    <div className="text-xs text-muted-foreground">{t.panelUi.reportCopy.balanceCredited}</div>
                                     <div className="text-lg font-semibold">{formatMoney(ownerData.summary.convertedBalanceAmount)}</div>
                                 </div>
                             </div>
@@ -451,6 +445,7 @@ export default function PointsAnalysisReportPanel() {
                     )}
                 </div>
             )}
+            </div>}
         </section>
     )
 }

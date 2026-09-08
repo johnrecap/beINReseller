@@ -2,7 +2,7 @@
 
 import { Users, UserCheck, AlertTriangle, UserX, Clock } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
-import { ACTIVITY_STATUS, STATUS_CHART_COLORS } from '@/lib/activity-status'
+import { ACTIVITY_STATUS } from '@/lib/activity-status'
 import type { InactivityMetrics } from '@/types/activity'
 
 interface ActivityOverviewCardsProps {
@@ -16,47 +16,47 @@ export function ActivityOverviewCards({ metrics, loading }: ActivityOverviewCard
     
     const cards = [
         {
-            label: locale === 'ar' ? 'إجمالي المستخدمين' : 'Total Users',
+            label: t.activity.metrics.totalUsers,
             value: metrics.total,
             icon: Users,
             color: 'from-slate-500 to-slate-600',
             textColor: 'text-slate-600 dark:text-slate-400'
         },
         {
-            label: ACTIVITY_STATUS.active.label[locale as 'ar' | 'en'],
+            label: t.activity.status.active,
             value: metrics.active,
             icon: UserCheck,
             color: 'from-green-500 to-green-600',
             textColor: 'text-green-600 dark:text-green-400',
             percentage: metrics.total > 0 ? Math.round((metrics.active / metrics.total) * 100) : 0,
-            description: locale === 'ar' ? '< 3 أيام' : '< 3 days'
+            description: t.activity.days.lessThan3
         },
         {
-            label: ACTIVITY_STATUS.warning.label[locale as 'ar' | 'en'],
+            label: t.activity.status.warning,
             value: metrics.warning,
             icon: AlertTriangle,
             color: 'from-yellow-500 to-yellow-600',
             textColor: 'text-yellow-600 dark:text-yellow-400',
             percentage: metrics.total > 0 ? Math.round((metrics.warning / metrics.total) * 100) : 0,
-            description: locale === 'ar' ? '7-14 يوم' : '7-14 days'
+            description: t.activity.days.range7to14
         },
         {
-            label: ACTIVITY_STATUS.inactive.label[locale as 'ar' | 'en'],
+            label: t.activity.status.inactive,
             value: metrics.inactive,
             icon: Clock,
             color: 'from-orange-500 to-orange-600',
             textColor: 'text-orange-600 dark:text-orange-400',
             percentage: metrics.total > 0 ? Math.round((metrics.inactive / metrics.total) * 100) : 0,
-            description: locale === 'ar' ? '14-30 يوم' : '14-30 days'
+            description: t.activity.days.range14to30
         },
         {
-            label: ACTIVITY_STATUS.critical.label[locale as 'ar' | 'en'],
+            label: t.activity.status.critical,
             value: metrics.critical,
             icon: UserX,
             color: 'from-red-500 to-red-600',
             textColor: 'text-red-600 dark:text-red-400',
             percentage: metrics.total > 0 ? Math.round((metrics.critical / metrics.total) * 100) : 0,
-            description: locale === 'ar' ? '> 30 يوم' : '> 30 days'
+            description: t.activity.days.moreThan30
         }
     ]
     
@@ -116,7 +116,7 @@ interface InactivityBreakdownProps {
 }
 
 export function InactivityBreakdown({ metrics, loading }: InactivityBreakdownProps) {
-    const { locale } = useTranslation()
+    const { t, locale } = useTranslation()
     const dir = locale === 'ar' ? 'rtl' : 'ltr'
     
     const categories = [
@@ -143,7 +143,7 @@ export function InactivityBreakdown({ metrics, loading }: InactivityBreakdownPro
     return (
         <div className="bg-card rounded-xl border border-border p-6" dir={dir}>
             <h3 className="text-lg font-semibold text-foreground mb-4">
-                {locale === 'ar' ? 'توزيع النشاط' : 'Activity Distribution'}
+                {t.activity.chart.distribution}
             </h3>
             
             <div className="space-y-3">
@@ -158,7 +158,7 @@ export function InactivityBreakdown({ metrics, loading }: InactivityBreakdownPro
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-center mb-1">
                                     <span className="text-sm font-medium text-foreground">
-                                        {cat.label[locale as 'ar' | 'en']}
+                                        {t.activity.status[cat.key as keyof typeof t.activity.status]}
                                     </span>
                                     <span className="text-sm text-muted-foreground">
                                         {cat.count} ({percentage}%)

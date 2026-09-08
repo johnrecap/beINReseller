@@ -1,6 +1,9 @@
 'use client'
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { useState, useEffect, useCallback } from 'react'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { Search, User, ArrowRight, ArrowLeft, Clock, ChevronDown, ChevronUp, LogIn, ShieldX, LogOut, RefreshCw, Radio, Zap, CreditCard, Plus, Layers, Play, CheckCircle, XCircle, Ban, HeartOff, DollarSign, ArrowDownLeft, ArrowRightLeft, Wallet, UserPlus, UserMinus, KeyRound, Settings, Wrench, UserCog, Activity, Shield, Users } from 'lucide-react'
 import { format as formatDate } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
@@ -28,7 +31,7 @@ interface Log {
 export default function LogsTable() {
     const { t, language } = useTranslation()
     const [logs, setLogs] = useState<Log[]>([])
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error, cancel } = usePanelRequest()
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [search, setSearch] = useState('')
@@ -48,45 +51,30 @@ export default function LogsTable() {
 
     // Debounce Search
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedSearch(search), 500)
+        const timer = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 500)
         return () => clearTimeout(timer)
     }, [search])
 
-    const fetchLogs = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams({
-                page: page.toString(),
-                limit: '20',
-                search: debouncedSearch,
-                action: actionFilter
-            })
-
-            if (dateFilter) {
-                const dateStr = formatDate(dateFilter, 'yyyy-MM-dd')
-                params.set('dateFrom', dateStr)
-                params.set('dateTo', dateStr)
-            }
-
-            const res = await fetch(`/api/admin/logs?${params}`)
-            const data = await res.json()
-            if (res.ok) {
-                setLogs(data.logs)
-                const nextTotalPages = Math.max(1, data.totalPages || 1)
-                setTotalPages(nextTotalPages)
-                if (page > nextTotalPages) {
-                    setPage(nextTotalPages)
-                }
-            }
-        } catch {
-        } finally {
-            setLoading(false)
+    const fetchLogs = useCallback(() => {
+        const params = new URLSearchParams({ page: String(page), limit: '20', search: debouncedSearch, action: actionFilter })
+        if (dateFilter) {
+            const dateStr = formatDate(dateFilter, 'yyyy-MM-dd')
+            params.set('dateFrom', dateStr)
+            params.set('dateTo', dateStr)
         }
-    }, [page, debouncedSearch, actionFilter, dateFilter])
+        setLogs([])
+        return load<{ logs: Log[]; totalPages: number }>(`/api/admin/logs?${params}`, data => {
+            const lastPage = Math.max(1, data.totalPages || 1)
+            setTotalPages(lastPage)
+            if (page > lastPage) { setPage(lastPage); return }
+            setLogs(data.logs)
+        })
+    }, [page, debouncedSearch, actionFilter, dateFilter, load])
 
     useEffect(() => {
-        fetchLogs()
-    }, [fetchLogs])
+        const timer = window.setTimeout(() => void fetchLogs(), 0)
+        return () => { window.clearTimeout(timer); cancel() }
+    }, [fetchLogs, cancel])
 
     const handleRefresh = async () => {
         setRefreshing(true)
@@ -114,15 +102,15 @@ export default function LogsTable() {
     return (
         <div className="space-y-4">
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4 bg-card p-4 rounded-xl shadow-sm border border-border">
-                <div className="relative flex-1">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
+            <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl shadow-sm border border-border">
+                <div className="relative min-w-0 flex-1 basis-56">
+                    <Search className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                     <input
                         type="text"
                         placeholder={t.admin.logs.filters.search}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pr-10 pl-4 py-2 border border-border rounded-lg focus:outline-none focus:border-blue-500 bg-background text-foreground"
+                        className="w-full ps-10 pe-4 py-2 border border-border rounded-lg focus:outline-none focus:border-blue-500 bg-background text-foreground"
                     />
                 </div>
                 <div>
@@ -157,32 +145,33 @@ export default function LogsTable() {
                 </button>
             </div>
 
+            {error !== null && <PanelLoadError status={error} retry={() => void fetchLogs()} />}
             {/* Logs List */}
-            <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
+            <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border" hidden={error !== null}>
                 <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-secondary border-b border-border">
-                            <tr>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.user}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.action}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.details}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.ip}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.time}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
+                    <Table panel density="compact" className="w-full">
+                        <TableHeader className="bg-secondary border-b border-border">
+                            <TableRow>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.user}</TableHead>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.action}</TableHead>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.details}</TableHead>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.ip}</TableHead>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin.logs.table.time}</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-border">
                             {loading ? (
                                 [...Array(5)].map((_, i) => (
-                                    <tr key={i} className="animate-pulse">
-                                        <td className="p-4" colSpan={5}>
+                                    <TableRow key={i} className="animate-pulse">
+                                        <TableCell className="p-4" colSpan={5}>
                                             <div className="h-4 bg-muted rounded w-full"></div>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 ))
                             ) : logs.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="p-8 text-center text-muted-foreground">{t.admin.logs.table.noLogs}</td>
-                                </tr>
+                                <TableRow>
+                                    <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">{t.admin.logs.table.noLogs}</TableCell>
+                                </TableRow>
                             ) : (
                                 logs.map((log) => {
                                     const info = getActionInfo(log.action)
@@ -195,21 +184,21 @@ export default function LogsTable() {
 
                                     return (
                                         <>
-                                            <tr
+                                            <TableRow
                                                 key={log.id}
                                                 className="hover:bg-secondary/50 transition-colors cursor-pointer"
                                                 onClick={() => setExpandedRow(isExpanded ? null : log.id)}
                                             >
                                                 {/* User */}
-                                                <td className="px-4 py-3">
+                                                <TableCell className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
                                                         <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                                         <span className="font-medium text-foreground">{log.username}</span>
                                                     </div>
-                                                </td>
+                                                </TableCell>
 
                                                 {/* Action — Category badge + label + outcome */}
-                                                <td className="px-4 py-3">
+                                                <TableCell className="px-4 py-3">
                                                     <div className="flex flex-col gap-1.5">
                                                         {/* Category badge */}
                                                         <div className="flex items-center gap-2">
@@ -229,10 +218,10 @@ export default function LogsTable() {
                                                             </span>
                                                         </div>
                                                     </div>
-                                                </td>
+                                                </TableCell>
 
                                                 {/* Details — formatted */}
-                                                <td className="px-4 py-3">
+                                                <TableCell className="px-4 py-3">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-sm text-muted-foreground max-w-xs truncate" title={formattedDetails}>
                                                             {formattedDetails}
@@ -243,26 +232,26 @@ export default function LogsTable() {
                                                                 : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                                                         )}
                                                     </div>
-                                                </td>
+                                                </TableCell>
 
                                                 {/* IP */}
-                                                <td className="px-4 py-3">
+                                                <TableCell className="px-4 py-3">
                                                     <span className="font-mono text-xs text-muted-foreground">{log.ipAddress || '—'}</span>
-                                                </td>
+                                                </TableCell>
 
                                                 {/* Time */}
-                                                <td className="px-4 py-3 text-xs text-muted-foreground">
+                                                <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                                                     <div className="flex items-center gap-1">
                                                         <Clock className="w-3 h-3" />
                                                         {formatDate(new Date(log.createdAt), 'dd/MM/yyyy HH:mm', { locale: currentLocale })}
                                                     </div>
-                                                </td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
 
                                             {/* Expanded details row */}
                                             {isExpanded && (
-                                                <tr key={`${log.id}-expanded`} className="bg-secondary/30">
-                                                    <td colSpan={5} className="px-6 py-3">
+                                                <TableRow key={`${log.id}-expanded`} className="bg-secondary/30">
+                                                    <TableCell colSpan={5} className="px-6 py-3">
                                                         <div className="text-xs">
                                                             <div className="flex items-center gap-2 mb-2">
                                                                 <span className="text-muted-foreground font-medium">Raw Action:</span>
@@ -278,15 +267,15 @@ export default function LogsTable() {
                                                                 </pre>
                                                             </div>
                                                         </div>
-                                                    </td>
-                                                </tr>
+                                                    </TableCell>
+                                                </TableRow>
                                             )}
                                         </>
                                     )
                                 })
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
 
                 {/* Pagination */}

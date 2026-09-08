@@ -1,22 +1,22 @@
 'use client'
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { useState } from 'react'
+import { SortableTableHead } from '@/components/ui/PanelTableControls'
 import { useTranslation } from '@/hooks/useTranslation'
 import { ActivityStatusBadge } from '@/components/ui/ActivityStatusBadge'
-import { INACTIVITY_FILTER_OPTIONS, formatDaysSinceActivity } from '@/lib/activity-status'
-import type { InactiveUser, ActivityStatusType } from '@/types/activity'
+import { INACTIVITY_FILTER_OPTIONS } from '@/lib/activity-status'
+import type { InactiveUser } from '@/types/activity'
 import {
     ChevronLeft,
     ChevronRight,
     Search,
     Filter,
     Eye,
-    Mail,
-    UserX,
     ArrowUpDown
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { ar, enUS } from 'date-fns/locale'
+import { ar, enUS, bn } from 'date-fns/locale'
 
 interface InactiveUsersTableProps {
     users: InactiveUser[]
@@ -41,7 +41,6 @@ export function InactiveUsersTable({
     users,
     total,
     page,
-    limit,
     totalPages,
     filters,
     loading,
@@ -51,7 +50,7 @@ export function InactiveUsersTable({
 }: InactiveUsersTableProps) {
     const { t, locale } = useTranslation()
     const dir = locale === 'ar' ? 'rtl' : 'ltr'
-    const dateLocale = locale === 'ar' ? ar : enUS
+    const dateLocale = locale === 'ar' ? ar : locale === 'bn' ? bn : enUS
 
     const [now] = useState(Date.now)
     const [searchInput, setSearchInput] = useState(filters.search || '')
@@ -79,10 +78,17 @@ export function InactiveUsersTable({
         return format(new Date(date), 'dd/MM/yyyy HH:mm', { locale: dateLocale })
     }
 
-    const roleLabels: Record<string, { ar: string; en: string }> = {
-        ADMIN: { ar: 'مدير', en: 'Admin' },
-        MANAGER: { ar: 'موزع', en: 'Manager' },
-        USER: { ar: 'مستخدم', en: 'User' }
+    const roleLabels: Record<string, string> = {
+        ADMIN: t.admin.users.roles.admin,
+        MANAGER: t.admin.users.roles.manager,
+        USER: t.admin.users.roles.user,
+    }
+    const formatActivityAge = (date: Date | null) => {
+        if (!date) return t.activity.table.neverLoggedIn
+        const days = Math.max(0, Math.floor((now - new Date(date).getTime()) / 86_400_000))
+        if (days === 0) return t.activity.time.today
+        if (days === 1) return t.activity.time.yesterday
+        return t.activity.time.daysAgo.replace('{days}', new Intl.NumberFormat(locale).format(days))
     }
 
     return (
@@ -96,6 +102,7 @@ export function InactiveUsersTable({
                             <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                             <input
                                 type="text"
+                                aria-label={t.activity.filters.searchPlaceholder}
                                 placeholder={t.activity?.filters?.searchPlaceholder || 'Search by name or email...'}
                                 value={searchInput}
                                 onChange={(e) => setSearchInput(e.target.value)}
@@ -107,31 +114,34 @@ export function InactiveUsersTable({
 
                     {/* Inactivity Days Filter */}
                     <select
+                        aria-label={t.activity.filters.inactiveSince}
                         value={filters.days}
                         onChange={(e) => onFiltersChange({ days: Number(e.target.value) })}
                         className="px-3 py-2 rounded-lg border border-border bg-background text-sm focus:ring-2 focus:ring-primary"
                     >
                         {INACTIVITY_FILTER_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
-                                {locale === 'ar' ? `${t.activity?.filters?.inactiveSince || 'Inactive for'} ${opt.label.ar}` : `${t.activity?.filters?.inactiveSince || 'Inactive for'} ${opt.label.en}`}
+                                {t.activity.filters.inactiveSince} {t.activity.filters.daysCount.replace('{days}', new Intl.NumberFormat(locale).format(opt.value))}
                             </option>
                         ))}
                     </select>
 
                     {/* Role Filter */}
                     <select
+                        aria-label={t.activity.table.role}
                         value={filters.role || ''}
                         onChange={(e) => onFiltersChange({ role: e.target.value || undefined })}
                         className="px-3 py-2 rounded-lg border border-border bg-background text-sm focus:ring-2 focus:ring-primary"
                     >
                         <option value="">{t.activity?.filters?.allRoles || 'All Roles'}</option>
-                        <option value="USER">{roleLabels.USER[locale as 'ar' | 'en']}</option>
-                        <option value="MANAGER">{roleLabels.MANAGER[locale as 'ar' | 'en']}</option>
-                        <option value="ADMIN">{roleLabels.ADMIN[locale as 'ar' | 'en']}</option>
+                        <option value="USER">{roleLabels.USER}</option>
+                        <option value="MANAGER">{roleLabels.MANAGER}</option>
+                        <option value="ADMIN">{roleLabels.ADMIN}</option>
                     </select>
 
                     {/* Search Button */}
                     <button
+                        aria-label={t.activity.filters.searchPlaceholder}
                         onClick={handleSearch}
                         className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
@@ -147,117 +157,109 @@ export function InactiveUsersTable({
 
             {/* Table */}
             <div className="overflow-x-auto">
-                <table className="w-full">
-                    <thead className="bg-muted/50">
-                        <tr>
-                            <th className="px-4 py-3 text-start text-sm font-medium text-muted-foreground">
+                <Table panel density="compact" className="w-full">
+                    <TableHeader className="bg-muted/50">
+                        <TableRow>
+                            <TableHead className="px-4 py-3 text-start text-sm font-medium text-muted-foreground">
                                 {t.activity?.table?.user || 'User'}
-                            </th>
-                            <th className="px-4 py-3 text-start text-sm font-medium text-muted-foreground">
+                            </TableHead>
+                            <TableHead className="px-4 py-3 text-start text-sm font-medium text-muted-foreground">
                                 {t.activity?.table?.role || 'Role'}
-                            </th>
-                            <th
+                            </TableHead>
+                            <SortableTableHead
                                 className="px-4 py-3 text-start text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground"
-                                onClick={() => toggleSort('lastLogin')}
+                                direction={filters.sortBy === 'lastLogin' ? (filters.sortOrder === 'asc' ? 'asc' : 'desc') : undefined}
+                                onSort={() => toggleSort('lastLogin')}
                             >
                                 <span className="inline-flex items-center gap-1">
                                     {t.activity?.table?.lastLogin || 'Last Login'}
                                     <ArrowUpDown className="w-3 h-3" />
                                 </span>
-                            </th>
-                            <th
+                            </SortableTableHead>
+                            <SortableTableHead
                                 className="px-4 py-3 text-start text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground"
-                                onClick={() => toggleSort('lastOperation')}
+                                direction={filters.sortBy === 'lastOperation' ? (filters.sortOrder === 'asc' ? 'asc' : 'desc') : undefined}
+                                onSort={() => toggleSort('lastOperation')}
                             >
                                 <span className="inline-flex items-center gap-1">
                                     {t.activity?.table?.lastOperation || 'Last Operation'}
                                     <ArrowUpDown className="w-3 h-3" />
                                 </span>
-                            </th>
-                            <th className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
+                            </SortableTableHead>
+                            <TableHead className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
                                 {t.activity?.table?.stats || 'Stats'}
-                            </th>
-                            <th className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
+                            </TableHead>
+                            <TableHead className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
                                 {t.activity?.table?.status || 'Status'}
-                            </th>
-                            <th className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
+                            </TableHead>
+                            <TableHead className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
                                 {t.activity?.table?.actions || 'Actions'}
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
+                            </TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-border">
                         {loading ? (
                             [...Array(5)].map((_, i) => (
-                                <tr key={i} className="animate-pulse">
-                                    <td className="px-4 py-4"><div className="h-4 bg-muted rounded w-32" /></td>
-                                    <td className="px-4 py-4"><div className="h-4 bg-muted rounded w-16" /></td>
-                                    <td className="px-4 py-4"><div className="h-4 bg-muted rounded w-24" /></td>
-                                    <td className="px-4 py-4"><div className="h-4 bg-muted rounded w-24" /></td>
-                                    <td className="px-4 py-4"><div className="h-4 bg-muted rounded w-16 mx-auto" /></td>
-                                    <td className="px-4 py-4"><div className="h-6 bg-muted rounded-full w-20 mx-auto" /></td>
-                                    <td className="px-4 py-4"><div className="h-8 bg-muted rounded w-8 mx-auto" /></td>
-                                </tr>
+                                <TableRow key={i} className="animate-pulse">
+                                    <TableCell className="px-4 py-4"><div className="h-4 bg-muted rounded w-32" /></TableCell>
+                                    <TableCell className="px-4 py-4"><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                                    <TableCell className="px-4 py-4"><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                                    <TableCell className="px-4 py-4"><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                                    <TableCell className="px-4 py-4"><div className="h-4 bg-muted rounded w-16 mx-auto" /></TableCell>
+                                    <TableCell className="px-4 py-4"><div className="h-6 bg-muted rounded-full w-20 mx-auto" /></TableCell>
+                                    <TableCell className="px-4 py-4"><div className="h-8 bg-muted rounded w-8 mx-auto" /></TableCell>
+                                </TableRow>
                             ))
                         ) : users.length === 0 ? (
-                            <tr>
-                                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                            <TableRow>
+                                <TableCell colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                                     {t.activity?.table?.noInactiveUsers || 'No inactive users found'}
-                                </td>
-                            </tr>
+                                </TableCell>
+                            </TableRow>
                         ) : (
                             users.map((user) => (
-                                <tr key={user.id} className="hover:bg-muted/30 transition-colors">
-                                    <td className="px-4 py-4">
+                                <TableRow key={user.id} className="hover:bg-muted/30 transition-colors">
+                                    <TableCell className="px-4 py-4">
                                         <div>
                                             <p className="font-medium text-foreground">{user.username}</p>
                                             <p className="text-sm text-muted-foreground">{user.email}</p>
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-4">
+                                    </TableCell>
+                                    <TableCell className="px-4 py-4">
                                         <span className="text-sm text-muted-foreground">
-                                            {roleLabels[user.role]?.[locale as 'ar' | 'en'] || user.role}
+                                            {roleLabels[user.role] || user.role}
                                         </span>
-                                    </td>
-                                    <td className="px-4 py-4">
+                                    </TableCell>
+                                    <TableCell className="px-4 py-4">
                                         <div>
                                             <p className="text-sm text-foreground">
                                                 {formatDate(user.lastLoginAt)}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                {formatDaysSinceActivity(
-                                                    user.lastLoginAt
-                                                        ? Math.floor((now - new Date(user.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24))
-                                                        : null,
-                                                    locale as 'ar' | 'en'
-                                                )}
+                                                {formatActivityAge(user.lastLoginAt)}
                                             </p>
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-4">
+                                    </TableCell>
+                                    <TableCell className="px-4 py-4">
                                         <div>
                                             <p className="text-sm text-foreground">
                                                 {formatDate(user.lastOperationAt)}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                {formatDaysSinceActivity(
-                                                    user.lastOperationAt
-                                                        ? Math.floor((now - new Date(user.lastOperationAt).getTime()) / (1000 * 60 * 60 * 24))
-                                                        : null,
-                                                    locale as 'ar' | 'en'
-                                                )}
+                                                {formatActivityAge(user.lastOperationAt)}
                                             </p>
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-4 text-center">
+                                    </TableCell>
+                                    <TableCell className="px-4 py-4 text-center">
                                         <div className="text-sm">
                                             <p><span className="text-muted-foreground">{t.activity?.table?.logins || 'Logins:'}</span> {user.loginCount}</p>
                                             <p><span className="text-muted-foreground">{t.activity?.table?.operations || 'Ops:'}</span> {user.totalOperations}</p>
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-4 text-center">
+                                    </TableCell>
+                                    <TableCell className="px-4 py-4 text-center">
                                         <ActivityStatusBadge status={user.activityStatus} />
-                                    </td>
-                                    <td className="px-4 py-4">
+                                    </TableCell>
+                                    <TableCell className="px-4 py-4">
                                         <div className="flex items-center justify-center gap-1">
                                             {onViewUser && (
                                                 <button
@@ -269,12 +271,12 @@ export function InactiveUsersTable({
                                                 </button>
                                             )}
                                         </div>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))
                         )}
-                    </tbody>
-                </table>
+                    </TableBody>
+                </Table>
             </div>
 
             {/* Pagination */}
@@ -285,6 +287,7 @@ export function InactiveUsersTable({
                     </p>
                     <div className="flex items-center gap-2">
                         <button
+                            aria-label={t.pagination.previousPage}
                             onClick={() => onPageChange(page - 1)}
                             disabled={page <= 1}
                             className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -292,6 +295,7 @@ export function InactiveUsersTable({
                             {dir === 'rtl' ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                         </button>
                         <button
+                            aria-label={t.pagination.nextPage}
                             onClick={() => onPageChange(page + 1)}
                             disabled={page >= totalPages}
                             className="p-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

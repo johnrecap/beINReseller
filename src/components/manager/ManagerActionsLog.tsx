@@ -31,7 +31,7 @@ export function ManagerActionsLog({ actions }: ManagerActionsLogProps) {
 
     return (
         <div className="rounded-md border">
-            <Table>
+            <Table panel density="compact">
                 <TableHeader>
                     <TableRow>
                         <TableHead className={textAlign}>{t.manager?.actionsLog?.user || 'User'}</TableHead>

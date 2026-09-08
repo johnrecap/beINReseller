@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { AlertTriangle, KeyRound, Loader2, RefreshCw, RotateCcw } from 'lucide-react'
@@ -16,6 +16,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
+import { usePanelRequest, PanelRequestError } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { useTranslation } from '@/hooks/useTranslation'
 import { DEFAULT_BEIN_LOGIN_FAILURE_THRESHOLD } from '@/lib/bein-login-failure-threshold'
 
@@ -50,11 +52,14 @@ function formatDateTime(value: string | null) {
 }
 
 export default function LoginMonitorPanel() {
+    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
     const { data: session, status } = useSession()
     const router = useRouter()
     const { dir } = useTranslation()
-    const [loading, setLoading] = useState(true)
-    const [refreshing, setRefreshing] = useState(false)
+    const { run, loading, error, cancel } = usePanelRequest()
+    const mutationPending = useRef(false)
+    const refreshing = loading
     const [resettingAccountId, setResettingAccountId] = useState<string | null>(null)
     const [threshold, setThreshold] = useState(DEFAULT_BEIN_LOGIN_FAILURE_THRESHOLD)
     const [accounts, setAccounts] = useState<LoginFailureAccount[]>([])
@@ -63,31 +68,16 @@ export default function LoginMonitorPanel() {
         document.title = 'beIN Login Failures | Desh Panel'
     }, [])
 
-    const fetchAccounts = useCallback(async (options?: { silent?: boolean }) => {
-        if (options?.silent) {
-            setRefreshing(true)
-        } else {
-            setLoading(true)
-        }
-
-        try {
-            const res = await fetch('/api/admin/bein-accounts/login-failures')
-            const data = await res.json() as LoginFailuresResponse
-
-            if (!res.ok || !data.success) {
-                throw new Error((data as { error?: string }).error || 'Failed to load beIN login failures')
-            }
-
-            setThreshold(data.threshold)
-            setAccounts(data.accounts)
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Failed to load beIN login failures'
-            toast.error(message)
-        } finally {
-            setLoading(false)
-            setRefreshing(false)
-        }
-    }, [])
+    const fetchAccounts = useCallback(async () => {
+        setAccounts([])
+        await run(async signal => {
+            const response = await fetch('/api/admin/bein-accounts/login-failures', {signal, cache: 'no-store'})
+            if (!response.ok) throw new PanelRequestError(response.status)
+            const body = await response.json() as LoginFailuresResponse
+            if (!body.success) throw new PanelRequestError(0)
+            return body
+        }, data => { setThreshold(data.threshold); setAccounts(data.accounts) })
+    }, [run])
 
     useEffect(() => {
         if (status === 'authenticated') {
@@ -96,11 +86,14 @@ export default function LoginMonitorPanel() {
                 return
             }
 
-            fetchAccounts()
+            const timer = setTimeout(() => void fetchAccounts(), 0)
+            return () => { clearTimeout(timer); cancel() }
         }
-    }, [fetchAccounts, router, session, status])
+    }, [fetchAccounts, cancel, router, session, status])
 
     const handleReset = async (accountId: string) => {
+        if (mutationPending.current) return
+        mutationPending.current = true
         setResettingAccountId(accountId)
 
         try {
@@ -110,18 +103,21 @@ export default function LoginMonitorPanel() {
             const data = await res.json()
 
             if (!res.ok || !data.success) {
-                throw new Error(data.error || 'Failed to reset beIN login tracking')
+                throw new Error(data.error || t.panelUi.reportCopy.resetTrackingFailed)
             }
 
-            toast.success(data.message || 'beIN login tracking reset successfully')
-            await fetchAccounts({ silent: true })
+            toast.success(data.message || t.panelUi.reportCopy.resetTrackingSuccess)
+            await fetchAccounts()
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Failed to reset beIN login tracking'
+            const message = error instanceof Error ? error.message : t.panelUi.reportCopy.resetTrackingFailed
             toast.error(message)
         } finally {
+            mutationPending.current = false
             setResettingAccountId(null)
         }
     }
+
+    if (error !== null) return <PanelLoadError status={error} retry={() => void fetchAccounts()} />
 
     if (status === 'loading' || loading) {
         return (
@@ -139,16 +135,16 @@ export default function LoginMonitorPanel() {
                         <KeyRound className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">beIN login failures</h1>
+                        <h1 className="text-2xl font-bold text-foreground">{t.panelUi.reportCopy.loginFailures}</h1>
                         <p className="text-sm text-muted-foreground">
-                            Accounts listed here reached the current failed-login threshold and likely need a password update.
+                            {t.panelUi.reportCopy.loginFailuresHint}
                         </p>
                     </div>
                 </div>
 
-                <Button variant="outline" onClick={() => fetchAccounts({ silent: true })} disabled={refreshing}>
+                <Button variant="outline" onClick={() => fetchAccounts()} disabled={refreshing}>
                     {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    <span>Refresh</span>
+                    <span>{t.common.refresh}</span>
                 </Button>
             </div>
 
@@ -157,25 +153,25 @@ export default function LoginMonitorPanel() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <AlertTriangle className="h-5 w-5 text-amber-500" />
-                            Current threshold
+                            {t.panelUi.reportCopy.currentThreshold}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-foreground">{threshold}</div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                            Consecutive failed beIN logins before the account is flagged.
+                            {t.panelUi.reportCopy.loginThresholdHint}
                         </p>
                     </CardContent>
                 </Card>
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg">Flagged accounts</CardTitle>
+                        <CardTitle className="text-lg">{t.panelUi.reportCopy.flaggedAccounts}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-foreground">{accounts.length}</div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                            Reset the tracking after updating the password in beIN.
+                            {t.panelUi.reportCopy.resetTrackingHint}
                         </p>
                     </CardContent>
                 </Card>
@@ -183,25 +179,25 @@ export default function LoginMonitorPanel() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Accounts requiring password review</CardTitle>
+                    <CardTitle>{t.panelUi.reportCopy.passwordReview}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <Table panel density="compact">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Account</TableHead>
-                                <TableHead className="text-center">Failed logins</TableHead>
-                                <TableHead className="text-center">Last failed login</TableHead>
-                                <TableHead>Failure reason</TableHead>
-                                <TableHead className="text-center">Status</TableHead>
-                                <TableHead className="text-center">Action</TableHead>
+                                <TableHead>{tableText.adminBeinAccounts.table.account}</TableHead>
+                                <TableHead className="text-center">{tableText.panelTable.failedLogins}</TableHead>
+                                <TableHead className="text-center">{tableText.panelTable.lastFailedLogin}</TableHead>
+                                <TableHead>{tableText.panelTable.failureReason}</TableHead>
+                                <TableHead className="text-center">{tableText.common.status}</TableHead>
+                                <TableHead className="text-center">{tableText.admin.logs.table.action}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {accounts.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                                        No accounts crossed the current login failure threshold.
+                                        {t.panelUi.reportCopy.noLoginFailures}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -224,14 +220,14 @@ export default function LoginMonitorPanel() {
                                         <TableCell>
                                             <div
                                                 className="max-w-[320px] truncate text-sm text-muted-foreground"
-                                                title={account.lastLoginFailureReason || 'No failure reason saved'}
+                                                title={account.lastLoginFailureReason || t.panelUi.reportCopy.noFailureReason}
                                             >
-                                                {account.lastLoginFailureReason || 'No failure reason saved'}
+                                                {account.lastLoginFailureReason || t.panelUi.reportCopy.noFailureReason}
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Badge variant={account.needsPasswordUpdate ? 'destructive' : 'secondary'}>
-                                                {account.needsPasswordUpdate ? 'Needs password update' : 'Below threshold'}
+                                                {account.needsPasswordUpdate ? t.panelUi.reportCopy.needsPassword : t.panelUi.reportCopy.belowThreshold}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-center">
@@ -246,7 +242,7 @@ export default function LoginMonitorPanel() {
                                                 ) : (
                                                     <RotateCcw className="h-4 w-4" />
                                                 )}
-                                                <span>Reset login tracking</span>
+                                                <span>{t.panelUi.reportCopy.resetTracking}</span>
                                             </Button>
                                         </TableCell>
                                     </TableRow>

@@ -2,7 +2,8 @@
 
 import { usePanelRequest } from '@/hooks/usePanelRequest'
 import { PanelLoadError } from '@/components/ui/PanelLoadError'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { withRequestDeadline } from '@/lib/request-deadline'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import {
@@ -103,6 +104,16 @@ interface PoolStatus {
     rateLimited: number
 }
 
+async function accountCommand(url: string, init: RequestInit) {
+    return withRequestDeadline(async signal => {
+        const response = await fetch(url, { ...init, signal })
+        if (!response.ok) throw new Error('ACCOUNT_COMMAND_REJECTED')
+        const data = await response.json() as { success: boolean; error?: string; message?: string; balance?: number }
+        if (!data.success) throw new Error('ACCOUNT_COMMAND_REJECTED')
+        return data
+    })
+}
+
 export default function BeinAccountsPage() {
     const { data: session, status } = useSession()
     const router = useRouter()
@@ -116,6 +127,22 @@ export default function BeinAccountsPage() {
     const [unlockAccount, setUnlockAccount] = useState<BeinAccount | null>(null)
     const [unlockReason, setUnlockReason] = useState('')
     const [unlockingId, setUnlockingId] = useState<string | null>(null)
+    const mutationPending = useRef(false)
+    const loadedOnce = useRef(false)
+    const editOpener = useRef<HTMLElement | null>(null)
+    const unlockOpener = useRef<HTMLElement | null>(null)
+    const [mutationBusy, setMutationBusy] = useState(false)
+    const [mutationError, setMutationError] = useState<string | null>(null)
+    const { load: loadProxies, loading: proxiesLoading, error: proxiesError, cancel: cancelProxies } = usePanelRequest()
+    const beginMutation = () => {
+        if (mutationPending.current || loading || error !== null) return false
+        mutationPending.current = true; setMutationBusy(true); setMutationError(null); return true
+    }
+    const endMutation = () => { mutationPending.current = false; setMutationBusy(false) }
+    const notifyError = (message?: string) => { const text = message || t.panelUi.actionFailed; setMutationError(text); toast.error(text) }
+    useEffect(() => {
+        if (error !== null) { loadedOnce.current = false; setPoolStatus(null); setAccounts([]); setEditAccount(null); setUnlockAccount(null); setAddDialogOpen(false) }
+    }, [error])
 
     // Set dynamic page title
     useEffect(() => {
@@ -141,21 +168,19 @@ export default function BeinAccountsPage() {
     const fetchAccounts = useCallback(async () => {
         await load<{ success: boolean; accounts: BeinAccount[]; poolStatus: PoolStatus }>('/api/admin/bein-accounts', data => {
             if (!data.success) throw new Error('ACCOUNTS_LOAD_FAILED')
+            loadedOnce.current = true
             setAccounts(data.accounts)
             setPoolStatus(data.poolStatus)
         })
     }, [load])
 
-    const fetchProxies = useCallback(async () => {
-        try {
-            const res = await fetch('/api/admin/proxies')
-            const data = await res.json()
-            if (data.success) {
-                setProxies(data.proxies)
-            }
-        } catch {
-        }
-    }, [])
+    const fetchProxies = useCallback(() => {
+        setProxies([])
+        return loadProxies<{ success: boolean; proxies: Proxy[] }>('/api/admin/proxies', data => {
+            if (!data.success) throw new Error('PROXIES_LOAD_FAILED')
+            setProxies(data.proxies)
+        })
+    }, [loadProxies])
 
     useEffect(() => {
         if (status === 'authenticated') {
@@ -166,34 +191,36 @@ export default function BeinAccountsPage() {
                 fetchProxies()
             }
         }
-        return cancel
-    }, [status, session, router, fetchAccounts, fetchProxies, cancel])
+        return () => { cancel(); cancelProxies() }
+    }, [status, session, router, fetchAccounts, fetchProxies, cancel, cancelProxies])
 
     const handleAddAccount = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (proxiesLoading || proxiesError !== null || !beginMutation()) return
         try {
-            const res = await fetch('/api/admin/bein-accounts', {
+            const data = await accountCommand('/api/admin/bein-accounts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(t.adminBeinAccounts?.messages?.addSuccess || 'Account added successfully')
+                await fetchAccounts()
                 setAddDialogOpen(false)
                 setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
-                fetchAccounts()
             } else {
-                toast.error(data.error)
+                notifyError(data.error)
             }
         } catch {
-            toast.error(t.adminBeinAccounts?.messages?.addFailed || 'Failed to add account')
+            notifyError(t.adminBeinAccounts?.messages?.addFailed || 'Failed to add account')
+        } finally {
+            endMutation()
         }
     }
 
     const handleUpdateAccount = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!editAccount) return
+        if (!editAccount || proxiesLoading || proxiesError !== null || !beginMutation()) return
         try {
             // Only include totpSecret if user entered a new value (not empty)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -202,52 +229,57 @@ export default function BeinAccountsPage() {
                 delete updateData.totpSecret // Don't send empty totpSecret to preserve existing value
             }
 
-            const res = await fetch(`/api/admin/bein-accounts/${editAccount.id}`, {
+            const data = await accountCommand(`/api/admin/bein-accounts/${editAccount.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updateData)
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(t.adminBeinAccounts?.messages?.updateSuccess || 'Account updated successfully')
+                await fetchAccounts()
                 setEditAccount(null)
                 setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
-                fetchAccounts()
             } else {
-                toast.error(data.error)
+                notifyError(data.error)
             }
         } catch {
-            toast.error(t.adminBeinAccounts?.messages?.updateFailed || 'Failed to update account')
+            notifyError(t.adminBeinAccounts?.messages?.updateFailed || 'Failed to update account')
+        } finally {
+            endMutation()
         }
     }
 
     const handleToggleAccount = async (account: BeinAccount) => {
+        if (!beginMutation()) return
         try {
-            const res = await fetch(`/api/admin/bein-accounts/${account.id}/toggle`, {
+            const data = await accountCommand(`/api/admin/bein-accounts/${account.id}/toggle`, {
                 method: 'POST'
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(data.message)
                 fetchAccounts()
             }
         } catch {
-            toast.error(t.adminBeinAccounts?.messages?.toggleFailed || 'Failed to toggle account status')
+            notifyError(t.adminBeinAccounts?.messages?.toggleFailed || 'Failed to toggle account status')
+        } finally {
+            endMutation()
         }
     }
 
     const handleResetAccount = async (account: BeinAccount) => {
+        if (!beginMutation()) return
         try {
-            const res = await fetch(`/api/admin/bein-accounts/${account.id}/reset`, {
+            const data = await accountCommand(`/api/admin/bein-accounts/${account.id}/reset`, {
                 method: 'POST'
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(data.message)
                 fetchAccounts()
             }
         } catch {
-            toast.error(t.adminBeinAccounts?.messages?.resetFailed || 'Failed to reset account')
+            notifyError(t.adminBeinAccounts?.messages?.resetFailed || 'Failed to reset account')
+        } finally {
+            endMutation()
         }
     }
 
@@ -255,70 +287,75 @@ export default function BeinAccountsPage() {
         if (!unlockAccount) return
         const reason = unlockReason.trim()
         if (!reason) {
-            toast.error('Unlock reason is required')
+            notifyError(t.panelUi.beinUnlock.reasonRequired)
             return
         }
 
+        if (!beginMutation()) return
         setUnlockingId(unlockAccount.id)
         try {
-            const res = await fetch(`/api/admin/bein-accounts/${unlockAccount.id}/unlock`, {
+            const data = await accountCommand(`/api/admin/bein-accounts/${unlockAccount.id}/unlock`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reason }),
             })
-            const data = await res.json()
             if (data.success) {
-                toast.success(data.message || 'Account lock released')
+                toast.success(data.message || t.panelUi.beinUnlock.success)
+                await fetchAccounts()
                 setUnlockAccount(null)
                 setUnlockReason('')
-                fetchAccounts()
             } else {
-                toast.error(data.error || 'Failed to release account lock')
+                notifyError(t.panelUi.actionFailed)
             }
         } catch {
-            toast.error('Failed to release account lock')
+            notifyError(t.panelUi.actionFailed)
         } finally {
+            endMutation()
             setUnlockingId(null)
         }
     }
 
     const handleDeleteAccount = async (account: BeinAccount) => {
+        if (mutationPending.current) return
         if (!confirm(t.adminBeinAccounts?.messages?.deleteConfirm || 'Are you sure you want to delete this account?')) return
+        if (!beginMutation()) return
         try {
-            const res = await fetch(`/api/admin/bein-accounts/${account.id}`, {
+            const data = await accountCommand(`/api/admin/bein-accounts/${account.id}`, {
                 method: 'DELETE'
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(data.message)
                 fetchAccounts()
             }
         } catch {
-            toast.error(t.adminBeinAccounts?.messages?.deleteFailed || 'Failed to delete account')
+            notifyError(t.adminBeinAccounts?.messages?.deleteFailed || 'Failed to delete account')
+        } finally {
+            endMutation()
         }
     }
 
     const handleRefreshBalance = async (account: BeinAccount) => {
         if (!account.isActive) {
-            toast.error(t.adminBeinAccounts?.messages?.accountNotActive || 'Account is not active')
+            notifyError(t.adminBeinAccounts?.messages?.accountNotActive || 'Account is not active')
             return
         }
 
+        if (!beginMutation()) return
         setRefreshingBalanceId(account.id)
         try {
-            const res = await fetch(`/api/admin/bein-accounts/${account.id}/check-balance`, {
+            const data = await accountCommand(`/api/admin/bein-accounts/${account.id}/check-balance`, {
                 method: 'POST'
             })
-            const data = await res.json()
             if (data.success) {
                 toast.success(data.message || `${t.adminBeinAccounts?.messages?.balanceUpdated || 'Balance updated'}: ${data.balance} USD`)
                 fetchAccounts()
             } else {
-                toast.error(data.error || t.adminBeinAccounts?.messages?.balanceFailed || 'Failed to fetch balance')
+                notifyError(data.error || t.adminBeinAccounts?.messages?.balanceFailed || 'Failed to fetch balance')
             }
         } catch {
-            toast.error(t.adminBeinAccounts?.messages?.balanceFailed || 'Failed to fetch balance')
+            notifyError(t.adminBeinAccounts?.messages?.balanceFailed || 'Failed to fetch balance')
         } finally {
+            endMutation()
             setRefreshingBalanceId(null)
         }
     }
@@ -362,7 +399,7 @@ export default function BeinAccountsPage() {
 
     if (error !== null) return <PanelLoadError status={error} retry={fetchAccounts} />
 
-    if (status === 'loading' || loading) {
+    if (status === 'loading' || (loading && !loadedOnce.current)) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -371,7 +408,10 @@ export default function BeinAccountsPage() {
     }
 
     return (
-        <div className="space-y-6 min-w-0">
+        <div className="space-y-6 min-w-0" dir={dir}>
+            {loading && <p role="status">{t.common.loading} {t.panelUi.staleData}</p>}
+            {mutationError && !addDialogOpen && !editAccount && !unlockAccount && <p role="alert" className="text-destructive">{mutationError}</p>}
+            <fieldset disabled={mutationBusy || loading} className="contents">
             {/* Header */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -388,18 +428,20 @@ export default function BeinAccountsPage() {
                         <RefreshCw className="h-4 w-4 ml-2" />
                         {t.adminBeinAccounts?.refresh || t.common?.refresh || 'Refresh'}
                     </Button>
-                    <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+                    <Dialog open={addDialogOpen} onOpenChange={open => { if (!mutationPending.current) { setMutationError(null); setAddDialogOpen(open) } }}>
                         <DialogTrigger asChild>
                             <Button>
                                 <Plus className="h-4 w-4 ml-2" />
                                 {t.adminBeinAccounts?.addAccount || 'Add Account'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent panel closeLabel={t.panelUi.close} dir={dir}>
+                        <DialogContent panel showClose={!mutationBusy} closeLabel={t.panelUi.close} dir={dir}>
                             <DialogHeader>
                                 <DialogTitle>{t.adminBeinAccounts?.dialogs?.addTitle || 'Add New Account'}</DialogTitle>
                             </DialogHeader>
-                            <form onSubmit={handleAddAccount} className="space-y-4">
+                            <form onSubmit={handleAddAccount} className="space-y-4"><fieldset disabled={mutationBusy} className="contents">
+                                {proxiesError !== null && <PanelLoadError status={proxiesError} retry={fetchProxies} />}
+                                {mutationError && <p role="alert" className="text-destructive">{mutationError}</p>}
                                 <div className="space-y-2">
                                     <Label htmlFor="username">{t.adminBeinAccounts?.dialogs?.username || 'Username'} *</Label>
                                     <Input
@@ -498,9 +540,9 @@ export default function BeinAccountsPage() {
                                     <DialogClose asChild>
                                         <Button type="button" variant="outline">{t.common?.cancel || 'Cancel'}</Button>
                                     </DialogClose>
-                                    <Button type="submit">{t.adminBeinAccounts?.dialogs?.add || 'Add'}</Button>
+                                    <Button type="submit" disabled={mutationBusy || proxiesLoading || proxiesError !== null}>{t.adminBeinAccounts?.dialogs?.add || 'Add'}</Button>
                                 </DialogFooter>
-                            </form>
+                            </fieldset></form>
                         </DialogContent>
                     </Dialog>
                 </div>
@@ -664,19 +706,23 @@ export default function BeinAccountsPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => {
+                                                    onClick={(event) => {
+                                                        unlockOpener.current = event.currentTarget
+                                                        setMutationError(null)
                                                         setUnlockAccount(account)
                                                         setUnlockReason('')
                                                     }}
                                                     disabled={!account.lockStatus?.locked}
-                                                    title="Force unlock"
+                                                    title={t.panelUi.beinUnlock.action}
                                                 >
                                                     <Unlock className="h-4 w-4" />
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => {
+                                                    onClick={(event) => {
+                                                        editOpener.current = event.currentTarget
+                                                        setMutationError(null)
                                                         setEditAccount(account)
                                                         setFormData({
                                                             username: account.username,
@@ -714,60 +760,66 @@ export default function BeinAccountsPage() {
 
             {/* Force Unlock Dialog */}
             <Dialog open={!!unlockAccount} onOpenChange={(open) => {
-                if (!open) {
+                if (!open && !mutationPending.current) {
                     setUnlockAccount(null)
                     setUnlockReason('')
                 }
             }}>
-                <DialogContent panel closeLabel={t.panelUi.close} dir={dir}>
+                <DialogContent panel showClose={!mutationBusy} closeLabel={t.panelUi.close} dir={dir}
+                    onCloseAutoFocus={event => { if (unlockOpener.current?.isConnected) { event.preventDefault(); unlockOpener.current.focus() } }}>
                     <DialogHeader>
-                        <DialogTitle>Force unlock beIN account</DialogTitle>
+                        <DialogTitle>{t.panelUi.beinUnlock.title}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="rounded-md border p-3 text-sm">
                             <div className="font-medium">{unlockAccount?.label || unlockAccount?.username}</div>
                             <div className="text-muted-foreground font-mono">
-                                {unlockAccount?.lockStatus?.ownerOperationId || unlockAccount?.lockStatus?.ownerWorkerId || 'unknown owner'}
+                                {unlockAccount?.lockStatus?.ownerOperationId || unlockAccount?.lockStatus?.ownerWorkerId || t.panelUi.beinUnlock.unknownOwner}
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="unlock-reason">Reason *</Label>
+                            <Label htmlFor="unlock-reason">{t.panelUi.beinUnlock.reason} *</Label>
                             <Input
                                 id="unlock-reason"
                                 value={unlockReason}
                                 onChange={(e) => setUnlockReason(e.target.value)}
-                                placeholder="Why is this lock stuck?"
+                                placeholder={t.panelUi.beinUnlock.reasonPlaceholder}
+                                disabled={mutationBusy}
                             />
                         </div>
                     </div>
+                    {mutationError && <p role="alert" className="text-destructive">{mutationError}</p>}
                     <DialogFooter>
                         <DialogClose asChild>
-                            <Button type="button" variant="outline">Cancel</Button>
+                            <Button type="button" variant="outline" disabled={mutationBusy}>{t.common.cancel}</Button>
                         </DialogClose>
                         <Button
                             type="button"
                             variant="danger"
                             onClick={handleForceUnlock}
-                            disabled={!unlockReason.trim() || unlockingId === unlockAccount?.id}
+                            disabled={!unlockReason.trim() || mutationBusy}
                         >
                             {unlockingId === unlockAccount?.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin ml-2" />
                             ) : (
                                 <Unlock className="h-4 w-4 ml-2" />
                             )}
-                            Force unlock
+                            {t.panelUi.beinUnlock.action}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* Edit Dialog */}
-            <Dialog open={!!editAccount} onOpenChange={(open) => !open && setEditAccount(null)}>
-                <DialogContent panel closeLabel={t.panelUi.close} dir={dir}>
+            <Dialog open={!!editAccount} onOpenChange={(open) => { if (!open && !mutationPending.current) setEditAccount(null) }}>
+                <DialogContent panel showClose={!mutationBusy} closeLabel={t.panelUi.close} dir={dir}
+                    onCloseAutoFocus={event => { if (editOpener.current?.isConnected) { event.preventDefault(); editOpener.current.focus() } }}>
                     <DialogHeader>
                         <DialogTitle>{t.adminBeinAccounts?.dialogs?.editTitle || 'Edit Account'}</DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleUpdateAccount} className="space-y-4">
+                    <form onSubmit={handleUpdateAccount} className="space-y-4"><fieldset disabled={mutationBusy} className="contents">
+                        {proxiesError !== null && <PanelLoadError status={proxiesError} retry={fetchProxies} />}
+                        {mutationError && <p role="alert" className="text-destructive">{mutationError}</p>}
                         <div className="space-y-2">
                             <Label htmlFor="edit-username">{t.adminBeinAccounts?.dialogs?.username || 'Username'}</Label>
                             <Input id="edit-username" value={formData.username} disabled />
@@ -858,11 +910,12 @@ export default function BeinAccountsPage() {
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">{t.common?.cancel || 'Cancel'}</Button>
                             </DialogClose>
-                            <Button type="submit">{t.common?.save || 'Save'}</Button>
+                            <Button type="submit" disabled={mutationBusy || proxiesLoading || proxiesError !== null}>{t.common?.save || 'Save'}</Button>
                         </DialogFooter>
-                    </form>
+                    </fieldset></form>
                 </DialogContent>
             </Dialog>
+            </fieldset>
         </div>
     )
 }

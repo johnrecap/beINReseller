@@ -1,15 +1,17 @@
 'use client'
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect, useRouter } from 'next/navigation'
 import { useTranslation } from '@/hooks/useTranslation'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import {
     Activity,
     TrendingUp,
     UserX,
-    RefreshCw,
-    Download
+    RefreshCw
 } from 'lucide-react'
 import {
     LineChart,
@@ -59,13 +61,13 @@ interface InactiveUsersData {
 export default function ActivityReportPanel() {
     const { data: session, status } = useSession()
     const router = useRouter()
-    const { locale } = useTranslation()
+    const { t, locale } = useTranslation()
     const dir = locale === 'ar' ? 'rtl' : 'ltr'
 
     const [analyticsData, setAnalyticsData] = useState<ActivityAnalyticsData | null>(null)
     const [inactiveUsersData, setInactiveUsersData] = useState<InactiveUsersData | null>(null)
-    const [analyticsLoading, setAnalyticsLoading] = useState(true)
-    const [usersLoading, setUsersLoading] = useState(true)
+    const { load: loadAnalytics, loading: analyticsLoading, error: analyticsError, cancel: cancelAnalytics } = usePanelRequest()
+    const { load: loadUsers, loading: usersLoading, error: usersError, cancel: cancelUsers } = usePanelRequest()
     const [analyticsPeriod, setAnalyticsPeriod] = useState(30)
     const [activeTab, setActiveTab] = useState<'overview' | 'inactive'>('overview')
 
@@ -92,28 +94,18 @@ export default function ActivityReportPanel() {
 
     // Set page title
     useEffect(() => {
-        document.title = `${locale === 'ar' ? 'مراقبة النشاط' : 'Activity Monitoring'} | Desh Panel`
-    }, [locale])
+        document.title = `${t.activity.title} | Desh Panel`
+    }, [t.activity.title])
 
     // Fetch analytics data
-    const fetchAnalytics = useCallback(async () => {
-        setAnalyticsLoading(true)
-        try {
-            const res = await fetch(`/api/admin/analytics/activity?days=${analyticsPeriod}`)
-            if (res.ok) {
-                const data = await res.json()
-                setAnalyticsData(data)
-            }
-        } catch {
-        } finally {
-            setAnalyticsLoading(false)
-        }
-    }, [analyticsPeriod])
+    const fetchAnalytics = useCallback(() => {
+        setAnalyticsData(null)
+        return loadAnalytics<ActivityAnalyticsData>(`/api/admin/analytics/activity?days=${analyticsPeriod}`, setAnalyticsData)
+    }, [analyticsPeriod, loadAnalytics])
 
     // Fetch inactive users
     const fetchInactiveUsers = useCallback(async () => {
-        setUsersLoading(true)
-        try {
+        setInactiveUsersData(null)
             const params = new URLSearchParams({
                 days: filters.days.toString(),
                 page: page.toString(),
@@ -124,26 +116,24 @@ export default function ActivityReportPanel() {
             if (filters.role) params.set('role', filters.role)
             if (filters.search) params.set('search', filters.search)
 
-            const res = await fetch(`/api/admin/users/inactive?${params}`)
-            if (res.ok) {
-                const data = await res.json()
+            await loadUsers<InactiveUsersData>(`/api/admin/users/inactive?${params}`, data => {
+                const lastPage = Math.max(1, data.totalPages || 1)
+                if (page > lastPage) { setPage(lastPage); return }
                 setInactiveUsersData(data)
-            }
-        } catch {
-        } finally {
-            setUsersLoading(false)
-        }
-    }, [filters, page])
+            })
+    }, [filters, page, loadUsers])
 
     useEffect(() => {
-        fetchAnalytics()
-    }, [fetchAnalytics])
+        if (status !== 'authenticated' || session?.user?.role !== 'ADMIN') return
+        const timer = setTimeout(() => void fetchAnalytics(), 0)
+        return () => { clearTimeout(timer); cancelAnalytics() }
+    }, [fetchAnalytics, cancelAnalytics, session?.user?.role, status])
 
     useEffect(() => {
-        if (activeTab === 'inactive') {
-            fetchInactiveUsers()
-        }
-    }, [activeTab, fetchInactiveUsers])
+        if (activeTab !== 'inactive' || status !== 'authenticated' || session?.user?.role !== 'ADMIN') return
+        const timer = setTimeout(() => void fetchInactiveUsers(), 0)
+        return () => { clearTimeout(timer); cancelUsers() }
+    }, [activeTab, fetchInactiveUsers, cancelUsers, session?.user?.role, status])
 
     const handleFiltersChange = (newFilters: Partial<typeof filters>) => {
         setFilters(prev => ({ ...prev, ...newFilters }))
@@ -185,12 +175,10 @@ export default function ActivityReportPanel() {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold text-foreground">
-                            {locale === 'ar' ? 'مراقبة نشاط المستخدمين' : 'User Activity Monitoring'}
+                            {t.activity.title}
                         </h1>
                         <p className="text-muted-foreground text-sm">
-                            {locale === 'ar'
-                                ? 'تتبع النشاط وتحديد الحسابات غير النشطة'
-                                : 'Track activity and identify inactive accounts'
+                            {t.activity.subtitle
                             }
                         </p>
                     </div>
@@ -203,9 +191,9 @@ export default function ActivityReportPanel() {
                         onChange={(e) => setAnalyticsPeriod(Number(e.target.value))}
                         className="px-4 py-2 border border-border rounded-lg bg-background text-sm focus:ring-2 focus:ring-primary"
                     >
-                        <option value={7}>{locale === 'ar' ? 'آخر 7 أيام' : 'Last 7 days'}</option>
-                        <option value={30}>{locale === 'ar' ? 'آخر 30 يوم' : 'Last 30 days'}</option>
-                        <option value={90}>{locale === 'ar' ? 'آخر 90 يوم' : 'Last 90 days'}</option>
+                        <option value={7}>{t.activity.periods.last7Days}</option>
+                        <option value={30}>{t.activity.periods.last30Days}</option>
+                        <option value={90}>{t.activity.periods.last90Days}</option>
                     </select>
 
                     {/* Refresh Button */}
@@ -215,7 +203,7 @@ export default function ActivityReportPanel() {
                             if (activeTab === 'inactive') fetchInactiveUsers()
                         }}
                         className="p-2 border border-border rounded-lg hover:bg-muted transition-colors"
-                        title={locale === 'ar' ? 'تحديث' : 'Refresh'}
+                        title={t.common.refresh}
                     >
                         <RefreshCw className="w-5 h-5 text-muted-foreground" />
                     </button>
@@ -234,7 +222,7 @@ export default function ActivityReportPanel() {
                 >
                     <span className="flex items-center gap-2">
                         <TrendingUp className="w-4 h-4" />
-                        {locale === 'ar' ? 'نظرة عامة' : 'Overview'}
+                        {t.activity.tabs.overview}
                     </span>
                 </button>
                 <button
@@ -247,7 +235,7 @@ export default function ActivityReportPanel() {
                 >
                     <span className="flex items-center gap-2">
                         <UserX className="w-4 h-4" />
-                        {locale === 'ar' ? 'المستخدمون غير النشطين' : 'Inactive Users'}
+                        {t.activity.tabs.inactiveUsers}
                         {analyticsData && analyticsData.inactivityMetrics.inactive + analyticsData.inactivityMetrics.critical > 0 && (
                             <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full">
                                 {analyticsData.inactivityMetrics.inactive + analyticsData.inactivityMetrics.critical}
@@ -257,8 +245,11 @@ export default function ActivityReportPanel() {
                 </button>
             </div>
 
+            {activeTab === 'overview' && analyticsError !== null && <PanelLoadError status={analyticsError} retry={() => void fetchAnalytics()} />}
+            {activeTab === 'inactive' && usersError !== null && <PanelLoadError status={usersError} retry={() => void fetchInactiveUsers()} />}
+            {(activeTab === 'overview' ? analyticsLoading : usersLoading) && <p role="status">{t.common.loading}</p>}
             {/* Overview Tab */}
-            {activeTab === 'overview' && (
+            {activeTab === 'overview' && analyticsError === null && (
                 <div className="space-y-6">
                     {/* Overview Cards */}
                     <ActivityOverviewCards
@@ -280,7 +271,7 @@ export default function ActivityReportPanel() {
                         <div className="lg:col-span-2 bg-card rounded-xl border border-border p-6">
                             <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                                 <TrendingUp className="w-5 h-5 text-blue-500" />
-                                {locale === 'ar' ? 'اتجاه النشاط' : 'Activity Trend'}
+                                {t.activity.chart.activityTrend}
                             </h3>
                             {analyticsLoading ? (
                                 <div className="h-[300px] bg-muted rounded animate-pulse" />
@@ -300,7 +291,7 @@ export default function ActivityReportPanel() {
                                             type="monotone"
                                             dataKey="logins"
                                             stroke="#3b82f6"
-                                            name={locale === 'ar' ? 'تسجيلات الدخول' : 'Logins'}
+                                            name={t.activity.chart.logins}
                                             strokeWidth={2}
                                             dot={false}
                                         />
@@ -308,7 +299,7 @@ export default function ActivityReportPanel() {
                                             type="monotone"
                                             dataKey="operations"
                                             stroke="#10b981"
-                                            name={locale === 'ar' ? 'العمليات' : 'Operations'}
+                                            name={t.activity.chart.operations}
                                             strokeWidth={2}
                                             dot={false}
                                         />
@@ -336,31 +327,31 @@ export default function ActivityReportPanel() {
                     {analyticsData && analyticsData.topActiveUsers.length > 0 && (
                         <div className="bg-card rounded-xl border border-border p-6">
                             <h3 className="text-lg font-semibold text-foreground mb-4">
-                                {locale === 'ar' ? 'أكثر المستخدمين نشاطاً' : 'Most Active Users'}
+                                {t.activity.topActive.title}
                             </h3>
                             <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-border">
-                                            <th className="text-start py-3 px-4 text-sm font-medium text-muted-foreground">#</th>
-                                            <th className="text-start py-3 px-4 text-sm font-medium text-muted-foreground">
-                                                {locale === 'ar' ? 'المستخدم' : 'User'}
-                                            </th>
-                                            <th className="text-start py-3 px-4 text-sm font-medium text-muted-foreground">
-                                                {locale === 'ar' ? 'الدور' : 'Role'}
-                                            </th>
-                                            <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">
-                                                {locale === 'ar' ? 'تسجيلات الدخول' : 'Logins'}
-                                            </th>
-                                            <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">
-                                                {locale === 'ar' ? 'العمليات' : 'Operations'}
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border">
+                                <Table panel density="compact" className="w-full">
+                                    <TableHeader>
+                                        <TableRow className="border-b border-border">
+                                            <TableHead className="text-start py-3 px-4 text-sm font-medium text-muted-foreground">#</TableHead>
+                                            <TableHead className="text-start py-3 px-4 text-sm font-medium text-muted-foreground">
+                                                {t.activity.topActive.user}
+                                            </TableHead>
+                                            <TableHead className="text-start py-3 px-4 text-sm font-medium text-muted-foreground">
+                                                {t.activity.topActive.role}
+                                            </TableHead>
+                                            <TableHead className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">
+                                                {t.activity.chart.logins}
+                                            </TableHead>
+                                            <TableHead className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">
+                                                {t.activity.chart.operations}
+                                            </TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody className="divide-y divide-border">
                                         {analyticsData.topActiveUsers.map((user, index) => (
-                                            <tr key={user.id} className="hover:bg-muted/30">
-                                                <td className="py-3 px-4">
+                                            <TableRow key={user.id} className="hover:bg-muted/30">
+                                                <TableCell className="py-3 px-4">
                                                     <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
                                                         index === 0 ? 'bg-yellow-500' :
                                                         index === 1 ? 'bg-gray-400' :
@@ -368,15 +359,15 @@ export default function ActivityReportPanel() {
                                                     }`}>
                                                         {index + 1}
                                                     </span>
-                                                </td>
-                                                <td className="py-3 px-4 font-medium text-foreground">{user.username}</td>
-                                                <td className="py-3 px-4 text-muted-foreground">{user.role}</td>
-                                                <td className="py-3 px-4 text-center">{user.loginCount}</td>
-                                                <td className="py-3 px-4 text-center font-medium text-green-600">{user.totalOperations}</td>
-                                            </tr>
+                                                </TableCell>
+                                                <TableCell className="py-3 px-4 font-medium text-foreground">{user.username}</TableCell>
+                                                <TableCell className="py-3 px-4 text-muted-foreground">{user.role}</TableCell>
+                                                <TableCell className="py-3 px-4 text-center">{user.loginCount}</TableCell>
+                                                <TableCell className="py-3 px-4 text-center font-medium text-green-600">{user.totalOperations}</TableCell>
+                                            </TableRow>
                                         ))}
-                                    </tbody>
-                                </table>
+                                    </TableBody>
+                                </Table>
                             </div>
                         </div>
                     )}
@@ -384,7 +375,7 @@ export default function ActivityReportPanel() {
             )}
 
             {/* Inactive Users Tab */}
-            {activeTab === 'inactive' && (
+            {activeTab === 'inactive' && usersError === null && (
                 <InactiveUsersTable
                     users={inactiveUsersData?.users || []}
                     total={inactiveUsersData?.total || 0}

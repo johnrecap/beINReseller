@@ -1,5 +1,9 @@
 'use client'
 
+import { usePanelRequest, usePanelCommand, readPanelJson } from '@/hooks/usePanelRequest'
+import { PanelLoadError, PanelCommandWarning } from '@/components/ui/PanelLoadError'
+import { PanelDialog } from '@/components/ui/dialog'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, RefreshCw, ExternalLink, XCircle, Clock, AlertCircle, CheckCircle, Package, ShieldCheck, AlertTriangle } from 'lucide-react'
@@ -196,6 +200,9 @@ function FinalConfirmDialog({
     onCancel,
     isLoading,
     installmentData,
+    error,
+    unconfirmed,
+    onDismiss,
     t
 }: {
     operation: Operation
@@ -203,12 +210,17 @@ function FinalConfirmDialog({
     onCancel: (isAutoCancel?: boolean) => void
     isLoading: boolean
     installmentData?: InstallmentData | null
+    error?: string | null
+    unconfirmed: boolean
+    onDismiss: () => void
     t: ReturnType<typeof useTranslation>['t']
 }) {
     const [timeLeft, setTimeLeft] = useState<number>(0)
     const [showWarning, setShowWarning] = useState(false)
     const hasWarned = useRef(false)
     const hasExpired = useRef(false)
+    const cancelAtExpiry = useRef(onCancel)
+    useEffect(() => { cancelAtExpiry.current = onCancel }, [onCancel])
     const WARNING_THRESHOLD = OPERATION_WARNING_THRESHOLD_SECONDS
 
     useEffect(() => {
@@ -233,7 +245,7 @@ function FinalConfirmDialog({
             // Auto-cancel when timer expires
             if (diff <= 0 && !hasExpired.current) {
                 hasExpired.current = true
-                onCancel(true)  // true = isAutoCancel
+                cancelAtExpiry.current(true)  // only one expiry request for this snapshot
             }
         }
 
@@ -243,7 +255,7 @@ function FinalConfirmDialog({
             clearInterval(interval)
             setShowWarning(false)
         }
-    }, [operation.finalConfirmExpiry, onCancel])
+    }, [operation.id, operation.finalConfirmExpiry, WARNING_THRESHOLD])
 
     const packageInfo = operation.selectedPackage
     const isInstallment = !!installmentData
@@ -254,8 +266,8 @@ function FinalConfirmDialog({
     const displayPrice = isInstallment ? installmentData!.dealerPrice : (packageInfo?.price || operation.amount)
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" dir="rtl">
-            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+        <PanelDialog onClose={() => unconfirmed ? onDismiss() : onCancel(false)} busy={isLoading} title={<>{isInstallment ? (t.installment?.confirmTitle || 'Confirm Installment Payment') : (t.activeOperations?.dialogs?.confirmPaymentTitle || 'Confirm Final Payment')}</>} className="max-w-md">
+            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className={`p-6 text-white ${isInstallment ? 'bg-gradient-to-r from-purple-600 to-purple-700' : 'bg-gradient-to-r from-orange-500 to-orange-600'}`}>
                     <div className="flex items-center gap-3">
@@ -271,6 +283,8 @@ function FinalConfirmDialog({
 
                 {/* Content */}
                 <div className="p-6 space-y-4">
+                    <PanelCommandWarning show={unconfirmed} />
+                    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
                     {/* Package Info */}
                     <div className="bg-muted/30 rounded-xl p-4 space-y-3 border border-border">
                         <div className="flex justify-between items-center">
@@ -316,15 +330,15 @@ function FinalConfirmDialog({
                     {/* Actions */}
                     <div className="flex gap-3 pt-2">
                         <button
-                            onClick={() => onCancel(false)}
+                            onClick={() => unconfirmed ? onDismiss() : onCancel(false)}
                             disabled={isLoading}
                             className="flex-1 px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-xl font-medium transition-colors disabled:opacity-50"
                         >
-                            {t.activeOperations?.dialogs?.cancel || 'Cancel'}
+                            {unconfirmed ? t.panelUi.close : t.activeOperations.dialogs.cancel}
                         </button>
                         <button
                             onClick={onConfirm}
-                            disabled={isLoading}
+                            disabled={isLoading || unconfirmed || timeLeft <= 0 || operation.status !== 'AWAITING_FINAL_CONFIRM'}
                             className="flex-1 px-4 py-3 bg-[#00A651] hover:bg-[#008f45] text-white rounded-xl font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
                         >
                             {isLoading ? (
@@ -342,21 +356,46 @@ function FinalConfirmDialog({
                     </div>
                 </div>
             </div>
-        </div>
+        </PanelDialog>
     )
 }
 
 export default function ActiveOperationsPage() {
     const router = useRouter()
-    const { t } = useTranslation()
+    const { t, dir } = useTranslation()
     const STATUS_CONFIG = getStatusConfig(t)
     const [operations, setOperations] = useState<Operation[]>([])
-    const [loading, setLoading] = useState(true)
+    const latestOperations = useRef<Operation[]>([])
+    const { load, loading, error: readError, cancel } = usePanelRequest()
+    const { run: loadDetail, loading: detailLoading, error: detailError, cancel: cancelDetail } = usePanelRequest()
+    const { request: command, isUnconfirmed, hasUnconfirmed } = usePanelCommand()
+    const [detailId, setDetailId] = useState<string | null>(null)
+    const readPending = useRef(false)
+    const mutationPending = useRef(false)
+    const [busyId, setBusyId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [confirmingOperation, setConfirmingOperation] = useState<Operation | null>(null)
     const [isConfirmLoading, setIsConfirmLoading] = useState(false)
     const [activeFilters, setActiveFilters] = useState<OperationStatus[]>([])
     const [installmentData, setInstallmentData] = useState<InstallmentData | null>(null)
+
+    useEffect(() => {
+        if (readError === 401 || readError === 403 || detailError === 401 || detailError === 403) {
+            cancelDetail()
+            setConfirmingOperation(null)
+            setInstallmentData(null)
+        }
+    }, [readError, detailError, cancelDetail])
+
+    useEffect(() => {
+        setConfirmingOperation(current => {
+            if (!current) return null
+            const latest = operations.find(item => item.id === current.id)
+            if (!latest || latest.status !== 'AWAITING_FINAL_CONFIRM') return null
+            if (current.selectedPackage?.quoteRevision !== latest.selectedPackage?.quoteRevision) return null
+            return { ...current, ...latest }
+        })
+    }, [operations])
 
     // Set dynamic page title
     useEffect(() => {
@@ -364,89 +403,93 @@ export default function ActiveOperationsPage() {
     }, [t])
 
     const fetchOperations = useCallback(async () => {
+        if (readPending.current) return
+        readPending.current = true
         try {
-            const res = await fetch('/api/operations?status=active&limit=50')
-            const data = await res.json()
-
-            if (data.operations) {
-                // Filter only active operations (including AWAITING_FINAL_CONFIRM)
-                const now = Date.now()
-                const activeOps = data.operations.filter((op: Operation) =>
-                    ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING', 'REVIEW_REQUIRED'].includes(op.status) &&
-                    !(
-                        ['AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM'].includes(op.status) &&
-                        (
-                            (op.finalConfirmExpiry && new Date(op.finalConfirmExpiry).getTime() <= now) ||
-                            (op.heartbeatExpiry && new Date(op.heartbeatExpiry).getTime() <= now)
-                        )
-                    )
+            await load<{operations: Operation[]}>('/api/operations?status=active&limit=50', data => {
+                // The server owns terminal status. An expired browser timer is not completion evidence.
+                const next = data.operations.filter(op =>
+                    ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING', 'REVIEW_REQUIRED'].includes(op.status)
                 )
-                setOperations(activeOps)
-            }
-            setError(null)
-        } catch {
-            setError(t.common?.error || 'Failed to fetch operations')
-        } finally {
-            setLoading(false)
-        }
-    }, [confirmingOperation])
+                latestOperations.current = next
+                setOperations(next)
+            })
+        } finally { readPending.current = false }
+    }, [load])
 
     useEffect(() => {
-        fetchOperations()
-        // Refresh every 5 seconds
-        const interval = setInterval(fetchOperations, 5000)
-        return () => clearInterval(interval)
-    }, [fetchOperations])
+        let stopped = false
+        let timer: ReturnType<typeof setTimeout>
+        const poll = async () => {
+            await fetchOperations()
+            if (!stopped) timer = setTimeout(() => void poll(), 5000)
+        }
+        void poll()
+        return () => { stopped = true; clearTimeout(timer); cancel() }
+    }, [fetchOperations, cancel])
 
     const handleContinue = async (operation: Operation) => {
+        if (mutationPending.current || isUnconfirmed(operation.id) || readError !== null) return
+        cancelDetail()
+        setDetailId(null)
+        setError(null)
+        setConfirmingOperation(null)
+        setInstallmentData(null)
         if (operation.status === 'AWAITING_CAPTCHA' || operation.status === 'AWAITING_PACKAGE') {
             router.push(`/dashboard/renew?operationId=${operation.id}`)
         } else if (operation.status === 'AWAITING_FINAL_CONFIRM') {
             if (!operation.selectedPackage) {
-                // Installment operation — fetch installment details first
-                try {
-                    const res = await fetch(`/api/operations/${operation.id}/installment`)
-                    const data = await res.json()
-                    if (data.installment) {
-                        setInstallmentData(data.installment)
-                        setConfirmingOperation(operation)
-                    } else {
-                        alert(t.common?.error || 'Failed to load installment details')
+                setDetailId(operation.id)
+                await loadDetail(signal => readPanelJson<{ status: OperationStatus; installment: InstallmentData | null; finalConfirmExpiry?: string }>(`/api/operations/${operation.id}/installment`, signal), data => {
+                    if (!latestOperations.current.some(item => item.id === operation.id && item.status === 'AWAITING_FINAL_CONFIRM') || data.status !== 'AWAITING_FINAL_CONFIRM' || !data.installment || !Number.isFinite(data.installment.dealerPrice) || data.installment.dealerPrice <= 0 || !data.finalConfirmExpiry || Date.parse(data.finalConfirmExpiry) <= Date.now() || !Number.isFinite(Date.parse(data.finalConfirmExpiry))) {
+                        setError(t.panelUi.operationFollowUp)
+                        return
                     }
-                } catch {
-                    alert(t.common?.connectionError || 'Connection error')
-                }
+                    setInstallmentData(data.installment)
+                    setConfirmingOperation({ ...operation, status: data.status, finalConfirmExpiry: data.finalConfirmExpiry })
+                })
                 return
             }
-            setInstallmentData(null)
+            if (!operation.finalConfirmExpiry || !Number.isFinite(Date.parse(operation.finalConfirmExpiry)) || Date.parse(operation.finalConfirmExpiry) <= Date.now()) {
+                setError(t.panelUi.operationFollowUp)
+                return
+            }
             setConfirmingOperation(operation)
         }
     }
 
     const handleCancel = async (operationId: string) => {
-        if (!confirm(t.common?.cancelConfirmation || 'Are you sure you want to cancel this operation?')) return
-
+        if (mutationPending.current || isUnconfirmed(operationId) || !confirm(t.common.cancelConfirmation)) return
+        mutationPending.current = true
+        setBusyId(operationId)
+        setError(null)
         try {
-            await fetch(`/api/operations/${operationId}/cancel`, { method: 'POST' })
-            fetchOperations()
+            const response = await command(`/api/operations/${operationId}/cancel`, { method: 'POST' }, operationId)
+            if (!response.ok) throw new Error('CANCEL_REJECTED')
+            await fetchOperations()
         } catch {
-            alert(t.activeOperations?.messages?.cancelFailed || 'Failed to cancel operation')
+            setError(t.activeOperations.messages.cancelFailed)
+        } finally {
+            mutationPending.current = false
+            setBusyId(null)
         }
     }
 
     const handleConfirmPurchase = async () => {
-        if (!confirmingOperation) return
-
+        if (!confirmingOperation || mutationPending.current || isUnconfirmed(confirmingOperation.id) || readError !== null || confirmingOperation.status !== 'AWAITING_FINAL_CONFIRM' || !confirmingOperation.finalConfirmExpiry || !Number.isFinite(Date.parse(confirmingOperation.finalConfirmExpiry)) || Date.parse(confirmingOperation.finalConfirmExpiry) <= Date.now()) return
+        mutationPending.current = true
+        setBusyId(confirmingOperation.id)
+        setError(null)
         setIsConfirmLoading(true)
         try {
             // Use the correct endpoint based on operation type
             const endpoint = installmentData
                 ? `/api/operations/${confirmingOperation.id}/confirm-installment`
                 : `/api/operations/${confirmingOperation.id}/confirm-purchase`
-            const res = await fetch(endpoint, { method: 'POST', ...(!installmentData ? {
+            const res = await command(endpoint, { method: 'POST', ...(!installmentData ? {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ quoteRevision: confirmingOperation.selectedPackage?.quoteRevision }),
-            } : {}) })
+            } : {}) }, confirmingOperation.id)
             const data = await res.json()
 
             if (res.ok) {
@@ -455,39 +498,44 @@ export default function ActiveOperationsPage() {
                 fetchOperations()
             } else {
                 const key = data.messageKey?.replace('operations.', '')
-                alert(key && key in t.operations ? t.operations[key as keyof typeof t.operations]
+                setError(key && key in t.operations ? t.operations[key as keyof typeof t.operations]
                     : data.error || t.activeOperations?.messages?.confirmFailed || 'Payment confirmation failed')
             }
         } catch {
-            alert(t.common?.connectionError || 'Connection error')
+            setError(t.common.connectionError)
         } finally {
+            mutationPending.current = false
+            setBusyId(null)
             setIsConfirmLoading(false)
         }
     }
 
     const handleCancelConfirm = useCallback(async (isAutoCancel = false) => {
-        if (!confirmingOperation) return
-
+        if (!confirmingOperation || mutationPending.current || isUnconfirmed(confirmingOperation.id)) return
+        mutationPending.current = true
+        setBusyId(confirmingOperation.id)
+        setError(null)
         setIsConfirmLoading(true)
         try {
-            const res = await fetch(`/api/operations/${confirmingOperation.id}/cancel-confirm`, { method: 'POST' })
-            const data = await res.json()
+            const res = await command(`/api/operations/${confirmingOperation.id}/cancel-confirm`, { method: 'POST' }, confirmingOperation.id)
 
             if (res.ok) {
                 setConfirmingOperation(null)
                 fetchOperations()
                 if (isAutoCancel) {
-                    alert(t.activeOperations?.messages?.autoCancel || 'Operation auto-cancelled due to timeout.')
+                    setError(t.panelUi.cancelAccepted)
                 }
             } else {
-                alert(data.error || t.activeOperations?.messages?.cancelFailed || 'Failed to cancel operation')
+                setError(t.activeOperations.messages.cancelFailed)
             }
         } catch {
-            alert(t.common?.connectionError || 'Connection error')
+            setError(t.common.connectionError)
         } finally {
+            mutationPending.current = false
+            setBusyId(null)
             setIsConfirmLoading(false)
         }
-    }, [confirmingOperation, fetchOperations])
+    }, [confirmingOperation, fetchOperations, t, command, isUnconfirmed])
 
     const getElapsedTime = (createdAt: string) => {
         const created = new Date(createdAt).getTime()
@@ -516,7 +564,7 @@ export default function ActiveOperationsPage() {
         : operations.filter(op => activeFilters.includes(op.status))
 
     return (
-        <div className="space-y-6" dir="rtl">
+        <div className="space-y-6" dir={dir}>
             {/* Final Confirm Dialog */}
             {confirmingOperation && (
                 <FinalConfirmDialog
@@ -525,6 +573,9 @@ export default function ActiveOperationsPage() {
                     onCancel={handleCancelConfirm}
                     isLoading={isConfirmLoading}
                     installmentData={installmentData}
+                    error={error}
+                    unconfirmed={isUnconfirmed(confirmingOperation.id)}
+                    onDismiss={() => { if (!mutationPending.current) { setConfirmingOperation(null); setInstallmentData(null) } }}
                     t={t}
                 />
             )}
@@ -549,15 +600,22 @@ export default function ActiveOperationsPage() {
                 </button>
             </div>
 
+            <PanelCommandWarning show={hasUnconfirmed} />
+            {hasUnconfirmed && <a href="/dashboard/history" className="block underline">{t.panelUi.viewHistory}</a>}
+            {detailId && detailLoading && <p role="status">{t.common.loading}</p>}
+            {detailError !== null && <PanelLoadError status={detailError} retry={() => { const item = operations.find(op => op.id === detailId); if (item) void handleContinue(item) }} />}
             {error && (
-                <div className="p-4 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-xl animate-in fade-in">
+                <div role="alert" className="p-4 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-xl animate-in fade-in">
                     {error}
                 </div>
             )}
 
+            {readError !== null && <PanelLoadError status={readError} retry={() => void fetchOperations()} />}
+            {loading && operations.length > 0 && <p role="status">{t.common.loading}</p>}
+
             {/* Main Content */}
             <div className="min-h-[400px]">
-                {loading && operations.length === 0 ? (
+                {readError !== null || detailError === 401 || detailError === 403 ? null : loading && operations.length === 0 ? (
                     <OperationSkeleton />
                 ) : operations.length === 0 ? (
                     /* Empty State */
@@ -592,18 +650,18 @@ export default function ActiveOperationsPage() {
                             </div>
                         ) : (
                             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden animate-in fade-in duration-500">
-                                {/* Desktop/Tablet Table */}
-                                <div className="hidden md:block overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-muted/30 border-b border-border">
-                                            <tr>
-                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.cardNumber || 'Card'}</th>
-                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.status || 'Status'}</th>
-                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.timeAndAmount || 'Time & Amount'}</th>
-                                                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.actions || 'Actions'}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
+                                {/* One internally scrolling table for desktop and mobile. */}
+                                <div className="overflow-x-auto">
+                                    <Table panel density="compact" className="min-w-[760px] w-full">
+                                        <TableHeader className="bg-muted/30 border-b border-border">
+                                            <TableRow>
+                                                <TableHead className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.cardNumber || 'Card'}</TableHead>
+                                                <TableHead className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.status || 'Status'}</TableHead>
+                                                <TableHead className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.timeAndAmount || 'Time & Amount'}</TableHead>
+                                                <TableHead className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t.activeOperations?.table?.actions || 'Actions'}</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody className="divide-y divide-border">
                                             {filteredOperations.map((op, index) => {
                                                 const statusConfig = STATUS_CONFIG[op.status]
                                                 const canContinue = ['AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM'].includes(op.status)
@@ -612,36 +670,37 @@ export default function ActiveOperationsPage() {
                                                 const isAwaitingConfirm = op.status === 'AWAITING_FINAL_CONFIRM'
 
                                                 return (
-                                                    <tr
+                                                    <TableRow
                                                         key={op.id}
                                                         className={`hover:bg-muted/30 transition-colors ${isAwaitingConfirm ? 'bg-[#F97316]/5' : ''} animate-in fade-in`}
                                                         style={{ animationDelay: `${index * 50}ms` }}
                                                     >
-                                                        <td className="px-6 py-4">
+                                                        <TableCell className="px-6 py-4">
                                                             <div className="flex flex-col">
                                                                 <span className="font-mono font-medium text-foreground text-lg">{op.cardNumber}</span>
                                                                 <span className="text-xs text-muted-foreground">ID: {op.id.slice(0, 8)}</span>
                                                             </div>
-                                                        </td>
-                                                        <td className="px-6 py-4">
+                                                        </TableCell>
+                                                        <TableCell className="px-6 py-4">
                                                             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${statusConfig.color} shadow-sm`}>
                                                                 {statusConfig.icon}
                                                                 {getOperationStatusLabel(op, statusConfig.label, t)}
                                                             </span>
-                                                        </td>
-                                                        <td className="px-6 py-4">
+                                                        </TableCell>
+                                                        <TableCell className="px-6 py-4">
                                                             <div className="flex flex-col gap-1">
                                                                 <span className="text-sm font-medium">{getElapsedTime(op.createdAt)}</span>
                                                                 {op.amount > 0 && (
                                                                     <span className="text-xs text-[#00A651] font-bold">{op.amount} USD</span>
                                                                 )}
                                                             </div>
-                                                        </td>
-                                                        <td className="px-6 py-4">
+                                                        </TableCell>
+                                                        <TableCell className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 {canContinue && (
                                                                     <button
                                                                         onClick={() => handleContinue(op)}
+                                                                        disabled={busyId !== null || isUnconfirmed(op.id)}
                                                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shadow-sm ${isAwaitingConfirm
                                                                             ? 'bg-[#F97316] hover:bg-[#F97316]/90 text-white animate-pulse'
                                                                             : 'bg-[#00A651] hover:bg-[#00A651]/90 text-white'
@@ -663,6 +722,7 @@ export default function ActiveOperationsPage() {
                                                                 {canCancel && (
                                                                     <button
                                                                         onClick={() => handleCancel(op.id)}
+                                                                        disabled={busyId !== null || isUnconfirmed(op.id)}
                                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-lg text-xs font-medium hover:bg-[#ED1C24]/20 transition-colors"
                                                                     >
                                                                         <XCircle className="w-3.5 h-3.5" />
@@ -670,64 +730,15 @@ export default function ActiveOperationsPage() {
                                                                     </button>
                                                                 )}
                                                             </div>
-                                                        </td>
-                                                    </tr>
+                                                        </TableCell>
+                                                    </TableRow>
                                                 )
                                             })}
-                                        </tbody>
-                                    </table>
+                                        </TableBody>
+                                    </Table>
                                 </div>
 
-                                {/* Mobile List View */}
-                                <div className="md:hidden divide-y divide-border">
-                                    {filteredOperations.map((op, index) => {
-                                        const statusConfig = STATUS_CONFIG[op.status]
-                                        const canContinue = ['AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM'].includes(op.status)
-                                        const canCancel = ['PENDING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE'].includes(op.status)
-                                        const isAwaitingConfirm = op.status === 'AWAITING_FINAL_CONFIRM'
 
-                                        return (
-                                            <div
-                                                key={op.id}
-                                                className={`p-4 animate-in fade-in ${isAwaitingConfirm ? 'bg-[#F97316]/5' : ''}`}
-                                                style={{ animationDelay: `${index * 50}ms` }}
-                                            >
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div>
-                                                        <span className="font-mono font-bold text-lg text-foreground">{op.cardNumber}</span>
-                                                        <div className="text-xs text-muted-foreground mt-0.5">{getElapsedTime(op.createdAt)}</div>
-                                                    </div>
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium ${statusConfig.color}`}>
-                                                        {statusConfig.icon}
-                                                        {getOperationStatusLabel(op, statusConfig.label, t)}
-                                                    </span>
-                                                </div>
-
-                                                <div className="flex gap-2 mt-4">
-                                                    {canContinue && (
-                                                        <button
-                                                            onClick={() => handleContinue(op)}
-                                                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isAwaitingConfirm
-                                                                ? 'bg-[#F97316] text-white'
-                                                                : 'bg-[#00A651] text-white'
-                                                                }`}
-                                                        >
-                                                            {isAwaitingConfirm ? t.activeOperations?.actions?.confirmPayment || 'Confirm Payment' : t.activeOperations?.actions?.continue || 'Continue'}
-                                                        </button>
-                                                    )}
-                                                    {canCancel && (
-                                                        <button
-                                                            onClick={() => handleCancel(op.id)}
-                                                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#ED1C24]/10 text-[#ED1C24] border border-[#ED1C24]/20 rounded-lg text-sm font-medium"
-                                                        >
-                                                            {t.activeOperations?.actions?.cancel || 'Cancel'}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
                             </div>
                         )}
                     </>

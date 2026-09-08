@@ -1,5 +1,8 @@
 'use client'
 
+import { PanelCommandWarning } from '@/components/ui/PanelLoadError'
+import { usePanelCommand } from '@/hooks/usePanelRequest'
+import { PanelDialog } from '@/components/ui/dialog'
 import { useState, useEffect, useRef } from 'react'
 import { X, Loader2, AlertTriangle } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -20,7 +23,9 @@ interface CreateUserDialogProps {
 
 export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRole = 'USER', agentContext = null }: CreateUserDialogProps) {
     const { t } = useTranslation()
+    const { request: command, unconfirmed } = usePanelCommand(isOpen ? 'create' : null)
     const [loading, setLoading] = useState(false)
+    const submitting = useRef(false)
     const [error, setError] = useState<string | null>(null)
     const [emailWarning, setEmailWarning] = useState("")
     const [username, setUsername] = useState("")
@@ -65,6 +70,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
+        if (unconfirmed || submitting.current) return
 
         // Validate email format
         if (!email.endsWith(EMAIL_DOMAIN)) {
@@ -72,6 +78,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
             return
         }
 
+        submitting.current = true
         setLoading(true)
         setError(null)
 
@@ -90,7 +97,7 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
         }
 
         try {
-            const res = await fetch('/api/admin/users', {
+            const res = await command('/api/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
@@ -113,8 +120,9 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
             setSourceGroupTouched(false)
             setWhatsappGroupUrlTouched(false)
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error')
+            setError(err instanceof Error ? err.message : t.admin.users.messages.error)
         } finally {
+            submitting.current = false
             setLoading(false)
         }
     }
@@ -122,11 +130,11 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl animate-in fade-in zoom-in duration-200">
+        <PanelDialog onClose={onClose} busy={loading} title={<>{t.admin.users.dialogs.createTitle}</>} className="max-w-md">
+            <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-xl animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center p-4 border-b border-border">
                     <h3 className="font-bold text-foreground">{t.admin.users.dialogs.createTitle}</h3>
-                    <button onClick={onClose} title={t.common?.close || 'Close'} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
+                    <button onClick={() => { if (!submitting.current) onClose() }} title={t.common?.close || 'Close'} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -261,8 +269,9 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                         />
                     </div>
 
+                    <PanelCommandWarning show={unconfirmed} />
                     {error && (
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg" role="alert">
+                        <div role="alert" className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg">
                             {error}
                         </div>
                     )}
@@ -270,14 +279,14 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                     <div className="flex gap-3 pt-2">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={() => { if (!submitting.current) onClose() }}
                             className="flex-1 px-4 py-2 text-sm font-medium text-muted-foreground bg-secondary rounded-lg hover:bg-secondary/80"
                         >
                             {t.admin.users.actions.cancel}
                         </button>
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={unconfirmed || loading}
                             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
                         >
                             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -286,6 +295,6 @@ export default function CreateUserDialog({ isOpen, onClose, onSuccess, defaultRo
                     </div>
                 </form>
             </div>
-        </div>
+        </PanelDialog>
     )
 }

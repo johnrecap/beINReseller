@@ -1,5 +1,6 @@
 'use client'
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { useState, useEffect, useCallback } from 'react'
 import { usePanelRequest } from '@/hooks/usePanelRequest'
 import { PanelLoadError } from '@/components/ui/PanelLoadError'
@@ -162,48 +163,48 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
             {/* Table */}
             <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border" hidden={error !== null}>
                 <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-secondary border-b border-border">
-                            <tr>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.user || 'User'}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.balance || 'Balance'}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.status || 'Status'}</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.created || 'Created At'}</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin?.users?.table?.actions || 'Actions'}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
+                    <Table panel density="compact" className="w-full">
+                        <TableHeader className="bg-secondary border-b border-border">
+                            <TableRow>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.user || 'User'}</TableHead>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.balance || 'Balance'}</TableHead>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.status || 'Status'}</TableHead>
+                                <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">{t.admin?.users?.table?.created || 'Created At'}</TableHead>
+                                <TableHead className="px-4 py-3 text-left text-xs font-medium text-muted-foreground pl-6">{t.admin?.users?.table?.actions || 'Actions'}</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-border">
                             {loading ? (
                                 [...Array(5)].map((_, i) => (
-                                    <tr key={i} className="animate-pulse">
-                                        <td className="p-4"><div className="h-4 bg-muted rounded w-24"></div></td>
-                                        <td className="p-4"><div className="h-4 bg-muted rounded w-16"></div></td>
-                                        <td className="p-4"><div className="h-6 bg-muted rounded-full w-12"></div></td>
-                                        <td className="p-4"><div className="h-4 bg-muted rounded w-24"></div></td>
-                                        <td className="p-4"><div className="h-8 bg-muted rounded w-8"></div></td>
-                                    </tr>
+                                    <TableRow key={i} className="animate-pulse">
+                                        <TableCell className="p-4"><div className="h-4 bg-muted rounded w-24"></div></TableCell>
+                                        <TableCell className="p-4"><div className="h-4 bg-muted rounded w-16"></div></TableCell>
+                                        <TableCell className="p-4"><div className="h-6 bg-muted rounded-full w-12"></div></TableCell>
+                                        <TableCell className="p-4"><div className="h-4 bg-muted rounded w-24"></div></TableCell>
+                                        <TableCell className="p-4"><div className="h-8 bg-muted rounded w-8"></div></TableCell>
+                                    </TableRow>
                                 ))
                             ) : users.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="p-8 text-center text-muted-foreground">{t.admin?.users?.table?.noUsers || 'No users found'}</td>
-                                </tr>
+                                <TableRow>
+                                    <TableCell colSpan={5} className="p-8 text-center text-muted-foreground">{t.admin?.users?.table?.noUsers || 'No users found'}</TableCell>
+                                </TableRow>
                             ) : (
                                 users.map((user) => (
-                                    <tr key={user.id} className="hover:bg-secondary transition-colors group">
-                                        <td className="px-4 py-3">
+                                    <TableRow key={user.id} className="hover:bg-secondary transition-colors group">
+                                        <TableCell className="px-4 py-3">
                                             <div>
                                                 <p className="font-semibold text-foreground">{user.username}</p>
                                                 <p className="text-xs text-muted-foreground dir-ltr text-right">{user.email}</p>
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3">
                                             <p className="font-bold text-foreground dir-ltr text-right">${(user.balance ?? 0).toFixed(2)}</p>
                                             <div className="mt-1 text-xs text-muted-foreground">
                                                 <p className="font-semibold text-foreground">{(user.points?.available ?? 0).toLocaleString()} pts</p>
                                                 <p>{(user.points?.lifetimeEarned ?? 0).toLocaleString()} earned / {(user.points?.converted ?? 0).toLocaleString()} converted</p>
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3">
                                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.isActive
                                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                                 : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
@@ -211,11 +212,11 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                                 {user.isActive ? <CheckCircle className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
                                                 {user.isActive ? (t.admin?.users?.table?.active || 'Active') : (t.admin?.users?.table?.inactive || 'Inactive')}
                                             </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3 text-xs text-muted-foreground">
                                             {format(new Date(user.createdAt), 'dd/MM/yyyy', { locale: currentLocale })}
-                                        </td>
-                                        <td className="px-4 py-3">
+                                        </TableCell>
+                                        <TableCell className="px-4 py-3">
                                             <div className="flex items-center gap-2 justify-end">
                                                 {canResetPasswords && user.isActive && (
                                                     <button
@@ -259,12 +260,12 @@ export default function ManagerUsersTable({ managerBalance, onBalanceChange }: M
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 ))
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
 
                 {/* Pagination */}

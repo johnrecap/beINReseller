@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { DollarSign, Loader2, RefreshCw, Power } from 'lucide-react'
@@ -16,6 +16,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
+import { usePanelRequest, PanelRequestError } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { useTranslation } from '@/hooks/useTranslation'
 
 interface LowBalanceAccount {
@@ -47,11 +49,14 @@ function formatDateTime(value: string | null) {
 }
 
 export default function BalanceMonitorPanel() {
+    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
     const { data: session, status } = useSession()
     const router = useRouter()
     const { dir } = useTranslation()
-    const [loading, setLoading] = useState(true)
-    const [refreshing, setRefreshing] = useState(false)
+    const { run, loading, error, cancel } = usePanelRequest()
+    const mutationPending = useRef(false)
+    const refreshing = loading
     const [reactivatingId, setReactivatingId] = useState<string | null>(null)
     const [threshold, setThreshold] = useState(300)
     const [accounts, setAccounts] = useState<LowBalanceAccount[]>([])
@@ -60,31 +65,16 @@ export default function BalanceMonitorPanel() {
         document.title = 'beIN Low Balance | Desh Panel'
     }, [])
 
-    const fetchAccounts = useCallback(async (options?: { silent?: boolean }) => {
-        if (options?.silent) {
-            setRefreshing(true)
-        } else {
-            setLoading(true)
-        }
-
-        try {
-            const res = await fetch('/api/admin/bein-accounts/low-balance')
-            const data = await res.json() as LowBalanceResponse
-
-            if (!res.ok || !data.success) {
-                throw new Error((data as { error?: string }).error || 'Failed to load low balance accounts')
-            }
-
-            setThreshold(data.threshold)
-            setAccounts(data.accounts)
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Failed to load low balance accounts'
-            toast.error(message)
-        } finally {
-            setLoading(false)
-            setRefreshing(false)
-        }
-    }, [])
+    const fetchAccounts = useCallback(async () => {
+        setAccounts([])
+        await run(async signal => {
+            const response = await fetch('/api/admin/bein-accounts/low-balance', {signal, cache: 'no-store'})
+            if (!response.ok) throw new PanelRequestError(response.status)
+            const body = await response.json() as LowBalanceResponse
+            if (!body.success) throw new PanelRequestError(0)
+            return body
+        }, data => { setThreshold(data.threshold); setAccounts(data.accounts) })
+    }, [run])
 
     useEffect(() => {
         if (status === 'authenticated') {
@@ -93,11 +83,14 @@ export default function BalanceMonitorPanel() {
                 return
             }
 
-            fetchAccounts()
+            const timer = setTimeout(() => void fetchAccounts(), 0)
+            return () => { clearTimeout(timer); cancel() }
         }
-    }, [fetchAccounts, router, session, status])
+    }, [fetchAccounts, cancel, router, session, status])
 
     const handleReactivate = async (accountId: string) => {
+        if (mutationPending.current) return
+        mutationPending.current = true
         setReactivatingId(accountId)
 
         try {
@@ -107,18 +100,21 @@ export default function BalanceMonitorPanel() {
             const data = await res.json()
 
             if (!res.ok || !data.success) {
-                throw new Error(data.error || 'Failed to reactivate account')
+                throw new Error(data.error || t.panelUi.reportCopy.reactivateFailed)
             }
 
-            toast.success(data.message || 'Account reactivated successfully')
-            await fetchAccounts({ silent: true })
+            toast.success(data.message || t.panelUi.reportCopy.reactivateSuccess)
+            await fetchAccounts()
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Failed to reactivate account'
+            const message = error instanceof Error ? error.message : t.panelUi.reportCopy.reactivateFailed
             toast.error(message)
         } finally {
+            mutationPending.current = false
             setReactivatingId(null)
         }
     }
+
+    if (error !== null) return <PanelLoadError status={error} retry={() => void fetchAccounts()} />
 
     if (status === 'loading' || loading) {
         return (
@@ -136,16 +132,16 @@ export default function BalanceMonitorPanel() {
                         <DollarSign className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">beIN Low Balance</h1>
+                        <h1 className="text-2xl font-bold text-foreground">{t.panelUi.reportCopy.lowBalance}</h1>
                         <p className="text-sm text-muted-foreground">
-                            Accounts auto-disabled because their dealer balance dropped below the threshold.
+                            {t.panelUi.reportCopy.lowBalanceHint}
                         </p>
                     </div>
                 </div>
 
-                <Button variant="outline" onClick={() => fetchAccounts({ silent: true })} disabled={refreshing}>
+                <Button variant="outline" onClick={() => fetchAccounts()} disabled={refreshing}>
                     {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    <span>Refresh</span>
+                    <span>{t.common.refresh}</span>
                 </Button>
             </div>
 
@@ -154,25 +150,25 @@ export default function BalanceMonitorPanel() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <DollarSign className="h-5 w-5 text-orange-500" />
-                            Balance threshold
+                            {t.panelUi.reportCopy.balanceThreshold}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-foreground">{threshold} USD</div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                            Accounts with balance below this amount are auto-disabled.
+                            {t.panelUi.reportCopy.balanceThresholdHint}
                         </p>
                     </CardContent>
                 </Card>
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg">Disabled accounts</CardTitle>
+                        <CardTitle className="text-lg">{t.panelUi.reportCopy.disabledAccounts}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-foreground">{accounts.length}</div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                            Top up the balance on beIN, then reactivate.
+                            {t.panelUi.reportCopy.reactivateHint}
                         </p>
                     </CardContent>
                 </Card>
@@ -180,24 +176,24 @@ export default function BalanceMonitorPanel() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Accounts needing balance top-up</CardTitle>
+                    <CardTitle>{t.panelUi.reportCopy.topUpAccounts}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <Table panel density="compact">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Account</TableHead>
-                                <TableHead className="text-center">Dealer Balance</TableHead>
-                                <TableHead className="text-center">Last Updated</TableHead>
-                                <TableHead className="text-center">Status</TableHead>
-                                <TableHead className="text-center">Action</TableHead>
+                                <TableHead>{tableText.adminBeinAccounts.table.account}</TableHead>
+                                <TableHead className="text-center">{tableText.panelTable.dealerBalance}</TableHead>
+                                <TableHead className="text-center">{tableText.panelTable.lastUpdated}</TableHead>
+                                <TableHead className="text-center">{tableText.common.status}</TableHead>
+                                <TableHead className="text-center">{tableText.admin.logs.table.action}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {accounts.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
-                                        No accounts disabled for low balance.
+                                        {t.panelUi.reportCopy.noLowBalance}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -221,7 +217,7 @@ export default function BalanceMonitorPanel() {
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Badge variant="destructive">
-                                                Disabled - Low balance
+                                                {t.panelUi.reportCopy.disabledLowBalance}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-center">
@@ -236,7 +232,7 @@ export default function BalanceMonitorPanel() {
                                                 ) : (
                                                     <Power className="h-4 w-4" />
                                                 )}
-                                                <span>Reactivate</span>
+                                                <span>{t.panelUi.reportCopy.reactivate}</span>
                                             </Button>
                                         </TableCell>
                                     </TableRow>

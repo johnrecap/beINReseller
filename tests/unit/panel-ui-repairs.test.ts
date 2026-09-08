@@ -83,9 +83,25 @@ for (const route of ['transactions', 'notifications']) {
 }
 
 test('new panel messages have identical nonempty keys in all supported languages', () => {
-    assert.deepEqual(Object.keys(ar.panelUi).sort(), Object.keys(en.panelUi).sort())
-    assert.deepEqual(Object.keys(bn.panelUi).sort(), Object.keys(en.panelUi).sort())
-    for (const messages of [ar.panelUi, en.panelUi, bn.panelUi]) for (const value of Object.values(messages)) assert.ok(value.trim())
+    function messageKeys(messages: Record<string, unknown>, prefix = ''): string[] {
+        return Object.entries(messages).flatMap(([key, value]) => {
+            const path = prefix + key
+            if (typeof value === 'string') {
+                assert.ok(value.trim(), path + ' must not be empty')
+                return [path]
+            }
+            assert.ok(value && typeof value === 'object', path + ' must contain messages')
+            return messageKeys(value as Record<string, unknown>, path + '.')
+        }).sort()
+    }
+    assert.deepEqual(messageKeys(ar.panelUi), messageKeys(en.panelUi))
+    assert.deepEqual(messageKeys(bn.panelUi), messageKeys(en.panelUi))
+    assert.deepEqual(Object.keys(ar.panelTable).sort(), Object.keys(en.panelTable).sort())
+    assert.deepEqual(Object.keys(bn.panelTable).sort(), Object.keys(en.panelTable).sort())
+    for (const locale of [ar, en, bn]) {
+        for (const value of Object.values(locale.panelTable)) assert.ok(value.trim())
+        assert.equal(locale.contracts.validUntil.match(/\{date\}/g)?.length, 1)
+    }
 })
 
 for (const mode of ['valid', 'revoked', 'unavailable', 'anonymous']) {

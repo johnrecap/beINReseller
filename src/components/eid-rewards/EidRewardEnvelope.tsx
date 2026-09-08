@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Lottie from 'lottie-react'
+import { useReducedMotion } from 'framer-motion'
 
 type EnvelopeState = 'idle' | 'opening' | 'celebration'
 
@@ -16,6 +17,7 @@ const animationByState: Record<EnvelopeState, string> = {
 }
 
 export default function EidRewardEnvelope({ state }: EidRewardEnvelopeProps) {
+    const reduceMotion = useReducedMotion()
     const [loaded, setLoaded] = useState<{
         state: EnvelopeState | null
         data: unknown | null
@@ -48,7 +50,7 @@ export default function EidRewardEnvelope({ state }: EidRewardEnvelopeProps) {
     if (!failed && animationData) {
         return (
             <div className="mx-auto h-44 w-44 sm:h-56 sm:w-56">
-                <Lottie animationData={animationData} loop={state !== 'opening'} />
+                <Lottie animationData={animationData} loop={!reduceMotion && state !== 'opening'} autoplay={!reduceMotion} />
             </div>
         )
     }
@@ -116,6 +118,10 @@ export default function EidRewardEnvelope({ state }: EidRewardEnvelopeProps) {
                 .eid-fallback-sparkles span:nth-child(4) { right: 30px; bottom: -12px; animation-delay: 480ms; }
                 .eid-fallback-envelope.idle .eid-fallback-sparkles span {
                     display: none;
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    .eid-fallback-envelope, .eid-fallback-sparkles span { animation: none; }
+                    .eid-fallback-flap { transition: none; }
                 }
                 @keyframes eid-shake {
                     0%, 100% { transform: rotate(0deg); }

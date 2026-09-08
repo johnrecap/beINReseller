@@ -1,6 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { PanelDialog } from '@/components/ui/dialog'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { X, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Loader2, DollarSign, ArrowUpCircle, ArrowDownCircle, Wallet, ChevronDown, CheckCircle, Wrench } from 'lucide-react'
 import { format } from 'date-fns'
 import { ar, enUS, bn } from 'date-fns/locale'
@@ -115,8 +119,6 @@ export default function UserStatsDialog({
     const { t, locale } = useTranslation()
     const transactionTypeLabels = getTransactionTypeLabels(t)
     const statusLabels = getStatusLabels(t)
-    const statsErrorLabel = t.common?.error || 'Error'
-    const statsConnectionFailedLabel = t.userStats?.connectionFailed || 'Failed to connect to server'
 
     const getDateLocale = () => {
         switch (locale) {
@@ -126,10 +128,13 @@ export default function UserStatsDialog({
         }
     }
 
-    const [loading, setLoading] = useState(false)
-    const [loadingMore, setLoadingMore] = useState(false)
+    const { load, loading: reading, error, cancel } = usePanelRequest()
+    const [moreMode, setMoreMode] = useState(false)
+    const loading = reading && !moreMode
+    const loadingMore = reading && moreMode
+    const readAdmission = useRef<symbol | null>(null)
+    const correctionPending = useRef(false)
     const [data, setData] = useState<StatsData | null>(null)
-    const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'transactions' | 'operations'>('transactions')
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [operations, setOperations] = useState<Operation[]>([])
@@ -151,68 +156,59 @@ export default function UserStatsDialog({
         type?: 'transactions' | 'operations',
         skip = { transactions: 0, operations: 0 },
     ) => {
-        if (!userId) return
-
-        if (loadMore) {
-            setLoadingMore(true)
-        } else {
-            setLoading(true)
-            setError(null)
-        }
-
-        try {
-            const txSkip = loadMore && type === 'transactions' ? skip.transactions : 0
-            const opSkip = loadMore && type === 'operations' ? skip.operations : 0
-
-            const endpoint = statsEndpoint || `/api/admin/users/${userId}/stats`
-            const res = await fetch(`${endpoint}?txLimit=20&txSkip=${txSkip}&opLimit=20&opSkip=${opSkip}`)
-            const result = await res.json()
-
-            if (!res.ok) {
-                setError(result.error || statsErrorLabel)
-                return
-            }
-
-            if (loadMore) {
-                if (type === 'transactions') {
-                    setTransactions(prev => [...prev, ...result.recentTransactions])
-                    setTxHasMore(result.pagination.transactions.hasMore)
-                } else if (type === 'operations') {
-                    setOperations(prev => [...prev, ...result.recentOperations])
-                    setOpHasMore(result.pagination.operations.hasMore)
-                }
-            } else {
-                setData(result)
-                setTransactions(result.recentTransactions)
-                setOperations(result.recentOperations)
-                setTxHasMore(result.pagination.transactions.hasMore)
-                setOpHasMore(result.pagination.operations.hasMore)
-                setTxTotal(result.pagination.transactions.total)
-                setOpTotal(result.pagination.operations.total)
-            }
-        } catch {
-            setError(statsConnectionFailedLabel)
-        } finally {
-            setLoading(false)
-            setLoadingMore(false)
-        }
-    }, [userId, statsEndpoint, statsErrorLabel, statsConnectionFailedLabel])
-
-    useEffect(() => {
-        if (isOpen && userId) {
-            // Reset state when opening
+        if (!userId || (loadMore && readAdmission.current)) return
+        const ticket = Symbol('stats-read')
+        readAdmission.current = ticket
+        setMoreMode(loadMore)
+        if (!loadMore) {
+            setData(null)
             setTransactions([])
             setOperations([])
-            fetchStats()
         }
-    }, [fetchStats, isOpen, userId])
+        const txSkip = loadMore && type === 'transactions' ? skip.transactions : 0
+        const opSkip = loadMore && type === 'operations' ? skip.operations : 0
+        const endpoint = statsEndpoint || `/api/admin/users/${userId}/stats`
+        try {
+            await load<StatsData>(`${endpoint}?txLimit=20&txSkip=${txSkip}&opLimit=20&opSkip=${opSkip}`, result => {
+                if (loadMore) {
+                    if (type === 'transactions') {
+                        setTransactions(prev => [...prev, ...result.recentTransactions.filter(row => !prev.some(existing => existing.id === row.id))])
+                        setTxHasMore(result.pagination.transactions.hasMore)
+                    } else if (type === 'operations') {
+                        setOperations(prev => [...prev, ...result.recentOperations.filter(row => !prev.some(existing => existing.id === row.id))])
+                        setOpHasMore(result.pagination.operations.hasMore)
+                    }
+                } else {
+                    setData(result)
+                    setTransactions(result.recentTransactions)
+                    setOperations(result.recentOperations)
+                    setTxHasMore(result.pagination.transactions.hasMore)
+                    setOpHasMore(result.pagination.operations.hasMore)
+                    setTxTotal(result.pagination.transactions.total)
+                    setOpTotal(result.pagination.operations.total)
+                }
+            })
+        } finally {
+            if (readAdmission.current === ticket) readAdmission.current = null
+        }
+    }, [userId, statsEndpoint, load])
+
+    useEffect(() => {
+        if (!isOpen || !userId) return
+        const timer = window.setTimeout(() => void fetchStats(), 0)
+        return () => {
+            window.clearTimeout(timer)
+            cancel()
+            readAdmission.current = null
+        }
+    }, [fetchStats, isOpen, userId, cancel])
 
     const handleLoadMore = (type: 'transactions' | 'operations') => {
         fetchStats(true, type, { transactions: transactions.length, operations: operations.length })
     }
 
     const handleCorrect = async (alertType: string, operationId?: string) => {
-        if (!userId || !canCorrectBalance) return
+        if (!userId || !canCorrectBalance || correctionPending.current) return
 
         // For BALANCE_MISMATCH, open the dialog instead of auto-correcting
         if (alertType === 'BALANCE_MISMATCH') {
@@ -233,8 +229,9 @@ export default function UserStatsDialog({
     }
 
     const submitCorrection = async (alertType: string, operationId?: string, notes?: string) => {
-        if (!userId || !canCorrectBalance) return
+        if (!userId || !canCorrectBalance || correctionPending.current) return
 
+        correctionPending.current = true
         const key = `${alertType}-${operationId || 'none'}`
         setCorrecting(key)
         setCorrectionSuccess(null)
@@ -256,12 +253,7 @@ export default function UserStatsDialog({
                 setCorrectionSuccess(key)
                 setCorrectionDialogOpen(false)
                 // Refresh stats after correction
-                setTimeout(() => {
-                    setTransactions([])
-                    setOperations([])
-                    fetchStats()
-                    setCorrectionSuccess(null)
-                }, 1000)
+                await fetchStats()
             } else if (result.alreadyCorrected) {
                 alert(result.message)
                 setCorrectionDialogOpen(false)
@@ -271,6 +263,7 @@ export default function UserStatsDialog({
         } catch (err) {
             alert(err instanceof Error ? err.message : t.common?.error || 'Error')
         } finally {
+            correctionPending.current = false
             setCorrecting(null)
         }
     }
@@ -283,20 +276,23 @@ export default function UserStatsDialog({
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <PanelDialog onClose={() => { if (!correctionPending.current) onClose() }} busy={!!correcting} title={<>
+                        {t.userStats?.title || 'User Statistics'}: {username}
+                    </>} className="max-w-4xl">
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+
 
             {/* Dialog */}
-            <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden mx-4">
+            <div className="relative min-w-0 bg-card rounded-2xl shadow-2xl w-full max-w-4xl">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/50">
-                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border bg-secondary/50">
+                    <h2 className="min-w-0 break-words text-xl font-bold text-foreground">
                         {t.userStats?.title || 'User Statistics'}: {username}
                     </h2>
                     <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-secondary rounded-lg transition-colors"
+                        onClick={() => { if (!correctionPending.current) onClose() }}
+                        disabled={!!correcting}
+                        className="shrink-0 p-2 hover:bg-secondary rounded-lg transition-colors"
                         title={t.userStats?.close || 'Close'}
                     >
                         <X className="w-5 h-5" />
@@ -304,20 +300,17 @@ export default function UserStatsDialog({
                 </div>
 
                 {/* Content */}
-                <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+                <div className="min-w-0 p-4 sm:p-6">
                     {loading ? (
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
                         </div>
-                    ) : error ? (
-                        <div className="text-center py-12 text-red-500">
-                            <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-                            <p>{error}</p>
-                        </div>
-                    ) : data ? (
+                    ) : error !== null ? (
+                        <PanelLoadError status={error} retry={() => void fetchStats()} />
+                    ) : data?.user.id === userId ? (
                         <div className="space-y-6">
                             {/* Financial Summary Cards */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
                                     <div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-2">
                                         <ArrowUpCircle className="w-5 h-5" />
@@ -381,99 +374,99 @@ export default function UserStatsDialog({
                                     {t.userStats?.audit?.title || 'Balance Calculation Details'}
                                 </h3>
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-secondary text-xs">
-                                            <tr>
-                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.type || 'Type'}</th>
-                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.direction || 'Direction'}</th>
-                                                <th className="px-3 py-2 text-right">{t.userStats?.audit?.total || 'Total'}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
-                                            <tr className="hover:bg-secondary/50">
-                                                <td className="px-3 py-2 flex items-center gap-2">
+                                    <Table panel density="compact" className="w-full text-sm">
+                                        <TableHeader className="bg-secondary text-xs">
+                                            <TableRow>
+                                                <TableHead className="px-3 py-2 text-right">{t.userStats?.audit?.type || 'Type'}</TableHead>
+                                                <TableHead className="px-3 py-2 text-right">{t.userStats?.audit?.direction || 'Direction'}</TableHead>
+                                                <TableHead className="px-3 py-2 text-right">{t.userStats?.audit?.total || 'Total'}</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody className="divide-y divide-border">
+                                            <TableRow className="hover:bg-secondary/50">
+                                                <TableCell className="px-3 py-2 flex items-center gap-2">
                                                     <ArrowUpCircle className="w-4 h-4 text-green-500" />
                                                     {t.userStats?.deposits || 'Deposits'}
-                                                </td>
-                                                <td className="px-3 py-2 text-green-600">+</td>
-                                                <td className="px-3 py-2 font-medium text-green-600">+${data.financials.totalDeposits.toLocaleString()}</td>
-                                            </tr>
-                                            <tr className="hover:bg-secondary/50">
-                                                <td className="px-3 py-2 flex items-center gap-2">
+                                                </TableCell>
+                                                <TableCell className="px-3 py-2 text-green-600">+</TableCell>
+                                                <TableCell className="px-3 py-2 font-medium text-green-600">+${data.financials.totalDeposits.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                            <TableRow className="hover:bg-secondary/50">
+                                                <TableCell className="px-3 py-2 flex items-center gap-2">
                                                     <TrendingDown className="w-4 h-4 text-orange-500" />
                                                     {t.userStats?.audit?.operations || 'Operations'}
-                                                </td>
-                                                <td className="px-3 py-2 text-orange-600">-</td>
-                                                <td className="px-3 py-2 font-medium text-orange-600">-${data.financials.totalDeductions.toLocaleString()}</td>
-                                            </tr>
-                                            <tr className="hover:bg-secondary/50">
-                                                <td className="px-3 py-2 flex items-center gap-2">
+                                                </TableCell>
+                                                <TableCell className="px-3 py-2 text-orange-600">-</TableCell>
+                                                <TableCell className="px-3 py-2 font-medium text-orange-600">-${data.financials.totalDeductions.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                            <TableRow className="hover:bg-secondary/50">
+                                                <TableCell className="px-3 py-2 flex items-center gap-2">
                                                     <RefreshCw className="w-4 h-4 text-blue-500" />
                                                     {t.userStats?.refunds || 'Refunds'}
-                                                </td>
-                                                <td className="px-3 py-2 text-blue-600">+</td>
-                                                <td className="px-3 py-2 font-medium text-blue-600">+${data.financials.totalRefunds.toLocaleString()}</td>
-                                            </tr>
-                                            <tr className="hover:bg-secondary/50">
-                                                <td className="px-3 py-2 flex items-center gap-2">
+                                                </TableCell>
+                                                <TableCell className="px-3 py-2 text-blue-600">+</TableCell>
+                                                <TableCell className="px-3 py-2 font-medium text-blue-600">+${data.financials.totalRefunds.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                            <TableRow className="hover:bg-secondary/50">
+                                                <TableCell className="px-3 py-2 flex items-center gap-2">
                                                     <ArrowDownCircle className="w-4 h-4 text-red-500" />
                                                     {t.userStats?.audit?.withdrawals || 'Withdrawals'}
-                                                </td>
-                                                <td className="px-3 py-2 text-red-600">-</td>
-                                                <td className="px-3 py-2 font-medium text-red-600">-${data.financials.totalWithdrawals.toLocaleString()}</td>
-                                            </tr>
-                                            <tr className="hover:bg-secondary/50">
-                                                <td className="px-3 py-2 flex items-center gap-2">
+                                                </TableCell>
+                                                <TableCell className="px-3 py-2 text-red-600">-</TableCell>
+                                                <TableCell className="px-3 py-2 font-medium text-red-600">-${data.financials.totalWithdrawals.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                            <TableRow className="hover:bg-secondary/50">
+                                                <TableCell className="px-3 py-2 flex items-center gap-2">
                                                     <Wrench className="w-4 h-4 text-purple-500" />
                                                     {t.userStats?.audit?.corrections || 'Corrections'}
-                                                </td>
-                                                <td className="px-3 py-2 text-purple-600">±</td>
-                                                <td className={`px-3 py-2 font-medium ${data.financials.totalCorrections >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                </TableCell>
+                                                <TableCell className="px-3 py-2 text-purple-600">±</TableCell>
+                                                <TableCell className={`px-3 py-2 font-medium ${data.financials.totalCorrections >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                     {data.financials.totalCorrections >= 0 ? '+' : ''}${data.financials.totalCorrections.toLocaleString()}
-                                                </td>
-                                            </tr>
-                                            <tr className="bg-secondary/70 font-bold">
-                                                <td className="px-3 py-2">{t.userStats?.audit?.expected || 'Expected Balance'}</td>
-                                                <td className="px-3 py-2">=</td>
-                                                <td className="px-3 py-2">${data.financials.expectedBalance.toLocaleString()}</td>
-                                            </tr>
-                                            <tr className="bg-secondary/70 font-bold">
-                                                <td className="px-3 py-2">{t.userStats?.audit?.actual || 'Actual Balance'}</td>
-                                                <td className="px-3 py-2"></td>
-                                                <td className="px-3 py-2">${data.financials.actualBalance.toLocaleString()}</td>
-                                            </tr>
+                                                </TableCell>
+                                            </TableRow>
+                                            <TableRow className="bg-secondary/70 font-bold">
+                                                <TableCell className="px-3 py-2">{t.userStats?.audit?.expected || 'Expected Balance'}</TableCell>
+                                                <TableCell className="px-3 py-2">=</TableCell>
+                                                <TableCell className="px-3 py-2">${data.financials.expectedBalance.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                            <TableRow className="bg-secondary/70 font-bold">
+                                                <TableCell className="px-3 py-2">{t.userStats?.audit?.actual || 'Actual Balance'}</TableCell>
+                                                <TableCell className="px-3 py-2"></TableCell>
+                                                <TableCell className="px-3 py-2">${data.financials.actualBalance.toLocaleString()}</TableCell>
+                                            </TableRow>
                                             {!data.financials.isBalanceValid && (
-                                                <tr className={`font-bold ${data.financials.discrepancy > 0 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>
-                                                    <td className="px-3 py-2 flex items-center gap-2">
+                                                <TableRow className={`font-bold ${data.financials.discrepancy > 0 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>
+                                                    <TableCell className="px-3 py-2 flex items-center gap-2">
                                                         <AlertTriangle className="w-4 h-4" />
                                                         {t.userStats?.correction?.difference || 'Difference'}
-                                                    </td>
-                                                    <td className="px-3 py-2"></td>
-                                                    <td className="px-3 py-2">
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2"></TableCell>
+                                                    <TableCell className="px-3 py-2">
                                                         {data.financials.discrepancy > 0 ? '+' : ''}${data.financials.discrepancy.toFixed(2)}
                                                         <span className="text-xs ms-1">
                                                             ({data.financials.discrepancy > 0
                                                                 ? (t.userStats?.audit?.needsCorrection)
                                                                 : (t.userStats?.correction?.deficit)})
                                                         </span>
-                                                    </td>
-                                                </tr>
+                                                    </TableCell>
+                                                </TableRow>
                                             )}
                                             {data.financials.isBalanceValid && (
-                                                <tr className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-bold">
-                                                    <td className="px-3 py-2 flex items-center gap-2" colSpan={3}>
+                                                <TableRow className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-bold">
+                                                    <TableCell className="px-3 py-2 flex items-center gap-2" colSpan={3}>
                                                         <CheckCircle className="w-4 h-4" />
                                                         {t.userStats?.audit?.balanced}
-                                                    </td>
-                                                </tr>
+                                                    </TableCell>
+                                                </TableRow>
                                             )}
-                                        </tbody>
-                                    </table>
+                                        </TableBody>
+                                    </Table>
                                 </div>
                             </div>
 
                             {/* Net Spending Card */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
                                     <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-2">
                                         <TrendingUp className="w-5 h-5" />
@@ -517,7 +510,7 @@ export default function UserStatsDialog({
                                                 {canCorrectBalance && (
                                                     <button
                                                         onClick={() => handleCorrect(alert.type, alert.operationId)}
-                                                        disabled={correcting === `${alert.type}-${alert.operationId || 'none'}`}
+                                                        disabled={correcting !== null}
                                                         className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-xs font-medium transition-colors"
                                                         title={t.userStats?.alerts?.correct}
                                                     >
@@ -577,9 +570,12 @@ export default function UserStatsDialog({
 
                             {/* Correction Dialog (Inline Modal) */}
                             {correctionDialogOpen && data && canCorrectBalance && (
-                                <div className="fixed inset-0 z-[60] flex items-center justify-center">
-                                    <div className="absolute inset-0 bg-black/50" onClick={() => setCorrectionDialogOpen(false)} />
-                                    <div className="relative bg-card rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+                                <PanelDialog onClose={() => { if (!correctionPending.current) setCorrectionDialogOpen(false) }} busy={!!correcting} title={<>
+                                            <Wrench className="w-5 h-5 text-amber-500" />
+                                            {t.userStats?.correction?.dialogTitle}
+                                        </>} className="max-w-md">
+
+                                    <div className="relative bg-card rounded-xl shadow-2xl w-full max-w-md p-6">
                                         <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                                             <Wrench className="w-5 h-5 text-amber-500" />
                                             {t.userStats?.correction?.dialogTitle}
@@ -679,10 +675,11 @@ export default function UserStatsDialog({
 
                                         {/* Notes Input */}
                                         <div className="mb-4">
-                                            <label className="block text-sm font-medium mb-2">
+                                            <label htmlFor="stats-correction-notes" className="block text-sm font-medium mb-2">
                                                 {t.userStats?.correction?.notes || 'Notes'} ({t.common?.optional || 'Optional'})
                                             </label>
                                             <input
+                                                id="stats-correction-notes"
                                                 type="text"
                                                 value={correctionNotes}
                                                 onChange={(e) => setCorrectionNotes(e.target.value)}
@@ -702,7 +699,8 @@ export default function UserStatsDialog({
                                         {/* Actions */}
                                         <div className="flex gap-3 justify-end">
                                             <button
-                                                onClick={() => setCorrectionDialogOpen(false)}
+                                                onClick={() => { if (!correctionPending.current) setCorrectionDialogOpen(false) }}
+                                                disabled={correcting !== null}
                                                 className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
                                             >
                                                 {t.common?.cancel || 'Cancel'}
@@ -721,7 +719,7 @@ export default function UserStatsDialog({
                                             </button>
                                         </div>
                                     </div>
-                                </div>
+                                </PanelDialog>
                             )}
 
                             {/* Operation Stats */}
@@ -730,7 +728,7 @@ export default function UserStatsDialog({
                                     <DollarSign className="w-5 h-5" />
                                     {t.userStats?.operationStats?.title || 'Operation Statistics'}
                                 </h3>
-                                <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-center">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-center">
                                     <div className="bg-card rounded-lg p-2">
                                         <p className="text-lg font-bold">{data.operations.total}</p>
                                         <p className="text-xs text-muted-foreground">{t.userStats?.operationStats?.total || 'Total'}</p>
@@ -762,6 +760,7 @@ export default function UserStatsDialog({
                             <div className="border-b border-border">
                                 <div className="flex gap-4">
                                     <button
+                                        aria-pressed={activeTab === 'transactions'}
                                         onClick={() => setActiveTab('transactions')}
                                         className={`pb-2 px-1 font-medium transition-colors ${activeTab === 'transactions'
                                             ? 'text-purple-600 border-b-2 border-purple-600'
@@ -771,6 +770,7 @@ export default function UserStatsDialog({
                                         {t.userStats?.tabs?.transactions || 'Transactions'} ({txTotal})
                                     </button>
                                     <button
+                                        aria-pressed={activeTab === 'operations'}
                                         onClick={() => setActiveTab('operations')}
                                         className={`pb-2 px-1 font-medium transition-colors ${activeTab === 'operations'
                                             ? 'text-purple-600 border-b-2 border-purple-600'
@@ -786,45 +786,45 @@ export default function UserStatsDialog({
                             {activeTab === 'transactions' && (
                                 <div className="space-y-4">
                                     <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-secondary text-xs">
-                                                <tr>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.date || 'Date'}</th>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.type || 'Type'}</th>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.amount || 'Amount'}</th>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.balanceAfter || 'Balance After'}</th>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.notes || 'Notes'}</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-border">
+                                        <Table panel density="compact" className="w-full">
+                                            <TableHeader className="bg-secondary text-xs">
+                                                <TableRow>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.date || 'Date'}</TableHead>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.type || 'Type'}</TableHead>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.amount || 'Amount'}</TableHead>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.balanceAfter || 'Balance After'}</TableHead>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.notes || 'Notes'}</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody className="divide-y divide-border">
                                                 {transactions.map((tx) => {
                                                     const typeInfo = (transactionTypeLabels as Record<string, typeof transactionTypeLabels['DEPOSIT']>)[tx.type] || { label: tx.type, color: 'text-gray-600 bg-gray-50', icon: DollarSign }
                                                     const Icon = typeInfo.icon
                                                     return (
-                                                        <tr key={tx.id} className="hover:bg-secondary/50">
-                                                            <td className="px-4 py-2 text-sm">
+                                                        <TableRow key={tx.id} className="hover:bg-secondary/50">
+                                                            <TableCell className="px-4 py-2 text-sm">
                                                                 {format(new Date(tx.createdAt), 'dd/MM/yyyy HH:mm', { locale: getDateLocale() })}
-                                                            </td>
-                                                            <td className="px-4 py-2">
+                                                            </TableCell>
+                                                            <TableCell className="px-4 py-2">
                                                                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeInfo.color}`}>
                                                                     <Icon className="w-3 h-3" />
                                                                     {typeInfo.label}
                                                                 </span>
-                                                            </td>
-                                                            <td className={`px-4 py-2 font-bold ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            </TableCell>
+                                                            <TableCell className={`px-4 py-2 font-bold ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                                 {tx.amount >= 0 ? '+' : ''}${Math.abs(tx.amount).toLocaleString()}
-                                                            </td>
-                                                            <td className="px-4 py-2 text-sm text-muted-foreground">
+                                                            </TableCell>
+                                                            <TableCell className="px-4 py-2 text-sm text-muted-foreground">
                                                                 ${tx.balanceAfter.toLocaleString()}
-                                                            </td>
-                                                            <td className="px-4 py-2 text-sm text-muted-foreground truncate max-w-[200px]">
+                                                            </TableCell>
+                                                            <TableCell className="px-4 py-2 text-sm text-muted-foreground truncate max-w-[200px]">
                                                                 {tx.notes || '-'}
-                                                            </td>
-                                                        </tr>
+                                                            </TableCell>
+                                                        </TableRow>
                                                     )
                                                 })}
-                                            </tbody>
-                                        </table>
+                                            </TableBody>
+                                        </Table>
                                     </div>
 
                                     {/* Load More Button */}
@@ -851,43 +851,43 @@ export default function UserStatsDialog({
                             {activeTab === 'operations' && (
                                 <div className="space-y-4">
                                     <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-secondary text-xs">
-                                                <tr>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.date || 'Date'}</th>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.type || 'Type'}</th>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.card || 'Card'}</th>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.amount || 'Amount'}</th>
-                                                    <th className="px-4 py-2 text-right">{t.userStats?.table?.status || 'Status'}</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-border">
+                                        <Table panel density="compact" className="w-full">
+                                            <TableHeader className="bg-secondary text-xs">
+                                                <TableRow>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.date || 'Date'}</TableHead>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.type || 'Type'}</TableHead>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.card || 'Card'}</TableHead>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.amount || 'Amount'}</TableHead>
+                                                    <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.status || 'Status'}</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody className="divide-y divide-border">
                                                 {operations.map((op) => {
                                                     const statusInfo = (statusLabels as Record<string, typeof statusLabels['COMPLETED']>)[op.status] || { label: op.status, color: 'bg-gray-100 text-gray-700' }
                                                     return (
-                                                        <tr key={op.id} className="hover:bg-secondary/50">
-                                                            <td className="px-4 py-2 text-sm">
+                                                        <TableRow key={op.id} className="hover:bg-secondary/50">
+                                                            <TableCell className="px-4 py-2 text-sm">
                                                                 {format(new Date(op.createdAt), 'dd/MM/yyyy HH:mm', { locale: getDateLocale() })}
-                                                            </td>
-                                                            <td className="px-4 py-2 text-sm">
+                                                            </TableCell>
+                                                            <TableCell className="px-4 py-2 text-sm">
                                                                 {op.type === 'RENEW' ? t.userStats?.table?.renew || 'Renewal' : op.type}
-                                                            </td>
-                                                            <td className="px-4 py-2 text-sm font-mono">
+                                                            </TableCell>
+                                                            <TableCell className="px-4 py-2 text-sm font-mono">
                                                                 {op.cardNumber}
-                                                            </td>
-                                                            <td className="px-4 py-2 font-bold">
+                                                            </TableCell>
+                                                            <TableCell className="px-4 py-2 font-bold">
                                                                 ${op.amount.toLocaleString()}
-                                                            </td>
-                                                            <td className="px-4 py-2">
+                                                            </TableCell>
+                                                            <TableCell className="px-4 py-2">
                                                                 <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
                                                                     {statusInfo.label}
                                                                 </span>
-                                                            </td>
-                                                        </tr>
+                                                            </TableCell>
+                                                        </TableRow>
                                                     )
                                                 })}
-                                            </tbody>
-                                        </table>
+                                            </TableBody>
+                                        </Table>
                                     </div>
 
                                     {/* Load More Button */}
@@ -913,6 +913,6 @@ export default function UserStatsDialog({
                     ) : null}
                 </div>
             </div>
-        </div>
+        </PanelDialog>
     )
 }

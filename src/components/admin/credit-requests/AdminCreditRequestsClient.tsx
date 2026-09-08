@@ -1,6 +1,11 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { usePanelRequest, usePanelCommand } from '@/hooks/usePanelRequest'
+import { PanelLoadError, PanelCommandWarning } from '@/components/ui/PanelLoadError'
+import { PanelTablePagination } from '@/components/ui/PanelTableControls'
+import { PanelDialog } from '@/components/ui/dialog'
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     AlertCircle,
     CheckCircle2,
@@ -121,59 +126,59 @@ type WhatsAppHandoff = {
     autoCopyStatus?: string | null
 }
 
-const statusOptions: Array<{ value: CreditRequestStatus | 'ALL'; label: string }> = [
-    { value: 'PENDING', label: 'Pending' },
-    { value: 'APPROVED', label: 'Approved' },
-    { value: 'REJECTED', label: 'Rejected' },
-    { value: 'CANCELLED', label: 'Cancelled' },
-    { value: 'ALL', label: 'All' },
+const getStatusOptions = (t: ReturnType<typeof useTranslation>['t']): Array<{ value: CreditRequestStatus | 'ALL'; label: string }> => [
+    { value: 'PENDING', label: t.status.pending },
+    { value: 'APPROVED', label: t.panelUi.operationalCopy.approved },
+    { value: 'REJECTED', label: t.panelUi.operationalCopy.rejected },
+    { value: 'CANCELLED', label: t.status.cancelled },
+    { value: 'ALL', label: t.common.all },
 ]
 
-const escalationOptions: Array<{ value: 'ALL' | 'ESCALATED' | 'NORMAL'; label: string }> = [
-    { value: 'ALL', label: 'All escalation states' },
-    { value: 'ESCALATED', label: 'Escalated only' },
-    { value: 'NORMAL', label: 'Not escalated' },
+const getEscalationOptions = (t: ReturnType<typeof useTranslation>['t']): Array<{ value: 'ALL' | 'ESCALATED' | 'NORMAL'; label: string }> => [
+    { value: 'ALL', label: t.panelUi.operationalCopy.allEscalationStates },
+    { value: 'ESCALATED', label: t.panelUi.operationalCopy.escalatedOnly },
+    { value: 'NORMAL', label: t.panelUi.operationalCopy.notEscalated },
 ]
 
-const decisionCopy: Record<Decision, { title: string; body: string; confirm: string; tone: string }> = {
+const getDecisionCopy = (t: ReturnType<typeof useTranslation>['t']): Record<Decision, { title: string; body: string; confirm: string; tone: string }> => ({
     APPROVE: {
-        title: 'Approve Credit Request',
-        body: 'This will add balance to the user and record the approved amount as unpaid debt. Duplicate approval is blocked server-side.',
-        confirm: 'Approve and Add Balance',
+        title: t.panelUi.operationalCopy.approveCreditTitle,
+        body: t.panelUi.operationalCopy.approveCreditHint,
+        confirm: t.panelUi.operationalCopy.approveAndAdd,
         tone: 'text-emerald-300',
     },
     REJECT: {
-        title: 'Reject Credit Request',
-        body: 'This changes the request status only. No balance or points will be created.',
-        confirm: 'Reject Request',
+        title: t.panelUi.operationalCopy.rejectCreditTitle,
+        body: t.panelUi.operationalCopy.rejectCreditHint,
+        confirm: t.panelUi.operationalCopy.rejectRequest,
         tone: 'text-red-300',
     },
     CANCEL: {
-        title: 'Cancel Credit Request',
-        body: 'This cancels the pending request without changing balance or points.',
-        confirm: 'Cancel Request',
+        title: t.panelUi.operationalCopy.cancelCreditTitle,
+        body: t.panelUi.operationalCopy.cancelCreditHint,
+        confirm: t.panelUi.operationalCopy.cancelRequest,
         tone: 'text-amber-300',
     },
-}
+})
 
-const escalationCopy: Record<EscalationAction, { title: string; body: string; confirm: string; tone: string }> = {
+const getEscalationCopy = (t: ReturnType<typeof useTranslation>['t']): Record<EscalationAction, { title: string; body: string; confirm: string; tone: string }> => ({
     ESCALATE: {
-        title: 'Escalate Credit Request',
-        body: 'This marks the request for admin attention. It does not approve, reject, cancel, add balance, or change points.',
-        confirm: 'Escalate Request',
+        title: t.panelUi.operationalCopy.escalateCreditTitle,
+        body: t.panelUi.operationalCopy.escalateCreditHint,
+        confirm: t.panelUi.operationalCopy.escalateRequest,
         tone: 'text-amber-300',
     },
     RESOLVE: {
-        title: 'Resolve Escalation',
-        body: 'This removes the escalation flag only. The request status, balance, and points remain unchanged.',
-        confirm: 'Resolve Escalation',
+        title: t.panelUi.operationalCopy.resolveEscalation,
+        body: t.panelUi.operationalCopy.resolveEscalationHint,
+        confirm: t.panelUi.operationalCopy.resolveEscalation,
         tone: 'text-emerald-300',
     },
-}
+})
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, language: string) {
     if (!value) return '-'
-    return new Intl.DateTimeFormat('en', {
+    return new Intl.DateTimeFormat(language, {
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(new Date(value))
@@ -184,22 +189,24 @@ function formatUsd(value: number) {
 }
 
 function DebtSummaryCell({ summary }: { summary: CreditDebtSummary | null }) {
+    const { t } = useTranslation()
     if (!summary) return <span className="text-xs text-muted-foreground">-</span>
 
     return (
         <div className="space-y-1 text-xs">
             <div className="font-semibold text-foreground">
-                Debt {formatUsd(summary.outstandingDebtUsd)} / {formatUsd(summary.creditDebtLimitUsd)}
+                {t.panelUi.creditControl.debt} {formatUsd(summary.outstandingDebtUsd)} / {formatUsd(summary.creditDebtLimitUsd)}
             </div>
-            <div className="text-muted-foreground">Pending {formatUsd(summary.pendingRequestedUsd)}</div>
+            <div className="text-muted-foreground">{t.status.pending} {formatUsd(summary.pendingRequestedUsd)}</div>
             <div className={summary.availableUsd > 0 ? 'text-emerald-300' : 'text-amber-300'}>
-                Remaining {formatUsd(summary.availableUsd)}
+                {t.panelUi.creditControl.remaining} {formatUsd(summary.availableUsd)}
             </div>
         </div>
     )
 }
 
 function StatusBadge({ status }: { status: CreditRequestStatus }) {
+    const { t } = useTranslation()
     const className = {
         PENDING: 'border-amber-400/40 bg-amber-400/10 text-amber-300',
         APPROVED: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300',
@@ -207,7 +214,7 @@ function StatusBadge({ status }: { status: CreditRequestStatus }) {
         CANCELLED: 'border-slate-400/40 bg-slate-400/10 text-slate-300',
     }[status]
 
-    return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${className}`}>{status}</span>
+    return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${className}`}>{({PENDING:t.status.pending,APPROVED:t.panelUi.operationalCopy.approved,REJECTED:t.panelUi.operationalCopy.rejected,CANCELLED:t.status.cancelled} as Record<string, string>)[status] || status}</span>
 }
 
 function SummaryCard({
@@ -233,14 +240,20 @@ function SummaryCard({
 }
 
 export default function AdminCreditRequestsClient() {
-    const { t } = useTranslation()
+    const { t: tableText } = useTranslation()
+    const { t, language } = useTranslation()
+    const statusOptions = getStatusOptions(t)
+    const escalationOptions = getEscalationOptions(t)
     const [status, setStatus] = useState<CreditRequestStatus | 'ALL'>('PENDING')
     const [agentId, setAgentId] = useState('')
     const [sourceGroupFilter, setSourceGroupFilter] = useState<CreditRequestSourceGroupSelection>({ mode: 'ALL' })
     const [escalationFilter, setEscalationFilter] = useState<'ALL' | 'ESCALATED' | 'NORMAL'>('ALL')
     const [search, setSearch] = useState('')
     const [data, setData] = useState<ApiResponse | null>(null)
-    const [loading, setLoading] = useState(true)
+    const { load, loading, error: readError, cancel } = usePanelRequest()
+    const { request: command, hasUnconfirmed: unconfirmed, isUnconfirmed } = usePanelCommand()
+    const mutationPending = useRef(false)
+    const [page, setPage] = useState(1)
     const [error, setError] = useState<string | null>(null)
     const [dialog, setDialog] = useState<DialogState>(null)
     const [escalationDialog, setEscalationDialog] = useState<EscalationDialogState>(null)
@@ -248,7 +261,7 @@ export default function AdminCreditRequestsClient() {
     const [busyId, setBusyId] = useState<string | null>(null)
 
     const queryString = useMemo(() => {
-        const params = new URLSearchParams({ page: '1', limit: '25' })
+        const params = new URLSearchParams({ page: String(page), limit: '25' })
         if (status !== 'ALL') params.set('status', status)
         if (agentId) params.set('agentId', agentId)
         applyCreditRequestSourceGroupFilter(params, sourceGroupFilter)
@@ -256,29 +269,26 @@ export default function AdminCreditRequestsClient() {
         if (escalationFilter === 'NORMAL') params.set('escalated', 'false')
         if (search.trim()) params.set('search', search.trim())
         return params.toString()
-    }, [agentId, escalationFilter, search, sourceGroupFilter, status])
+    }, [agentId, escalationFilter, search, sourceGroupFilter, status, page])
 
     const loadData = useCallback(async () => {
-        setLoading(true)
-        setError(null)
-        try {
-            const response = await fetch(`/api/admin/credit-requests?${queryString}`, { cache: 'no-store' })
-            const payload = await response.json()
-            if (!response.ok) throw new Error(payload.error || 'Failed to load credit requests')
+        setData(null)
+        await load<ApiResponse>(`/api/admin/credit-requests?${queryString}`, payload => {
+            const lastPage = Math.max(1, payload.pagination.totalPages)
+            if (page > lastPage) { setPage(lastPage); return }
             setData(payload)
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load credit requests')
-        } finally {
-            setLoading(false)
-        }
-    }, [queryString])
+        })
+    }, [load, page, queryString])
 
     useEffect(() => {
-        void loadData()
-    }, [loadData])
+        const timer = setTimeout(() => void loadData(), 0)
+        return () => { clearTimeout(timer); cancel() }
+    }, [loadData, cancel])
 
     async function submitDecision(note: string) {
-        if (!dialog) return
+        const commandKey = `decision:${dialog?.item.id}`
+        if (isUnconfirmed(commandKey) || !dialog || mutationPending.current) return
+        mutationPending.current = true
         const currentDialog = dialog
         const handoffWindow = currentDialog.decision === 'APPROVE'
             ? window.open('about:blank', '_blank')
@@ -287,15 +297,15 @@ export default function AdminCreditRequestsClient() {
         setBusyId(currentDialog.item.id)
         setError(null)
         try {
-            const response = await fetch(`/api/admin/credit-requests/${currentDialog.item.id}/decision`, {
+            const response = await command(`/api/admin/credit-requests/${currentDialog.item.id}/decision`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ decision: currentDialog.decision, note }),
-            })
+            }, commandKey)
             const payload = await response.json().catch(() => ({}))
-            if (!response.ok) throw new Error(payload.error || 'Failed to save decision')
+            if (!response.ok) throw new Error(payload.error || t.panelUi.operationalCopy.saveDecisionFailed)
             if (payload.whatsappHandoff) {
-                const autoCopyStatus = await copyHandoffMessage(payload.whatsappHandoff.messageText)
+                const autoCopyStatus = await copyHandoffMessage(payload.whatsappHandoff.messageText, t)
                 if (payload.whatsappHandoff.groupUrl) {
                     if (handoffWindow) {
                         handoffWindow.location.href = payload.whatsappHandoff.groupUrl
@@ -313,46 +323,54 @@ export default function AdminCreditRequestsClient() {
             await loadData()
         } catch (err) {
             handoffWindow?.close()
-            setError(err instanceof Error ? err.message : 'Failed to save decision')
+            setError(err instanceof Error ? err.message : t.panelUi.operationalCopy.saveDecisionFailed)
         } finally {
+            mutationPending.current = false
             setBusyId(null)
         }
     }
 
     async function submitEscalation(note: string) {
-        if (!escalationDialog) return
+        const commandKey = `escalation:${escalationDialog?.item.id}`
+        if (isUnconfirmed(commandKey) || !escalationDialog || mutationPending.current) return
+        mutationPending.current = true
         setBusyId(escalationDialog.item.id)
         setError(null)
         try {
-            const response = await fetch(`/api/admin/credit-requests/${escalationDialog.item.id}/escalate`, {
+            const response = await command(`/api/admin/credit-requests/${escalationDialog.item.id}/escalate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: escalationDialog.action, note }),
-            })
+            }, commandKey)
             const payload = await response.json().catch(() => ({}))
-            if (!response.ok) throw new Error(payload.error || 'Failed to save escalation')
+            if (!response.ok) throw new Error(payload.error || t.panelUi.operationalCopy.saveEscalationFailed)
             setEscalationDialog(null)
             await loadData()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to save escalation')
+            setError(err instanceof Error ? err.message : t.panelUi.operationalCopy.saveEscalationFailed)
         } finally {
+            mutationPending.current = false
             setBusyId(null)
         }
     }
 
     async function retryNotification(item: AdminCreditRequestItem) {
+        const commandKey = `notification:${item.id}`
+        if (isUnconfirmed(commandKey) || mutationPending.current) return
+        mutationPending.current = true
         setBusyId(item.id)
         setError(null)
         try {
-            const response = await fetch(`/api/admin/credit-requests/${item.id}/notification-retry`, {
+            const response = await command(`/api/admin/credit-requests/${item.id}/notification-retry`, {
                 method: 'POST',
-            })
+            }, commandKey)
             const payload = await response.json().catch(() => ({}))
-            if (!response.ok) throw new Error(payload.error || 'Failed to retry Telegram notification')
+            if (!response.ok) throw new Error(payload.error || t.panelUi.operationalCopy.retryNotificationFailed)
             await loadData()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to retry Telegram notification')
+            setError(err instanceof Error ? err.message : t.panelUi.operationalCopy.retryNotificationFailed)
         } finally {
+            mutationPending.current = false
             setBusyId(null)
         }
     }
@@ -363,48 +381,48 @@ export default function AdminCreditRequestsClient() {
     }
 
     return (
-        <div className="min-h-screen bg-background p-6" dir="rtl">
+        <div className="min-h-screen bg-background p-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
             <div className="mx-auto flex max-w-7xl flex-col gap-6">
                 <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-2">
                         <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-sm text-amber-200">
                             <AlertCircle className="h-4 w-4" />
-                            Credit approval changes balance only after admin action
+                            {t.panelUi.operationalCopy.creditApprovalHint}
                         </div>
                         <div>
-                            <h1 className="text-3xl font-bold text-foreground">Credit Requests</h1>
+                            <h1 className="text-3xl font-bold text-foreground">{t.panelUi.operationalCopy.creditRequests}</h1>
                             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-                                Review agent-linked user credit requests. Approval creates one deposit and pending point entries.
+                                {t.panelUi.operationalCopy.creditRequestsHint}
                             </p>
                         </div>
                     </div>
                     <Button variant="outline" onClick={() => void loadData()} loading={loading}>
                         <RefreshCw className="h-4 w-4" />
-                        Refresh
+                        {t.common.refresh}
                     </Button>
                 </header>
 
-                <section className="grid gap-3 md:grid-cols-4">
-                    <SummaryCard label="Pending" value={data?.summary.PENDING || 0} icon={Clock3} tone="text-amber-300" />
-                    <SummaryCard label="Approved" value={data?.summary.APPROVED || 0} icon={CheckCircle2} tone="text-emerald-300" />
-                    <SummaryCard label="Rejected" value={data?.summary.REJECTED || 0} icon={XCircle} tone="text-red-300" />
-                    <SummaryCard label="Cancelled" value={data?.summary.CANCELLED || 0} icon={AlertCircle} tone="text-slate-300" />
-                </section>
+                {data && <section className="grid gap-3 md:grid-cols-4">
+                    <SummaryCard label={t.status.pending} value={data?.summary.PENDING || 0} icon={Clock3} tone="text-amber-300" />
+                    <SummaryCard label={t.panelUi.operationalCopy.approved} value={data?.summary.APPROVED || 0} icon={CheckCircle2} tone="text-emerald-300" />
+                    <SummaryCard label={t.panelUi.operationalCopy.rejected} value={data?.summary.REJECTED || 0} icon={XCircle} tone="text-red-300" />
+                    <SummaryCard label={t.status.cancelled} value={data?.summary.CANCELLED || 0} icon={AlertCircle} tone="text-slate-300" />
+                </section>}
 
                 <form onSubmit={handleSearch} className="rounded-lg border border-border bg-card p-4">
-                    <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px_180px_180px_auto]">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         <div className="relative">
-                            <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 value={search}
-                                onChange={(event) => setSearch(event.target.value)}
-                                placeholder="Search username, order id, agent, payment"
-                                className="pr-10"
+                                onChange={(event) => { setPage(1); setSearch(event.target.value) }}
+                                placeholder={t.panelUi.operationalCopy.creditSearch}
+                                className="ps-10"
                             />
                         </div>
                         <select
-                            value={status}
-                            onChange={(event) => setStatus(event.target.value as CreditRequestStatus | 'ALL')}
+                            value={({PENDING:t.status.pending,APPROVED:t.panelUi.operationalCopy.approved,REJECTED:t.panelUi.operationalCopy.rejected,CANCELLED:t.status.cancelled} as Record<string, string>)[status] || status}
+                            onChange={(event) => { setPage(1); setStatus(event.target.value as CreditRequestStatus | 'ALL') }}
                             className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                         >
                             {statusOptions.map((option) => (
@@ -413,17 +431,17 @@ export default function AdminCreditRequestsClient() {
                         </select>
                         <select
                             value={agentId}
-                            onChange={(event) => setAgentId(event.target.value)}
+                            onChange={(event) => { setPage(1); setAgentId(event.target.value) }}
                             className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                         >
-                            <option value="">All agents</option>
+                            <option value="">{t.panelUi.operationalCopy.allAgents}</option>
                             {(data?.filters.agents || []).map((agent) => (
                                 <option key={agent.id} value={agent.id}>{agent.name}</option>
                             ))}
                         </select>
                         <select
                             value={encodeCreditRequestSourceGroupOption(sourceGroupFilter)}
-                            onChange={(event) => setSourceGroupFilter(decodeCreditRequestSourceGroupOption(event.target.value))}
+                            onChange={(event) => { setPage(1); setSourceGroupFilter(decodeCreditRequestSourceGroupOption(event.target.value)) }}
                             className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                         >
                             <option value={encodeCreditRequestSourceGroupOption({ mode: 'ALL' })}>{t.common.allGroups}</option>
@@ -443,73 +461,75 @@ export default function AdminCreditRequestsClient() {
                         </select>
                         <select
                             value={escalationFilter}
-                            onChange={(event) => setEscalationFilter(event.target.value as 'ALL' | 'ESCALATED' | 'NORMAL')}
+                            onChange={(event) => { setPage(1); setEscalationFilter(event.target.value as 'ALL' | 'ESCALATED' | 'NORMAL') }}
                             className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                         >
                             {escalationOptions.map((option) => (
                                 <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                         </select>
-                        <Button type="submit" loading={loading}>Search</Button>
+                        <Button type="submit" loading={loading}>{t.common.search}</Button>
                     </div>
                 </form>
 
-                {error && (
+                {readError !== null && <PanelLoadError status={readError} retry={() => void loadData()} />}
+                {loading && <p role="status">{t.common.loading}</p>}
+                <PanelCommandWarning show={unconfirmed} />                {error && (
                     <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
                         {error}
                     </div>
                 )}
 
-                <section className="rounded-lg border border-border bg-card">
+                {data && <section className="min-w-0 rounded-lg border border-border bg-card">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="border-b border-border bg-secondary/60 text-muted-foreground">
-                                <tr>
-                                    <th className="px-3 py-3 text-start">Order ID</th>
-                                    <th className="px-3 py-3 text-start">User</th>
-                                    <th className="px-3 py-3 text-start">Debt / Limit</th>
-                                    <th className="px-3 py-3 text-start">Amount</th>
-                                    <th className="px-3 py-3 text-start">Payment</th>
-                                    <th className="px-3 py-3 text-start">Owner</th>
-                                    <th className="px-3 py-3 text-start">Notification</th>
-                                    <th className="px-3 py-3 text-start">Points Preview</th>
-                                    <th className="px-3 py-3 text-start">Status</th>
-                                    <th className="px-3 py-3 text-start">Created</th>
-                                    <th className="px-3 py-3 text-start">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                        <Table panel density="compact" className="w-full text-sm">
+                            <TableHeader className="border-b border-border bg-secondary/60 text-muted-foreground">
+                                <TableRow>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.panelTable.orderId}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.activity.table.user}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.panelTable.debtLimit}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.forms.amount}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.panelTable.payment}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.panelTable.owner}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.panelTable.notification}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.panelTable.pointsPreview}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.common.status}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.manager.users.table.created}</TableHead>
+                                    <TableHead className="px-3 py-3 text-start">{tableText.common.actions}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {loading ? (
-                                    <tr>
-                                        <td colSpan={11} className="px-3 py-8 text-center text-muted-foreground">Loading...</td>
-                                    </tr>
+                                    <TableRow>
+                                        <TableCell colSpan={11} className="px-3 py-8 text-center text-muted-foreground">{t.common.loading}</TableCell>
+                                    </TableRow>
                                 ) : data?.items.length ? (
                                     data.items.map((item) => (
-                                        <tr key={item.id} className="border-b border-border/60 align-top">
-                                            <td className="px-3 py-3">
+                                        <TableRow key={item.id} className="border-b border-border/60 align-top">
+                                            <TableCell className="px-3 py-3">
                                                 <div className="font-mono text-xs text-foreground">{item.requestNumber}</div>
                                                 {item.notes && <div className="mt-1 max-w-[220px] text-xs text-muted-foreground">{item.notes}</div>}
                                                 {item.escalated && (
                                                     <div className="mt-2 flex max-w-[240px] items-start gap-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-xs text-amber-200">
                                                         <Flag className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                                        <span>{item.escalationNote || 'Escalated for admin attention'}</span>
+                                                        <span>{item.escalationNote || t.panelUi.operationalCopy.escalatedAttention}</span>
                                                     </div>
                                                 )}
-                                            </td>
-                                            <td className="px-3 py-3">
+                                            </TableCell>
+                                            <TableCell className="px-3 py-3">
                                                 <div className="font-semibold text-foreground">{item.username}</div>
-                                                <div className="text-xs text-muted-foreground">Balance: {formatUsd(item.user.balance)}</div>
-                                            </td>
-                                            <td className="px-3 py-3"><DebtSummaryCell summary={item.debtSummary} /></td>
-                                            <td className="px-3 py-3 font-semibold text-foreground">{formatUsd(item.amountUsd)}</td>
-                                            <td className="px-3 py-3 text-foreground">{item.paymentMethod}</td>
-                                            <td className="px-3 py-3">
+                                                <div className="text-xs text-muted-foreground">{t.panelUi.operationalCopy.balanceLabel} {formatUsd(item.user.balance)}</div>
+                                            </TableCell>
+                                            <TableCell className="px-3 py-3"><DebtSummaryCell summary={item.debtSummary} /></TableCell>
+                                            <TableCell className="px-3 py-3 font-semibold text-foreground">{formatUsd(item.amountUsd)}</TableCell>
+                                            <TableCell className="px-3 py-3 text-foreground">{item.paymentMethod}</TableCell>
+                                            <TableCell className="px-3 py-3">
                                                 <div className="text-foreground">{item.ownerLabel || item.agentName || '-'}</div>
                                                 <div className="text-xs text-muted-foreground">
                                                     {item.ownerType === 'AGENT' ? item.sourceGroup || t.common.withoutGroup : item.ownerType || '-'}
                                                 </div>
-                                            </td>
-                                            <td className="px-3 py-3">
+                                            </TableCell>
+                                            <TableCell className="px-3 py-3">
                                                 <div className="text-foreground">{item.notification?.status || '-'}</div>
                                                 <div className="max-w-[180px] text-xs text-muted-foreground">{item.notification?.targetLabel || item.notification?.error || '-'}</div>
                                                 {item.notification?.retryAvailable && (
@@ -521,7 +541,7 @@ export default function AdminCreditRequestsClient() {
                                                         loading={busyId === item.id}
                                                     >
                                                         <RefreshCw className="h-3.5 w-3.5" />
-                                                        Retry
+                                                        {t.common.retry}
                                                     </Button>
                                                 )}
                                                 {item.whatsappHandoff && (
@@ -530,67 +550,70 @@ export default function AdminCreditRequestsClient() {
                                                         className="mt-2 text-xs text-sky-300 underline"
                                                         onClick={() => setHandoffResult(item.whatsappHandoff)}
                                                     >
-                                                        WhatsApp handoff
+                                                        {t.panelUi.operationalCopy.whatsappHandoff}
                                                     </button>
                                                 )}
-                                            </td>
-                                            <td className="px-3 py-3 text-xs text-muted-foreground">
-                                                <div>User: {item.pointsPreview.user.points}</div>
-                                                <div>Agent: {item.pointsPreview.agent.points}</div>
-                                            </td>
-                                            <td className="px-3 py-3"><StatusBadge status={item.status} /></td>
-                                            <td className="px-3 py-3 text-muted-foreground">{formatDate(item.createdAt)}</td>
-                                            <td className="px-3 py-3">
+                                            </TableCell>
+                                            <TableCell className="px-3 py-3 text-xs text-muted-foreground">
+                                                <div>{t.panelUi.operationalCopy.userLabel} {item.pointsPreview.user.points}</div>
+                                                <div>{t.panelUi.operationalCopy.agentLabel} {item.pointsPreview.agent.points}</div>
+                                            </TableCell>
+                                            <TableCell className="px-3 py-3"><StatusBadge status={item.status} /></TableCell>
+                                            <TableCell className="px-3 py-3 text-muted-foreground">{formatDate(item.createdAt, language)}</TableCell>
+                                            <TableCell className="px-3 py-3">
                                                 <div className="flex min-w-[260px] flex-wrap gap-2">
                                                     {item.status === 'PENDING' ? (
                                                         <>
-                                                            <Button size="sm" onClick={() => setDialog({ item, decision: 'APPROVE' })} disabled={busyId === item.id}>
-                                                                Approve
+                                                            <Button size="sm" onClick={() => setDialog({ item, decision: 'APPROVE' })} disabled={busyId !== null}>
+                                                                {t.panelUi.operationalCopy.approve}
                                                             </Button>
-                                                            <Button size="sm" variant="danger" onClick={() => setDialog({ item, decision: 'REJECT' })} disabled={busyId === item.id}>
-                                                                Reject
+                                                            <Button size="sm" variant="danger" onClick={() => setDialog({ item, decision: 'REJECT' })} disabled={busyId !== null}>
+                                                                {t.panelUi.operationalCopy.reject}
                                                             </Button>
-                                                            <Button size="sm" variant="outline" onClick={() => setDialog({ item, decision: 'CANCEL' })} disabled={busyId === item.id}>
-                                                                Cancel
+                                                            <Button size="sm" variant="outline" onClick={() => setDialog({ item, decision: 'CANCEL' })} disabled={busyId !== null}>
+                                                                {t.common.cancel}
                                                             </Button>
                                                         </>
                                                     ) : (
                                                         <div className="basis-full text-xs text-muted-foreground">
-                                                            {item.decisionNote || 'Decision saved'}
+                                                            {item.decisionNote || t.panelUi.operationalCopy.decisionSaved}
                                                         </div>
                                                     )}
                                                     {item.escalated ? (
-                                                        <Button size="sm" variant="outline" onClick={() => setEscalationDialog({ item, action: 'RESOLVE' })} disabled={busyId === item.id}>
-                                                            Resolve Escalation
+                                                        <Button size="sm" variant="outline" onClick={() => setEscalationDialog({ item, action: 'RESOLVE' })} disabled={busyId !== null}>
+                                                            {t.panelUi.operationalCopy.resolveEscalation}
                                                         </Button>
                                                     ) : (
-                                                        <Button size="sm" variant="outline" onClick={() => setEscalationDialog({ item, action: 'ESCALATE' })} disabled={busyId === item.id}>
+                                                        <Button size="sm" variant="outline" onClick={() => setEscalationDialog({ item, action: 'ESCALATE' })} disabled={busyId !== null}>
                                                             <Flag className="h-3.5 w-3.5" />
-                                                            Escalate
+                                                            {t.panelUi.operationalCopy.escalate}
                                                         </Button>
                                                     )}
                                                 </div>
-                                            </td>
-                                        </tr>
+                                            </TableCell>
+                                        </TableRow>
                                     ))
                                 ) : (
-                                    <tr>
-                                        <td colSpan={11} className="px-3 py-8 text-center text-emerald-200">
-                                            No credit requests found for this filter.
-                                        </td>
-                                    </tr>
+                                    <TableRow>
+                                        <TableCell colSpan={11} className="px-3 py-8 text-center text-emerald-200">
+                                            {t.panelUi.operationalCopy.noFilteredCredit}
+                                        </TableCell>
+                                    </TableRow>
                                 )}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
-                </section>
+                    <PanelTablePagination page={page} pageSize={25} total={data.pagination.total} onPageChange={setPage} />
+                </section>}
             </div>
 
             {dialog && (
                 <DecisionDialog
                     state={dialog}
                     busy={busyId === dialog.item.id}
-                    onClose={() => setDialog(null)}
+                    error={error}
+                    unconfirmed={isUnconfirmed(`decision:${dialog.item.id}`)}
+                    onClose={() => { if (!mutationPending.current) { setDialog(null); setError(null) } }}
                     onSubmit={submitDecision}
                 />
             )}
@@ -598,7 +621,9 @@ export default function AdminCreditRequestsClient() {
                 <EscalationDialog
                     state={escalationDialog}
                     busy={busyId === escalationDialog.item.id}
-                    onClose={() => setEscalationDialog(null)}
+                    error={error}
+                    unconfirmed={isUnconfirmed(`escalation:${escalationDialog.item.id}`)}
+                    onClose={() => { if (!mutationPending.current) { setEscalationDialog(null); setError(null) } }}
                     onSubmit={submitEscalation}
                 />
             )}
@@ -613,16 +638,16 @@ export default function AdminCreditRequestsClient() {
     )
 }
 
-async function copyHandoffMessage(messageText: string) {
+async function copyHandoffMessage(messageText: string, t: ReturnType<typeof useTranslation>['t']) {
     if (!navigator.clipboard?.writeText) {
-        return 'Clipboard is not available. Select the text and copy it manually.'
+        return t.panelUi.operationalCopy.clipboardUnavailable
     }
 
     try {
         await navigator.clipboard.writeText(messageText)
-        return 'Copied automatically. Paste it in the opened WhatsApp group.'
+        return t.panelUi.operationalCopy.autoCopied
     } catch {
-        return 'Automatic copy failed. Select the text and copy it manually.'
+        return t.panelUi.operationalCopy.autoCopyFailed
     }
 }
 
@@ -633,27 +658,28 @@ function WhatsAppHandoffDialog({
     handoff: WhatsAppHandoff
     onClose: () => void
 }) {
+    const { t } = useTranslation()
     const [copyStatus, setCopyStatus] = useState<string | null>(handoff.autoCopyStatus || null)
 
     async function copyMessage() {
         try {
             await navigator.clipboard.writeText(handoff.messageText)
-            setCopyStatus('Copied.')
+            setCopyStatus(t.panelUi.operationalCopy.copied)
         } catch {
-            setCopyStatus('Select the text and copy it manually.')
+            setCopyStatus(t.panelUi.operationalCopy.copyManually)
         }
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" dir="rtl">
+        <PanelDialog onClose={onClose} busy={false} title={<>{t.panelUi.operationalCopy.whatsappConfirmation}</>} className="max-w-xl">
             <div className="w-full max-w-xl rounded-lg border border-border bg-card p-5 shadow-xl">
-                <h3 className="text-xl font-bold text-emerald-300">WhatsApp Confirmation</h3>
+                <h3 className="text-xl font-bold text-emerald-300">{t.panelUi.operationalCopy.whatsappConfirmation}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                    Balance was approved. Use these manual WhatsApp actions; no WhatsApp API message is sent by the panel.
+                    {t.panelUi.operationalCopy.whatsappConfirmationHint}
                 </p>
                 <div className="mt-4 rounded-lg border border-border bg-background p-3">
                     <div className="mb-2 text-xs text-muted-foreground">
-                        Destination: {handoff.destinationLabel || 'Not configured'}
+                        {t.panelUi.operationalCopy.destinationLabel} {handoff.destinationLabel || t.panelUi.operationalCopy.notConfigured}
                     </div>
                     <textarea
                         readOnly
@@ -664,10 +690,10 @@ function WhatsAppHandoffDialog({
                 </div>
                 {copyStatus && <div className="mt-3 text-sm text-sky-200">{copyStatus}</div>}
                 <div className="mt-5 flex flex-wrap justify-end gap-2">
-                    <Button variant="outline" onClick={onClose}>Close</Button>
+                    <Button variant="outline" onClick={onClose}>{t.common.close}</Button>
                     <Button variant="outline" onClick={copyMessage}>
                         <Copy className="h-4 w-4" />
-                        Copy
+                        {t.common.copy}
                     </Button>
                     <Button
                         variant="outline"
@@ -675,114 +701,128 @@ function WhatsAppHandoffDialog({
                         onClick={() => handoff.groupUrl && window.open(handoff.groupUrl, '_blank', 'noopener,noreferrer')}
                     >
                         <MessageCircle className="h-4 w-4" />
-                        Open Group
+                        {t.panelUi.operationalCopy.openGroup}
                     </Button>
                     <Button
                         disabled={!handoff.phoneUrl}
                         onClick={() => handoff.phoneUrl && window.open(handoff.phoneUrl, '_blank', 'noopener,noreferrer')}
                     >
                         <ExternalLink className="h-4 w-4" />
-                        Send/Open User
+                        {t.panelUi.operationalCopy.openUser}
                     </Button>
                 </div>
             </div>
-        </div>
+        </PanelDialog>
     )
 }
 
 function DecisionDialog({
     state,
     busy,
+    error,
+    unconfirmed,
     onClose,
     onSubmit,
 }: {
     state: NonNullable<DialogState>
     busy: boolean
+    error?: string | null
+    unconfirmed: boolean
     onClose: () => void
     onSubmit: (note: string) => void
 }) {
+    const { t } = useTranslation()
     const [note, setNote] = useState('')
-    const copy = decisionCopy[state.decision]
+    const copy = getDecisionCopy(t)[state.decision]
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" dir="rtl">
+        <PanelDialog onClose={onClose} busy={busy} title={<>{copy.title}</>} className="max-w-lg">
             <div className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-xl">
                 <h3 className={`text-xl font-bold ${copy.tone}`}>{copy.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{copy.body}</p>
+                <PanelCommandWarning show={unconfirmed} />
+                {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
                 <div className="mt-4 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
                     {state.item.requestNumber} - {state.item.username} - {formatUsd(state.item.amountUsd)}
                 </div>
                 {state.decision === 'APPROVE' && state.item.debtSummary && (
                     <div className="mt-3 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
-                        <div>Current debt: {formatUsd(state.item.debtSummary.outstandingDebtUsd)}</div>
-                        <div>Projected debt after approval: {formatUsd(state.item.debtSummary.outstandingDebtUsd + state.item.amountUsd)}</div>
-                        <div>Remaining capacity: {formatUsd(state.item.debtSummary.availableUsd)}</div>
+                        <div>{t.panelUi.operationalCopy.currentDebtLabel} {formatUsd(state.item.debtSummary.outstandingDebtUsd)}</div>
+                        <div>{t.panelUi.operationalCopy.projectedDebtLabel} {formatUsd(state.item.debtSummary.outstandingDebtUsd + state.item.amountUsd)}</div>
+                        <div>{t.panelUi.operationalCopy.remainingCapacityLabel} {formatUsd(state.item.debtSummary.availableUsd)}</div>
                     </div>
                 )}
                 <label className="mt-4 block text-sm font-medium text-foreground">
-                    Admin note
+                    {t.panelUi.operationalCopy.adminNote}
                     <textarea
                         value={note}
                         onChange={(event) => setNote(event.target.value)}
                         rows={4}
                         maxLength={500}
                         className="mt-2 w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none focus:border-[#9ffb06]/60"
-                        placeholder="Write a clear decision note."
+                        placeholder={t.panelUi.operationalCopy.decisionNoteHint}
                     />
                 </label>
                 <div className="mt-5 flex justify-end gap-2">
-                    <Button variant="outline" onClick={onClose} disabled={busy}>Back</Button>
-                    <Button onClick={() => onSubmit(note)} loading={busy}>
+                    <Button variant="outline" onClick={onClose} disabled={busy}>{t.common.back}</Button>
+                    <Button onClick={() => onSubmit(note)} loading={busy} disabled={unconfirmed}>
                         {copy.confirm}
                     </Button>
                 </div>
             </div>
-        </div>
+        </PanelDialog>
     )
 }
 
 function EscalationDialog({
     state,
     busy,
+    error,
+    unconfirmed,
     onClose,
     onSubmit,
 }: {
     state: NonNullable<EscalationDialogState>
     busy: boolean
+    error?: string | null
+    unconfirmed: boolean
     onClose: () => void
     onSubmit: (note: string) => void
 }) {
+    const { t } = useTranslation()
     const [note, setNote] = useState('')
-    const copy = escalationCopy[state.action]
+    const copy = getEscalationCopy(t)[state.action]
     const noteRequired = state.action === 'ESCALATE'
     const canSubmit = !noteRequired || note.trim().length > 0
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" dir="rtl">
+        <PanelDialog onClose={onClose} busy={busy} title={<>{copy.title}</>} className="max-w-lg">
             <div className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-xl">
                 <h3 className={`text-xl font-bold ${copy.tone}`}>{copy.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{copy.body}</p>
+                <PanelCommandWarning show={unconfirmed} />
+                {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
                 <div className="mt-4 rounded-lg border border-border bg-background p-3 text-sm text-foreground">
                     {state.item.requestNumber} - {state.item.username} - {formatUsd(state.item.amountUsd)}
                 </div>
                 <label className="mt-4 block text-sm font-medium text-foreground">
-                    Escalation note{noteRequired ? ' *' : ''}
+                    {t.panelUi.operationalCopy.escalationNote}{noteRequired ? ' *' : ''}
                     <textarea
                         value={note}
                         onChange={(event) => setNote(event.target.value)}
                         rows={4}
                         maxLength={500}
                         className="mt-2 w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none focus:border-[#9ffb06]/60"
-                        placeholder={noteRequired ? 'Explain why this request needs attention.' : 'Optional resolution note.'}
+                        placeholder={noteRequired ? t.panelUi.operationalCopy.escalationReasonHint : t.panelUi.operationalCopy.resolutionNoteHint}
                     />
                 </label>
                 <div className="mt-5 flex justify-end gap-2">
-                    <Button variant="outline" onClick={onClose} disabled={busy}>Back</Button>
-                    <Button onClick={() => onSubmit(note)} loading={busy} disabled={!canSubmit}>
+                    <Button variant="outline" onClick={onClose} disabled={busy}>{t.common.back}</Button>
+                    <Button onClick={() => onSubmit(note)} loading={busy} disabled={unconfirmed || !canSubmit}>
                         {copy.confirm}
                     </Button>
                 </div>
             </div>
-        </div>
+        </PanelDialog>
     )
 }

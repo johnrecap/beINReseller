@@ -1,6 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { PanelDialog } from '@/components/ui/dialog'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
+import { usePanelRequest, usePanelCommand } from '@/hooks/usePanelRequest'
+import { PanelLoadError, PanelCommandWarning } from '@/components/ui/PanelLoadError'
 import { Loader2, X } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
 
@@ -41,6 +44,7 @@ interface TransferToAgentDialogProps {
 
 export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user }: TransferToAgentDialogProps) {
     const { t } = useTranslation()
+    const { request: command, unconfirmed } = usePanelCommand(isOpen ? user?.id : null)
     const [agents, setAgents] = useState<AgentOption[]>([])
     const [assignmentUser, setAssignmentUser] = useState<AssignmentUser | null>(null)
     const [agentId, setAgentId] = useState('')
@@ -48,10 +52,11 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
     const [whatsappGroupUrl, setWhatsappGroupUrl] = useState('')
     const [sourceGroupTouched, setSourceGroupTouched] = useState(false)
     const [whatsappGroupUrlTouched, setWhatsappGroupUrlTouched] = useState(false)
-    const [loadingAgents, setLoadingAgents] = useState(false)
+    const { load, loading: loadingAgents, error: readError, cancel } = usePanelRequest()
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [ownershipChanged, setOwnershipChanged] = useState(false)
+    const submittingRef = useRef(false)
 
     const selectedAgent = useMemo(
         () => agents.find((agent) => agent.id === agentId) || null,
@@ -59,45 +64,29 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
     )
     const isSameAgentTarget = assignmentUser?.activeAssignment?.agentId === selectedAgent?.id
 
+    const loadAgents = useCallback(async () => {
+        setAgents([])
+        setAssignmentUser(null)
+        setAgentId('')
+        setError(null)
+        await load<{agents: AgentOption[]; users: AssignmentUser[]}>('/api/admin/agent-assignments', payload => {
+            const activeAgents = (payload.agents || []).filter(agent => agent.isActive && agent.profile?.isActive !== false)
+            const latestUser = (payload.users || []).find(item => item.id === user?.id) || null
+            const initialAgentId = activeAgents.some(agent => agent.id === latestUser?.activeAssignment?.agentId)
+                ? latestUser?.activeAssignment?.agentId || ''
+                : activeAgents[0]?.id || ''
+            setAgents(activeAgents)
+            setAssignmentUser(latestUser)
+            setAgentId(initialAgentId)
+            setOwnershipChanged(false)
+        })
+    }, [load, user?.id])
+
     useEffect(() => {
         if (!isOpen) return
-
-        let cancelled = false
-        async function loadAgents() {
-            setLoadingAgents(true)
-            setError(null)
-
-            try {
-                const response = await fetch('/api/admin/agent-assignments', { cache: 'no-store' })
-                const payload = await response.json().catch(() => null)
-                if (!response.ok) {
-                    throw new Error(payload?.error || 'Failed to load agents')
-                }
-
-                if (cancelled) return
-                const activeAgents = (payload.agents || []).filter((agent: AgentOption) => agent.isActive && agent.profile?.isActive !== false)
-                const latestUser = (payload.users || []).find((item: AssignmentUser) => item.id === user?.id) || null
-                const initialAgentId = activeAgents.some((agent: AgentOption) => agent.id === latestUser?.activeAssignment?.agentId)
-                    ? latestUser?.activeAssignment?.agentId || ''
-                    : activeAgents[0]?.id || ''
-                setAgents(activeAgents)
-                setAssignmentUser(latestUser)
-                setAgentId(initialAgentId)
-                setOwnershipChanged(false)
-            } catch (err) {
-                if (!cancelled) {
-                    setError(err instanceof Error ? err.message : 'Failed to load agents')
-                }
-            } finally {
-                if (!cancelled) setLoadingAgents(false)
-            }
-        }
-
-        loadAgents()
-        return () => {
-            cancelled = true
-        }
-    }, [isOpen, user])
+        const timer = setTimeout(() => void loadAgents(), 0)
+        return () => { clearTimeout(timer); cancel() }
+    }, [isOpen, loadAgents, cancel])
 
     useEffect(() => {
         const activeAssignment = assignmentUser?.activeAssignment ?? null
@@ -112,7 +101,8 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
 
     async function submitTransfer(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
-        if (!user || !agentId) return
+        if (unconfirmed || !user || !agentId || submittingRef.current || loadingAgents || readError !== null || ownershipChanged) return
+        submittingRef.current = true
 
         setSubmitting(true)
         setError(null)
@@ -127,7 +117,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
             if (sourceGroupTouched) requestBody.sourceGroup = sourceGroup
             if (whatsappGroupUrlTouched) requestBody.whatsappGroupUrl = whatsappGroupUrl
 
-            const response = await fetch('/api/admin/agent-assignments', {
+            const response = await command('/api/admin/agent-assignments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody),
@@ -139,14 +129,16 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                 return
             }
             if (!response.ok) {
-                throw new Error(payload?.error || payload?.reason || 'Failed to transfer user')
+                if (payload?.error === 'INVALID_WHATSAPP_GROUP_URL') throw new Error(t.common.invalidWhatsappGroupLink)
+                throw new Error(t.common.transferOwnershipFailed)
             }
 
             onSuccess()
             onClose()
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to transfer user')
+            setError(err instanceof Error ? err.message : t.common.transferOwnershipFailed)
         } finally {
+            submittingRef.current = false
             setSubmitting(false)
         }
     }
@@ -154,18 +146,19 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
     if (!isOpen || !user) return null
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card shadow-xl animate-in fade-in zoom-in duration-200">
+        <PanelDialog onClose={() => { if (!submittingRef.current) onClose() }} busy={submitting} title={<>{t.panelUi.transferToAgent}: {user.username}</>} className="max-w-md">
+            <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-xl animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center p-4 border-b border-border">
-                    <h3 className="font-bold text-foreground">Transfer to Agent: {user.username}</h3>
-                    <button onClick={onClose} title="Close" className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
+                    <h3 className="font-bold text-foreground">{t.panelUi.transferToAgent}: {user.username}</h3>
+                    <button onClick={() => { if (!submittingRef.current) onClose() }} disabled={submitting} title={t.panelUi.close} className="p-1 hover:bg-secondary rounded-lg text-muted-foreground">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 <form onSubmit={submitTransfer} className="p-4 space-y-4">
+                    {readError !== null && <PanelLoadError status={readError} retry={() => void loadAgents()} />}
                     <label className="block space-y-2">
-                        <span className="text-sm font-medium text-foreground">Agent</span>
+                        <span className="text-sm font-medium text-foreground">{t.common.ownerAgent}</span>
                         <select
                             value={agentId}
                             onChange={(event) => {
@@ -174,7 +167,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                             disabled={loadingAgents}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 bg-background text-foreground text-sm"
                         >
-                            <option value="">Select agent</option>
+                            <option value="">{t.panelUi.selectAgent}</option>
                             {agents.map((agent) => (
                                 <option key={agent.id} value={agent.id}>
                                     {agent.profile.displayName || agent.username}
@@ -184,7 +177,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                     </label>
 
                     <label className="block space-y-2">
-                        <span className="text-sm font-medium text-foreground">Source Group</span>
+                        <span className="text-sm font-medium text-foreground">{t.common.sourceGroupLabel}</span>
                         <input
                             value={sourceGroup}
                             onChange={(event) => {
@@ -203,7 +196,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                     </label>
 
                     <label className="block space-y-2">
-                        <span className="text-sm font-medium text-foreground">WhatsApp Group Link</span>
+                        <span className="text-sm font-medium text-foreground">{t.common.whatsappGroupLinkLabel}</span>
                         <input
                             value={whatsappGroupUrl}
                             onChange={(event) => {
@@ -223,6 +216,7 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                         {t.common.transferPreservesAccountData}
                     </p>
 
+                    <PanelCommandWarning show={unconfirmed} />
                     {error && (
                         <div className="space-y-2 rounded-lg bg-red-50 p-3 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400" role="alert">
                             {error}
@@ -244,22 +238,22 @@ export default function TransferToAgentDialog({ isOpen, onClose, onSuccess, user
                     <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={() => { if (!submittingRef.current) onClose() }} disabled={submitting}
                             className="flex-1 px-4 py-2 text-sm font-medium text-muted-foreground bg-secondary rounded-lg hover:bg-secondary/80"
                         >
-                            Cancel
+                            {t.common.cancel}
                         </button>
                         <button
                             type="submit"
-                            disabled={submitting || loadingAgents || !agentId || ownershipChanged}
+                            disabled={unconfirmed || submitting || loadingAgents || readError !== null || !agentId || ownershipChanged}
                             className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2"
                         >
                             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                            Transfer
+                            {t.common.transferAction}
                         </button>
                     </div>
                 </form>
             </div>
-        </div>
+        </PanelDialog>
     )
 }

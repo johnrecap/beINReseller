@@ -161,18 +161,36 @@
 }
 
 /* RTL Support */
-[data-panel-table] {
+:root {
     --panel-table-cell-block: 1rem;
     --panel-table-cell-inline: 1.5rem;
+    --panel-table-compact-cell-block: 0.75rem;
+    --panel-table-compact-cell-inline: 1rem;
     --panel-table-border: var(--border);
     --panel-table-heading: var(--muted-foreground);
+    --panel-table-heading-surface: var(--secondary);
+    --panel-table-hover-surface: var(--muted);
+}
+[data-panel-table][data-density="compact"] {
+    --panel-table-cell-block: var(--panel-table-compact-cell-block);
+    --panel-table-cell-inline: var(--panel-table-compact-cell-inline);
+}
+[data-panel-table-scroll] { overscroll-behavior-x: contain; }
+/* Provider-style white documents keep their original readable palette in dark mode. */
+[data-panel-table-document] {
+    --panel-table-border: #ddd;
+    --panel-table-heading: #333;
+    --panel-table-heading-surface: #e8e8e8;
+    --panel-table-hover-surface: #f5f5f5;
 }
 [data-panel-table] :is(th, td) {
     padding-block: var(--panel-table-cell-block);
     padding-inline: var(--panel-table-cell-inline);
-    text-align: start;
     border-color: var(--panel-table-border);
 }
+[data-panel-table] :is(th, td):not(.text-center):not(.text-end) { text-align: start; }
+[data-panel-table] > thead { background-color: var(--panel-table-heading-surface); }
+[data-panel-table] > tbody > tr:hover { background-color: var(--panel-table-hover-surface); }
 [data-panel-table] th { color: var(--panel-table-heading); }
 [data-panel-dialog] [data-dialog-header] { text-align: start; }
 

@@ -40,7 +40,7 @@ import {
 } from './types';
 import { encodeSuccessfulControls } from './webforms-form';
 import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
-import { assertPreparedRenewal, readRenewalSummary, providerSerialFor, readProviderCardIdentity, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase } from './renewal-purchase-guard';
+import { assertPreparedRenewal, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase } from './renewal-purchase-guard';
 import {
     scanSoldPackagesReport as runSoldPackagesReportScan,
     type SoldReportScanOptions,
@@ -1783,52 +1783,34 @@ export class HttpClientService {
             let $ = cheerio.load(pageRes.data);
 
             // Step 2: Select Item Type (dropdown - CISCO or Irdeto)
-            const ddlType = $('select[id*="ddlType"]');
-            let selectedTypeValue = '';
-
-            if (ddlType.length) {
-                // Find the correct option based on smartcardType
-                const matchingTypes = ddlType.find('option').filter((_, el) => $(el).text().trim().toUpperCase() === smartcardType);
-                if (matchingTypes.length !== 1) throw new Error('PACKAGE_QUOTE_CHANGED');
-                selectedTypeValue = matchingTypes.attr('value') || '';
-
-                // A missing requested type must never select another type by position.
-                if (!selectedTypeValue) throw new Error('PACKAGE_QUOTE_CHANGED');
-
-                // POST to select the smartcard type (required — ASP.NET needs this server-side event)
-                if (selectedTypeValue) {
-                    const selectFormData: Record<string, string> = {
-                        ...this.currentViewState!,
-                        '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$ddlType',
-                        '__EVENTARGUMENT': '',
-                        'ctl00$ContentPlaceHolder1$ddlType': selectedTypeValue
-                    };
-
-                    console.log(`[HTTP] POST select ${smartcardType} type (ddlType=${selectedTypeValue})...`);
-                    const selectRes = await this.axios.post(
-                        renewUrl,
-                        this.buildFormData(selectFormData),
-                        {
-                            headers: this.buildPostHeaders(renewUrl)
-                        }
-                    );
-
-                    this.currentViewState = this.extractHiddenFields(selectRes.data);
-                    $ = cheerio.load(selectRes.data);
-                }
+            const typeOption = readProviderSmartcardOption($, smartcardType);
+            const selectedTypeValue = typeOption.value;
+            const selectFormData: Record<string, string> = {
+                ...this.currentViewState!,
+                '__EVENTTARGET': typeOption.name,
+                '__EVENTARGUMENT': '',
+                [typeOption.name]: selectedTypeValue
+            };
+            console.log(`[HTTP] POST select ${smartcardType} type (ddlType=${selectedTypeValue})...`);
+            const selectRes = await this.axios.post(renewUrl, this.buildFormData(selectFormData), {
+                headers: this.buildPostHeaders(renewUrl)
+            });
+            const selectSessionExpiry = this.checkForSessionExpiry(selectRes.data);
+            if (selectSessionExpiry) {
+                this.invalidateSession();
+                return { success: false, packages: [], error: selectSessionExpiry };
             }
+            this.currentViewState = this.extractHiddenFields(selectRes.data);
+            $ = cheerio.load(selectRes.data);
+            readProviderSmartcardOption($, smartcardType, { requireSelected: true });
 
 
             // Step 3: Enter serial number
-            // beIN SellPackages page has "7" pre-filled in tbSerial1, BUT:
-            // When we POST, we REPLACE the field value entirely!
-            // So we need to send the FULL card WITHOUT last digit (check digit)
-            // Example: 7511394806 → 751139480 (slice 0,-1)
+            // POST replaces the whole input, including any pre-filled prefix.
+            // Preserve the type-specific mapping; never truncate to fit a field.
             const formattedCard = providerSerialFor(cardNumber, smartcardType);
-            if (ddlType.length !== 1 || selectedTypeValue !== (smartcardType === 'CISCO' ? '8' : '1')) throw new Error('PACKAGE_QUOTE_CHANGED');
-            const serialMaxLength = Number($('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').attr('maxlength'));
-            if (serialMaxLength && formattedCard.length > serialMaxLength) throw new Error('PACKAGE_QUOTE_CHANGED');
-            console.log(`[HTTP] Card format: ${cardNumber} → ${formattedCard} (removed last digit only)`);
+            validateProviderSerialInput($, formattedCard, smartcardType);
+            console.log(`[HTTP] Card format: type=${smartcardType}, inputLength=${cardNumber.length}, providerLength=${formattedCard.length}`);
 
             // Get actual Load button value from current HTML
             const currentHtml = $.html();
@@ -1932,6 +1914,10 @@ export class HttpClientService {
 
             const serial2Field = $('input[id*="tbSerial2"], input[name*="tbSerial2"]');
             if (serial2Field.length > 0) {
+                readProviderSmartcardOption($, smartcardType, { requireSelected: true, allowDisabled: true });
+                if (serial2Field.length !== 1 || serial2Field.attr('name') !== 'ctl00$ContentPlaceHolder1$tbSerial2' || serial2Field.is(':disabled')) {
+                    throw new ProviderSmartcardFormError('SERIAL_CONFIRMATION_UNAVAILABLE', smartcardType);
+                }
                 console.log('[HTTP] ✅ tbSerial2 field found - sending step 2...');
 
                 // Detect the new "Load" button for Step 2 (usually btnLoad2 based on screenshots)
@@ -1947,11 +1933,19 @@ export class HttpClientService {
                     console.log(`[HTTP] Using default/previous Load button for Step 2: ${step2BtnName}`);
                 }
 
-                // Step 3b: Second POST - with both tbSerial1 and tbSerial2
+                // Step 3b: Mirror the current browser form. beIN disables ddlType
+                // and masks/disables tbSerial1 after the first Load; native POST
+                // omits those controls and confirms identity through tbSerial2.
+                const typeControl = $('select[name="ctl00$ContentPlaceHolder1$ddlType"]');
+                const firstSerialControl = $('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]');
                 const secondFormData: Record<string, string> = {
                     ...this.currentViewState!,
-                    'ctl00$ContentPlaceHolder1$ddlType': selectedTypeValue,
-                    'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard,
+                    '__EVENTTARGET': '',
+                    '__EVENTARGUMENT': '',
+                    ...(!typeControl.is(':disabled') && !typeControl.parents('fieldset[disabled]').length
+                        ? { 'ctl00$ContentPlaceHolder1$ddlType': selectedTypeValue } : {}),
+                    ...(firstSerialControl.length === 1 && !firstSerialControl.is(':disabled') && !firstSerialControl.parents('fieldset[disabled]').length
+                        ? { 'ctl00$ContentPlaceHolder1$tbSerial1': formattedCard } : {}),
                     'ctl00$ContentPlaceHolder1$tbSerial2': formattedCard,
                     [step2BtnName]: step2BtnValue,
                     // FIX: Clear hidden QPay mobile field to prevent ASP.NET validation error
@@ -2026,6 +2020,10 @@ export class HttpClientService {
             };
 
         } catch (error: unknown) {
+            if (error instanceof ProviderSmartcardFormError) {
+                console.error('[HTTP] Smartcard form rejected:', { reason: error.reason, requestedType: error.requestedType });
+                return { success: false, packages: [], error: error.message };
+            }
             console.error('[HTTP] Load packages error:', getHttpErrorMessage(error));
             return { success: false, packages: [], error: `Load failed: ${getHttpErrorMessage(error)}` };
         }

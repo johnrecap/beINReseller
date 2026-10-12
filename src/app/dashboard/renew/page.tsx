@@ -360,7 +360,8 @@ export default function RenewWizardPage() {
                 setStep('result')
                 refetchBalance()
             } else if (data.status === 'FAILED') {
-                setResult({ success: false, message: t => t.renew.result.failed })
+                setResult({ success: false, message: t => data.messageKey === 'operations.providerSmartcardFormUnsupported'
+                    ? t.operations.providerSmartcardFormUnsupported : t.renew.result.failed })
                 setStep('result')
             } else if (data.status === 'REVIEW_REQUIRED') {
                 setResult({

@@ -31,6 +31,8 @@ export function projectOperationProgress(operation: ConsumerProgressContext, now
             ? 'operations.packageQuoteChangedReview' : payment === 'CHARGED'
                 ? 'operations.providerChargedFulfillmentUnderReview' : 'operations.fulfillmentReviewPending')
             : operation.status === 'COMPLETING' && payment === 'CHARGED' && fulfillment === 'VERIFYING'
-                ? 'operations.providerChargedVerifyingFulfillment' : null
+                ? 'operations.providerChargedVerifyingFulfillment'
+                : operation.status === 'FAILED' && operation.responseMessage === 'PROVIDER_SMARTCARD_FORM_UNSUPPORTED'
+                    ? 'operations.providerSmartcardFormUnsupported' : null
     return { reviewRequired, confirmationExpired, settlementState, nextAction, messageKey }
 }

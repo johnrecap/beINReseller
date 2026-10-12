@@ -5,7 +5,7 @@ export const fullCard = '7000000001'
 export const providerCard = '700000000'
 export function observedCart(name = 'Premium 6 Months (6 Months)', amount = '108', promo = '') {
     return `<input name="ctl00$ContentPlaceHolder1$tbSerial1" value="${providerCard}" disabled>
-    <select name="ctl00$ContentPlaceHolder1$ddlType" disabled><option value="8" selected>CISCO</option></select>
+    <select name="ctl00$ContentPlaceHolder1$ddlType" disabled><option value="8" selected>Smartcard: CISCO</option></select>
     <input name="ctl00$ContentPlaceHolder1$txtPromoCode" value="${promo}">
     <fieldset><legend>Shopping Cart</legend><div><table id="ContentPlaceHolder1_gvPackagesCart">
     <tr><th></th><th>Package Name</th><th>Price</th></tr>

@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-10-13
-> Last synchronized commit: 4f21f643f95588caa6048a72a6099205054aae1c
+> Last synchronized commit: 2ea7fa2f17cbd946e981ec5603473f3833c24a1a
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:d34293b62e84324ca100c53beda12c5568fba9377b40f8b81993ceba10cc4414
+> Working tree fingerprint: SHA256:9e87e75eee0a2e99f2f5de40a05015a54102a785df7dd34adeb65656369278c5
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Current smartcard repair, 2026-10-13: `UPD-20261013-002` fixes the bare-label rejection using the provider's observed `Smartcard:` prefix and exact CISCO/IRDETO values. Current read-only browser HTTP confirms both CISCO serial steps and the second POST's omission of disabled controls, now mirrored by the worker. Actual-loader/identity/promo/Reports and translated failure-state tests pass locally. Latest user clarification prohibits renewal; only HTTP observation is authorized. No package selection, cart, sale, payment, deployment or subagents. Live IRDETO input mapping and later checkout remain unverified. Resume at `specs/036-audit-remediation/evidence/package-identity-repair.md`.
 
 - Current provider-report supplement, 2026-10-13: `UPD-20261013-001` adds the admin account-scoped Sold Packages report browser via existing HTTP Workers, temporary Redis results and localized UI. Verified locally with 855 root / 306 Worker cases, three native Redis/BullMQ/HTTP cases and nineteen mocked-browser scenarios; isolated builds/types pass and temporary resources are removed. No schema or financial-state change, live beIN access, deployment or subagents. Resume from `specs/036-audit-remediation/evidence/provider-report-browser-20261013.md`; live compatibility and synchronized production Worker versions remain unverified.
 
@@ -222,6 +224,8 @@
 - Connections: `FE-002`, `FE-003`, `FE-004`, `FEAT-003`, `FEAT-007`, `FEAT-008`–`FEAT-018`
 
 ### FE-007 — Reseller operational workspace
+
+- Smartcard failure 2026-10-13: Unsupported provider forms map to `operations.providerSmartcardFormUnsupported` in en/ar/bn and show the existing operation reference. Refund/review evidence retains message precedence. Sources: `shared/operations/consumer-progress.ts`; `src/app/dashboard/renew/page.tsx`; `src/i18n/translations`; `UPD-20261013-002`.
 
 - Localization 2026-10-12: Renewal, signal and installment feedback use the selected en/ar/bn tokens, including dynamic terminal results and language-switch accessibility text. The initial document is en/ltr; persisted locale controls hydrated direction. Provider names and document exports stay original. Sources: `src/app/dashboard/renew/page.tsx`; `src/components/renewal`; `src/i18n/translations`; `UPD-20261012-003`.
 
@@ -579,6 +583,8 @@
 
 ### FLOW-007 — Proof-gated reseller renewal
 
+- Smartcard preparation 2026-10-13: Fresh type selection accepts only the observed explicit prefix/value pair and verifies postback selection before serial submission. The second POST omits disabled type/first-serial controls as the browser does, retaining identity checks before/after. Field-length conflicts stop instead of trimming an unverified format. Existing quote/cart/invoice and financial proof fences remain unchanged. The worker may skip the STB lookup using its card-scoped one-hour cache but still posts the STB in both checkout fields; the latter is source evidence, not a live sale observation. Sources: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/http-queue-processor.ts`; `worker/src/lib/package-cache.ts`; `UPD-20261013-002`.
+
 - Runtime smoke 2026-10-12: The temporary real web/queue/Worker/PostgreSQL flow revealed a nonexistent baseline SQL column and missing account identity in HTTP session export. Both are repaired without weakening proof/cache fences. Synthetic promo renewal reached matching Reports/contract invoice completion; live provider compatibility is still unverified. Sources: `worker/src/lib/fulfillment-baseline.ts`; `worker/src/http/HttpClientService.ts`; `specs/036-audit-remediation/evidence/localization-capacity-20261012.md`; `UPD-20261012-003`.
 
 - Package identity 2026-10-12: Immutable quote/revision/key/promo is bound to the observed cart and full/provider serial/type. Pre-mutation controls and STB echoes must exist; the verification worker requires that persisted cart before attributing a new Reports invoice. Source: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http-queue-processor.ts`; `shared/operations/package-quote.ts`; `UPD-20261012-001`. Unknown later layouts remain blocked.
@@ -723,6 +729,8 @@
 - Connections: `APP-006`, `API-003`, `DATA-002`, `JOB-002`, `RISK-001`
 
 ### INT-001 — beIN HTTP/provider automation
+
+- Smartcard labels 2026-10-13: Original and current browser receipts confirm `Smartcard: CISCO` / `8` and `Smartcard: Irdeto` / `1`. One shared resolver enforces these identities in loading and cart reads; duplicate/unknown controls fail closed. Current HTTP/DOM confirms CISCO nine-character serial submission/echo and IRDETO maxlength 10. IRDETO's actual input mapping remains NOT_VERIFIED because no serial was submitted for that type. Sources: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/tests/fixtures/smartcard-observed.ts`; `specs/036-audit-remediation/evidence/package-identity-repair.md`; `UPD-20261013-002`.
 
 - Provider browser 2026-10-13: The existing report parser optionally applies fresh WebForms date controls and All items while preserving Dealer/full-scan guards; financial default criteria are unchanged. A dedicated account-bound HTTP client restricts requests to report/login, uses cancellation and allows one fresh login, with explicit CAPTCHA/incomplete errors. Sources: `worker/src/http/sold-packages-report.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/lib/provider-report-reader.ts`; `UPD-20261013-001`.
 
@@ -996,6 +1004,8 @@
 - Connections: `TEST-002`, `RISK-001`, `RISK-004`, `FEAT-002`, `FEAT-003`, `FEAT-006`, `FEAT-010`–`FEAT-018`
 
 ### TEST-008 — Renewal fulfillment safety verification
+
+- Smartcard regression 2026-10-13: The real loader's prefixed-label case failed before the fix; all 23 dedicated cases now pass, including fourteen observed package rows and disabled controls. Six focused Worker suites pass 129 cases. Consumer contracts pass six cases and mocked browser QA passes 32 scenarios with zero external requests or real operations. Root/Worker types, isolated emission, schema sync and scoped lint pass with six existing warnings. These tests do not establish live IRDETO, checkout or production acceptance. Sources: `worker/tests/smartcard-loading.test.ts`; `worker/tests/fixtures/smartcard-observed.ts`; `tests/unit/operation-consumer-state-contract.test.ts`; `tests/browser/renewal-card-cooldown.cjs`; `specs/036-audit-remediation/evidence/package-identity-repair.md`; `UPD-20261013-002`.
 
 - Capacity supplement 2026-10-12: Real local Next/AuthJS/PostgreSQL/Memurai/BullMQ/Worker runs with only provider HTTP simulated compare 10 × 8 against 20 × 4. Both mixed runs verify five matching renewal invoices with no observed wrong package or duplicate debit, but accumulate work; both fail burst admission latency, and the twenty-worker burst repeatedly has nine transaction-acquisition HTTP 500 errors. Native targeted DB/Redis checks now have evidence; full migration history, live provider/incident evidence and production acceptance remain open. Sources: `specs/036-audit-remediation/evidence/localization-capacity-20261012.md`; `UPD-20261012-003`.
 
@@ -1748,6 +1758,15 @@
 
 ## 22. Change Ledger
 
+### UPD-20261013-002 — Repair prefixed smartcard selection during package loading
+
+- Date: 2026-10-13
+- State: VERIFIED
+- Sources: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/index.ts`; `shared/operations/consumer-progress.ts`; `src/app/dashboard/renew/page.tsx`; `src/i18n/translations`; `worker/tests/smartcard-loading.test.ts`; `worker/tests/fixtures/renewal-observed.ts`; `worker/tests/provider-observed-identity.test.ts`; `tests/unit/operation-consumer-state-contract.test.ts`; `tests/browser/renewal-card-cooldown.cjs`; `specs/036-audit-remediation/evidence/package-identity-repair.md`; `specs/036-audit-remediation/audit-register.md`; `docs/PROJECT_GUIDE.md`
+- Affected IDs: `FE-007`, `FLOW-007`, `INT-001`, `TEST-008`, `FRESH-001`
+- Delta: Resolve the observed explicit smartcard label/value pair in loading and cart checks, reject ambiguous or changed forms, validate serial capacity, mirror native omission of disabled confirmation controls, localize the stable failure code and distinguish queue handling from business success. Save a sanitized HTTP field map and fixture. Preserve current serial conversions and financial/package proof authority.
+- Impact: RUNTIME_CHANGE_NOT_DEPLOYED. Local regression/type/browser checks pass and live read-only CISCO preparation was inspected; live IRDETO input mapping, later checkout and deployed behavior remain unverified. The user clarified HTTP observation only, superseding the earlier interpretation of a purchase request. No subagents, package selection, cart, sale or payment.
+
 ### UPD-20261013-001 — Browse selected beIN account sales inside Reports
 
 - Date: 2026-10-13
@@ -1989,7 +2008,7 @@
 
 ### FRESH-001 — Local synchronization baseline
 
-- Latest scoped delta: `UPD-20261013-001`, exact-account provider report browser with local native Redis/HTTP and UI verification. Current evidence: `specs/036-audit-remediation/evidence/provider-report-browser-20261013.md`. Earlier capacity findings, cooldown and package-identity work remain unchanged; historical migration, live provider and production gates remain open. Historical UI/036 acceptance counters are unchanged.
+- Latest scoped delta: `UPD-20261013-002`, observed smartcard-label repair with actual-loader, downstream proof and localized consumer checks. Current evidence: `specs/036-audit-remediation/evidence/package-identity-repair.md`. Provider-report, capacity and cooldown changes remain in place; live IRDETO, later checkout, historical migration and production gates remain open. Historical UI/036 acceptance counters are unchanged.
 
 
 - State: VERIFIED

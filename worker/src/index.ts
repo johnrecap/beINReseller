@@ -82,7 +82,7 @@ async function main() {
     )
 
     worker.on('completed', (job) => {
-        console.log(`[${WORKER_ID}] Job ${job.id} completed successfully`)
+        console.log(`[${WORKER_ID}] Queue job ${job.id} handled; see operation/request status for the outcome`)
     })
 
     worker.on('failed', async (job, err) => {

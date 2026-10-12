@@ -67,7 +67,7 @@ test('changing the provider date filter across midnight cannot produce a complet
 for (const [label, change] of [
     ['empty cart with stale total', (html: string) => html.replace(/<table[\s\S]*?<\/table>/, '')],
     ['another cart table', (html: string) => html + '<table id="AddOnsCart"><tr><td>Extra</td></tr></table>'],
-    ['wrong type', (html: string) => html.replace('value="8" selected>CISCO', 'value="1" selected>Irdeto')],
+    ['wrong type', (html: string) => html.replace('value="8" selected>Smartcard: CISCO', 'value="1" selected>Smartcard: Irdeto')],
     ['ambiguous card', (html: string) => html + '<input name="ctl00$ContentPlaceHolder1$tbSerial1" value="700000000">'],
     ['different remaining', (html: string) => html.replace('108USD', '64USD')],
 ] as const) test(`observed cart rejects ${label}`, () => {

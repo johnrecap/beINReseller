@@ -25,6 +25,49 @@ export interface PreparedRenewalPurchase {
 const normalized = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase()
 const conflict = () => new Error('PACKAGE_QUOTE_CHANGED')
 
+export class ProviderSmartcardFormError extends Error {
+    constructor(readonly reason: string, readonly requestedType: string) {
+        super('PROVIDER_SMARTCARD_FORM_UNSUPPORTED')
+        this.name = 'ProviderSmartcardFormError'
+    }
+}
+
+/** Type labels describe the card technology, not a package offer. Accept only
+ * the explicit technology and known field-label prefixes; never substring-match
+ * a package/device name, choose a row position, or fall back to the other type. */
+export function readProviderSmartcardOption($: cheerio.CheerioAPI, smartcardType: string,
+    options: { requireSelected?: boolean; allowDisabled?: boolean } = {}) {
+    const reject = (reason: string): never => { throw new ProviderSmartcardFormError(reason, smartcardType) }
+    const expectedValue = smartcardType === 'CISCO' ? '8' : smartcardType === 'IRDETO' ? '1' : reject('UNKNOWN_TYPE')
+    const name = 'ctl00$ContentPlaceHolder1$ddlType'
+    const controls = $(`select[name="${name}"]`)
+    if (controls.length !== 1) reject('TYPE_CONTROL_MISSING_OR_AMBIGUOUS')
+    if (!options.allowDisabled && (controls.is(':disabled') || controls.parents('fieldset[disabled]').length)) reject('TYPE_CONTROL_DISABLED')
+    const typeOf = (label: string) => normalized(label)
+        .replace(/^smart\s*card\s*:\s*/, '').toUpperCase()
+    const matches = controls.find('option').filter((_, el) => typeOf($(el).text()) === smartcardType)
+    if (matches.length !== 1) reject('TYPE_OPTION_MISSING_OR_AMBIGUOUS')
+    if (matches.attr('value') !== expectedValue ||
+        controls.find('option').filter((_, el) => $(el).attr('value') === expectedValue).length !== 1) reject('TYPE_VALUE_MISMATCH')
+    if (matches.is(':disabled') || matches.parents('optgroup[disabled]').length) reject('TYPE_OPTION_DISABLED')
+    if (options.requireSelected) {
+        const selected = controls.find('option[selected]')
+        if (selected.length !== 1 || selected[0] !== matches[0]) reject('TYPE_SELECTION_MISMATCH')
+    }
+    return { name, value: expectedValue }
+}
+
+export function validateProviderSerialInput($: cheerio.CheerioAPI, providerSerial: string, smartcardType: string) {
+    const inputs = $('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]')
+    if (inputs.length !== 1 || inputs.is(':disabled') || inputs.parents('fieldset[disabled]').length) {
+        throw new ProviderSmartcardFormError('SERIAL_CONTROL_MISSING_OR_UNAVAILABLE', smartcardType)
+    }
+    const maxLength = inputs.attr('maxlength')
+    if (maxLength !== undefined && (!/^\d+$/.test(maxLength) || Number(maxLength) < providerSerial.length)) {
+        throw new ProviderSmartcardFormError('SERIAL_LENGTH_MISMATCH', smartcardType)
+    }
+}
+
 export function requirePurchaseControl(html: string, name: string, value: string) {
     const $ = cheerio.load(html)
     const controls = $('input, button').filter((_, el) => $(el).attr('name') === name && $(el).attr('value') === value)
@@ -59,11 +102,9 @@ export function readProviderCardIdentity(html: string, cardNumber: string, smart
     const $ = cheerio.load(html)
     const providerSerial = providerSerialFor(cardNumber, smartcardType)
     const cards = $('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]')
-    const types = $('select[name="ctl00$ContentPlaceHolder1$ddlType"]')
-    const selected = types.find('option[selected]')
-    if (cards.length !== 1 || String(cards.val()).trim() !== providerSerial || types.length !== 1 ||
-        selected.length !== 1 || normalized(selected.text()) !== smartcardType.toLowerCase() ||
-        selected.attr('value') !== (smartcardType === 'CISCO' ? '8' : '1')) throw conflict()
+    try { readProviderSmartcardOption($, smartcardType, { requireSelected: true, allowDisabled: true }) }
+    catch { throw conflict() }
+    if (cards.length !== 1 || String(cards.val()).trim() !== providerSerial) throw conflict()
     return { cardNumber, providerSerial, smartcardType }
 }
 

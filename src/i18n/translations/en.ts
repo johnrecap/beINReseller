@@ -915,6 +915,7 @@ export const en = {
         packageQuoteUpdated: "Packages updated. Review the current name and price before confirming.",
         packageQuoteFailed: "The offer could not be verified. Apply the code again or remove it to reload packages.",
         packageQuoteChanged: "The package offer changed. Reload and review the current package before confirming.",
+        providerSmartcardFormUnsupported: "Unable to load packages for the selected card type. Contact the administrator and provide this operation reference.",
         packageQuoteNotReady: "Packages are still updating or could not be verified. Selection is unavailable.",
         packageQuoteChangedReview: "beIN returned a different package or price. This operation is held for review; do not repeat the purchase.",
         packageQuoteRetry: "The update is not confirmed yet. Resume checking this operation before selecting.",

@@ -200,6 +200,18 @@ Semantic review: the clock is anchored to the first end state rather than a muta
 
 ## Package identity repair — 2026-10-11
 
+### Smartcard loading incident continuation — 2026-10-13
+
+Authorized repair scope: repair the HTTP package-loading rejection for CISCO/IRDETO, preserve exact quote/cart/invoice and financial fences, use local mocked tests and no subagents. Latest user clarification: observe/save HTTP movements and field names for the panel; do not renew the supplied card. This supersedes the earlier interpretation of a USD 40 purchase authorization. Card/package reads are authorized; package selection, cart/sale/payment, deployment and automatic financial retries are not part of this live comparison. This does not activate Spec Kit or approve a production release.
+
+| Requirement / source | Action / verification | Status / evidence |
+| --- | --- | --- |
+| User-supplied October 13 logs: both types stop before type POST | Reproduce the current label/form rejection using the real loader; match one explicit type and current WebForms controls without positional fallback. | VERIFIED locally — 23 loader cases and current live option/serial HTTP evidence; see `evidence/package-identity-repair.md` |
+| User: account for both card formats | Preserve full card identity and verify provider serial in both load steps and subsequent cart checks; distinguish observed mappings from assumptions. | VERIFIED local mapping/echo/capacity guards; CISCO drops its last digit; live IRDETO mapping remains NOT_VERIFIED and unchanged |
+| User: no different package, no real purchase in tests, no subagents | Regression-test quote/cart/promo/Reports guards with synthetic responses; no provider sale or financial-state mutation in tests. | VERIFIED — 129 focused cases; final complete Worker suite exits zero; no delegated work |
+| Skills: tests, safe errors, docs and memory | Verify the first failing unit, connected worker/types/message checks, then update existing guide/evidence/ledger and check encoding. | VERIFIED tests/types/emission; six API contracts and 32 mocked browser scenarios; guide/evidence/ledger updated, structure validated and 18 changed files passed UTF-8/BOM/privacy checks. Ledger freshness is synchronized against the reviewed pre-commit source baseline. |
+| Latest user: save HTTP sequence/field names and diagnose repeated panel failure without renewal | Inspect type selection and both serial requests, packages/promo control names and STB source/cache; compare with current worker and retain sanitized fixtures. | VERIFIED for read-only preparation: live CISCO packages loaded; exact trace/limits recorded. STB submission, promo submission, sale/payment and invoice completion NOT_VERIFIED; no such live action performed |
+
 ### Authorized continuation — 2026-10-12
 
 Implement the observed package/cart/report contracts locally, with no provider calls, purchases, deployment or subagents. Preserve the existing financial review, reservation and idempotency rules. This is ordinary implementation of the accepted plan, not activation of Spec Kit.

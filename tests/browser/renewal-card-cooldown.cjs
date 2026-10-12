@@ -53,11 +53,12 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
                 `<!doctype html><html class="dark"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style>
                 <body class="bg-background text-foreground"><main id="root" style="max-width:960px;margin:auto;padding:16px"></main></body></html>` });
             if (url.pathname === '/api/operations/synthetic/packages') return route.fulfill({ json: {
-                status: operationStatus === 'REFUND_PENDING' ? 'FAILED' : operationStatus,
+                status: ['REFUND_PENDING', 'SMARTCARD_FORM_UNSUPPORTED'].includes(operationStatus) ? 'FAILED' : operationStatus,
                 settlementState: operationStatus === 'REFUND_PENDING' ? 'REFUND_PENDING' : undefined,
                 selectedPackage: { name: 'Premium 6 Months + 20% OFF (6 Months)', price: 86.4, quoteRevision: 1 },
                 finalConfirmExpiry: new Date((await page.evaluate(() => Date.now())) + 120_000).toISOString(),
-                message: 'UNTRANSLATED PROVIDER FAILURE', messageKey: operationStatus === 'REVIEW_REQUIRED' ? 'operations.providerChargedFulfillmentUnderReview' : undefined,
+                message: 'UNTRANSLATED PROVIDER FAILURE', messageKey: operationStatus === 'REVIEW_REQUIRED' ? 'operations.providerChargedFulfillmentUnderReview'
+                    : operationStatus === 'SMARTCARD_FORM_UNSUPPORTED' ? 'operations.providerSmartcardFormUnsupported' : undefined,
             } });
             if (url.pathname === '/api/operations/synthetic/confirm-purchase') {
                 operationStatus = 'COMPLETED'; return route.fulfill({ json: { success: true } });
@@ -158,11 +159,12 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
                 await page.getByRole('heading', { name: translations[language].renew.result.success, exact: true }).waitFor();
                 results.push('localized confirmation and final result: ' + language + ' ' + width);
             }
-            for (const status of ['FAILED', 'REVIEW_REQUIRED', 'REFUND_PENDING']) {
+            for (const status of ['FAILED', 'SMARTCARD_FORM_UNSUPPORTED', 'REVIEW_REQUIRED', 'REFUND_PENDING']) {
                 await render(language, 360, status);
                 await page.getByRole('heading', { name: status === 'REVIEW_REQUIRED' ? translations[language].panelUi.reviewRequired : status === 'REFUND_PENDING' ? translations[language].panelUi.pendingSettlement : translations[language].renew.result.failed, exact: true }).waitFor();
                 if (status === 'REVIEW_REQUIRED') await page.getByText(translations[language].operations.providerChargedFulfillmentUnderReview, { exact: true }).waitFor();
                 if (status === 'REFUND_PENDING') await page.getByText(translations[language].operations.refundSettlementPending, { exact: true }).waitFor();
+                if (status === 'SMARTCARD_FORM_UNSUPPORTED') await page.getByText(translations[language].operations.providerSmartcardFormUnsupported, { exact: true }).waitFor();
                 assert.ok(!(await page.locator('main').innerText()).includes('UNTRANSLATED PROVIDER FAILURE'));
                 results.push('localized terminal feedback: ' + language + ' ' + status);
             }

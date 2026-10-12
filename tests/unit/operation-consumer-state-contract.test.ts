@@ -55,3 +55,17 @@ test('T043 actual package GET preserves the pending-refund message over an older
     assert.equal(data.settlementState, 'REFUND_PENDING')
     assert.equal(data.messageKey, 'operations.refundSettlementPending')
 })
+
+test('smartcard form failure is localized without claiming a quote change or refund', async () => {
+    const h = loadPanelPackages({ id: 'operation', userId: 'owner', status: 'FAILED',
+        responseMessage: 'PROVIDER_SMARTCARD_FORM_UNSUPPORTED' }, 'owner')
+    const res = await h.GET(new Request('http://localhost/api/operations/operation/packages'), { params: Promise.resolve({ id: 'operation' }) })
+    const data = await res.json()
+    assert.equal(data.status, 'FAILED')
+    assert.equal(data.messageKey, 'operations.providerSmartcardFormUnsupported')
+    assert.equal(data.settlementState, 'UNCONFIRMED')
+    assert.equal(projectOperationProgress({ status: 'FAILED', responseMessage: 'PROVIDER_SMARTCARD_FORM_UNSUPPORTED',
+        refundSettlements: [{ state: 'PENDING' }] }).messageKey, 'operations.refundSettlementPending')
+    assert.equal(projectOperationProgress({ status: 'REVIEW_REQUIRED', responseMessage: 'PROVIDER_SMARTCARD_FORM_UNSUPPORTED',
+        providerPaymentState: 'CHARGED' }).messageKey, 'operations.providerChargedFulfillmentUnderReview')
+})

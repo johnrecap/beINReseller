@@ -23,6 +23,16 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
+        if (request.nextUrl.searchParams.get('view') === 'report-options') {
+            const accounts = await prisma.beinAccount.findMany({
+                select: { id: true, username: true, label: true, isActive: true, automationExclusive: true },
+                orderBy: { username: 'asc' },
+            })
+            return NextResponse.json({ accounts: accounts.map(({ isActive, automationExclusive, ...account }) => ({
+                ...account, eligible: isActive && automationExclusive,
+            })) }, { headers: { 'Cache-Control': 'private, no-store' } })
+        }
+
         // Get all accounts
         const accounts = await prisma.beinAccount.findMany({
             orderBy: [

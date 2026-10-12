@@ -227,21 +227,23 @@ export function InstallmentPaymentFlow() {
     const { t, language } = useTranslation()
     const tableText = t
     const { balance, refetch: refetchBalance } = useBalance()
-    const inst = (t as any).installment || {}
+    const inst = t.installment
 
     const [step, setStep] = useState<FlowStep>('input')
     const [cardNumber, setCardNumber] = useState('')
     const [operationId, setOperationId] = useState<string | null>(null)
     const [installment, setInstallment] = useState<InstallmentInfo | null>(null)
     const [subscriber, setSubscriber] = useState<SubscriberInfo | null>(null)
-    const [error, setError] = useState<string | null>(null)
-    const [resultMessage, setResultMessage] = useState<string | null>(null)
+    const [errorKey, setError] = useState<'reviewRequired' | 'installmentFollowUp' | 'existingOperation' | 'sessionExpired' | 'accessDenied' | 'startFailed' | 'installmentUnconfirmed' | null>(null)
+    const messages = { ...inst, ...t.panelUi }
+    const error = errorKey ? messages[errorKey] : null
     const [confirmExpiry, setConfirmExpiry] = useState<string | null>(null)
     const [timeLeft, setTimeLeft] = useState<number>(60)
     const [isConfirmLoading, setIsConfirmLoading] = useState(false)
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
     const mutationPending = useRef(false)
-    const [confirmError, setConfirmError] = useState<string | null>(null)
+    const [confirmErrorKey, setConfirmError] = useState<'sessionExpired' | 'accessDenied' | 'confirmFailed' | null>(null)
+    const confirmError = confirmErrorKey ? messages[confirmErrorKey] : null
     const [pollRevision, setPollRevision] = useState(0)
     const { run, error: readError, cancel: cancelRead } = usePanelRequest()
     const expireConfirmation = useCallback(() => {
@@ -291,7 +293,6 @@ export function InstallmentPaymentFlow() {
                 } else if (data.status === 'COMPLETED') {
                     setShowConfirmDialog(false)
                     const noInstallment = data.message?.includes('No installments') || data.message?.includes('لا توجد أقساط')
-                    setResultMessage(data.message || inst.success)
                     setStep(noInstallment ? 'no-installment' : 'success')
                     void refetchBalance()
                 } else if (['PENDING', 'PROCESSING', 'COMPLETING'].includes(data.status)) {
@@ -299,7 +300,7 @@ export function InstallmentPaymentFlow() {
                     if (step === 'details') setStep('confirming')
                 } else {
                     setShowConfirmDialog(false)
-                    setError(data.status === 'REVIEW_REQUIRED' ? t.panelUi.reviewRequired : t.panelUi.installmentFollowUp)
+                    setError(data.status === 'REVIEW_REQUIRED' ? 'reviewRequired' : 'installmentFollowUp')
                     setStep('attention')
                 }
                 accepted = true
@@ -348,12 +349,12 @@ export function InstallmentPaymentFlow() {
                         }
                     })
                     setOperationId(data.operationId)
-                    setError(inst.existingOperation)
+                    setError('existingOperation')
                     setStep('attention')
                     return
                 }
                 if (res.status >= 500) throw new Error('UNCONFIRMED_COMMAND')
-                setError(res.status === 401 ? t.panelUi.sessionExpired : res.status === 403 ? t.panelUi.accessDenied : inst.startFailed)
+                setError(res.status === 401 ? 'sessionExpired' : res.status === 403 ? 'accessDenied' : 'startFailed')
                 setStep('error')
                 return
             }
@@ -362,7 +363,7 @@ export function InstallmentPaymentFlow() {
             setOperationId(data.operationId)
             toast.success(inst.loadingInstallment)
         } catch {
-            setError(t.panelUi.installmentUnconfirmed)
+            setError('installmentUnconfirmed')
             setStep('attention')
         } finally {
             mutationPending.current = false
@@ -387,7 +388,7 @@ export function InstallmentPaymentFlow() {
             }))
             if (!res.ok) {
                 if (res.status >= 500) throw new Error('UNCONFIRMED_COMMAND')
-                setConfirmError(res.status === 401 ? t.panelUi.sessionExpired : res.status === 403 ? t.panelUi.accessDenied : inst.confirmFailed)
+                setConfirmError(res.status === 401 ? 'sessionExpired' : res.status === 403 ? 'accessDenied' : 'confirmFailed')
                 return
             }
             setShowConfirmDialog(false)
@@ -395,7 +396,7 @@ export function InstallmentPaymentFlow() {
             toast.success(inst.processingPayment)
         } catch {
             setShowConfirmDialog(false)
-            setError(t.panelUi.installmentUnconfirmed)
+            setError('installmentUnconfirmed')
             setStep('attention')
         } finally {
             mutationPending.current = false
@@ -412,7 +413,6 @@ export function InstallmentPaymentFlow() {
         setInstallment(null)
         setSubscriber(null)
         setError(null)
-        setResultMessage(null)
         setConfirmExpiry(null)
         setShowConfirmDialog(false)
         setConfirmError(null)
@@ -761,7 +761,7 @@ export function InstallmentPaymentFlow() {
                                 {inst.successTitle}
                             </h3>
                             <p className="text-muted-foreground mb-6">
-                                {resultMessage || inst.successMessage}
+                                {inst.successMessage}
                             </p>
                             <Button onClick={handleReset} variant="outline">
                                 {inst.newOperation}
@@ -781,7 +781,7 @@ export function InstallmentPaymentFlow() {
                                 {inst.noInstallmentTitle}
                             </h3>
                             <p className="text-muted-foreground mb-6">
-                                {resultMessage || inst.noInstallmentMessage}
+                                {inst.noInstallmentMessage}
                             </p>
                             <Button onClick={handleReset} variant="outline">
                                 {inst.tryAnother}

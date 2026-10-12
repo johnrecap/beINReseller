@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import * as cheerio from 'cheerio'
 import { OperationStatus } from '@prisma/client'
 import * as packageQuote from '../../shared/operations/package-quote'
+import * as purchaseGuard from '../src/http/renewal-purchase-guard'
 import { loadIsolatedModule } from '../../tests/helpers/promo-dispatch-harness'
 import { matchFreshPackage, isCurrentPromo, promoResultData, refreshPromoPackages } from '../src/lib/promo-quote'
 
@@ -79,7 +80,8 @@ test('promo refresh preserves IRDETO context, fences both requests and removes o
 })
 
 test('actual HTTP promo fallback cannot certify an ordinary list and retains IRDETO', async () => {
-    const deps: Record<string, unknown> = { cheerio }
+    const deps: Record<string, unknown> = { cheerio, './renewal-purchase-guard': purchaseGuard,
+        '../../../shared/operations/package-quote': packageQuote }
     for (const name of ['axios', 'axios-retry', 'axios-cookiejar-support', 'tough-cookie', 'https', '../lib/prisma',
         '../utils/totp-generator', '../utils/proxy-manager', 'http-cookie-agent/http', 'socks-proxy-agent', 'https-proxy-agent',
         './webforms-form', './sold-packages-report', '../../../shared/operations/renewal-fulfillment-config']) deps[name] = {}
@@ -87,6 +89,7 @@ test('actual HTTP promo fallback cannot certify an ordinary list and retains IRD
     const calls: unknown[] = []
     const client = Object.assign(Object.create(HttpClientService.prototype), {
         config: { renewUrl: '/synthetic' }, currentViewState: { synthetic: 'state' },
+        renewalSelection: { packages: [selected], viewState: { synthetic: 'state' }, cardNumber: 'synthetic-card', smartcardType: 'IRDETO', promoCode: null },
         buildFullUrl: () => 'http://synthetic.invalid', buildFormData: () => '', buildPostHeaders: () => ({}),
         checkForErrors: () => null, extractHiddenFields: () => ({}),
         axios: { post: async () => ({ data: '<html><body>Intermediate response</body></html>' }) },

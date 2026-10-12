@@ -67,6 +67,7 @@ test('a renamed new quote invalidates the old selection and uses the provider di
 test('final confirmation requires the accepted current quote and never a stale revision', () => {
     const selected = selectQuotedPackage(operation, { quoteRevision: 2, packageIndex: 3 }).selectedPackage
     assert.doesNotThrow(() => assertFinalQuote({ ...operation, selectedPackage: selected }, 2))
+    assert.throws(() => assertFinalQuote({ ...operation, selectedPackage: { ...selected, currency: 'EUR' } }, 2), /PACKAGE_QUOTE_CONFLICT/)
     assert.throws(() => assertFinalQuote({ ...operation, selectedPackage: selected }, 1), /STALE_PACKAGE_QUOTE/)
     assert.throws(() => assertFinalQuote({ ...operation, selectedPackage: { ...selected, price: 1 } }, 2), /PACKAGE_QUOTE_CONFLICT/)
 })

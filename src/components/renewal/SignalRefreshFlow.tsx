@@ -1,5 +1,4 @@
 'use client'
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -38,14 +37,14 @@ type FlowStep = 'input' | 'checking' | 'status' | 'activating' | 'success' | 'er
  */
 export function SignalRefreshFlow() {
     const { t } = useTranslation()
-    const sr = (t as any).signalRefresh || {}
+    const sr = t.signalRefresh
 
     const [step, setStep] = useState<FlowStep>('input')
     const [cardNumber, setCardNumber] = useState('')
     const [operationId, setOperationId] = useState<string | null>(null)
     const [cardStatus, setCardStatus] = useState<CardStatus | null>(null)
     const [contracts, setContracts] = useState<Contract[]>([])
-    const [error, setError] = useState<string | null>(null)
+    const [error, setError] = useState<keyof typeof sr | null>(null)
     const [activating, setActivating] = useState(false)
     const [pollTrigger, setPollTrigger] = useState(0) // Used to restart polling
     const [isDownloading, setIsDownloading] = useState(false)
@@ -90,7 +89,7 @@ export function SignalRefreshFlow() {
                             setStep('success')
                         } else {
                             // Activation failed
-                            setError(responseData.error || sr.activationFailed || 'Activation failed')
+                            setError('error')
                             setStep('status')
                         }
                     } else {
@@ -98,7 +97,7 @@ export function SignalRefreshFlow() {
                     }
                     return  // Stop polling
                 } else if (data.status === 'FAILED') {
-                    setError(data.responseMessage || sr.operationFailed || 'Operation failed')
+                    setError('error')
                     setStep('error')
                     return  // Stop polling
                 }
@@ -122,7 +121,7 @@ export function SignalRefreshFlow() {
     // Step 1: Check card status
     const handleCheckCard = async () => {
         if (cardNumber.length < 10) {
-            setError(sr.invalidCard)
+            setError('invalidCard')
             return
         }
 
@@ -139,13 +138,13 @@ export function SignalRefreshFlow() {
             const data = await res.json()
 
             if (!res.ok) {
-                throw new Error(data.error || sr.checkFailed || 'Failed to check card')
+                throw new Error('CHECK_FAILED')
             }
 
             setOperationId(data.operationId)
             pollStartRef.current = Date.now()  // Start adaptive polling timer
-        } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : (t.common?.error || 'An error occurred'))
+        } catch {
+            setError('error')
             setStep('error')
         }
     }
@@ -168,7 +167,7 @@ export function SignalRefreshFlow() {
             const data = await res.json()
 
             if (!res.ok) {
-                throw new Error(data.error || sr.activateFailed || 'Failed to activate signal')
+                throw new Error('ACTIVATION_FAILED')
             }
 
             // Update operationId if new one was created
@@ -179,8 +178,8 @@ export function SignalRefreshFlow() {
             // Trigger polling restart
             pollStartRef.current = Date.now()  // Reset adaptive polling timer
             setPollTrigger(prev => prev + 1)
-        } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : (sr.activationError || 'Activation error'))
+        } catch {
+            setError('error')
             setStep('status') // Go back to status so user can retry
             setActivating(false)
         }
@@ -199,7 +198,7 @@ export function SignalRefreshFlow() {
     // Download image of card status - beIN Sport styled export
     const handleDownloadImage = async () => {
         if (!captureRef.current || contracts.length === 0) {
-            toast.error(sr.downloadFailed || 'Failed to download image')
+            toast.error(sr.downloadFailed)
             return
         }
 
@@ -210,7 +209,7 @@ export function SignalRefreshFlow() {
             const tableElement = captureElement.querySelector('[data-export-table]') as HTMLElement
 
             if (!tableElement) {
-                toast.error(sr.downloadFailed || 'Failed to download image')
+                toast.error(sr.downloadFailed)
                 return
             }
 
@@ -228,9 +227,9 @@ export function SignalRefreshFlow() {
             link.click()
             document.body.removeChild(link)
 
-            toast.success(sr.downloadSuccess || 'Image downloaded successfully!')
+            toast.success(sr.downloadSuccess)
         } catch {
-            toast.error(sr.downloadFailed || 'Failed to download image')
+            toast.error(sr.downloadFailed)
         } finally {
             setIsDownloading(false)
         }
@@ -265,7 +264,7 @@ export function SignalRefreshFlow() {
                     </div>
 
                     {error && (
-                        <p className="text-red-500 text-sm text-center">{error}</p>
+                        <p className="text-red-500 text-sm text-center">{error ? sr[error] : null}</p>
                     )}
 
                     <button
@@ -303,7 +302,7 @@ export function SignalRefreshFlow() {
                         ) : (
                             <Download className="w-4 h-4" />
                         )}
-                        {isDownloading ? (sr.downloading || 'Downloading...') : (sr.downloadImage || 'Download Image')}
+                        {isDownloading ? (sr.downloading) : (sr.downloadImage)}
                     </button>
 
                     {/* Capturable Area - fits content width */}
@@ -317,7 +316,7 @@ export function SignalRefreshFlow() {
                     </div>
 
                     {error && (
-                        <p className="text-red-500 text-sm text-center">{error}</p>
+                        <p className="text-red-500 text-sm text-center">{error ? sr[error] : null}</p>
                     )}
 
                     <div className="flex gap-3">
@@ -372,7 +371,7 @@ export function SignalRefreshFlow() {
                         ) : (
                             <Download className="w-4 h-4" />
                         )}
-                        {isDownloading ? (sr.downloading || 'Downloading...') : (sr.downloadImage || 'Download Image')}
+                        {isDownloading ? (sr.downloading) : (sr.downloadImage)}
                     </button>
 
                     {/* Capturable Area */}
@@ -400,7 +399,7 @@ export function SignalRefreshFlow() {
                         {sr.error}
                     </h3>
                     <p className="text-muted-foreground">
-                        {error}
+                        {error ? sr[error] : null}
                     </p>
                     <button
                         onClick={handleReset}

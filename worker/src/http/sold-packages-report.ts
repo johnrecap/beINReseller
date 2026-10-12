@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import * as cheerio from 'cheerio'
 import type { Element } from 'domhandler'
 import { collectSuccessfulControls, type SuccessfulControl } from './webforms-form'
+import { providerDate, validReportCriteria } from '../../../shared/reports/bein-provider'
 
 export type SoldReportScanOutcome = 'COMPLETE' | 'INCOMPLETE_SCAN' | 'CHECK_FAILED'
 
@@ -55,6 +56,9 @@ export interface SoldReportTransport {
 export interface SoldReportScanOptions {
     pageCap?: number
     scanAttempts?: number
+    /** Optional display filter; financial scans retain the provider's original criteria. */
+    dateRange?: { from: string; to: string }
+    signal?: AbortSignal
 }
 
 interface ScanValidationInput {
@@ -83,7 +87,7 @@ const headerAliases: Record<SafeHeader, readonly string[]> = {
     packageName: ['package'],
     contractStartDate: ['contract start', 'contract start date'],
     contractExpiryDate: ['contract expiry', 'contract expiry date'],
-    providerAmount: ['amount usd', 'amount'],
+    providerAmount: ['amount usd'],
 }
 
 function sha256(value: unknown): string {
@@ -99,9 +103,9 @@ function normalizedHeader(value: string): string {
 }
 
 function canonicalDecimal(value: string): string | null {
-    const match = normalizedText(value).replace(/,/g, '').match(/^\+?(\d+)(?:\.(\d+))?$/)
+    const match = normalizedText(value).match(/^\+?(\d+|\d{1,3}(?:,\d{3})+)(?:\.(\d+))?$/)
     if (!match) return null
-    const whole = match[1].replace(/^0+(?=\d)/, '')
+    const whole = match[1].replace(/,/g, '').replace(/^0+(?=\d)/, '')
     const fraction = (match[2] || '').replace(/0+$/, '')
     return fraction ? `${whole}.${fraction}` : whole
 }
@@ -150,7 +154,7 @@ function exactInputValue(
 }
 
 function dealerContext($: cheerio.CheerioAPI): DealerContextSelection {
-    const dealers = $('select[name$="$ddlDealer"], select[id$="_ddlDealer"]')
+    const dealers = $('select[name$="$cboDealer"], select[id$="_cboDealer"], select[name$="$ddlDealer"], select[id$="_ddlDealer"]')
     if (dealers.length === 0) return { context: null, reasonCode: 'DEALER_CONTEXT_MISSING' }
     if (dealers.length !== 1) return { context: null, reasonCode: 'DEALER_CONTEXT_AMBIGUOUS' }
     const dealer = dealers.first()
@@ -169,15 +173,15 @@ function dealerContext($: cheerio.CheerioAPI): DealerContextSelection {
     }
     const itemType = selectedOptionContext(
         $,
-        'select[name$="$ddlItemType"], select[id$="_ddlItemType"]'
+        'select[name$="$ddlType"], select[id$="_ddlType"], select[name$="$ddlItemType"], select[id$="_ddlItemType"]'
     )
     const fromDate = exactInputValue(
         $,
-        'input[name$="$txtFromDate"], input[id$="_txtFromDate"]'
+        'input[name$="$DateFrom$txtDate"], input[id$="_DateFrom_txtDate"], input[name$="$txtFromDate"], input[id$="_txtFromDate"]'
     )
     const toDate = exactInputValue(
         $,
-        'input[name$="$txtToDate"], input[id$="_txtToDate"]'
+        'input[name$="$DateTo$txtDate"], input[id$="_DateTo_txtDate"], input[name$="$txtToDate"], input[id$="_txtToDate"]'
     )
     if (itemType === 'AMBIGUOUS' || fromDate === 'AMBIGUOUS' || toDate === 'AMBIGUOUS') {
         return { context: null, reasonCode: 'REPORT_CRITERIA_AMBIGUOUS' }
@@ -274,12 +278,12 @@ function headerIndexes(
     $: cheerio.CheerioAPI,
     headerRow: cheerio.Cheerio<Element>
 ): Record<SafeHeader, number> | null {
-    const headers = headerRow.find('th').map((_, cell) => normalizedHeader($(cell).text())).get()
+    const headers = headerRow.children('th').map((_, cell) => normalizedHeader($(cell).text())).get()
     const entries = Object.entries(headerAliases).map(([field, aliases]) => [
         field,
         headers.findIndex((header) => aliases.includes(header)),
     ] as const)
-    if (entries.some(([, index]) => index < 0)) return null
+    if (entries.some(([field, index]) => index < 0 || headers.filter(header => headerAliases[field as SafeHeader].includes(header)).length !== 1)) return null
     return Object.fromEntries(entries) as Record<SafeHeader, number>
 }
 
@@ -323,23 +327,48 @@ function parsedRows(
 ): { rows: SoldReportSafeRow[]; invalid: boolean } {
     const rows: SoldReportSafeRow[] = []
     let invalid = false
-    const lastRequiredIndex = Math.max(...Object.values(indexes))
-    table.find('tr').each((_, row) => {
+    const width = table.find('tr').filter((_, row) => $(row).children('th').length > 0).first().children('th').length
+    const spans = new Map<number, { cell: Element; remaining: number }>()
+    const directRows = table.find('tr').filter((_, row) => $(row).closest('table')[0] === table[0])
+    directRows.each((_, row) => {
         const current = $(row)
         const rowClass = (current.attr('class') || '').toLowerCase()
-        if (current.find('th').length || rowClass.includes('pager')) return
-        const cells = current.find('td') as cheerio.Cheerio<Element>
+        const cells = current.children('td') as cheerio.Cheerio<Element>
         const rowText = normalizedText(current.text()).toLowerCase()
-        if (cells.length <= lastRequiredIndex) {
-            if (rowText.includes('total sold packages') || rowText.includes('no records found')) return
-            if (cells.length > 0) invalid = true
+        if (current.children('th').length || rowClass.includes('pager') ||
+            (cells.length === 1 && (rowText.includes('total sold packages') || rowText.includes('no records found')))) {
+            if (spans.size) invalid = true
+            spans.clear()
             return
         }
-        const parsed = reportRow($, cells, indexes)
+        if (!cells.length || current.find('table').length) { invalid = true; return }
+        const expanded: Element[] = []
+        let cursor = 0
+        for (let column = 0; column < width; column++) {
+            const inherited = spans.get(column)
+            if (inherited) {
+                expanded.push(inherited.cell)
+                if (--inherited.remaining === 0) spans.delete(column)
+                continue
+            }
+            const cell = cells[cursor++]
+            if (!cell) { invalid = true; return }
+            const colspan = $(cell).attr('colspan') || '1'
+            const rawSpan = $(cell).attr('rowspan') || '1'
+            const rowspan = Number(rawSpan)
+            if (colspan !== '1' || !/^[1-9]\d*$/.test(rawSpan) || rowspan > directRows.length ||
+                (rowspan > 1 && [indexes.packageName, indexes.contractStartDate, indexes.contractExpiryDate, indexes.providerAmount].includes(column))) {
+                invalid = true; return
+            }
+            expanded.push(cell)
+            if (rowspan > 1) spans.set(column, { cell, remaining: rowspan - 1 })
+        }
+        if (cursor !== cells.length) { invalid = true; return }
+        const parsed = reportRow($, $(expanded), indexes)
         if (parsed) rows.push(parsed)
         else invalid = true
     })
-    return { rows, invalid }
+    return { rows, invalid: invalid || spans.size > 0 }
 }
 
 function currentPageNumber($: cheerio.CheerioAPI, table: cheerio.Cheerio<Element>): number {
@@ -403,10 +432,9 @@ export function parseSoldPackagesReportPage(html: string): SoldReportPage {
     }
     const context = selection.context
 
-    const table = $('#ContentPlaceHolder1_GridView1').first().length
-        ? $('#ContentPlaceHolder1_GridView1').first()
-        : $('table[id$="_GridView1"]').first()
+    const table = $('table[id$="_GridView1"]')
     if (!table.length) return incompletePage('MISSING_GRID', context.hash)
+    if (table.length !== 1) return incompletePage('AMBIGUOUS_GRID', context.hash)
     const dealerGroups = validateDealerGroups(
         $,
         table as cheerio.Cheerio<Element>,
@@ -590,10 +618,34 @@ function pagerControls(html: string, target: SoldReportPagerTarget): SuccessfulC
 }
 
 async function applyFreshReportPage(
-    transport: SoldReportTransport
+    transport: SoldReportTransport,
+    options: SoldReportScanOptions = {}
 ): Promise<{ html: string; page: SoldReportPage }> {
     const freshHtml = await transport.freshGet()
-    const freshSelection = dealerContext(cheerio.load(freshHtml))
+    const $ = cheerio.load(freshHtml)
+    if ($('input[type="password"]').length) return { html: freshHtml, page: incompletePage('LOGIN_REQUIRED', null) }
+    const overrides: Record<string, string> = {}
+    if (options.dateRange) {
+        if (!validReportCriteria({ accountId: 'report', ...options.dateRange })) throw new Error('INVALID_REPORT_RANGE')
+        const fields = [
+            ['input[name$="$DateFrom$txtDate"], input[name$="$txtFromDate"]', providerDate(options.dateRange.from)],
+            ['input[name$="$DateTo$txtDate"], input[name$="$txtToDate"]', providerDate(options.dateRange.to)],
+        ]
+        for (const [selector, value] of fields) {
+            const field = $(selector)
+            if (field.length !== 1 || !field.attr('name') || field.is(':disabled'))
+                return { html: freshHtml, page: incompletePage('REPORT_CRITERIA_AMBIGUOUS', null) }
+            overrides[field.attr('name')!] = value
+            field.attr('value', value)
+        }
+        const type = $('select[name$="$ddlType"], select[name$="$ddlItemType"]')
+        const all = type.find('option').filter((_, el) => normalizedText($(el).text()).toLowerCase() === 'all')
+        if (type.length !== 1 || !type.attr('name') || type.is(':disabled') || all.length !== 1 || !all.attr('value'))
+            return { html: freshHtml, page: incompletePage('REPORT_CRITERIA_AMBIGUOUS', null) }
+        overrides[type.attr('name')!] = all.attr('value')!
+        type.find('option').removeAttr('selected'); all.attr('selected', 'selected')
+    }
+    const freshSelection = dealerContext($)
     if (!freshSelection.context) {
         return {
             html: freshHtml,
@@ -603,7 +655,9 @@ async function applyFreshReportPage(
             ),
         }
     }
-    const html = await transport.post(applyControls(freshHtml))
+    const html = await transport.post(options.dateRange
+        ? collectSuccessfulControls(freshHtml, { activatedSubmitName: APPLY_CONTROL, overrides })
+        : applyControls(freshHtml))
     const page = parseSoldPackagesReportPage(html)
     if (page.dealerContextHash && page.dealerContextHash !== freshSelection.context.hash) {
         return {
@@ -617,26 +671,29 @@ async function applyFreshReportPage(
 async function firstPageRecheck(
     transport: SoldReportTransport,
     currentHtml: string,
-    currentPage: SoldReportPage
+    currentPage: SoldReportPage,
+    options: SoldReportScanOptions
 ): Promise<SoldReportPage> {
     const firstTarget = currentPage.pagerTargets.find((target) => target.pageNumber === 1)
     if (currentPage.currentPage !== 1 && firstTarget) {
         return parseSoldPackagesReportPage(await transport.post(pagerControls(currentHtml, firstTarget)))
     }
-    return (await applyFreshReportPage(transport)).page
+    return (await applyFreshReportPage(transport, options)).page
 }
 
 async function scanOnce(
     transport: SoldReportTransport,
-    pageCap: number
+    pageCap: number,
+    options: SoldReportScanOptions
 ): Promise<SoldReportScanResult> {
-    const initial = await applyFreshReportPage(transport)
+    const initial = await applyFreshReportPage(transport, options)
     let currentHtml = initial.html
     let currentPage = initial.page
     const visitedPages: SoldReportPage[] = [currentPage]
     const visitedNumbers = new Set([currentPage.currentPage])
 
     while (currentPage.outcome === 'COMPLETE') {
+        options.signal?.throwIfAborted()
         const nextTarget = currentPage.pagerTargets.find(
             (target) => target.pageNumber === currentPage.currentPage + 1
         )
@@ -656,7 +713,8 @@ async function scanOnce(
         visitedNumbers.add(currentPage.currentPage)
     }
 
-    const recheck = await firstPageRecheck(transport, currentHtml, currentPage)
+    if (currentPage.reasonCode === 'LOGIN_REQUIRED') return { ...incompleteScan('LOGIN_REQUIRED', visitedPages.length, pageCap), outcome: 'CHECK_FAILED' }
+    const recheck = await firstPageRecheck(transport, currentHtml, currentPage, options)
     return validateSoldReportScan({ visitedPages, firstPageRecheck: recheck, pageCap })
 }
 
@@ -668,11 +726,14 @@ export async function scanSoldPackagesReport(
     const scanAttempts = Math.max(1, Math.floor(options.scanAttempts ?? DEFAULT_SCAN_ATTEMPTS))
     let latestIncomplete: SoldReportScanResult | null = null
     for (let attempt = 1; attempt <= scanAttempts; attempt += 1) {
+        options.signal?.throwIfAborted()
         try {
-            const scan = await scanOnce(transport, pageCap)
+            const scan = await scanOnce(transport, pageCap, options)
             if (scan.outcome === 'COMPLETE') return { ...scan, scanAttemptCount: attempt }
+            if (scan.reasonCode === 'LOGIN_REQUIRED') return { ...scan, scanAttemptCount: attempt }
             latestIncomplete = { ...scan, scanAttemptCount: attempt }
         } catch {
+            options.signal?.throwIfAborted()
             latestIncomplete = {
                 ...incompleteScan('REPORT_SCAN_FAILED', 0, pageCap),
                 outcome: 'CHECK_FAILED',

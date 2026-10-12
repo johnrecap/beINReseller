@@ -400,6 +400,7 @@ export async function saveOperationSessionToCache(
         const sessionToSave = {
             cookies: session.cookies,
             viewStateCompressed: compressedViewState,
+            preparedRenewal: session.preparedRenewal,
             accountId: session.accountId,
             loginTimestamp: session.loginTimestamp || Date.now(),
             expiresAt: session.expiresAt,
@@ -445,6 +446,7 @@ export async function saveOperationSessionToCacheFenced(
     const payload = JSON.stringify({
         cookies: input.session.cookies,
         viewStateCompressed: compressedViewState,
+        preparedRenewal: input.session.preparedRenewal,
         accountId: input.session.accountId,
         loginTimestamp: input.session.loginTimestamp || Date.now(),
         expiresAt: input.session.expiresAt,
@@ -506,6 +508,7 @@ export async function getOperationSessionFromCache(
         return {
             cookies: rawSession.cookies,
             viewState,
+            preparedRenewal: rawSession.preparedRenewal,
             lastLoginTime: rawSession.lastLoginTime,
             loginTimestamp: rawSession.loginTimestamp,
             expiresAt: rawSession.expiresAt,

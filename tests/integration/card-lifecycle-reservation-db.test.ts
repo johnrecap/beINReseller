@@ -80,7 +80,10 @@ test('T028 database permits one active reservation winner for a card', { skip: d
             type: 'RENEW',
             cardNumber,
             amount: 174,
-            status: 'PROCESSING',
+            // Two review rows can exist historically; the reservation itself
+            // must still have one winner. Active rows are already excluded by
+            // operations_one_active_per_card before this assertion can run.
+            status: 'REVIEW_REQUIRED',
             responseMessage: marker + part,
         },
     })))

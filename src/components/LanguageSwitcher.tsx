@@ -9,7 +9,7 @@ export default function LanguageSwitcher() {
     const { language, setLanguage } = useStore()
     const [isOpen, setIsOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
-    const { dir } = useTranslation()
+    const { dir, t } = useTranslation()
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -29,7 +29,7 @@ export default function LanguageSwitcher() {
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-200 transition-colors bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700 hover:border-gray-600 focus:outline-none focus:ring-2 focus:ring-brand/50"
-                aria-label="Select Language"
+                aria-label={t.header.selectLanguage}
             >
                 <Globe className="w-4 h-4 text-gray-400" />
                 <span className="hidden sm:inline-block">{currentLang?.name}</span>

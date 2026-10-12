@@ -7,6 +7,7 @@ module.exports = {
   database: () => [
     'audit-financial-model-db', 'audit-remediation-compatibility-db', 'audit-connected-financial-regression-db',
     'card-lifecycle-reservation-db', 'provider-account-reservation-db', 'renewal-fulfillment-proof-db',
+    'renewal-baseline-capture-db',
     'renewal-fulfillment-finalization-db', 'renewal-fulfillment-finalization-claim-guard-db',
     'pre-mutation-renewal-finalization-db', 'renewal-fulfillment-reconciliation-db',
     'installment-settlement-db', 'latest-verification-settlement-db', 'promo-dispatch-revision-db',

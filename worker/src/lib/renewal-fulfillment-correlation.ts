@@ -1,5 +1,7 @@
 import type { Contract } from '../http/types'
 import type { SoldReportSafeRow, SoldReportScanOutcome } from '../http/sold-packages-report'
+import type { RenewalSummaryEvidence } from '../http/renewal-purchase-guard'
+import { sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote'
 
 export type FulfillmentCorrelationOutcome =
     | 'MATCHED'
@@ -37,6 +39,7 @@ interface CorrelationTarget {
     providerAmount: string
     currency: string
     finalMutationStartedAt: string
+    providerSerial?: string
 }
 
 export interface RenewalFulfillmentCorrelationInput {
@@ -75,14 +78,13 @@ function uniqueMatches(value: string, expression: RegExp): string[] {
 }
 
 function packageIdentity(value: string): PackageIdentity {
-    const normalized = value.toLowerCase()
+    const normalized = value.toLowerCase().replace(/^\s*(?:renewal|add)\s+/, '')
     const durations = uniqueMatches(normalized, /(\d+(?:\.\d+)?)\s*months?\b/g)
-    const promotions = uniqueMatches(normalized, /save\s*(\d+(?:\.\d+)?)\s*%/g)
+    const promotions = uniqueMatches(normalized, /(?:save\s*)?(\d+(?:\.\d+)?)\s*%(?:\s*off)?/g)
     const baseName = normalized
-        .replace(/\b(?:renewal|add)\b/g, ' ')
         .replace(/\bfull\s+payment\b/g, ' ')
         .replace(/\d+(?:\.\d+)?\s*months?\b/g, ' ')
-        .replace(/save\s*\d+(?:\.\d+)?\s*%/g, ' ')
+        .replace(/(?:save\s*)?\d+(?:\.\d+)?\s*%(?:\s*off)?/g, ' ')
         .replace(/[^a-z0-9]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
@@ -90,11 +92,12 @@ function packageIdentity(value: string): PackageIdentity {
         baseName,
         durationMonths: durations.length === 1 ? Number(durations[0]) : null,
         promotionPercent: promotions.length === 1 ? promotions[0] : null,
-        valid: Boolean(baseName) && durations.length === 1 && promotions.length <= 1,
+        valid: Boolean(baseName) && (durations.length === 1 ||
+            (durations.length === 0 && /\b(?:cup|afcon)\b/.test(baseName) && /\b20\d{2}\b/.test(baseName))) && promotions.length <= 1,
     }
 }
 
-function samePackage(left: string, right: string): boolean {
+export function samePackage(left: string, right: string): boolean {
     const leftIdentity = packageIdentity(left)
     const rightIdentity = packageIdentity(right)
     return leftIdentity.valid && rightIdentity.valid &&
@@ -142,12 +145,35 @@ function rowMatchesTarget(row: SoldReportSafeRow, target: CorrelationTarget): bo
     const expectedDate = cairoDateKey(target.finalMutationStartedAt)
     const reportAmount = canonicalDecimal(row.providerAmount)
     const expectedAmount = canonicalDecimal(target.providerAmount)
-    return row.cardNumber.trim() === target.cardNumber.trim() &&
+    const card = row.cardNumber.trim()
+    const mappedCisco = exactText(target.itemType, 'Card_CISCO') && /^\d{10}$/.test(target.cardNumber) &&
+        target.providerSerial === target.cardNumber.slice(0, -1)
+    return (card === target.cardNumber.trim() || (mappedCisco && card === target.providerSerial)) &&
         exactText(row.itemType, target.itemType) &&
         samePackage(row.packageName, target.selectedPackageName) &&
         reportAmount !== null && reportAmount === expectedAmount &&
         row.currency.toUpperCase() === target.currency.trim().toUpperCase() &&
         expectedDate !== null && providerDateKey(row.contractStartDate) === expectedDate
+}
+
+/** Runtime boundary for persisted JSON. A price or historical contract cannot
+ * manufacture missing pre-payment evidence, including on verification retries. */
+export function boundPurchaseIdentity(raw: unknown, selected: Partial<QuotePackage> | null,
+    cardNumber: string, smartcardType: string): RenewalSummaryEvidence | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !selected?.name ||
+        !Number.isSafeInteger(selected.quoteRevision) || selected.packageKey !== `${selected.quoteRevision}.${selected.index}`) return null
+    const value = raw as RenewalSummaryEvidence
+    if (!(smartcardType === 'CISCO' ? /^\d{10}$/.test(cardNumber) : smartcardType === 'IRDETO' && /^\d{10,16}$/.test(cardNumber)) ||
+        value.cardNumber !== cardNumber || value.smartcardType !== smartcardType ||
+        value.quoteRevision !== selected.quoteRevision || value.packageKey !== selected.packageKey ||
+        value.providerSerial !== (smartcardType === 'CISCO' ? cardNumber.slice(0, -1) : cardNumber) ||
+        typeof value.packageName !== 'string' || typeof value.price !== 'number' || typeof value.currency !== 'string' ||
+        !Number.isSafeInteger(Math.round(value.price * 100)) ||
+        typeof selected.price !== 'number' ||
+        !sameQuotedPackage({ name: value.packageName, price: value.price, currency: value.currency },
+            { name: selected.name, price: selected.price, currency: selected.currency }) ||
+        value.promoCode !== (selected.appliedPromoCode || null)) return null
+    return value
 }
 
 function contractMatchesTarget(contract: Contract, target: CorrelationTarget): boolean {
@@ -184,9 +210,19 @@ function correlateReportCandidate(
     target: CorrelationTarget
 ): RenewalFulfillmentCorrelationResult {
     const invoiceNo = row.invoiceNo.trim()
-    const matches = contracts.filter((contract) =>
-        contract.invoiceNo.trim() === invoiceNo && contractMatchesTarget(contract, target)
-    )
+    const commercial = packageIdentity(target.selectedPackageName)
+    const matches = contracts.filter((contract) => {
+        const entitlement = packageIdentity(contract.package)
+        // Report already proved the full commercial offer. A plain contract may
+        // omit that offer, but never change family, term, invoice or either date.
+        const nameMatches = samePackage(contract.package, target.selectedPackageName) ||
+            (commercial.valid && entitlement.valid && entitlement.promotionPercent === null &&
+                commercial.baseName === entitlement.baseName && commercial.durationMonths === entitlement.durationMonths)
+        return contract.invoiceNo.trim() === invoiceNo && activeContract(contract.status) && nameMatches &&
+            providerDateKey(contract.startDate) !== null && providerDateKey(contract.expiryDate) !== null &&
+            providerDateKey(contract.startDate) === providerDateKey(row.contractStartDate) &&
+            providerDateKey(contract.expiryDate) === providerDateKey(row.contractExpiryDate)
+    })
     if (matches.length > 1) return correlationResult('PROOF_CONFLICT', 'MULTIPLE_MATCHING_CONTRACTS', row)
     if (matches.length === 0) return correlationResult('REPORT_ONLY', 'REPORT_WITHOUT_ACTIVE_CONTRACT', row)
     return correlationResult('MATCHED', 'REPORT_AND_CONTRACT_INVOICE_MATCHED', row, matches[0])

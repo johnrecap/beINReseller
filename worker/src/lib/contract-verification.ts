@@ -1,4 +1,5 @@
 import type { Contract } from '../http/types';
+import { samePackage } from './renewal-fulfillment-correlation';
 
 export type ContractVerificationOutcome =
     | 'CONTRACT_VERIFIED_SUCCESS'
@@ -96,27 +97,10 @@ function parseContractDateYmd(value: string): number | null {
     return null;
 }
 
-function normalizePackageText(value: string): string {
-    return value
-        .toLowerCase()
-        .replace(/\bfull\s+payment\b/g, ' ')
-        .replace(/[^a-z0-9]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
 function packageMatches(selectedPackageName: string | null | undefined, contractPackageName: string): boolean {
     if (!selectedPackageName) return false;
 
-    const selected = normalizePackageText(selectedPackageName);
-    const contract = normalizePackageText(contractPackageName);
-    if (!selected || !contract) return false;
-    if (selected.includes(contract) || contract.includes(selected)) return true;
-
-    const selectedTokens = selected.split(' ').filter(Boolean);
-    const contractTokens = new Set(contract.split(' ').filter(Boolean));
-    const overlap = selectedTokens.filter((token) => contractTokens.has(token)).length;
-    return overlap / Math.max(1, Math.min(selectedTokens.length, contractTokens.size)) >= 0.75;
+    return samePackage(selectedPackageName, contractPackageName);
 }
 
 function isActiveContractStatus(status: string): boolean {

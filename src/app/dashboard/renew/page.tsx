@@ -21,6 +21,8 @@ import { Zap } from 'lucide-react'
 import { requestPrePayOperationExpiry } from '@/lib/operations/client-timeout'
 import { OPERATION_WARNING_THRESHOLD_SECONDS } from '@/lib/operations/timing'
 import { useTranslation } from '@/hooks/useTranslation'
+import { useRenewalCardCooldown } from '@/hooks/useRenewalCardCooldown'
+import { CardCooldownNotice } from '@/components/renewal/CardCooldownNotice'
 
 // Renewal Mode Type
 type RenewalMode = 'signal-refresh' | 'package-renewal' | 'installment'
@@ -38,15 +40,17 @@ interface AvailablePackage {
 
 interface OperationResult {
     success: boolean
-    message: string
+    pending?: 'reviewRequired' | 'pendingSettlement'
+    message: (t: ReturnType<typeof useTranslation>['t']) => string
 }
 
 // Step Indicator Component
 function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
+    const { t } = useTranslation()
     const steps = [
-        { id: 'card-input', label: 'Card Number', icon: CreditCard },
-        { id: 'packages', label: 'Select Package', icon: Package },
-        { id: 'result', label: 'Payment', icon: ShieldCheck },
+        { id: 'card-input', label: t.renew.steps.cardInput, icon: CreditCard },
+        { id: 'packages', label: t.renew.steps.selectPackage, icon: Package },
+        { id: 'result', label: t.renew.steps.result, icon: ShieldCheck },
     ]
 
     const getStepStatus = (stepId: string) => {
@@ -128,6 +132,7 @@ function FinalConfirmTimer({
     onWarning?: () => void
     warningThreshold?: number
 }) {
+    const { t } = useTranslation()
     const [timeLeft, setTimeLeft] = useState<number>(0)
     const hasWarned = useRef(false)
     const hasExpired = useRef(false)
@@ -167,7 +172,7 @@ function FinalConfirmTimer({
         return (
             <div className="flex items-center justify-center gap-2 text-red-600 dark:text-red-400">
                 <Clock className="h-4 w-4" />
-                <span className="text-sm font-medium">{'Time expired!'}</span>
+                <span className="text-sm font-medium">{t.renew.timer.expired}</span>
             </div>
         )
     }
@@ -179,7 +184,7 @@ function FinalConfirmTimer({
         <div className={`flex items-center justify-center gap-2 ${isWarning ? 'text-red-600 dark:text-red-400 animate-pulse' : 'text-orange-600 dark:text-orange-400'}`}>
             <Clock className="h-4 w-4" />
             <span className={`text-sm ${isWarning ? 'font-bold' : ''}`}>
-                {'Time remaining:'} {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                {t.renew.timer.remaining} {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
             </span>
         </div>
     )
@@ -214,7 +219,7 @@ export default function RenewWizardPage() {
     const [captchaSolution, setCaptchaSolution] = useState('')
     const [captchaSubmitted, setCaptchaSubmitted] = useState(false)  // Track if user already submitted CAPTCHA
     const [result, setResult] = useState<OperationResult | null>(null)
-    const [fulfillmentStatusMessage, setFulfillmentStatusMessage] = useState<string | null>(null)
+    const [fulfillmentStatusMessage, setFulfillmentStatusMessage] = useState<boolean>(false)
     const [loading, setLoading] = useState(false)
     const [stbNumber, setStbNumber] = useState<string | null>(null)
     const [finalConfirmExpiry, setFinalConfirmExpiry] = useState<string | null>(null)  // For final confirm timer
@@ -229,6 +234,8 @@ export default function RenewWizardPage() {
     const statusPollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const startRenewalInFlightRef = useRef(false)
     const MAX_POLL_ERROR_RETRIES = 5
+    const { remainingSeconds: cardCooldownSeconds, acceptCooldown } = useRenewalCardCooldown(
+        cardNumber, renewalMode === 'package-renewal' && (step === 'card-input' || step === 'result'), step)
 
     const consumeQuote = useCallback((id: string, data: { quoteRevision?: number; quoteState?: string; packages?: AvailablePackage[]; appliedPromoCode?: string | null }) => {
         if (operationRef.current !== id || !Number.isInteger(data.quoteRevision) ||
@@ -255,13 +262,13 @@ export default function RenewWizardPage() {
 
     const quoteErrorMessage = (data: { messageKey?: string; error?: string }) => {
         const key = data.messageKey?.replace('operations.', '')
-        return key && key in t.operations ? t.operations[key as keyof typeof t.operations] : data.error || t.operations.packageQuoteFailed
+        return key && key in t.operations ? t.operations[key as keyof typeof t.operations] : t.operations.packageQuoteFailed
     }
 
     // Set dynamic page title
     useEffect(() => {
-        document.title = `${'Subscription Renewal'} | Desh Panel`
-    }, [])
+        document.title = `${t.renew.title} | Desh Panel`
+    }, [t.renew.title])
 
     // Heartbeat system - keeps operation alive while user is on page
     // If heartbeats stop (browser close, tab close), operation will be auto-cancelled
@@ -273,7 +280,7 @@ export default function RenewWizardPage() {
         enabled: shouldSendHeartbeat,
         onExpired: () => {
             // Operation was expired by cleanup cron
-            setResult({ success: false, message: 'Operation expired — browser closed or connection lost' })
+            setResult({ success: false, message: t => t.renew.feedback.expired })
             setStep('result')
             refetchBalance()
         },
@@ -311,7 +318,7 @@ export default function RenewWizardPage() {
             pollErrorCountRef.current = 0
 
             if (data.confirmationExpired || data.settlementState === 'REFUND_PENDING') {
-                setResult({ success: false, message: data.confirmationExpired
+                setResult({ success: false, pending: data.settlementState === 'REFUND_PENDING' ? 'pendingSettlement' : undefined, message: t => data.confirmationExpired
                     ? t.operations.confirmationExpired : t.operations.refundSettlementPending })
                 setStep('result')
                 return
@@ -341,24 +348,25 @@ export default function RenewWizardPage() {
                 setFinalConfirmExpiry(data.finalConfirmExpiry || null)
                 setStep('packages')
             } else if (data.status === 'COMPLETED') {
-                setResult({ success: true, message: data.message || 'Renewal successful!' })
+                setResult({ success: true, message: t => t.renew.result.success })
                 setStep('result')
                 refetchBalance()
             } else if (data.status === 'CANCELLED') {
-                setResult({ success: false, message: data.message || 'Operation cancelled' })
+                setResult({ success: false, message: t => t.renew.toast.cancelled })
                 setStep('result')
                 refetchBalance()
             } else if (data.status === 'EXPIRED') {
-                setResult({ success: false, message: data.message || 'Operation expired. Please start a new operation.' })
+                setResult({ success: false, message: t => t.renew.feedback.expired })
                 setStep('result')
                 refetchBalance()
             } else if (data.status === 'FAILED') {
-                setResult({ success: false, message: data.message || 'Operation failed' })
+                setResult({ success: false, message: t => t.renew.result.failed })
                 setStep('result')
             } else if (data.status === 'REVIEW_REQUIRED') {
                 setResult({
                     success: false,
-                    message: data.messageKey === 'operations.packageQuoteChangedReview'
+                    pending: 'reviewRequired',
+                    message: t => data.messageKey === 'operations.packageQuoteChangedReview'
                         ? t.operations.packageQuoteChangedReview
                         : data.messageKey === 'operations.providerChargedFulfillmentUnderReview'
                         ? t.operations.providerChargedFulfillmentUnderReview
@@ -375,8 +383,8 @@ export default function RenewWizardPage() {
                 setFulfillmentStatusMessage(
                     data.status === 'COMPLETING' &&
                     data.messageKey === 'operations.providerChargedVerifyingFulfillment'
-                        ? t.operations.providerChargedVerifyingFulfillment
-                        : null
+                        ? true
+                        : false
                 )
                 statusPollTimer.current = setTimeout(pollStatus, getNextInterval())
             }
@@ -386,14 +394,14 @@ export default function RenewWizardPage() {
             if (pollErrorCountRef.current >= MAX_POLL_ERROR_RETRIES) {
                 setResult({
                     success: false,
-                    message: 'Connection lost while tracking this operation. Continue from Active Operations.'
+                    message: t => t.renew.feedback.trackingLost
                 })
                 setStep('result')
                 return
             }
             statusPollTimer.current = setTimeout(pollStatus, 2000)
         }
-    }, [operationId, refetchBalance, captchaSubmitted, t, consumeQuote])
+    }, [operationId, refetchBalance, captchaSubmitted, consumeQuote])
 
     useEffect(() => {
         if (!operationId || step !== 'packages' || quoteState !== 'PENDING' || quotePollStopped) return
@@ -445,13 +453,13 @@ export default function RenewWizardPage() {
 
             if (res.ok) {
                 setStep('completing')
-                toast.success('Completing final purchase...')
+                toast.success(t.renew.toast.completingPurchase)
             } else {
                 toast.error(quoteErrorMessage(data))
                 if (res.status === 409) { setSelectedPackageInfo(null); setStep('processing') }
             }
         } catch {
-            toast.error('Connection error')
+            toast.error(t.renew.toast.connectionError)
         } finally {
             setIsConfirmLoading(false)
         }
@@ -469,21 +477,21 @@ export default function RenewWizardPage() {
 
         try {
             const res = await fetch(`/api/operations/${operationId}/cancel-confirm`, { method: 'POST' })
-            const data = await res.json()
+            await res.json()
 
             if (res.ok) {
-                const message = isAutoCancel
-                    ? 'Operation auto-cancelled due to timeout'
-                    : 'Operation cancelled'
+                const message = (t: ReturnType<typeof useTranslation>['t']) => isAutoCancel
+                    ? t.renew.toast.autoCancelled
+                    : t.renew.toast.cancelled
                 setResult({ success: false, message })
                 setStep('result')
                 refetchBalance()
-                toast.info(message)
+                toast.info(message(t))
             } else {
-                toast.error(data.error || 'Failed to cancel operation')
+                toast.error(t.renew.toast.cancelFailed)
             }
         } catch {
-            toast.error('Connection error')
+            toast.error(t.renew.toast.connectionError)
         } finally {
             setIsConfirmLoading(false)
             setIsAutoCancelling(false)
@@ -494,10 +502,10 @@ export default function RenewWizardPage() {
     // Handle expiry warning shortly before auto-cancel
     const handleExpiryWarning = useCallback(() => {
         setShowExpiryWarning(true)
-        toast.warning('Operation will be auto-cancelled soon.', {
+        toast.warning(t.renew.toast.expiryWarning, {
             duration: OPERATION_WARNING_THRESHOLD_SECONDS * 1000,
         })
-    }, [])
+    }, [t.renew.toast.expiryWarning])
 
     // Handle auto-cancel when timer expires
     const handleAutoExpire = useCallback(() => {
@@ -508,7 +516,7 @@ export default function RenewWizardPage() {
             if (operationId) {
                 requestPrePayOperationExpiry(operationId).catch(() => undefined)
             }
-            setResult({ success: false, message: 'Package selection timed out — please try again' })
+            setResult({ success: false, message: t => t.renew.feedback.selectionExpired })
             setStep('result')
         } else if (step === 'awaiting-final-confirm') {
             handleCancelConfirm(true)
@@ -518,8 +526,9 @@ export default function RenewWizardPage() {
 
     // Start renewal
     const handleStartRenewal = async () => {
+        if (cardCooldownSeconds > 0) return
         if (cardNumber.length < 10) {
-            toast.error('Card number must be at least 10 digits')
+            toast.error(t.renew.cardInput.error)
             return
         }
 
@@ -542,6 +551,11 @@ export default function RenewWizardPage() {
                     toast.error(t.operations.fulfillmentReviewPending)
                     return
                 }
+                if (data.code === 'RENEWAL_CARD_COOLDOWN') {
+                    acceptCooldown(data)
+                    toast.error(t.operations.cardCooldownActive)
+                    return
+                }
                 // Check if this is a duplicate operation error (API returns operationId)
                 if (
                     data.operationId &&
@@ -549,10 +563,10 @@ export default function RenewWizardPage() {
                     data.error.toLowerCase().includes('active operation')
                 ) {
                     toast.error(
-                        'An operation already exists for this card',
+                        t.renew.toast.existingOperation,
                         {
                             action: {
-                                label: 'Click here to continue',
+                                label: t.renew.toast.existingOperationAction,
                                 onClick: () => {
                                     window.location.href = '/dashboard/operations/active'
                                 }
@@ -570,9 +584,9 @@ export default function RenewWizardPage() {
             pollStartTimeRef.current = Date.now()  // Start adaptive polling timer
             pollErrorCountRef.current = 0
             setStep('processing')
-            toast.success('Starting operation...')
+            toast.success(t.renew.toast.starting)
         } catch {
-            toast.error('Connection error')
+            toast.error(t.renew.toast.connectionError)
         } finally {
             setLoading(false)
             startRenewalInFlightRef.current = false
@@ -590,10 +604,10 @@ export default function RenewWizardPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ solution: captchaSolution }),
             })
-            const data = await res.json()
+            await res.json()
 
             if (!res.ok) {
-                toast.error(data.error || 'Invalid captcha')
+                toast.error(t.renew.toast.captchaInvalid)
                 return
             }
 
@@ -602,9 +616,9 @@ export default function RenewWizardPage() {
             pollStartTimeRef.current = Date.now()  // Reset adaptive polling timer
             pollErrorCountRef.current = 0
             setStep('processing')
-            toast.success('Loading packages...')
+            toast.success(t.renew.toast.loadingPackages)
         } catch {
-            toast.error('Connection error')
+            toast.error(t.renew.toast.connectionError)
         } finally {
             setLoading(false)
         }
@@ -618,7 +632,7 @@ export default function RenewWizardPage() {
         if (!selectedPkg) return
 
         if (balance < selectedPkg.price) {
-            toast.error('Insufficient balance')
+            toast.error(t.renew.toast.insufficientBalance)
             return
         }
 
@@ -647,9 +661,9 @@ export default function RenewWizardPage() {
 
             setStep('completing')
             refetchBalance()
-            toast.success('Completing purchase...')
+            toast.success(t.renew.completing.title)
         } catch {
-            toast.error('An error occurred')
+            toast.error(t.common.error)
         } finally {
             setLoading(false)
         }
@@ -723,7 +737,7 @@ export default function RenewWizardPage() {
         setCaptchaSubmitted(false)  // Reset CAPTCHA submitted state
         setShowConfirmation(false)  // Reset confirmation dialog
         setResult(null)
-        setFulfillmentStatusMessage(null)
+        setFulfillmentStatusMessage(false)
         setStbNumber(null)
         setFinalConfirmExpiry(null)
         setSelectedPackageInfo(null)
@@ -741,9 +755,9 @@ export default function RenewWizardPage() {
 
             <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-[#00A651] to-[#008f45] bg-clip-text text-transparent">
-                    {'beIN Subscription Renewal'}
+                    {t.renew.title}
                 </h1>
-                <p className="text-muted-foreground mt-2">{'Choose the right package for you'}</p>
+                <p className="text-muted-foreground mt-2">{t.renew.subtitle}</p>
             </div>
 
             {/* Mode Toggle Tabs */}
@@ -756,7 +770,7 @@ export default function RenewWizardPage() {
                         }`}
                 >
                     <Zap className="h-5 w-5" />
-                    {'Check'}
+                    {t.signalRefresh.checkButton}
                 </button>
                 <button
                     onClick={() => setRenewalMode('package-renewal')}
@@ -766,7 +780,7 @@ export default function RenewWizardPage() {
                         }`}
                 >
                     <Package className="h-5 w-5" />
-                    {'Renew'}
+                    {t.renew.modes.packageRenewal}
                 </button>
                 <button
                     onClick={() => setRenewalMode('installment')}
@@ -776,7 +790,7 @@ export default function RenewWizardPage() {
                         }`}
                 >
                     <CreditCard className="h-5 w-5" />
-                    {'Installments'}
+                    {t.renew.feedback.installments}
                 </button>
             </div>
 
@@ -791,8 +805,8 @@ export default function RenewWizardPage() {
                     {isInstallmentDevMode && (
                         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-md rounded-xl border border-border">
                             <Code className="w-12 h-12 text-blue-500 mb-3" />
-                            <p className="text-lg font-bold text-foreground">Under Development</p>
-                            <p className="text-sm text-muted-foreground">This feature is currently under development</p>
+                            <p className="text-lg font-bold text-foreground">{t.renew.feedback.developmentTitle}</p>
+                            <p className="text-sm text-muted-foreground">{t.renew.feedback.developmentDescription}</p>
                         </div>
                     )}
                     <div className={isInstallmentDevMode ? 'pointer-events-none select-none opacity-50 blur-sm' : ''}>
@@ -805,6 +819,7 @@ export default function RenewWizardPage() {
             {renewalMode === 'package-renewal' && (
                 <>
                     <StepIndicator currentStep={step} />
+                    <CardCooldownNotice cardNumber={cardNumber} remainingSeconds={cardCooldownSeconds} />
 
                     {/* Step 1: Card Input */}
                     {step === 'card-input' && (
@@ -812,14 +827,14 @@ export default function RenewWizardPage() {
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <CreditCard className="h-5 w-5 text-[#00A651]" />
-                                    {'Enter Card Number'}
+                                    {t.renew.cardInput.title}
                                 </CardTitle>
-                                <CardDescription>{'Enter the 10-16 digit beIN card number'}</CardDescription>
+                                <CardDescription>{t.renew.cardInput.description}</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {/* Smartcard Type Selection */}
                                 <div>
-                                    <Label htmlFor="smartcardType">{'Smartcard Type'}</Label>
+                                    <Label htmlFor="smartcardType">{t.renew.feedback.smartcardType}</Label>
                                     <div className="flex gap-2 mt-2">
                                         <button
                                             type="button"
@@ -829,7 +844,7 @@ export default function RenewWizardPage() {
                                                 : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[#00A651]/50'
                                                 }`}
                                         >
-                                            Smartcard: CISCO
+                                            {t.renew.feedback.smartcard.replace('{type}', 'CISCO')}
                                         </button>
                                         <button
                                             type="button"
@@ -839,13 +854,13 @@ export default function RenewWizardPage() {
                                                 : 'border-[var(--color-border-default)] text-[var(--color-text-muted)] hover:border-[#00A651]/50'
                                                 }`}
                                         >
-                                            Smartcard: Irdeto
+                                            {t.renew.feedback.smartcard.replace('{type}', 'Irdeto')}
                                         </button>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <Label htmlFor="cardNumber">{'Card Number'}</Label>
+                                    <Label htmlFor="cardNumber">{t.renew.cardInput.label}</Label>
                                     <Input
                                         id="cardNumber"
                                         type="text"
@@ -856,23 +871,23 @@ export default function RenewWizardPage() {
                                         dir="ltr"
                                     />
                                     {cardNumber && cardNumber.length < 10 && (
-                                        <p className="text-xs text-red-500 mt-1">{'Card number must be at least 10 digits'}</p>
+                                        <p className="text-xs text-red-500 mt-1">{t.renew.cardInput.error}</p>
                                     )}
                                 </div>
                                 <Button
                                     onClick={handleStartRenewal}
-                                    disabled={cardNumber.length < 10 || loading}
+                                    disabled={cardNumber.length < 10 || loading || cardCooldownSeconds > 0}
                                     className="w-full bg-[#00A651] hover:bg-[#008f45]"
                                 >
                                     {loading ? (
                                         <>
                                             <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                            {'Starting...'}
+                                            {t.renew.cardInput.loading}
                                         </>
                                     ) : (
                                         <>
                                             <Sparkles className="h-4 w-4 ml-2" />
-                                            {'Start Renewal'}
+                                            {t.renew.cardInput.button}
                                         </>
                                     )}
                                 </Button>
@@ -885,8 +900,8 @@ export default function RenewWizardPage() {
                         <Card className="bg-[var(--color-bg-card)] border-[var(--color-border-default)] shadow-[var(--shadow-card)]">
                             <CardContent className="py-12 text-center">
                                 <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
-                                <h3 className="text-xl font-semibold mb-2">{'Loading packages...'}</h3>
-                                <p className="text-muted-foreground">{'Connecting to beIN and retrieving available packages'}</p>
+                                <h3 className="text-xl font-semibold mb-2">{t.renew.toast.loadingPackages}</h3>
+                                <p className="text-muted-foreground">{t.renew.processing.description}</p>
                             </CardContent>
                         </Card>
                     )}
@@ -897,9 +912,9 @@ export default function RenewWizardPage() {
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Lock className="h-5 w-5 text-amber-500" />
-                                    {'Solve Captcha'}
+                                    {t.renew.captcha.title}
                                 </CardTitle>
-                                <CardDescription>{'Enter the characters shown in the image'}</CardDescription>
+                                <CardDescription>{t.renew.captcha.description}</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {captchaImage && (
@@ -907,13 +922,13 @@ export default function RenewWizardPage() {
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                             src={captchaImage.startsWith('data:') ? captchaImage : `data:image/png;base64,${captchaImage}`}
-                                            alt="Captcha"
+                                            alt={t.renew.captcha.title}
                                             className="border rounded-lg"
                                         />
                                     </div>
                                 )}
                                 <div>
-                                    <Label htmlFor="captcha">{'Solution'}</Label>
+                                    <Label htmlFor="captcha">{t.renew.captcha.label}</Label>
                                     <Input
                                         id="captcha"
                                         type="text"
@@ -932,10 +947,10 @@ export default function RenewWizardPage() {
                                     {loading ? (
                                         <>
                                             <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                            {'Verifying...'}
+                                            {t.renew.captcha.loading}
                                         </>
                                     ) : (
-                                        'Submit'
+                                        t.renew.captcha.button
                                     )}
                                 </Button>
                             </CardContent>
@@ -951,7 +966,7 @@ export default function RenewWizardPage() {
                                     {t.renew.packages.title}
                                 </CardTitle>
                                 <CardDescription>
-                                    {stbNumber && <span>{'Receiver #:'} <strong dir="ltr">{stbNumber}</strong></span>}
+                                    {stbNumber && <span>{t.renew.packages.receiverNumber} <strong dir="ltr">{stbNumber}</strong></span>}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -1014,7 +1029,7 @@ export default function RenewWizardPage() {
                                 {packages.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">
                                         <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                                        {'No packages available for this card'}
+                                        {t.renew.packages.noPackages}
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
@@ -1047,7 +1062,7 @@ export default function RenewWizardPage() {
                                     <>
                                         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
                                             <div className="flex justify-between text-sm">
-                                                <span>{'Your balance:'}</span>
+                                                <span>{t.renew.packages.currentBalance}</span>
                                                 <span className={balance >= (packages.find(p => p.index === selectedPackageIndex)?.price || 0) ? 'text-green-600' : 'text-red-600'}>
                                                     {balance} USD
                                                 </span>
@@ -1142,9 +1157,9 @@ export default function RenewWizardPage() {
                             <CardContent className="py-12 text-center">
                                 <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
                                 <h3 className="text-xl font-semibold mb-2">
-                                    {fulfillmentStatusMessage || 'Completing purchase...'}
+                                    {fulfillmentStatusMessage ? t.operations.providerChargedVerifyingFulfillment : t.renew.completing.title}
                                 </h3>
-                                <p className="text-muted-foreground">{'Do not close this page'}</p>
+                                <p className="text-muted-foreground">{t.renew.completing.warning}</p>
                             </CardContent>
                         </Card>
                     )}
@@ -1156,30 +1171,30 @@ export default function RenewWizardPage() {
                                 <div className="flex items-center gap-3">
                                     <ShieldCheck className="h-8 w-8" />
                                     <div>
-                                        <CardTitle className="text-white text-xl">{'Final Payment Confirmation'}</CardTitle>
-                                        <CardDescription className="text-orange-100">{'This is the last step before completing the purchase'}</CardDescription>
+                                        <CardTitle className="text-white text-xl">{t.renew.finalConfirm.title}</CardTitle>
+                                        <CardDescription className="text-orange-100">{t.renew.finalConfirm.description}</CardDescription>
                                     </div>
                                 </div>
                             </CardHeader>
                             <CardContent className="p-6 space-y-4">
                                 {/* Package Info */}
                                 <div className="bg-muted/50 rounded-xl p-4 space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-muted-foreground">{'Package:'}</span>
-                                        <span className="font-bold text-foreground">{selectedPackageInfo?.name || 'Not specified'}</span>
+                                    <div className="flex justify-between items-start gap-3">
+                                        <span className="shrink-0 text-muted-foreground">{t.renew.finalConfirm.package}</span>
+                                        <span className="min-w-0 break-words text-end font-bold text-foreground">{selectedPackageInfo?.name || t.installment.notSpecified}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-muted-foreground">{'Price:'}</span>
+                                        <span className="text-muted-foreground">{t.renew.finalConfirm.price}</span>
                                         <span className="font-bold text-green-600 dark:text-green-400">{selectedPackageInfo?.price || 0} USD</span>
                                     </div>
                                     {stbNumber && (
                                         <div className="flex justify-between items-center">
-                                            <span className="text-muted-foreground">{'Receiver #:'}</span>
+                                            <span className="text-muted-foreground">{t.renew.packages.receiverNumber}</span>
                                             <span className="font-mono text-sm" dir="ltr">{stbNumber}</span>
                                         </div>
                                     )}
                                     <div className="flex justify-between items-center">
-                                        <span className="text-muted-foreground">{'Card Number:'}</span>
+                                        <span className="text-muted-foreground">{t.renew.finalConfirm.cardNumber}</span>
                                         <span className="font-mono text-sm" dir="ltr">{cardNumber}</span>
                                     </div>
                                 </div>
@@ -1198,7 +1213,7 @@ export default function RenewWizardPage() {
                                     <div className="flex items-center justify-center gap-2 p-3 bg-red-100 dark:bg-red-900/40 rounded-xl border-2 border-red-400 dark:border-red-600 animate-pulse">
                                         <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                                         <span className="text-sm font-bold text-red-700 dark:text-red-300">
-                                            ⚠️ {'Operation will be auto-cancelled!'}
+                                            ⚠️ {t.renew.finalConfirm.warning}
                                         </span>
                                     </div>
                                 )}
@@ -1207,7 +1222,7 @@ export default function RenewWizardPage() {
                                 <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
                                     <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                                     <p className="text-sm text-red-700 dark:text-red-300">
-                                        <strong>Warning:</strong> Clicking &quot;Confirm Payment&quot; will complete the purchase and cannot be undone or refunded.
+                                        {t.renew.feedback.paymentWarning}
                                     </p>
                                 </div>
 
@@ -1219,7 +1234,7 @@ export default function RenewWizardPage() {
                                         disabled={isConfirmLoading || isAutoCancelling}
                                         className="flex-1"
                                     >
-                                        {'Cancel'}
+                                        {t.renew.finalConfirm.cancel}
                                     </Button>
                                     <Button
                                         onClick={handleFinalConfirm}
@@ -1229,12 +1244,12 @@ export default function RenewWizardPage() {
                                         {isConfirmLoading ? (
                                             <>
                                                 <Loader2 className="h-4 w-4 animate-spin ml-2" />
-                                                {'Confirming...'}
+                                                {t.renew.finalConfirm.confirming}
                                             </>
                                         ) : (
                                             <>
                                                 <CheckCircle className="h-4 w-4 ml-2" />
-                                                {'Confirm Payment'}
+                                                {t.renew.finalConfirm.confirm}
                                             </>
                                         )}
                                     </Button>
@@ -1245,23 +1260,28 @@ export default function RenewWizardPage() {
 
                     {/* Step 4: Result */}
                     {step === 'result' && result && (
-                        <Card className={`bg-[var(--color-bg-card)] shadow-[var(--shadow-card)] border-2 ${result.success ? 'border-green-200 dark:border-green-900/30' : 'border-red-200 dark:border-red-900/30'}`}>
+                        <Card className={`bg-[var(--color-bg-card)] shadow-[var(--shadow-card)] border-2 ${result.success ? 'border-green-200 dark:border-green-900/30' : result.pending ? 'border-amber-200 dark:border-amber-900/30' : 'border-red-200 dark:border-red-900/30'}`}>
                             <CardContent className="py-12 text-center">
                                 {result.success ? (
                                     <>
                                         <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                                        <h3 className="text-2xl font-bold text-green-600 mb-2">{'Success!'}</h3>
+                                        <h3 className="text-2xl font-bold text-green-600 mb-2">{t.renew.result.success}</h3>
+                                    </>
+                                ) : result.pending ? (
+                                    <>
+                                        <AlertTriangle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
+                                        <h3 className="text-2xl font-bold text-amber-600 mb-2">{t.panelUi[result.pending]}</h3>
                                     </>
                                 ) : (
                                     <>
                                         <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-                                        <h3 className="text-2xl font-bold text-red-600 mb-2">{'Operation Failed'}</h3>
+                                        <h3 className="text-2xl font-bold text-red-600 mb-2">{t.renew.result.failed}</h3>
                                     </>
                                 )}
-                                <p className="text-muted-foreground mb-6">{result.message}</p>
+                                <p className="text-muted-foreground mb-6">{result.message(t)}</p>
                                 <Button onClick={handleReset} variant="outline" className="gap-2">
                                     <Sparkles className="h-4 w-4" />
-                                    {'New Operation'}
+                                    {t.renew.result.newOperation}
                                 </Button>
                             </CardContent>
                         </Card>

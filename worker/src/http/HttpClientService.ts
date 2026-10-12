@@ -39,6 +39,8 @@ import {
     CheckCardForSignalResult
 } from './types';
 import { encodeSuccessfulControls } from './webforms-form';
+import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
+import { assertPreparedRenewal, readRenewalSummary, providerSerialFor, readProviderCardIdentity, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase } from './renewal-purchase-guard';
 import {
     scanSoldPackagesReport as runSoldPackagesReportScan,
     type SoldReportScanOptions,
@@ -299,12 +301,15 @@ export class HttpClientService {
     // Current page state
     private currentViewState: HiddenFields | null = null;
     private currentStbNumber: string | null = null;
+    private renewalSelection: { packages: AvailablePackage[]; viewState: HiddenFields; cardNumber: string; smartcardType: string; promoCode: string | null } | null = null;
+    private preparedRenewal: PreparedRenewalPurchase | null = null;
     private lastInstallmentPageHtml: string | null = null;  // Stored by loadInstallment for payInstallment
 
     // Session tracking for persistent login
     private lastLoginTime: Date | null = null;
     private sessionValid: boolean = false;
     private sessionExpiresAt: number | null = null;  // Unix timestamp (ms) for reliable expiry tracking
+    private reportReadScope = false;
 
     // Proxy config for manual proxy
     private proxyConfig: ProxyConfig | null = null;
@@ -332,7 +337,7 @@ export class HttpClientService {
         'Upgrade-Insecure-Requests': '1'
     };
 
-    constructor(proxyConfig?: ProxyConfig) {
+    constructor(proxyConfig?: ProxyConfig, private readonly accountId?: string) {
         this.jar = new CookieJar();
         this.totp = new TOTPGenerator();
         this.proxyConfig = proxyConfig || null;
@@ -505,6 +510,35 @@ export class HttpClientService {
         return runSoldPackagesReportScan(transport, options);
     }
 
+    /** Dedicated display client: cancellation and ownership apply to login AND every report request. */
+    restrictToReportReads(signal: AbortSignal, assertOwnership: () => Promise<void>): void {
+        this.reportReadScope = true;
+        this.axios.interceptors.request.use(async config => {
+            signal.throwIfAborted();
+            await assertOwnership();
+            signal.throwIfAborted();
+            const url = new URL(config.url || '', this.config.loginUrl);
+            const login = new URL(this.config.loginUrl);
+            const report = new URL(this.config.soldPackagesReportUrl, login);
+            const method = (config.method || 'get').toLowerCase();
+            if (url.origin !== login.origin || !['get', 'post'].includes(method) ||
+                (url.pathname !== login.pathname && url.pathname !== report.pathname)) {
+                throw new Error('REPORT_READ_ONLY_BOUNDARY');
+            }
+            config.signal = signal;
+            config['axios-retry'] = { retries: 0 };
+            config.beforeRedirect = options => {
+                // Login redirects may land on an authenticated dashboard, but cannot leave the provider origin.
+                const next = new URL(`${options.protocol}//${options.hostname}${options.port ? `:${options.port}` : ''}${options.path}`);
+                if (next.origin !== login.origin || /(?:pay|sell|purchase|installment)/i.test(next.pathname) ||
+                    (options.method?.toUpperCase() !== 'GET' && next.pathname !== login.pathname && next.pathname !== report.pathname))
+                    throw new Error('REPORT_READ_ONLY_REDIRECT');
+                signal.throwIfAborted();
+            };
+            return config;
+        });
+    }
+
     // =============================================
     // HELPER METHODS
     // =============================================
@@ -603,23 +637,10 @@ export class HttpClientService {
     private extractPackagesFromHtml($: cheerio.CheerioAPI, logPrefix: string = ''): AvailablePackage[] {
         const packages: AvailablePackage[] = [];
 
-        // Try specific selectors for package table first
-        const tableSelectors = [
-            '#ContentPlaceHolder1_gvAvailablePackages tr.GridRow',
-            '#ContentPlaceHolder1_gvAvailablePackages tr.GridAlternatingRow',
-            '#ContentPlaceHolder1_gvAvailablePackages tr:not(.GridHeader)',
-            'table[id*="gvAvailablePackages"] tr:not(:first-child)',
-            '.GridRow',
-            '.GridAlternatingRow'
-        ];
-
-        let packageRows = $('__empty_selector__'); // Initialize with empty selection
-        for (const sel of tableSelectors) {
-            const rows = $(sel);
-            if (rows.length > packageRows.length) {
-                packageRows = rows;
-            }
-        }
+        const table = $('table[id="ContentPlaceHolder1_gvAvailablePackages"]');
+        if (table.length !== 1) return [];
+        const packageRows = table.find('tr').filter((_index, row) => $(row).closest('table')[0] === table[0]);
+        let invalid = false;
 
         console.log(`[HTTP] Found ${packageRows.length} package rows${logPrefix ? ` ${logPrefix}` : ''}`);
 
@@ -628,6 +649,7 @@ export class HttpClientService {
 
             // CRITICAL FIX: Skip rows that contain a table (nested/container rows)
             if ($row.find('table').length > 0) {
+                invalid = true;
                 console.log(`[HTTP] Skipping row ${index} - contains nested table (container row)`);
                 return;
             }
@@ -636,6 +658,7 @@ export class HttpClientService {
 
             // CRITICAL FIX 2: Skip rows with multiple checkboxes (container row)
             if (checkbox.length > 1) {
+                invalid = true;
                 console.log(`[HTTP] Skipping row ${index} - contains ${checkbox.length} checkboxes (container row)`);
                 return;
             }
@@ -643,36 +666,41 @@ export class HttpClientService {
             if (checkbox.length === 1) {
                 const checkboxId = checkbox.attr('id') || '';
                 const checkboxName = checkbox.attr('name') || '';
-                const checkboxPostKey = checkboxName || checkboxId;
+                const checkboxPostKey = checkboxName;
 
                 // Log both id and name for debugging
                 console.log(`[HTTP] Checkbox ${index}: id="${checkboxId}" name="${checkboxName}"`);
 
                 // Extract package name
                 const nameSpan = $row.find('span[id*="lblName"]');
-                const name = nameSpan.text().trim() || `Package ${index + 1}`;
+                const name = nameSpan.text().trim();
+                if (nameSpan.length !== 1 || !name || !checkboxPostKey || checkbox.is(':disabled')) {
+                    invalid = true;
+                    return;
+                }
 
                 // Extract price (look for USD pattern)
                 // NOTE: beIN formats prices with commas (e.g., "1,200 USD")
                 // so we must include commas in the digit capture group and strip them before parsing
                 const rowText = $row.text();
-                const priceMatch = rowText.match(/(?:^|[^\d.])([\d,]+(?:\.\d+)?)\s*USD/i);
-                const price = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : 0;
+                const priceMatches = [...rowText.matchAll(/(?:^|[^\d.])([\d,]+(?:\.\d+)?)\s*USD\b/gi)];
+                const price = priceMatches.length === 1 ? Number(priceMatches[0][1].replace(/,/g, '')) : 0;
 
                 if (price > 0) {
                     packages.push({
                         index,
                         name,
                         price,
-                        // Prefer name for ASP.NET postback, fallback to id for promo page variants.
+                        currency: 'USD',
                         checkboxValue: checkboxPostKey
                     });
                     console.log(`[HTTP] Package ${index}: "${name}" - ${price} USD${logPrefix ? ` ${logPrefix}` : ''}`);
-                }
+                } else invalid = true;
             }
         });
 
-        return packages;
+        if (new Set(packages.map(pkg => pkg.checkboxValue)).size !== packages.length) invalid = true;
+        return invalid ? [] : packages;
     }
 
     /**
@@ -945,7 +973,9 @@ export class HttpClientService {
 
         return {
             cookies: JSON.stringify(cookieStr),
+            accountId: this.accountId,
             viewState: this.currentViewState || undefined,
+            preparedRenewal: this.preparedRenewal || undefined,
             lastLoginTime: new Date().toISOString(),
             loginTimestamp: this.sessionExpiresAt ? (this.sessionExpiresAt - timeoutMs) : now,
             expiresAt: this.sessionExpiresAt || (now + timeoutMs)
@@ -957,6 +987,13 @@ export class HttpClientService {
      * Restores cookies, ViewState, and session expiry
      */
     async importSession(data: SessionData): Promise<void> {
+        this.renewalSelection = null;
+        this.preparedRenewal = null;
+        this.currentViewState = null;
+        if (this.accountId && data.accountId !== this.accountId) {
+            this.invalidateSession();
+            throw new Error('PROVIDER_SESSION_ACCOUNT_MISMATCH');
+        }
         try {
             const cookieData = JSON.parse(data.cookies);
             this.jar = await CookieJar.deserialize(cookieData);
@@ -1008,6 +1045,8 @@ export class HttpClientService {
 
             if (data.viewState) {
                 this.currentViewState = data.viewState;
+                this.preparedRenewal = data.preparedRenewal || null;
+                if (this.preparedRenewal) this.currentStbNumber = this.preparedRenewal.stbNumber;
             }
 
             // Restore session expiry from cached data
@@ -1025,6 +1064,8 @@ export class HttpClientService {
             // Reset to clean state
             this.jar = new CookieJar();
             this.sessionExpiresAt = null;
+            this.preparedRenewal = null;
+            this.currentViewState = null;
         }
     }
 
@@ -1034,6 +1075,8 @@ export class HttpClientService {
      * Previously only replaced this.jar but the agent/wrapper still referenced the old jar.
      */
     resetSession(): void {
+        this.renewalSelection = null;
+        this.preparedRenewal = null;
         this.jar = new CookieJar();
         this.currentViewState = null;
         this.currentStbNumber = null;
@@ -1196,6 +1239,8 @@ export class HttpClientService {
      * @returns true if session is valid on beIN server, false if expired
      */
     public async validateSession(): Promise<boolean> {
+        this.renewalSelection = null;
+        this.preparedRenewal = null;
         if (!this.sessionValid) {
             console.log('[HTTP] validateSession: No active session');
             return false;
@@ -1258,6 +1303,8 @@ export class HttpClientService {
      * Skips login if session is still active
      */
     async login(username: string, password: string, totpSecret?: string): Promise<LoginResult> {
+        this.renewalSelection = null;
+        this.preparedRenewal = null;
         console.log(`[HTTP] Starting login for: ${username}`);
 
         // Check if session is still active - verify on beIN server before trusting
@@ -1275,7 +1322,7 @@ export class HttpClientService {
 
         try {
             // === DEBUG: Check IP before login to verify proxy ===
-            try {
+            if (!this.reportReadScope) try {
                 const ipCheckRes = await this.axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
                 console.log(`[HTTP] 🌐 Current IP (via proxy): ${ipCheckRes.data?.ip || 'unknown'}`);
             } catch (ipErr: unknown) {
@@ -1313,6 +1360,7 @@ export class HttpClientService {
             console.log(`[HTTP] CAPTCHA selector: #${captchaSelector}, found: ${captchaImg.length > 0}`);
 
             if (captchaImg.length) {
+                if (this.reportReadScope) return { success: false, requiresCaptcha: true };
                 const captchaSrc = captchaImg.attr('src');
                 console.log(`[HTTP] CAPTCHA detected, src: ${captchaSrc?.substring(0, 100)}...`);
 
@@ -1703,6 +1751,8 @@ export class HttpClientService {
      * @param smartcardType - 'CISCO' or 'IRDETO' (default: CISCO) - determines which dropdown option to select
      */
     async loadPackages(cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
+        this.renewalSelection = null;
+        this.preparedRenewal = null;
         console.log(`[HTTP] Loading packages for card: ${cardNumber} (smartcard type: ${smartcardType})`);
 
         try {
@@ -1738,36 +1788,12 @@ export class HttpClientService {
 
             if (ddlType.length) {
                 // Find the correct option based on smartcardType
-                let firstOptionValue = '';
-                ddlType.find('option').each((index, el) => {
-                    const text = $(el).text();
-                    const value = $(el).attr('value') || '';
+                const matchingTypes = ddlType.find('option').filter((_, el) => $(el).text().trim().toUpperCase() === smartcardType);
+                if (matchingTypes.length !== 1) throw new Error('PACKAGE_QUOTE_CHANGED');
+                selectedTypeValue = matchingTypes.attr('value') || '';
 
-                    // Store first non-empty option as fallback
-                    if (!firstOptionValue && value) {
-                        firstOptionValue = value;
-                    }
-
-                    if (smartcardType === 'IRDETO') {
-                        // Look for Irdeto option
-                        if (text.includes('Irdeto') || text.includes('IRDETO') || text.includes('irdeto')) {
-                            selectedTypeValue = value;
-                            console.log(`[HTTP] Found Irdeto option: value="${value}" text="${text}"`);
-                        }
-                    } else {
-                        // Default: Look for CISCO, Smartcard, or Humax
-                        if (text.includes('CISCO') || text.includes('Smartcard') || text.includes('Humax')) {
-                            selectedTypeValue = value;
-                            console.log(`[HTTP] Found CISCO option: value="${value}" text="${text}"`);
-                        }
-                    }
-                });
-
-                // Fallback to first option if target not found
-                if (!selectedTypeValue && firstOptionValue) {
-                    selectedTypeValue = firstOptionValue;
-                    console.log(`[HTTP] ${smartcardType} not found in dropdown, using fallback: value="${selectedTypeValue}"`);
-                }
+                // A missing requested type must never select another type by position.
+                if (!selectedTypeValue) throw new Error('PACKAGE_QUOTE_CHANGED');
 
                 // POST to select the smartcard type (required — ASP.NET needs this server-side event)
                 if (selectedTypeValue) {
@@ -1798,7 +1824,10 @@ export class HttpClientService {
             // When we POST, we REPLACE the field value entirely!
             // So we need to send the FULL card WITHOUT last digit (check digit)
             // Example: 7511394806 → 751139480 (slice 0,-1)
-            const formattedCard = cardNumber.slice(0, -1);
+            const formattedCard = providerSerialFor(cardNumber, smartcardType);
+            if (ddlType.length !== 1 || selectedTypeValue !== (smartcardType === 'CISCO' ? '8' : '1')) throw new Error('PACKAGE_QUOTE_CHANGED');
+            const serialMaxLength = Number($('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').attr('maxlength'));
+            if (serialMaxLength && formattedCard.length > serialMaxLength) throw new Error('PACKAGE_QUOTE_CHANGED');
             console.log(`[HTTP] Card format: ${cardNumber} → ${formattedCard} (removed last digit only)`);
 
             // Get actual Load button value from current HTML
@@ -1985,6 +2014,10 @@ export class HttpClientService {
             }
 
             console.log(`[HTTP] ✅ Loaded ${packages.length} packages`);
+            readProviderCardIdentity(loadRes.data, cardNumber, smartcardType);
+            const loadedPromo = String($('input[name="ctl00$ContentPlaceHolder1$txtPromoCode"]').val() || '').trim();
+            if (loadedPromo) throw new Error('PACKAGE_QUOTE_CHANGED');
+            this.renewalSelection = { packages, viewState: { ...this.currentViewState }, cardNumber, smartcardType, promoCode: null };
             return {
                 success: true,
                 packages,
@@ -2108,13 +2141,18 @@ export class HttpClientService {
      * @returns Updated packages with discounted prices
      */
     async applyPromoCode(promoCode: string, cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
+        const previousSelection = this.renewalSelection;
+        this.renewalSelection = null;
+        this.preparedRenewal = null;
         console.log(`[HTTP] Applying promo code: ${promoCode}`);
 
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
 
-            if (!this.currentViewState) {
-                return { success: false, packages: [], error: 'ViewState not available - load packages first' };
+            if (!this.currentViewState || !previousSelection || previousSelection.cardNumber !== cardNumber ||
+                previousSelection.smartcardType !== smartcardType || !promoCode.trim() ||
+                canonicalJson(previousSelection.viewState) !== canonicalJson(this.currentViewState)) {
+                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
             }
 
             // Step 1: POST promo code
@@ -2148,6 +2186,19 @@ export class HttpClientService {
             const $ = cheerio.load(promoRes.data);
             const packages = this.extractPackagesFromHtml($, '(after promo)');
 
+            // Echo alone is not acceptance. Require a bound response and an observable
+            // commercial quote change; unsupported/unchanged promo outcomes stay blocked.
+            const promoInputs = $('input[name="ctl00$ContentPlaceHolder1$txtPromoCode"]');
+            if (packages.length > 0) {
+                readProviderCardIdentity(promoRes.data, cardNumber, smartcardType);
+                const changed = packages.length !== previousSelection.packages.length ||
+                    packages.some(pkg => !previousSelection.packages.some(old => sameQuotedPackage(pkg, old)));
+                if (!this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION ||
+                    promoInputs.length !== 1 || String(promoInputs.val()).trim() !== promoCode || !changed) {
+                    return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
+                }
+            }
+
             // Check if promo code resulted in empty packages (User Requirement)
             if (packages.length === 0) {
                 console.log('[HTTP] ⚠️ No packages found after promo code - treating as invalid');
@@ -2166,6 +2217,7 @@ export class HttpClientService {
                 // Fallback: some responses return an intermediate page after promo submit.
                 // Re-loading packages with same session/card recovers the real package list.
                 const fallbackReload = await this.loadPackages(cardNumber, smartcardType);
+                this.renewalSelection = null;
                 if (fallbackReload.success && fallbackReload.packages.length > 0) {
                     console.log(`[HTTP] Promo fallback reload recovered ${fallbackReload.packages.length} packages`);
                     return {
@@ -2185,6 +2237,7 @@ export class HttpClientService {
             }
 
             console.log(`[HTTP] ✅ Loaded ${packages.length} packages with promo code`);
+            this.renewalSelection = { packages, viewState: { ...this.currentViewState }, cardNumber, smartcardType, promoCode };
             return {
                 success: true,
                 packages,
@@ -2201,6 +2254,12 @@ export class HttpClientService {
     // PURCHASE FLOW
     // =============================================
 
+    private readPurchaseResponse(html: string, selected: QuotePackage, cardNumber: string, smartcardType: string) {
+        this.currentViewState = this.extractHiddenFields(html);
+        if (!this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION) throw new Error('PACKAGE_QUOTE_CHANGED');
+        return readRenewalSummary(html, selected, cardNumber, smartcardType);
+    }
+
     /**
      * Complete package purchase
      * 
@@ -2213,7 +2272,7 @@ export class HttpClientService {
      * @param skipFinalClick - If true, stops before final OK (for user confirmation)
      */
     async completePurchase(
-        selectedPackage: AvailablePackage,
+        selectedPackage: QuotePackage,
         promoCode?: string,
         stbNumber?: string,
         skipFinalClick: boolean = false,
@@ -2238,14 +2297,20 @@ export class HttpClientService {
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
 
-            // Use the checkbox value stored from loadPackages (NO GET request!)
-            const checkboxValue = selectedPackage.checkboxValue;
-            if (!checkboxValue) {
-                return {
-                    success: false,
-                    message: 'No checkbox value for package - invalid package data'
-                };
-            }
+            const selection = this.renewalSelection;
+            this.renewalSelection = null;
+            this.preparedRenewal = null;
+            if (!selection || !this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION ||
+                !Number.isSafeInteger(selectedPackage.quoteRevision) || selectedPackage.packageKey !== `${selectedPackage.quoteRevision}.${selectedPackage.index}` ||
+                !selection.smartcardType || (this.sessionExpiresAt && this.sessionExpiresAt <= Date.now()) ||
+                canonicalJson(selection.viewState) !== canonicalJson(this.currentViewState) ||
+                selection.promoCode !== (selectedPackage.appliedPromoCode || null) ||
+                (promoCode !== undefined && promoCode !== selection.promoCode)) throw new Error('PACKAGE_QUOTE_CHANGED');
+            providerSerialFor(selection.cardNumber, selection.smartcardType);
+            const matches = selection.packages.filter(pkg => sameQuotedPackage(pkg, selectedPackage));
+            if (matches.length !== 1 || !matches[0].checkboxValue) throw new Error('PACKAGE_QUOTE_CHANGED');
+            const checkboxValue = matches[0].checkboxValue;
+            this.currentStbNumber = stb;
 
             console.log(`[HTTP] 📦 Using stored checkbox: ${checkboxValue}`);
             console.log(`[HTTP] 📦 Using stored ViewState: ${this.currentViewState.__VIEWSTATE?.length || 0} chars`);
@@ -2258,9 +2323,7 @@ export class HttpClientService {
             };
 
             // Add promo code if provided
-            if (promoCode) {
-                addFormData['ctl00$ContentPlaceHolder1$txtPromoCode'] = promoCode;
-            }
+            addFormData['ctl00$ContentPlaceHolder1$txtPromoCode'] = selection.promoCode || '';
 
             console.log('[HTTP] POST add to cart...');
             await assertExecutionCurrent?.();
@@ -2281,13 +2344,15 @@ export class HttpClientService {
                 return { success: false, message: `Add to cart failed: ${addError}` };
             }
 
-            this.currentViewState = this.extractHiddenFields(res.data);
+            this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType);
             console.log('[HTTP] ✅ Added to cart');
 
             // Step 2: Click Sell button
+            requirePurchaseControl(res.data, 'ctl00$ContentPlaceHolder1$btnSell', 'Sell');
             const sellFormData: Record<string, string> = {
                 ...this.currentViewState,
-                'ctl00$ContentPlaceHolder1$btnSell': 'Sell'
+                'ctl00$ContentPlaceHolder1$btnSell': 'Sell',
+                'ctl00$ContentPlaceHolder1$txtPromoCode': selection.promoCode || ''
             };
 
             console.log('[HTTP] POST sell...');
@@ -2309,16 +2374,15 @@ export class HttpClientService {
                 return { success: false, message: `Sell failed: ${sellError}` };
             }
 
-            this.currentViewState = this.extractHiddenFields(res.data);
+            this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType);
             console.log('[HTTP] ✅ Sell clicked');
 
             // Step 3: Enter STB number in both fields
             // beIN uses 'tbStbSerial1' and 'tbStbSerial2' (sometimes 'toStbSerial2')
             const stbFormData: Record<string, string> = {
                 ...this.currentViewState,
-                'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
-                'ctl00$ContentPlaceHolder1$tbStbSerial2': stb,
-                'ctl00$ContentPlaceHolder1$toStbSerial2': stb  // Alternative field name
+                ...readStbFields(res.data, stb),
+                'ctl00$ContentPlaceHolder1$txtPromoCode': selection.promoCode || ''
             };
 
             console.log(`[HTTP] POST STB: ${stb}`);
@@ -2340,7 +2404,11 @@ export class HttpClientService {
                 return { success: false, message: `STB entry failed: ${stbError}` };
             }
 
-            this.currentViewState = this.extractHiddenFields(res.data);
+            const summary = this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType);
+            requirePurchaseControl(res.data, 'ctl00$ContentPlaceHolder1$btnStbOk', 'Ok');
+            this.preparedRenewal = { selectedPackage: { ...selectedPackage }, summary,
+                viewState: { ...this.currentViewState }, stbNumber: stb, stbFields: readStbFields(res.data, stb, true) };
+            assertPreparedRenewal(this.preparedRenewal, { selectedPackage, cardNumber: selection.cardNumber }, this.currentViewState, stb);
             console.log('[HTTP] ✅ STB entered');
 
             // If skipFinalClick, return here for user confirmation
@@ -2349,7 +2417,8 @@ export class HttpClientService {
                 return {
                     success: true,
                     message: `Ready to confirm - ${selectedPackage.name} at ${selectedPackage.price} USD`,
-                    awaitingConfirm: true
+                    awaitingConfirm: true,
+                    packageEvidence: summary
                 };
             }
 
@@ -2357,7 +2426,9 @@ export class HttpClientService {
             return await this.confirmPurchase(undefined, undefined, assertExecutionCurrent);
 
         } catch (error: unknown) {
+            this.preparedRenewal = null;
             console.error('[HTTP] Purchase error:', getHttpErrorMessage(error));
+            if (getHttpErrorMessage(error) === 'PACKAGE_QUOTE_CHANGED') return { success: false, message: 'PACKAGE_QUOTE_CHANGED' };
             return { success: false, message: `Purchase failed: ${getHttpErrorMessage(error)}` };
         }
     }
@@ -2407,7 +2478,8 @@ export class HttpClientService {
     async confirmPurchase(
         expectedCost?: number,
         onFinalProviderMutationStarted?: (stage: 'FINAL_OK') => Promise<void>,
-        assertExecutionCurrent?: () => Promise<void>
+        assertExecutionCurrent?: () => Promise<void>,
+        expectedSelection?: { selectedPackage: QuotePackage; cardNumber: string }
     ): Promise<PurchaseResult> {
         console.log('[HTTP] Confirming purchase...');
         let finalPaySubmitted = false;
@@ -2418,6 +2490,13 @@ export class HttpClientService {
             if (!this.currentViewState) {
                 return withFinalPayOutcome({ success: false, message: 'ViewState not available' }, false);
             }
+
+            const prepared = this.preparedRenewal;
+            // Consume before awaiting the mutation marker: concurrent/replayed callers cannot reuse this cart.
+            this.preparedRenewal = null;
+            if (!expectedSelection || expectedCost !== expectedSelection.selectedPackage.price ||
+                (this.sessionExpiresAt && this.sessionExpiresAt <= Date.now())) throw new Error('PACKAGE_QUOTE_CHANGED');
+            assertPreparedRenewal(prepared, expectedSelection, this.currentViewState, this.currentStbNumber);
 
             // ===============================================
             // NOTE: DO NOT make any GET requests before OK button!
@@ -2439,10 +2518,9 @@ export class HttpClientService {
             // Including STB fields with OK button is required
             const okFormData: Record<string, string> = {
                 ...this.currentViewState,
-                'ctl00$ContentPlaceHolder1$tbStbSerial1': stb,
-                'ctl00$ContentPlaceHolder1$tbStbSerial2': stb,
-                'ctl00$ContentPlaceHolder1$toStbSerial2': stb,  // Alternative field
-                'ctl00$ContentPlaceHolder1$btnStbOk': 'Ok'
+                ...prepared.stbFields,
+                'ctl00$ContentPlaceHolder1$btnStbOk': 'Ok',
+                'ctl00$ContentPlaceHolder1$txtPromoCode': prepared.summary.promoCode || ''
             };
 
             console.log(`[HTTP] POST confirm (Ok) with STB: ${stb}...`);
@@ -2533,6 +2611,9 @@ export class HttpClientService {
 
             // Extract the actual tbSerial1 value from the page
             const tbSerial1Value = $('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').val() as string || '';
+            this.readPurchaseResponse(res.data, expectedSelection.selectedPackage, expectedSelection.cardNumber, prepared.summary.smartcardType);
+            requirePurchaseControl(res.data, 'ctl00$ContentPlaceHolder1$BtnPay', 'Pay');
+            requirePurchaseControl(res.data, 'ctl00$ContentPlaceHolder1$Epay', 'RbdDirectPay');
 
             const payFormData: Record<string, string> = {
                 ...this.currentViewState,
@@ -2541,7 +2622,8 @@ export class HttpClientService {
                 // Radio button for Direct Payment (From Account)
                 'ctl00$ContentPlaceHolder1$Epay': 'RbdDirectPay',
                 // Pay button
-                'ctl00$ContentPlaceHolder1$BtnPay': 'Pay'
+                'ctl00$ContentPlaceHolder1$BtnPay': 'Pay',
+                'ctl00$ContentPlaceHolder1$txtPromoCode': prepared.summary.promoCode || ''
             };
 
             console.log('[HTTP] POST Pay (Direct Payment)...');
@@ -2838,6 +2920,10 @@ export class HttpClientService {
 
         } catch (error: unknown) {
             console.error('[HTTP] Confirm error:', getHttpErrorMessage(error));
+            if (getHttpErrorMessage(error) === 'PACKAGE_QUOTE_CHANGED') return {
+                success: false, message: 'PACKAGE_QUOTE_CHANGED', finalPaySubmitted,
+                outcomeCategory: 'UNCERTAIN_REVIEW_REQUIRED'
+            };
             return withFinalPayOutcome({ success: false, message: `Confirm failed: ${getHttpErrorMessage(error)}` }, finalPaySubmitted, expectedCost);
         }
     }

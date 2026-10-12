@@ -25,8 +25,7 @@ export function CardStatusDisplay({
     activateCount
 }: CardStatusProps) {
     const { t } = useTranslation()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sr = (t as any).signalRefresh || {}
+    const sr = t.signalRefresh
 
     return (
         <div className="bg-gradient-to-r from-yellow-100 to-yellow-50 dark:from-yellow-900/30 dark:to-yellow-800/20 border border-yellow-300 dark:border-yellow-700 rounded-xl p-6 space-y-4">
@@ -45,13 +44,13 @@ export function CardStatusDisplay({
                 <Cpu className="w-5 h-5 text-gray-500 mt-1" />
                 <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {sr.smartCard || 'Smart Card Serial'}
+                        {sr.smartCard}
                     </p>
                     <p className="font-mono font-medium text-gray-900 dark:text-white">
                         {smartCardSerial}
                         {stbNumber && (
                             <span className="text-gray-500">
-                                {' → STB: '}{stbNumber}
+                                {' → '}{t.renew.packages.receiverNumber} <bdi>{stbNumber}</bdi>
                             </span>
                         )}
                     </p>
@@ -63,10 +62,10 @@ export function CardStatusDisplay({
                 <Calendar className="w-5 h-5 text-green-500 mt-1" />
                 <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {sr.expiryDate || 'Expiry Date'}
+                        {sr.expiryDate}
                     </p>
                     <p className="font-medium text-green-700 dark:text-green-400">
-                        ✅ {sr.validUntil || 'Valid until'} {expiryDate}
+                        ✅ {sr.validUntil} {expiryDate}
                     </p>
                 </div>
             </div>
@@ -76,7 +75,7 @@ export function CardStatusDisplay({
                 <Wallet className="w-5 h-5 text-blue-500 mt-1" />
                 <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {sr.walletBalance || 'Wallet Balance'}
+                        {sr.walletBalance}
                     </p>
                     <p className="font-medium text-blue-700 dark:text-blue-400">
                         ${walletBalance}
@@ -89,14 +88,14 @@ export function CardStatusDisplay({
                 <Zap className="w-5 h-5 text-purple-500 mt-1" />
                 <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {sr.activationsToday || 'Activations Today'}
+                        {sr.activationsToday}
                     </p>
                     <p className="font-medium text-purple-700 dark:text-purple-400">
                         {activateCount.current} / {activateCount.max}
                     </p>
                     {activateCount.current >= activateCount.max && (
                         <p className="text-xs text-red-500 mt-1">
-                            {sr.limitReached || 'Daily limit reached'}
+                            {sr.limitReached}
                         </p>
                     )}
                 </div>

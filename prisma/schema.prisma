@@ -852,6 +852,8 @@ model Operation {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
+  // Written once by the database when a package-renewal attempt first ends.
+  renewalCooldownUntil DateTime? @map("renewal_cooldown_until")
 
   user                             User?                               @relation(fields: [userId], references: [id])
   customer                         Customer?                           @relation(fields: [customerId], references: [id])
@@ -883,6 +885,7 @@ model Operation {
   @@index([status])
   @@index([userId, status, createdAt])
   @@index([cardNumber, status])
+  @@index([cardNumber, renewalCooldownUntil])
   @@index([beinAccountId])
   @@index([heartbeatExpiry])
   @@index([status, heartbeatExpiry])

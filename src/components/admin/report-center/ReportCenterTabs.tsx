@@ -2,6 +2,8 @@
 
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ReportCenterTab, ReportCenterTabKey } from './report-tabs'
+import { useTranslation } from '@/hooks/useTranslation'
+import { localizedReportLabels } from './report-tabs'
 
 type ReportCenterTabsProps = {
     activeTab: ReportCenterTabKey
@@ -10,6 +12,7 @@ type ReportCenterTabsProps = {
 }
 
 export function ReportCenterTabs({ activeTab, tabs, onTabChange }: ReportCenterTabsProps) {
+    const { t } = useTranslation()
     return (
         <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as ReportCenterTabKey)}>
             <div className="overflow-x-auto pb-1">
@@ -20,7 +23,7 @@ export function ReportCenterTabs({ activeTab, tabs, onTabChange }: ReportCenterT
                             value={tab.key}
                             className="h-9 min-w-[9rem] px-3 text-sm"
                         >
-                            {tab.label}
+                            {localizedReportLabels(t)[tab.key]}
                         </TabsTrigger>
                     ))}
                 </TabsList>

@@ -14,6 +14,9 @@ import {
     unreadableFinalPayReadings,
 } from './helpers/final-pay-fixtures';
 import { mapProviderPaymentState } from '../../shared/operations/renewal-fulfillment';
+import * as cheerio from 'cheerio';
+import { HttpClientService } from '../src/http/HttpClientService';
+import type { AvailablePackage } from '../src/http/types';
 
 test('classifies explicit success with matching balance delta as confirmed success', () => {
     assert.equal(
@@ -117,10 +120,16 @@ test('reads balance from final pay result page before fallback balance checks', 
 });
 
 test('parses package prices with arbitrary decimal precision', () => {
-    const source = readFileSync(join(process.cwd(), 'worker', 'src', 'http', 'HttpClientService.ts'), 'utf8');
-
-    assert.ok(source.includes("const priceMatch = rowText.match(/(?:^|[^\\d.])([\\d,]+(?:\\.\\d+)?)\\s*USD/i);"));
-    assert.doesNotMatch(source, /const priceMatch = rowText\.match\(\/\(\[\\d,\]\+\(\?:\\\.\\d\{1,2\}\)\?\)\\s\*USD\/i\)/);
+    const client = Object.create(HttpClientService.prototype) as {
+        extractPackagesFromHtml: ($: cheerio.CheerioAPI) => AvailablePackage[];
+    };
+    for (const [text, expected] of [['86.4000', 86.4], ['174.1234', 174.1234], ['1,200.50', 1200.5]] as const) {
+        const parsed = client.extractPackagesFromHtml(cheerio.load(`<table id="ContentPlaceHolder1_gvAvailablePackages">
+            <tr><td><input type="checkbox" name="current-row"></td><td><span id="pkg_lblName">Premium 6 Months</span></td>
+            <td>${text} USD</td></tr></table>`));
+        assert.equal(parsed.length, 1);
+        assert.equal(parsed[0].price, expected);
+    }
 });
 
 test('keeps unchanged balance after final pay uncertain without explicit rejection', () => {

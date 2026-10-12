@@ -18,7 +18,8 @@
 
 import 'dotenv/config'
 import { Worker, type ConnectionOptions } from 'bullmq'
-import { processOperationHttp, closeAllHttpClients } from './http-queue-processor'
+import { processOperationHttp, closeAllHttpClients, createProviderReportClient } from './http-queue-processor'
+import { handleProviderReportJob, providerReportRuntime } from './lib/provider-report-reader'
 import { initializePoolManager, AccountPoolManager } from './pool'
 import { getRedisConnection, closeRedisConnection } from './lib/redis'
 import { prisma } from './lib/prisma'
@@ -62,6 +63,10 @@ async function main() {
     const worker = new Worker(
         'operations',
         async (job) => {
+            if (job.data.type === 'READ_PROVIDER_REPORT') {
+                return handleProviderReportJob(job.data.requestId, connection,
+                    providerReportRuntime(connection, WORKER_ID, createProviderReportClient))
+            }
             console.log(`[${WORKER_ID}] Processing job ${job.id}: ${job.data.type}`)
             return processOperationHttp(job, accountPool!)
         },

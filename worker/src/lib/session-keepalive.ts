@@ -127,7 +127,7 @@ async function getHttpClient(
     let client = httpClients.get(cacheKey);
 
     if (!client) {
-        client = new HttpClientService(route.proxyConfig);
+        client = new HttpClientService(route.proxyConfig, account.id);
         await client.initialize();
         httpClients.set(cacheKey, client);
         console.log(`[KeepAlive] Created HTTP client for ${account.username}: ${safeRouteLogSuffix(route)}`);

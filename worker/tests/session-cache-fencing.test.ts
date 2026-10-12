@@ -9,6 +9,7 @@ import {
 import {
     buildSessionCacheKey,
     saveSessionToCacheFenced,
+    saveOperationSessionToCacheFenced,
 } from '../src/lib/session-cache'
 
 const runRedisIntegration =
@@ -80,6 +81,27 @@ test('T028 fenced session cache rejects a stale writer without replacing fresh s
     }), false)
     assert.equal(boundary.readCachedPayload(), payloadAfterFreshWrite)
     assert.doesNotMatch(boundary.readCachedPayload() ?? '', /stale-cookie/)
+})
+
+test('prepared purchase identity is kept only in the fenced operation session and rejects another account', async () => {
+    const boundary = new LeaseCasRedisBoundary()
+    const lease = handle()
+    boundary.setLease(lease)
+    const session = { cookies: 'synthetic-cookie', accountId: lease.accountId, preparedRenewal: {
+        selectedPackage: { index: 0, name: 'Premium 6 Months', price: 86.4, currency: 'USD', quoteRevision: 2,
+            packageKey: '2.0', appliedPromoCode: null },
+        summary: { packageName: 'Premium 6 Months', price: 86.4, currency: 'USD', cardNumber: 'synthetic', promoCode: null },
+        viewState: { __VIEWSTATE: 'state', __VIEWSTATEGENERATOR: 'generator', __EVENTVALIDATION: 'validation' },
+        stbNumber: 'synthetic-stb',
+    } }
+    const input = { operationId: lease.operationId, session, ttlSeconds: 90, route: { accountId: lease.accountId, routeKey: 'direct' }, lease }
+    assert.equal(await saveOperationSessionToCacheFenced(boundary, input), true)
+    const payload = boundary.readCachedPayload()!
+    assert.deepEqual(JSON.parse(payload).preparedRenewal, session.preparedRenewal)
+    assert.equal(await saveOperationSessionToCacheFenced(boundary, { ...input, route: { accountId: 'other', routeKey: 'direct' } }), false)
+    assert.equal(boundary.readCachedPayload(), payload)
+    assert.equal(await saveSessionToCacheFenced(boundary, { accountId: lease.accountId, routeKey: 'direct', session, ttlSeconds: 90, lease }), true)
+    assert.equal(JSON.parse(boundary.readCachedPayload()!).preparedRenewal, undefined)
 })
 
 test('T028 Redis session CAS remains fenced after lease handoff', { skip: !runRedisIntegration }, async () => {

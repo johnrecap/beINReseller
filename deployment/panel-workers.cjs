@@ -10,8 +10,8 @@ function createPanelWorkers(cwd) {
         const id = `worker-${index + 1}`
         return { name: `bein-${id}`, script: 'dist/index.js', cwd, instances: 1, exec_mode: 'fork',
             max_memory_restart: '350M', merge_logs: true, time: true, watch: false, autorestart: true,
-            max_restarts: 10, restart_delay: 5000,
-            env: { USE_HTTP_CLIENT: 'true', NODE_ENV: 'production', WORKER_CONCURRENCY: '8',
+            max_restarts: 10, restart_delay: 5000, kill_timeout: 300000,
+            env: { USE_HTTP_CLIENT: 'true', NODE_ENV: 'production', WORKER_CONCURRENCY: '4', DB_POOL_MAX: '2',
                 WORKER_RATE_LIMIT: '50', BROWSER_IDLE_TIMEOUT: '300000', SESSION_CLEANUP_INTERVAL: '600000', WORKER_ID: id },
             error_file: `./logs/${id}-error.log`, out_file: `./logs/${id}-out.log` }
     })

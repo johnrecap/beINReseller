@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslation } from '@/hooks/useTranslation'
+
 interface Contract {
     type: string
     status: string
@@ -21,6 +23,7 @@ interface BeINExportTableProps {
  * Export: Hidden full-size table for image download
  */
 export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps) {
+    const { t, dir } = useTranslation()
     const TABLE_WIDTH = 850
 
     // Status color helper
@@ -32,7 +35,7 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
     }
 
     // Reuse markup without creating a new component type on every render.
-    const tableContent = (
+    const tableContent = (providerDocument = false) => (
         <>
             {/* Card Number */}
             <div style={{ 
@@ -46,7 +49,7 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
             </div>
             
             {/* Contracts Table - exact beIN Sport styling */}
-            <table style={{
+            <table dir={providerDocument ? undefined : dir} style={{
                 width: '100%',
                 borderCollapse: 'collapse',
                 border: '1px solid #cccccc',
@@ -59,22 +62,22 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                         fontWeight: 'bold'
                     }}>
                         <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
-                            Invoice No
+                            {providerDocument ? 'Invoice No' : t.contracts.invoiceNo}
                         </th>
                         <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
-                            Expiry Date
+                            {providerDocument ? 'Expiry Date' : t.contracts.expiryDate}
                         </th>
                         <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
-                            Start Date
+                            {providerDocument ? 'Start Date' : t.contracts.startDate}
                         </th>
                         <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
-                            Package
+                            {providerDocument ? 'Package' : t.contracts.packageName}
                         </th>
                         <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
-                            Status
+                            {providerDocument ? 'Status' : t.contracts.status}
                         </th>
                         <th style={{ padding: '8px 10px', border: '1px solid #cccccc', textAlign: 'center' }}>
-                            Type
+                            {providerDocument ? 'Type' : t.contracts.type}
                         </th>
                     </tr>
                 </thead>
@@ -106,7 +109,9 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                                     color: statusColor.text,
                                     fontWeight: 500
                                 }}>
-                                    {contract.status}
+                                    {providerDocument ? contract.status : contract.status.toLowerCase() === 'active' ? t.contracts.statusActive
+                                        : contract.status.toLowerCase() === 'expired' ? t.contracts.statusExpired
+                                        : ['canceled', 'cancelled'].includes(contract.status.toLowerCase()) ? t.contracts.statusCancelled : contract.status}
                                 </td>
                                 <td style={{ padding: '6px 10px', border: '1px solid #cccccc', textAlign: 'center', color: '#333333' }}>
                                     {contract.type}
@@ -141,7 +146,7 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                         marginInline: 'auto'
                     }}
                 >
-                    {tableContent}
+                    {tableContent()}
                 </div>
             </div>
 
@@ -165,7 +170,7 @@ export function BeINExportTable({ cardNumber, contracts }: BeINExportTableProps)
                         width: `${TABLE_WIDTH}px`
                     }}
                 >
-                    {tableContent}
+                    {tableContent(true)}
                 </div>
             </div>
         </div>

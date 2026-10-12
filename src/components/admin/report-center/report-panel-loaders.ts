@@ -10,6 +10,7 @@ export const REPORT_PANEL_LOADERS: ReportPanelLoaderMap = {
     activity: () => import('./ActivityReportPanel'),
     integrity: () => import('./IntegrityReportPanel'),
     'bein-spend': () => import('./BeinSpendReportPanel'),
+    'bein-provider': () => import('./BeinProviderReportPanel'),
     'points-analysis': () => import('./PointsAnalysisReportPanel'),
     'credit-payments': () => import('./CreditPaymentsReportPanel'),
     'balance-movements': () => import('./BalanceMovementsReportPanel'),

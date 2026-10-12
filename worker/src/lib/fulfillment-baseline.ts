@@ -170,7 +170,6 @@ async function lockAndValidateBaselineCaptureContext(
         cardNumber: string
         fulfillmentState: string
         fulfillmentAuthority: string
-        fulfillmentProofKind: string | null
     }>>`
         SELECT
             "id",
@@ -179,8 +178,7 @@ async function lockAndValidateBaselineCaptureContext(
             "bein_account_id" AS "beinAccountId",
             "card_number" AS "cardNumber",
             "fulfillment_state"::text AS "fulfillmentState",
-            "fulfillment_authority"::text AS "fulfillmentAuthority",
-            "fulfillment_proof_kind"::text AS "fulfillmentProofKind"
+            "fulfillment_authority"::text AS "fulfillmentAuthority"
         FROM "operations"
         WHERE "id" = ${input.operationId}
         FOR UPDATE
@@ -193,8 +191,7 @@ async function lockAndValidateBaselineCaptureContext(
         operation.beinAccountId !== input.beinAccountId ||
         operation.cardNumber !== input.cardNumber ||
         operation.fulfillmentState === 'VERIFIED' ||
-        operation.fulfillmentAuthority !== 'NONE' ||
-        operation.fulfillmentProofKind !== null
+        operation.fulfillmentAuthority !== 'NONE'
     ) {
         throw new Error('FULFILLMENT_BASELINE_CONTEXT_STALE')
     }

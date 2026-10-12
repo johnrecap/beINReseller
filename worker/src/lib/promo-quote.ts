@@ -1,11 +1,10 @@
-import { canonicalJson, quoteData, quoteRevisionOf, readyPackageQuote, type QuotePackage, type PromoAction } from '../../../shared/operations/package-quote'
+import { canonicalJson, quoteData, quoteRevisionOf, readyPackageQuote, sameQuotedPackage, type QuotePackage, type PromoAction } from '../../../shared/operations/package-quote'
 import type { AvailablePackage, LoadPackagesResult } from '../http/types'
 import type { Prisma } from '@prisma/client'
 import { lockFinancialOperation } from '../../../shared/operations/financial-lock'
 
 export function matchFreshPackage(packages: readonly AvailablePackage[], selected: QuotePackage): AvailablePackage {
-    const normalize = (name: string) => name.replace(/\s+/g, ' ').trim().toLowerCase()
-    const matches = packages.filter(row => normalize(row.name) === normalize(selected.name) && row.price === selected.price)
+    const matches = packages.filter(row => sameQuotedPackage(row, selected))
     if (matches.length !== 1) throw new Error('PACKAGE_QUOTE_CHANGED')
     return matches[0]
 }

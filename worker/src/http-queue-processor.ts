@@ -35,7 +35,7 @@ import { decryptAccountPassword } from './lib/crypto';
 import { recordConfirmedBeinSpend } from './lib/bein-spend-ledger';
 import { claimInstallmentMutation, finalizeInstallmentSettlement } from './lib/installment-finalization';
 import { installmentIdentity } from '../../shared/operations/audit-financial-context';
-import { actionRevision, quoteRevisionOf, readyPackageQuote, type PromoAction } from '../../shared/operations/package-quote';
+import { actionRevision, quoteRevisionOf, readyPackageQuote, type PromoAction, type QuotePackage } from '../../shared/operations/package-quote';
 import { holdQuoteConflict, isCurrentPromo, matchFreshPackage, publishPromoQuote, refreshPromoPackages } from './lib/promo-quote';
 import { getRedisConnection } from './lib/redis';
 import {
@@ -112,6 +112,7 @@ import {
 } from './lib/provider-account-reservation';
 import {
     correlateRenewalFulfillment,
+    boundPurchaseIdentity,
     type RenewalFulfillmentCorrelationResult,
 } from './lib/renewal-fulfillment-correlation';
 import {
@@ -807,7 +808,7 @@ function prepareSharedSessionForCache<T extends { viewState?: unknown }>(session
  * cloning cookies from the shared Redis session when available.
  */
 async function createOperationClient(account: OperationBeinAccount, route: EffectiveBeinRoute): Promise<HttpClientService> {
-    const client = new HttpClientService(route.proxyConfig);
+    const client = new HttpClientService(route.proxyConfig, account.id);
     await client.initialize();
     console.log(`[HTTP] Created operation client for ${account.username}: ${safeRouteLogSuffix(route)}`);
 
@@ -829,6 +830,11 @@ async function createOperationClient(account: OperationBeinAccount, route: Effec
     }
 
     return client;
+}
+
+export async function createProviderReportClient(account: OperationBeinAccount): Promise<HttpClientService> {
+    const route = await resolveOperationRoute(account, { operationId: `report:${account.id}`, ignoreSnapshot: true });
+    return createOperationClient(account, route);
 }
 
 /**
@@ -2074,13 +2080,7 @@ async function attemptPurchaseWithAccount(
         responseData: unknown;
     },
     accountId: string,
-    selectedPackage: {
-        index: number;
-        name: string;
-        price: number;
-        checkboxSelector?: string;
-        checkboxValue?: string;
-    },
+    selectedPackage: QuotePackage,
     promoCode: string | undefined,
     accountPool: AccountPoolManager,
     triedAccountIds: string[]
@@ -2152,7 +2152,9 @@ async function attemptPurchaseWithAccount(
         }
 
         let freshPackages = packagesResult.packages;
-        const effectivePromoCode = operation.promoCode || promoCode;
+        const effectivePromoCode = selectedPackage.appliedPromoCode || null;
+        if ((operation.promoCode || null) !== effectivePromoCode ||
+            (promoCode !== undefined && (promoCode || null) !== effectivePromoCode)) throw new Error('PACKAGE_QUOTE_CHANGED');
         if (effectivePromoCode) {
             saleMutationStarted = true;
             await leaseHeartbeat.assertCurrent();
@@ -2222,8 +2224,6 @@ async function attemptPurchaseWithAccount(
                 providerMutationStartedAt: null,
             },
             data: {
-                selectedPackage: { ...selectedPackage, checkboxValue: rematchedPackage.checkboxValue,
-                    checkboxSelector: rematchedPackage.checkboxValue } as unknown as Prisma.InputJsonValue,
                 responseData: preparationData,
             },
         });
@@ -2233,7 +2233,7 @@ async function attemptPurchaseWithAccount(
 
         console.log(`[HTTP] 📦 Completing purchase: ${rematchedPackage.name} @ ${rematchedPackage.price} USD`);
         const result = await client.completePurchase(
-            rematchedPackage,
+            selectedPackage,
             undefined,
             operation.stbNumber || undefined,
             true, // skipFinalClick - pause for confirmation
@@ -2281,6 +2281,7 @@ async function attemptPurchaseWithAccount(
                     providerMutationMayHaveStarted: true,
                     fulfillmentBaselineId: baseline.baselineId,
                     fulfillmentSessionGeneration: reservedExecution.sessionGeneration,
+                    purchaseIdentity: result.packageEvidence,
                     savedAt: new Date().toISOString()
                 }, route))
             }, 'COMPLETE_PURCHASE final confirm update')) {
@@ -2578,7 +2579,7 @@ async function handleConfirmPurchaseHttp(
             return;
         }
 
-        const selectedPackage = operation.selectedPackage as { name?: string; price?: number } | null;
+        const selectedPackage = operation.selectedPackage as QuotePackage | null;
         const expectedProviderAmount = toNullableNumber(selectedPackage?.price) ?? operation.amount;
         let finalPayResponseData: Prisma.InputJsonObject | null = null;
         let finalMutationStartedAt: Date | null = null;
@@ -2655,8 +2656,16 @@ async function handleConfirmPurchaseHttp(
         const rawResult = await client.confirmPurchase(
             expectedProviderAmount,
             claimMutationStart,
-            leaseHeartbeat.assertCurrent
+            leaseHeartbeat.assertCurrent,
+            selectedPackage ? { selectedPackage, cardNumber: operation.cardNumber } : undefined
         );
+
+        if (rawResult.message === 'PACKAGE_QUOTE_CHANGED') {
+            if (!await holdQuoteConflict(prisma, {
+                operationId, revision: quoteRevisionOf(operation.responseData), selectedPackage,
+            }, leaseHeartbeat.assertCurrent)) throw new Error('PACKAGE_QUOTE_HOLD_PERSISTENCE_FAILED');
+            return;
+        }
 
         if (!finalMutationStartedAt) {
             await persistRenewalFulfillmentState({
@@ -3563,13 +3572,7 @@ async function handleVerifyReviewCardHttp(
     }
 }
 
-type SelectedRenewalPackage = {
-    index: number;
-    name: string;
-    price: number;
-    checkboxSelector?: string;
-    checkboxValue?: string;
-};
+type SelectedRenewalPackage = QuotePackage;
 
 type ReservedProviderExecution = {
     account: OperationBeinAccount;
@@ -3779,7 +3782,7 @@ async function verifyRenewalFulfillmentWithProvider(input: {
     operationId: string;
     beinAccountId: string;
     cardNumber: string;
-    selectedPackage: { name?: string; price?: number } | null;
+    selectedPackage: Partial<QuotePackage> | null;
     responseData: unknown;
     finalMutationStartedAt: Date | null;
     account: OperationBeinAccount;
@@ -3818,6 +3821,16 @@ async function verifyRenewalFulfillmentWithProvider(input: {
         };
     }
 
+    const context = parseResponseDataObject(input.responseData);
+    const smartcardType = typeof context.smartcardType === 'string' ? context.smartcardType.toUpperCase() : 'CISCO';
+    const purchaseIdentity = boundPurchaseIdentity(context.purchaseIdentity, input.selectedPackage, input.cardNumber, smartcardType);
+    if (!purchaseIdentity) {
+        return {
+            correlation: unavailableCorrelation('PROOF_CONFLICT', 'PACKAGE_QUOTE_CHANGED'),
+            proofMode: config.proofMode, proofCandidate: null, baselineId: active.activeBaseline.id,
+            completeScan: false, pageCount: 0, rowCount: 0, reportObservedAt: null, contractObservedAt: null,
+        };
+    }
     let reportObservedAt: Date;
     let report: Awaited<ReturnType<HttpClientService['scanSoldPackagesReport']>>;
     try {
@@ -3869,9 +3882,6 @@ async function verifyRenewalFulfillmentWithProvider(input: {
     }
     await input.assertExecutionCurrent();
     const dealerContextHash = report.dealerContextHash || '';
-    const smartcardType = typeof parseResponseDataObject(input.responseData).smartcardType === 'string'
-        ? String(parseResponseDataObject(input.responseData).smartcardType).toUpperCase()
-        : 'CISCO';
     const correlation = correlateRenewalFulfillment({
         baseline: {
             outcome: 'COMPLETE',
@@ -3894,8 +3904,9 @@ async function verifyRenewalFulfillmentWithProvider(input: {
             cardNumber: input.cardNumber,
             itemType: `Card_${smartcardType}`,
             selectedPackageName: input.selectedPackage.name,
-            providerAmount: canonicalMoney(input.selectedPackage.price),
-            currency: 'USD',
+            providerAmount: canonicalMoney(purchaseIdentity.price),
+            currency: purchaseIdentity.currency,
+            providerSerial: purchaseIdentity.providerSerial,
             finalMutationStartedAt: input.finalMutationStartedAt.toISOString(),
         },
     });

@@ -1,5 +1,6 @@
 import type { Operation, Prisma } from '@prisma/client'
 import { acquireCardLifecycleReservation } from '@/lib/operations/card-lifecycle-reservation'
+import { readRenewalCardCooldown, RENEWAL_CARD_COOLDOWN_CODE, type CardCooldownSnapshot } from './renewal-card-cooldown'
 
 export const RENEWAL_CREATION_BLOCKED_CODE = 'RENEWAL_FULFILLMENT_REVIEW_PENDING'
 export const RENEWAL_LEGACY_ROUTE_DISABLED_CODE = 'RENEWAL_ROUTE_MIGRATION_REQUIRED'
@@ -30,13 +31,15 @@ export type RenewalCreationBlockReason =
     | 'FULFILLMENT_INTEGRITY_ISSUE'
     | 'ACTIVE_OPERATION'
     | 'CARD_LIFECYCLE_RESERVED'
+    | 'CARD_COOLDOWN'
 
 export class RenewalCreationBlockedError extends Error {
-    readonly code = RENEWAL_CREATION_BLOCKED_CODE
+    get code() { return this.reason === 'CARD_COOLDOWN' ? RENEWAL_CARD_COOLDOWN_CODE : RENEWAL_CREATION_BLOCKED_CODE }
 
     constructor(
         readonly reason: RenewalCreationBlockReason,
-        readonly conflictOperationId: string
+        readonly conflictOperationId: string,
+        readonly cooldown?: CardCooldownSnapshot,
     ) {
         super(`${RENEWAL_CREATION_BLOCKED_CODE}:${reason}:${conflictOperationId}`)
         this.name = 'RenewalCreationBlockedError'
@@ -48,7 +51,7 @@ export function isRenewalCreationBlockedError(error: unknown): error is RenewalC
         !!error &&
         typeof error === 'object' &&
         'code' in error &&
-        error.code === RENEWAL_CREATION_BLOCKED_CODE &&
+        [RENEWAL_CREATION_BLOCKED_CODE, RENEWAL_CARD_COOLDOWN_CODE].includes(String(error.code)) &&
         'conflictOperationId' in error &&
         typeof error.conflictOperationId === 'string'
     )
@@ -168,6 +171,7 @@ export async function createGuardedRenewalOperation(
     const cardNumber = normalizeRenewalCardNumber(input.cardNumber)
     await lockRenewalCardLifecycle(tx, cardNumber)
     await assertNoRenewalCardConflict(tx, cardNumber)
+    if (input.data.purpose !== 'INSTALLMENT') await assertCardCooldownEnded(tx, cardNumber)
 
     const operation = await tx.operation.create({
         data: {
@@ -197,7 +201,7 @@ export async function ensureGuardedRenewalOperationReservation(
 
     const operation = await tx.operation.findUnique({
         where: { id: input.operationId },
-        select: { id: true, type: true, cardNumber: true, status: true },
+        select: { id: true, type: true, cardNumber: true, status: true, purpose: true },
     })
     if (!operation || operation.type !== 'RENEW' || operation.cardNumber !== cardNumber) {
         throw new Error('INVALID_RENEWAL_OPERATION')
@@ -212,15 +216,25 @@ export async function ensureGuardedRenewalOperationReservation(
     }
 
     await assertNoRenewalCardConflict(tx, cardNumber, operation.id)
+    if (operation.purpose !== 'INSTALLMENT') await assertCardCooldownEnded(tx, cardNumber)
     await claimReservation(tx, { operationId: operation.id, cardNumber })
 }
 
 export function renewalCreationBlockedPayload(error: RenewalCreationBlockedError) {
+    if (error.reason === 'CARD_COOLDOWN' && error.cooldown) {
+        return { code: RENEWAL_CARD_COOLDOWN_CODE, error: RENEWAL_CARD_COOLDOWN_CODE,
+            messageKey: 'operations.cardCooldownActive', ...error.cooldown }
+    }
     return {
         code: RENEWAL_CREATION_BLOCKED_CODE,
         error: 'This card has an unresolved or active renewal. Resolve it before continuing.',
         operationId: error.conflictOperationId,
     }
+}
+
+async function assertCardCooldownEnded(tx: RenewalCreationTx, cardNumber: string) {
+    const cooldown = await readRenewalCardCooldown(tx, cardNumber)
+    if (cooldown.remainingSeconds > 0) throw new RenewalCreationBlockedError('CARD_COOLDOWN', '', cooldown)
 }
 
 export function legacyRenewalRouteDisabledPayload() {

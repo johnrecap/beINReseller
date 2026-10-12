@@ -1,6 +1,7 @@
 /**
  * HTTP Client Types for beIN Automation
  */
+import type { PreparedRenewalPurchase, RenewalSummaryEvidence } from './renewal-purchase-guard';
 
 export interface HiddenFields {
     __VIEWSTATE: string;
@@ -50,6 +51,7 @@ export interface AvailablePackage {
     name: string;
     price: number;
     checkboxValue: string; // The actual form value to submit
+    currency?: string; // Older cached USD quotes may omit this field.
 }
 
 export interface LoadPackagesResult {
@@ -71,6 +73,7 @@ export interface PurchaseResult {
     beinBalanceAfterSource?: 'final_pay_result_page' | 'final_pay_balance_check' | 'missing';
     outcomeCategory?: FinalPayOutcomeCategory;
     finalPaySubmitted?: boolean;
+    packageEvidence?: RenewalSummaryEvidence;
 }
 
 export type FinalPayOutcomeCategory =
@@ -81,6 +84,7 @@ export type FinalPayOutcomeCategory =
 export interface SessionData {
     cookies: string; // JSON serialized cookies
     viewState?: HiddenFields;
+    preparedRenewal?: PreparedRenewalPurchase;
     lastLoginTime?: string;
 
     // Enhanced session tracking for cross-worker sharing

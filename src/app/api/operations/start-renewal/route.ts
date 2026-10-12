@@ -9,6 +9,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import redis from '@/lib/redis'
 import { computeEffectiveMaintenanceStatus } from '@/lib/maintenance/effective-status'
 import { assertRenewalReadiness, renewalReadinessErrorPayload } from '@/lib/renewal-readiness'
+import { readRenewalCardCooldown } from '@/lib/operations/renewal-card-cooldown'
 import {
     createGuardedRenewalOperation,
     isRenewalCreationBlockedError,
@@ -29,6 +30,25 @@ const startRenewalSchema = z.object({
 })
 
 const ACTIVE_OPERATION_STATUSES = ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] as const
+// Same authenticated renewal surface; this lookup never creates an operation.
+export async function GET(request: NextRequest) {
+    try {
+        const user = await getAuthUser(request)
+        if (!user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        if (!roleHasPermission(user.role, PERMISSIONS.SUBSCRIPTION_RENEW)) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+        const limited = await withRateLimit(`renewal-cooldown:${user.id}`, RATE_LIMITS.operations)
+        if (!limited.allowed) return NextResponse.json({ error: 'RATE_LIMIT_EXCEEDED' },
+            { status: 429, headers: rateLimitHeaders(limited.result) })
+        const card = startRenewalSchema.shape.cardNumber.safeParse(new URL(request.url).searchParams.get('cardNumber'))
+        if (!card.success) return NextResponse.json({ error: 'INVALID_CARD_NUMBER' }, { status: 400 })
+        return NextResponse.json(await readRenewalCardCooldown(prisma, card.data), { headers: { 'Cache-Control': 'no-store' } })
+    } catch {
+        return NextResponse.json({ error: 'CARD_COOLDOWN_UNAVAILABLE' }, { status: 503 })
+    }
+}
+
 const CARD_START_LOCK_TTL_SECONDS = 30
 const UNRESOLVED_REVIEW_STATUS = 'REVIEW_REQUIRED' as const
 const FULFILLMENT_SAFETY_ISSUE_TYPES = [

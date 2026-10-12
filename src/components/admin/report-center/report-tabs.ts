@@ -1,3 +1,5 @@
+import type { en } from '@/i18n/translations/en'
+
 export const REPORT_CENTER_HREF = '/dashboard/admin/reports'
 
 export const DEFAULT_REPORT_TAB_KEY = 'analytics'
@@ -39,6 +41,13 @@ export const REPORT_CENTER_TABS = [
         label: 'beIN Spend Report',
         description: 'beIN spend ledger and operation charge reports',
         legacyHref: '/dashboard/admin/reports/bein-spend',
+        visibilitySetting: undefined,
+    },
+    {
+        key: 'bein-provider',
+        label: 'beIN Provider Reports',
+        description: 'Sold packages read directly from the selected beIN account',
+        legacyHref: '/dashboard/admin/reports?tab=bein-provider',
         visibilitySetting: undefined,
     },
     {
@@ -87,6 +96,16 @@ export const REPORT_CENTER_TABS = [
 
 export type ReportCenterTab = (typeof REPORT_CENTER_TABS)[number]
 export type ReportCenterTabKey = (typeof REPORT_CENTER_TABS)[number]['key']
+
+export function localizedReportLabels(t: Pick<typeof en, 'sidebar' | 'panelUi' | 'providerReport'>): Record<ReportCenterTabKey, string> {
+    return {
+        analytics: t.sidebar.analytics, activity: t.sidebar.activityMonitoring,
+        integrity: t.sidebar.integrityReports, 'bein-spend': t.sidebar.beinSpendReport,
+        'bein-provider': t.providerReport.title, 'points-analysis': t.panelUi.reportCopy.pointsAnalysis,
+        'credit-payments': t.panelUi.reportCopy.creditPayments, 'balance-movements': t.panelUi.reportCopy.balanceMovements,
+        'login-monitor': t.panelUi.loginMonitor, 'balance-monitor': t.panelUi.balanceMonitor, logs: t.sidebar.logs,
+    }
+}
 
 const REPORT_TAB_KEYS = new Set<string>(
     REPORT_CENTER_TABS.map((tab) => tab.key)

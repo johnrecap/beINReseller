@@ -11,17 +11,20 @@ import {
     type ReportCenterTabKey,
     getReportCenterTab,
     resolveReportTabKey,
+    localizedReportLabels,
 } from './report-tabs'
 import { REPORT_PANEL_LOADERS } from './report-panel-loaders'
+import { useTranslation } from '@/hooks/useTranslation'
 
 type AdminReportCenterClientProps = {
     initialTab?: string
 }
 
 function ReportPanelLoading() {
+    const { t } = useTranslation()
     return (
         <section className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
-            Loading report...
+            {t.common.loading}
         </section>
     )
 }
@@ -31,6 +34,7 @@ const REPORT_PANEL_COMPONENTS: Record<ReportCenterTabKey, ComponentType<object>>
     activity: dynamic(REPORT_PANEL_LOADERS.activity, { loading: ReportPanelLoading }),
     integrity: dynamic(REPORT_PANEL_LOADERS.integrity, { loading: ReportPanelLoading }),
     'bein-spend': dynamic(REPORT_PANEL_LOADERS['bein-spend'], { loading: ReportPanelLoading }),
+    'bein-provider': dynamic(REPORT_PANEL_LOADERS['bein-provider'], { loading: ReportPanelLoading }),
     'points-analysis': dynamic(REPORT_PANEL_LOADERS['points-analysis'], { loading: ReportPanelLoading }),
     'credit-payments': dynamic(REPORT_PANEL_LOADERS['credit-payments'], { loading: ReportPanelLoading }),
     'balance-movements': dynamic(REPORT_PANEL_LOADERS['balance-movements'], { loading: ReportPanelLoading }),
@@ -40,7 +44,7 @@ const REPORT_PANEL_COMPONENTS: Record<ReportCenterTabKey, ComponentType<object>>
 }
 
 class ReportPanelErrorBoundary extends Component<
-    { resetKey: string; children: ReactNode },
+    { resetKey: string; children: ReactNode; message: string },
     { hasError: boolean }
 > {
     state = { hasError: false }
@@ -62,7 +66,7 @@ class ReportPanelErrorBoundary extends Component<
         if (this.state.hasError) {
             return (
                 <section className="rounded-lg border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive">
-                    This report failed to load. Choose another tab or refresh the page.
+                    {this.props.message}
                 </section>
             )
         }
@@ -72,16 +76,18 @@ class ReportPanelErrorBoundary extends Component<
 }
 
 function ActivePanel({ tabKey }: { tabKey: ReportCenterTabKey }) {
+    const { t } = useTranslation()
     const Panel = REPORT_PANEL_COMPONENTS[tabKey] ?? REPORT_PANEL_COMPONENTS.analytics
 
     return (
-        <ReportPanelErrorBoundary resetKey={tabKey}>
+        <ReportPanelErrorBoundary resetKey={tabKey} message={t.reportCenter.failed}>
             <Panel />
         </ReportPanelErrorBoundary>
     )
 }
 
 export default function AdminReportCenterClient({ initialTab }: AdminReportCenterClientProps) {
+    const { t, dir } = useTranslation()
     const router = useRouter()
     const pathname = usePathname()
     const [sidebarSettings, setSidebarSettings] = useState<Record<string, boolean>>({
@@ -113,26 +119,26 @@ export default function AdminReportCenterClient({ initialTab }: AdminReportCente
     }
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-6">
+        <div dir={dir} className="mx-auto min-w-0 max-w-7xl space-y-6 p-6">
             <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Admin reporting</p>
+                    <p className="text-sm text-muted-foreground">{t.reportCenter.admin}</p>
                     <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
                         <BarChart3 className="h-7 w-7 text-primary" />
-                        Reports Center
+                        {t.reportCenter.title}
                     </h1>
                     <p className="max-w-3xl text-sm text-muted-foreground">
-                        Analytics, monitoring, spend reports, account health, and logs in one workspace.
+                        {t.reportCenter.description}
                     </p>
                 </div>
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-                    Active: <span className="font-medium text-foreground">{activeTabDetails.label}</span>
+                    {t.reportCenter.active}: <span className="font-medium text-foreground">{localizedReportLabels(t)[activeTab]}</span>
                     <Link
                         href={activeTabDetails.legacyHref}
                         className="mt-2 flex items-center gap-2 text-primary hover:text-primary/80"
                     >
                         <ExternalLink className="h-3.5 w-3.5" />
-                        Open full page
+                        {t.reportCenter.open}
                     </Link>
                 </div>
             </header>

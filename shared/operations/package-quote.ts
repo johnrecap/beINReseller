@@ -8,6 +8,14 @@ export type QuotePackage = {
 }
 type QuoteOperation = { responseData?: unknown; availablePackages?: unknown; promoCode?: string | null; selectedPackage?: unknown }
 
+export function sameQuotedPackage(left: Pick<QuotePackage, 'name' | 'price' | 'currency'>,
+    right: Pick<QuotePackage, 'name' | 'price' | 'currency'>): boolean {
+    const normalize = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase()
+    return Boolean(left.name?.trim()) && normalize(left.name) === normalize(right.name) &&
+        Number.isFinite(left.price) && left.price > 0 && left.price === right.price &&
+        (left.currency || 'USD') === (right.currency || 'USD')
+}
+
 export function quoteData(value: unknown): Record<string, unknown> {
     if (typeof value === 'string') {
         try { return quoteData(JSON.parse(value)) } catch { return {} }
@@ -73,7 +81,8 @@ export function assertFinalQuote(operation: QuoteOperation, revision: number | u
     const result = selectQuotedPackage(operation, { quoteRevision: revision, packageKey: selected.packageKey as string | undefined,
         packageIndex: selected.index as number | undefined })
     if (selected.quoteRevision !== revision || selected.name !== result.selectedPackage.name ||
-        selected.price !== result.selectedPackage.price || selected.appliedPromoCode !== result.promoCode) {
+        selected.price !== result.selectedPackage.price || selected.currency !== result.selectedPackage.currency ||
+        selected.appliedPromoCode !== result.promoCode) {
         throw new Error('PACKAGE_QUOTE_CONFLICT')
     }
     return result.selectedPackage

@@ -7,7 +7,7 @@ const profile = require('../../deployment/panel-workers.cjs') as { panelWorkerCo
 test('T041 both PM2 entry points use one explicit reviewed panel process count', () => {
     const previous = process.env.PANEL_WORKER_COUNT
     try {
-        for (const count of [8, 10]) {
+        for (const count of [8, 10, 20]) {
             process.env.PANEL_WORKER_COUNT = String(count)
             for (const file of ['../../ecosystem.config.js', '../../worker/ecosystem.config.js']) {
                 delete require.cache[require.resolve(file)]
@@ -16,6 +16,23 @@ test('T041 both PM2 entry points use one explicit reviewed panel process count',
                 assert.equal(workers.length, count)
                 assert.equal(new Set(workers.map(app => app.env?.WORKER_ID)).size, count)
             }
+        }
+    } finally { if (previous === undefined) delete process.env.PANEL_WORKER_COUNT; else process.env.PANEL_WORKER_COUNT = previous }
+})
+
+test('panel workers bound database connections and allow active tasks to drain', () => {
+    const previous = process.env.PANEL_WORKER_COUNT
+    try {
+        process.env.PANEL_WORKER_COUNT = '20'
+        const workers = profile.createPanelWorkers('/test/worker') as unknown as Array<{
+            kill_timeout: number; env: Record<string, string>
+        }>
+        assert.equal(workers.length, 20)
+        for (const worker of workers) {
+            assert.equal(worker.env.WORKER_CONCURRENCY, '4')
+            assert.equal(worker.env.DB_POOL_MAX, '2')
+            assert.equal(worker.env.WORKER_RATE_LIMIT, '50')
+            assert.equal(worker.kill_timeout, 300_000)
         }
     } finally { if (previous === undefined) delete process.env.PANEL_WORKER_COUNT; else process.env.PANEL_WORKER_COUNT = previous }
 })

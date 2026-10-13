@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-10-13
-> Last synchronized commit: 6b6a095697bce646493e646b51a7053b1db49a3f
+> Last synchronized commit: 26a6e28ce4eaf8446acf496d5e78e39ed424d7e9
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:db9567d31b40eaa3a5cfbffefb4b7c19ec21b1e6c59dc3520149e69e3fa210f4
+> Working tree fingerprint: SHA256:ca6174787c1e06d7789c0c48b11091abc40ce90b3f7fe116d424f34395950555
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Current archive audit repair, 2026-10-13: `UPD-20261013-013` reproduces the original CHECK rejecting administrative archive, adds a narrow migration and private-data-safe failure diagnostics, and corrects retry copy. Current local SQL/tests/builds pass; actual production constraints and deployment remain unknown. Resume at the guide's admin release register.
 
 - Current administrative release, 2026-10-13: `UPD-20261013-012` implements the explicit ADMIN override for all current blockers of one card, including cooldown, despite unknown/conflicting evidence. Durable stop/drain/archive freezes old execution and financial writes, preserves invoices/status/issues and admits only a subsequent new attempt. Local SQL/Axios/browser verification passes within documented limits; native contention, full historical migration chain and deployment remain unknown. Resume at `docs/PROJECT_GUIDE.md#admin-card-release--delivery-register-2026-10-13`.
 
@@ -521,6 +523,8 @@
 
 ### DATA-005 — Migration and schema-parity boundary
 
+- Archive audit repair: `20261013200000_admin_card_release_adjudication` extends the original classification CHECK only for the administrative archive decision; original classes and audit immutability remain tested. Earlier published SQL is unchanged. Sources: `tests/unit/admin-card-release-adjudication.test.ts`; `UPD-20261013-013`.
+
 - Extended quality 2026-09-08: Source history confirms empty 0_init. The absent refund SQL directory is intentional, not unknown provenance; fresh baseline and upgrade/drift rehearsal remain open. No schema/migration changes this extension. Sources: `specs/036-audit-remediation/evidence/extended-quality-verification.md`; `UPD-20260908-003`. Earlier dated results are historical.
 
 - Local backlog 2026-09-08: Schemas byte-identical; new scheduling migration applied only to synthetic audit DB. Historical SQL unchanged; initial/missing SQL provenance open. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
@@ -1008,6 +1012,8 @@
 ## 15. Testing and Quality
 
 ### TEST-001 — Fast unit and source-contract suites
+
+- Current archive CHECK repair: 905 root passes, 490 Worker passes/five Redis skips, 92 mocked browser cases, both types/builds and scoped lint pass. The fixture now installs original adjudication CHECKs/immutability; the regression reproduces rollback before and completion after the additive migration. Production/native/full-history limits remain. Sources: `tests/unit/admin-card-release-adjudication.test.ts`; `tests/helpers/pglite-prisma.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-013`.
 
 - Administrative release: 903 root passes, 490 Worker passes/five native Redis skips and 92 mocked review-browser cases; actual Prisma/PGlite migration and archive rollback plus Axios adapter late-response tests. Root/Worker types/builds and scoped lint pass. Native service races/full migration provenance remain unverified; full lint has unrelated baseline errors. Sources: `tests/unit/admin-card-release.test.ts`; `tests/unit/admin-card-release-api.test.ts`; `worker/tests/admin-card-release-http.test.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-012`.
 
@@ -1954,6 +1960,16 @@
 
 ## 22. Change Ledger
 
+### UPD-20261013-013 — Repair the administrative archive audit CHECK
+
+- Date: 2026-10-13
+- State: VERIFIED
+- Sources: `prisma/migrations/20261013200000_admin_card_release_adjudication/migration.sql`; `shared/operations/admin-card-release.ts`; `src/app/api/admin/financial-review/[operationId]/decision/route.ts`; `tests/helpers/pglite-prisma.ts`; `tests/unit/admin-card-release-adjudication.test.ts`; `tests/unit/admin-card-release-api.test.ts`; `docs/PROJECT_GUIDE.md`; `docs/deployment/audit-remediation-release.md`
+- Affected IDs: `BE-002`, `API-007`, `DATA-005`, `JOB-005`, `SEC-005`, `OPS-002`, `FEAT-015`, `TEST-001`, `FRESH-001`
+- Delta: Add a nine-line constraint migration, preserve original financial classes/audit immutability, log only bounded error metadata and correct ar/en/bn retry copy. No new UI workflow or response contract. User explicitly requested a minimal patch; removed the broader saved-request workflow before final verification.
+- Evidence: Original published CHECK causes SQLSTATE 23514 and transaction rollback; the same request completes after migration. Current 905 root passes, 490 Worker passes/five Redis skips, 92 mocked browser cases, both types/builds and scoped lint pass. Logs/limits are in the guide; actual production causality, native races and full historical migration chain remain NOT_VERIFIED.
+- Runtime impact: RUNTIME_CHANGE_NOT_DEPLOYED. No financial row edits, provider/payment requests, production deployment or subagents. Authorized GitHub handoff; user deploys and retries the decision.
+
 ### UPD-20261013-012 — Archive current blocking attempts and release a card by ADMIN decision
 
 - Date: 2026-10-13
@@ -2303,6 +2319,8 @@
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
+
+- Latest scoped delta: `UPD-20261013-013`, narrow archive audit constraint compatibility, bounded diagnostics and neutral retry copy. Header captures the settled pre-commit baseline; production state remains unknown.
 
 - Latest scoped delta: `UPD-20261013-012`, explicit audited administrative archive/unlock, stop/drain and preserved financial evidence. Local evidence and external limits are in `docs/PROJECT_GUIDE.md`; production card state remains unknown.
 

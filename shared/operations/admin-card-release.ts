@@ -13,6 +13,23 @@ export class AdministrativeStopError extends Error {
     constructor() { super(ADMIN_OPERATION_STOPPED); this.name = 'AdministrativeStopError' }
 }
 
+/** Allowlisted database metadata only: never log messages, SQL, values or stacks. */
+export function administrativeReleaseDiagnostic(error: unknown) {
+    const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
+    const root = record(error)
+    const adapter = record(record(root.meta).driverAdapterError)
+    const nodes = [root, record(root.cause), adapter, record(adapter.cause)]
+    const codes = nodes.flatMap(node => [node.code, node.originalCode]).filter((code): code is string => typeof code === 'string')
+    const databaseCode = codes.find(code => /^(?!P\d{4}$)[0-9A-Z]{5}$/.test(code)) ?? null
+    const errorCode = codes.find(code => /^P\d{4}$/.test(code)) ?? null
+    const transportCode = codes.find(code => ['ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET', 'ENOTFOUND'].includes(code)) ?? null
+    const constraint = nodes.flatMap(node => [node.constraint, node.message, node.originalMessage])
+        .filter((value): value is string => typeof value === 'string')
+        .map(value => value.match(/(?:check constraint ")?\b(operation_review_adjudications_check_[12])\b/)?.[1])
+        .find(Boolean) ?? null
+    return { errorCode, databaseCode, transportCode, constraint }
+}
+
 export async function assertAdministrativeExecutionAllowed(db: Pick<Db, 'operation'>, operationId: string) {
     const op = await db.operation.findUnique({ where: { id: operationId }, select: { administrativeStopRequestedAt: true } })
     if (op?.administrativeStopRequestedAt) throw new AdministrativeStopError()
@@ -193,8 +210,8 @@ export async function resumeCardReleases(db: PrismaClient, limit = 50, redis?: R
     afterReleaseId = rows.length === limit ? rows.at(-1)!.id : undefined
     for (const row of rows) {
         try { await completeCardRelease(db, row.id, redis) }
-        catch { await db.cardAdministrativeRelease.update({ where: { id: row.id }, data: { lastError: 'CARD_RELEASE_RETRY_REQUIRED' } })
-            console.error('[AdminCardRelease]', JSON.stringify({ releaseId: row.id, stage: 'RETRY_REQUIRED' })) }
+        catch (error) { await db.cardAdministrativeRelease.update({ where: { id: row.id }, data: { lastError: 'CARD_RELEASE_RETRY_REQUIRED' } })
+            console.error('[AdminCardRelease]', JSON.stringify({ releaseId: row.id, stage: 'RETRY_REQUIRED', ...administrativeReleaseDiagnostic(error) })) }
     }
     return rows.length
 }

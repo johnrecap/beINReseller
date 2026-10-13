@@ -9,13 +9,24 @@ import { readFileSync } from 'node:fs'
 // A transport-only pg bridge: actual Prisma SQL and transactions execute against
 // a fresh in-memory PostgreSQL engine. It has no socket or database URL. PGlite
 // has one connection; this checks atomic replay, not native multi-process locks.
-export async function openPglitePrisma() {
+export async function openPglitePrisma(options: { adjudicationSchema?: 'legacy' | 'current' } = {}) {
     const engine = new PGlite()
     const ddl = execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'diff',
         '--from-empty', '--to-schema', 'prisma/schema.prisma', '--script'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     await engine.exec(ddl)
     await engine.exec('ALTER TABLE operations DROP COLUMN renewal_cooldown_until')
     await engine.exec(readFileSync('prisma/migrations/20261012120000_renewal_card_cooldown/migration.sql', 'utf8'))
+    // Schema diff omits custom migration CHECKs/triggers. Execute their original
+    // published SQL so review tests cannot silently use a weaker audit table.
+    const reviewSql = readFileSync('prisma/migrations/20260907110000_audit_refund_review_effects/migration.sql', 'utf8')
+    const reviewChecks = reviewSql.split('\n').filter(line => line.startsWith('ALTER TABLE "operation_review_adjudications" ADD CONSTRAINT "operation_review_adjudications_check_'))
+    if (reviewChecks.length !== 2) throw new Error('MISSING_ORIGINAL_ADJUDICATION_CHECKS')
+    await engine.exec(reviewChecks.join('\n'))
+    const immutableFunction = reviewSql.match(/CREATE FUNCTION audit_immutable_evidence\(\)[\s\S]*?\$\$;/)?.[0]
+    const immutableTrigger = reviewSql.match(/CREATE TRIGGER audit_immutable_adjudication[\s\S]*?;/)?.[0]
+    if (!immutableFunction || !immutableTrigger) throw new Error('MISSING_ORIGINAL_ADJUDICATION_TRIGGER')
+    await engine.exec(`${immutableFunction}\n${immutableTrigger}`)
+    if (options.adjudicationSchema !== 'legacy') await engine.exec(readFileSync('prisma/migrations/20261013200000_admin_card_release_adjudication/migration.sql', 'utf8'))
     let tail = Promise.resolve()
     const acquire = async () => {
         const previous = tail

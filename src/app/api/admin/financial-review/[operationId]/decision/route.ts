@@ -23,7 +23,7 @@ import { classifyFinancialReview, reviewCapabilitySelect } from '@/lib/financial
 import { finalizeLegacyReview } from '@/lib/operations/legacy-review-finalization'
 import { finalizeWebPreMutationRenewalTermination } from '@/lib/operations/pre-mutation-renewal-finalization'
 import redis from '@/lib/redis'
-import { requestCardRelease, completeCardRelease } from '../../../../../../../shared/operations/admin-card-release'
+import { requestCardRelease, completeCardRelease, administrativeReleaseDiagnostic } from '../../../../../../../shared/operations/admin-card-release'
 
 const DECISION_ACTIONS: FinancialReviewDecisionAction[] = [
     'BEIN_EXECUTED_NO_REFUND',
@@ -111,7 +111,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
                     'CARD_RELEASE_IN_PROGRESS', 'CARD_RELEASE_PREVIEW_CHANGED'].includes(code))
                     return NextResponse.json({ error: code, code, messageKey: 'admin.financialReview.releaseChanged' },
                         { status: code === 'ADMIN_REQUIRED' ? 403 : code === 'INVALID_CARD_RELEASE_DECISION' ? 400 : 409 })
-                console.error('[AdminCardRelease]', JSON.stringify({ operationId, stage: 'REQUEST_RETRY_REQUIRED' }))
+                console.error('[AdminCardRelease]', JSON.stringify({ operationId, stage: 'REQUEST_RETRY_REQUIRED',
+                    ...administrativeReleaseDiagnostic(error) }))
                 return NextResponse.json({ error: 'CARD_RELEASE_RETRY_REQUIRED', code: 'CARD_RELEASE_RETRY_REQUIRED',
                     messageKey: 'admin.financialReview.releaseRetry' }, { status: 500 })
             }

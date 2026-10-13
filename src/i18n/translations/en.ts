@@ -1130,7 +1130,7 @@ export const en = {
             releaseAccountReserved: 'A beIN account is reserved for this attempt.',
             releaseDraining: 'Stopping the previous attempt; the card has not been released yet.',
             releaseComplete: 'Card released and attempts archived without a financial change.',
-            releaseRetry: 'Release could not finish now. The request is saved and can be followed up without creating another decision.',
+            releaseRetry: 'Release could not finish now. Review the error log and retry the same request, or refresh the preview to follow any saved request.',
             releaseChanged: 'Blocking attempts changed. Refresh and review the preview before confirming.',
             releaseEmpty: 'This card has no current holds.',
             releaseActor: 'Administrator decision',

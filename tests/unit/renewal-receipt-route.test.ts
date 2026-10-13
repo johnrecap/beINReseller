@@ -38,6 +38,9 @@ test('anonymous cannot query a receipt and another user cannot view it', async (
     assert.equal(anonymous.reads(), 0)
     const other = route('USER', 'other')
     assert.equal((await other.get(request, args)).status, 403)
+    // A manager's relationship to the owner never grants receipt access.
+    const manager = route('MANAGER', 'owners-manager')
+    assert.equal((await manager.get(request, args)).status, 403)
 })
 
 test('owner and admin can reopen the local receipt without raw provider evidence', async () => {

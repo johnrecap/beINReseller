@@ -22,6 +22,7 @@ export const ar = {
     holdPageSummary: 'الإحصاءات تخص هذه الصفحة. انتقل للصفحة التالية لفحص بقية الحجوزات.',
     },
     renewalReceipt: {
+        column: 'الفاتورة', unavailableShort: 'غير متاحة', viewInNewTab: 'فتح الفاتورة في علامة تبويب جديدة',
         view: 'عرض الفاتورة', title: 'فاتورة تجديد الباقة', print: 'طباعة الفاتورة',
         operation: 'رقم العملية', invoice: 'فاتورة beIN', card: 'رقم الكارت', itemType: 'نوع الجهاز',
         package: 'الباقة / العرض', promo: 'البروموكود المقبول', providerAmount: 'مبلغ البيع في beIN',

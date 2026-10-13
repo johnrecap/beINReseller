@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-10-13
-> Last synchronized commit: 26a6e28ce4eaf8446acf496d5e78e39ed424d7e9
+> Last synchronized commit: 364da2ed8276360d1286bba3be8826c3e8aaa85f
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:ca6174787c1e06d7789c0c48b11091abc40ce90b3f7fe116d424f34395950555
+> Working tree fingerprint: SHA256:2af2a12501f129a059a715af765e69e98dbb53267178df4f9c8f2e779cd47a68
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Current statistics receipt links, 2026-10-13: `UPD-20261013-014` adds saved-receipt availability and links to ADMIN per-user statistics; owner/ADMIN detail access stays unchanged and manager statistics omit receipt metadata. No invoice reconstruction, schema or financial change. Resume at `docs/PROJECT_GUIDE.md#user-statistics-receipts--delivery-register-2026-10-13`.
 
 - Current archive audit repair, 2026-10-13: `UPD-20261013-013` reproduces the original CHECK rejecting administrative archive, adds a narrow migration and private-data-safe failure diagnostics, and corrects retry copy. Current local SQL/tests/builds pass; actual production constraints and deployment remain unknown. Resume at the guide's admin release register.
 
@@ -201,6 +203,8 @@
 
 ### FE-003 — Localization and RTL-aware content
 
+- Statistics receipt column, unavailable and new-tab descriptions reuse `renewalReceipt` in ar/en/bn. Sources: `src/i18n/translations`; `UPD-20261013-014`.
+
 - Hold repair: `renewalHold` ar/en/bn catalogs provide reason, specific issue, stage, last-update and pagination copy without changing the flat operation-message contract. Sources: `src/i18n/translations`; `UPD-20261013-011`.
 
 - Provider reports 2026-10-13: `providerReport`/`reportCenter` tokens and reused existing labels cover the new panel and report-center navigation in en/ar/bn. Provider package/offer strings remain unchanged. Sources: `src/i18n/translations`; `src/components/admin/report-center`; `UPD-20261013-001`.
@@ -280,6 +284,8 @@
 - Phase 4: Quote-state polling, draft/applied-code separation, explicit removal, keyboard controls and stale-result fencing implemented; both panel final-confirm consumers send quoteRevision. Mocked 360/768/1280 and Arabic RTL passed. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### FE-008 — Role operations and administration workspace
+
+- ADMIN user statistics enable `canViewReceipts` in the shared dialog; operation and deduction rows open the same saved receipt in a new tab. The default manager caller has no receipt UI. Sources: `src/components/admin/users/UsersTable.tsx`; `src/components/admin/users/UserStatsDialog.tsx`; `UPD-20261013-014`.
 
 - Administrative release: global/per-operation preview, required reason/risk acknowledgement, draining status and an archive tab reuse the existing review surface in ar/en/bn. Actor/reason/time and late observations remain visible. Sources: `src/components/admin/financial-review/CardReleaseDialog.tsx`; `src/components/admin/financial-review/FinancialReviewClient.tsx`; `UPD-20261013-012`.
 
@@ -412,6 +418,8 @@
 - Phase 4: Apply requires actionRevision/APPLY/REMOVE; packages exposes safe revision/state/applied-code rows. Select requires current quoteRevision/index, optional scoped packageKey; final confirm requires accepted revision. Conflicts fail before debit/dispatch. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### API-007 — Admin route contract catalog
+
+- Admin user stats add `receiptAvailable` via one owner-scoped batch of the displayed operation and deduction IDs, using the actual receipt projector. Manager stats do not opt in; no proof/receipt contents enter these new fields. Sources: `src/lib/users/stats-report.ts`; `src/app/api/admin/users/[id]/stats/route.ts`; `UPD-20261013-014`.
 
 - Administrative release: ADMIN-only read-only preview/progress GET and existing decision POST with `ADMIN_ARCHIVE_AND_UNLOCK_CARD`, reason, stable key, scope fingerprint and risk acknowledgement. Writer rechecks active ADMIN; stale preview is 409, draining 202, completed 200; responses include scoped operation IDs. Sources: `src/app/api/admin/financial-review/card-release/route.ts`; `src/app/api/admin/financial-review/[operationId]/decision/route.ts`; `tests/unit/admin-card-release-api.test.ts`; `UPD-20261013-012`.
 
@@ -716,6 +724,8 @@
 
 ### AUTH-005 — Hierarchical resource ownership
 
+- Receipt visibility remains owner or ADMIN only. A MANAGER's ownership link grants statistics access, never a subordinate's receipt; direct detail-route denial is regression tested. Sources: `src/app/api/operations/[id]/route.ts`; `tests/unit/renewal-receipt-route.test.ts`; `UPD-20261013-014`.
+
 - State: VERIFIED
 - Sources: `src/lib/users/ownership.ts`; `src/lib/users/ownership-transfer.ts`; `src/lib/agents/assignment-transfer.ts`; `src/lib/admin/users-ownership-filter.ts`; `prisma/schema.prisma#model-AgentAssignment`
 - Current state: Manager links and active agent assignments drive direct ownership, transfers, filtering, and sensitive actions; ambiguous or stale ownership requires explicit conflict handling in high-risk paths.
@@ -1012,6 +1022,8 @@
 ## 15. Testing and Quality
 
 ### TEST-001 — Fast unit and source-contract suites
+
+- Statistics receipt addition: 909 root passes/zero skips, eight focused cases, 16 mocked browser cases, types/scoped lint/web build pass. Actual component/receipt projector with synthetic auth/database/network only; native DB, real authentication and physical printer output are NOT_VERIFIED. Sources: `tests/unit/user-stats-receipts.test.ts`; `tests/browser/panel-stats-receipt-cases.cjs`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-014`.
 
 - Current archive CHECK repair: 905 root passes, 490 Worker passes/five Redis skips, 92 mocked browser cases, both types/builds and scoped lint pass. The fixture now installs original adjudication CHECKs/immutability; the regression reproduces rollback before and completion after the additive migration. Production/native/full-history limits remain. Sources: `tests/unit/admin-card-release-adjudication.test.ts`; `tests/helpers/pglite-prisma.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-013`.
 
@@ -1367,6 +1379,8 @@
 - Impact: auth, UI, API, session, content
 
 ### FEAT-009 — Panel profiles, user administration, balances, and ledgers
+
+- ADMIN statistics now link existing verified receipts from operations and their deductions; failed, incomplete and legacy evidence stays unavailable. Existing owner receipt access is retained; manager subordinate receipt access is denied. Sources: `src/lib/users/stats-report.ts`; `src/components/admin/users/UserStatsDialog.tsx`; `UPD-20261013-014`.
 
 - Web completion 2026-09-08: panel table/modal adoption preserves API/financial contracts. Current acceptance tests cover retained failed input, duplicate admission, cross-user reads, stale/forbidden response hiding and scoped unknown outcomes. These are isolated synthetic client tests, not production/provider acceptance. Admin Eid settings remain deferred. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
 
@@ -1960,6 +1974,16 @@
 
 ## 22. Change Ledger
 
+### UPD-20261013-014 — Link saved receipts from ADMIN user statistics
+
+- Date: 2026-10-13
+- State: VERIFIED
+- Sources: `src/lib/users/stats-report.ts`; `src/app/api/admin/users/[id]/stats/route.ts`; `src/components/admin/users/UserStatsDialog.tsx`; `src/components/admin/users/UsersTable.tsx`; `tests/unit/user-stats-receipts.test.ts`; `tests/unit/renewal-receipt-route.test.ts`; `tests/browser/panel-stats-receipt-cases.cjs`; `docs/PROJECT_GUIDE.md`
+- Affected IDs: `FE-003`, `FE-008`, `API-007`, `AUTH-005`, `TEST-001`, `FEAT-009`, `FRESH-001`
+- Delta: Reuse saved receipt eligibility for one owner-scoped page batch, add availability booleans and ADMIN-only new-tab links, preserve manager response/access rules and translate unavailable/new-tab labels. Query failures log a safe code. No new invoice, schema, financial write, worker or dependency change.
+- Evidence: Representative test failed before the addition; 909 root passes/zero skips, 16 mocked browser cases, types, changed-file lint and web build pass. Local artifact paths and auth/database/printing limits are recorded in the guide.
+- Runtime impact: RUNTIME_CHANGE_NOT_DEPLOYED. Authorized source push only; production deployment remains user-operated. No provider requests or subagents.
+
 ### UPD-20261013-013 — Repair the administrative archive audit CHECK
 
 - Date: 2026-10-13
@@ -2319,6 +2343,8 @@
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
+
+- Latest scoped delta: `UPD-20261013-014`, ADMIN statistics receipt links with existing owner/ADMIN permission. Header records the settled pre-commit baseline; commit metadata changes freshness without changing verified runtime files.
 
 - Latest scoped delta: `UPD-20261013-013`, narrow archive audit constraint compatibility, bounded diagnostics and neutral retry copy. Header captures the settled pre-commit baseline; production state remains unknown.
 

@@ -17,6 +17,7 @@ interface UserStatsDialogProps {
     username: string | null
     statsEndpoint?: string | null
     canCorrectBalance?: boolean
+    canViewReceipts?: boolean
 }
 
 interface Transaction {
@@ -27,6 +28,7 @@ interface Transaction {
     notes: string | null
     createdAt: string
     operationId: string | null
+    receiptAvailable?: boolean
 }
 
 interface Operation {
@@ -38,6 +40,7 @@ interface Operation {
     responseMessage: string | null
     createdAt: string
     completedAt: string | null
+    receiptAvailable?: boolean
 }
 
 interface StatsData {
@@ -115,10 +118,20 @@ export default function UserStatsDialog({
     username,
     statsEndpoint,
     canCorrectBalance = true,
+    canViewReceipts = false,
 }: UserStatsDialogProps) {
     const { t, locale } = useTranslation()
     const transactionTypeLabels = getTransactionTypeLabels(t)
     const statusLabels = getStatusLabels(t)
+
+    const receiptLink = (operationId: string, available?: boolean) => available ? (
+        <a href={`/dashboard/operations/${encodeURIComponent(operationId)}/receipt`}
+            target="_blank" rel="noopener noreferrer" title={t.renewalReceipt.viewInNewTab}
+            className="inline-flex min-h-9 items-center whitespace-nowrap rounded px-2 text-primary underline underline-offset-4 hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+            {t.renewalReceipt.view}
+            <span className="sr-only"> — {t.renewalReceipt.viewInNewTab}</span>
+        </a>
+    ) : <span className="text-xs text-muted-foreground" title={t.renewalReceipt.unavailable}>{t.renewalReceipt.unavailableShort}</span>
 
     const getDateLocale = () => {
         switch (locale) {
@@ -794,6 +807,7 @@ export default function UserStatsDialog({
                                                     <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.amount || 'Amount'}</TableHead>
                                                     <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.balanceAfter || 'Balance After'}</TableHead>
                                                     <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.notes || 'Notes'}</TableHead>
+                                                    {canViewReceipts && <TableHead className="px-4 py-2">{t.renewalReceipt.column}</TableHead>}
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody className="divide-y divide-border">
@@ -820,6 +834,10 @@ export default function UserStatsDialog({
                                                             <TableCell className="px-4 py-2 text-sm text-muted-foreground truncate max-w-[200px]">
                                                                 {tx.notes || '-'}
                                                             </TableCell>
+                                                            {canViewReceipts && <TableCell className="px-4 py-2">
+                                                                {tx.type === 'OPERATION_DEDUCT' && tx.operationId
+                                                                    ? receiptLink(tx.operationId, tx.receiptAvailable) : '—'}
+                                                            </TableCell>}
                                                         </TableRow>
                                                     )
                                                 })}
@@ -859,6 +877,7 @@ export default function UserStatsDialog({
                                                     <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.card || 'Card'}</TableHead>
                                                     <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.amount || 'Amount'}</TableHead>
                                                     <TableHead className="px-4 py-2 text-right">{t.userStats?.table?.status || 'Status'}</TableHead>
+                                                    {canViewReceipts && <TableHead className="px-4 py-2">{t.renewalReceipt.column}</TableHead>}
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody className="divide-y divide-border">
@@ -883,6 +902,9 @@ export default function UserStatsDialog({
                                                                     {statusInfo.label}
                                                                 </span>
                                                             </TableCell>
+                                                            {canViewReceipts && <TableCell className="px-4 py-2">
+                                                                {receiptLink(op.id, op.receiptAvailable)}
+                                                            </TableCell>}
                                                         </TableRow>
                                                     )
                                                 })}

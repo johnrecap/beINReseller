@@ -14,4 +14,5 @@ const router={push:navigate,replace:navigate,refresh:()=>{window.refreshes=(wind
 export const redirect=navigate;
 export const useRouter=()=>router;
 export const usePathname=()=>'/dashboard/history';
+export const useParams=()=>({id:window.audit.operationId||'synthetic-operation'});
 export function useSearchParams(){const value=useSyncExternalStore(subscribe,snapshot,snapshot);return useMemo(()=>new URLSearchParams(value),[value]);}

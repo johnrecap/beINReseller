@@ -24,7 +24,7 @@ export async function GET(
             txSkip: parseInt(searchParams.get('txSkip') || '0'),
             opLimit: parseInt(searchParams.get('opLimit') || '20'),
             opSkip: parseInt(searchParams.get('opSkip') || '0'),
-        })
+        }, { includeReceiptAvailability: true })
 
         if (!stats) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 })

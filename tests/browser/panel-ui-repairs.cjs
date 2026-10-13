@@ -251,9 +251,10 @@ await p.waitForFunction(()=>window.auditAlerts.length>0);
 assert.equal(await correction.getByRole('textbox').inputValue(),'Synthetic retained correction note');
 assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
 await p.keyboard.press('Escape');await p.waitForFunction(()=>document.querySelectorAll('[role=dialog]').length===1);
-assert.equal(await p.evaluate(()=>document.activeElement.title),correctionTitle);check('statistics correction rejects duplicates, retains failure and restores nested focus');
+await p.waitForFunction(title=>document.activeElement.title===title,correctionTitle);check('statistics correction rejects duplicates, retains failure and restores nested focus');
 }
 if(!process.env.PANEL_QA_SCOPE || process.env.PANEL_QA_SCOPE==='operations') await require('./panel-operations-cases.cjs')({p,render,check});
+if(!process.env.PANEL_QA_SCOPE || process.env.PANEL_QA_SCOPE==='stats') await require('./panel-stats-receipt-cases.cjs')({p,render,check,build,css,out});
 if(!process.env.PANEL_QA_SCOPE || process.env.PANEL_QA_SCOPE==='reports') await require('./panel-report-cases.cjs')({p,render,check});
 if(!process.env.PANEL_QA_SCOPE || process.env.PANEL_QA_SCOPE==='installments') await require('./panel-installment-cases.cjs')({p,render,check});
 if(!process.env.PANEL_QA_SCOPE || process.env.PANEL_QA_SCOPE==='financial')await require('./panel-financial-cases.cjs')({p,render,check});

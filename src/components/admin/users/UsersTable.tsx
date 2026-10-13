@@ -1003,6 +1003,7 @@ export default function UsersTable() {
                 username={balanceUser?.username || null}
             />
             <UserStatsDialog
+                canViewReceipts
                 isOpen={!!statsUser}
                 onClose={() => setStatsUser(null)}
                 userId={statsUser?.id || null}

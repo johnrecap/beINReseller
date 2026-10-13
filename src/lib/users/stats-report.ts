@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { projectRenewalReceipt } from '@/lib/operations/receipt'
 
 export type UserStatsReportPagination = {
     txLimit: number
@@ -7,7 +8,11 @@ export type UserStatsReportPagination = {
     opSkip: number
 }
 
-export async function getUserStatsReport(userId: string, pagination: UserStatsReportPagination) {
+export async function getUserStatsReport(
+    userId: string,
+    pagination: UserStatsReportPagination,
+    options: { includeReceiptAvailability?: boolean } = {},
+) {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -245,6 +250,30 @@ export async function getUserStatsReport(userId: string, pagination: UserStatsRe
         },
     })
 
+    const receiptAvailability = new Map<string, boolean>()
+    if (options.includeReceiptAvailability) {
+        const ids = [...new Set([
+            ...recentOperations.map(operation => operation.id),
+            ...recentTransactions.flatMap(transaction =>
+                transaction.type === 'OPERATION_DEDUCT' && transaction.operationId ? [transaction.operationId] : []),
+        ])]
+        if (ids.length > 0) {
+            try {
+                const receiptOperations = await prisma.operation.findMany({
+                    where: { userId, id: { in: ids } },
+                    select: { id: true, status: true, fulfillmentAuthority: true, fulfillmentProof: true },
+                })
+                for (const operation of receiptOperations) {
+                    receiptAvailability.set(operation.id, projectRenewalReceipt(operation) !== null)
+                }
+            } catch {
+                // Do not log raw Prisma errors: they can include saved provider evidence.
+                console.error('[UserStats] Receipt availability lookup failed', { code: 'RECEIPT_AVAILABILITY_QUERY_FAILED' })
+                throw new Error('RECEIPT_AVAILABILITY_QUERY_FAILED')
+            }
+        }
+    }
+
     return {
         user: {
             id: user.id,
@@ -273,8 +302,17 @@ export async function getUserStatsReport(userId: string, pagination: UserStatsRe
             phantomRefunds: phantomRefunds.length,
             overRefunds: overRefunds.length,
         },
-        recentTransactions,
-        recentOperations,
+        recentTransactions: recentTransactions.map(transaction => ({
+            ...transaction,
+            ...(options.includeReceiptAvailability ? {
+                receiptAvailable: transaction.type === 'OPERATION_DEDUCT' && !!transaction.operationId &&
+                    receiptAvailability.get(transaction.operationId) === true,
+            } : {}),
+        })),
+        recentOperations: recentOperations.map(operation => ({
+            ...operation,
+            ...(options.includeReceiptAvailability ? { receiptAvailable: receiptAvailability.get(operation.id) === true } : {}),
+        })),
         pagination: {
             transactions: {
                 total: totalTransactions,

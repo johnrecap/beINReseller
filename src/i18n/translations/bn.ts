@@ -22,6 +22,7 @@ export const bn = {
     holdPageSummary: 'পরিসংখ্যান এই পৃষ্ঠার জন্য। অন্য সংরক্ষণ দেখতে পরের পৃষ্ঠায় যান।',
     },
     renewalReceipt: {
+        column: 'রসিদ', unavailableShort: 'উপলব্ধ নয়', viewInNewTab: 'নতুন ট্যাবে রসিদ খুলুন',
         view: 'রসিদ দেখুন', title: 'নবায়নের রসিদ', print: 'রসিদ প্রিন্ট করুন',
         operation: 'অপারেশন', invoice: 'beIN ইনভয়েস', card: 'কার্ড নম্বর', itemType: 'ডিভাইসের ধরন',
         package: 'প্যাকেজ / অফার', promo: 'গৃহীত প্রচার কোড', providerAmount: 'beIN বিক্রয়মূল্য',

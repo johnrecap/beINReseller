@@ -1,5 +1,26 @@
 # Project Guide
 
+## User statistics receipts — delivery register (2026-10-13)
+
+Accepted scope: link existing verified renewal receipts from ADMIN user statistics. Receipt access remains owner/ADMIN only; managers retain statistics without receipt metadata or links. No financial writes, schema changes, historical invoice reconstruction, live payment or subagents.
+
+| Requirement | Verification / evidence | State |
+| --- | --- | --- |
+| Same saved receipt from operation and deduction, including off-page operations | Initial regression failed with missing availability; actual projector and owner-scoped batch regression now pass | VERIFIED locally |
+| ADMIN/owner access only, manager statistics unchanged | Actual isolated routes reject other users/managers/guests; manager endpoint never opts in | VERIFIED with mocked auth/database |
+| No inferred receipts or raw evidence in statistics; bounded batch lookup and safe errors | Incomplete/legacy/failed/review proof, foreign operation, non-deduction and private error regressions | VERIFIED locally |
+| Dialog pagination, user switches, ar/en/bn, narrow view and printing | 16 browser cases; 390/1280px receipt journeys, keyboard focus, unchanged amounts, no page exceptions | VERIFIED with mocked API |
+| Source quality | 909 root tests, zero skips; root types, changed-file lint, schema parity and web build pass | VERIFIED locally; Worker untouched |
+| Source delivery | Push to the authorized branch and verify exact remote SHA during handoff | Production deployment remains user-operated |
+
+`GET /api/admin/users/[id]/stats` adds only `receiptAvailable` to page operations and transactions. A single additional query covers distinct operation IDs from the current operation page and linked OPERATION_DEDUCT rows, constrained to the selected user. Eligibility uses `projectRenewalReceipt`, including required snapshot fields. Other transaction types receive false; manager statistics keep their previous shape and skip this query. Query failure logs only `RECEIPT_AVAILABILITY_QUERY_FAILED` and follows the existing retryable statistics error UI.
+
+The ADMIN Users dialog opens `/dashboard/operations/[id]/receipt` in a new tab with opener isolation. Unavailable proof is labeled without a link; non-operation movements show a dash. The receipt page/API and owner/ADMIN authorization are unchanged. No historical receipt reconstruction, provider traffic, financial write or migration occurs. The default shared dialog hides receipt controls; only the ADMIN caller enables them.
+
+Verification sources: `tests/unit/user-stats-receipts.test.ts`, `tests/unit/renewal-receipt-route.test.ts`, `tests/unit/renewal-receipt-projection.test.ts`, `tests/browser/panel-stats-receipt-cases.cjs`. Local artifacts: `output/user-stats-receipts-20261013/` (`root-tests-verified.log`, `types.log`, `lint.log`, `build.log`, `browser.log`, `panel-ui-stats-verification.json`, narrow ar/en/bn screenshots and Arabic print-media capture). Earlier root runs failed only because Python was unavailable and the sandbox disallowed a temporary Git fixture; the configured permitted rerun passed all 909. Changed-file ESLint has no errors/warnings; its Browserslist age notice and the build's existing middleware convention notice remain informational.
+
+Visual review: existing dialog/table tokens and horizontal table scrolling are retained; links and unavailable states are readable in RTL and narrow view (scoped assessment 8/10). Printing verification uses the actual receipt component, print CSS and a stubbed `window.print`; physical printer output and authenticated production behavior are NOT_VERIFIED. Browser networking is intercepted, service/API auth and database are synthetic, and no native database integration was exercised for this read-only addition. No broader UI or production acceptance is implied.
+
 ## Admin card release — delivery register (2026-10-13)
 
 Accepted override: an ADMIN may archive all current blocking attempts for one card and waive its existing cooldowns even when payment evidence is unknown or conflicting. Archive is operational only: preserve money, invoices, proof, financial status and unresolved issues. No automatic historical decisions or production changes. No subagents or live payment.
@@ -121,6 +142,9 @@ Spec Kit 036 Phase 3 is PARTIAL: T006/T009/T011 accepted, 8/56 total. Financial 
 This is a Next.js role-based reseller panel with separate admin, manager, agent, and user workflows. The web app uses Prisma/PostgreSQL for durable data and an HTTP intermediary worker for actual beIN operations. Phase 2 source inspection counts 67 Prisma models and 37 migration directories (36 SQL files; one pre-existing directory lacks SQL). Page/API counts are historical discovery, not current runtime coverage. `PROJECT_MEMORY.md` is a derived index; source, schemas, tests and authorized evidence remain authoritative.
 
 ## Recent Changes
+- 2026-10-13 - Link saved renewal receipts from ADMIN user statistics.
+  - Changed: owner-scoped receipt availability batch, existing statistics dialog links and ar/en/bn labels; manager/receipt access rules remain unchanged.
+  - Verification: 909 root tests, 16 mocked browser cases, root types, scoped lint and web build pass. See the receipt delivery register above for artifact paths and limits.
 
 - 2026-10-13 — Repair the administrative archive audit CHECK (`UPD-20261013-013`). A nine-line additive migration permits only the intended archive decision; published SQL and financial outcomes remain unchanged. Add bounded failure diagnostics and neutral ar/en/bn retry copy. Original-constraint regression, 905 root passes, 490 Worker passes/five skips, 92 mocked browser cases, both builds/types and scoped lint pass; production diagnosis/deployment remain unverified.
 
@@ -245,6 +269,7 @@ Current development is incremental within the existing Next.js, Prisma, and work
 - `.agents/skills/web-project-memory`: version-controlled generic skill source containing the contract, schema, deterministic helper, and Codex UI metadata; the installed personal copy must remain byte-equivalent.
 
 ## Feature Inventory
+- ADMIN user statistics link verified saved receipts from operations and related deductions. Owners retain their own receipt access; managers cannot view subordinate receipts.
 - Open renewal safety holds are available in admin financial review even when no customer debit was recorded; an eligible pre-payment hold can use the existing guarded resolution action.
 - Admin user management supports distributors, agents, and users in separate tabs.
 - Hierarchical password recovery supports ADMIN, MANAGER, and AGENT supervisors through the configurable users.reset_password permission.
@@ -255,6 +280,7 @@ Current development is incremental within the existing Next.js, Prisma, and work
 - Development continuity is recorded through stable, record-state-labeled entries in the root project memory without replacing authoritative project sources.
 
 ## UI Map
+- User statistics receipt column: `src/components/admin/users/UserStatsDialog.tsx`, enabled by `UsersTable.tsx`; opens the existing receipt/print page in a separate tab.
 - Admin financial review: `src/components/admin/financial-review/FinancialReviewClient.tsx`; open holds are no longer hidden by the closed-history date window or a zero recorded amount.
 - Provider report tab: `src/components/admin/report-center/BeinProviderReportPanel.tsx`, registered in the existing Reports Center; request cancellation and polling live in `src/hooks/useProviderReport.ts`.
 - Admin user management: `src/components/admin/users/UsersTable.tsx`.
@@ -273,6 +299,8 @@ Current development is incremental within the existing Next.js, Prisma, and work
 - The existing `[agentId, isActive]` and `[userId, isActive]` indexes support these lookups; this feature requires no migration.
 
 ## APIs And Integrations
+
+- Admin statistics receipt availability uses `src/lib/users/stats-report.ts` with server-only opt-in; only booleans are added to page rows. Manager statistics and `GET /api/operations/[id]` ownership rules remain unchanged.
 
 Renewal hold additions: the existing start-renewal error adds `blockReason`; operation list/detail add `hold` and an admin-only `reviewUrl`. The existing admin financial-review GET includes terminal blockers, accepts `cursor` and returns `nextCursor`; summaries describe the current 100-row page. `RESOLVE_PRE_MUTATION` can repair positively proven terminal leftovers with an audited note after checking active execution; remaining cross-operation issues are reported in `remainingHolds`. Existing authorization, owner scoping, error codes and financial decision routes remain controlling.
 - Package endpoint compatibility keeps the numeric `price` and existing public allowlist. Precise provider text/decimal are internal JSON/session fields, selected server-side from the accepted quote; no provider controls or credentials are added to public responses. Same-day search/finalization share `worker/src/lib/report-package-identity.ts` and `shared/operations/provider-price.ts`.
@@ -328,6 +356,7 @@ For a later authorized restart, use the installed `pg_ctl.exe` with `start -D D:
 Use `.env.example` and `worker/.env.example` as starting templates. Relevant web variables include `DATABASE_URL`, `REDIS_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `BEIN_USERNAME`, `BEIN_PASSWORD`, `NODE_ENV`, and `LOG_LEVEL`. The examples do not enumerate every code-consumed auth, crypto, cron, payment, database-pool, Worker, proxy, or maintenance name; use `PROJECT_MEMORY.md` record `ENV-005` and reopen the target source before deployment. Never commit secret values.
 
 ## Testing And Verification
+- Statistics receipts: `node --import tsx --test tests/unit/user-stats-receipts.test.ts tests/unit/renewal-receipt-route.test.ts tests/unit/renewal-receipt-projection.test.ts`; browser harness `tests/browser/panel-ui-repairs.cjs` with `PANEL_QA_SCOPE=stats`. Uses synthetic data only; see the delivery register above.
 - Versioned renewal v2 (local/mocked only): `node --import tsx --test worker/tests/same-day-report-fulfillment.test.ts worker/tests/renewal-package-identity.test.ts worker/tests/promo-package-refresh.test.ts worker/tests/session-cache-fencing.test.ts tests/unit/renewal-receipt-projection.test.ts tests/unit/renewal-receipt-route.test.ts`. See `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md` for behavior and unresolved native-service/provider checks.
 - Account lifecycle: `node --import tsx --test tests/unit/account-cooldown-removal.test.ts tests/unit/provider-reservation-maintenance.test.ts worker/tests/account-cooldown-removal.test.ts worker/tests/provider-reservation-lifecycle.test.ts`. These run isolated actual modules with synthetic dependencies and cannot prove native PostgreSQL/Redis races or server repair.
 - Provider-report tests: `node --import tsx --test tests/unit/provider-report-api.test.ts worker/tests/provider-report-browser.test.ts`; `node tests/browser/bein-provider-report.cjs` with `PLAYWRIGHT_MODULE` pointing to an installed Playwright module if necessary. For native Redis/BullMQ/HTTP verification, explicitly set `PROVIDER_REPORT_TEST_REDIS_URL` to a disposable loopback Redis database **15**, then run `node --import tsx --test tests/integration/provider-report-redis.test.ts`. That suite refuses a non-loopback URL, uses unique owned keys/queue names and removes only its own data; it never uses the provider or business PostgreSQL data. Without the explicit URL its three native cases skip and do not count as runtime acceptance.

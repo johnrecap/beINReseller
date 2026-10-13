@@ -22,6 +22,7 @@ export const en = {
     holdPageSummary: 'Counts apply to this page. Browse the next page to inspect other holds.',
     },
     renewalReceipt: {
+        column: 'Receipt', unavailableShort: 'Unavailable', viewInNewTab: 'Open receipt in a new tab',
         view: 'View receipt', title: 'Renewal receipt', print: 'Print receipt',
         operation: 'Operation', invoice: 'beIN invoice', card: 'Card / serial', itemType: 'Device type',
         package: 'Package / offer', promo: 'Accepted promo code', providerAmount: 'beIN sale amount',

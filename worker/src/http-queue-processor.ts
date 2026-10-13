@@ -12,7 +12,7 @@ import { deliverCompletionEffects } from '../../shared/operations/completion-eff
 import { randomUUID } from 'node:crypto';
 import { Job, Queue, UnrecoverableError } from 'bullmq';
 import { prisma } from './lib/prisma';
-import { HttpClientService, AvailablePackage, classifyFinalPayOutcome } from './http';
+import { HttpClientService, AvailablePackage, classifyFinalPayOutcome, type LoadPackagesResult } from './http';
 import type { FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
 import { AccountPoolManager, getQueueManager, lockAccount, unlockAccount } from './pool';
 import {
@@ -35,7 +35,7 @@ import { decryptAccountPassword } from './lib/crypto';
 import { recordConfirmedBeinSpend } from './lib/bein-spend-ledger';
 import { claimInstallmentMutation, finalizeInstallmentSettlement } from './lib/installment-finalization';
 import { installmentIdentity } from '../../shared/operations/audit-financial-context';
-import { actionRevision, quoteRevisionOf, readyPackageQuote, type PromoAction, type QuotePackage } from '../../shared/operations/package-quote';
+import { actionRevision, quoteData, quoteRevisionOf, readyPackageQuote, type PromoAction, type QuotePackage } from '../../shared/operations/package-quote';
 import { holdQuoteConflict, isCurrentPromo, matchFreshPackage, publishPromoQuote, refreshPromoPackages } from './lib/promo-quote';
 import { getRedisConnection } from './lib/redis';
 import {
@@ -92,6 +92,7 @@ import {
 } from './lib/same-day-report-fulfillment';
 import { finalizeRenewalNoChargeFailure } from './lib/renewal-no-charge-finalization';
 import { finalizePreMutationRenewalTermination } from './lib/pre-mutation-renewal-finalization';
+import { lockFinancialOperation } from '../../shared/operations/financial-lock';
 import {
     RetryableRenewalVerificationError,
     isTransientRenewalVerificationError,
@@ -1318,6 +1319,7 @@ export async function processOperationHttp(
                 cardNumber: true,
                 responseData: true,
                 providerMutationStartedAt: true,
+                providerMutationStage: true,
                 providerPaymentState: true,
                 fulfillmentState: true,
                 fulfillmentVerificationOutcome: true,
@@ -1343,7 +1345,11 @@ export async function processOperationHttp(
         const opAmount = op?.amount || 0;
         selectedAccountId = op?.beinAccountId || null;
         const finalPayStarted = op.type === 'RENEW'
-            ? Boolean(op.providerMutationStartedAt) || providerMutationMayHaveStarted(op.responseData)
+            ? Boolean(op.providerMutationStartedAt || op.providerMutationStage) ||
+                (op.renewalFlowVersion === 2
+                    ? finalProviderMutationMayHaveStarted(op.responseData) ||
+                        (op.providerPaymentState !== 'NOT_SUBMITTED' && op.providerPaymentState !== null)
+                    : providerMutationMayHaveStarted(op.responseData))
             : hasFinalPaymentStarted(op.status, op.responseData);
         const genericDecision = decideFinalPayRefundSafety({
             success: false,
@@ -1499,6 +1505,25 @@ async function handleStartRenewalHttp(
         console.log(`[HTTP] Operation ${operationId} waited ${Math.round(queueResult.waitTimeMs / 1000)}s in queue`);
     }
 
+    // The displayed quote belongs to this account. Convert the temporary
+    // queue lock to a durable operation reservation before any provider page
+    // is read, otherwise select-package can reject an already shown quote.
+    let startReservation: ReservedProviderExecution | null = null;
+    try {
+        if (flowVersion === 2) startReservation = await reserveProviderAccountForFulfillment({
+            operationId, beinAccountId: selectedAccount.id, accountPool, consumer: 'RENEWAL',
+        });
+    } catch (error) {
+        await accountPool.releaseLock(selectedAccount.id, operationId).catch(() => false);
+        throw error;
+    }
+    if (flowVersion === 2 && !startReservation) {
+        await accountPool.releaseLock(selectedAccount.id, operationId).catch(() => false);
+        throw new Error('ACCOUNT_PREPARATION_RESERVATION_UNAVAILABLE');
+    }
+    const startHeartbeat = startReservation ? startExecutionLeaseHeartbeat(accountPool, startReservation.lease) : null;
+    try {
+    await startHeartbeat?.assertCurrent();
     const route = await resolveOperationRoute(selectedAccount, {
         operationId,
         ignoreSnapshot: true
@@ -1526,7 +1551,9 @@ async function handleStartRenewalHttp(
         // IMPORTANT: Validate session with beIN server before trusting Redis cache
         // The keepalive may have missed this account, or beIN may have expired it early
         console.log(`[HTTP] 🔍 Validating cached session for ${selectedAccount.username} on beIN server...`);
+        await startHeartbeat?.assertCurrent();
         const sessionValid = await client.validateSession();
+        await startHeartbeat?.assertCurrent();
 
         if (sessionValid) {
             console.log(`[HTTP] ✅ Session validated on beIN — using cached session for ${selectedAccount.username}`);
@@ -1563,11 +1590,13 @@ async function handleStartRenewalHttp(
 
     if (needsFreshLogin) {
         // Perform actual login
+        await startHeartbeat?.assertCurrent();
         const loginResult = await client.login(
             selectedAccount.username,
             selectedAccount.password,
             selectedAccount.totpSecret || undefined
         );
+        await startHeartbeat?.assertCurrent();
 
         if (loginResult.requiresCaptcha && loginResult.captchaImage) {
             console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
@@ -1623,6 +1652,7 @@ async function handleStartRenewalHttp(
                 selectedAccount.totpSecret || undefined,
                 solution
             );
+            await startHeartbeat?.assertCurrent();
 
             if (!loginWithCaptcha.success) {
                 await trackCredentialLoginFailure(
@@ -1686,8 +1716,13 @@ async function handleStartRenewalHttp(
             client,
             selectedAccount,
             route,
-            () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
-            'loadPackages'
+            async () => {
+                await startHeartbeat?.assertCurrent();
+                const loaded = await client.loadPackages(cardNumber, smartcardType || 'CISCO');
+                await startHeartbeat?.assertCurrent();
+                return loaded;
+            },
+            'loadPackages', startReservation?.lease
         );
     } else {
         // No STB cache: read the STB first, then build the package ViewState chain.
@@ -1698,8 +1733,13 @@ async function handleStartRenewalHttp(
             client,
             selectedAccount,
             route,
-            () => client.checkCard(cardNumber),
-            'checkCard'
+            async () => {
+                await startHeartbeat?.assertCurrent();
+                const checked = await client.checkCard(cardNumber);
+                await startHeartbeat?.assertCurrent();
+                return checked;
+            },
+            'checkCard', startReservation?.lease
         );
 
         if (!checkResult.success || !checkResult.stbNumber) {
@@ -1717,8 +1757,13 @@ async function handleStartRenewalHttp(
             client,
             selectedAccount,
             route,
-            () => client.loadPackages(cardNumber, smartcardType || 'CISCO'),
-            'loadPackages'
+            async () => {
+                await startHeartbeat?.assertCurrent();
+                const loaded = await client.loadPackages(cardNumber, smartcardType || 'CISCO');
+                await startHeartbeat?.assertCurrent();
+                return loaded;
+            },
+            'loadPackages', startReservation?.lease
         );
 
         console.log(`[HTTP] Card/package preparation completed in ${Date.now() - startTime}ms`);
@@ -1754,6 +1799,7 @@ async function handleStartRenewalHttp(
         index: pkg.index,
         name: pkg.name,
         price: pkg.price,
+        currency: pkg.currency || 'USD',
         checkboxSelector: pkg.checkboxValue, // Keep for compatibility (backend)
         checkboxValue: pkg.checkboxValue,    // Add for Flutter compatibility
     }));
@@ -1771,7 +1817,15 @@ async function handleStartRenewalHttp(
     // ViewState and cookies are stored server-side in Redis only.
     if (flowVersion === 2) client.setRenewalQuoteRevision(0);
     const sessionData = await client.exportSession();
-    await saveOperationSessionToCache(operationId, sessionData, 180, route);
+    await startHeartbeat?.assertCurrent();
+    if (startReservation) {
+        const saved = await saveOperationSessionToCacheFenced(getRedisConnection(), {
+            operationId, session: sessionData, ttlSeconds: 180, route, lease: startReservation.lease,
+        });
+        if (!saved) throw new Error('ACCOUNT_PREPARATION_SESSION_SAVE_FAILED');
+    } else {
+        await saveOperationSessionToCache(operationId, sessionData, 180, route);
+    }
 
     // Update operation with packages and safe user-facing metadata.
     // CRITICAL: Set heartbeatExpiry so cleanup cron knows when to auto-cancel
@@ -1780,11 +1834,12 @@ async function handleStartRenewalHttp(
 
     // All provider/session work above is finished. The next queue consumer may
     // be another worker; publish only after the exact legacy owner is parked.
-    if (!await parkAccountLockForHandoff(accountPool.getRedis(), selectedAccount.id,
+    if (!startReservation && !await parkAccountLockForHandoff(accountPool.getRedis(), selectedAccount.id,
         accountPool.getWorkerId(), operationId)) {
         throw new Error('ACCOUNT_PREPARATION_HANDOFF_LOST');
     }
 
+    await startHeartbeat?.assertCurrent();
     if (!await updateOperationIfActive(operationId, {
         status: 'AWAITING_PACKAGE',
         beinAccountId: selectedAccount.id,  // Merged here instead of separate update
@@ -1815,6 +1870,12 @@ async function handleStartRenewalHttp(
 
 
     console.log(`✅ [HTTP] Packages loaded for ${operationId}: ${packages.length} packages, Dealer Balance: ${packagesResult.dealerBalance || 'N/A'} USD`);
+    } finally {
+        startHeartbeat?.stop();
+        if (startReservation) {
+            await accountPool.releaseExecutionLease(startReservation.lease).catch(() => false);
+        }
+    }
 }
 
 /**
@@ -1841,18 +1902,33 @@ async function handleApplyPromoHttp(
 
     // Re-read under the canonical card/operation locks. A late result, cancellation
     // or duplicate job must never replace a newer quote or its financial state.
-    const publish = (result: { success: boolean; packages: AvailablePackage[] }, assertCurrent?: () => Promise<void>) =>
+    const publish = (result: LoadPackagesResult, assertCurrent?: () => Promise<void>) =>
         publishPromoQuote(prisma, { operationId, revision, promoCode, promoAction, result }, assertCurrent);
+    const finishFailedPromo = async (result: LoadPackagesResult, assertCurrent?: () => Promise<void>) => {
+        if (!await publish(result, assertCurrent)) return;
+        if (operation.renewalFlowVersion === 2) {
+            const closure = await finalizePreMutationRenewalTermination({
+                operationId, terminalStatus: 'FAILED', allowedStatuses: ['AWAITING_PACKAGE'],
+                responseMessage: 'PROMO_REFRESH_UNVERIFIED',
+                releaseReason: 'PROMO_QUOTE_FAILED_BEFORE_PAYMENT',
+            });
+            if (closure.status === 'EVIDENCE_CONFLICT') {
+                console.warn(`[HTTP] Promo failure closure needs review: ${closure.reason}`);
+            }
+        }
+    };
 
     if (!operation.beinAccountId) {
-        await publish({ success: false, packages: [] });
+        await finishFailedPromo({ success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+            failureStage: 'PRE_SUBMIT', providerPostSent: false });
         return;
     }
     const reserved = await reserveProviderAccountForFulfillment({
         operationId, beinAccountId: operation.beinAccountId, accountPool, consumer: 'RENEWAL',
     });
     if (!reserved) {
-        await publish({ success: false, packages: [] });
+        await finishFailedPromo({ success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+            failureStage: 'PRE_SUBMIT', providerPostSent: false });
         return;
     }
     const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
@@ -1860,6 +1936,12 @@ async function handleApplyPromoHttp(
         await heartbeat.assertCurrent();
         const current = await prisma.operation.findUnique({ where: { id: operationId } });
         if (!current || !isCurrentPromo(current, revision, promoCode, promoAction)) return;
+        if (current.renewalFlowVersion === 2 &&
+            quoteData(current.responseData).promoPostStartedRevision === revision) {
+            await finishFailedPromo({ success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+                failureStage: 'POST_RESPONSE_UNVERIFIED', providerPostSent: true }, heartbeat.assertCurrent);
+            return;
+        }
         const route = await resolveOperationRoute(reserved.account, {
             operationId, responseData: current.responseData, legacyFallback: true,
         });
@@ -1876,9 +1958,25 @@ async function handleApplyPromoHttp(
             cardNumber: current.cardNumber,
             smartcardType: typeof context.smartcardType === 'string' ? context.smartcardType : 'CISCO',
             promoAction, promoCode, reuseCurrentPage: current.renewalFlowVersion === 2,
-        }, heartbeat.assertCurrent);
+        }, heartbeat.assertCurrent, current.renewalFlowVersion === 2 ? async () => {
+            await heartbeat.assertCurrent();
+            await prisma.$transaction(async tx => {
+                if (!await lockFinancialOperation(tx, operationId)) throw new Error('PROMO_OPERATION_CHANGED');
+                const beforeSubmit = await tx.operation.findUnique({ where: { id: operationId } });
+                if (!beforeSubmit || !isCurrentPromo(beforeSubmit, revision, promoCode, promoAction) ||
+                    quoteData(beforeSubmit.responseData).promoPostStartedRevision === revision) {
+                    throw new Error('PROMO_OPERATION_CHANGED');
+                }
+                await heartbeat.assertCurrent();
+                await tx.operation.update({ where: { id: operationId }, data: {
+                    responseData: JSON.stringify({ ...quoteData(beforeSubmit.responseData),
+                        promoPostStartedRevision: revision, promoPostStartedAt: new Date().toISOString() }),
+                } });
+            });
+        } : undefined);
         await heartbeat.assertCurrent();
-        if (result.success) {
+        const quoteReady = result.success && result.packages.length > 0;
+        if (quoteReady) {
             await heartbeat.assertCurrent();
             if (current.renewalFlowVersion === 2) client.setRenewalQuoteRevision(revision);
             const session = await client.exportSession();
@@ -1887,12 +1985,21 @@ async function handleApplyPromoHttp(
             });
             if (!saved) throw new Error('PROMO_OPERATION_SESSION_SAVE_FAILED');
         }
-        await publish(result, heartbeat.assertCurrent);
+        console.log(`[HTTP] Promo ${promoAction} revision ${revision}: ${quoteReady ? 'QUOTE_READY' :
+            result.failureStage || 'PRE_SUBMIT'}`);
+        if (quoteReady) await publish(result, heartbeat.assertCurrent);
+        else await finishFailedPromo({ ...result, success: false, packages: [],
+            error: result.error || 'PROMO_REFRESH_UNVERIFIED' }, heartbeat.assertCurrent);
     } catch (error) {
-        console.error('[HTTP] Promo quote refresh failed:', getErrMsg(error));
-        // A failed preparation is not a financial failure/refund. Its quote stays
-        // unselectable, and only a new explicit promo revision may try again.
-        await publish({ success: false, packages: [] }, heartbeat.assertCurrent).catch(() => false);
+        console.error(`[HTTP] Promo ${promoAction} quote refresh failed: ${getErrMsg(error)}`);
+        const marker = quoteData((await prisma.operation.findUnique({ where: { id: operationId },
+            select: { responseData: true } }))?.responseData).promoPostStartedRevision === revision;
+        // If this write cannot finish, leave the durable job retryable. The
+        // persisted revision marker prevents its retry from posting the promo
+        // again; silently acknowledging would strand a pending quote.
+        await finishFailedPromo({ success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+            failureStage: marker ? 'POST_RESPONSE_UNVERIFIED' : 'PRE_SUBMIT', providerPostSent: marker },
+        heartbeat.assertCurrent);
     } finally {
         heartbeat.stop();
         await accountPool.releaseExecutionLease(reserved.lease).catch(() => false);
@@ -1958,6 +2065,17 @@ async function handleCompletePurchaseHttp(
         return;
     }
     if (operation.providerMutationStartedAt || providerMutationMayHaveStarted(operation.responseData)) {
+        if (operation.renewalFlowVersion === 2 && !operation.providerMutationStartedAt &&
+            !finalProviderMutationMayHaveStarted(operation.responseData)) {
+            // A replay after Add/Sell must not send either request again. Those
+            // requests only prepared the choice; settle the untouched attempt.
+            await finalizePreMutationRenewalTermination({
+                operationId, terminalStatus: 'FAILED', allowedStatuses: [operation.status],
+                responseMessage: 'PACKAGE_SELECTION_UNVERIFIED',
+                releaseReason: 'PROVIDER_SELECTION_PRE_FINAL_REPLAY',
+            });
+            return;
+        }
         await prisma.operation.updateMany({
             where: { id: operationId, status: { notIn: HARD_TERMINAL_STATUS_LIST } },
             data: {
@@ -2013,6 +2131,17 @@ async function handleCompletePurchaseHttp(
         lastError = attemptResult.error || 'Unknown error';
         currentReservationGeneration = attemptResult.reservationGeneration ?? currentReservationGeneration;
 
+        if (operation.renewalFlowVersion === 2) {
+            // No OK/Pay is reachable from COMPLETE_PURCHASE. A failed Add,
+            // Sell or STB step cannot be retried, but is not a payment hold.
+            await finalizePreMutationRenewalTermination({
+                operationId, terminalStatus: 'FAILED', allowedStatuses: ['COMPLETING'],
+                responseMessage: lastError,
+                releaseReason: 'PROVIDER_SELECTION_PRE_FINAL_FAILURE',
+            });
+            return;
+        }
+
         if (attemptResult.providerMutationMayHaveStarted) {
             const reviewData = mergeOperationPhaseData(currentResponseData, {
                 operationPhase: 'POST_FINAL_PAY_REVIEW',
@@ -2037,8 +2166,6 @@ async function handleCompletePurchaseHttp(
 
         // Version 2 is bound to one account and one saved WebForms offer.
         // A fresh login or a different account would create a different quote.
-        if (operation.renewalFlowVersion === 2) throw new Error(lastError);
-
         // Check if we should retry with a different account
         if (!attemptResult.shouldRetryDifferentAccount) {
             console.log(`[HTTP] ❌ Error is not recoverable with different account: ${lastError}`);
@@ -2136,6 +2263,7 @@ async function attemptPurchaseWithAccount(
     let leaseHeartbeat: ReturnType<typeof startExecutionLeaseHeartbeat> | null = null;
     let saleMutationStarted = false;
     let providerCartStarted = false;
+    let selectionFailure: { stage: string; reason: string } | null = null;
     try {
         reservedExecution = await reserveProviderAccountForFulfillment({
             operationId,
@@ -2407,7 +2535,8 @@ async function attemptPurchaseWithAccount(
             };
         }
 
-        // Purchase failed
+        // Purchase failed before the customer's final OK/Pay confirmation.
+        selectionFailure = result.selectionFailure || null;
         throw new Error(result.message);
 
     } catch (error: unknown) {
@@ -2420,7 +2549,9 @@ async function attemptPurchaseWithAccount(
                     try {
                         await holdQuoteConflict(prisma, {
                             operationId, revision: quoteRevisionOf(operation.responseData), selectedPackage,
-                            ...(!providerCartStarted ? { preSale: { beinAccountId: accountId } } : {}),
+                            ...((renewalFlowVersion === 2 || !providerCartStarted)
+                                ? { preSale: { beinAccountId: accountId } } : {}),
+                            ...(selectionFailure ? { reasonCode: selectionFailure.reason } : {}),
                         }, leaseHeartbeat.assertCurrent);
                         break;
                     } catch (holdError: unknown) {
@@ -3882,6 +4013,17 @@ function providerMutationMayHaveStarted(responseData: unknown): boolean {
     const data = parseResponseDataObject(responseData);
     return data.providerMutationMayHaveStarted === true ||
         phase === 'PROVIDER_SALE_PREPARATION_STARTED' ||
+        phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
+        phase === 'FINAL_PAY_REQUEST_STARTED' ||
+        phase === 'FINAL_PAY_SUBMITTED' ||
+        phase === 'POST_FINAL_PAY_REVIEW';
+}
+
+function finalProviderMutationMayHaveStarted(responseData: unknown): boolean {
+    const phase = getOperationPhase(responseData);
+    const data = parseResponseDataObject(responseData);
+    return data.finalPaySubmitted === true ||
+        Boolean(data.finalProviderMutationStartedAt || data.finalPayRequestStartedAt || data.finalPaySubmittedAt) ||
         phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
         phase === 'FINAL_PAY_REQUEST_STARTED' ||
         phase === 'FINAL_PAY_SUBMITTED' ||

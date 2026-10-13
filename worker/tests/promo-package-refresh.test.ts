@@ -27,7 +27,7 @@ test('actual orchestrator retries promo reservation failure without financial cl
         './lib/session-cache', './lib/package-cache', './lib/bein-login-tracking', './lib/bein-connection-mode',
         './lib/final-pay-evidence', './lib/fulfillment-finalization', './lib/renewal-no-charge-finalization',
         './lib/pre-mutation-renewal-finalization', './lib/renewal-verification-retry', './lib/fulfillment-baseline',
-        './lib/same-day-report-fulfillment',
+        './lib/same-day-report-fulfillment', '../../shared/operations/financial-lock',
         './lib/provider-account-reservation', './lib/renewal-fulfillment-correlation', '../../shared/operations/renewal-fulfillment']) {
         deps[name] = new Proxy({}, { get: (_target, key) => () => { financialCalls.push(`${name}:${String(key)}`); throw new Error('UNEXPECTED_DEPENDENCY') } })
     }

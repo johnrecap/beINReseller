@@ -40,7 +40,7 @@ import {
 } from './types';
 import { encodeSuccessfulControls } from './webforms-form';
 import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
-import { assertPreparedRenewal, buildPromoSubmission, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase } from './renewal-purchase-guard';
+import { assertPreparedRenewal, buildPromoSubmission, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, RenewalSummaryConflict, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase, type RenewalSummaryStage } from './renewal-purchase-guard';
 import {
     scanSoldPackagesReport as runSoldPackagesReportScan,
     type SoldReportScanOptions,
@@ -699,7 +699,7 @@ export class HttpClientService {
                 // NOTE: beIN formats prices with commas (e.g., "1,200 USD")
                 // so we must include commas in the digit capture group and strip them before parsing
                 const rowText = $row.text();
-                const priceMatches = [...rowText.matchAll(/(?:^|[^\d.])([\d,]+(?:\.\d+)?)\s*USD\b/gi)];
+                const priceMatches = [...rowText.matchAll(/(?:^|[^\d.])([\d,]+(?:\.\d+)?)\s*([A-Z]{3})\b/g)];
                 const price = priceMatches.length === 1 ? Number(priceMatches[0][1].replace(/,/g, '')) : 0;
 
                 if (price > 0) {
@@ -707,10 +707,10 @@ export class HttpClientService {
                         index,
                         name,
                         price,
-                        currency: 'USD',
+                        currency: priceMatches[0][2],
                         checkboxValue: checkboxPostKey
                     });
-                    console.log(`[HTTP] Package ${index}: "${name}" - ${price} USD${logPrefix ? ` ${logPrefix}` : ''}`);
+                    console.log(`[HTTP] Package ${index}: "${name}" - ${price} ${priceMatches[0][2]}${logPrefix ? ` ${logPrefix}` : ''}`);
                 } else invalid = true;
             }
         });
@@ -2126,11 +2126,13 @@ export class HttpClientService {
      * @returns Updated packages with discounted prices
      */
     async applyPromoCode(promoCode: string, cardNumber: string, smartcardType: string = 'CISCO',
-        assertExecutionCurrent?: () => Promise<void>, removing = false): Promise<LoadPackagesResult> {
+        assertExecutionCurrent?: () => Promise<void>, removing = false,
+        onSubmitStarted?: () => Promise<void>): Promise<LoadPackagesResult> {
         const previousSelection = this.renewalSelection;
         this.renewalSelection = null;
         this.preparedRenewal = null;
-        console.log('[HTTP] Applying promo code');
+        let providerPostSent = false;
+        console.log(`[HTTP] ${removing ? 'Removing' : 'Applying'} promo code`);
 
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
@@ -2138,7 +2140,8 @@ export class HttpClientService {
             if (!this.currentViewState || !previousSelection || !previousSelection.formHtml || previousSelection.cardNumber !== cardNumber ||
                 previousSelection.smartcardType !== smartcardType || (!promoCode.trim() && !removing) ||
                 canonicalJson(previousSelection.viewState) !== canonicalJson(this.currentViewState)) {
-                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
+                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+                    failureStage: 'PRE_SUBMIT', providerPostSent: false };
             }
             if (removing && previousSelection.promoCode === null) {
                 this.renewalSelection = previousSelection;
@@ -2153,6 +2156,8 @@ export class HttpClientService {
 
             console.log('[HTTP] POST promo code submit...');
             await assertExecutionCurrent?.();
+            await onSubmitStarted?.();
+            providerPostSent = true;
             const promoRes = await this.axios.post(
                 renewUrl,
                 promoFormData,
@@ -2166,7 +2171,8 @@ export class HttpClientService {
             const error = this.checkForErrors(promoRes.data);
             if (error) {
                 console.log('[HTTP] Promo code rejected by provider');
-                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
+                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+                    failureStage: 'PROVIDER_REJECTED', providerPostSent };
             }
 
             // Update ViewState from response
@@ -2186,7 +2192,8 @@ export class HttpClientService {
                     packages.some(pkg => !previousSelection.packages.some(old => sameQuotedPackage(pkg, old)));
                 if (!this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION ||
                     promoInputs.length !== 1 || String(promoInputs.val()).trim() !== promoCode || !changed) {
-                    return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
+                    return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+                        failureStage: 'POST_RESPONSE_UNVERIFIED', providerPostSent };
                 }
             }
 
@@ -2201,11 +2208,14 @@ export class HttpClientService {
                     return {
                         success: false,
                         packages: [],
-                        error: 'PROMO_REFRESH_UNVERIFIED'
+                        error: 'PROMO_REFRESH_UNVERIFIED',
+                        failureStage: 'PROVIDER_REJECTED',
+                        providerPostSent
                     };
                 }
 
-                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
+                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+                    failureStage: 'POST_RESPONSE_UNVERIFIED', providerPostSent };
             }
 
             console.log(`[HTTP] ✅ Loaded ${packages.length} packages with promo code`);
@@ -2218,24 +2228,36 @@ export class HttpClientService {
             };
 
         } catch {
-            console.error('[HTTP] Apply promo failed without a verified quote');
-            return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
+            console.error(`[HTTP] Promo ${removing ? 'removal' : 'application'} failed at ${providerPostSent ? 'POST_RESPONSE_UNVERIFIED' : 'PRE_SUBMIT'}`);
+            return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+                failureStage: providerPostSent ? 'POST_RESPONSE_UNVERIFIED' : 'PRE_SUBMIT', providerPostSent };
         }
     }
 
     async removePromoCode(cardNumber: string, smartcardType: string = 'CISCO',
-        assertExecutionCurrent?: () => Promise<void>): Promise<LoadPackagesResult> {
-        return this.applyPromoCode('', cardNumber, smartcardType, assertExecutionCurrent, true);
+        assertExecutionCurrent?: () => Promise<void>,
+        onSubmitStarted?: () => Promise<void>): Promise<LoadPackagesResult> {
+        return this.applyPromoCode('', cardNumber, smartcardType, assertExecutionCurrent, true, onSubmitStarted);
     }
 
     // =============================================
     // PURCHASE FLOW
     // =============================================
 
-    private readPurchaseResponse(html: string, selected: QuotePackage, cardNumber: string, smartcardType: string) {
+    private readPurchaseResponse(html: string, selected: QuotePackage, cardNumber: string,
+        smartcardType: string, stage: RenewalSummaryStage) {
         this.currentViewState = this.extractHiddenFields(html);
-        if (!this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION) throw new Error('PACKAGE_QUOTE_CHANGED');
-        return readRenewalSummary(html, selected, cardNumber, smartcardType);
+        if (!this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION) {
+            throw new RenewalSummaryConflict(stage, 'WEBFORMS_STATE_MISSING');
+        }
+        try {
+            return readRenewalSummary(html, selected, cardNumber, smartcardType, stage);
+        } catch (error) {
+            if (error instanceof RenewalSummaryConflict) {
+                console.warn(`[HTTP] ${error.stage} cart validation stopped: ${error.reason}`);
+            }
+            throw error;
+        }
     }
 
     /**
@@ -2258,7 +2280,7 @@ export class HttpClientService {
         requireSavedQuoteRevision = false,
         expectedContext?: { cardNumber: string; smartcardType: string }
     ): Promise<PurchaseResult> {
-        console.log(`[HTTP] Completing purchase: ${selectedPackage.name} - ${selectedPackage.price} USD`);
+        console.log(`[HTTP] Completing purchase: ${selectedPackage.name} - ${selectedPackage.price} ${selectedPackage.currency || 'USD'}`);
 
         const stb = stbNumber || this.currentStbNumber;
         if (!stb) {
@@ -2327,7 +2349,7 @@ export class HttpClientService {
                 return { success: false, message: `Add to cart failed: ${addError}` };
             }
 
-            this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType);
+            this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType, 'ADD');
             console.log('[HTTP] ✅ Added to cart');
 
             // Step 2: Click Sell button
@@ -2357,7 +2379,7 @@ export class HttpClientService {
                 return { success: false, message: `Sell failed: ${sellError}` };
             }
 
-            this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType);
+            this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType, 'SELL');
             console.log('[HTTP] ✅ Sell clicked');
 
             // Step 3: Enter STB number in both fields
@@ -2387,7 +2409,7 @@ export class HttpClientService {
                 return { success: false, message: `STB entry failed: ${stbError}` };
             }
 
-            const summary = this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType);
+            const summary = this.readPurchaseResponse(res.data, selectedPackage, selection.cardNumber, selection.smartcardType, 'STB');
             requirePurchaseControl(res.data, 'ctl00$ContentPlaceHolder1$btnStbOk', 'Ok');
             this.preparedRenewal = { selectedPackage: { ...selectedPackage }, summary,
                 viewState: { ...this.currentViewState }, stbNumber: stb, stbFields: readStbFields(res.data, stb, true) };
@@ -2399,7 +2421,7 @@ export class HttpClientService {
                 console.log('[HTTP] ⏸️ Paused for user confirmation');
                 return {
                     success: true,
-                    message: `Ready to confirm - ${selectedPackage.name} at ${selectedPackage.price} USD`,
+                    message: `Ready to confirm - ${selectedPackage.name} at ${selectedPackage.price} ${selectedPackage.currency || 'USD'}`,
                     awaitingConfirm: true,
                     packageEvidence: summary
                 };
@@ -2411,6 +2433,10 @@ export class HttpClientService {
         } catch (error: unknown) {
             this.preparedRenewal = null;
             console.error('[HTTP] Purchase error:', getHttpErrorMessage(error));
+            if (error instanceof RenewalSummaryConflict) {
+                return { success: false, message: 'PACKAGE_QUOTE_CHANGED',
+                    selectionFailure: { stage: error.stage, reason: error.reason } };
+            }
             if (getHttpErrorMessage(error) === 'PACKAGE_QUOTE_CHANGED') return { success: false, message: 'PACKAGE_QUOTE_CHANGED' };
             return { success: false, message: `Purchase failed: ${getHttpErrorMessage(error)}` };
         }
@@ -2604,7 +2630,8 @@ export class HttpClientService {
 
             // Extract the actual tbSerial1 value from the page
             const tbSerial1Value = $('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').val() as string || '';
-            this.readPurchaseResponse(res.data, expectedSelection.selectedPackage, expectedSelection.cardNumber, prepared.summary.smartcardType);
+            this.readPurchaseResponse(res.data, expectedSelection.selectedPackage, expectedSelection.cardNumber,
+                prepared.summary.smartcardType, 'FINAL_OK');
             requirePurchaseControl(res.data, 'ctl00$ContentPlaceHolder1$BtnPay', 'Pay');
             requirePurchaseControl(res.data, 'ctl00$ContentPlaceHolder1$Epay', 'RbdDirectPay');
 

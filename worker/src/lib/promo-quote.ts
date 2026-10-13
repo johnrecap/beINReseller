@@ -19,15 +19,18 @@ export function isCurrentPromo(operation: { status: string; responseData: unknow
 }
 
 export function promoResultData(previous: unknown, packages: readonly QuotePackage[], revision: number,
-    promoCode: string | null, success: boolean) {
+    promoCode: string | null, success: boolean,
+    failure?: Pick<LoadPackagesResult, 'error' | 'failureStage' | 'providerPostSent'>) {
     return success ? readyPackageQuote(previous, packages, revision, promoCode)
         : { ...quoteData(previous), quoteRevision: revision, quoteState: 'FAILED' as const,
-            refreshing: false, promoApplied: false, error: 'PROMO_REFRESH_FAILED' }
+            refreshing: false, promoApplied: false, error: failure?.error || 'PROMO_REFRESH_FAILED',
+            promoFailureStage: failure?.failureStage || 'PRE_SUBMIT',
+            promoProviderPostSent: failure?.providerPostSent === true }
 }
 
 export async function publishPromoQuote(db: { $transaction<T>(run: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> },
     input: { operationId: string; revision: number; promoCode?: string; promoAction: PromoAction;
-        result: { success: boolean; packages: AvailablePackage[] } }, assertCurrent?: () => Promise<void>) {
+        result: LoadPackagesResult }, assertCurrent?: () => Promise<void>) {
     return db.$transaction(async tx => {
         if (!await lockFinancialOperation(tx, input.operationId)) return false
         const current = await tx.operation.findUnique({ where: { id: input.operationId } })
@@ -36,7 +39,7 @@ export async function publishPromoQuote(db: { $transaction<T>(run: (tx: Prisma.T
         const succeeded = input.result.success && input.result.packages.length > 0
         const packages = input.result.packages.map(pkg => ({ ...pkg, checkboxSelector: pkg.checkboxValue }))
         const data = promoResultData(current.responseData, packages, input.revision,
-            input.promoAction === 'REMOVE' ? null : input.promoCode || null, succeeded)
+            input.promoAction === 'REMOVE' ? null : input.promoCode || null, succeeded, input.result)
         const saved = await tx.operation.updateMany({ where: { id: input.operationId, status: 'AWAITING_PACKAGE' }, data: {
             ...(succeeded ? { availablePackages: packages, promoCode: input.promoAction === 'REMOVE' ? null : input.promoCode } : {}),
             responseData: JSON.stringify(data),
@@ -47,7 +50,7 @@ export async function publishPromoQuote(db: { $transaction<T>(run: (tx: Prisma.T
 
 export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> },
     input: { operationId: string; revision: number; selectedPackage: unknown;
-        preSale?: { beinAccountId: string } }, assertCurrent: () => Promise<void>) {
+        preSale?: { beinAccountId: string }; reasonCode?: string }, assertCurrent: () => Promise<void>) {
     return db.$transaction(async tx => {
         if (!await lockFinancialOperation(tx, input.operationId)) return false
         const current = await tx.operation.findUnique({ where: { id: input.operationId }, include: {
@@ -60,8 +63,13 @@ export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.T
             canonicalJson(current.selectedPackage) !== canonicalJson(input.selectedPackage)) return false
         await assertCurrent()
         const data = quoteData(current.responseData)
-        // preSale is supplied only by the fenced worker before Add/Sell. Missing
-        // timestamps alone never establish this observation for historical holds.
+        // Only the fenced owner can attest this is selection preparation. Add,
+        // Sell and STB are before final OK/Pay in flow v2; their replay remains
+        // blocked even when the attempt can safely end without financial review.
+        const preparationOnly = current.renewalFlowVersion === 2 &&
+            data.operationPhase === 'PROVIDER_SALE_PREPARATION_STARTED' &&
+            data.providerMutationMayHaveStarted === true &&
+            typeof data.providerPreparationMutationStartedAt === 'string'
         const safePreSale = !!input.preSale && input.preSale.beinAccountId === current.beinAccountId &&
             current.type === 'RENEW' && current.purpose === 'RENEWAL' && !!current.userId && !current.customerId &&
             current.amount === 0 && current.transactions.length === 0 && current.refundSettlements.length === 0 &&
@@ -69,15 +77,20 @@ export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.T
             !current.manualFulfillmentEvidence && current.dispatches.length === 0 &&
             !current.providerMutationStartedAt && !current.providerMutationStage &&
             current.providerPaymentState === 'NOT_SUBMITTED' && current.fulfillmentState === 'UNVERIFIED' &&
-            current.fulfillmentAuthority === 'NONE' && data.operationPhase === 'PACKAGE_PREPARATION' &&
-            data.finalPaySubmitted === false && data.providerMutationMayHaveStarted !== true &&
+            current.fulfillmentAuthority === 'NONE' &&
+            (data.operationPhase === 'PACKAGE_PREPARATION' &&
+                data.providerMutationMayHaveStarted !== true || preparationOnly) &&
+            data.finalPaySubmitted === false &&
             !data.finalProviderMutationStartedAt && !data.finalPayRequestStartedAt && !data.finalPaySubmittedAt &&
             await tx.beinAccountSpendLedger.count({ where: { operationId: current.id } }) === 0
         const closedAt = new Date()
+        const failureCode = input.reasonCode && input.reasonCode !== 'CART_QUOTE_MISMATCH'
+            ? 'PACKAGE_SELECTION_UNVERIFIED' : 'PACKAGE_QUOTE_CHANGED'
         const saved = await tx.operation.updateMany({ where: { id: input.operationId, status: 'COMPLETING' }, data: {
-            status: safePreSale ? 'FAILED' : 'REVIEW_REQUIRED', responseMessage: 'PACKAGE_QUOTE_CHANGED', finalConfirmExpiry: null,
+            status: safePreSale ? 'FAILED' : 'REVIEW_REQUIRED', responseMessage: failureCode, finalConfirmExpiry: null,
             ...(safePreSale ? { completedAt: closedAt, heartbeatExpiry: null } : {}),
             responseData: JSON.stringify({ ...data, quoteConflict: true,
+                ...(input.reasonCode ? { quoteConflictReason: input.reasonCode } : {}),
                 ...(safePreSale ? { quoteConflictResolution: 'VERIFIED_PRE_SALE_NO_DEBIT', safeToRestart: true } : {}) }),
         } })
         if (saved.count === 1 && safePreSale) {
@@ -97,19 +110,22 @@ export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.T
 export async function refreshPromoPackages(client: {
     loadPackages(cardNumber: string, smartcardType: string): Promise<LoadPackagesResult>
     applyPromoCode(code: string, cardNumber: string, smartcardType: string,
-        assertCurrent?: () => Promise<void>): Promise<LoadPackagesResult>
+        assertCurrent?: () => Promise<void>, removing?: boolean,
+        onSubmitStarted?: () => Promise<void>): Promise<LoadPackagesResult>
     removePromoCode?(cardNumber: string, smartcardType: string,
-        assertCurrent?: () => Promise<void>): Promise<LoadPackagesResult>
+        assertCurrent?: () => Promise<void>, onSubmitStarted?: () => Promise<void>): Promise<LoadPackagesResult>
 }, input: { cardNumber: string; smartcardType: string; promoAction: PromoAction;
-    promoCode?: string; reuseCurrentPage?: boolean }, assertCurrent: () => Promise<void>) {
+    promoCode?: string; reuseCurrentPage?: boolean }, assertCurrent: () => Promise<void>,
+    onSubmitStarted?: () => Promise<void>) {
     await assertCurrent()
     if (input.reuseCurrentPage) {
         if (input.promoAction === 'REMOVE') {
             if (!client.removePromoCode) return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' }
-            return client.removePromoCode(input.cardNumber, input.smartcardType, assertCurrent)
+            return client.removePromoCode(input.cardNumber, input.smartcardType, assertCurrent, onSubmitStarted)
         }
         if (!input.promoCode) return { success: false, packages: [], error: 'PROMO_REFRESH_FAILED' }
-        return client.applyPromoCode(input.promoCode, input.cardNumber, input.smartcardType, assertCurrent)
+        return client.applyPromoCode(input.promoCode, input.cardNumber, input.smartcardType,
+            assertCurrent, false, onSubmitStarted)
     }
     const loaded = await client.loadPackages(input.cardNumber, input.smartcardType)
     if (!loaded.success || input.promoAction === 'REMOVE') return loaded

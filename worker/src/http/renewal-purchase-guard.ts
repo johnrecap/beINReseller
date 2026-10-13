@@ -25,6 +25,13 @@ export interface PreparedRenewalPurchase {
 
 const normalized = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase()
 const conflict = () => new Error('PACKAGE_QUOTE_CHANGED')
+export type RenewalSummaryStage = 'ADD' | 'SELL' | 'STB' | 'FINAL_OK'
+export class RenewalSummaryConflict extends Error {
+    constructor(readonly stage: RenewalSummaryStage, readonly reason: string) {
+        super('PACKAGE_QUOTE_CHANGED')
+        this.name = 'RenewalSummaryConflict'
+    }
+}
 
 export class ProviderSmartcardFormError extends Error {
     constructor(readonly reason: string, readonly requestedType: string) {
@@ -173,42 +180,80 @@ export function readCheckedCardStb(html: string, cardNumber: string): string | n
     return unique.length === 1 ? unique[0] : null
 }
 
-/** Observed Add cart contract. Later responses must retain this evidence or stop;
- * an unknown confirmation layout is never replaced with a total/balance alone. */
-export function readRenewalSummary(html: string, expected: QuotePackage, cardNumber: string, smartcardType = 'CISCO'): RenewalSummaryEvidence {
+/** The observed Add cart has a checkbox/footer. Later confirmation pages may
+ * render a compact table, but still need one named item, exact money, the
+ * provider's total and the same card/promo identity. */
+export function readRenewalSummary(html: string, expected: QuotePackage, cardNumber: string,
+    smartcardType = 'CISCO', stage: RenewalSummaryStage = 'ADD'): RenewalSummaryEvidence {
     const $ = cheerio.load(html)
     const summaries = $('table[id="ContentPlaceHolder1_gvPackagesCart"]')
-    if (!Number.isSafeInteger(expected.quoteRevision) || expected.packageKey !== `${expected.quoteRevision}.${expected.index}`) throw conflict()
+    const reject = (reason: string): never => { throw new RenewalSummaryConflict(stage, reason) }
+    if (!Number.isSafeInteger(expected.quoteRevision) ||
+        expected.packageKey !== `${expected.quoteRevision}.${expected.index}`) reject('QUOTE_IDENTITY_INVALID')
     if (summaries.length !== 1 || summaries.find('table').length ||
-        summaries.closest('fieldset').find('table').length !== 1 ||
-        $('table').filter((_, table) => /cart/i.test($(table).attr('id') || '')).length !== 1 ||
-        normalized(summaries.closest('fieldset').children('legend').text()) !== 'shopping cart') throw conflict()
+        $('table').filter((_, table) => /cart/i.test($(table).attr('id') || '')).length !== 1) {
+        reject('CART_TABLE_MISSING_OR_AMBIGUOUS')
+    }
+    const fieldset = summaries.closest('fieldset')
+    const legend = normalized(fieldset.children('legend').text())
+    if (stage === 'ADD' ? fieldset.length !== 1 || fieldset.find('table').length !== 1 ||
+        legend !== 'shopping cart' : fieldset.length > 0 && legend !== '' && legend !== 'shopping cart') {
+        reject('CART_CONTEXT_UNVERIFIED')
+    }
     const rows = summaries.find('tr')
-    if (rows.length !== 3) throw conflict()
+    if (rows.length !== 3 && !(stage !== 'ADD' && rows.length === 2)) reject('CART_ROW_COUNT')
     const headers = $(rows[0]).children('th').map((_index, cell) => normalized($(cell).text())).get()
-    if (canonicalJson(headers) !== canonicalJson(['', 'package name', 'price'])) throw conflict()
+    if (stage === 'ADD' ? canonicalJson(headers) !== canonicalJson(['', 'package name', 'price']) :
+        !(headers.length === 2 && ['package', 'package name'].includes(headers[0]) &&
+            ['price', 'amount'].includes(headers[1])) &&
+        !(headers.length === 3 && ['', 'select'].includes(headers[0]) &&
+            ['package', 'package name'].includes(headers[1]) &&
+            ['price', 'amount'].includes(headers[2]))) reject('CART_HEADERS_UNVERIFIED')
     const cells = $(rows[1]).children('td')
-    if (cells.length !== headers.length || cells.is('[colspan], [rowspan]')) throw conflict()
-    const checkbox = cells.eq(0).find('input[type="checkbox"]')
-    const names = cells.eq(1).find('span[id^="ContentPlaceHolder1_gvPackagesCart_lblName_"]')
-    if (checkbox.length !== 1 || !/^ctl00\$ContentPlaceHolder1\$gvPackagesCart\$ctl\d+\$cbSelect$/.test(checkbox.attr('name') || '') ||
-        names.length !== 1 || names.text().trim() !== cells.eq(1).text().trim()) throw conflict()
-    const packageName = names.text().trim()
-    const amount = money(cells.eq(2).text())
-    const total = $(rows[2]).children('td')
-    if (total.length !== 2 || total.eq(0).attr('colspan') !== '2' ||
-        normalized(total.eq(0).clone().children().remove().end().text()) !== 'remaining') throw conflict()
-    const totalAmount = money(total.eq(1).text())
+    if (cells.length !== headers.length || cells.is('[colspan], [rowspan]')) reject('CART_ITEM_CELLS_UNVERIFIED')
+    const nameCell = cells.eq(headers.length - 2)
+    const checkbox = headers.length === 3 ? cells.eq(0).find('input[type="checkbox"]') : summaries.find('input[type="checkbox"]')
+    if ((stage === 'ADD' || checkbox.length > 0) &&
+        (checkbox.length !== 1 || !/^ctl00\$ContentPlaceHolder1\$gvPackagesCart\$ctl\d+\$cbSelect$/.test(checkbox.attr('name') || ''))) {
+        reject('CART_SELECTION_CONTROL_UNVERIFIED')
+    }
+    const names = nameCell.find('span[id^="ContentPlaceHolder1_gvPackagesCart_lblName_"]')
+    const plainName = stage !== 'ADD' && nameCell.children().length === 0 ? nameCell.text().trim() : ''
+    if (names.length === 1 ? names.text().trim() !== nameCell.text().trim() :
+        names.length !== 0 || !plainName) reject('CART_PACKAGE_NAME_UNVERIFIED')
+    const packageName = names.length === 1 ? names.text().trim() : plainName
+    let amount: ReturnType<typeof money>
+    try { amount = money(cells.eq(headers.length - 1).text()) }
+    catch { return reject('CART_ITEM_AMOUNT_UNVERIFIED') }
+    if (rows.length === 3) {
+        const total = $(rows[2]).children('td')
+        const label = normalized(total.eq(0).clone().children().remove().end().text())
+        if (total.length !== 2 || (stage === 'ADD' && total.eq(0).attr('colspan') !== '2') ||
+            !(stage === 'ADD' ? label === 'remaining' : ['remaining', 'total', 'total amount', 'grand total'].includes(label))) {
+            reject('CART_TOTAL_ROW_UNVERIFIED')
+        }
+        let totalAmount: ReturnType<typeof money>
+        try { totalAmount = money(total.eq(1).text()) }
+        catch { return reject('CART_TOTAL_AMOUNT_UNVERIFIED') }
+        if (totalAmount.price !== amount.price || totalAmount.currency !== amount.currency) {
+            reject('CART_TOTAL_MISMATCH')
+        }
+    }
     const totalLabels = $('[id="ContentPlaceHolder1_lblTotalAmount"]')
-    if (totalLabels.length !== 1) throw conflict()
-    const displayedTotal = money(totalLabels.text())
+    if (totalLabels.length !== 1) reject('CART_DISPLAYED_TOTAL_MISSING_OR_AMBIGUOUS')
+    let displayedTotal: ReturnType<typeof money>
+    try { displayedTotal = money(totalLabels.text()) }
+    catch { return reject('CART_DISPLAYED_TOTAL_UNVERIFIED') }
     if (!sameQuotedPackage({ name: packageName, ...amount }, expected) ||
-        totalAmount.price !== amount.price || totalAmount.currency !== amount.currency ||
-        displayedTotal.price !== amount.price || displayedTotal.currency !== amount.currency) throw conflict()
-    const identity = readProviderCardIdentity(html, cardNumber, smartcardType)
+        displayedTotal.price !== amount.price || displayedTotal.currency !== amount.currency) reject('CART_QUOTE_MISMATCH')
+    let identity: ReturnType<typeof readProviderCardIdentity>
+    try { identity = readProviderCardIdentity(html, cardNumber, smartcardType) }
+    catch { return reject('CART_CARD_IDENTITY_UNVERIFIED') }
     const promos = $('input[name="ctl00$ContentPlaceHolder1$txtPromoCode"]')
-    const promoCode = promos.length === 1 ? String(promos.val() || '').trim() || null : null
-    if (promos.length > 1 || promoCode !== (expected.appliedPromoCode || null)) throw conflict()
+    const promoCode = promos.length === 1 ? String(promos.val() || '').trim() || null
+        : stage === 'ADD' ? null : expected.appliedPromoCode || null
+    if (promos.length > 1 || (stage === 'ADD' && promos.length !== 1) ||
+        promoCode !== (expected.appliedPromoCode || null)) reject('CART_PROMO_MISMATCH')
     return { packageName, ...amount, ...identity, promoCode, quoteRevision: expected.quoteRevision!, packageKey: expected.packageKey! }
 }
 

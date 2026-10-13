@@ -38,6 +38,7 @@ function finalProviderMutationMayHaveStarted(input: {
     providerMutationStartedAt: Date | null
     providerMutationStage: string | null
     providerPaymentState: string | null
+    renewalFlowVersion: number | null
 }): boolean {
     if (input.providerMutationStartedAt || input.providerMutationStage) return true
     if (input.providerPaymentState && input.providerPaymentState !== 'NOT_SUBMITTED') return true
@@ -50,7 +51,10 @@ function finalProviderMutationMayHaveStarted(input: {
         data.finalPaySubmittedAt,
     ].some((value) => value !== null && value !== undefined && value !== '')
     if (hasLegacyMutationTimestamp) return true
-    if (data.finalPaySubmitted === true || data.providerMutationMayHaveStarted === true) return true
+    if (data.finalPaySubmitted === true) return true
+    if (data.providerMutationMayHaveStarted === true &&
+        !(input.renewalFlowVersion === 2 &&
+            ['PROVIDER_SALE_PREPARATION_STARTED', 'FINAL_CONFIRMATION_REQUESTED'].includes(String(phase)))) return true
     if (
         phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
         phase === 'FINAL_PAY_REQUEST_STARTED' ||
@@ -60,6 +64,7 @@ function finalProviderMutationMayHaveStarted(input: {
     if (input.status !== 'COMPLETING') return false
     return ![
         'PACKAGE_PREPARATION',
+        'PROVIDER_SALE_PREPARATION_STARTED',
         'CANCELLATION_CONFIRM',
         'FINAL_CONFIRMATION',
         'FINAL_CONFIRMATION_REQUESTED',
@@ -129,6 +134,7 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
                     providerMutationStartedAt: true,
                     providerMutationStage: true,
                     providerPaymentState: true,
+                    renewalFlowVersion: true,
                     fulfillmentState: true,
                     fulfillmentAuthority: true,
                     chargedBeinSpendLedger: { select: { id: true } },

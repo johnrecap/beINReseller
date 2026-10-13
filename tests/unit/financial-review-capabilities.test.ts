@@ -44,6 +44,31 @@ test('T024 affirmative non-submission permits resolution only while final dispat
     }
 })
 
+test('v2 selection preparation with no debit can be resolved only without final mutation or proof', () => {
+    const input = { ...base, renewalFlowVersion: 2, amount: 0, transactions: [],
+        providerMutationStartedAt: null, providerMutationStage: null,
+        providerPaymentState: 'NOT_SUBMITTED', responseData: {
+            operationPhase: 'PROVIDER_SALE_PREPARATION_STARTED',
+            providerMutationMayHaveStarted: true, finalPaySubmitted: false,
+        } }
+    assert.ok(classifyFinancialReview(input).allowedActions.includes('RESOLVE_PRE_MUTATION'))
+    assert.ok(classifyFinancialReview({ ...input, responseData: {
+        operationPhase: 'FINAL_CONFIRMATION_REQUESTED',
+        providerMutationMayHaveStarted: true, finalPaySubmitted: false,
+    } }).allowedActions.includes('RESOLVE_PRE_MUTATION'))
+    assert.equal(classifyFinancialReview({ ...input, renewalFlowVersion: 1 })
+        .allowedActions.includes('RESOLVE_PRE_MUTATION'), false)
+    assert.equal(classifyFinancialReview({ ...input, responseData: {
+        operationPhase: 'FINAL_CONFIRMATION_REQUESTED',
+        providerMutationMayHaveStarted: true, finalPaySubmitted: false,
+        finalPayRequestStartedAt: '2026-10-13T01:00:01Z',
+    } }).allowedActions.includes('RESOLVE_PRE_MUTATION'), false)
+    assert.equal(classifyFinancialReview({ ...input, providerMutationStartedAt: new Date() })
+        .allowedActions.includes('RESOLVE_PRE_MUTATION'), false)
+    assert.equal(classifyFinancialReview({ ...input, chargedBeinSpendLedger: { id: 'spend' } })
+        .allowedActions.includes('RESOLVE_PRE_MUTATION'), false)
+})
+
 test('T024 legacy post-attempt refund remains held without attributable rejection and independent non-execution', () => {
     const result = classifyFinancialReview({ ...base, providerMutationStartedAt: null, providerMutationStage: null,
         providerPaymentState: 'NOT_CHARGED', fulfillmentState: 'NOT_FOUND' })

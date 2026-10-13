@@ -118,6 +118,23 @@ function summary(name = selected.name, price = '86.40 USD') {
         <input type="radio" name="ctl00$ContentPlaceHolder1$Epay" value="RbdDirectPay">`
 }
 
+// Synthetic Sell response: the cart still names one offer and amount, but its
+// presentation no longer repeats the Add checkbox, legend or Remaining row.
+function compactSellSummary(name = selected.name, price = '86.40 USD') {
+    return hidden + `<input name="ctl00$ContentPlaceHolder1$tbSerial1" value="${providerCard}" disabled>
+        <select name="ctl00$ContentPlaceHolder1$ddlType" disabled>
+            <option value="8" selected>Smartcard: CISCO</option></select>
+        <input name="ctl00$ContentPlaceHolder1$txtPromoCode" value="">
+        <table id="ContentPlaceHolder1_gvPackagesCart">
+            <tr><th>Package</th><th>Amount</th></tr>
+            <tr><td><span id="ContentPlaceHolder1_gvPackagesCart_lblName_0">${name}</span></td>
+                <td>${price}</td></tr>
+        </table><span id="ContentPlaceHolder1_lblTotalAmount">${price}</span>
+        <input name="ctl00$ContentPlaceHolder1$tbStbSerial1" value="synthetic-stb">
+        <input name="ctl00$ContentPlaceHolder1$tbStbSerial2" value="synthetic-stb">
+        <input type="submit" name="ctl00$ContentPlaceHolder1$btnStbOk" value="Ok">`
+}
+
 function purchaseClient(responses: string[]) {
     const posts: URLSearchParams[] = []
     const client = Object.assign(Object.create(httpPrototype()), {
@@ -161,6 +178,67 @@ async function preparedClient(finalResponses: string[]) {
     assert.equal(prepared.packageEvidence.packageName, selected.name)
     return h
 }
+
+test('a compact Sell confirmation with the same offer proceeds to receiver entry, without OK or Pay', async () => {
+    const h = purchaseClient([summary(), compactSellSummary(), summary()])
+    const prepared = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(prepared.awaitingConfirm, true)
+    assert.equal(h.posts.length, 3)
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') ||
+        post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+test('Sell accepts the exact offer as plain cart-cell text without losing commercial checks', async () => {
+    const labelled = `<span id="ContentPlaceHolder1_gvPackagesCart_lblName_0">${selected.name}</span>`
+    const plain = compactSellSummary().replace(labelled, selected.name)
+    const h = purchaseClient([summary(), plain, summary()])
+    const prepared = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(prepared.awaitingConfirm, true)
+    assert.equal(h.posts.length, 3)
+    const wrong = purchaseClient([summary(), plain.replace(selected.name, 'Premium 24 Months'), summary()])
+    const refused = await wrong.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(refused.selectionFailure?.stage, 'SELL')
+    assert.equal(refused.selectionFailure?.reason, 'CART_QUOTE_MISMATCH')
+    assert.equal(wrong.posts.length, 2)
+})
+
+test('Sell and receiver responses may omit the promo input while the accepted offer stays bound', async () => {
+    const promoName = 'ctl00$ContentPlaceHolder1$txtPromoCode'
+    const quote = { ...selected, appliedPromoCode: 'SAVE' }
+    const add = summary().replace('txtPromoCode" value=""', 'txtPromoCode" value="SAVE"')
+    const receiver = summary().replace(`<input name="${promoName}" value="">`, '')
+    const h = purchaseClient([add, compactSellSummary().replace(`<input name="${promoName}" value="">`, ''), receiver])
+    h.client.renewalSelection.promoCode = 'SAVE'
+    const prepared = await h.client.completePurchase(quote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(prepared.awaitingConfirm, true)
+    assert.equal(prepared.packageEvidence.promoCode, 'SAVE')
+    assert.equal(h.posts.length, 3)
+    assert.ok(h.posts.every(post => post.get(promoName) === 'SAVE'))
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') ||
+        post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+test('a different echoed promo after Sell stops preparation before receiver entry', async () => {
+    const quote = { ...selected, appliedPromoCode: 'SAVE' }
+    const add = summary().replace('txtPromoCode" value=""', 'txtPromoCode" value="SAVE"')
+    const sell = compactSellSummary().replace('txtPromoCode" value=""', 'txtPromoCode" value="OTHER"')
+    const h = purchaseClient([add, sell, summary()])
+    h.client.renewalSelection.promoCode = 'SAVE'
+    const result = await h.client.completePurchase(quote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.selectionFailure?.stage, 'SELL')
+    assert.equal(result.selectionFailure?.reason, 'CART_PROMO_MISMATCH')
+    assert.equal(h.posts.length, 2)
+})
+
+test('a compact Sell confirmation with a different offer or amount stops before receiver entry', async () => {
+    for (const page of [compactSellSummary('Premium 24 Months', '86.40 USD'),
+        compactSellSummary(selected.name, '216 USD')]) {
+        const h = purchaseClient([summary(), page, summary()])
+        const result = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+        assert.equal(result.success, false)
+        assert.equal(h.posts.length, 2)
+    }
+})
 
 test('the checked receiver is entered in both later STB fields and retained for final OK', async () => {
     const h = await preparedClient([paymentPage(), paidPage])
@@ -301,8 +379,11 @@ for (const [label, response, successful] of [
 
 test('promo POST uses only enabled controls in the current bound form', async () => {
     const h = purchaseClient([promoResponse(selected.name, '64.80', 'SEASONOFFERS')])
-    const result = await h.client.applyPromoCode('SEASONOFFERS', fullCard, 'CISCO')
+    let marked = 0
+    const result = await h.client.applyPromoCode('SEASONOFFERS', fullCard, 'CISCO', async () => {}, false,
+        async () => { assert.equal(h.posts.length, 0); marked++ })
     assert.equal(result.success, true)
+    assert.equal(marked, 1)
     assert.equal(h.posts[0].get('ctl00$ContentPlaceHolder1$ddlType'), '8')
     assert.equal(h.posts[0].get('ctl00$ContentPlaceHolder1$tbSerial1'), providerCard)
     assert.equal(h.posts[0].get('__VIEWSTATE'), state.__VIEWSTATE)

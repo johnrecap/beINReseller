@@ -69,3 +69,13 @@ test('smartcard form failure is localized without claiming a quote change or ref
     assert.equal(projectOperationProgress({ status: 'REVIEW_REQUIRED', responseMessage: 'PROVIDER_SMARTCARD_FORM_UNSUPPORTED',
         providerPaymentState: 'CHARGED' }).messageKey, 'operations.providerChargedFulfillmentUnderReview')
 })
+
+test('selection failure message is limited to verified pre-final, zero-debit attempts', () => {
+    const beforePayment = { status: 'FAILED', providerPaymentState: 'NOT_SUBMITTED',
+        responseMessage: 'PACKAGE_SELECTION_UNVERIFIED',
+        responseData: { operationPhase: 'PROVIDER_SALE_PREPARATION_STARTED', finalPaySubmitted: false } }
+    assert.equal(projectOperationProgress(beforePayment).messageKey, 'operations.packageSelectionStopped')
+    assert.equal(projectOperationProgress({ ...beforePayment, providerPaymentState: 'UNKNOWN' }).messageKey, null)
+    assert.equal(projectOperationProgress({ ...beforePayment, transactions: [{ type: 'OPERATION_DEDUCT' }] }).messageKey, null)
+    assert.equal(projectOperationProgress({ ...beforePayment, responseData: { finalPaySubmitted: true } }).messageKey, null)
+})

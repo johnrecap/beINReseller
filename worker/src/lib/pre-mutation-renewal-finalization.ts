@@ -29,11 +29,19 @@ function finalProviderMutationMayHaveStarted(input: {
     responseData: unknown
     providerMutationStartedAt: Date | null
     providerMutationStage: string | null
+    providerPaymentState: string | null
+    renewalFlowVersion: number | null
 }): boolean {
     if (input.providerMutationStartedAt || input.providerMutationStage) return true
     const data = responseRecord(input.responseData)
     const phase = data.operationPhase ?? data.phase
+    if (input.providerPaymentState && input.providerPaymentState !== 'NOT_SUBMITTED') return true
+    if ([data.finalProviderMutationStartedAt, data.finalPayRequestStartedAt, data.finalPaySubmittedAt]
+        .some(value => value !== null && value !== undefined && value !== '')) return true
     if (data.finalPaySubmitted === true) return true
+    if (data.providerMutationMayHaveStarted === true &&
+        !(input.renewalFlowVersion === 2 &&
+            ['PROVIDER_SALE_PREPARATION_STARTED', 'FINAL_CONFIRMATION_REQUESTED'].includes(String(phase)))) return true
     if (
         phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
         phase === 'FINAL_PAY_REQUEST_STARTED' ||
@@ -43,6 +51,7 @@ function finalProviderMutationMayHaveStarted(input: {
     if (input.status !== 'COMPLETING') return false
     return ![
         'PACKAGE_PREPARATION',
+        'PROVIDER_SALE_PREPARATION_STARTED',
         'CANCELLATION_CONFIRM',
         'FINAL_CONFIRMATION',
         'FINAL_CONFIRMATION_REQUESTED',
@@ -96,6 +105,12 @@ export async function finalizePreMutationRenewalTermination(input: {
                     responseData: true,
                     providerMutationStartedAt: true,
                     providerMutationStage: true,
+                    providerPaymentState: true,
+                    renewalFlowVersion: true,
+                    fulfillmentAuthority: true,
+                    chargedBeinSpendLedger: { select: { id: true } },
+                    fulfillmentProof: { select: { id: true } },
+                    manualFulfillmentEvidence: { select: { id: true } },
                     transactions: {
                         where: { type: { in: ['OPERATION_DEDUCT', 'REFUND'] } },
                         select: { id: true, userId: true, type: true, amount: true },
@@ -127,6 +142,17 @@ export async function finalizePreMutationRenewalTermination(input: {
                     },
                 })
                 return { status: 'REVIEW_REQUIRED', reason: 'PROVIDER_MUTATION_MAY_HAVE_STARTED' }
+            }
+            if (operation.chargedBeinSpendLedger || operation.fulfillmentProof ||
+                operation.manualFulfillmentEvidence || operation.fulfillmentAuthority !== 'NONE' ||
+                await tx.beinAccountSpendLedger.count({ where: { operationId: operation.id } }) > 0) {
+                await tx.operation.updateMany({
+                    where: { id: operation.id, status: operation.status },
+                    data: { status: 'REVIEW_REQUIRED',
+                        responseMessage: 'Provider sale evidence needs manual review.',
+                        completedAt: null, finalConfirmExpiry: null },
+                })
+                return { status: 'REVIEW_REQUIRED', reason: 'PROVIDER_SALE_EVIDENCE_PRESENT' }
             }
 
             const deductions = operation.transactions.filter((entry) => entry.type === 'OPERATION_DEDUCT')

@@ -33,6 +33,7 @@ interface AvailablePackage {
     index: number
     name: string
     price: number
+    currency?: string
     quoteRevision: number
     packageKey: string
     appliedPromoCode?: string | null
@@ -361,7 +362,9 @@ export default function RenewWizardPage() {
                 refetchBalance()
             } else if (data.status === 'FAILED') {
                 setResult({ success: false, message: t => data.messageKey === 'operations.providerSmartcardFormUnsupported'
-                    ? t.operations.providerSmartcardFormUnsupported : t.renew.result.failed })
+                    ? t.operations.providerSmartcardFormUnsupported
+                    : data.messageKey === 'operations.packageSelectionStopped'
+                        ? t.operations.packageSelectionStopped : t.renew.result.failed })
                 setStep('result')
             } else if (data.status === 'REVIEW_REQUIRED') {
                 if (data.reportVerificationPending) {
@@ -1035,12 +1038,12 @@ export default function RenewWizardPage() {
                                         {t.operations.packageQuoteResume}
                                     </Button>
                                 )}
-                                {packages.length === 0 ? (
+                                {packages.length === 0 && quoteState === 'READY' ? (
                                     <div className="text-center py-8 text-muted-foreground">
                                         <AlertCircle className="h-8 w-8 mx-auto mb-2" />
                                         {t.renew.packages.noPackages}
                                     </div>
-                                ) : (
+                                ) : packages.length > 0 ? (
                                     <div className="space-y-3">
                                         {packages.map((pkg) => (
                                             <button
@@ -1059,13 +1062,13 @@ export default function RenewWizardPage() {
                                                         <div className="font-bold break-words"><bdi>{pkg.name}</bdi></div>
                                                     </div>
                                                     <div className="text-lg font-bold text-[#00A651]">
-                                                        {pkg.price} USD
+                                                        {pkg.price} {pkg.currency || 'USD'}
                                                     </div>
                                                 </div>
                                             </button>
                                         ))}
                                     </div>
-                                )}
+                                ) : null}
 
                                 {packages.length > 0 && (
                                     <>
@@ -1112,7 +1115,7 @@ export default function RenewWizardPage() {
                                                     <div className="flex flex-wrap gap-2 justify-between items-center">
                                                         <span className="text-gray-600 dark:text-gray-400">{t.renew.packages.totalAmount}</span>
                                                         <span className="font-bold text-2xl whitespace-nowrap text-green-600 dark:text-green-400" dir="ltr">
-                                                            {packages.find(p => p.index === selectedPackageIndex)?.price} USD
+                                                            {packages.find(p => p.index === selectedPackageIndex)?.price} {packages.find(p => p.index === selectedPackageIndex)?.currency || 'USD'}
                                                         </span>
                                                     </div>
                                                     {appliedPromoCode && (
@@ -1194,7 +1197,7 @@ export default function RenewWizardPage() {
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">{t.renew.finalConfirm.price}</span>
-                                        <span className="font-bold text-green-600 dark:text-green-400">{selectedPackageInfo?.price || 0} USD</span>
+                                        <span className="font-bold text-green-600 dark:text-green-400">{selectedPackageInfo?.price || 0} {selectedPackageInfo?.currency || 'USD'}</span>
                                     </div>
                                     {stbNumber && (
                                         <div className="flex justify-between items-center">

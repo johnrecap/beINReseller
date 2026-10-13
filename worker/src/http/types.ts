@@ -1,7 +1,7 @@
 /**
  * HTTP Client Types for beIN Automation
  */
-import type { PreparedRenewalPurchase, RenewalSummaryEvidence } from './renewal-purchase-guard';
+import type { PreparedRenewalPurchase, RenewalSummaryEvidence, RenewalSummaryStage } from './renewal-purchase-guard';
 
 export interface HiddenFields {
     __VIEWSTATE: string;
@@ -60,6 +60,8 @@ export interface LoadPackagesResult {
     stbNumber?: string;
     dealerBalance?: number;  // Dealer's current credit balance for verification
     error?: string;
+    failureStage?: 'PRE_SUBMIT' | 'PROVIDER_REJECTED' | 'POST_RESPONSE_UNVERIFIED';
+    providerPostSent?: boolean;
 }
 
 export interface PurchaseResult {
@@ -74,6 +76,7 @@ export interface PurchaseResult {
     outcomeCategory?: FinalPayOutcomeCategory;
     finalPaySubmitted?: boolean;
     packageEvidence?: RenewalSummaryEvidence;
+    selectionFailure?: { stage: RenewalSummaryStage; reason: string };
 }
 
 export type FinalPayOutcomeCategory =

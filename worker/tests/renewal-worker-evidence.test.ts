@@ -21,6 +21,7 @@ test('actual verification worker requires stored cart evidence before attributin
         './lib/bein-login-tracking', './lib/bein-connection-mode', './lib/final-pay-evidence', './lib/fulfillment-finalization',
         './lib/renewal-no-charge-finalization', './lib/pre-mutation-renewal-finalization', './lib/renewal-verification-retry',
         './lib/provider-account-reservation', './lib/same-day-report-fulfillment',
+        '../../shared/operations/financial-lock',
         '../../shared/operations/renewal-fulfillment', './lib/promo-quote']) {
         deps[name] = new Proxy({}, { get: () => () => { throw new Error(`UNEXPECTED_EXTERNAL_DEPENDENCY:${name}`) } })
     }

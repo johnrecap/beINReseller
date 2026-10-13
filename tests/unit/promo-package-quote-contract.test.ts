@@ -14,7 +14,7 @@ test('actual packages endpoint exposes pending revision instead of certifying it
     const data = await res.json()
     assert.equal(data.quoteState, 'PENDING')
     assert.equal(data.quoteRevision, 2)
-    assert.equal(data.packages[0].checkboxValue, undefined)
+    assert.deepEqual(data.packages, [])
 })
 
 test('actual final confirmation rejects stale consent before any transaction or deduction writes', async () => {
@@ -49,6 +49,7 @@ for (const quoteState of ['PENDING', 'FAILED'] as const) {
     test(`${quoteState} response with old packages is never selectable`, () => {
         const pending = { ...operation, responseData: { ...ready, quoteState, refreshing: quoteState === 'PENDING' } }
         assert.equal(publicPackageQuote(pending).quoteState, quoteState)
+        assert.deepEqual(publicPackageQuote(pending).packages, [])
         assert.throws(() => selectQuotedPackage(pending, { quoteRevision: 2, packageIndex: 3 }), /PACKAGE_QUOTE_NOT_READY/)
     })
 }

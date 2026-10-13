@@ -14,6 +14,7 @@ export interface ReviewCapabilityContext {
     id: string; type: string; purpose?: string | null; status: string; userId: string | null; customerId: string | null
     beinAccountId: string | null; cardNumber: string; amount: number; selectedPackage?: unknown; responseData?: unknown
     providerPaymentState?: string | null; providerMutationStartedAt?: Date | null; providerMutationStage?: string | null
+    renewalFlowVersion?: number | null
     fulfillmentState?: string | null; fulfillmentVerificationOutcome?: string | null; fulfillmentAuthority?: string | null
     transactions: Array<{ type: string; amount: number; userId?: string | null }>
     dispatches?: Array<{ jobType: string; status: string; attempts: number }>
@@ -29,7 +30,7 @@ export interface ReviewCapabilityContext {
 export const reviewCapabilitySelect = {
     id: true, type: true, purpose: true, status: true, userId: true, customerId: true, beinAccountId: true,
     cardNumber: true, amount: true, selectedPackage: true, responseData: true, providerPaymentState: true,
-    providerMutationStartedAt: true, providerMutationStage: true, fulfillmentAuthority: true,
+    providerMutationStartedAt: true, providerMutationStage: true, renewalFlowVersion: true, fulfillmentAuthority: true,
     fulfillmentState: true, fulfillmentVerificationOutcome: true,
     transactions: { select: { type: true, amount: true, userId: true } },
     dispatches: { select: { jobType: true, status: true, attempts: true } },
@@ -54,13 +55,27 @@ export function classifyFinancialReview(operation: ReviewCapabilityContext): Rev
         operation.transactions.some(row => row.type === 'REFUND') || operation.refundSettlements?.some(row => row.state !== 'CANCELLED')) {
         return hold('CONFLICT', 'REVIEW_SETTLEMENT_CONFLICT')
     }
+    const data = quoteData(operation.responseData)
     const deductions = operation.transactions.filter(row => row.type === 'OPERATION_DEDUCT')
+    const preparationOnly = operation.renewalFlowVersion === 2 &&
+        operation.amount === 0 && deductions.length === 0 &&
+        operation.providerPaymentState === 'NOT_SUBMITTED' &&
+        !operation.providerMutationStartedAt && !operation.providerMutationStage &&
+        ['PROVIDER_SALE_PREPARATION_STARTED', 'FINAL_CONFIRMATION_REQUESTED']
+            .includes(String(data.operationPhase)) &&
+        data.finalPaySubmitted === false &&
+        !data.finalProviderMutationStartedAt && !data.finalPayRequestStartedAt && !data.finalPaySubmittedAt &&
+        !operation.chargedBeinSpendLedger && !operation.fulfillmentProof && !operation.manualFulfillmentEvidence &&
+        (!operation.fulfillmentAuthority || operation.fulfillmentAuthority === 'NONE') &&
+        !(operation.dispatches || []).some(row => ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'].includes(row.jobType) &&
+            (!['PENDING', 'CANCELLED'].includes(row.status) || row.attempts !== 0))
+    if (preparationOnly) return { ...hold('PRE_MUTATION'),
+        allowedActions: ['KEEP_UNDER_REVIEW', 'RESOLVE_PRE_MUTATION'] }
     if (deductions.length !== 1 || deductions[0].userId !== operation.userId ||
         !Number.isFinite(deductions[0].amount) || deductions[0].amount >= 0 || !Number.isFinite(operation.amount) ||
         Math.round(-deductions[0].amount * 100) !== Math.round(operation.amount * 100)) {
         return hold('CONFLICT', 'CANONICAL_SETTLEMENT_REQUIRED')
     }
-    const data = quoteData(operation.responseData)
     const unsent = !operation.providerMutationStartedAt && !operation.providerMutationStage &&
         operation.providerPaymentState === 'NOT_SUBMITTED' && data.finalPaySubmitted === false &&
         ['PACKAGE_PREPARATION', 'FINAL_CONFIRMATION', 'CUSTOMER_DEDUCTED', 'DISPATCH_PENDING', 'DISPATCH_FAILED']

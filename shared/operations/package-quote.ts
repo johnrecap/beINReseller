@@ -57,7 +57,7 @@ export function publicPackageQuote(operation: QuoteOperation) {
     const appliedPromoCode = typeof data.appliedPromoCode === 'string' ? data.appliedPromoCode
         : data.appliedPromoCode === null ? null : data.promoApplied === true ? operation.promoCode || null : null
     return { quoteRevision, quoteState, refreshing: quoteState === 'PENDING', appliedPromoCode,
-        packages: packageRows(operation.availablePackages).map(row => ({ index: row.index, name: row.name,
+        packages: (quoteState === 'READY' ? packageRows(operation.availablePackages) : []).map(row => ({ index: row.index, name: row.name,
             price: row.price, currency: row.currency || 'USD', quoteRevision, packageKey: `${quoteRevision}.${row.index}` })) }
 }
 

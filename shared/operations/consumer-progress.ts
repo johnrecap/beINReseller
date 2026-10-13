@@ -25,6 +25,11 @@ export function projectOperationProgress(operation: ConsumerProgressContext, now
     const refundPending = operation.refundSettlements?.some(row => !['CANCELLED', 'COMPLETED'].includes(row.state)) ?? false
     const refunded = operation.transactions?.some(row => row.type === 'REFUND') ?? false
     const terminal = ['COMPLETED', 'FAILED', 'CANCELLED', 'EXPIRED'].includes(operation.status)
+    const preFinalSelectionFailure = operation.status === 'FAILED' && payment === 'NOT_SUBMITTED' &&
+        data.finalPaySubmitted === false &&
+        !operation.transactions?.some(row => row.type === 'OPERATION_DEDUCT' || row.type === 'REFUND') &&
+        ['PROMO_REFRESH_UNVERIFIED', 'PACKAGE_SELECTION_UNVERIFIED', 'PACKAGE_QUOTE_CHANGED']
+            .includes(operation.responseMessage || '')
     const settlementState = refundPending ? 'REFUND_PENDING' : refunded ? 'REFUNDED' : reviewRequired ? 'REVIEW_REQUIRED'
         : operation.status === 'COMPLETED' ? 'COMPLETED' : terminal ? 'UNCONFIRMED' : 'PENDING'
     const nextAction = reportVerificationPending ? 'WAIT' : reviewRequired || refundPending ? 'CONTACT_ADMIN' : confirmationExpired ? 'VIEW_ACTIVE_OPERATION'
@@ -35,7 +40,9 @@ export function projectOperationProgress(operation: ConsumerProgressContext, now
                 ? 'operations.providerChargedFulfillmentUnderReview' : 'operations.fulfillmentReviewPending')
             : operation.status === 'COMPLETING' && payment === 'CHARGED' && fulfillment === 'VERIFYING'
                 ? 'operations.providerChargedVerifyingFulfillment'
-                : operation.status === 'FAILED' && operation.responseMessage === 'PROVIDER_SMARTCARD_FORM_UNSUPPORTED'
-                    ? 'operations.providerSmartcardFormUnsupported' : null
+                : preFinalSelectionFailure
+                    ? 'operations.packageSelectionStopped'
+                    : operation.status === 'FAILED' && operation.responseMessage === 'PROVIDER_SMARTCARD_FORM_UNSUPPORTED'
+                        ? 'operations.providerSmartcardFormUnsupported' : null
     return { reviewRequired, reportVerificationPending, confirmationExpired, settlementState, nextAction, messageKey }
 }

@@ -51,6 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 return // Pending, completed and failed requests replay their existing result.
             }
             if (input.actionRevision !== revision + 1) throw new Error('PROMO_REQUEST_CONFLICT')
+            if (data.quoteState === 'FAILED') throw new Error('PACKAGE_QUOTE_NOT_READY')
             await ensureGuardedRenewalOperationReservation(tx, { operationId: id, cardNumber: current.cardNumber })
             await tx.operation.update({ where: { id }, data: {
                 selectedPackage: Prisma.JsonNull,

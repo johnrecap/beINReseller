@@ -20,6 +20,7 @@ test('Sell footer diagnostic reports structure without customer or provider resp
     assert.equal(diagnostic.cells.length, 2)
     assert.equal(diagnostic.cells[0].colspan, 2)
     assert.equal(diagnostic.cells[1].exactMoney, true)
+    assert.equal(diagnostic.layout, 'TWO_CELL_TOTAL')
     assert.equal(diagnostic.labelHasRemaining, true)
     assert.match(diagnostic.labelPattern, /^remaining/)
     const serialized = JSON.stringify(diagnostic)

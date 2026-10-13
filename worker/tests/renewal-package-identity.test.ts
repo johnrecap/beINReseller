@@ -194,13 +194,23 @@ test('a compact Sell confirmation with the same offer proceeds to receiver entry
 const liveSellFooter = '<tr><td colspan="2">Remaining<div>* Money due if any will be added to the current package as extended validity</div></td><td>86.40 USD</td><td></td></tr>'
 const sellWithFooter = (footer: string) => compactSellSummary().replace('</table>', `${footer}</table>`)
 
-test('diagnosed three-cell Sell footer prepares receiver entry without OK or Pay', async () => {
+test('diagnosed three-cell Sell footer logs acceptance and prepares receiver entry without OK or Pay', async (t) => {
+    const info: string[] = []
+    t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
     const h = purchaseClient([summary(), sellWithFooter(liveSellFooter), summary()])
     const prepared = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
     assert.equal(prepared.awaitingConfirm, true)
     assert.equal(h.posts.length, 3)
     assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') ||
         post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+    const acceptance = info.filter(line => line.startsWith('[HTTP] SELL quote guard passed: '))
+    assert.equal(acceptance.length, 1)
+    assert.deepEqual(JSON.parse(acceptance[0].slice('[HTTP] SELL quote guard passed: '.length)), {
+        footerLayout: 'MIDDLE_AMOUNT_EMPTY_TAIL', quoteRevision: selected.quoteRevision,
+    })
+    for (const sensitive of [fullCard, providerCard, selected.name, '86.40', 'synthetic-stb']) {
+        assert.equal(acceptance[0].includes(sensitive), false)
+    }
 })
 
 test('diagnosed footer also accepts the named three-column package row above it', async () => {
@@ -213,13 +223,16 @@ test('diagnosed footer also accepts the named three-column package row above it'
         post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
 })
 
-test('diagnosed footer cannot hide a different package in the row above its amount', async () => {
+test('diagnosed footer cannot log acceptance for a different package in the row above', async (t) => {
+    const info: string[] = []
+    t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
     const wrongUpperRow = sellWithFooter(liveSellFooter).replace(selected.name, 'Premium 24 Months (24 Months)')
     const h = purchaseClient([summary(), wrongUpperRow, summary()])
     const result = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
     assert.equal(result.selectionFailure?.stage, 'SELL')
     assert.equal(result.selectionFailure?.reason, 'CART_QUOTE_MISMATCH')
     assert.equal(h.posts.length, 2)
+    assert.equal(info.some(line => line.startsWith('[HTTP] SELL quote guard passed: ')), false)
 })
 
 test('diagnosed Sell footer retains the applied promo through receiver preparation', async () => {

@@ -48,24 +48,33 @@ export function describeRenewalCartFooter(html: string) {
         'will', 'be', 'added', 'to', 'the', 'current', 'package', 'as', 'extended', 'validity'])
     const labelPattern = label.replace(/\p{L}+/gu, word => genericWords.has(word) ? word : '_')
         .replace(/\d+/g, '#').slice(0, 160)
+    const cellDetails = cells.slice(0, 6).map((_, cell) => {
+        const value = $(cell)
+        let exactMoney = false
+        try { money(value.text()); exactMoney = true } catch { /* structural diagnostic only */ }
+        return {
+            tag: cell.tagName,
+            colspan: span(value.attr('colspan')),
+            rowspan: span(value.attr('rowspan')),
+            controls: value.find('input,select,button').length,
+            names: value.find('[id^="ContentPlaceHolder1_gvPackagesCart_lblName_"]').length,
+            exactMoney,
+            empty: normalized(value.text()) === '',
+        }
+    }).get()
+    const layout = rows.length === 2 ? 'COMPACT_NO_FOOTER'
+        : rows.length === 3 && cells.length === 3 && cellDetails[0].colspan === 2 &&
+            cellDetails[1].exactMoney && cellDetails[2].empty ? 'MIDDLE_AMOUNT_EMPTY_TAIL'
+        : rows.length === 3 && cells.length === 3 && cellDetails[0].empty &&
+            cellDetails[2].exactMoney ? 'LEADING_EMPTY_CELL'
+        : rows.length === 3 && cells.length === 2 && cellDetails[1].exactMoney ? 'TWO_CELL_TOTAL'
+        : 'UNRECOGNIZED'
     return {
         cartCount: cart.length,
         rowCount: rows.length,
         footerChildCount: footer.children().length,
-        cells: cells.slice(0, 6).map((_, cell) => {
-            const value = $(cell)
-            let exactMoney = false
-            try { money(value.text()); exactMoney = true } catch { /* structural diagnostic only */ }
-            return {
-                tag: cell.tagName,
-                colspan: span(value.attr('colspan')),
-                rowspan: span(value.attr('rowspan')),
-                controls: value.find('input,select,button').length,
-                names: value.find('[id^="ContentPlaceHolder1_gvPackagesCart_lblName_"]').length,
-                exactMoney,
-                empty: normalized(value.text()) === '',
-            }
-        }).get(),
+        layout,
+        cells: cellDetails,
         labelLength: label.length,
         labelPattern,
         labelHasRemaining: /\bremaining\b/.test(label),

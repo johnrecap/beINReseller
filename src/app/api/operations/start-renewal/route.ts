@@ -258,6 +258,7 @@ export async function POST(request: NextRequest) {
                     data: {
                         userId: authUser.id,
                         amount: 0, // Will be determined after package selection
+                        purpose: 'RENEWAL',
                         status: 'PENDING',
                         providerPaymentState: 'NOT_SUBMITTED',
                         fulfillmentState: 'UNVERIFIED',

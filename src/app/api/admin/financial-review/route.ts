@@ -32,10 +32,14 @@ export async function GET(request: NextRequest) {
 
         const operations = await prisma.operation.findMany({
             where: {
-                updatedAt: { gte: startDate },
                 OR: [
+                    // Open reviews must remain discoverable for as long as they
+                    // block a card; the date window applies to closed history.
                     { status: OperationStatus.REVIEW_REQUIRED },
-                    ...CLOSED_REVIEW_DECISION_FILTERS,
+                    { AND: [
+                        { updatedAt: { gte: startDate } },
+                        { OR: CLOSED_REVIEW_DECISION_FILTERS },
+                    ] },
                 ],
                 ...(q ? {
                     AND: [{

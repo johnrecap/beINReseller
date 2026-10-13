@@ -73,6 +73,9 @@ This is a Next.js role-based reseller panel with separate admin, manager, agent,
 
 ## Recent Changes
 
+- 2026-10-13 — Traced a reported renewal that loaded the selected Together 3 Months quote, passed Add, then stopped parsing Sell at `CART_TOTAL_ROW_UNVERIFIED` before STB, final OK or Pay. The original Sell HTML was not captured; only the Worker stage and rejection code are known. The Sell footer reader now tolerates a nested total label, an empty selection column or the previously observed Remaining note while still requiring one exact package and matching item, footer and displayed totals. Synthetic positive and wrong-item/wrong-total cases pass; live Sell compatibility remains unverified.
+- 2026-10-13 — New panel renewals now persist `purpose=RENEWAL`. Earlier v2 renewals with a null purpose can end a fenced, zero-debit Add/Sell quote conflict as failed when all existing no-final-payment and no-provider-sale guards pass; installment and final-payment evidence still force review. Previously held operations are not changed automatically.
+- 2026-10-13 — The admin financial-review list now includes open zero-amount renewal holds and keeps open holds searchable regardless of the closed-history date window. This exposes the existing guarded `RESOLVE_PRE_MUTATION` decision for eligible records; no review, refund or card reservation was changed in production. Local checks: 882/882 root unit tests, 378/383 Worker tests (five Redis-gated skips), both TypeScript checks, changed-file lint and a Next.js build passed. The existing list cap of 300 still applies after server-side search.
 - 2026-10-13 — Removed provider-account cooldown creation, enforcement, controls and seed keys; historical DB/Redis cooldowns are ignored. The five-minute card cooldown, request limits, locks and configured permanent auto-disable remain.
 - Ended operations cannot acquire/reopen, renew, use or transfer provider reservations. Completed signal checks release their reservations in the completion transaction; a later Activate reacquires the account and rechecks the card.
 - Maintenance now scans terminal account reservations in bounded rotating batches, releases only eligible closed/proven cases after active Redis owners drain, and logs `providerReservations` counts. Historical account attribution, operation state, balances and card deadlines are untouched by this repair.
@@ -156,6 +159,7 @@ Current development is incremental within the existing Next.js, Prisma, and work
 - `.agents/skills/web-project-memory`: version-controlled generic skill source containing the contract, schema, deterministic helper, and Codex UI metadata; the installed personal copy must remain byte-equivalent.
 
 ## Feature Inventory
+- Open renewal safety holds are available in admin financial review even when no customer debit was recorded; an eligible pre-payment hold can use the existing guarded resolution action.
 - Admin user management supports distributors, agents, and users in separate tabs.
 - Hierarchical password recovery supports ADMIN, MANAGER, and AGENT supervisors through the configurable users.reset_password permission.
 - Every panel role retains self-service password change with its current password.
@@ -165,6 +169,7 @@ Current development is incremental within the existing Next.js, Prisma, and work
 - Development continuity is recorded through stable, record-state-labeled entries in the root project memory without replacing authoritative project sources.
 
 ## UI Map
+- Admin financial review: `src/components/admin/financial-review/FinancialReviewClient.tsx`; open holds are no longer hidden by the closed-history date window or a zero recorded amount.
 - Provider report tab: `src/components/admin/report-center/BeinProviderReportPanel.tsx`, registered in the existing Reports Center; request cancellation and polling live in `src/hooks/useProviderReport.ts`.
 - Admin user management: `src/components/admin/users/UsersTable.tsx`.
 - Shared supervisor reset dialog: `src/components/users/ResetPasswordDialog.tsx`, reused by admin, manager, and agent user lists.
@@ -182,6 +187,7 @@ Current development is incremental within the existing Next.js, Prisma, and work
 - The existing `[agentId, isActive]` and `[userId, isActive]` indexes support these lookups; this feature requires no migration.
 
 ## APIs And Integrations
+- The renewal starter records the panel operation purpose explicitly; the Worker distinguishes pre-final Sell preparation from final provider payment when closing a failed selection. `GET /api/admin/financial-review` keeps open renewals eligible regardless of the `days` filter, which still limits closed decisions; its existing 300-row cap remains, and server-side card/operation search narrows results before that cap.
 - Provider reports (ADMIN on every request): `GET /api/admin/bein-accounts?view=report-options` selects only id/username/label/eligibility metadata; `POST /api/admin/reports/bein-provider` accepts `{accountId, from, to}` and returns `{success:true,data:{requestId}}`; `GET /api/admin/reports/bein-provider/[requestId]?page=1&search=...` returns a cached, sanitized state/page. Errors contain stable translation codes; no passwords, proxies, sessions or raw HTML are returned. Unknown/expired request IDs return 404. Dates use ISO `YYYY-MM-DD` at the API boundary and the observed WebForms date controls at the provider boundary.
 - `READ_PROVIDER_REPORT` jobs have one attempt, priority 10 and no business-operation payload. The Worker routes them to `worker/src/lib/provider-report-reader.ts` before financial operation dispatch. `shared/reports` owns the DTO/Redis admission contract. The existing Sold Report parser accepts optional dates/All criteria while financial callers keep their default criteria.
 - Renewal APIs expose stable review/block codes while the Worker persists separate provider-payment and fulfillment states. Live admin verification must claim the same unique proof before completion; a no-refund decision without proof requires an explicit auditable `cardRenewed=true` confirmation.
@@ -295,6 +301,7 @@ Use `.env.example` and `worker/.env.example` as starting templates. Relevant web
 - Complete an authenticated Arabic/RTL browser smoke test for agent drill-down on desktop and mobile viewports.
 
 ## Known Gaps And Handoff Notes
+- The reported Sell response body was not retained, so the exact live footer layout and any other later-stage layout are unverified. Existing `REVIEW_REQUIRED` cards must be inspected through the admin decision workflow; a five-minute cooldown expiry does not release a financial-review hold. No historical hold is safe to clear solely from a screenshot or a Sell rejection log.
 - User-supplied server output shows 42 inactive accounts and three active accounts reserved by COMPLETED paid renewals, all with no cooldown date. Their proof, reservation timestamps and deployed Worker parity have not been read. This local repair is not evidence that those accounts are free. Existing admin `Unlocked` represents the legacy Redis lock only and can coexist with a database reservation; the old admin available-count calculation also omits that reservation. Account-management status presentation remains a separate known gap.
 - The two reported deductions for card `7517687161` have not been reconciled locally: the exact bounded query failed with `ECONNREFUSED` before reading or writing data. Production deployment state, provider contracts/invoices, and refund state remain `UNKNOWN` until authorized live evidence is collected.
 - Safe rollout status is `REVIEW_ONLY`. The local code fails closed, but `ENFORCE` is not release-ready until the live Invoice equality/account-exclusivity evidence, disposable PostgreSQL/Redis races, and crash-durable post-completion effects are complete.

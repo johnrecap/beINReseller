@@ -263,11 +263,24 @@ test('keeps admin refund closure visible in the refunded tab', () => {
     assert.equal(item.state, 'refunded')
 })
 
-test('hides zero-amount review rows without financial impact from financial review', () => {
+test('shows open zero-amount renewal reviews because they still block the card', () => {
     const item = buildFinancialReviewItem(operation({
         amount: 0,
         responseData: {},
         responseMessage: 'Safe refund was not applied; manual review required.',
+        transactions: [],
+        chargedBeinSpendLedger: null,
+    }), new Map())
+
+    assert.ok(item)
+    assert.equal(item.evidence.financiallyImpacted, false)
+})
+
+test('hides a zero-amount non-renewal row without financial impact', () => {
+    const item = buildFinancialReviewItem(operation({
+        type: 'CHECK',
+        amount: 0,
+        responseData: {},
         transactions: [],
         chargedBeinSpendLedger: null,
     }), new Map())

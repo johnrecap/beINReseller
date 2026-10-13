@@ -227,13 +227,21 @@ export function readRenewalSummary(html: string, expected: QuotePackage, cardNum
     catch { return reject('CART_ITEM_AMOUNT_UNVERIFIED') }
     if (rows.length === 3) {
         const total = $(rows[2]).children('td')
-        const label = normalized(total.eq(0).clone().children().remove().end().text())
-        if (total.length !== 2 || (stage === 'ADD' && total.eq(0).attr('colspan') !== '2') ||
-            !(stage === 'ADD' ? label === 'remaining' : ['remaining', 'total', 'total amount', 'grand total'].includes(label))) {
+        const addLabel = normalized(total.eq(0).clone().children().remove().end().text())
+        // Sell may render its total label inside a span or reserve an empty
+        // selection cell. Neither changes the one-line quote or payable total.
+        const sellLabel = normalized(total.slice(0, -1).text())
+        const sellTotal = /^(?:remaining|grand total|total amount|total|amount due|net total|net amount)\s*[:：*\-]?\s*$/.test(sellLabel) ||
+            /^remaining\s*\*?\s*money due if any will be added to the current package as extended validity\.?$/.test(sellLabel)
+        if (stage === 'ADD'
+            ? total.length !== 2 || total.eq(0).attr('colspan') !== '2' || addLabel !== 'remaining'
+            : (total.length !== 2 && total.length !== 3) || !sellTotal ||
+                total.is('[rowspan]') || (total.length === 3 &&
+                    (normalized(total.eq(0).text()) !== '' || total.eq(0).find('input,select,button').length > 0))) {
             reject('CART_TOTAL_ROW_UNVERIFIED')
         }
         let totalAmount: ReturnType<typeof money>
-        try { totalAmount = money(total.eq(1).text()) }
+        try { totalAmount = money(total.last().text()) }
         catch { return reject('CART_TOTAL_AMOUNT_UNVERIFIED') }
         if (totalAmount.price !== amount.price || totalAmount.currency !== amount.currency) {
             reject('CART_TOTAL_MISMATCH')

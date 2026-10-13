@@ -216,7 +216,9 @@ export function buildFinancialReviewItem(
         (typeof userDeductTotal === 'number' && userDeductTotal > 0) ||
         (operation.amount > 0 && Boolean(operation.user || operation.customer))
 
-    if (!financiallyImpacted) return null
+    // An open renewal review blocks this card even when no customer debit was
+    // recorded. Keep it visible so an admin can inspect and resolve the hold.
+    if (!financiallyImpacted && !(operation.status === 'REVIEW_REQUIRED' && operation.type === 'RENEW')) return null
 
     const evidence: FinancialReviewEvidence = {
         operationId: operation.id,

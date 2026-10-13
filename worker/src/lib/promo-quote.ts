@@ -71,7 +71,9 @@ export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.T
             data.providerMutationMayHaveStarted === true &&
             typeof data.providerPreparationMutationStartedAt === 'string'
         const safePreSale = !!input.preSale && input.preSale.beinAccountId === current.beinAccountId &&
-            current.type === 'RENEW' && current.purpose === 'RENEWAL' && !!current.userId && !current.customerId &&
+            current.type === 'RENEW' &&
+            (current.purpose === 'RENEWAL' || (current.renewalFlowVersion === 2 && current.purpose == null)) &&
+            !!current.userId && !current.customerId &&
             current.amount === 0 && current.transactions.length === 0 && current.refundSettlements.length === 0 &&
             !current.storeSubscription && !current.chargedBeinSpendLedger && !current.fulfillmentProof &&
             !current.manualFulfillmentEvidence && current.dispatches.length === 0 &&

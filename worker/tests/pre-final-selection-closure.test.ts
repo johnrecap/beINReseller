@@ -7,9 +7,10 @@ import * as packageQuote from '../../shared/operations/package-quote'
 const selected = { index: 0, name: 'Together 3 Months (3 Months)', price: 27,
     currency: 'USD', quoteRevision: 0, packageKey: '0.0', appliedPromoCode: null }
 
-function makeOperation(finalMarker: 'none' | 'stage' | 'timestamp' = 'none') {
+function makeOperation(finalMarker: 'none' | 'stage' | 'timestamp' = 'none',
+    purpose: 'RENEWAL' | 'INSTALLMENT' | null = 'RENEWAL') {
     return {
-        id: 'synthetic-operation', type: 'RENEW', purpose: 'RENEWAL', status: 'COMPLETING',
+        id: 'synthetic-operation', type: 'RENEW', purpose, status: 'COMPLETING',
         renewalFlowVersion: 2, userId: 'synthetic-user', customerId: null, beinAccountId: 'synthetic-account',
         cardNumber: '7000000001', amount: 0, selectedPackage: selected,
         responseData: { quoteRevision: 0, operationPhase: 'PROVIDER_SALE_PREPARATION_STARTED',
@@ -21,6 +22,41 @@ function makeOperation(finalMarker: 'none' | 'stage' | 'timestamp' = 'none') {
         transactions: [], refundSettlements: [], chargedBeinSpendLedger: null, fulfillmentProof: null,
         manualFulfillmentEvidence: null, storeSubscription: null, dispatches: [],
     }
+}
+
+for (const [purpose, finalMarker, expectedStatus] of [
+    [null, 'none', 'FAILED'],
+    [null, 'stage', 'REVIEW_REQUIRED'],
+    ['INSTALLMENT', 'none', 'REVIEW_REQUIRED'],
+] as const) {
+    test(`pre-final quote hold with purpose ${purpose} and marker ${finalMarker} ends ${expectedStatus}`, async () => {
+        const operation = makeOperation(finalMarker, purpose)
+        const released: string[] = []
+        const tx = {
+            operation: {
+                findUnique: async () => operation,
+                updateMany: async ({ data }: { data: Record<string, unknown> }) => {
+                    Object.assign(operation, data); return { count: 1 }
+                },
+            },
+            beinAccountSpendLedger: { count: async () => 0 },
+            operationDispatch: { updateMany: async () => undefined },
+            cardLifecycleReservation: { updateMany: async () => { released.push('card') } },
+            providerAccountCausalReservation: { updateMany: async () => { released.push('account') } },
+        }
+        const { holdQuoteConflict } = loadIsolatedModule<{
+            holdQuoteConflict: (db: unknown, input: unknown, fence: () => Promise<void>) => Promise<boolean>
+        }>('worker/src/lib/promo-quote.ts', {
+            '../../../shared/operations/package-quote': packageQuote,
+            '../../../shared/operations/financial-lock': { lockFinancialOperation: async () => true },
+        })
+        const db = { $transaction: async (run: (value: typeof tx) => Promise<boolean>) => run(tx) }
+        assert.equal(await holdQuoteConflict(db, { operationId: operation.id, revision: 0,
+            selectedPackage: selected, preSale: { beinAccountId: operation.beinAccountId },
+            reasonCode: 'CART_TOTAL_ROW_UNVERIFIED' }, async () => undefined), true)
+        assert.equal(operation.status, expectedStatus)
+        assert.deepEqual(released, expectedStatus === 'FAILED' ? ['card', 'account'] : [])
+    })
 }
 
 for (const finalMarker of ['none', 'stage', 'timestamp'] as const) {

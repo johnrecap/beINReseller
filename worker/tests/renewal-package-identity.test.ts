@@ -188,6 +188,37 @@ test('a compact Sell confirmation with the same offer proceeds to receiver entry
         post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
 })
 
+for (const [label, footer] of [
+    ['nested total label', '<tr><td><span>Total Amount:</span></td><td>86.40 USD</td></tr>'],
+    ['empty selection column', '<tr><td></td><td><span>Remaining:</span></td><td>86.40 USD</td></tr>'],
+    ['observed Remaining note', '<tr><td colspan="2">Remaining<div>* Money due if any will be added to the current package as extended validity</div></td><td>86.40 USD</td></tr>'],
+] as const) {
+    test(`Sell ${label} retains the exact cart and proceeds only to receiver entry`, async () => {
+        const sell = compactSellSummary().replace('</table>', `${footer}</table>`)
+        const h = purchaseClient([summary(), sell, summary()])
+        const prepared = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+        assert.equal(prepared.awaitingConfirm, true)
+        assert.equal(h.posts.length, 3)
+        assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') ||
+            post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+    })
+}
+
+for (const footer of [
+    '<tr><td>Extra Package</td><td>86.40 USD</td></tr>',
+    '<tr><td>Total Extra Package</td><td>86.40 USD</td></tr>',
+    '<tr><td>Total Amount:</td><td>216 USD</td></tr>',
+    '<tr><td></td><td>Total Amount:</td><td>216 USD</td></tr>',
+]) {
+    test('Sell rejects a non-total row or a mismatched total before receiver entry', async () => {
+        const sell = compactSellSummary().replace('</table>', `${footer}</table>`)
+        const h = purchaseClient([summary(), sell, summary()])
+        const result = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+        assert.equal(result.selectionFailure?.stage, 'SELL')
+        assert.equal(h.posts.length, 2)
+    })
+}
+
 test('Sell accepts the exact offer as plain cart-cell text without losing commercial checks', async () => {
     const labelled = `<span id="ContentPlaceHolder1_gvPackagesCart_lblName_0">${selected.name}</span>`
     const plain = compactSellSummary().replace(labelled, selected.name)

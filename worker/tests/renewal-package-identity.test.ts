@@ -210,6 +210,92 @@ const promoPurchaseClient = (add: string) => {
 // The 08:31 production diagnostic establishes two footer cells: an empty
 // colspan=2 label, then one exact amount. Text, state and money here are synthetic.
 const unlabelledPromoFooter = '<tr><td colspan="2">&nbsp;</td><td>43.20 USD</td></tr>'
+// The 08:42 Sell diagnostic adds one empty trailing cell to that same
+// unlabelled promo footer. This is a structural reconstruction, not raw HTML.
+const unlabelledPromoSellFooter = '<tr><td colspan="2">&nbsp;</td><td>43.20 USD</td><td></td></tr>'
+test('diagnosed promo Add then unlabelled three-cell Sell reaches receiver preparation', async (t) => {
+    const info: string[] = []
+    t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
+    const sell = addWithFooter(unlabelledPromoSellFooter)
+    const h = purchaseClient([addWithFooter(unlabelledPromoFooter), sell, sell])
+    h.client.renewalSelection.packages = [promoQuote]
+    h.client.renewalSelection.promoCode = 'DYNAMIC'
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.awaitingConfirm, true, JSON.stringify(result.selectionFailure))
+    assert.equal(result.packageEvidence.packageName, promoQuote.name)
+    assert.equal(result.packageEvidence.price, promoQuote.price)
+    assert.equal(result.packageEvidence.currency, 'USD')
+    assert.equal(result.packageEvidence.promoCode, 'DYNAMIC')
+    assert.equal(h.posts.length, 3)
+    for (const stage of ['ADD', 'SELL', 'STB']) {
+        const logged = info.filter(line => line.startsWith(`[HTTP] ${stage} quote guard passed:`))
+        assert.equal(logged.length, 1)
+        const layout = stage === 'ADD' ? 'UNLABELLED_TWO_CELL_TOTAL' : 'UNLABELLED_MIDDLE_AMOUNT_EMPTY_TAIL'
+        assert.ok(logged[0].includes(`"footerLayout":"${layout}"`))
+        assert.match(logged[0], /"quoteRevision":1/)
+        for (const secret of [fullCard, providerCard, promoQuote.name, '43.20', 'DYNAMIC', 'synthetic-stb']) {
+            assert.equal(logged[0].includes(secret), false)
+        }
+    }
+    assert.ok(h.posts.every(post => post.get('ctl00$ContentPlaceHolder1$txtPromoCode') === 'DYNAMIC'))
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') || post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+test('the diagnosed unlabelled Sell footer retains exact evidence at the final guard', () => {
+    const result = purchaseGuard.readRenewalSummary(addWithFooter(unlabelledPromoSellFooter), promoQuote, fullCard, 'CISCO', 'FINAL_OK')
+    assert.equal(result.packageName, promoQuote.name)
+    assert.equal(result.price, promoQuote.price)
+    assert.equal(result.promoCode, promoQuote.appliedPromoCode)
+    assert.equal(result.cardNumber, fullCard)
+    assert.equal(result.quoteRevision, promoQuote.quoteRevision)
+})
+
+for (const [label, page, reason] of [
+    ['different package at the same price', addWithFooter(unlabelledPromoSellFooter).replace(promoQuote.name, 'Together 12 Months + 20% OFF (12 Months)'), 'CART_QUOTE_MISMATCH'],
+    ['wrong middle amount', addWithFooter(unlabelledPromoSellFooter.replace('43.20', '54')), 'CART_TOTAL_MISMATCH'],
+    ['all amounts changed together', addWithFooter(unlabelledPromoSellFooter).replaceAll('43.20', '54'), 'CART_QUOTE_MISMATCH'],
+    ['different currency', addWithFooter(unlabelledPromoSellFooter).replaceAll('USD', 'EUR'), 'CART_QUOTE_MISMATCH'],
+    ['different promo', addWithFooter(unlabelledPromoSellFooter).replace('txtPromoCode" value="DYNAMIC"', 'txtPromoCode" value="OTHER"'), 'CART_PROMO_MISMATCH'],
+    ['different card', addWithFooter(unlabelledPromoSellFooter).replace(`value="${providerCard}"`, 'value="700000999"'), 'CART_CARD_IDENTITY_UNVERIFIED'],
+    ['missing label colspan', addWithFooter(unlabelledPromoSellFooter.replace('colspan="2"', '')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['rowspan in the footer', addWithFooter(unlabelledPromoSellFooter.replace('colspan="2"', 'colspan="2" rowspan="2"')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['extra footer cell', addWithFooter(unlabelledPromoSellFooter.replace('</tr>', '<td></td></tr>')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['another amount in the tail', addWithFooter(unlabelledPromoSellFooter.replace('<td></td>', '<td>43.20 USD</td>')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['hidden control in the empty label', addWithFooter(unlabelledPromoSellFooter.replace('&nbsp;', '<input type="hidden" name="extra" value="">')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['named element in the empty label', addWithFooter(unlabelledPromoSellFooter.replace('&nbsp;', '<span name="extra"></span>')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['hidden control in the tail', addWithFooter(unlabelledPromoSellFooter.replace('<td></td>', '<td><input type="hidden" name="extra" value=""></td>')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['named element in the tail', addWithFooter(unlabelledPromoSellFooter.replace('<td></td>', '<td><span name="extra"></span></td>')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['unexpected label text', addWithFooter(unlabelledPromoSellFooter.replace('&nbsp;', 'Unverified amount')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['missing independent displayed total', addWithFooter(unlabelledPromoSellFooter).replace(/<span id="ContentPlaceHolder1_lblTotalAmount">[^<]*<\/span>/, ''), 'CART_DISPLAYED_TOTAL_MISSING_OR_AMBIGUOUS'],
+] as const) test(`unlabelled three-cell Sell rejects ${label} before receiver submission`, async (t) => {
+    const info: string[] = []
+    t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
+    const h = purchaseClient([addWithFooter(unlabelledPromoFooter), page])
+    h.client.renewalSelection.packages = [promoQuote]
+    h.client.renewalSelection.promoCode = 'DYNAMIC'
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.success, false)
+    assert.equal(result.selectionFailure?.stage, 'SELL')
+    assert.equal(result.selectionFailure?.reason, reason)
+    assert.equal(h.posts.length, 2)
+    assert.equal(info.some(line => line.startsWith('[HTTP] SELL quote guard passed:')), false)
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') || post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+test('unlabelled receiver response cannot change the discounted package after matching Sell', async () => {
+    const sell = addWithFooter(unlabelledPromoSellFooter)
+    const wrongReceiver = sell.replace(promoQuote.name, 'Together 12 Months + 20% OFF (12 Months)')
+    const h = purchaseClient([addWithFooter(unlabelledPromoFooter), sell, wrongReceiver])
+    h.client.renewalSelection.packages = [promoQuote]
+    h.client.renewalSelection.promoCode = 'DYNAMIC'
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.success, false)
+    assert.equal(result.selectionFailure?.stage, 'STB')
+    assert.equal(result.selectionFailure?.reason, 'CART_QUOTE_MISMATCH')
+    assert.equal(h.posts.length, 3)
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') || post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
 test('diagnosed unlabelled promo Add total must match the named item and displayed total', async (t) => {
     const info: string[] = []
     t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
@@ -251,7 +337,7 @@ for (const [label, page, reason] of [
     ['different currency', addWithFooter(unlabelledPromoFooter).replaceAll('USD', 'EUR'), 'CART_QUOTE_MISMATCH'],
     ['different promo', addWithFooter(unlabelledPromoFooter).replace('txtPromoCode" value="DYNAMIC"', 'txtPromoCode" value="OTHER"'), 'CART_PROMO_MISMATCH'],
     ['missing label colspan', addWithFooter(unlabelledPromoFooter.replace('colspan="2"', '')), 'CART_TOTAL_ROW_UNVERIFIED'],
-    ['extra footer cell', addWithFooter(unlabelledPromoFooter.replace('</tr>', '<td></td></tr>')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['extra cells beyond the known empty tail', addWithFooter(unlabelledPromoFooter.replace('</tr>', '<td></td><td></td></tr>')), 'CART_TOTAL_ROW_UNVERIFIED'],
     ['hidden control in the empty cell', addWithFooter(unlabelledPromoFooter.replace('&nbsp;', '<input type="hidden" name="extra" value="">')), 'CART_TOTAL_ROW_UNVERIFIED'],
     ['named element in the empty cell', addWithFooter(unlabelledPromoFooter.replace('&nbsp;', '<span name="extra"></span>')), 'CART_TOTAL_ROW_UNVERIFIED'],
     ['missing independent displayed total', addWithFooter(unlabelledPromoFooter).replace(/<span id="ContentPlaceHolder1_lblTotalAmount">[^<]*<\/span>/, ''), 'CART_DISPLAYED_TOTAL_MISSING_OR_AMBIGUOUS'],

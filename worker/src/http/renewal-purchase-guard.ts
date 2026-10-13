@@ -71,7 +71,8 @@ export function describeRenewalCartFooter(html: string) {
     }).get()
     const layout = rows.length === 2 ? 'COMPACT_NO_FOOTER'
         : rows.length === 3 && cells.length === 3 && cellDetails[0].colspan === 2 &&
-            cellDetails[1].exactMoney && cellDetails[2].empty ? 'MIDDLE_AMOUNT_EMPTY_TAIL'
+            cellDetails[1].exactMoney && cellDetails[2].empty
+            ? cellDetails[0].empty ? 'UNLABELLED_MIDDLE_AMOUNT_EMPTY_TAIL' : 'MIDDLE_AMOUNT_EMPTY_TAIL'
         : rows.length === 3 && cells.length === 3 && cellDetails[0].empty &&
             cellDetails[2].exactMoney ? 'LEADING_EMPTY_CELL'
         : rows.length === 3 && cells.length === 2 && cellDetails[0].colspan === 2 &&
@@ -316,16 +317,16 @@ export function readRenewalSummary(html: string, expected: QuotePackage, cardNum
             /^remaining\s*\*?\s*money due if any will be added to the current package as extended validity\.?$/.test(totalLabel)
         const validTwoCell = total.length === 2 && total.eq(1).attr('colspan') === undefined &&
             (total.eq(0).attr('colspan') === '2' || stage !== 'ADD' && total.eq(0).attr('colspan') === undefined)
-        // Observed promo footer: no text label, one empty colspan=2 cell,
-        // then the total. The named item and independent displayed total
-        // below must still match this amount and the immutable quote.
-        const unlabelledTwoCellTotal = validTwoCell && total.eq(0).attr('colspan') === '2' &&
-            totalLabel === '' && total.eq(0).find('[name]').length === 0
         const validThreeCell = trailingEmpty
             ? total.eq(1).attr('colspan') === undefined && total.eq(2).attr('colspan') === undefined &&
                 normalized(total.eq(2).text()) === '' && total.eq(2).find('[name]').length === 0
             : normalized(total.eq(0).text()) === '' && total.toArray().every(cell => $(cell).attr('colspan') === undefined)
-        if ((total.length !== 2 && total.length !== 3) || !(knownTotalLabel || unlabelledTwoCellTotal) ||
+        // Observed promo Add/Sell footers omit the label: one empty colspan=2
+        // cell, the total, and at Sell an empty tail. The named item and
+        // independent displayed total must still match the immutable quote.
+        const unlabelledTotal = (validTwoCell || trailingEmpty && validThreeCell) &&
+            total.eq(0).attr('colspan') === '2' && totalLabel === '' && total.eq(0).find('[name]').length === 0
+        if ((total.length !== 2 && total.length !== 3) || !(knownTotalLabel || unlabelledTotal) ||
             total.is('[rowspan]') || $(rows[2]).children().length !== total.length ||
             total.find('input,select,button').length > 0 ||
             (total.length === 2 && !validTwoCell) || (total.length === 3 && !validThreeCell)) {

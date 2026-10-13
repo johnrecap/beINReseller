@@ -560,7 +560,13 @@ export default function RenewWizardPage() {
 
             if (!res.ok) {
                 if (data.code === 'RENEWAL_FULFILLMENT_REVIEW_PENDING') {
-                    toast.error(t.operations.fulfillmentReviewPending)
+                    const reason = typeof data.blockReason === 'string' && data.blockReason in t.renewalHold.holdReasons
+                        ? t.renewalHold.holdReasons[data.blockReason as keyof typeof t.renewalHold.holdReasons]
+                        : t.operations.fulfillmentReviewPending
+                    toast.error(reason, { action: { label: t.renew.toast.existingOperationAction,
+                        onClick: () => { window.location.href = session?.user?.role === 'ADMIN' && data.operationId
+                            ? `/dashboard/admin/financial-review?q=${encodeURIComponent(data.operationId)}`
+                            : '/dashboard/operations/active' } }, duration: 8000 })
                     return
                 }
                 if (data.code === 'RENEWAL_CARD_COOLDOWN') {

@@ -2,6 +2,7 @@ import { canonicalJson, quoteData, quoteRevisionOf, readyPackageQuote, sameQuote
 import type { AvailablePackage, LoadPackagesResult } from '../http/types'
 import type { Prisma } from '@prisma/client'
 import { lockFinancialOperation } from '../../../shared/operations/financial-lock'
+import { closePrePaymentHolds, hasProvenUnsubmittedPayment } from '../../../shared/operations/renewal-pre-payment'
 
 export function matchFreshPackage(packages: readonly AvailablePackage[], selected: QuotePackage): AvailablePackage {
     const matches = packages.filter(row => sameQuotedPackage(row, selected))
@@ -58,7 +59,8 @@ export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.T
             transactions: { select: { id: true } }, refundSettlements: { select: { id: true } },
             chargedBeinSpendLedger: { select: { id: true } }, fulfillmentProof: { select: { id: true } },
             manualFulfillmentEvidence: { select: { id: true } }, storeSubscription: { select: { id: true } },
-            dispatches: { where: { jobType: { in: ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'] } }, select: { id: true } },
+            dispatches: { where: { jobType: { in: ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'] } },
+                select: { id: true, jobType: true, status: true, attempts: true } },
         } })
         if (!current || current.status !== 'COMPLETING' || quoteRevisionOf(current.responseData) !== input.revision ||
             canonicalJson(current.selectedPackage) !== canonicalJson(input.selectedPackage)) return false
@@ -72,6 +74,7 @@ export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.T
             data.providerMutationMayHaveStarted === true &&
             typeof data.providerPreparationMutationStartedAt === 'string'
         const safePreSale = !!input.preSale && input.preSale.beinAccountId === current.beinAccountId &&
+            hasProvenUnsubmittedPayment(current) &&
             current.type === 'RENEW' &&
             (current.purpose === 'RENEWAL' || (current.renewalFlowVersion === 2 && current.purpose == null)) &&
             !!current.userId && !current.customerId &&
@@ -97,12 +100,7 @@ export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.T
                 ...(safePreSale ? { quoteConflictResolution: 'VERIFIED_PRE_SALE_NO_DEBIT', safeToRestart: true } : {}) }),
         } })
         if (saved.count === 1 && safePreSale) {
-            await tx.operationDispatch.updateMany({ where: { operationId: current.id, status: 'PENDING' },
-                data: { status: 'CANCELLED', lastError: 'PACKAGE_QUOTE_CHANGED_PRE_SALE' } })
-            await tx.cardLifecycleReservation.updateMany({ where: { operationId: current.id, releasedAt: null },
-                data: { releasedAt: closedAt, releaseReason: 'PACKAGE_QUOTE_CHANGED_PRE_SALE' } })
-            await tx.providerAccountCausalReservation.updateMany({ where: { operationId: current.id, releasedAt: null },
-                data: { releasedAt: closedAt, releaseReason: 'PACKAGE_QUOTE_CHANGED_PRE_SALE' } })
+            await closePrePaymentHolds(tx, current, { at: closedAt, reason: 'PACKAGE_QUOTE_CHANGED_PRE_SALE' })
         }
         return saved.count === 1
     })

@@ -1,4 +1,24 @@
 export const en = {
+    renewalHold: {
+        issueReasons: { PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED: 'Provider charge without confirmed renewal',
+            FULFILLMENT_PROOF_CONFLICT: 'Conflicting renewal or invoice evidence', DUPLICATE_RENEWAL_CHARGE_BURST: 'Possible duplicate charges across operations',
+            STRIPE_RENEWAL_REFUND_CONFLICT: 'External payment and refund conflict' },
+    holdReasons: {
+        UNRESOLVED_REVIEW: 'A previous renewal needs an administration decision before this card can be renewed.',
+        FULFILLMENT_INTEGRITY_ISSUE: 'Unresolved sale evidence is blocking this card. Administration must review it.',
+        ACTIVE_OPERATION: 'Another renewal for this card is still running.',
+        CARD_LIFECYCLE_RESERVED: 'An earlier operation still holds this card. Administration must inspect its closure.',
+        CARD_COOLDOWN: 'The five-minute card waiting period has not ended.',
+        PRE_PAYMENT_REVIEW: 'This attempt stopped before final payment. Administration can inspect whether it is safe to close.',
+        PAYMENT_UNCERTAIN: 'The payment outcome is not confirmed. Do not repeat the purchase; administration must review the evidence.',
+        PROVIDER_CHARGED: 'beIN deducted payment; the renewal result still needs confirmation.',
+        INTEGRITY_ISSUE: 'Conflicting renewal evidence remains open. Administration must resolve it.',
+        RESERVATION_REMAINS: 'The operation ended but a reservation remains. Its closure needs inspection.',
+    },
+    holdStage: 'Last recorded stage', holdLastChecked: 'Last operation update',
+    holdStages: { PRE_PAYMENT: 'Before final payment', FINAL_PAYMENT: 'Final payment', REPORT_VERIFICATION: 'Report verification', UNKNOWN: 'Not established' },
+    holdPageSummary: 'Counts apply to this page. Browse the next page to inspect other holds.',
+    },
     renewalReceipt: {
         view: 'View receipt', title: 'Renewal receipt', print: 'Print receipt',
         operation: 'Operation', invoice: 'beIN invoice', card: 'Card / serial', itemType: 'Device type',

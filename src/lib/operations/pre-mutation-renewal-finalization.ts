@@ -6,74 +6,16 @@ import { lockFinancialOperation } from '../../../shared/operations/financial-loc
 import { appendManualReviewDecision } from '@/lib/financial-review/manual-decisions'
 import { withFinancialReviewMetadata } from '@/lib/financial-review/evidence'
 import { validDecisionNote } from '../../../shared/operations/review-decision-note'
+import { closePrePaymentHolds, finalProviderMutationMayHaveStarted, hasProvenUnsubmittedPayment } from '../../../shared/operations/renewal-pre-payment'
+import { quoteData } from '../../../shared/operations/package-quote'
 
 export type WebPreMutationRenewalTerminationResult =
-    | { status: 'TERMINATED'; refundId: string | null; refundAmount: number }
-    | { status: 'ALREADY_TERMINATED'; refundId: string | null; refundAmount: number }
+    | { status: 'TERMINATED'; refundId: string | null; refundAmount: number; remainingHolds?: number }
+    | { status: 'ALREADY_TERMINATED'; refundId: string | null; refundAmount: number; remainingHolds?: number }
     | { status: 'REVIEW_REQUIRED'; reason: string }
     | { status: 'EVIDENCE_CONFLICT'; reason: string }
 
 type TerminalStatus = 'FAILED' | 'CANCELLED' | 'EXPIRED'
-
-function responseRecord(value: unknown): Record<string, unknown> {
-    if (!value) return {}
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value)
-            return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-                ? parsed as Record<string, unknown>
-                : {}
-        } catch {
-            return {}
-        }
-    }
-    return typeof value === 'object' && !Array.isArray(value)
-        ? value as Record<string, unknown>
-        : {}
-}
-
-function finalProviderMutationMayHaveStarted(input: {
-    status: OperationStatus
-    responseData: unknown
-    providerMutationStartedAt: Date | null
-    providerMutationStage: string | null
-    providerPaymentState: string | null
-    renewalFlowVersion: number | null
-}): boolean {
-    if (input.providerMutationStartedAt || input.providerMutationStage) return true
-    if (input.providerPaymentState && input.providerPaymentState !== 'NOT_SUBMITTED') return true
-
-    const data = responseRecord(input.responseData)
-    const phase = data.operationPhase ?? data.phase
-    const hasLegacyMutationTimestamp = [
-        data.finalProviderMutationStartedAt,
-        data.finalPayRequestStartedAt,
-        data.finalPaySubmittedAt,
-    ].some((value) => value !== null && value !== undefined && value !== '')
-    if (hasLegacyMutationTimestamp) return true
-    if (data.finalPaySubmitted === true) return true
-    if (data.providerMutationMayHaveStarted === true &&
-        !(input.renewalFlowVersion === 2 &&
-            ['PROVIDER_SALE_PREPARATION_STARTED', 'FINAL_CONFIRMATION_REQUESTED'].includes(String(phase)))) return true
-    if (
-        phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
-        phase === 'FINAL_PAY_REQUEST_STARTED' ||
-        phase === 'FINAL_PAY_SUBMITTED' ||
-        phase === 'POST_FINAL_PAY_REVIEW'
-    ) return true
-    if (input.status !== 'COMPLETING') return false
-    return ![
-        'PACKAGE_PREPARATION',
-        'PROVIDER_SALE_PREPARATION_STARTED',
-        'CANCELLATION_CONFIRM',
-        'FINAL_CONFIRMATION',
-        'FINAL_CONFIRMATION_REQUESTED',
-        'CUSTOMER_DEDUCTED',
-        'DISPATCH_PENDING',
-        'DISPATCH_FAILED',
-        'RECOVERY_TIMEOUT',
-    ].includes(typeof phase === 'string' ? phase : '')
-}
 
 function positiveMoney(value: number): number | null {
     if (!Number.isFinite(value)) return null
@@ -94,6 +36,8 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
     errorMessage?: string
     retryCount?: number
     adminReview?: { actorId: string; actorUsername: string; note: string }
+    repairOnly?: boolean
+    executionIdle?: (accountId: string | null) => Promise<boolean>
     expectedStaleHeartbeat?: {
         checkedAt: Date
         noHeartbeatBefore: Date
@@ -106,7 +50,7 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
     }
 }): Promise<WebPreMutationRenewalTerminationResult> {
     try {
-        return await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx): Promise<WebPreMutationRenewalTerminationResult> => {
             if (!await lockFinancialOperation(tx, input.operationId)) {
                 return { status: 'EVIDENCE_CONFLICT', reason: 'OPERATION_NOT_FOUND' }
             }
@@ -146,13 +90,26 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
                         select: { id: true, userId: true, type: true, amount: true },
                     },
                     dispatches: {
-                        where: { jobType: 'CONFIRM_PURCHASE' },
+                        where: { jobType: { in: ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'] } },
                         select: { id: true, jobType: true, status: true, attempts: true },
                     },
                 },
             })
             if (!operation || operation.type !== 'RENEW') {
                 return { status: 'EVIDENCE_CONFLICT', reason: 'RENEWAL_OPERATION_REQUIRED' }
+            }
+            if (input.adminReview || input.repairOnly) {
+                if (!input.executionIdle || !await input.executionIdle(operation.beinAccountId)) {
+                    return { status: 'EVIDENCE_CONFLICT', reason: 'PROVIDER_EXECUTION_ACTIVE_OR_UNAVAILABLE' }
+                }
+                if (input.repairOnly && (!hasProvenUnsubmittedPayment(operation) ||
+                    (!input.adminReview && operation.status === 'REVIEW_REQUIRED' &&
+                        (operation.renewalFlowVersion !== 2 || quoteData(operation.responseData).prePaymentClosurePolicyVersion !== 1)))) {
+                    return { status: 'EVIDENCE_CONFLICT', reason: 'POSITIVE_PRE_PAYMENT_EVIDENCE_REQUIRED' }
+                }
+                if (['FAILED', 'CANCELLED', 'EXPIRED'].includes(operation.status)) {
+                    input = { ...input, terminalStatus: operation.status as TerminalStatus }
+                }
             }
 
             if (input.adminReview) {
@@ -161,8 +118,7 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
                       AND "role" = 'ADMIN' AND "is_active" = true AND "deleted_at" IS NULL FOR SHARE
                 `
                 if (actor.length !== 1 || !validDecisionNote(input.adminReview.note, true) ||
-                    (operation.status !== input.terminalStatus &&
-                        !classifyFinancialReview(operation).allowedActions.includes('RESOLVE_PRE_MUTATION'))) {
+                    !classifyFinancialReview(operation).allowedActions.includes('RESOLVE_PRE_MUTATION')) {
                     return { status: 'EVIDENCE_CONFLICT', reason: 'REVIEW_CAPABILITY_CHANGED' }
                 }
             }
@@ -265,7 +221,8 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
                 Boolean(operation.fulfillmentProof) ||
                 Boolean(operation.manualFulfillmentEvidence) ||
                 operation.fulfillmentState !== 'UNVERIFIED' ||
-                operation.fulfillmentAuthority !== 'NONE'
+                operation.fulfillmentAuthority !== 'NONE' ||
+                await tx.beinAccountSpendLedger.count({ where: { operationId: operation.id } }) > 0
 
             const moveToReview = async (reason: string) => {
                 const reviewUpdate = await tx.operation.updateMany({
@@ -305,22 +262,24 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
                             reason: 'refund',
                         })
                     }
-                    await Promise.all([
-                        tx.cardLifecycleReservation.updateMany({
-                            where: { operationId: operation.id, releasedAt: null },
-                            data: { releasedAt: repairedAt, releaseReason: input.releaseReason },
-                        }),
-                        tx.providerAccountCausalReservation.updateMany({
-                            where: { operationId: operation.id, releasedAt: null },
-                            data: { releasedAt: repairedAt, releaseReason: input.releaseReason },
-                        }),
-                    ])
+                    const closure = await closePrePaymentHolds(tx, operation, { at: repairedAt, reason: input.releaseReason, actorId: input.adminReview?.actorId })
+                    if (input.adminReview && (closure.resolved || closure.cardReleased || closure.accountReleased)) {
+                        await tx.operation.update({ where: { id: operation.id }, data: {
+                            responseData: withFinancialReviewMetadata(operation.responseData, current => appendManualReviewDecision(current, {
+                                action: 'RESOLVE_PRE_MUTATION', note: input.adminReview!.note, decidedBy: input.adminReview!.actorId,
+                                decidedByUsername: input.adminReview!.actorUsername, decidedAt: repairedAt.toISOString(),
+                                refundApplied: exactExistingRefund, source: 'admin_manual_review',
+                            })),
+                        } })
+                    }
                     return {
                         status: 'ALREADY_TERMINATED',
                         refundId: existingUserRefund?.id ?? existingCustomerRefund?.id ?? null,
                         refundAmount: exactExistingRefund ? canonicalAmount : 0,
+                        remainingHolds: closure.remaining,
                     }
                 }
+                if (input.repairOnly) return { status: 'EVIDENCE_CONFLICT', reason: 'TERMINAL_EVIDENCE_UNRESOLVED' }
                 return moveToReview('Canonical pre-mutation settlement is missing or conflicting.')
             }
             if (!input.allowedStatuses.includes(operation.status)) {
@@ -390,7 +349,7 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
                     error: input.errorMessage,
                     completedAt,
                     ...(input.adminReview ? { responseData: withFinancialReviewMetadata(operation.responseData, current =>
-                        appendManualReviewDecision(current, { action: 'REFUND_CUSTOMER', note: input.adminReview!.note,
+                        appendManualReviewDecision(current, { action: 'RESOLVE_PRE_MUTATION', note: input.adminReview!.note,
                             decidedBy: input.adminReview!.actorId, decidedByUsername: input.adminReview!.actorUsername,
                             decidedAt: completedAt.toISOString(), refundApplied: refundId !== null,
                             source: 'admin_manual_review' })) } : {}),
@@ -401,27 +360,7 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
             })
             if (updated.count !== 1) throw new Error('PRE_MUTATION_TERMINATION_STATE_RACE')
 
-            await Promise.all([
-                tx.operationDispatch.updateMany({
-                    where: {
-                        operationId: operation.id,
-                        jobType: 'CONFIRM_PURCHASE',
-                        status: 'PENDING',
-                    },
-                    data: {
-                        status: 'CANCELLED',
-                        lastError: input.releaseReason,
-                    },
-                }),
-                tx.cardLifecycleReservation.updateMany({
-                    where: { operationId: operation.id, releasedAt: null },
-                    data: { releasedAt: completedAt, releaseReason: input.releaseReason },
-                }),
-                tx.providerAccountCausalReservation.updateMany({
-                    where: { operationId: operation.id, releasedAt: null },
-                    data: { releasedAt: completedAt, releaseReason: input.releaseReason },
-                }),
-            ])
+            const closure = await closePrePaymentHolds(tx, operation, { at: completedAt, reason: input.releaseReason, actorId: input.adminReview?.actorId })
 
             if (input.activity) {
                 await tx.activityLog.create({ data: input.activity })
@@ -431,8 +370,13 @@ export async function finalizeWebPreMutationRenewalTermination(input: {
                 status: 'TERMINATED',
                 refundId,
                 refundAmount: canonicalAmount,
+                remainingHolds: closure.remaining,
             }
         })
+        console.info('[RenewalHold] Finalization:', JSON.stringify({ operationId: input.operationId,
+            stage: 'PRE_PAYMENT', decision: result.status, committed: true,
+            remainingHolds: 'remainingHolds' in result ? result.remainingHolds : undefined }))
+        return result
     } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
             return { status: 'EVIDENCE_CONFLICT', reason: 'PRE_MUTATION_SETTLEMENT_UNIQUENESS_CONFLICT' }

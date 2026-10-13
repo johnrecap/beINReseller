@@ -8,12 +8,15 @@ import {
 } from '@/lib/financial-review/evidence'
 import type { FinancialReviewState } from '@/lib/financial-review/types'
 import { classifyFinancialReview, reviewCapabilitySelect } from '@/lib/financial-review/capabilities'
+import { projectRenewalHold } from '../../../../../shared/operations/renewal-hold'
+import { RENEWAL_BLOCKING_ISSUES } from '../../../../../shared/operations/renewal-pre-payment'
 
 const REVIEW_STATES: FinancialReviewState[] = ['needs_decision', 'follow_up', 'refunded', 'bein_executed']
 const CLOSED_REVIEW_DECISION_FILTERS: Prisma.OperationWhereInput[] = [
     { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'BEIN_EXECUTED_NO_REFUND' } },
     { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'REFUND_CUSTOMER' } },
     { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'KEEP_UNDER_REVIEW' } },
+    { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'RESOLVE_PRE_MUTATION' } },
 ]
 
 export async function GET(request: NextRequest) {
@@ -27,6 +30,10 @@ export async function GET(request: NextRequest) {
         const days = Math.max(1, Math.min(365, parseInt(searchParams.get('days') || '60')))
         const stateParam = searchParams.get('state') as FinancialReviewState | 'all' | null
         const q = (searchParams.get('q') || '').trim()
+        const cursor = searchParams.get('cursor') || ''
+        if (cursor.length > 100 || cursor && !/^[a-zA-Z0-9_-]+$/.test(cursor)) {
+            return NextResponse.json({ error: 'INVALID_LIST_QUERY' }, { status: 400 })
+        }
         const startDate = new Date()
         startDate.setDate(startDate.getDate() - days)
 
@@ -36,6 +43,13 @@ export async function GET(request: NextRequest) {
                     // Open reviews must remain discoverable for as long as they
                     // block a card; the date window applies to closed history.
                     { status: OperationStatus.REVIEW_REQUIRED },
+                    { type: 'RENEW', OR: [
+                        { integrityIssues: { some: { status: { in: ['OPEN', 'ACKNOWLEDGED'] }, issueType: { in: [...RENEWAL_BLOCKING_ISSUES] } } } },
+                        { status: { in: ['FAILED', 'CANCELLED', 'EXPIRED', 'COMPLETED'] }, OR: [
+                            { cardLifecycleReservation: { is: { releasedAt: null } } },
+                            { providerAccountCausalReservation: { is: { releasedAt: null } } },
+                        ] },
+                    ] },
                     { AND: [
                         { updatedAt: { gte: startDate } },
                         { OR: CLOSED_REVIEW_DECISION_FILTERS },
@@ -57,9 +71,14 @@ export async function GET(request: NextRequest) {
                         ],
                     }]
                 } : {}),
+                ...(cursor ? { id: { gt: cursor } } : {}),
             },
             select: {
                 ...reviewCapabilitySelect,
+                integrityIssues: { where: { status: { in: ['OPEN', 'ACKNOWLEDGED'] }, issueType: { in: [...RENEWAL_BLOCKING_ISSUES] } },
+                    select: { issueType: true } },
+                cardLifecycleReservation: { select: { releasedAt: true } },
+                providerAccountCausalReservation: { select: { releasedAt: true } },
                 id: true,
                 type: true,
                 cardNumber: true,
@@ -113,11 +132,13 @@ export async function GET(request: NextRequest) {
                 },
                 transactions: { select: { type: true, amount: true, userId: true } },
             },
-            orderBy: { updatedAt: 'desc' },
-            take: 300,
+            orderBy: { id: 'asc' },
+            take: 101,
         })
 
-        const operationIds = operations.map((operation) => operation.id)
+        const page = operations.slice(0, 100)
+
+        const operationIds = page.map((operation) => operation.id)
         const walletDebits = operationIds.length > 0
             ? await prisma.walletTransaction.findMany({
                 where: {
@@ -134,10 +155,12 @@ export async function GET(request: NextRequest) {
                 .map((transaction) => [transaction.referenceId as string, true])
         )
 
-        const allItems = operations
+        const allItems = page
             .map((operation) => {
                 const item = buildFinancialReviewItem(operation, walletDebitLookup)
-                return item ? { ...item, capabilities: classifyFinancialReview(operation) } : null
+                const hold = projectRenewalHold(operation)
+                return item ? { ...item, hold, ...(hold && operation.status !== 'REVIEW_REQUIRED'
+                    ? { state: 'needs_decision' as const } : {}), capabilities: classifyFinancialReview(operation) } : null
             })
             .filter((item): item is NonNullable<typeof item> => Boolean(item))
 
@@ -162,6 +185,7 @@ export async function GET(request: NextRequest) {
             period: { days, startDate: startDate.toISOString() },
             summary,
             items,
+            nextCursor: operations.length > 100 ? page.at(-1)?.id ?? null : null,
         })
     } catch (error) {
         console.error('Financial review list error:', error)

@@ -6,7 +6,7 @@ const base: ReviewCapabilityContext = {
     id: 'operation', type: 'RENEW', purpose: 'RENEWAL', status: 'REVIEW_REQUIRED', userId: 'user', customerId: null,
     beinAccountId: 'account', cardNumber: '7100000001', amount: 174, selectedPackage: { name: 'Package', price: 174 },
     providerPaymentState: 'UNKNOWN', providerMutationStartedAt: new Date(), providerMutationStage: 'FINAL_OK',
-    fulfillmentAuthority: 'NONE', transactions: [{ type: 'OPERATION_DEDUCT', amount: -174, userId: 'user' }],
+    fulfillmentAuthority: 'NONE', fulfillmentState: 'UNVERIFIED', transactions: [{ type: 'OPERATION_DEDUCT', amount: -174, userId: 'user' }],
     dispatches: [], refundSettlements: [],
 }
 

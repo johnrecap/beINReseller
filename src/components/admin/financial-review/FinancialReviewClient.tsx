@@ -29,6 +29,7 @@ import { useTranslation } from '@/hooks/useTranslation'
 import { validDecisionNote } from '../../../../shared/operations/review-decision-note'
 
 type ApiResponse = {
+    nextCursor?: string | null
     summary: {
         total: number
         needsDecision: number
@@ -131,6 +132,8 @@ export default function FinancialReviewClient() {
     const tabs = getTabs(t)
     const [state, setState] = useState<FinancialReviewState | 'all'>('needs_decision')
     const [search, setSearch] = useState('')
+    const [cursor, setCursor] = useState('')
+    const [previousCursors, setPreviousCursors] = useState<string[]>([])
     const [data, setData] = useState<ApiResponse | null>(null)
     const { load, loading, error: readError } = usePanelRequest()
     const mutationPending = useRef(false)
@@ -139,9 +142,14 @@ export default function FinancialReviewClient() {
     const [busyOperationId, setBusyOperationId] = useState<string | null>(null)
 
     const fetchItems = useCallback(() => {
-        const params = new URLSearchParams({ state, days: '90', ...(search.trim() ? { q: search.trim() } : {}) })
+        const params = new URLSearchParams({ state, days: '90', ...(search.trim() ? { q: search.trim() } : {}), ...(cursor ? { cursor } : {}) })
         return load<ApiResponse>(`/api/admin/financial-review?${params}`, setData)
-    }, [search, state, load])
+    }, [search, state, cursor, load])
+
+    useEffect(() => {
+        const query = new URLSearchParams(window.location.search).get('q')
+        if (query) { setSearch(query); setState('all') }
+    }, [])
 
     useEffect(() => { void fetchItems() }, [fetchItems])
     useEffect(() => {
@@ -227,6 +235,7 @@ export default function FinancialReviewClient() {
                     ? t.admin.financialReview.capabilityChanged : t.admin.financialReview.evidenceHold)
             await fetchItems()
             setDialog(null)
+            if (payload.remainingHolds > 0) setError(t.admin.financialReview.evidenceHold)
         } catch (err) {
             setError(err instanceof Error && [t.admin.financialReview.decisionNoteValidation, t.admin.financialReview.capabilityChanged, t.admin.financialReview.evidenceHold].includes(err.message) ? err.message : t.panelUi.actionFailed)
         } finally {
@@ -282,7 +291,7 @@ export default function FinancialReviewClient() {
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setState(tab.id)}
+                                    onClick={() => { setState(tab.id); setCursor(''); setPreviousCursors([]) }}
                                     disabled={busyOperationId !== null}
                                     className={`rounded-lg border px-4 py-2 text-sm transition ${state === tab.id
                                         ? 'border-[#9ffb06]/60 bg-[#9ffb06]/10 text-[#9ffb06]'
@@ -298,7 +307,7 @@ export default function FinancialReviewClient() {
                             <input
                                 value={search}
                                 disabled={busyOperationId !== null}
-                                onChange={(event) => setSearch(event.target.value)}
+                                onChange={(event) => { setSearch(event.target.value); setCursor(''); setPreviousCursors([]) }}
                                 placeholder={t.panelUi.reviewCopy.search}
                                 className="h-11 w-full rounded-lg border border-border bg-background pr-10 pl-3 text-sm text-foreground outline-none transition focus:border-[#9ffb06]/60"
                             />
@@ -335,6 +344,13 @@ export default function FinancialReviewClient() {
                         </div>
                     )}
                 </section>}
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <span>{t.renewalHold.holdPageSummary}</span>
+                    <button className="review-button" disabled={loading || busyOperationId !== null || !previousCursors.length}
+                        onClick={() => { setCursor(previousCursors.at(-1) || ''); setPreviousCursors(previousCursors.slice(0, -1)) }}>{t.pagination.previous}</button>
+                    <button className="review-button" disabled={loading || busyOperationId !== null || readError !== null || !data?.nextCursor}
+                        onClick={() => { setPreviousCursors([...previousCursors, cursor]); setCursor(data?.nextCursor || '') }}>{t.pagination.next}</button>
+                </div>
             </div>
 
             {dialog && readError === null && (
@@ -366,7 +382,8 @@ function ReviewCard({
     const owner = item.user || item.customer
     const latestCheck = item.review.latestCardVerification
     const latestDecision = item.review.latestDecision
-    const canDecide = item.state === 'needs_decision' || item.state === 'follow_up'
+    const canDecide = item.state === 'needs_decision' || item.state === 'follow_up' ||
+        item.capabilities?.allowedActions.includes('RESOLVE_PRE_MUTATION') === true
     const allowed = (action: FinancialReviewDecisionAction) => item.capabilities?.allowedActions.includes(action) === true
     const beinAccountName =
         item.evidence.beinAccountLabel ||
@@ -394,7 +411,7 @@ function ReviewCard({
                 <div className="min-w-0 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-sm font-medium text-amber-200">
-                            {item.stateLabel}
+                            {getTabs(t).find(tab => tab.id === item.state)?.label}
                         </span>
                         <span className="rounded-full border border-border bg-background px-3 py-1 text-sm text-muted-foreground">
                             {item.type}
@@ -405,7 +422,12 @@ function ReviewCard({
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-foreground">{t.panelUi.reviewCopy.card} {item.cardNumber}</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">{item.evidence.reason}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{item.hold
+                            ? t.renewalHold.holdReasons[item.hold.blockReason] : item.evidence.reason}</p>
+                        {item.hold && <p className="mt-1 text-sm text-muted-foreground">
+                            {t.renewalHold.holdStage}: {t.renewalHold.holdStages[item.hold.stage]} · {t.renewalHold.holdLastChecked}: {new Date(item.hold.lastCheckedAt).toLocaleString(locale)}
+                        </p>}
+                        {item.hold?.issueTypes?.map(kind => <p key={kind} className="mt-1 text-sm text-amber-300">{t.renewalHold.issueReasons[kind]}</p>)}
                     </div>
                     <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                         <Info label={t.panelUi.reviewCopy.customer} value={owner?.username || '-'} />
@@ -420,7 +442,7 @@ function ReviewCard({
 
                 {canDecide ? (
                     <div className="flex flex-wrap gap-2 xl:max-w-[460px] xl:justify-end">
-                        <button onClick={onVerify} disabled={busy} className="review-button">
+                        <button onClick={onVerify} disabled={busy || item.status !== 'REVIEW_REQUIRED'} className="review-button">
                             <ShieldCheck className="h-4 w-4" />
                             {t.admin.financialReview.liveCheckAction}
                         </button>
@@ -432,7 +454,7 @@ function ReviewCard({
                             <Wallet className="h-4 w-4" />
                             {t.admin.financialReview.refundAction}
                         </button>
-                        <button onClick={() => onDecision('KEEP_UNDER_REVIEW')} disabled={busy} className="review-button">
+                        <button onClick={() => onDecision('KEEP_UNDER_REVIEW')} disabled={busy || !allowed('KEEP_UNDER_REVIEW')} className="review-button">
                             <Clock3 className="h-4 w-4" />
                             {t.admin.financialReview.followUpAction}
                         </button>
@@ -443,8 +465,8 @@ function ReviewCard({
                         )}
                     </div>
                 ) : (
-                    <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100 xl:max-w-[360px]">
-                        {t.panelUi.reviewCopy.decisionLocked}
+                    <div className={`rounded-lg border px-4 py-3 text-sm xl:max-w-[360px] ${item.hold ? 'border-amber-400/20 bg-amber-400/10 text-amber-200' : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100'}`}>
+                        {item.hold ? t.admin.financialReview.evidenceHold : t.panelUi.reviewCopy.decisionLocked}
                     </div>
                 )}
             </div>

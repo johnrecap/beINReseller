@@ -56,6 +56,9 @@ type ReviewOperation = {
         actorUserId: string
     } | null
     transactions: Array<{ type: string; amount: number }>
+    integrityIssues?: Array<{ issueType: string }>
+    cardLifecycleReservation?: { releasedAt: Date | null } | null
+    providerAccountCausalReservation?: { releasedAt: Date | null } | null
 }
 
 export type CustomerWalletDebitLookup = Map<string, boolean>
@@ -121,7 +124,7 @@ export function withFinancialReviewMetadata(
 
 function deriveState(review: FinancialReviewMetadata, evidence: FinancialReviewEvidence): FinancialReviewState {
     const latestDecision = review.latestDecision
-    if (latestDecision?.action === 'REFUND_CUSTOMER' && latestDecision.refundApplied !== false && evidence.hasRefund) return 'refunded'
+    if (['REFUND_CUSTOMER', 'RESOLVE_PRE_MUTATION'].includes(latestDecision?.action || '') && latestDecision?.refundApplied !== false && evidence.hasRefund) return 'refunded'
     if (latestDecision?.action === 'BEIN_EXECUTED_NO_REFUND') return 'bein_executed'
     if (latestDecision?.action === 'KEEP_UNDER_REVIEW') return 'follow_up'
     return 'needs_decision'
@@ -147,7 +150,9 @@ export function buildFinancialReviewItem(
     const responseData = parseJsonRecord(operation.responseData)
     const auditSnapshot = getNestedRecord(responseData, 'auditSnapshot')
     const review = extractFinancialReviewMetadata(operation.responseData)
-    if (operation.status !== 'REVIEW_REQUIRED' && operation.status !== 'COMPLETED' && !review.latestDecision) return null
+    const blockingLeftovers = Boolean(operation.integrityIssues?.length ||
+        operation.cardLifecycleReservation?.releasedAt === null || operation.providerAccountCausalReservation?.releasedAt === null)
+    if (operation.status !== 'REVIEW_REQUIRED' && operation.status !== 'COMPLETED' && !review.latestDecision && !blockingLeftovers) return null
     const packageInfo = extractSelectedPackage(operation)
     const hasUserDeduction = operation.transactions.some((transaction) => transaction.type === 'OPERATION_DEDUCT')
     const hasRefund = operation.transactions.some((transaction) => transaction.type === 'REFUND')
@@ -218,7 +223,7 @@ export function buildFinancialReviewItem(
 
     // An open renewal review blocks this card even when no customer debit was
     // recorded. Keep it visible so an admin can inspect and resolve the hold.
-    if (!financiallyImpacted && !(operation.status === 'REVIEW_REQUIRED' && operation.type === 'RENEW')) return null
+    if (!financiallyImpacted && !(operation.type === 'RENEW' && (operation.status === 'REVIEW_REQUIRED' || blockingLeftovers))) return null
 
     const evidence: FinancialReviewEvidence = {
         operationId: operation.id,

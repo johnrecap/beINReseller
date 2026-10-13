@@ -6,6 +6,7 @@ import prisma from '@/lib/prisma'
 import { buildOperationListWhere } from '@/lib/operation-list-filters'
 import { parseOperationResponseData } from '@/lib/operation-safety'
 import { projectOperationProgress } from '../../../../shared/operations/consumer-progress'
+import { projectRenewalHold } from '../../../../shared/operations/renewal-hold'
 
 export const GET = withAuth(async (request: Request, session) => {
     try {
@@ -37,6 +38,9 @@ export const GET = withAuth(async (request: Request, session) => {
                     responseMessage: true,
                     responseData: true,
                     providerPaymentState: true,
+                    providerMutationStartedAt: true,
+                    providerMutationStage: true,
+                    renewalFlowVersion: true,
                     fulfillmentState: true,
                     fulfillmentAuthority: true,
                     completedAt: true,
@@ -59,6 +63,9 @@ export const GET = withAuth(async (request: Request, session) => {
             const evidence = parseOperationResponseData(responseData)
             return {
                 ...operation,
+                hold: projectRenewalHold({ ...operation, responseData }),
+                ...(session.user.role === 'ADMIN' && operation.status === 'REVIEW_REQUIRED'
+                    ? { reviewUrl: `/dashboard/admin/financial-review?q=${encodeURIComponent(operation.id)}` } : {}),
                 receiptAvailable: operation.status === 'COMPLETED' &&
                     operation.fulfillmentAuthority === 'AUTOMATED_REPORT' &&
                     fulfillmentProof?.proofKind === 'SOLD_REPORT_SAME_DAY',

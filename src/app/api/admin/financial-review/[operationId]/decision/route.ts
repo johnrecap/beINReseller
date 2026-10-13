@@ -22,6 +22,7 @@ import { validDecisionNote } from '../../../../../../../shared/operations/review
 import { classifyFinancialReview, reviewCapabilitySelect } from '@/lib/financial-review/capabilities'
 import { finalizeLegacyReview } from '@/lib/operations/legacy-review-finalization'
 import { finalizeWebPreMutationRenewalTermination } from '@/lib/operations/pre-mutation-renewal-finalization'
+import redis from '@/lib/redis'
 
 const DECISION_ACTIONS: FinancialReviewDecisionAction[] = [
     'BEIN_EXECUTED_NO_REFUND',
@@ -96,7 +97,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 allowedStatuses: ['REVIEW_REQUIRED'], responseMessage: 'ADMIN_PRE_MUTATION_RESOLVED',
                 releaseReason: 'ADMIN_PRE_MUTATION_RESOLVED', adminReview: {
                     actorId: authResult.user.id, actorUsername: authResult.user.username, note,
-                } })
+                }, repairOnly: true, executionIdle: async accountId => !accountId ||
+                    await redis.exists(`bein:account:lock:${accountId}`, `bein:account:execution-lease:${accountId}`) === 0 })
             const success = result.status === 'TERMINATED' || result.status === 'ALREADY_TERMINATED'
             return NextResponse.json({ success, ...result }, { status: success ? 200 : 409 })
         }

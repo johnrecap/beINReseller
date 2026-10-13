@@ -5,6 +5,7 @@ import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
 import { runDispatchWatchdog } from '@/lib/operation-dispatch'
 import { repairCompletionEffects } from '@/lib/maintenance/completion-effect-maintenance'
 import { repairTerminalProviderReservations, type ProviderReservationMaintenanceSummary } from '@/lib/maintenance/provider-reservation-maintenance'
+import { repairRenewalHolds, type RenewalHoldMaintenanceSummary } from '@/lib/maintenance/renewal-hold-maintenance'
 import {
     retryStaleCapturedOperationSpendAwardRuns,
     type OperationSpendAwardRunMaintenanceSummary,
@@ -35,6 +36,7 @@ export interface MaintenanceCycleSummary {
     verificationJobs: RenewalVerificationJobMaintenanceSummary
     completionEffects: Awaited<ReturnType<typeof repairCompletionEffects>> | null
     providerReservations: ProviderReservationMaintenanceSummary
+    renewalHolds: RenewalHoldMaintenanceSummary
     errors: string[]
 }
 
@@ -158,6 +160,15 @@ export async function runOperationMaintenanceCycle(
     const errors: string[] = []
     let completionEffects: Awaited<ReturnType<typeof repairCompletionEffects>> | null = null
     let providerReservations: ProviderReservationMaintenanceSummary = { inspected: 0, released: 0, held: 0, errors: [] }
+    let renewalHolds: RenewalHoldMaintenanceSummary = { inspected: 0, repaired: 0, held: 0, errors: [] }
+
+    try {
+        renewalHolds = await repairRenewalHolds({ now: started, limit: staleLimit })
+        inspected += renewalHolds.inspected
+        changed += renewalHolds.repaired
+        skipped += renewalHolds.held
+        errors.push(...renewalHolds.errors.map(id => `renewal-hold:${id}`))
+    } catch { errors.push('renewal-hold-maintenance') }
 
     try {
         providerReservations = await repairTerminalProviderReservations({ now: started, limit: staleLimit })
@@ -255,6 +266,7 @@ export async function runOperationMaintenanceCycle(
         cycleId,
         completionEffects,
         providerReservations,
+        renewalHolds,
         status: errors.length > 0 ? 'degraded' : inspected > 0 ? 'healthy' : 'idle',
         startedAt: started.toISOString(),
         finishedAt: finished.toISOString(),
@@ -302,6 +314,8 @@ export async function runOperationMaintenanceCycle(
             errorCount: verificationJobs.errors.length,
         },
         errorCount: errors.length,
+        renewalHolds: { inspected: renewalHolds.inspected, repaired: renewalHolds.repaired,
+            held: renewalHolds.held, errorCount: renewalHolds.errors.length },
         providerReservations: { inspected: providerReservations.inspected, released: providerReservations.released,
             held: providerReservations.held, errorCount: providerReservations.errors.length },
         durationMs: summary.durationMs,

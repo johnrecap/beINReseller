@@ -31,6 +31,7 @@ function fixture() {
             '@/lib/operation-dispatch': { runDispatchWatchdog: async () => { cycles++; if (pending) await pending; events.push('cycle-finished'); return { scanned: 0, recovered: 0, skipped: 0, retried: 0, review: 0, refunded: 0, errors: [] } } },
             '@/lib/maintenance/completion-effect-maintenance': { repairCompletionEffects: async () => ({ inspected: 0, delivered: 0, retryScheduled: 0, exhaustedCount: 0 }) },
             '@/lib/maintenance/provider-reservation-maintenance': { repairTerminalProviderReservations: async () => ({ inspected: 0, released: 0, held: 0, errors: [] }) },
+            '@/lib/maintenance/renewal-hold-maintenance': { repairRenewalHolds: async () => ({ inspected: 0, repaired: 0, held: 0, errors: [] }) },
             '@/lib/maintenance/operation-spend-award-run-maintenance': { retryStaleCapturedOperationSpendAwardRuns: async () => ({ inspected: 0, awarded: 0, alreadyFinalized: 0, skipped: 0, notFound: 0, reviewRequired: 0, errors: [] }) },
             '@/lib/maintenance/renewal-fulfillment-verification-maintenance': { repairDueRenewalVerificationJobs: async () => ({ inspected: 0, enqueued: 0, alreadyQueued: 0, errors: [] }) },
         }, [], {}, {

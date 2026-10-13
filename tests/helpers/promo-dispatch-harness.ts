@@ -9,6 +9,8 @@ import { buildRenewalFinalConfirmationEvidence } from '../../src/lib/operation-f
 import { planRenewalPackageSelection } from '../../src/lib/operations/lock-timeouts'
 import * as packageQuote from '../../shared/operations/package-quote'
 import * as consumerProgress from '../../shared/operations/consumer-progress'
+import * as renewalPrePayment from '../../shared/operations/renewal-pre-payment'
+import * as renewalHold from '../../shared/operations/renewal-hold'
 import { mergeOperationPhaseEvidence } from '../../src/lib/operation-safety'
 
 // Execute the real module body with explicit dependencies. Unlisted imports
@@ -29,6 +31,8 @@ export function loadIsolatedModule<T>(path: string, dependencies: Record<string,
         ...globals,
         require: (name: string) => {
             if (/^(\.\.\/)+shared\/operations\/consumer-progress$/.test(name)) return consumerProgress
+            if (/^(\.\.\/)+shared\/operations\/renewal-pre-payment$/.test(name)) return renewalPrePayment
+            if (/^(\.\.\/)+shared\/operations\/renewal-hold$/.test(name)) return renewalHold
             if (!Object.hasOwn(dependencies, name)) throw new Error(`UNMOCKED_IMPORT:${name}`)
             return dependencies[name]
         },

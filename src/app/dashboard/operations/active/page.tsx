@@ -21,6 +21,8 @@ interface SelectedPackage {
 }
 
 interface Operation {
+    hold?: import('../../../../../shared/operations/renewal-hold').RenewalHoldInfo | null
+    reviewUrl?: string
     id: string
     cardNumber: string
     status: OperationStatus
@@ -103,6 +105,7 @@ const getOperationStatusLabel = (
     t: ReturnType<typeof useTranslation>['t']
 ) => {
     const key = operation.messageKey?.replace('operations.', '')
+    if (operation.hold) return t.renewalHold.holdReasons[operation.hold.blockReason]
     if (key && key in t.operations) return t.operations[key as keyof typeof t.operations]
     if (operation.status === 'REVIEW_REQUIRED' && operation.responseMessage === 'PACKAGE_QUOTE_CHANGED') {
         return t.operations.packageQuoteChangedReview
@@ -686,6 +689,9 @@ export default function ActiveOperationsPage() {
                                                                 {statusConfig.icon}
                                                                 {getOperationStatusLabel(op, statusConfig.label, t)}
                                                             </span>
+                                                            {op.hold && <p className="mt-2 text-xs text-muted-foreground">
+                                                                {t.renewalHold.holdStage}: {t.renewalHold.holdStages[op.hold.stage]} · {t.renewalHold.holdLastChecked}: {new Date(op.hold.lastCheckedAt).toLocaleString()}
+                                                            </p>}
                                                         </TableCell>
                                                         <TableCell className="px-6 py-4">
                                                             <div className="flex flex-col gap-1">
@@ -697,6 +703,9 @@ export default function ActiveOperationsPage() {
                                                         </TableCell>
                                                         <TableCell className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
+                                                                {op.reviewUrl && <button className="rounded-lg border border-amber-400/30 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-400/10" onClick={() => router.push(op.reviewUrl!)}>
+                                                                    {t.panelUi.reportCopy.openReview}
+                                                                </button>}
                                                                 {canContinue && (
                                                                     <button
                                                                         onClick={() => handleContinue(op)}

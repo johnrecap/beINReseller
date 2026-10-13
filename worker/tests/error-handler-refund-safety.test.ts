@@ -151,8 +151,10 @@ test('pre-mutation renewal timeout, generic failure, and cancellation share one 
     assert.match(finalizer, /CANONICAL_SETTLEMENT_REQUIRED/);
     assert.match(finalizer, /tx\.user\.update[\s\S]*tx\.transaction\.create/);
     assert.match(finalizer, /tx\.operation\.updateMany/);
-    assert.match(finalizer, /cardLifecycleReservation\.updateMany/);
-    assert.match(finalizer, /providerAccountCausalReservation\.updateMany/);
+    const closure = readFileSync(join(process.cwd(), 'shared', 'operations', 'renewal-pre-payment.ts'), 'utf8');
+    assert.match(finalizer, /closePrePaymentHolds/);
+    assert.match(closure, /cardLifecycleReservation\.updateMany/);
+    assert.match(closure, /providerAccountCausalReservation\.updateMany/);
 
     const cancellationStart = worker.indexOf('async function handleCancelConfirmHttp')
     const cancellationEnd = worker.indexOf('async function handleSignalRefreshHttp', cancellationStart)

@@ -179,6 +179,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json(
                     {
                         code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
+                        blockReason: 'UNRESOLVED_REVIEW',
                         error: 'This card has an unresolved review operation. Resolve it before starting a new renewal.',
                         operationId: reviewOperation.id,
                     },
@@ -191,6 +192,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json(
                     {
                         code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
+                        blockReason: 'FULFILLMENT_INTEGRITY_ISSUE',
                         error: 'This card has an unresolved renewal fulfillment safety issue.',
                         operationId: fulfillmentConflict.operationId,
                     },
@@ -233,6 +235,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json(
                     {
                         code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
+                        blockReason: 'UNRESOLVED_REVIEW',
                         error: 'This card has an unresolved review operation. Resolve it before starting a new renewal.',
                         operationId: reviewOperation.id,
                     },
@@ -245,6 +248,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json(
                     {
                         code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
+                        blockReason: 'FULFILLMENT_INTEGRITY_ISSUE',
                         error: 'This card has an unresolved renewal fulfillment safety issue.',
                         operationId: fulfillmentConflict.operationId,
                     },

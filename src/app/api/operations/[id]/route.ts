@@ -7,6 +7,7 @@ import {
     redactOperationResponseData,
 } from '@/lib/operation-detail-audit'
 import { projectRenewalReceipt } from '@/lib/operations/receipt'
+import { projectRenewalHold } from '../../../../../shared/operations/renewal-hold'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -48,6 +49,9 @@ export async function GET(
                 userId: true,
                 finalConfirmExpiry: true,
                 providerPaymentState: true,
+                providerMutationStartedAt: true,
+                providerMutationStage: true,
+                renewalFlowVersion: true,
                 fulfillmentState: true,
                 fulfillmentAuthority: true,
                 fulfillmentProof: {
@@ -102,6 +106,9 @@ export async function GET(
         // Remove userId from response
         const operationData = {
             ...operation,
+            hold: projectRenewalHold(operation),
+            ...(authUser.role === 'ADMIN' && operation.status === 'REVIEW_REQUIRED'
+                ? { reviewUrl: `/dashboard/admin/financial-review?q=${encodeURIComponent(operation.id)}` } : {}),
             receipt: projectRenewalReceipt(operation),
             chargedBeinAccount: buildChargedBeinAccountAudit(operation, authUser.role === 'ADMIN'),
             ...projectOperationProgress(operation),

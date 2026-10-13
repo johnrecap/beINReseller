@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { quoteData } from '../../../shared/operations/package-quote'
+import { hasProvenUnsubmittedPayment } from '../../../shared/operations/renewal-pre-payment'
 
 export type ReviewAction = 'KEEP_UNDER_REVIEW' | 'BEIN_EXECUTED_NO_REFUND' | 'REFUND_CUSTOMER' | 'RESOLVE_PRE_MUTATION'
 export type ReviewClassification = 'MODERN_RENEWAL' | 'PRE_MUTATION' | 'LEGACY_RENEWAL' | 'INSTALLMENT' | 'CONFLICT' | 'CLOSED' | 'UNSUPPORTED'
@@ -47,42 +48,37 @@ export function classifyFinancialReview(operation: ReviewCapabilityContext): Rev
         classification, allowedActions: operation.status === 'REVIEW_REQUIRED' ? ['KEEP_UNDER_REVIEW'] : [],
         requiredEvidenceFields: {}, requiredNote: true, blockedReasonCodes,
     })
-    if (operation.status !== 'REVIEW_REQUIRED') return hold('CLOSED', 'OPERATION_NOT_REVIEWABLE')
+    const terminalPrePayment = ['FAILED', 'CANCELLED', 'EXPIRED'].includes(operation.status) &&
+        hasProvenUnsubmittedPayment(operation)
+    if (operation.status !== 'REVIEW_REQUIRED' && !terminalPrePayment) return hold('CLOSED', 'OPERATION_NOT_REVIEWABLE')
     if (operation.type !== 'RENEW' || !operation.userId || operation.customerId) return hold('UNSUPPORTED', 'PANEL_RENEWAL_REQUIRED')
     if (operation.purpose === 'INSTALLMENT') return hold('INSTALLMENT', 'INSTALLMENT_EVIDENCE_HOLD')
     if (operation.fulfillmentProof || operation.manualFulfillmentEvidence ||
         (operation.fulfillmentAuthority && operation.fulfillmentAuthority !== 'NONE') ||
-        operation.transactions.some(row => row.type === 'REFUND') || operation.refundSettlements?.some(row => row.state !== 'CANCELLED')) {
+        (!terminalPrePayment && operation.transactions.some(row => row.type === 'REFUND')) || operation.refundSettlements?.some(row => row.state !== 'CANCELLED')) {
         return hold('CONFLICT', 'REVIEW_SETTLEMENT_CONFLICT')
     }
-    const data = quoteData(operation.responseData)
     const deductions = operation.transactions.filter(row => row.type === 'OPERATION_DEDUCT')
-    const preparationOnly = operation.renewalFlowVersion === 2 &&
-        operation.amount === 0 && deductions.length === 0 &&
-        operation.providerPaymentState === 'NOT_SUBMITTED' &&
-        !operation.providerMutationStartedAt && !operation.providerMutationStage &&
-        ['PROVIDER_SALE_PREPARATION_STARTED', 'FINAL_CONFIRMATION_REQUESTED']
-            .includes(String(data.operationPhase)) &&
-        data.finalPaySubmitted === false &&
-        !data.finalProviderMutationStartedAt && !data.finalPayRequestStartedAt && !data.finalPaySubmittedAt &&
-        !operation.chargedBeinSpendLedger && !operation.fulfillmentProof && !operation.manualFulfillmentEvidence &&
-        (!operation.fulfillmentAuthority || operation.fulfillmentAuthority === 'NONE') &&
-        !(operation.dispatches || []).some(row => ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'].includes(row.jobType) &&
-            (!['PENDING', 'CANCELLED'].includes(row.status) || row.attempts !== 0))
-    if (preparationOnly) return { ...hold('PRE_MUTATION'),
-        allowedActions: ['KEEP_UNDER_REVIEW', 'RESOLVE_PRE_MUTATION'] }
+    if (terminalPrePayment) {
+        const refunds = operation.transactions.filter(row => row.type === 'REFUND')
+        const noMoney = operation.amount === 0 && deductions.length === 0 && refunds.length === 0
+        const settled = deductions.length === 1 && refunds.length === 1 &&
+            deductions[0].userId === operation.userId && refunds[0].userId === operation.userId &&
+            deductions[0].amount < 0 && refunds[0].amount > 0 &&
+            Math.abs(deductions[0].amount + refunds[0].amount) < 0.005
+        if (!noMoney && !settled) return hold('CONFLICT', 'CANONICAL_SETTLEMENT_REQUIRED')
+    }
+    if (operation.amount === 0 && deductions.length === 0 && hasProvenUnsubmittedPayment(operation)) {
+        return { ...hold('PRE_MUTATION'), allowedActions: terminalPrePayment ? ['RESOLVE_PRE_MUTATION']
+            : ['KEEP_UNDER_REVIEW', 'RESOLVE_PRE_MUTATION'] }
+    }
     if (deductions.length !== 1 || deductions[0].userId !== operation.userId ||
         !Number.isFinite(deductions[0].amount) || deductions[0].amount >= 0 || !Number.isFinite(operation.amount) ||
         Math.round(-deductions[0].amount * 100) !== Math.round(operation.amount * 100)) {
         return hold('CONFLICT', 'CANONICAL_SETTLEMENT_REQUIRED')
     }
-    const unsent = !operation.providerMutationStartedAt && !operation.providerMutationStage &&
-        operation.providerPaymentState === 'NOT_SUBMITTED' && data.finalPaySubmitted === false &&
-        ['PACKAGE_PREPARATION', 'FINAL_CONFIRMATION', 'CUSTOMER_DEDUCTED', 'DISPATCH_PENDING', 'DISPATCH_FAILED']
-            .includes(String(data.operationPhase)) && !operation.chargedBeinSpendLedger &&
-        !(operation.dispatches || []).some(row => ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'].includes(row.jobType) &&
-            (!['PENDING', 'CANCELLED'].includes(row.status) || row.attempts !== 0))
-    if (unsent) return { ...hold('PRE_MUTATION'), allowedActions: ['KEEP_UNDER_REVIEW', 'RESOLVE_PRE_MUTATION'] }
+    if (hasProvenUnsubmittedPayment(operation)) return { ...hold('PRE_MUTATION'),
+        allowedActions: terminalPrePayment ? ['RESOLVE_PRE_MUTATION'] : ['KEEP_UNDER_REVIEW', 'RESOLVE_PRE_MUTATION'] }
 
     const modern = Boolean(operation.providerMutationStartedAt && operation.providerMutationStage === 'FINAL_OK')
     const result = hold(modern ? 'MODERN_RENEWAL' : 'LEGACY_RENEWAL')

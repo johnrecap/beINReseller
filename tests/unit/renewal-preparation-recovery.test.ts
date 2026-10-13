@@ -114,6 +114,7 @@ test('maintenance logs the operation and recovery reason without provider detail
         '@/lib/maintenance/provider-reservation-maintenance': { repairTerminalProviderReservations: async () => ({
             inspected: 0, released: 0, held: 0, errors: [],
         }) },
+        '@/lib/maintenance/renewal-hold-maintenance': { repairRenewalHolds: async () => ({ inspected: 0, repaired: 0, held: 0, errors: [] }) },
     }, [], {}, { console: {
         info: (...parts: unknown[]) => logs.push(parts.join(' ')),
         log: (...parts: unknown[]) => logs.push(parts.join(' ')),

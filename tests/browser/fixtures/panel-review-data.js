@@ -2,10 +2,12 @@
 export function reviewData(query, config) {
     const q = query.get('q') || 'Synthetic review';
     return {
+        nextCursor: config.reviewPages && !query.get('cursor') ? 'synthetic-next' : null,
         summary: {total:1,needsDecision:1,followUp:0,refunded:0,beinExecuted:0,financiallyImpactedTotal:90},
         items: config.reviewEmpty ? [] : [{
             id:'synthetic-review-operation',type:'RENEW',cardNumber:'0000000000',amount:90,
             status:'REVIEW_REQUIRED',createdAt:'2026-09-08T00:00:00Z',updatedAt:'2026-09-08T00:00:00Z',
+            ...(config.reviewHold?{hold:{blockReason:'INTEGRITY_ISSUE',stage:'PRE_PAYMENT',lastCheckedAt:'2026-10-13T12:00:00Z'}}:{}),
             user:{id:'synthetic-user',username:q,kind:'reseller'},customer:null,beinAccount:{id:'synthetic-bein',username:'synthetic-account',label:'Synthetic account'},
             state:'needs_decision',stateLabel:'Synthetic review state',packageName:'Synthetic package',packagePrice:90,
             capabilities:{classification:config.reviewLegacy?'LEGACY_RENEWAL':'PRE_MUTATION',allowedActions:['RESOLVE_PRE_MUTATION','KEEP_UNDER_REVIEW','REFUND_CUSTOMER','BEIN_EXECUTED_NO_REFUND'],blockedReasonCodes:[]},

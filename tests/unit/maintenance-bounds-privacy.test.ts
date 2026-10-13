@@ -18,6 +18,7 @@ function loadMaintenance() {
         '@/lib/maintenance/renewal-fulfillment-verification-maintenance': { repairDueRenewalVerificationJobs: secretFailure },
         '@/lib/maintenance/completion-effect-maintenance': { repairCompletionEffects: secretFailure },
         '@/lib/maintenance/provider-reservation-maintenance': { repairTerminalProviderReservations: secretFailure },
+        '@/lib/maintenance/renewal-hold-maintenance': { repairRenewalHolds: secretFailure },
     }, ['boundedBatch'])
 }
 

@@ -1,4 +1,24 @@
 export const ar = {
+    renewalHold: {
+        issueReasons: { PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED: 'خصم لدى المزود دون تجديد مؤكد',
+            FULFILLMENT_PROOF_CONFLICT: 'تعارض في أدلة التجديد أو الفاتورة', DUPLICATE_RENEWAL_CHARGE_BURST: 'اشتباه في خصومات مكررة بين عدة عمليات',
+            STRIPE_RENEWAL_REFUND_CONFLICT: 'تعارض بين دفع خارجي واسترداد' },
+    holdReasons: {
+        UNRESOLVED_REVIEW: 'تجديد سابق يحتاج قرار الإدارة قبل تجديد هذا الكارت.',
+        FULFILLMENT_INTEGRITY_ISSUE: 'أدلة بيع غير محسومة تمنع تجديد هذا الكارت. يلزم فحص الإدارة.',
+        ACTIVE_OPERATION: 'توجد عملية تجديد أخرى جارية لهذا الكارت.',
+        CARD_LIFECYCLE_RESERVED: 'عملية سابقة ما زالت تحجز الكارت. يلزم فحص إغلاقها من الإدارة.',
+        CARD_COOLDOWN: 'لم تنتهِ مدة انتظار الكارت المحددة بخمس دقائق.',
+        PRE_PAYMENT_REVIEW: 'توقفت المحاولة قبل الدفع النهائي. يمكن للإدارة فحص إمكانية إغلاقها بأمان.',
+        PAYMENT_UNCERTAIN: 'نتيجة الدفع غير مؤكدة. لا تكرر الشراء؛ يجب أن تراجع الإدارة الأدلة.',
+        PROVIDER_CHARGED: 'خصمت beIN المبلغ، وما زالت نتيجة التجديد تحتاج تأكيدًا.',
+        INTEGRITY_ISSUE: 'توجد أدلة تجديد متعارضة لم تُحسم. يلزم قرار الإدارة.',
+        RESERVATION_REMAINS: 'انتهت العملية لكن ما زال عليها حجز. يلزم فحص إغلاقها.',
+    },
+    holdStage: 'آخر مرحلة مسجلة', holdLastChecked: 'آخر تحديث للعملية',
+    holdStages: { PRE_PAYMENT: 'قبل الدفع النهائي', FINAL_PAYMENT: 'الدفع النهائي', REPORT_VERIFICATION: 'التحقق من التقرير', UNKNOWN: 'غير محددة' },
+    holdPageSummary: 'الإحصاءات تخص هذه الصفحة. انتقل للصفحة التالية لفحص بقية الحجوزات.',
+    },
     renewalReceipt: {
         view: 'عرض الفاتورة', title: 'فاتورة تجديد الباقة', print: 'طباعة الفاتورة',
         operation: 'رقم العملية', invoice: 'فاتورة beIN', card: 'رقم الكارت', itemType: 'نوع الجهاز',

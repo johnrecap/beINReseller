@@ -1,66 +1,12 @@
 import { OperationStatus, Prisma } from '@prisma/client'
 import { prisma } from './prisma'
+import { closePrePaymentHolds, finalProviderMutationMayHaveStarted } from '../../../shared/operations/renewal-pre-payment'
 
 export type PreMutationRenewalTerminationResult =
     | { status: 'TERMINATED'; refundId: string | null }
     | { status: 'ALREADY_TERMINATED'; refundId: string | null }
     | { status: 'REVIEW_REQUIRED'; reason: string }
     | { status: 'EVIDENCE_CONFLICT'; reason: string }
-
-function responseRecord(value: unknown): Record<string, unknown> {
-    if (!value) return {}
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value)
-            return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-                ? parsed as Record<string, unknown>
-                : {}
-        } catch {
-            return {}
-        }
-    }
-    return typeof value === 'object' && !Array.isArray(value)
-        ? value as Record<string, unknown>
-        : {}
-}
-
-function finalProviderMutationMayHaveStarted(input: {
-    status: OperationStatus
-    responseData: unknown
-    providerMutationStartedAt: Date | null
-    providerMutationStage: string | null
-    providerPaymentState: string | null
-    renewalFlowVersion: number | null
-}): boolean {
-    if (input.providerMutationStartedAt || input.providerMutationStage) return true
-    const data = responseRecord(input.responseData)
-    const phase = data.operationPhase ?? data.phase
-    if (input.providerPaymentState && input.providerPaymentState !== 'NOT_SUBMITTED') return true
-    if ([data.finalProviderMutationStartedAt, data.finalPayRequestStartedAt, data.finalPaySubmittedAt]
-        .some(value => value !== null && value !== undefined && value !== '')) return true
-    if (data.finalPaySubmitted === true) return true
-    if (data.providerMutationMayHaveStarted === true &&
-        !(input.renewalFlowVersion === 2 &&
-            ['PROVIDER_SALE_PREPARATION_STARTED', 'FINAL_CONFIRMATION_REQUESTED'].includes(String(phase)))) return true
-    if (
-        phase === 'FINAL_PROVIDER_MUTATION_STARTED' ||
-        phase === 'FINAL_PAY_REQUEST_STARTED' ||
-        phase === 'FINAL_PAY_SUBMITTED' ||
-        phase === 'POST_FINAL_PAY_REVIEW'
-    ) return true
-    if (input.status !== 'COMPLETING') return false
-    return ![
-        'PACKAGE_PREPARATION',
-        'PROVIDER_SALE_PREPARATION_STARTED',
-        'CANCELLATION_CONFIRM',
-        'FINAL_CONFIRMATION',
-        'FINAL_CONFIRMATION_REQUESTED',
-        'CUSTOMER_DEDUCTED',
-        'DISPATCH_PENDING',
-        'DISPATCH_FAILED',
-        'RECOVERY_TIMEOUT',
-    ].includes(typeof phase === 'string' ? phase : '')
-}
 
 function canonicalDeduction(
     deductions: Array<{ userId: string; amount: number }>,
@@ -85,19 +31,21 @@ export async function finalizePreMutationRenewalTermination(input: {
     retryCount?: number
 }): Promise<PreMutationRenewalTerminationResult> {
     try {
-        return await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx): Promise<PreMutationRenewalTerminationResult> => {
             const locked = await tx.$queryRaw<Array<{ id: string }>>`
                 SELECT "id" FROM "operations" WHERE "id" = ${input.operationId} FOR UPDATE
             `
             if (locked.length !== 1) {
                 return { status: 'EVIDENCE_CONFLICT', reason: 'OPERATION_NOT_FOUND' }
             }
+            await tx.$queryRaw`SELECT "id" FROM "operation_dispatches" WHERE "operation_id" = ${input.operationId} FOR UPDATE`
 
             const operation = await tx.operation.findUnique({
                 where: { id: input.operationId },
                 select: {
                     id: true,
                     type: true,
+                    purpose: true,
                     status: true,
                     userId: true,
                     customerId: true,
@@ -107,7 +55,11 @@ export async function finalizePreMutationRenewalTermination(input: {
                     providerMutationStage: true,
                     providerPaymentState: true,
                     renewalFlowVersion: true,
+                    fulfillmentState: true,
                     fulfillmentAuthority: true,
+                    dispatches: { where: { jobType: { in: ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'] } },
+                        select: { jobType: true, status: true, attempts: true } },
+                    refundSettlements: { select: { state: true } },
                     chargedBeinSpendLedger: { select: { id: true } },
                     fulfillmentProof: { select: { id: true } },
                     manualFulfillmentEvidence: { select: { id: true } },
@@ -122,16 +74,12 @@ export async function finalizePreMutationRenewalTermination(input: {
             }
 
             const existingRefund = operation.transactions.find((entry) => entry.type === 'REFUND')
-            if (operation.status === input.terminalStatus) {
-                return {
-                    status: 'ALREADY_TERMINATED',
-                    refundId: existingRefund?.id ?? null,
-                }
-            }
-            if (!input.allowedStatuses.includes(operation.status)) {
+            const replay = operation.status === input.terminalStatus
+            if (!replay && !input.allowedStatuses.includes(operation.status)) {
                 return { status: 'EVIDENCE_CONFLICT', reason: 'TERMINATION_STATUS_CHANGED' }
             }
-            if (finalProviderMutationMayHaveStarted(operation)) {
+            if (finalProviderMutationMayHaveStarted(operation) || operation.dispatches.some(row =>
+                !['PENDING', 'CANCELLED'].includes(row.status) || row.attempts !== 0)) {
                 await tx.operation.updateMany({
                     where: { id: operation.id, status: operation.status },
                     data: {
@@ -145,6 +93,8 @@ export async function finalizePreMutationRenewalTermination(input: {
             }
             if (operation.chargedBeinSpendLedger || operation.fulfillmentProof ||
                 operation.manualFulfillmentEvidence || operation.fulfillmentAuthority !== 'NONE' ||
+                operation.fulfillmentState !== 'UNVERIFIED' ||
+                operation.refundSettlements.some(row => row.state !== 'CANCELLED') ||
                 await tx.beinAccountSpendLedger.count({ where: { operationId: operation.id } }) > 0) {
                 await tx.operation.updateMany({
                     where: { id: operation.id, status: operation.status },
@@ -171,7 +121,10 @@ export async function finalizePreMutationRenewalTermination(input: {
             if (
                 (operation.customerId && hasFinancialExposure) ||
                 (hasFinancialExposure && (!operation.userId || !refundAmount)) ||
+                (operation.amount > 0 && refundAmount !== null && Math.abs(operation.amount - refundAmount) >= 0.005) ||
                 (existingRefund && !existingRefundValid)
+                || operation.transactions.filter(row => row.type === 'REFUND').length > 1
+                || (replay && hasFinancialExposure && !existingRefundValid)
             ) {
                 await tx.operation.updateMany({
                     where: { id: operation.id, status: operation.status },
@@ -186,6 +139,10 @@ export async function finalizePreMutationRenewalTermination(input: {
             }
 
             let refundId = existingRefund?.id ?? null
+            if (replay) {
+                await closePrePaymentHolds(tx, operation, { at: new Date(), reason: input.releaseReason })
+                return { status: 'ALREADY_TERMINATED', refundId }
+            }
             if (refundAmount && operation.userId && !existingRefund) {
                 const user = await tx.user.update({
                     where: { id: operation.userId },
@@ -248,19 +205,13 @@ export async function finalizePreMutationRenewalTermination(input: {
             })
             if (updated.count !== 1) throw new Error('PRE_MUTATION_TERMINATION_STATE_RACE')
 
-            await Promise.all([
-                tx.cardLifecycleReservation.updateMany({
-                    where: { operationId: operation.id, releasedAt: null },
-                    data: { releasedAt: completedAt, releaseReason: input.releaseReason },
-                }),
-                tx.providerAccountCausalReservation.updateMany({
-                    where: { operationId: operation.id, releasedAt: null },
-                    data: { releasedAt: completedAt, releaseReason: input.releaseReason },
-                }),
-            ])
+            await closePrePaymentHolds(tx, operation, { at: completedAt, reason: input.releaseReason })
 
             return { status: 'TERMINATED', refundId }
         })
+        console.info('[RenewalHold] Finalization:', JSON.stringify({ operationId: input.operationId,
+            stage: 'PRE_PAYMENT', decision: result.status, committed: true }))
+        return result
     } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
             const replay = await prisma.operation.findUnique({

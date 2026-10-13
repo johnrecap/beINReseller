@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-10-13
-> Last synchronized commit: 08fc12b26da7e7e739906d72ef7dbb9a1f0f6172
+> Last synchronized commit: b58001088d985e74ac7ab0f19af0cff3cb3e78c1
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:4c46183dddcd7c67e9762a1b2a62e24888a4b17d0171e3422ad3c7be9411145a
+> Working tree fingerprint: SHA256:38093751bfaf15959242417c45fdb0e244fc7e5d7d89f4a5afde563bce516a46
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Current renewal hold repair, 2026-10-13: `UPD-20261013-011` atomically closes proven pre-payment local issues/reservations, repairs eligible replay, limits automatic review closure to newly versioned v2 attempts, and exposes terminal blockers/reasons/actions through the existing admin review surface. Local SQL replay/rollback, root/Worker/browser/types/build checks pass within the recorded limits; historical production reviews and native service races remain unknown. Resume at `docs/PROJECT_GUIDE.md#renewal-hold-repair--current-delivery-register-2026-10-13`.
 
 - Current precision repair, 2026-10-13: `UPD-20261013-010` reads the original package name and exact price from header-mapped cells, retains optional text/decimal snapshots across Workers and compares known Reports display variants without losing duration/offer or rounding amounts. Local mocked journeys reach one receipt/completion/release, including a lost Pay reply. No provider or production execution, schema change or historical resettlement. Resume at `docs/PROJECT_GUIDE.md#recent-changes`.
 
@@ -195,6 +197,8 @@
 
 ### FE-003 — Localization and RTL-aware content
 
+- Hold repair: `renewalHold` ar/en/bn catalogs provide reason, specific issue, stage, last-update and pagination copy without changing the flat operation-message contract. Sources: `src/i18n/translations`; `UPD-20261013-011`.
+
 - Provider reports 2026-10-13: `providerReport`/`reportCenter` tokens and reused existing labels cover the new panel and report-center navigation in en/ar/bn. Provider package/offer strings remain unchanged. Sources: `src/i18n/translations`; `src/components/admin/report-center`; `UPD-20261013-001`.
 
 - Web completion 2026-09-08 / FIX-05: operational permissions/agents/credit forms, report panels and financial-review UI copy use existing ar/en/bn catalogs. Native/provider text and API/stored payment-status values stay unchanged. Balance PDF retains its English document contract independently of page language. The report records residual API-derived/other-page localization limits; do not claim whole-project text completion. Sources: `docs/PANEL_UI_REPAIRS.md`; `UPD-20260908-005`.
@@ -240,6 +244,8 @@
 - Connections: `FE-002`, `FE-003`, `FE-004`, `FEAT-003`, `FEAT-007`, `FEAT-008`–`FEAT-018`
 
 ### FE-007 — Reseller operational workspace
+
+- Hold repair: active rows show a bounded cause/stage/update and an admin-only review link. Financial review includes terminal blockers, 100-row cursor navigation and operation/card search prefill. Existing action capabilities govern terminal repair buttons. Sources: `src/app/dashboard/operations/active/page.tsx`; `src/components/admin/financial-review/FinancialReviewClient.tsx`; `UPD-20261013-011`.
 
 - Pre-final selection 2026-10-13: The quote UI hides packages when a promo revision fails, shows a translated no-new-charge preparation failure only with no deduction/final Pay marker, and displays provider currency. The customer still explicitly chooses from the current quote before Add/Sell. Sources: `src/app/dashboard/renew/page.tsx`; `shared/operations/consumer-progress.ts`; `src/i18n/translations`; `UPD-20261013-009`.
 
@@ -292,6 +298,8 @@
 - Connections: `API-001`, `API-002`, `DATA-001`, `DATA-003`, `AUTH-004`, `FEAT-003`, `FEAT-004`, `FEAT-005`
 
 ### BE-002 — Operation domain and recovery services
+
+- Hold repair: positive unsubmitted-payment assessment is shared across web/Worker/quote closure and admin capabilities. Atomic closure clears disproven local fulfillment issues, cancels unattempted final dispatches and releases reservations; ambiguous payment and cross-operation conflicts remain protected. Sources: `shared/operations/renewal-pre-payment.ts`; `src/lib/operations/pre-mutation-renewal-finalization.ts`; `worker/src/lib/pre-mutation-renewal-finalization.ts`; `UPD-20261013-011`.
 
 - Cooldown 2026-10-12: `src/lib/operations/renewal-card-cooldown.ts` reads the latest unexpired card deadline without writes or identity disclosure. `src/lib/operations/renewal-creation-guard.ts` checks it under the existing transaction/card lock before package-renewal creation or continuation. Existing unresolved review/reservation checks take precedence; installment attempts bypass only this new cooldown. Source: `UPD-20261012-002`.
 
@@ -439,6 +447,8 @@
 
 ### API-011 — Renewal payment and fulfillment evidence contract
 
+- Hold repair: start errors add `blockReason`; owner-scoped operation reads add `hold`, with an admin-only review URL. Admin financial review adds cursor/nextCursor pages and terminal blockers. `RESOLVE_PRE_MUTATION` positively rechecks terminal leftovers, execution ownership and canonical settlement; administrative replay records an audited note. Sources: `src/app/api/admin/financial-review`; `shared/operations/renewal-hold.ts`; `UPD-20261013-011`.
+
 - Precision 2026-10-13: Numeric public `price` stays compatible; internal optional `priceText`/`priceDecimal` remain server-owned quote/session JSON and older numeric quotes need no page reconstruction. Search and transactional report proof use the same narrow display-name and exact decimal rules. Sources: `shared/operations/package-quote.ts`; `shared/operations/provider-price.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-010`.
 
 - Pre-final selection 2026-10-13: The existing promo/selection/operation endpoints retain their contracts. A failed v2 promo revision publishes no selectable prior packages; exact safe Add/Sell/STB failure becomes FAILED without wallet debit, while ambiguous final mutation or sale evidence remains review-required. The consumer projection gates the localized no-charge message on absent debit/refund and absent final Pay. Sources: `src/app/api/operations/[id]/apply-promo/route.ts`; `shared/operations/package-quote.ts`; `shared/operations/consumer-progress.ts`; `UPD-20261013-009`.
@@ -466,6 +476,8 @@
 - Connections: `AUTH-001`, `AUTH-004`, `AUTH-005`, `FEAT-002`, `FEAT-003`
 
 ### DATA-002 — Operations, dispatch, accounting, and integrity
+
+- Hold repair: existing JSON stores `prePaymentClosurePolicyVersion: 1`; no schema/migration change. Local issue resolution, confirmation-dispatch cancellation and reservation release share the settlement transaction; replay retains the original cooldown and cannot create a second refund. Sources: `shared/operations/renewal-pre-payment.ts`; `UPD-20261013-011`.
 
 - Precision 2026-10-13: Optional original price text and canonical decimal travel inside existing package/session JSON, with no schema change. The Decimal(18,2) proof capacity is checked before persistence; an unsupported amount reviews instead of being silently rounded. Sources: `shared/operations/provider-price.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-010`.
 
@@ -619,6 +631,8 @@
 
 ### FLOW-007 — Proof-gated reseller renewal
 
+- Hold repair: no post-selection Check/reload/promo changes. Proven pre-payment failure closes local holds; post-final and conflicting evidence stay reviewable. Newly admitted policy-tagged v2 reviews can recover after their worker owner drains; historical unresolved monetary cases require an admin. Sources: `src/lib/maintenance/renewal-hold-maintenance.ts`; `UPD-20261013-011`.
+
 - Precision 2026-10-13: Header-mapped original name/price/currency/control stay on the same saved operation page. After consent, report matching strips only supported display differences; exact duration, offer, amount and currency are rechecked inside finalization. Same-operation proof reuse occurs before testing already-released reservations and creates no second receipt/effect. No added Check/reload/promo replay. Sources: `worker/src/http/HttpClientService.ts`; `worker/src/lib/report-package-identity.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-010`.
 
 - Pre-final selection 2026-10-13: In v2, Add then Sell confirms the selected cart, then both STB fields are prepared; OK/Pay and customer wallet deduction occur only after final consent. START_RENEWAL reserves its account before the quote is published, and selection continues from its saved page. Safe preparation errors/replays do not resend Add/Sell and close without financial review; final mutation markers or sale evidence still require it. Promo apply/remove invalidates the old quote and records the POST barrier before submission. Sources: `worker/src/http-queue-processor.ts`; `worker/src/lib/pre-mutation-renewal-finalization.ts`; `worker/src/lib/promo-quote.ts`; `UPD-20261013-009`.
@@ -766,6 +780,8 @@
 - Connections: `APP-005`, `INT-001`, `ENV-002`
 
 ### JOB-005 — Maintenance, timeout, and recovery
+
+- Hold repair: a bounded rotating scan repairs positively proven terminal leftovers and only policy-tagged new v2 reviews. It rechecks evidence and Redis execution/legacy ownership inside the finalizer; unknown, duplicate/Stripe and historical unresolved review cases remain held. Sources: `src/lib/maintenance/renewal-hold-maintenance.ts`; `src/lib/maintenance/operation-maintenance-runner.ts`; `UPD-20261013-011`.
 
 - Extended quality 2026-09-08: Maintenance has fresh per-cycle tokens, one active local cycle and signal drain before closing dependencies; cross-process safety still requires row fences and idempotency. Sources: `specs/036-audit-remediation/evidence/extended-quality-verification.md`; `UPD-20260908-003`. Earlier dated results are historical.
 
@@ -927,6 +943,8 @@
 
 ### SEC-002 — Audit, diagnostic, and redaction boundary
 
+- Hold repair: new diagnostics expose operation/stage/decision, fixed reasons and resolution/release counts only. `hold` projects allowlisted causes/issue types/stages/update times; ordinary owners receive no admin review URL or provider session material. Sources: `shared/operations/renewal-hold.ts`; `shared/operations/renewal-pre-payment.ts`; `UPD-20261013-011`.
+
 - Local backlog 2026-09-08: Maintenance logs omit raw provider/connection exceptions; preflight/effect health uses aggregate metadata. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
 
 - State: VERIFIED
@@ -1067,6 +1085,8 @@
 - Connections: `TEST-002`, `RISK-001`, `RISK-004`, `FEAT-002`, `FEAT-003`, `FEAT-006`, `FEAT-010`–`FEAT-018`
 
 ### TEST-008 — Renewal fulfillment safety verification
+
+- Hold repair: 890 root cases, 489 Worker passes/five Redis skips and 82 review browser scenarios; both types/builds and changed-file lint pass. Actual Prisma SQL through an in-memory PostgreSQL transport checks replay/rollback/refund-once, separate operations, bounded maintenance, admin terminal repair and unchanged cooldown admission. Native multi-process PostgreSQL/Redis races remain NOT_VERIFIED; full lint retains unrelated errors. Sources: `tests/unit/renewal-hold-persistence.test.ts`; `tests/unit/renewal-hold-safety.test.ts`; `worker/tests/renewal-hold-closure.test.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-011`.
 
 - Precision 2026-10-13: Three original failures reproduced before repair. Root 887 pass; Worker 488 pass/five Redis skips; both types/builds and scoped lint pass. Four complete mocked journeys use actual HTTP methods, session JSON restoration, confirmation API, report scanner and proof finalizer; storage/cookie/concurrency dependencies are synthetic. Broad lint has seven errors in four unchanged tracked mobile/customer files plus 171 ignored-artifact errors; native service races and live checkout remain NOT_VERIFIED. Sources: `worker/tests/precise-package-report.test.ts`; `worker/tests/precise-renewal-journey.test.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-010`.
 
@@ -1390,6 +1410,8 @@
 - Impact: admin UI, API, secrets, provider, Worker, Redis
 
 ### FEAT-015 — Financial review, spend ledger, and integrity monitoring
+
+- Hold repair: terminal blocking issues/reservations remain discoverable independently of history age or a zero displayed amount. Only positive pre-payment/canonical-settlement capabilities allow closure; other financial evidence still uses existing review decisions. Sources: `src/lib/financial-review/capabilities.ts`; `src/app/api/admin/financial-review/route.ts`; `UPD-20261013-011`.
 
 - Local backlog 2026-09-08: Capabilities, attributable legacy receipt and pre-mutation review implemented; unknown legacy refunds/installments retain holds. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
 
@@ -1841,6 +1863,8 @@
 
 ### WORK-004 — Renewal fulfillment proof and duplicate-charge containment
 
+- Current standalone accepted-plan delivery: `UPD-20261013-011` repairs unjustified pre-payment holds and their admin/maintenance visibility. No Spec Kit lifecycle or historical acceptance count changed. Source: `docs/PROJECT_GUIDE.md`.
+
 - Recovery continuation 2026-10-13: The reported production migration attempt failed at 55P04. The ordered enum migration is locally tested; production history/schema inspection, native retry and consistent process restart remain open. Source: `specs/036-audit-remediation/audit-register.md#same-page-renewal-and-same-day-report-continuation--2026-10-13`; `UPD-20261013-008`.
 
 - Version 2 continuation 2026-10-13: Locally implemented one-page promo/selection, daily report proof and persistent receipt. New migration and production cutover are NOT_VERIFIED; old v1 attempts keep their original policy. The evidence register lists each requirement and release gate. Source: `specs/036-audit-remediation/audit-register.md#same-page-renewal-and-same-day-report-continuation--2026-10-13`; `UPD-20261013-007`.
@@ -1887,6 +1911,16 @@
 - Phase 4: Phase 4 T015-T017 complete, 10/46 accepted; synthetic API/worker/DB and six mocked browser groups verified with independent review. Later phases and T007/T008/T012 remain open. Saved locally, no commit/push/deploy. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ## 22. Change Ledger
+
+### UPD-20261013-011 — Close proven pre-payment holds and expose remaining blockers
+
+- Date: 2026-10-13
+- State: VERIFIED
+- Sources: `shared/operations/renewal-pre-payment.ts`; `shared/operations/renewal-hold.ts`; `src/lib/maintenance/renewal-hold-maintenance.ts`; `src/lib/operations/pre-mutation-renewal-finalization.ts`; `worker/src/lib/pre-mutation-renewal-finalization.ts`; `src/app/api/admin/financial-review`; `src/components/admin/financial-review/FinancialReviewClient.tsx`; `tests/unit/renewal-hold-persistence.test.ts`; `tests/unit/renewal-hold-safety.test.ts`; `worker/tests/renewal-hold-closure.test.ts`; `docs/PROJECT_GUIDE.md`
+- Affected IDs: `FE-003`, `FE-007`, `BE-002`, `API-011`, `DATA-002`, `FLOW-007`, `JOB-005`, `SEC-002`, `TEST-008`, `FEAT-015`, `WORK-004`, `FRESH-001`
+- Delta: Reproduced stale-issue blocking after safe failure, then integrated positive evidence, atomic local-issue/dispatch/reservation closure, terminal replay and audited admin repair. Bounded maintenance limits automatic unresolved-review closure to new policy-tagged v2 operations, defers active owners and preserves historical financial/cross-operation holds. Existing APIs/UI expose localized actionable blockers and cursor-search navigation.
+- Evidence: Local root/Worker/browser/types/build and actual Prisma/PGlite SQL replay/rollback/cooldown checks; detailed counts and retained logs in `docs/PROJECT_GUIDE.md`. Scope-specific code review preserves final submission, original settlement, privacy and separate-operation boundaries. The PGlite bridge serializes one connection; native PostgreSQL/Redis contention, production evidence and real-provider behavior are NOT_VERIFIED.
+- Runtime impact: RUNTIME_CHANGE_NOT_DEPLOYED. No provider request, live money, migration, historical financial decision or subagent. GitHub source delivery authorized; user owns deployment.
 
 ### UPD-20261013-010 — Read exact package cells and correlate report display variants
 
@@ -2217,6 +2251,8 @@
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
+
+- Latest scoped delta: `UPD-20261013-011`, proven pre-payment hold closure/replay, policy-bound maintenance and actionable admin/owner diagnostics. Source/test evidence and native-service/production limitations are in `docs/PROJECT_GUIDE.md`. Synchronization metadata captures the settled pre-commit worktree; committing this ledger changes Git metadata without changing verified runtime sources.
 
 - Latest scoped delta: `UPD-20261013-010`, precise package/price cells and narrow same-day Reports equivalence. Current local verification and its native-service/provider/lint limitations are recorded in `docs/PROJECT_GUIDE.md`; no historical acceptance or production state is changed.
 

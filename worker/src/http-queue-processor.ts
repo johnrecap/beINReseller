@@ -1479,9 +1479,11 @@ async function handleStartRenewalHttp(
     smartcardType?: string
 ): Promise<void> {
     console.log(`🚀 [HTTP] Starting renewal for ${operationId}`);
-    const flowVersion = (await prisma.operation.findUnique({
-        where: { id: operationId }, select: { renewalFlowVersion: true },
-    }))?.renewalFlowVersion || 1;
+    const startOperation = await prisma.operation.findUnique({
+        where: { id: operationId }, select: { renewalFlowVersion: true, responseData: true },
+    });
+    const flowVersion = startOperation?.renewalFlowVersion || 1;
+    const closurePolicy = quoteData(startOperation?.responseData).prePaymentClosurePolicyVersion;
 
     await checkIfCancelled(operationId);
 
@@ -1531,7 +1533,7 @@ async function handleStartRenewalHttp(
 
     if (!await updateOperationIfActive(operationId, {
         beinAccountId: selectedAccount.id,
-        responseData: JSON.stringify(responseDataWithRoute(null, route))
+        responseData: JSON.stringify(responseDataWithRoute({ prePaymentClosurePolicyVersion: closurePolicy }, route))
     }, 'START_RENEWAL account update')) {
         await accountPool.markAccountUsed(selectedAccount.id, operationId);
         return;
@@ -1861,6 +1863,7 @@ async function handleStartRenewalHttp(
         responseData: JSON.stringify(responseDataWithRoute({
             dealerBalance: packagesResult.dealerBalance,  // For balance validation
             ...readyPackageQuote({}, packages, 0, null),
+            prePaymentClosurePolicyVersion: closurePolicy,
             savedAt: new Date().toISOString(),
             smartcardType: smartcardType || 'CISCO',
             operationPhase: 'PACKAGE_PREPARATION',

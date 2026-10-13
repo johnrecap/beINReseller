@@ -40,9 +40,10 @@ for (const [purpose, finalMarker, expectedStatus] of [
                 },
             },
             beinAccountSpendLedger: { count: async () => 0 },
+            operationIntegrityIssue: { updateMany: async () => ({ count: 0 }), count: async () => 0 },
             operationDispatch: { updateMany: async () => undefined },
-            cardLifecycleReservation: { updateMany: async () => { released.push('card') } },
-            providerAccountCausalReservation: { updateMany: async () => { released.push('account') } },
+            cardLifecycleReservation: { updateMany: async () => { released.push('card'); return { count: 1 } } },
+            providerAccountCausalReservation: { updateMany: async () => { released.push('account'); return { count: 1 } } },
         }
         const { holdQuoteConflict } = loadIsolatedModule<{
             holdQuoteConflict: (db: unknown, input: unknown, fence: () => Promise<void>) => Promise<boolean>
@@ -71,9 +72,10 @@ for (const finalMarker of ['none', 'stage', 'timestamp'] as const) {
                 },
             },
             beinAccountSpendLedger: { count: async () => 0 },
+            operationIntegrityIssue: { updateMany: async () => ({ count: 0 }), count: async () => 0 },
             operationDispatch: { updateMany: async () => { releases.push('dispatch') } },
-            cardLifecycleReservation: { updateMany: async () => { releases.push('card') } },
-            providerAccountCausalReservation: { updateMany: async () => { releases.push('account') } },
+            cardLifecycleReservation: { updateMany: async () => { releases.push('card'); return { count: 1 } } },
+            providerAccountCausalReservation: { updateMany: async () => { releases.push('account'); return { count: 1 } } },
         }
         const { holdQuoteConflict } = loadIsolatedModule<{
             holdQuoteConflict: (db: unknown, input: unknown, fence: () => Promise<void>) => Promise<boolean>
@@ -115,8 +117,10 @@ for (const [label, finalMarker, preparedForConfirmation] of [
                 },
             },
             beinAccountSpendLedger: { count: async () => 0 },
-            cardLifecycleReservation: { updateMany: async () => { releases.push('card') } },
-            providerAccountCausalReservation: { updateMany: async () => { releases.push('account') } },
+            operationIntegrityIssue: { updateMany: async () => ({ count: 0 }), count: async () => 0 },
+            operationDispatch: { updateMany: async () => ({ count: 0 }) },
+            cardLifecycleReservation: { updateMany: async () => { releases.push('card'); return { count: 1 } } },
+            providerAccountCausalReservation: { updateMany: async () => { releases.push('account'); return { count: 1 } } },
         }
         const prisma = { $transaction: async (run: (value: typeof tx) => Promise<unknown>) => run(tx) }
         const { finalizePreMutationRenewalTermination } = loadIsolatedModule<{

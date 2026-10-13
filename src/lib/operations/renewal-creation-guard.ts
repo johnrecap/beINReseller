@@ -1,6 +1,7 @@
 import type { Operation, Prisma } from '@prisma/client'
 import { acquireCardLifecycleReservation } from '@/lib/operations/card-lifecycle-reservation'
 import { readRenewalCardCooldown, RENEWAL_CARD_COOLDOWN_CODE, type CardCooldownSnapshot } from './renewal-card-cooldown'
+import { quoteData } from '../../../shared/operations/package-quote'
 
 export const RENEWAL_CREATION_BLOCKED_CODE = 'RENEWAL_FULFILLMENT_REVIEW_PENDING'
 export const RENEWAL_LEGACY_ROUTE_DISABLED_CODE = 'RENEWAL_ROUTE_MIGRATION_REQUIRED'
@@ -179,6 +180,8 @@ export async function createGuardedRenewalOperation(
             fulfillmentState: 'UNVERIFIED',
             fulfillmentAuthority: 'NONE',
             ...input.data,
+            ...(input.data.userId && !input.data.customerId && input.data.purpose !== 'INSTALLMENT'
+                ? { responseData: { ...quoteData(input.data.responseData), prePaymentClosurePolicyVersion: 1 } as Prisma.InputJsonValue } : {}),
             type: 'RENEW',
             cardNumber,
         },
@@ -223,12 +226,13 @@ export async function ensureGuardedRenewalOperationReservation(
 export function renewalCreationBlockedPayload(error: RenewalCreationBlockedError) {
     if (error.reason === 'CARD_COOLDOWN' && error.cooldown) {
         return { code: RENEWAL_CARD_COOLDOWN_CODE, error: RENEWAL_CARD_COOLDOWN_CODE,
-            messageKey: 'operations.cardCooldownActive', ...error.cooldown }
+            blockReason: 'CARD_COOLDOWN', messageKey: 'operations.cardCooldownActive', ...error.cooldown }
     }
     return {
         code: RENEWAL_CREATION_BLOCKED_CODE,
         error: 'This card has an unresolved or active renewal. Resolve it before continuing.',
         operationId: error.conflictOperationId,
+        blockReason: error.reason,
     }
 }
 

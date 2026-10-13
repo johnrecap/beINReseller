@@ -25,7 +25,9 @@ test('admin review list does not age out open card-blocking operations', async (
     assert.ok(Object.keys(where).length > 0)
     const branches = where.OR as Array<Record<string, unknown>>
     assert.equal(JSON.stringify(branches[0]), JSON.stringify({ status: 'REVIEW_REQUIRED' }))
-    assert.ok(JSON.stringify(branches[1]).includes('updatedAt'))
+    assert.ok(branches.some(branch => JSON.stringify(branch).includes('updatedAt')))
+    assert.ok(branches.some(branch => JSON.stringify(branch).includes('integrityIssues')))
+    assert.ok(branches.some(branch => JSON.stringify(branch).includes('cardLifecycleReservation')))
     assert.equal(Object.hasOwn(where, 'updatedAt'), false)
     assert.ok(JSON.stringify(where.AND).includes('7000000001'))
 })

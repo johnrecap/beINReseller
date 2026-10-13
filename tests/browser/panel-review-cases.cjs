@@ -9,6 +9,18 @@ module.exports=async function reviewCases({p,render,check}) {
   await p.getByText('Synthetic review',{exact:true}).waitFor();return p.evaluate(()=>window.qaText.admin.financialReview);
  };
  const actionKeys=['followUpAction','refundAction','preMutationTitle','completeAction'];
+ for(const language of ['ar','en','bn']) {
+  await ready({language,reviewHold:true,reviewPages:true},360);
+  const copy=await p.evaluate(()=>({hold:window.qaText.renewalHold,pagination:window.qaText.pagination}));
+  await p.getByText(copy.hold.holdReasons.INTEGRITY_ISSUE,{exact:true}).waitFor();
+  assert.ok((await p.locator('article').innerText()).includes(copy.hold.holdStages.PRE_PAYMENT));
+  await p.getByRole('button',{name:copy.pagination.next,exact:true}).click();
+  await p.waitForFunction(()=>window.requests.some(r=>r.url.includes('cursor=synthetic-next')));
+  await p.getByRole('button',{name:copy.pagination.previous,exact:true}).click();
+  await p.waitForFunction(()=>window.requests.filter(r=>r.url.startsWith('/api/admin/financial-review?')&&!r.url.includes('cursor=')).length>=2);
+  assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  check('review actionable hold and cursor navigation '+language);
+ }
  for(const language of ['ar','en','bn'])for(const width of [360,390,768,1280,1440]) {
   const labels=await ready({language},width);
   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'review page overflow '+language+' '+width);

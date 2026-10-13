@@ -123,6 +123,7 @@ export interface FinancialReviewManualFulfillmentEvidenceAudit {
 }
 
 export interface FinancialReviewItem {
+    hold?: import('../../../shared/operations/renewal-hold').RenewalHoldInfo | null
     capabilities?: import('./capabilities').ReviewCapabilities
     id: string
     type: string

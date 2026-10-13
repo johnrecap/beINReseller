@@ -12,7 +12,7 @@ import {
     hasRecoveryProviderCompletionProof,
     type RecoveryProviderBalanceRepairEvidence,
 } from '@/lib/operations/recovery-proof'
-import { acquireRecoveryLock, releaseRecoveryLock } from '@/lib/operations/recovery-locks'
+import { acquireRecoveryLock, hasActiveProviderExecutionLeaseForOperation, releaseRecoveryLock } from '@/lib/operations/recovery-locks'
 import {
     hasOperationFinancialExposureForReview,
     isTerminalOperationStatus,
@@ -437,6 +437,26 @@ export async function recoverOperationIfNeeded(
                     decision: 'NO_ACTION' as const,
                     reason: 'operation_not_found',
                     financialImpact: 'NONE' as const,
+                    reviewRequired: false,
+                    refundApplied: false,
+                    lockReleased: false,
+                }
+            }
+
+            if (operation.status === 'COMPLETING' && operation.beinAccountId &&
+                await hasActiveProviderExecutionLeaseForOperation(operation.beinAccountId, operation.id)) {
+                console.info('[Recovery] Active provider execution; recovery deferred:', JSON.stringify({
+                    operationId, source,
+                }))
+                return {
+                    operationId,
+                    changed: false,
+                    skipped: true,
+                    previousStatus: operation.status,
+                    newStatus: operation.status,
+                    decision: 'NO_ACTION' as const,
+                    reason: 'active_provider_execution',
+                    financialImpact: 'UNCERTAIN' as const,
                     reviewRequired: false,
                     refundApplied: false,
                     lockReleased: false,

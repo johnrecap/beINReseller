@@ -188,7 +188,13 @@ export async function runOperationMaintenanceCycle(
         for (const operationId of operationIds) {
             try {
                 const result = await recoverOperationIfNeeded(operationId, 'maintenance', { now: started })
-                if (result.changed) changed++
+                if (result.changed) {
+                    changed++
+                    console.info('[Maintenance] Operation recovery:', JSON.stringify({
+                        operationId, previousStatus: result.previousStatus, newStatus: result.newStatus,
+                        decision: result.decision, reason: result.reason,
+                    }))
+                }
                 if (result.skipped || !result.changed) skipped++
                 if (result.decision === 'RETRY_DISPATCH') retried++
                 if (result.reviewRequired) reviewRequired++

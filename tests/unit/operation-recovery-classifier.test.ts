@@ -96,6 +96,22 @@ test('expires stale completing operation before customer deduction and final pay
     assert.equal(result.financialImpact, 'NONE')
 })
 
+test('fresh package preparation is not expired after customer waiting deadlines are cleared', () => {
+    const result = classifyRecovery(recoveryInput({
+        status: 'COMPLETING',
+        amount: 0,
+        customerDeductTransactionExists: false,
+        responseData: preFinalPhase('PACKAGE_PREPARATION'),
+        updatedAt: new Date('2026-05-24T10:01:45.000Z'),
+        heartbeatExpiry: null,
+        finalConfirmExpiry: null,
+        now: RECOVERY_TEST_NOW,
+    }))
+
+    assert.equal(result.decision, 'NO_ACTION')
+    assert.equal(result.reason, 'not_recoverable_now')
+})
+
 test('completes recovery when provider charge evidence is confirmed', () => {
     const result = classifyRecovery(recoveryInput({
         status: 'COMPLETING',

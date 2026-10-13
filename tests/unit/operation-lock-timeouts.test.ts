@@ -56,6 +56,25 @@ test('T004 package selection blocks low balance without deduction', () => {
     assert.equal(plan.releaseAccountLock, false)
 })
 
+test('selected package clears browser waiting deadlines before slow provider preparation', () => {
+    const plan = planRenewalPackageSelection({
+        operation: renewalOperation({
+            finalConfirmExpiry: deadlineAfter(PACKAGE_SELECTION_TIMEOUT_SECONDS),
+            heartbeatExpiry: deadlineAfter(HEARTBEAT_STALE_SECONDS),
+        }),
+        selectedPackage: selectedRenewalPackage(),
+        userBalance: 500,
+        now: TEST_NOW,
+    })
+
+    assert.equal(plan.kind, 'select')
+    if (plan.kind !== 'select') return
+    assert.equal(plan.operationUpdate.status, 'COMPLETING')
+    assert.equal(plan.operationUpdate.amount, 0)
+    assert.equal(plan.operationUpdate.finalConfirmExpiry, null)
+    assert.equal(plan.operationUpdate.heartbeatExpiry, null)
+})
+
 test('T005 final confirmation rejects an expired 10 second window before deduction', () => {
     const plan = planRenewalFinalConfirmation({
         operation: renewalOperation({

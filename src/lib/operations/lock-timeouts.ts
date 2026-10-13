@@ -28,6 +28,8 @@ export type RenewalPackageSelectionPlan =
         operationUpdate: {
             status: 'COMPLETING'
             amount: 0
+            finalConfirmExpiry: null
+            heartbeatExpiry: null
             selectedPackage: Prisma.InputJsonValue
             promoCode: string | null
             responseData: Prisma.InputJsonObject
@@ -90,6 +92,9 @@ export function planRenewalPackageSelection(input: {
         operationUpdate: {
             status: 'COMPLETING',
             amount: 0,
+            // Waiting-for-customer timers must not expire an in-flight Add/Sell/STB request.
+            finalConfirmExpiry: null,
+            heartbeatExpiry: null,
             selectedPackage: JSON.parse(JSON.stringify(input.selectedPackage)) as Prisma.InputJsonValue,
             promoCode: input.promoCode || null,
             responseData: mergeOperationPhaseEvidence(input.operation.responseData, {

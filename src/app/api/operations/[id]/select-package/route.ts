@@ -206,6 +206,10 @@ export async function POST(
             )
         }
 
+        console.info('[Renewal] Package preparation claimed:', JSON.stringify({
+            operationId: id, waitingDeadlinesCleared: true,
+        }))
+
         // 4. Dispatch the durable outbox row; failure remains retryable.
         const dispatchResult = await dispatchPendingOperationJobs({ operationIds: [id] })
         if (dispatchResult.failed > 0) {

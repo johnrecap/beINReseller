@@ -310,8 +310,19 @@ export class AccountPoolManager {
             operationId: handle.operationId,
             beinAccountId: handle.accountId,
             reservationGeneration: handle.reservationGeneration,
-        })) return false
-        return assertAccountExecutionLease(this.redis, handle)
+        })) {
+            console.warn('[AccountPool] Execution lease assertion failed:', JSON.stringify({
+                operationId: handle.operationId, accountId: handle.accountId, reason: 'RESERVATION_INACTIVE',
+            }))
+            return false
+        }
+        const ownerCurrent = await assertAccountExecutionLease(this.redis, handle)
+        if (!ownerCurrent) {
+            console.warn('[AccountPool] Execution lease assertion failed:', JSON.stringify({
+                operationId: handle.operationId, accountId: handle.accountId, reason: 'REDIS_OWNER_LOST',
+            }))
+        }
+        return ownerCurrent
     }
 
     async renewExecutionLease(handle: AccountExecutionLeaseHandle): Promise<boolean> {

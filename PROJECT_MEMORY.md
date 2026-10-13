@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-10-13
-> Last synchronized commit: 374ab9183e1712a64d663fd19fb976f8bb3b7c7a
+> Last synchronized commit: 9be9e5c135c0f1295be8964468c998e34fe31477
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:21365ff655bf1e16f9c0549a021605a3797b578ef84544e9c84c7dcb6703c1a9
+> Working tree fingerprint: SHA256:581d78c2c1c91b126c6f6b8bd43ffa0775b2f6e033950c10845c6b407082b4f6
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Production migration incident, 2026-10-13: `UPD-20261013-008` records the user's P3018/55P04 failure while applying the same-day report migration. The published migration is unchanged; an earlier enum-only migration commits its three values before the original constraint SQL. Local PGlite reproduces the defect and verifies the ordered repair. The failed production record, actual schema, restart and native Prisma retry remain NOT_VERIFIED. Resume at `docs/deployment/audit-remediation-release.md#same-day-report-migration-recovery--2026-10-13`.
 
 - Current v2 renewal change, 2026-10-13: `UPD-20261013-007` binds newly created package renewals to one operation-scoped Sell Packages page across promo, selection and Add; it removes post-selection Check/reload/promo reapply and uses one exact unclaimed invoice from the executing account's Cairo Pay-day Sold Report, with a saved owner/admin receipt. Local source/tests/types/build pass; disposable PostgreSQL/Redis migration/races, real checkout and production cutover are NOT_VERIFIED. Historical v1 operations retain baseline/contract verification. Resume at `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`.
 
@@ -547,7 +549,7 @@
 
 ### DATA-010 — Renewal fulfillment proof source of truth
 
-- Version 2, 2026-10-13: `renewal_flow_version` keeps historical operations on v1; new operations store the Pay-request day and may claim `SOLD_REPORT_SAME_DAY`/`AUTOMATED_REPORT` without a baseline or contract. The new migration keeps legacy contract status mandatory and adds day, promo and customer-charge snapshots for the immutable receipt. Local schema validates; migration execution is NOT_VERIFIED. Sources: `prisma/migrations/20261013120000_same_day_report_renewal/migration.sql`; `prisma/schema.prisma`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-007`.
+- Version 2, 2026-10-13: `renewal_flow_version` keeps historical operations on v1; new operations store the Pay-request day and may claim `SOLD_REPORT_SAME_DAY`/`AUTOMATED_REPORT` without a baseline or contract. The published constraint migration remains unchanged; `20261013115959_same_day_report_enum_values` must first commit its enum values. PGlite reproduces the original 55P04 defect and verifies the ordered SQL; the production retry is NOT_VERIFIED. Sources: `prisma/migrations/20261013115959_same_day_report_enum_values/migration.sql`; `prisma/migrations/20261013120000_same_day_report_renewal/migration.sql`; `tests/unit/same-day-report-migration-sql.test.ts`; `UPD-20261013-008`.
 
 - State: VERIFIED
 - Sources: `prisma/schema.prisma#model-OperationFulfillmentProof`; `prisma/schema.prisma#model-OperationFulfillmentBaseline`; `prisma/schema.prisma#model-OperationFulfillmentVerificationAttempt`; `prisma/migrations/20260824090000_renewal_fulfillment_proof/migration.sql`; `prisma/migrations/20260824130000_sold_report_fulfillment_correlation/migration.sql`; `prisma/migrations/20260824180000_fulfillment_proof_composite_integrity/migration.sql`; `worker/src/lib/fulfillment-baseline.ts`; `worker/src/lib/fulfillment-finalization.ts`; `tests/integration/renewal-fulfillment-finalization-claim-guard-db.test.ts`
@@ -1044,6 +1046,8 @@
 
 ### TEST-008 — Renewal fulfillment safety verification
 
+- Migration recovery 2026-10-13: The focused PGlite test first reproduces 55P04 when the published migration adds and uses an enum label in one transaction, then passes with an earlier committed enum migration and validates both legacy and same-day constraints. Native Prisma deploy against the production schema remains NOT_VERIFIED. Sources: `tests/unit/same-day-report-migration-sql.test.ts`; `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `UPD-20261013-008`.
+
 - Version 2, 2026-10-13: Synthetic same-page promo, session, exact cart/Pay, daily-report matching, receipt projection and route-owner checks pass. Full Worker suite: 356 pass/0 fail/5 Redis skips; root suite: 877 pass/0 fail/0 skips in a permitted local run after the sandbox blocked its temporary Git fixture. Both TypeScript checks, Prisma validate/schema parity, scoped lint and local web/Worker builds pass. Disposable PostgreSQL migration/concurrency, Redis recovery, authenticated browser and live beIN checkout remain NOT_VERIFIED. Sources: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `worker/tests/same-day-report-fulfillment.test.ts`; `tests/unit/renewal-receipt-route.test.ts`; `UPD-20261013-007`.
 
 - Dynamic promo 2026-10-13: Focused actual-route/HTTP-client synthetic cases cover uppercase code, bound form controls, stale state, other card/type, old checked row, renamed offer at the same price, labelled STB, stale receiver clearing, dual receiver-field POST/echo, cart and report/contract mismatch. Full root and Worker unit suites exit zero with a workspace-owned test temp and bundled Python; root/Worker TypeScript checks pass. This does not verify live promo acceptance, Check response compatibility or a new sale. Source: `tests/unit/promo-package-quote-contract.test.ts`; `worker/tests/renewal-package-identity.test.ts`; `worker/tests/promo-package-refresh.test.ts`; `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`; `UPD-20261013-004`.
@@ -1075,6 +1079,8 @@
 - Connections: `DATA-005`, `TEST-001`, `TEST-003`
 
 ### OPS-002 — Production migration and web build order
+
+- Failed deploy 2026-10-13: User-supplied production output shows P3018/55P04 at `20261013120000_same_day_report_renewal` after PM2 stop. Pull the ordered enum migration, inspect the failed history/schema, mark only the verified failed attempt rolled back, then deploy and build/restart uniformly. Do not mark it applied or replay payments; target state and resumed processes remain UNKNOWN. Sources: `docs/deployment/audit-remediation-release.md`; `UPD-20261013-008`.
 
 - Provider browser 2026-10-13: Deploy all panel Workers and web from the same source before enabling the new job/tab; old consumers do not support `READ_PROVIDER_REPORT`. No feature migration and no deployment performed; existing combined-checkout migration gates remain. Sources: `docs/deployment/audit-remediation-release.md`; `UPD-20261013-001`.
 
@@ -1730,6 +1736,8 @@
 
 ### RISK-009 — Renewal proof migration and reported duplicate deductions are not live-verified
 
+- Migration incident 2026-10-13: Production deploy stopped at P3018/55P04, before a confirmed build/restart. Local ordered SQL repair does not establish the target database's failed-record/partial-DDL state or live service health; inspect both before recovery. Source: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `UPD-20261013-008`.
+
 - Version 2, 2026-10-13: New same-day report attribution has an approved temporal limit: Reports lacks an independent sale timestamp, so an identical earlier same-day invoice or a crash after the Pay-intent marker but before HTTP Pay can be mistaken for this attempt. Local tests do not establish provider response shape, disposable DB/Redis races or deployment parity. Do not deploy or claim incident resolution from this change alone. Source: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `UPD-20261013-007`.
 
 - Incident scope, 2026-10-12: Two supplied screenshots show wrong-package renewals; deployed causes remain unproven without server logs/artifacts. The cart parser now follows the inspected DOM; later Sell/STB/OK/Pay and real promo outcomes are still unobserved and may stop affected renewals. IRDETO retains the full serial pending actual format evidence; scheduled starts/credit extensions remain conservative holds. Source: `specs/036-audit-remediation/evidence/package-identity-repair.md`; `UPD-20261012-001`. Do not deploy or resolve balances from local simulation.
@@ -1797,6 +1805,8 @@
 
 ### WORK-004 — Renewal fulfillment proof and duplicate-charge containment
 
+- Recovery continuation 2026-10-13: The reported production migration attempt failed at 55P04. The ordered enum migration is locally tested; production history/schema inspection, native retry and consistent process restart remain open. Source: `specs/036-audit-remediation/audit-register.md#same-page-renewal-and-same-day-report-continuation--2026-10-13`; `UPD-20261013-008`.
+
 - Version 2 continuation 2026-10-13: Locally implemented one-page promo/selection, daily report proof and persistent receipt. New migration and production cutover are NOT_VERIFIED; old v1 attempts keep their original policy. The evidence register lists each requirement and release gate. Source: `specs/036-audit-remediation/audit-register.md#same-page-renewal-and-same-day-report-continuation--2026-10-13`; `UPD-20261013-007`.
 
 - Account lifecycle continuation: cooldown removal and terminal reservation fences/repair verified locally. Pending: read the supplied paid operations' proof and reservation chronology, confirm deployed versions, and exercise native PostgreSQL/Redis races before production acceptance. Source: `specs/036-audit-remediation/audit-register.md#account-availability-continuation--2026-10-13`; `UPD-20261013-006`.
@@ -1841,6 +1851,17 @@
 - Phase 4: Phase 4 T015-T017 complete, 10/46 accepted; synthetic API/worker/DB and six mocked browser groups verified with independent review. Later phases and T007/T008/T012 remain open. Saved locally, no commit/push/deploy. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ## 22. Change Ledger
+
+### UPD-20261013-008 — Recover enum-order failure in same-day report migration
+
+- Date: 2026-10-13
+- State: PARTIAL
+- Trigger: User supplied production P3018/PostgreSQL 55P04 output from the first same-day report migration attempt.
+- Sources: `prisma/migrations/20261013115959_same_day_report_enum_values/migration.sql`; `prisma/migrations/20261013120000_same_day_report_renewal/migration.sql`; `tests/unit/same-day-report-migration-sql.test.ts`; `scripts/check-same-day-report-migration-recovery.cjs`; `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `docs/deployment/audit-remediation-release.md`
+- Delta: Preserve published migration bytes and commit its three new enum labels in an earlier separate migration so the original CHECK constraints can use them. Add a read-only history/schema preflight before resolving the failed production row.
+- Evidence: Local PGlite red/green SQL and constraint test; production schema/history and native Prisma retry remain NOT_VERIFIED. No provider mutation or direct production database action by Codex.
+- Affected IDs: `DATA-010`, `TEST-008`, `OPS-002`, `RISK-009`, `WORK-004`, `FRESH-001`
+- Runtime impact: MIGRATION_ORDER_REPAIR_NOT_DEPLOYED
 
 ### UPD-20261013-007 — Versioned same-page renewal, daily report proof and receipt
 
@@ -2139,7 +2160,7 @@
 
 ### FRESH-001 — Local synchronization baseline
 
-- Latest scoped delta: `UPD-20261013-007`, v2 same-page renewal and same-day report receipt, not deployed. Current evidence: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`. Earlier v1/promo/smartcard/report/capacity/cooldown work remains; native migration/races, live checkout, incident attribution and production gates remain open. Historical UI/036 acceptance counters are unchanged.
+- Latest scoped delta: `UPD-20261013-008`, ordered enum migration repair after user-reported production P3018/55P04. Current evidence: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`. The failed production row/schema, native retry, resumed services, provider compatibility and release gates remain open. Historical UI/036 acceptance counters are unchanged.
 
 
 - State: VERIFIED

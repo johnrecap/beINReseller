@@ -1,5 +1,11 @@
 # Audit remediation release gates
 
+## Same-day report migration recovery — 2026-10-13
+
+The first production attempt at `20261013120000_same_day_report_renewal` failed with Prisma P3018/PostgreSQL `55P04`: it added `SOLD_REPORT_SAME_DAY` and used it in a CHECK constraint within the same transaction. Its published SQL must remain unchanged for checksum continuity. The earlier `20261013115959_same_day_report_enum_values` commits the three new labels before the original migration runs. A local PGlite test reproduces and repairs this specific failure; native production state is not verified here.
+
+Keep new financial admission stopped. After fetching the corrected source, run `node scripts/check-same-day-report-migration-recovery.cjs`. It inspects `_prisma_migrations` and the target schema in a read-only transaction: the only unresolved migration must be `20261013120000_same_day_report_renewal`, its new columns/constraints must be absent, and the legacy `contract_status` NOT NULL guard must remain. Only after it prints `READY_TO_RESOLVE_ROLLED_BACK` mark that migration `--rolled-back` with `prisma migrate resolve`, run `prisma migrate deploy`, and confirm both migrations finish before generating clients or building. Never mark the failed migration `--applied`, use `db push`, rerun an uncorrected SQL file, or replay a provider Pay. If the preflight rejects the target state, stop and reconcile that actual state before retrying.
+
 ## Provider report browser — 2026-10-13
 
 The admin report tab adds `READ_PROVIDER_REPORT` to the existing panel queue. It is read-only and requires no schema migration of its own. Build web and all panel Workers from the same reviewed source before enabling the tab; an old Worker must not consume this new job type. Use the existing drain/fence and version-inventory procedure below, including obsolete process removal. Existing cooldown/proof migrations and financial release gates still apply to the combined checkout.

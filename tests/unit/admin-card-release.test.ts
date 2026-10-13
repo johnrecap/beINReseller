@@ -1,9 +1,10 @@
+import { seedHistoricalCardRelease } from '../helpers/historical-card-release'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { classifyFinancialReview } from '../../src/lib/financial-review/capabilities'
 import { readFileSync } from 'node:fs'
 import { openPglitePrisma } from '../helpers/pglite-prisma'
-import { cardReleasePreview, requestCardRelease, completeCardRelease, beginOperationProviderRequest, finishOperationProviderRequest, resumeCardReleases } from '../../shared/operations/admin-card-release'
+import { completeCardRelease, beginOperationProviderRequest, finishOperationProviderRequest, resumeCardReleases } from '../../shared/operations/admin-card-release'
 import { loadIsolatedModule, loadPanelPackages } from '../helpers/promo-dispatch-harness'
 import * as reservations from '../../src/lib/operations/card-lifecycle-reservation'
 import * as cooldown from '../../src/lib/operations/renewal-card-cooldown'
@@ -16,11 +17,11 @@ const guard = loadIsolatedModule<typeof import('../../src/lib/operations/renewal
     '../../../shared/operations/package-quote': quote,
 })
 
-test('admin can archive and unlock a historical zero-debit unknown review despite conflicting evidence', () => {
+test('historical unknown review no longer offers an administrative card unlock', () => {
     const capabilities = classifyFinancialReview({ id: 'historical', type: 'RENEW', status: 'REVIEW_REQUIRED',
         userId: 'user', customerId: null, beinAccountId: 'account', cardNumber: '7000000001', amount: 0,
         providerPaymentState: 'UNKNOWN', transactions: [] })
-    assert.ok(capabilities.allowedActions.map(String).includes('ADMIN_ARCHIVE_AND_UNLOCK_CARD'))
+    assert.equal(capabilities.allowedActions.map(String).includes('ADMIN_ARCHIVE_AND_UNLOCK_CARD'), false)
 })
 
 test('archived waiting attempt exposes a neutral result without obsolete packages or device data', async () => {
@@ -50,13 +51,8 @@ test('a successful invoiced attempt retains its receipt and money while its cool
         await f.db.operationFulfillmentProof.create({ data: { operationId: op.id, beinAccountId: account.id, invoiceClaimId: claim.id,
             invoiceNo: claim.invoiceNo, cardNumberSnapshot: op.cardNumber, verificationSource: 'SYNTHETIC', providerCheckedAt: new Date() } })
         const before = await f.db.operationFulfillmentProof.findUniqueOrThrow({ where: { operationId: op.id } })
-        const preview = await cardReleasePreview(f.db, op.cardNumber)
-        assert.equal(preview.operations.length, 1)
-        const input = { operationId: op.id, actorId: admin.id, note: 'Waive only this existing cooldown', decisionKey: 'invoice-request-one', fingerprint: preview.fingerprint, acknowledgeRisk: true }
-        await f.db.user.update({ where: { id: admin.id }, data: { role: 'MANAGER' } })
-        await assert.rejects(requestCardRelease(f.db, input), /ADMIN_REQUIRED/)
-        await f.db.user.update({ where: { id: admin.id }, data: { role: 'ADMIN' } })
-        const release = await requestCardRelease(f.db, input)
+        const release = await seedHistoricalCardRelease(f.db, { operationIds: [op.id], actorId: admin.id,
+            note: 'Previously accepted cooldown waiver', decisionKey: 'invoice-request-one' })
         await completeCardRelease(f.db, release.id)
         const after = await f.db.operation.findUniqueOrThrow({ where: { id: op.id } })
         assert.equal(after.status, 'COMPLETED')
@@ -77,9 +73,8 @@ test('expired HTTP receipt resumes after restart and lock cleanup retries only t
         const account = await f.db.beinAccount.create({ data: { username: 'restart-account', password: 'test' } })
         const op = await f.db.operation.create({ data: { id: 'restart-attempt', type: 'RENEW', cardNumber: '7000000007', status: 'PROCESSING', amount: 0, beinAccountId: account.id } })
         const receipt = await beginOperationProviderRequest(f.db, op.id, 'POST')
-        const preview = await cardReleasePreview(f.db, op.cardNumber)
-        const release = await requestCardRelease(f.db, { operationId: op.id, actorId: admin.id, note: 'Resume saved administrative decision',
-            decisionKey: 'restart-request-one', fingerprint: preview.fingerprint, acknowledgeRisk: true })
+        const release = await seedHistoricalCardRelease(f.db, { operationIds: [op.id], actorId: admin.id, note: 'Resume saved administrative decision',
+            decisionKey: 'restart-request-one' })
         await f.db.operationProviderRequest.update({ where: { id: receipt.id }, data: { deadlineAt: new Date(Date.now() - 1) } })
         const result = await completeCardRelease(f.db, release.id, { eval: async () => { throw new Error('private transport failure') } })
         assert.equal(result.state, 'COMPLETED')
@@ -131,24 +126,14 @@ test('HTTP drain, late observation, stale preview, multiple attempts and replay 
             { operationId: op.id, userId: admin.id, type: 'REFUND' as const, amount: 92, balanceAfter: 100 },
         ]) })
         await f.db.operationIntegrityIssue.createMany({ data: [first, second, unrelated].map(op => ({ operationId: op.id, issueType: 'DUPLICATE_RENEWAL_CHARGE_BURST' as const })) })
-        const stale = await cardReleasePreview(f.db, first.cardNumber)
-        await f.db.operation.update({ where: { id: second.id }, data: { responseMessage: 'SYNTHETIC_CHANGED_STAGE' } })
-        const input = { operationId: first.id, actorId: admin.id, note: 'Retain original financial records and archive both attempts',
-            decisionKey: 'synthetic-scope-request', fingerprint: stale.fingerprint, acknowledgeRisk: true }
-        await assert.rejects(requestCardRelease(f.db, input), /CARD_RELEASE_PREVIEW_CHANGED/)
-        assert.equal(await f.db.cardAdministrativeRelease.count(), 0)
         const request = await beginOperationProviderRequest(f.db, first.id, 'POST')
-        const preview = await cardReleasePreview(f.db, first.cardNumber)
-        assert.equal(preview.operations.length, 2)
-        assert.deepEqual(preview.operations.map(op => [op.customerDeducted, op.customerRefunded]), [[92, 92], [92, 92]])
-        const releases = await Promise.all([requestCardRelease(f.db, { ...input, fingerprint: preview.fingerprint }), requestCardRelease(f.db, { ...input, fingerprint: preview.fingerprint })])
-        assert.equal(releases[0].id, releases[1].id)
-        const releaseId = releases[0].id
+        const release = await seedHistoricalCardRelease(f.db, { operationIds: [first.id, second.id], actorId: admin.id,
+            note: 'Previously accepted multi-attempt decision', decisionKey: 'synthetic-scope-request' })
+        const releaseId = release.id
         assert.equal((await completeCardRelease(f.db, releaseId)).state, 'DRAINING')
         await assert.rejects(f.db.$transaction(tx => guard.createGuardedRenewalOperation(tx, {
             cardNumber: first.cardNumber, data: { userId: admin.id, amount: 0, purpose: 'RENEWAL' },
-        })), /ADMIN_RELEASE_IN_PROGRESS/)
-        await assert.rejects(requestCardRelease(f.db, { ...input, fingerprint: preview.fingerprint, decisionKey: 'second-pending-request' }), /CARD_RELEASE_IN_PROGRESS/)
+        })), /CARD_COOLDOWN/)
         await assert.rejects(beginOperationProviderRequest(f.db, first.id, 'POST'), /ADMIN_OPERATION_STOPPED/)
         await assert.rejects(finishOperationProviderRequest(f.db, request.id, 'HTTP_200'), /ADMIN_OPERATION_STOPPED/)
         const observation = await f.db.operationProviderRequest.findUniqueOrThrow({ where: { id: request.id } })
@@ -162,7 +147,6 @@ test('HTTP drain, late observation, stale preview, multiple attempts and replay 
         assert.equal(await f.db.transaction.count(), 4)
         assert.equal((await f.db.user.findUniqueOrThrow({ where: { id: admin.id } })).balance, 8)
         assert.equal(await f.db.operationReviewAdjudication.count(), 2)
-        await assert.rejects(requestCardRelease(f.db, { ...input, fingerprint: preview.fingerprint, note: 'changed payload' }), /CARD_RELEASE_KEY_CONFLICT/)
         assert.equal((await completeCardRelease(f.db, releaseId)).state, 'COMPLETED')
     } finally { await f.close() }
 })
@@ -178,12 +162,10 @@ test('actual SQL administrative release preserves unknown finances and issues, w
         await f.db.operationIntegrityIssue.create({ data: { operationId: op.id, issueType: 'FULFILLMENT_PROOF_CONFLICT' } })
         await f.db.cardLifecycleReservation.create({ data: { operationId: op.id, cardNumber: op.cardNumber } })
         await f.db.providerAccountCausalReservation.create({ data: { operationId: op.id, beinAccountId: account.id, automaticWindowEndsAt: new Date() } })
-        const preview = await cardReleasePreview(f.db, op.cardNumber)
-        const input = { operationId: op.id, actorId: admin.id, note: 'Archive unknown result without financial settlement',
-            decisionKey: 'synthetic-request-1', fingerprint: preview.fingerprint, acknowledgeRisk: true }
-        const release = await requestCardRelease(f.db, input)
+        const input = { operationIds: [op.id], actorId: admin.id, note: 'Archive unknown result without financial settlement',
+            decisionKey: 'synthetic-request-1' }
+        const release = await seedHistoricalCardRelease(f.db, input)
         assert.equal((await completeCardRelease(f.db, release.id)).state, 'COMPLETED')
-        assert.equal((await requestCardRelease(f.db, input)).id, release.id)
         const after = await f.db.operation.findUniqueOrThrow({ where: { id: op.id } })
         assert.equal(after.status, 'REVIEW_REQUIRED')
         assert.equal(after.providerPaymentState, 'UNKNOWN')

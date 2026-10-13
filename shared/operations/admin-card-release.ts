@@ -1,11 +1,7 @@
-import { createHash } from 'node:crypto'
 import type { Prisma, PrismaClient } from '@prisma/client'
-import { RENEWAL_BLOCKING_ISSUES } from './renewal-pre-payment'
-import { quoteData } from './package-quote'
 
 export const ADMIN_CARD_RELEASE_ACTION = 'ADMIN_ARCHIVE_AND_UNLOCK_CARD' as const
 export const ADMIN_OPERATION_STOPPED = 'ADMIN_OPERATION_STOPPED'
-const ACTIVE = ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING'] as const
 type Db = Prisma.TransactionClient
 type ReleaseRedis = { eval(script: string, keys: number, ...args: Array<string | number>): Promise<unknown> }
 
@@ -62,86 +58,6 @@ export async function finishOperationProviderRequest(db: PrismaClient, id: strin
 
 async function lockCard(tx: Db, card: string) {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`renewal-card-lifecycle:${card}`}, 0))::text`
-}
-
-export async function cardReleasePreview(db: Db | PrismaClient, cardNumber: string) {
-    if (!/^\d{1,64}$/.test(cardNumber)) throw new Error('INVALID_CARD_NUMBER')
-    const now = new Date()
-    const rows = await db.operation.findMany({ where: { cardNumber, administrativeReleaseId: null, OR: [
-        { status: { in: [...ACTIVE, 'REVIEW_REQUIRED'] } },
-        { integrityIssues: { some: { status: { in: ['OPEN', 'ACKNOWLEDGED'] }, issueType: { in: [...RENEWAL_BLOCKING_ISSUES] } } } },
-        { cardLifecycleReservation: { is: { releasedAt: null } } },
-        { providerAccountCausalReservation: { is: { releasedAt: null } } },
-        { type: 'RENEW', renewalCooldownUntil: { gt: now } },
-    ] }, orderBy: { id: 'asc' }, select: { id: true, status: true, type: true, updatedAt: true, amount: true,
-        providerPaymentState: true, providerMutationStage: true, renewalCooldownUntil: true, selectedPackage: true,
-        transactions: { orderBy: { id: 'asc' }, select: { id: true, type: true, amount: true } },
-        chargedBeinSpendLedger: { select: { id: true } }, fulfillmentProof: { select: { id: true } },
-        manualFulfillmentEvidence: { select: { id: true } },
-        dispatches: { orderBy: { id: 'asc' }, select: { id: true, status: true, attempts: true, updatedAt: true } },
-        integrityIssues: { orderBy: { id: 'asc' }, where: { status: { in: ['OPEN', 'ACKNOWLEDGED'] } }, select: { id: true, issueType: true, lastSeenAt: true } },
-        cardLifecycleReservation: { select: { id: true, releasedAt: true } },
-        providerAccountCausalReservation: { select: { id: true, releasedAt: true, reservationGeneration: true } },
-    } })
-    const wallet = await db.walletTransaction.findMany({ where: { referenceId: { in: rows.map(row => row.id) } },
-        orderBy: { id: 'asc' }, select: { id: true, referenceId: true, referenceType: true, type: true, amount: true } })
-    const fingerprint = createHash('sha256').update(JSON.stringify({ rows, wallet })).digest('hex')
-    return { cardNumber, fingerprint, operationId: rows[0]?.id ?? null, operations: rows.map(row => ({
-        id: row.id, status: row.status, paymentState: row.providerPaymentState ?? 'UNKNOWN',
-        packageName: typeof quoteData(row.selectedPackage).name === 'string' ? String(quoteData(row.selectedPackage).name) : null,
-        stage: row.providerMutationStage ?? 'UNKNOWN',
-        customerDeducted: row.transactions.filter(t => t.type === 'OPERATION_DEDUCT').reduce((n, t) => n - t.amount, 0) +
-            wallet.filter(t => t.referenceId === row.id && t.type === 'DEBIT').reduce((n, t) => n + t.amount, 0),
-        customerRefunded: row.transactions.filter(t => t.type === 'REFUND').reduce((n, t) => n + t.amount, 0) +
-            wallet.filter(t => t.referenceId === row.id && t.referenceType === 'REFUND').reduce((n, t) => n + t.amount, 0),
-        hasSaleEvidence: Boolean(row.fulfillmentProof || row.manualFulfillmentEvidence || row.chargedBeinSpendLedger),
-        issueTypes: row.integrityIssues.map(issue => issue.issueType),
-        cooldownUntil: row.renewalCooldownUntil?.toISOString() ?? null,
-        cardReserved: row.cardLifecycleReservation?.releasedAt === null,
-        accountReserved: row.providerAccountCausalReservation?.releasedAt === null,
-    })) }
-}
-
-export async function requestCardRelease(db: PrismaClient, input: {
-    operationId: string; actorId: string; note: string; decisionKey: string; fingerprint: string; acknowledgeRisk: boolean
-}) {
-    if (!input.acknowledgeRisk || !input.note.trim() || input.note.length > 2000 ||
-        typeof input.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(input.fingerprint) ||
-        typeof input.decisionKey !== 'string' ||
-        !/^[a-zA-Z0-9_-]{8,200}$/.test(input.decisionKey)) throw new Error('INVALID_CARD_RELEASE_DECISION')
-    return db.$transaction(async tx => {
-        const source = await tx.operation.findUniqueOrThrow({ where: { id: input.operationId }, select: { cardNumber: true } })
-        await lockCard(tx, source.cardNumber)
-        const actor = await tx.user.findUnique({ where: { id: input.actorId }, select: { role: true, isActive: true } })
-        if (actor?.role !== 'ADMIN' || !actor.isActive) throw new Error('ADMIN_REQUIRED')
-        const replay = await tx.cardAdministrativeRelease.findUnique({ where: { decisionKey: input.decisionKey } })
-        if (replay) {
-            if (replay.cardNumber !== source.cardNumber || replay.actorId !== input.actorId || replay.note !== input.note.trim() || replay.fingerprint !== input.fingerprint)
-                throw new Error('CARD_RELEASE_KEY_CONFLICT')
-            return replay
-        }
-        const pending = await tx.cardAdministrativeRelease.findFirst({ where: { cardNumber: source.cardNumber, state: { not: 'COMPLETED' } } })
-        if (pending) throw new Error('CARD_RELEASE_IN_PROGRESS')
-        // Serialize scope observation with every in-flight operation write.
-        await tx.$queryRaw`SELECT id FROM operations WHERE card_number = ${source.cardNumber} ORDER BY id FOR UPDATE`
-        const preview = await cardReleasePreview(tx, source.cardNumber)
-        if (preview.fingerprint !== input.fingerprint || !preview.operations.length) throw new Error('CARD_RELEASE_PREVIEW_CHANGED')
-        const release = await tx.cardAdministrativeRelease.create({ data: { decisionKey: input.decisionKey,
-            cardNumber: source.cardNumber, actorId: input.actorId, note: input.note.trim(), fingerprint: input.fingerprint } })
-        const ids = preview.operations.map(op => op.id)
-        await tx.operation.updateMany({ where: { id: { in: ids }, administrativeReleaseId: null },
-            data: { administrativeReleaseId: release.id, administrativeStopRequestedAt: release.requestedAt } })
-        await tx.operationDispatch.updateMany({ where: { operationId: { in: ids }, status: { in: ['PENDING', 'DISPATCHING'] } },
-            data: { status: 'CANCELLED', lastError: ADMIN_OPERATION_STOPPED } })
-        for (const op of preview.operations) await tx.operationReviewAdjudication.create({ data: {
-            operationId: op.id, actorId: input.actorId, decisionKey: `${release.id}:${op.id}`, payloadFingerprint: input.fingerprint,
-            decisionKind: ADMIN_CARD_RELEASE_ACTION, classification: 'ADMINISTRATIVE_ARCHIVE',
-            normalizedEvidence: op as Prisma.InputJsonValue, sourceReference: release.id, observedAt: release.requestedAt,
-            reasonCode: 'ADMIN_ACCEPTED_UNRESOLVED_FINANCIAL_RESULT', decisionNote: input.note.trim(),
-        } })
-        console.info('[AdminCardRelease]', JSON.stringify({ releaseId: release.id, stage: 'STOP_REQUESTED', operationIds: ids }))
-        return release
-    }, { timeout: 15000 })
 }
 
 export async function completeCardRelease(db: PrismaClient, releaseId: string, redis?: ReleaseRedis) {

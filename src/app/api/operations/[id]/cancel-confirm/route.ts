@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-utils'
 import prisma from '@/lib/prisma'
-import { hasFinalPayStarted, mergeOperationPhaseEvidence } from '@/lib/operation-safety'
-import type { OperationStatus } from '@prisma/client'
+import { mergeOperationPhaseEvidence } from '@/lib/operation-safety'
+import { lockFinancialOperation } from '../../../../../../shared/operations/financial-lock'
+import { finalProviderMutationMayHaveStarted } from '../../../../../../shared/operations/renewal-pre-payment'
+import { quoteData } from '../../../../../../shared/operations/package-quote'
 import { createOperationDispatch, dispatchPendingOperationJobs } from '@/lib/operation-dispatch'
 import {
     ensureGuardedRenewalOperationReservation,
@@ -23,7 +25,7 @@ async function getAuthUser(request: NextRequest) {
  * Cancel final confirmation
  * - Verifies operation is in AWAITING_FINAL_CONFIRM state
  * - Sends job to Worker to press Cancel button in popup
- * - Refunds balance to user
+ * - Leaves financial closure to the existing worker finalizer
  */
 export async function POST(
     request: NextRequest,
@@ -74,66 +76,38 @@ export async function POST(
         if (operation.administrativeStopRequestedAt) return NextResponse.json({ error: 'ADMIN_OPERATION_STOPPED',
             code: 'ADMIN_OPERATION_STOPPED', messageKey: 'operations.administrativelyArchived' }, { status: 409 })
 
-        // Check status - only allow cancel from AWAITING_FINAL_CONFIRM
-        if (operation.status !== 'AWAITING_FINAL_CONFIRM') {
-            return NextResponse.json(
-                { error: 'Operation is not in final confirmation stage' },
-                { status: 400 }
-            )
-        }
-
-        if (hasFinalPayStarted({
-            operationStatus: operation.status as OperationStatus,
-            operationAmount: operation.amount ?? 0,
-            operationResponseData: operation.responseData,
-        })) {
-            return NextResponse.json(
-                { error: 'Final payment may have started. Manual review is required.' },
-                { status: 409 }
-            )
-        }
-
-        // 3. CRITICAL: Atomically change status to prevent duplicate cancel jobs
-        // Uses updateMany with status filter - if two cancel calls arrive simultaneously,
-        // only the first one matches AWAITING_FINAL_CONFIRM and succeeds (count=1).
-        // The second call finds status=COMPLETING and gets count=0 → rejected.
-        const updated = await prisma.$transaction(async (tx) => {
-            await ensureGuardedRenewalOperationReservation(tx, {
-                operationId: id,
-                cardNumber: operation.cardNumber,
-            })
-            const result = await tx.operation.updateMany({
-                where: { id, status: 'AWAITING_FINAL_CONFIRM' },
-                data: {
-                    status: 'COMPLETING',
-                    responseMessage: 'Cancelling operation...',
-                    responseData: mergeOperationPhaseEvidence(operation.responseData, {
-                        phase: 'CANCELLATION_CONFIRM',
-                        jobType: 'CANCEL_CONFIRM',
-                        finalPaySubmitted: false,
-                        cancelRequestedAt: new Date().toISOString(),
-                    }),
-                },
-            })
-            if (result.count === 1) {
-                await createOperationDispatch(tx, {
-                    operationId: id,
-                    type: 'CANCEL_CONFIRM',
-                    cardNumber: operation.cardNumber,
-                    userId: authUser.id,
-                    amount: operation.amount,
-                })
-            }
-            return result
+        const updated = await prisma.$transaction(async tx => {
+            if (!await lockFinancialOperation(tx, id)) return 'CONFLICT'
+            const current = await tx.operation.findUnique({ where: { id }, include: {
+                dispatches: { where: { jobType: { in: ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'] } } },
+                chargedBeinSpendLedger: true, fulfillmentProof: true, manualFulfillmentEvidence: true,
+            } })
+            if (!current || current.userId !== authUser.id || current.administrativeStopRequestedAt) return 'CONFLICT'
+            const phase = quoteData(current.responseData)
+            if (current.status === 'CANCELLED') return 'COMPLETED'
+            if (current.status === 'COMPLETING' && (phase.operationPhase ?? phase.phase) === 'CANCELLATION_CONFIRM') return 'PENDING'
+            if (current.status !== 'AWAITING_FINAL_CONFIRM' || finalProviderMutationMayHaveStarted(current) ||
+                current.chargedBeinSpendLedger || current.fulfillmentProof || current.manualFulfillmentEvidence ||
+                current.dispatches.some(row => !['PENDING', 'CANCELLED'].includes(row.status) || row.attempts > 0)) return 'CONFLICT'
+            await ensureGuardedRenewalOperationReservation(tx, { operationId: id, cardNumber: current.cardNumber })
+            await tx.operation.update({ where: { id }, data: {
+                status: 'COMPLETING', responseMessage: 'Cancelling operation...',
+                finalConfirmExpiry: null, heartbeatExpiry: null,
+                responseData: mergeOperationPhaseEvidence(current.responseData, {
+                    phase: 'CANCELLATION_CONFIRM', jobType: 'CANCEL_CONFIRM', finalPaySubmitted: false,
+                    cancelRequestedAt: new Date().toISOString(),
+                }),
+            } })
+            await tx.operationDispatch.updateMany({ where: { operationId: id, status: 'PENDING', attempts: 0,
+                jobType: { in: ['CONFIRM_PURCHASE', 'CONFIRM_INSTALLMENT'] } },
+                data: { status: 'CANCELLED', lastError: 'CANCEL_CONFIRM' } })
+            await createOperationDispatch(tx, { operationId: id, type: 'CANCEL_CONFIRM',
+                cardNumber: current.cardNumber, userId: authUser.id, amount: current.amount })
+            return 'PENDING'
         })
-
-        if (updated.count === 0) {
-            // Another cancel request already changed the status
-            return NextResponse.json(
-                { error: 'Operation is already being cancelled' },
-                { status: 409 }
-            )
-        }
+        if (updated === 'CONFLICT') return NextResponse.json({ error: 'Operation is not in final confirmation stage' }, { status: 409 })
+        console.info('[RenewalCancellation]', JSON.stringify({ operationId: id, stage: updated }))
+        if (updated === 'COMPLETED') return NextResponse.json({ success: true, operationId: id, cancellationStatus: updated })
 
         // 4. Deliver the durable outbox row; failure remains safe to retry.
         const dispatchResult = await dispatchPendingOperationJobs({ operationIds: [id] })
@@ -147,6 +121,7 @@ export async function POST(
             operationId: id,
             message: 'Cancelling operation...',
             queued: dispatchResult.failed === 0,
+            cancellationStatus: updated,
         })
 
     } catch (error) {

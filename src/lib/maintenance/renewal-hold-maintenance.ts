@@ -44,7 +44,8 @@ export async function repairRenewalHolds(options: { limit?: number; now?: Date }
                 continue
             }
             const result = await finalizeWebPreMutationRenewalTermination({ operationId: op.id,
-                terminalStatus: 'FAILED', allowedStatuses: ['REVIEW_REQUIRED'], repairOnly: true,
+                terminalStatus: (quoteData(op.responseData).operationPhase ?? quoteData(op.responseData).phase) === 'CANCELLATION_CONFIRM' ? 'CANCELLED' : 'FAILED',
+                allowedStatuses: ['REVIEW_REQUIRED'], repairOnly: true,
                 responseMessage: 'PACKAGE_SELECTION_UNVERIFIED', releaseReason: 'SAFE_TERMINAL:PRE_PAYMENT_MAINTENANCE',
                 executionIdle: async accountId => !accountId || await redis.exists(
                     `bein:account:lock:${accountId}`, `bein:account:execution-lease:${accountId}`) === 0,

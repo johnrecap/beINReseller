@@ -40,6 +40,7 @@ for (const scenario of ['repeat', 'other-user', 'expired', 'other-card', 'review
             cardAdministrativeRelease: { findFirst: async () => null },
             $queryRaw: async () => [],
             operation: {
+                findUnique: async () => ({ status: 'PENDING' }),
                 findFirst: async ({ where }: { where: { status?: unknown; cardNumber: string; renewalCooldownUntil?: { gt: Date } } }) => {
                     if (where.status === 'REVIEW_REQUIRED' && scenario === 'review') return { id: 'unresolved' }
                     if (!where.renewalCooldownUntil) return null
@@ -60,8 +61,8 @@ for (const scenario of ['repeat', 'other-user', 'expired', 'other-card', 'review
             await assert.rejects(createGuardedRenewalOperation(tx, input), { code: 'RENEWAL_CARD_COOLDOWN' })
             assert.equal(writes, 0)
         } else if (scenario === 'review') {
-            await assert.rejects(createGuardedRenewalOperation(tx, input), { reason: 'UNRESOLVED_REVIEW' })
-            assert.equal(cooldownReads, 0, 'financial review cannot be replaced by a temporary timer')
+            await assert.rejects(createGuardedRenewalOperation(tx, input), { reason: 'CARD_COOLDOWN' })
+            assert.equal(cooldownReads, 1, 'review does not replace the original cooldown')
             assert.equal(writes, 0)
         } else {
             await createGuardedRenewalOperation(tx, input)

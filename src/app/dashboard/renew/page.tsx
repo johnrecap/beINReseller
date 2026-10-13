@@ -40,6 +40,7 @@ interface AvailablePackage {
 }
 
 interface OperationResult {
+    cancelled?: boolean
     success: boolean
     pending?: 'reviewRequired' | 'pendingSettlement' | 'administrativelyArchived' | 'administrativeStopPending'
     message: (t: ReturnType<typeof useTranslation>['t']) => string
@@ -228,6 +229,7 @@ export default function RenewWizardPage() {
     const [isConfirmLoading, setIsConfirmLoading] = useState(false)
     const [showConfirmation, setShowConfirmation] = useState(false)  // Show price confirmation dialog
     const [showExpiryWarning, setShowExpiryWarning] = useState(false)  // Show warning before auto-cancel
+    const [cancellationPending, setCancellationPending] = useState(false)
     const [isAutoCancelling, setIsAutoCancelling] = useState(false)  // Prevent multiple auto-cancel calls
     const pollStartTimeRef = useRef<number>(0)  // Track when polling started for adaptive intervals
     const pollErrorCountRef = useRef<number>(0)
@@ -363,7 +365,7 @@ export default function RenewWizardPage() {
                 setStep('result')
                 refetchBalance()
             } else if (data.status === 'CANCELLED') {
-                setResult({ success: false, message: t => t.renew.toast.cancelled })
+                setResult({ success: false, cancelled: true, message: t => t.renew.toast.cancelled })
                 setStep('result')
                 refetchBalance()
             } else if (data.status === 'EXPIRED') {
@@ -502,13 +504,10 @@ export default function RenewWizardPage() {
             await res.json()
 
             if (res.ok) {
-                const message = (t: ReturnType<typeof useTranslation>['t']) => isAutoCancel
-                    ? t.renew.toast.autoCancelled
-                    : t.renew.toast.cancelled
-                setResult({ success: false, message })
-                setStep('result')
-                refetchBalance()
-                toast.info(message(t))
+                setCancellationPending(true)
+                setFinalConfirmExpiry(null)
+                setStep('completing')
+                toast.info(t.panelUi.cancelAccepted)
             } else {
                 toast.error(t.renew.toast.cancelFailed)
             }
@@ -569,14 +568,12 @@ export default function RenewWizardPage() {
             const data = await res.json()
 
             if (!res.ok) {
-                if (data.code === 'RENEWAL_FULFILLMENT_REVIEW_PENDING') {
+                if (data.code === 'RENEWAL_OPERATION_ACTIVE') {
                     const reason = typeof data.blockReason === 'string' && data.blockReason in t.renewalHold.holdReasons
                         ? t.renewalHold.holdReasons[data.blockReason as keyof typeof t.renewalHold.holdReasons]
-                        : t.operations.fulfillmentReviewPending
+                        : t.renewalHold.holdReasons.ACTIVE_OPERATION
                     toast.error(reason, { action: { label: t.renew.toast.existingOperationAction,
-                        onClick: () => { window.location.href = session?.user?.role === 'ADMIN' && data.operationId
-                            ? `/dashboard/admin/financial-review?q=${encodeURIComponent(data.operationId)}`
-                            : '/dashboard/operations/active' } }, duration: 8000 })
+                        onClick: () => { window.location.href = '/dashboard/operations/active' } }, duration: 8000 })
                     return
                 }
                 if (data.code === 'RENEWAL_CARD_COOLDOWN') {
@@ -770,6 +767,7 @@ export default function RenewWizardPage() {
         setFinalConfirmExpiry(null)
         setSelectedPackageInfo(null)
         setShowExpiryWarning(false)  // Reset expiry warning
+        setCancellationPending(false)
         setIsAutoCancelling(false)  // Reset auto-cancelling flag
         pollErrorCountRef.current = 0
     }
@@ -1185,7 +1183,7 @@ export default function RenewWizardPage() {
                             <CardContent className="py-12 text-center">
                                 <Loader2 className="h-12 w-12 animate-spin text-[#00A651] mx-auto mb-4" />
                                 <h3 className="text-xl font-semibold mb-2">
-                                    {fulfillmentStatusMessage ? t.operations.providerChargedVerifyingFulfillment : t.renew.completing.title}
+                                    {cancellationPending ? t.panelUi.cancelAccepted : fulfillmentStatusMessage ? t.operations.providerChargedVerifyingFulfillment : t.renew.completing.title}
                                 </h3>
                                 <p className="text-muted-foreground">{t.renew.completing.warning}</p>
                             </CardContent>
@@ -1288,9 +1286,14 @@ export default function RenewWizardPage() {
 
                     {/* Step 4: Result */}
                     {step === 'result' && result && (
-                        <Card className={`bg-[var(--color-bg-card)] shadow-[var(--shadow-card)] border-2 ${result.success ? 'border-green-200 dark:border-green-900/30' : result.pending ? 'border-amber-200 dark:border-amber-900/30' : 'border-red-200 dark:border-red-900/30'}`}>
+                        <Card className={`bg-[var(--color-bg-card)] shadow-[var(--shadow-card)] border-2 ${result.cancelled ? 'border-border' : result.success ? 'border-green-200 dark:border-green-900/30' : result.pending ? 'border-amber-200 dark:border-amber-900/30' : 'border-red-200 dark:border-red-900/30'}`}>
                             <CardContent className="py-12 text-center">
-                                {result.success ? (
+                                {result.cancelled ? (
+                                    <>
+                                        <Clock className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                                        <h3 className="text-2xl font-bold mb-2">{t.renew.toast.cancelled}</h3>
+                                    </>
+                                ) : result.success ? (
                                     <>
                                         <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
                                         <h3 className="text-2xl font-bold text-green-600 mb-2">{t.renew.result.success}</h3>

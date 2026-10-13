@@ -6,6 +6,7 @@ import { compareReportPackageName } from './report-package-identity'
 import { getRenewalFulfillmentConfig } from './fulfillment-baseline'
 import { captureRenewalCompletionInTransaction } from './fulfillment-finalization'
 import { prisma } from './prisma'
+import { hasProvenUnsubmittedPayment } from '../../../shared/operations/renewal-pre-payment'
 
 export function cairoReportDay(at: Date): string {
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -16,6 +17,31 @@ export function cairoReportDay(at: Date): string {
 }
 
 const exact = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase()
+
+// A same-day row has no attempt identifier. An unclaimed invoice may still
+// belong to an earlier unresolved purchase, even after its execution ended.
+export async function hasCompetingReportAttempt(db: Pick<Prisma.TransactionClient, 'operation'>,
+    current: { id: string; cardNumber: string; beinAccountId: string | null; createdAt: Date },
+    row: SoldReportSafeRow, reportDate: string): Promise<boolean> {
+    const previous = await db.operation.findMany({ where: {
+        id: { not: current.id }, cardNumber: current.cardNumber, beinAccountId: current.beinAccountId,
+        type: 'RENEW',
+        OR: [{ createdAt: { lt: current.createdAt } }, { createdAt: current.createdAt, id: { lt: current.id } }],
+        AND: [{ OR: [{ fulfillmentAuthority: 'NONE' }, { fulfillmentAuthority: null }] },
+            { OR: [{ status: 'REVIEW_REQUIRED' }, { providerMutationStartedAt: { not: null } },
+            { providerPaymentState: { in: ['UNKNOWN', 'CHARGED'] } }] }],
+    }, include: { chargedBeinSpendLedger: true } })
+    return previous.some(op => {
+        if (hasProvenUnsubmittedPayment(op) || op.providerPaymentState === 'NOT_CHARGED' && !op.chargedBeinSpendLedger) return false
+        const submitted = op.providerPayRequestedAt || op.providerMutationStartedAt
+        if (submitted && cairoReportDay(submitted) !== reportDate) return false
+        const selected = op.selectedPackage as QuotePackage | null
+        if (!selected?.name || !quotedPriceDecimal(selected)) return true
+        return compareReportPackageName(selected.name, row.packageName).matches &&
+            quotedPriceDecimal(selected) === positiveDecimal(row.providerAmount) &&
+            (selected.currency || 'USD').toUpperCase() === row.currency.toUpperCase()
+    })
+}
 
 export type SameDayReportMatch = {
     outcome: 'MATCHED' | 'VALID_NO_MATCH' | 'INCOMPLETE_SCAN' | 'CHECK_FAILED' | 'PROOF_CONFLICT'
@@ -235,6 +261,11 @@ export async function finalizeSameDayReport(input: {
                 candidateCount: rowCheck?.candidateCount, ...rowCheck?.diagnostics }))
             if (op.status === 'COMPLETED') return rowStillMatches && op.fulfillmentProof?.invoiceNo === input.row.invoiceNo &&
                 op.fulfillmentProof.proofKind === 'SOLD_REPORT_SAME_DAY' ? 'ALREADY_COMPLETED' : 'PROOF_CONFLICT'
+            if (await hasCompetingReportAttempt(tx, op, input.row, input.reportDate)) {
+                console.warn('[HTTP] Report attribution stopped:', JSON.stringify({ operationId: op.id,
+                    stage: 'REPORT_FINALIZE', reasonCode: 'EARLIER_UNRESOLVED_ATTEMPT' }))
+                return 'PROOF_CONFLICT'
+            }
             const reservations = await tx.$queryRaw<Array<{ operationId: string }>>`
                 SELECT card."operation_id" AS "operationId"
                 FROM "card_lifecycle_reservations" card

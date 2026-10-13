@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
-import { cardReleasePreview } from '../../../../../../shared/operations/admin-card-release'
 
 export async function GET(request: NextRequest) {
     const auth = await requireRoleAPIWithMobile(request, 'ADMIN')
@@ -18,11 +17,7 @@ export async function GET(request: NextRequest) {
                 completedAt: release.completedAt, operationIds: release.operations.map(operation => operation.id) }
                 : { error: 'CARD_RELEASE_NOT_FOUND' }, { status: release ? 200 : 404 })
         }
-        const cardNumber = (query.get('cardNumber') || '').replace(/\s+/g, '')
-        if (!/^\d{1,64}$/.test(cardNumber)) return NextResponse.json({ error: 'INVALID_CARD_NUMBER' }, { status: 400 })
-        const pending = await prisma.cardAdministrativeRelease.findFirst({ where: { cardNumber, state: { not: 'COMPLETED' } },
-            select: { id: true, state: true, lastError: true } })
-        return NextResponse.json({ ...await cardReleasePreview(prisma, cardNumber), pending })
+        return NextResponse.json({ error: 'CARD_RELEASE_NOT_FOUND' }, { status: 404 })
     } catch {
         return NextResponse.json({ error: 'CARD_RELEASE_READ_FAILED' }, { status: 500 })
     }

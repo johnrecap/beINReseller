@@ -14,7 +14,7 @@ function routeSource(...parts: string[]): string {
 }
 
 test('renewal guard exposes stable machine-readable failure codes', () => {
-    assert.equal(RENEWAL_CREATION_BLOCKED_CODE, 'RENEWAL_FULFILLMENT_REVIEW_PENDING')
+    assert.equal(RENEWAL_CREATION_BLOCKED_CODE, 'RENEWAL_OPERATION_ACTIVE')
     assert.equal(RENEWAL_LEGACY_ROUTE_DISABLED_CODE, 'RENEWAL_ROUTE_MIGRATION_REQUIRED')
     assert.equal(normalizeRenewalCardNumber(' 7517 687161 '), '7517687161')
     assert.throws(() => normalizeRenewalCardNumber('7517-x'))
@@ -113,8 +113,9 @@ test('mobile payment intent asserts reservation and uses one stable provider ide
     assert.match(source, /PAYMENT_INTENT_REVIEW_REQUIRED/)
 })
 
-test('aged store renewals are review-blocked and never auto-cancelled by elapsed time alone', () => {
+test('store admission uses active execution and cooldown without blocking on old subscription review', () => {
     const source = routeSource('store', 'subscriptions', 'start')
-    assert.match(source, /SUBSCRIPTION_REVIEW_REQUIRED/)
+    assert.doesNotMatch(source, /SUBSCRIPTION_REVIEW_REQUIRED/)
+    assert.match(source, /createGuardedRenewalOperation\(tx/)
     assert.doesNotMatch(source, /Auto-cancelled expired subscription|Automatically cancelled due to timeout/)
 })

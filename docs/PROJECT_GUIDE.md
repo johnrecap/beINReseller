@@ -1,5 +1,28 @@
 # Project Guide
 
+## Review is not a card block — delivery register (2026-10-13)
+
+Accepted policy supersedes the earlier hold/archive-unlock policy: remove review-based card admission bans. Preserve the original five-minute cooldown, active execution exclusion, financial evidence and review decisions. Retire new administrative unlock requests; retain existing archive history and finish already accepted stops. No new bypass service, schema change, subagents, live provider calls or production edits.
+
+| Requirement | Verification / evidence | State |
+| --- | --- | --- |
+| Delete review/issue/admin-release admission blockers | Representative guard regression failed first; real guard and normal/busy entry paths now pass | VERIFIED locally |
+| Release ended execution ownership independently of financial adjudication; reject stale work | Actual Prisma/PGlite, Worker and bounded existing maintenance tests; HTTP/Redis ownership must drain | VERIFIED locally; native contention NOT_VERIFIED |
+| Preserve invoice attribution, financial state and cooldown | SQL retains two reviews, debit, issues and original deadline; released Reports is evidence-only; ambiguous earlier matching sale cannot finalize | VERIFIED locally |
+| Correct cancellation, retire unlock UI/API, retain history and ar/en/bn | Durable duplicate cancellation, final-payment rejection, real finalizer and mocked browser; historical stops/archives remain supported | VERIFIED locally |
+| Types, tests, builds, lint, encoding | Final source checks and evidence below | VERIFIED within recorded limits |
+| Source delivery | Authorized branch push with remote SHA checked in the handoff | Production deployment remains user-operated |
+
+Runtime change: normal/busy renewal admission and the shared guard no longer query past reviews, integrity issues or administrative release requests as card bans. The store entry delegates the same policy to that guard. Active operation exclusion, the partial unique reservation indexes and the original cooldown remain. Existing bounded maintenance now releases ended card/account ownership (including historical reviews) only after registered HTTP deadlines and owned Redis execution have drained. It never decides old financial outcomes. Old mutating jobs cannot reopen ended ownership; read-only Reports can use a temporary account lease, retain an observation and stop before settlement. A transaction also rejects an invoice potentially belonging to an earlier unresolved matching attempt.
+
+The second-confirm cancel API locks/re-reads consent state, stores one durable cancellation dispatch, clears customer-wait deadlines and rejects an already-started final confirmation. Flow-2 `CANCELLATION_CONFIRM` is preparation, unless real final-payment/sale evidence exists. The UI waits for `CANCELLED`, then displays a neutral cancellation result. The five-minute deadline is not restarted on replay. ADMIN archive/unlock creation, preview and dialog are deleted; existing requests still drain and archive, and their immutable history remains readable. No schema or migration changes.
+
+Verification: root 915/915 tests; Worker 493 passes and five Redis-gated skips; selected native DB integration has two pure checks pass and two PostgreSQL-gated skips. Actual Prisma/PGlite regressions execute the original reservation partial indexes, cooldown migration and audit constraints/triggers. They prove serial transaction/replay behavior, not native multi-process lock contention. Browser coverage: 89 review cases plus the renewal/cooldown/cancellation suite, fully intercepted HTTP, ar/en/bn, 360/1280px cancellation and retained archive/financial controls. Root/Worker types, both builds, changed-file ESLint, schema parity, translation parity and encoding/diff checks pass. Local artifacts: `output/review-card-unblock-20261013/`; cancellation images also in `output/playwright/card-cooldown/`.
+
+Semantic review: reservation release has operation ownership predicates; review/debit/invoice/cooldown data is unchanged in SQL assertions; a matching late report creates no claim/proof/completion after release. A final SQL regression also reproduced and fixed invoice ambiguity for historical attempts with null fulfillment authority; the 18 affected SQL/journey cases, types, lint and Worker build passed again. The original sale steps are unchanged. Visual review confirms the removed unlock controls, retained financial decisions/archive, and neutral Arabic cancellation without overflow (scoped 8/10). No independent-agent review, native PostgreSQL/Redis contention, real beIN execution, or production acceptance is claimed. Build notices about Browserslist age and the existing middleware convention are informational. Sandbox restrictions initially blocked generated dependency realpaths and a disposable Git test fixture; permitted local reruns succeeded.
+
+Deploy: after stopping new submissions and draining active provider work, stop web, all workers, maintenance and KeepAlive; pull `codex/panel-ui-repairs`, generate clients/build both packages and restart all those roles from the same SHA. Stop web before replacing `.next`. This patch adds no migration and no automatic historical financial reconciliation. Monitor `[RenewalReservation]` (`EXECUTION_ENDED`, release counts), `[RenewalCancellation]`, and `EVIDENCE_ONLY` Reports logs; none includes card/session contents. Normal maintenance frees historical ended ownership without an admin button.
+
 ## User statistics receipts — delivery register (2026-10-13)
 
 Accepted scope: link existing verified renewal receipts from ADMIN user statistics. Receipt access remains owner/ADMIN only; managers retain statistics without receipt metadata or links. No financial writes, schema changes, historical invoice reconstruction, live payment or subagents.
@@ -22,6 +45,8 @@ Verification sources: `tests/unit/user-stats-receipts.test.ts`, `tests/unit/rene
 Visual review: existing dialog/table tokens and horizontal table scrolling are retained; links and unavailable states are readable in RTL and narrow view (scoped assessment 8/10). Printing verification uses the actual receipt component, print CSS and a stubbed `window.print`; physical printer output and authenticated production behavior are NOT_VERIFIED. Browser networking is intercepted, service/API auth and database are synthetic, and no native database integration was exercised for this read-only addition. No broader UI or production acceptance is implied.
 
 ## Admin card release — delivery register (2026-10-13)
+
+Historical delivery below is superseded by the review-not-card-block policy above: no new unlock decisions or previews; only accepted historical requests, archive history and stopped-operation fences remain supported.
 
 Accepted override: an ADMIN may archive all current blocking attempts for one card and waive its existing cooldowns even when payment evidence is unknown or conflicting. Archive is operational only: preserve money, invoices, proof, financial status and unresolved issues. No automatic historical decisions or production changes. No subagents or live payment.
 

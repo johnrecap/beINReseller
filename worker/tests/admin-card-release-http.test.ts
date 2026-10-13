@@ -1,3 +1,4 @@
+import { seedHistoricalCardRelease } from '../../tests/helpers/historical-card-release'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import axios, { type AxiosAdapter, type AxiosInstance } from 'axios'
@@ -5,7 +6,7 @@ import * as cheerio from 'cheerio'
 import { readFileSync } from 'node:fs'
 import { openPglitePrisma } from '../../tests/helpers/pglite-prisma'
 import { loadIsolatedModule } from '../../tests/helpers/promo-dispatch-harness'
-import { cardReleasePreview, requestCardRelease, completeCardRelease, beginOperationProviderRequest, finishOperationProviderRequest } from '../../shared/operations/admin-card-release'
+import { completeCardRelease, beginOperationProviderRequest, finishOperationProviderRequest } from '../../shared/operations/admin-card-release'
 import type { HttpClientService } from '../src/http/HttpClientService'
 
 test('actual HTTP interceptors survive session import/reset, retain a late success observation and prevent another provider call', async () => {
@@ -40,9 +41,8 @@ test('actual HTTP interceptors survive session import/reset, retain a late succe
         const runtime = client as unknown as { axios: AxiosInstance }
         const post = runtime.axios.post('https://provider.invalid/renew', 'synthetic=only')
         await enteredAdapter
-        const preview = await cardReleasePreview(f.db, op.cardNumber)
-        const release = await requestCardRelease(f.db, { operationId: op.id, actorId: admin.id, note: 'Stop an in-flight synthetic request',
-            decisionKey: 'synthetic-http-release', fingerprint: preview.fingerprint, acknowledgeRisk: true })
+        const release = await seedHistoricalCardRelease(f.db, { operationIds: [op.id], actorId: admin.id, note: 'Stop an in-flight synthetic request',
+            decisionKey: 'synthetic-http-release' })
         assert.equal((await completeCardRelease(f.db, release.id)).state, 'DRAINING')
         respond()
         await assert.rejects(post, /ADMIN_OPERATION_STOPPED/)

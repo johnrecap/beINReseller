@@ -1,19 +1,19 @@
+import { seedHistoricalCardRelease } from '../helpers/historical-card-release'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import type { Prisma } from '@prisma/client'
 import { openPglitePrisma } from '../helpers/pglite-prisma'
-import { cardReleasePreview, requestCardRelease, completeCardRelease, administrativeReleaseDiagnostic } from '../../shared/operations/admin-card-release'
+import { completeCardRelease, administrativeReleaseDiagnostic } from '../../shared/operations/admin-card-release'
 
 test('administrative archive accepts the original migrated adjudication table', async () => {
     const f = await openPglitePrisma({ adjudicationSchema: 'legacy' })
     try {
         const admin = await f.db.user.create({ data: { username: 'migrated-admin', email: 'migrated@example.test', passwordHash: 'test', role: 'ADMIN' } })
         const operation = await f.db.operation.create({ data: { id: 'migrated-review', cardNumber: '7000000011', type: 'RENEW', status: 'REVIEW_REQUIRED', amount: 0 } })
-        const preview = await cardReleasePreview(f.db, operation.cardNumber)
-        const input = { operationId: operation.id, actorId: admin.id, note: 'Archive original migrated review',
-            decisionKey: 'migrated-adjudication-request', fingerprint: preview.fingerprint, acknowledgeRisk: true }
-        await assert.rejects(requestCardRelease(f.db, input), error => {
+        const input = { operationIds: [operation.id], actorId: admin.id, note: 'Archive original migrated review',
+            decisionKey: 'migrated-adjudication-request' }
+        await assert.rejects(seedHistoricalCardRelease(f.db, input), error => {
             const diagnostic = administrativeReleaseDiagnostic(error)
             assert.equal(diagnostic.databaseCode, '23514')
             assert.equal(diagnostic.constraint, 'operation_review_adjudications_check_2')
@@ -22,7 +22,7 @@ test('administrative archive accepts the original migrated adjudication table', 
         assert.equal(await f.db.cardAdministrativeRelease.count(), 0)
         assert.equal((await f.db.operation.findUniqueOrThrow({ where: { id: operation.id } })).administrativeStopRequestedAt, null)
         await f.engine.exec(readFileSync('prisma/migrations/20261013200000_admin_card_release_adjudication/migration.sql', 'utf8'))
-        const saved = await requestCardRelease(f.db, input)
+        const saved = await seedHistoricalCardRelease(f.db, input)
         assert.ok(saved.id)
         assert.equal((await completeCardRelease(f.db, saved.id)).state, 'COMPLETED')
         const audit = await f.db.operationReviewAdjudication.findFirstOrThrow({ where: { operationId: operation.id } })

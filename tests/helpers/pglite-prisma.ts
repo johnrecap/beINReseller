@@ -14,6 +14,10 @@ export async function openPglitePrisma(options: { adjudicationSchema?: 'legacy' 
     const ddl = execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'diff',
         '--from-empty', '--to-schema', 'prisma/schema.prisma', '--script'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     await engine.exec(ddl)
+    const reservationSql = readFileSync('prisma/migrations/20260824130000_sold_report_fulfillment_correlation/migration.sql', 'utf8')
+    const partialIndexes = reservationSql.match(/CREATE UNIQUE INDEX "(?:card_lifecycle_reservations_active_card_key|provider_account_causal_reservations_active_account_key)"[^;]+;/g)
+    if (partialIndexes?.length !== 2) throw new Error('MISSING_RESERVATION_UNIQUENESS')
+    await engine.exec(partialIndexes.join('\n'))
     await engine.exec('ALTER TABLE operations DROP COLUMN renewal_cooldown_until')
     await engine.exec(readFileSync('prisma/migrations/20261012120000_renewal_card_cooldown/migration.sql', 'utf8'))
     // Schema diff omits custom migration CHECKs/triggers. Execute their original

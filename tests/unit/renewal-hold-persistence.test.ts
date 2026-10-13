@@ -54,7 +54,7 @@ test('actual SQL closure is atomic, preserves another operation and the original
             })
         await assert.rejects(f.db.$transaction(tx => guard.createGuardedRenewalOperation(tx, {
             cardNumber: op.cardNumber, data: { userId: user.id, amount: 0, purpose: 'RENEWAL' },
-        })), (error: unknown) => guard.isRenewalCreationBlockedError(error) && error.reason === 'UNRESOLVED_REVIEW')
+        })), (error: unknown) => guard.isRenewalCreationBlockedError(error) && error.reason === 'CARD_COOLDOWN')
 
         // Versioned new review, historical review, active owner and final-payment
         // ambiguity share the same actual maintenance query and finalizer.
@@ -107,7 +107,7 @@ test('actual SQL closure is atomic, preserves another operation and the original
         await f.db.cardLifecycleReservation.create({ data: { operationId: isolated.id, cardNumber: isolated.cardNumber } })
         const admission = { cardNumber: isolated.cardNumber, data: { userId: user.id, amount: 0, purpose: 'RENEWAL' as const } }
         await assert.rejects(f.db.$transaction(tx => guard.createGuardedRenewalOperation(tx, admission)),
-            (error: unknown) => guard.isRenewalCreationBlockedError(error) && error.reason === 'FULFILLMENT_INTEGRITY_ISSUE')
+            (error: unknown) => guard.isRenewalCreationBlockedError(error) && error.reason === 'CARD_LIFECYCLE_RESERVED')
         const admin = await f.db.user.create({ data: { username: 'synthetic-admin', email: 'admin@example.test', passwordHash: 'test', role: 'ADMIN' } })
         const repair = { ...input, operationId: isolated.id, repairOnly: true, executionIdle: async () => true,
             adminReview: { actorId: admin.id, actorUsername: admin.username, note: 'Verified synthetic pre-payment evidence' } }

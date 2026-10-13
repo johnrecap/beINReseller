@@ -4,19 +4,20 @@ import {
     resolveCardLifecycleReservationDisposition,
 } from '../../src/lib/operations/card-lifecycle-reservation'
 import { disposableDatabaseSkipReason } from '../helpers/disposable-database'
+import { releaseEndedRenewalReservations } from '../../shared/operations/renewal-pre-payment'
 
 function suffix(label: string): string {
     return `card-reservation-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-test('T028 unresolved review holds the card until an explicit manual resolution', () => {
+test('review disposition no longer depends on a manual resolution', () => {
     assert.deepEqual(
         resolveCardLifecycleReservationDisposition({
             operationStatus: 'REVIEW_REQUIRED',
             terminalResolutionSafe: false,
             manualReviewResolutionId: null,
         }),
-        { action: 'HOLD', reason: 'UNRESOLVED_REVIEW' }
+        { action: 'RELEASE', reason: 'EXECUTION_ENDED' }
     )
 
     assert.deepEqual(
@@ -29,7 +30,7 @@ test('T028 unresolved review holds the card until an explicit manual resolution'
     )
 })
 
-test('T028 only an evidenced safe terminal state releases the card automatically', () => {
+test('ended execution releases the card independently from its financial evidence', () => {
     for (const operationStatus of ['COMPLETED', 'FAILED', 'CANCELLED', 'EXPIRED'] as const) {
         assert.deepEqual(
             resolveCardLifecycleReservationDisposition({
@@ -42,7 +43,7 @@ test('T028 only an evidenced safe terminal state releases the card automatically
         )
     }
 
-    for (const operationStatus of ['PROCESSING', 'COMPLETING', 'FAILED'] as const) {
+    for (const operationStatus of ['PROCESSING', 'COMPLETING'] as const) {
         assert.equal(
             resolveCardLifecycleReservationDisposition({
                 operationStatus,
@@ -115,7 +116,7 @@ test('T028 database permits one active reservation winner for a card', { skip: d
     }
 })
 
-test('T028 database keeps review reservation active until audited manual release', { skip: disposableDatabaseSkipReason }, async () => {
+test('T028 database releases an idle review without administrative adjudication', { skip: disposableDatabaseSkipReason }, async () => {
     assert.ok(process.env.DATABASE_URL, 'DATABASE_URL is required when RUN_DB_INTEGRATION is enabled')
     const { default: prisma } = await import('@/lib/prisma')
     const db = prisma as typeof prisma & {
@@ -173,13 +174,8 @@ test('T028 database keeps review reservation active until audited manual release
         assert.equal(held.releasedAt, null)
         assert.equal(held.releaseReason, null)
 
-        await db.cardLifecycleReservation.update({
-            where: { operationId: operations[0].id },
-            data: {
-                releasedAt: new Date(),
-                releaseReason: 'MANUAL_REVIEW_RESOLVED:manual-resolution-1',
-            },
-        })
+        assert.equal(await prisma.$transaction(tx => releaseEndedRenewalReservations(tx, operations[0].id, async () => true)), true)
+        assert.equal((await prisma.operation.findUniqueOrThrow({ where: { id: operations[0].id } })).status, 'REVIEW_REQUIRED')
         await db.cardLifecycleReservation.create({
             data: {
                 operationId: operations[1].id,

@@ -86,7 +86,7 @@ function database(selected: quote.QuotePackage, row: reports.SoldReportSafeRow) 
     const tx = {
         $queryRaw: async (parts: TemplateStringsArray) => parts.join('').includes('FROM "card_lifecycle_reservations"') &&
             op.cardLifecycleReservation.releasedAt ? [] : [{ operationId: op.id }],
-        operation: { findUnique: async () => op, update: async ({ data }: { data: Partial<typeof op> }) => Object.assign(op, data) },
+        operation: { findMany: async () => [], findUnique: async () => op, update: async ({ data }: { data: Partial<typeof op> }) => Object.assign(op, data) },
         providerInvoiceClaim: { create: async ({ data }: { data: Record<string, unknown> }) => {
             effects.claims++; op.providerInvoiceClaim = { id: 'claim', ...data }; return op.providerInvoiceClaim } },
         operationFulfillmentProof: { create: async ({ data }: { data: Record<string, unknown> }) => { effects.proofs++; op.fulfillmentProof = data } },
@@ -109,7 +109,7 @@ function database(selected: quote.QuotePackage, row: reports.SoldReportSafeRow) 
     const input = { operationId: op.id, beinAccountId: op.beinAccountId, reservationGeneration: 1,
         providerPaymentState: 'UNKNOWN' as const, reportDate: '2026-10-13', submittedAt,
         observedAt: new Date('2026-10-14T08:00:00Z'), dealerContextHash: 'a'.repeat(64), row, attemptId: 'attempt', attemptNo: 1 }
-    return { api, input, op, effects }
+    return { api, input, op, effects, tx }
 }
 
 async function confirmWalletOnce(selected: quote.QuotePackage, packages: quote.QuotePackage[], responseData: unknown) {
@@ -272,4 +272,70 @@ test('actual report worker logs bounded match diagnostics and never private prov
     assert.match(diagnostic, /"nameMatches":1/)
     assert.match(diagnostic, /"amountMatches":0/)
     assert.doesNotMatch(diagnostic, new RegExp(`${fullCard}|${stb}|PRIVATE_PROMO|PRIVATE_COOKIE|private-state|<table|Premium`))
+})
+
+
+test('released review records matching Reports evidence without financial writes or reopening ownership', async () => {
+    const path = 'worker/src/http-queue-processor.ts'
+    const report = { ...reports.parseSoldPackagesReportPage(reportHtml('Premium 6 Months', '108')), outcome: 'COMPLETE', dealerContextHash: 'a'.repeat(64) }
+    const current = { id: 'old-review', status: 'REVIEW_REQUIRED', renewalFlowVersion: 2,
+        beinAccountId: 'account', cardNumber: fullCard, createdAt: new Date('2026-10-13T04:00:00Z'),
+        selectedPackage: { index: 1, name: 'Premium 6 Months (6 Months)', price: 108, currency: 'USD' },
+        responseData: { quoteRevision: 1 }, providerPayRequestedAt: new Date('2026-10-13T06:00:00Z') }
+    let observations = 0
+    const unexpected = () => { throw new Error('UNEXPECTED_FINANCIAL_OR_RESERVATION_WRITE') }
+    const deps = { ...dependencies(path), '@prisma/client': { Prisma, OperationStatus },
+        '../../shared/operations/package-quote': quote,
+        './lib/fulfillment-baseline': { getRenewalFulfillmentConfig: async () => ({ reportPageCap: 100, reportScanAttempts: 1 }) },
+        './lib/same-day-report-fulfillment': { ...database(current.selectedPackage, report.rows[0]).api,
+            finalizeSameDayReport: unexpected, recordSameDayAttempt: async (input: { outcome: string }) => {
+                assert.equal(input.outcome, 'MATCHED'); observations++; return { attemptId: 'observed', attemptNo: 2 }
+            } },
+        './lib/prisma': { prisma: { $transaction: unexpected,
+            operation: { findUnique: async () => current, findMany: async () => [], updateMany: unexpected },
+            providerInvoiceClaim: { findMany: async () => [] } } } }
+    const api = loadIsolatedModule<{ verifySameDayRenewal: (input: unknown) => Promise<void> }>(path, deps, ['verifySameDayRenewal'])
+    await api.verifySameDayRenewal({ evidenceOnly: true, operationId: current.id,
+        client: { scanSoldPackagesReport: async () => report }, accountPool: {}, reservationGeneration: 1,
+        providerPaymentState: 'UNKNOWN', responseData: { smartcardType: 'CISCO' },
+        assertCurrent: async () => {}, renewReadSession: async () => false })
+    assert.equal(observations, 1)
+    assert.equal(current.status, 'REVIEW_REQUIRED')
+})
+
+test('transaction rejects a matching report after ownership ended without creating a receipt', async () => {
+    const selected = { index: 1, name: 'Premium 6 Months (6 Months)', price: 108, currency: 'USD' }
+    const row = reports.parseSoldPackagesReportPage(observedReport()).rows[0]
+    const db = database(selected, row)
+    db.op.cardLifecycleReservation.releasedAt = new Date()
+    db.op.providerAccountCausalReservation.releasedAt = new Date()
+    assert.equal(await db.api.finalizeSameDayReport(db.input), 'PROOF_CONFLICT')
+    assert.deepEqual(db.effects, { claims: 0, proofs: 0, completionEffects: 0, releases: 0 })
+})
+
+
+test('a released review gets only a read lease and cannot take another operation account reservation', async () => {
+    const path = 'worker/src/http-queue-processor.ts'
+    let busy = false, claims = 0
+    const tx = { $queryRaw: async () => [], operation: { findUnique: async () => ({
+        status: 'REVIEW_REQUIRED', administrativeStopRequestedAt: null,
+        providerAccountCausalReservation: { releasedAt: new Date(), reservationGeneration: 2 },
+    }) } }
+    const lease = { reservationGeneration: 2 }
+    const deps = { ...dependencies(path), '@prisma/client': { Prisma, OperationStatus },
+        'node:crypto': { randomUUID: () => 'lease' },
+        './lib/prisma': { prisma: { beinAccount: { findUnique: async () => ({ isActive: true, automationExclusive: true }) },
+            $transaction: async (run: (value: typeof tx) => unknown) => run(tx) } },
+        './lib/crypto': { decryptAccountPassword: (account: unknown) => account },
+        './lib/provider-account-reservation': { findActiveProviderAccountReservationForAccount: async () => busy ? { operationId: 'new' } : null,
+            acquireProviderAccountCausalReservation: () => { throw new Error('REVIEW_MUST_NOT_REOPEN') } },
+        './pool/account-locking': { acquireAccountExecutionLease: async () => { claims++; return lease } },
+    }
+    const api = loadIsolatedModule<{ reserveProviderAccountForFulfillment: (input: unknown) => Promise<{ evidenceOnly: boolean } | null> }>(path, deps, ['reserveProviderAccountForFulfillment'])
+    const input = { operationId: 'old-review', beinAccountId: 'account', consumer: 'REPORT',
+        accountPool: { getRedis: () => ({}), getWorkerId: () => 'worker' } }
+    assert.equal((await api.reserveProviderAccountForFulfillment(input))?.evidenceOnly, true)
+    busy = true
+    assert.equal(await api.reserveProviderAccountForFulfillment(input), null)
+    assert.equal(claims, 1)
 })

@@ -44,6 +44,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
         let expires = start + 300_000;
         let blockedPosts = 0;
         let operationStatus = null;
+        let cancellationPosts = 0;
         await page.route('**/*', async route => {
             const url = new URL(route.request().url());
             if (url.origin !== 'http://cooldown.invalid') {
@@ -62,6 +63,10 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
             } });
             if (url.pathname === '/api/operations/synthetic/confirm-purchase') {
                 operationStatus = 'COMPLETED'; return route.fulfill({ json: { success: true } });
+            }
+            if (url.pathname === '/api/operations/synthetic/cancel-confirm') {
+                cancellationPosts++; operationStatus = 'COMPLETING';
+                return route.fulfill({ json: { success: true, cancellationStatus: 'PENDING' } });
             }
             if (url.pathname === '/api/operations/start-renewal') {
                 const now = await page.evaluate(() => Date.now());
@@ -148,6 +153,16 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
             results.push('language switch and persisted reload: ' + language);
         }
         for (const language of ['en', 'ar', 'bn']) {
+            await render(language, 360, 'AWAITING_FINAL_CONFIRM');
+            await page.getByRole('button', { name: translations[language].renew.finalConfirm.cancel, exact: true }).click();
+            await page.getByRole('heading', { name: translations[language].panelUi.cancelAccepted, exact: true }).waitFor();
+            assert.equal(await page.getByRole('heading', { name: translations[language].renew.result.failed, exact: true }).count(), 0);
+            await page.clock.runFor(2500);
+            assert.equal(await page.getByRole('heading', { name: translations[language].panelUi.cancelAccepted, exact: true }).count(), 1);
+            operationStatus = 'CANCELLED'; await page.clock.runFor(2500);
+            await page.getByRole('heading', { name: translations[language].renew.toast.cancelled, exact: true }).waitFor();
+            await page.screenshot({ path: path.join(output, `cancelled-${language}.png`), fullPage: true });
+            results.push('cancellation waits for worker and renders neutral cancelled result: ' + language);
             for (const width of [360, 1280]) {
                 await render(language, width, 'AWAITING_FINAL_CONFIRM');
                 await page.getByText(translations[language].renew.finalConfirm.title, { exact: true }).waitFor();
@@ -176,6 +191,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
         await page.screenshot({ path: path.join(output, 'pending-settlement-en.png'), fullPage: true });
         results.push('terminal heading and feedback follow live language switch');
         assert.deepEqual(errors, []);
+        assert.equal(cancellationPosts, 3);
         assert.deepEqual(unexpected, []);
         console.log(JSON.stringify({ results, externalRequests: 0, realOperations: 0, errors }, null, 2));
     } finally { await browser.close(); }

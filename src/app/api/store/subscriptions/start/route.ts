@@ -46,37 +46,7 @@ export async function POST(request: NextRequest) {
 
         const { cardNumber } = result.data
 
-        // 3. Check for existing pending subscription for this card
-        const existingSubscription = await prisma.storeSubscription.findFirst({
-            where: {
-                customerId: customer.id,
-                cardNumber,
-                status: {
-                    in: ['PENDING', 'AWAITING_PACKAGE', 'AWAITING_PAYMENT', 'PAID', 'PROCESSING', 'AWAITING_CAPTCHA', 'COMPLETING']
-                },
-            },
-        })
-
-        if (existingSubscription) {
-            // Age alone is not evidence that provider/payment work never began.
-            // Never cancel or release money while that evidence is ambiguous.
-            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
-
-            if (existingSubscription.createdAt < tenMinutesAgo) {
-                return errorResponse(
-                    'The previous renewal requires review before another renewal can start',
-                    409,
-                    'SUBSCRIPTION_REVIEW_REQUIRED'
-                )
-            } else {
-                return errorResponse(
-                    'There is an active operation for this card',
-                    400,
-                    'SUBSCRIPTION_IN_PROGRESS'
-                )
-            }
-        }
-
+        // The shared guard below owns active execution and cooldown admission.
         // 4. Get markup percentage from settings
         const markupPercent = await getMarkupPercentage()
 

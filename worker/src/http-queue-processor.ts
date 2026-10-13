@@ -1,3 +1,4 @@
+import { endedOperationExecutionIdle, releaseEndedRenewalReservations, EXECUTION_ENDED_STATUSES } from '../../shared/operations/renewal-pre-payment';
 import { deliverCompletionEffects } from '../../shared/operations/completion-effects';
 
 /**
@@ -22,6 +23,7 @@ const operationRequestContext = new AsyncLocalStorage<string>();
 import {
     acquireAccountExecutionLease,
     assertAccountExecutionLease,
+    renewAccountExecutionLease,
     extendLock,
     getAccountLockStatus,
     isAccountExecutionLeaseActive,
@@ -33,7 +35,6 @@ import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
 import { BeinAccount, OperationStatus, Prisma, Proxy } from '@prisma/client';
-import { trackOperationComplete } from './lib/activity-tracker';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
 import { decryptAccountPassword } from './lib/crypto';
 import { recordConfirmedBeinSpend } from './lib/bein-spend-ledger';
@@ -92,7 +93,7 @@ import type { FulfillmentProofCandidate } from './lib/fulfillment-proof';
 import { finalizeAutomatedRenewalFulfillment } from './lib/fulfillment-finalization';
 import {
     cairoReportDay, claimSameDayFinalMutation, correlateSameDayReport,
-    finalizeSameDayReport, markSameDayPayRequest, recordSameDayAttempt,
+    finalizeSameDayReport, markSameDayPayRequest, recordSameDayAttempt, hasCompetingReportAttempt,
 } from './lib/same-day-report-fulfillment';
 import { finalizeRenewalNoChargeFailure } from './lib/renewal-no-charge-finalization';
 import { finalizePreMutationRenewalTermination } from './lib/pre-mutation-renewal-finalization';
@@ -1238,7 +1239,15 @@ async function processOperationHttpScoped(job: Job<OperationJobData>, accountPoo
     console.log(`📥 [HTTP] Processing ${operationId}: ${type}`);
 
     try {
-        if (type !== 'CHECK_ACCOUNT_BALANCE') await assertAdministrativeExecutionAllowed(prisma, operationId);
+        if (type !== 'CHECK_ACCOUNT_BALANCE') {
+            await assertAdministrativeExecutionAllowed(prisma, operationId);
+            const current = await prisma.operation.findUnique({ where: { id: operationId }, select: { status: true } });
+            if (current && EXECUTION_ENDED_STATUSES.some(status => status === current.status) &&
+                !['VERIFY_RENEWAL_FULFILLMENT', 'VERIFY_REVIEW_CARD'].includes(type)) {
+                console.info('[HTTP] Ended operation job ignored:', JSON.stringify({ operationId, type }));
+                return;
+            }
+        }
         switch (type) {
             case 'CHECK_ACCOUNT_BALANCE':
                 if (accountId) {
@@ -1478,6 +1487,12 @@ async function processOperationHttpScoped(job: Job<OperationJobData>, accountPoo
         await markOperationFailed(operationId, { type: 'UNKNOWN', message: getErrMsg(error), recoverable: false }, 1);
         await releaseSafeTerminalReservations(operationId, 'GENERIC_NON_RENEW_TERMINAL_FAILURE');
     } finally {
+        if (type !== 'CHECK_ACCOUNT_BALANCE') {
+            try {
+                await prisma.$transaction(tx => releaseEndedRenewalReservations(tx, operationId,
+                    (accountId, id) => endedOperationExecutionIdle(accountPool.getRedis(), accountId, id)));
+            } catch { console.warn('[HTTP] Reservation release deferred to maintenance:', JSON.stringify({ operationId })); }
+        }
         if (selectedAccountId) {
             await accountPool.releaseLock(selectedAccountId, operationId).catch((releaseError: unknown) => {
                 console.warn(`[HTTP] Failed to release account lock for ${selectedAccountId}: ${getErrMsg(releaseError)}`);
@@ -3317,6 +3332,7 @@ async function handleConfirmPurchaseHttp(
 }
 
 async function verifySameDayRenewal(input: {
+    evidenceOnly?: boolean;
     operationId: string;
     operation?: { beinAccountId: string | null; cardNumber: string };
     client: HttpClientService;
@@ -3329,12 +3345,12 @@ async function verifySameDayRenewal(input: {
     requestedAttemptNo?: number;
 }): Promise<void> {
     const current = await prisma.operation.findUnique({ where: { id: input.operationId }, select: {
-        id: true, status: true, renewalFlowVersion: true, beinAccountId: true,
+        id: true, status: true, renewalFlowVersion: true, beinAccountId: true, createdAt: true,
         cardNumber: true, selectedPackage: true, responseData: true,
         providerMutationStartedAt: true, providerPayRequestedAt: true,
     } });
     if (!current || current.renewalFlowVersion !== 2 || !current.beinAccountId ||
-        isTerminalStatus(current.status)) return;
+        HARD_TERMINAL_STATUS_LIST.includes(current.status)) return;
     const selected = current.selectedPackage as QuotePackage | null;
     const context = parseResponseDataObject(input.responseData);
     const smartcardType = typeof context.smartcardType === 'string' ? context.smartcardType.toUpperCase() : 'CISCO';
@@ -3391,6 +3407,9 @@ async function verifySameDayRenewal(input: {
         match = { outcome: 'PROOF_CONFLICT', reasonCode: 'PROVIDER_REJECTION_REPORT_CONFLICT',
             row: null, candidateCount: match.candidateCount, diagnostics: match.diagnostics };
     }
+    if (match.row && await hasCompetingReportAttempt(prisma, current, match.row, reportDate)) {
+        match = { ...match, outcome: 'PROOF_CONFLICT', reasonCode: 'EARLIER_UNRESOLVED_ATTEMPT', row: null };
+    }
     console.log('[HTTP] Same-day report match:', JSON.stringify({ operationId: current.id,
         stage: 'SOLD_REPORT', quoteRevision: quoteData(current.responseData).quoteRevision,
         outcome: match.outcome, reasonCode: match.reasonCode, candidateCount: match.candidateCount,
@@ -3399,6 +3418,11 @@ async function verifySameDayRenewal(input: {
         outcome: match.outcome, reasonCode: match.reasonCode, report,
         candidateCount: match.candidateCount, candidateInvoiceNo: match.row?.invoiceNo || null,
         observedAt, requestedAttemptNo: input.requestedAttemptNo });
+    if (input.evidenceOnly) {
+        console.info('[HTTP] Report observation retained:', JSON.stringify({ operationId: current.id,
+            stage: 'EVIDENCE_ONLY', outcome: match.outcome, attemptNo: attempt.attemptNo }));
+        return;
+    }
     const responseData = mergeOperationPhaseData(input.responseData, {
         operationPhase: 'POST_FINAL_PAY_REVIEW', jobType: 'VERIFY_RENEWAL_FULFILLMENT',
         providerPaymentState: input.providerPaymentState, fulfillmentState: 'VERIFYING',
@@ -3483,10 +3507,10 @@ async function handleVerifyRenewalFulfillmentHttp(
 
     if (operation.renewalFlowVersion === 2) {
         const reserved = await reserveProviderAccountForFulfillment({ operationId,
-            beinAccountId: operation.beinAccountId, accountPool });
+            beinAccountId: operation.beinAccountId, accountPool, consumer: 'REPORT' });
         if (!reserved) throw new RetryableRenewalVerificationError(
             new Error('PROVIDER_ACCOUNT_EXECUTION_UNAVAILABLE'));
-        const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
+        const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease, reserved.evidenceOnly);
         try {
             await heartbeat.assertCurrent();
             const route = await resolveOperationRoute(reserved.account, {
@@ -3499,7 +3523,7 @@ async function handleVerifyRenewalFulfillmentHttp(
                     'sameDayReportReadOnlyRetry', reserved.lease);
                 if (!loggedIn) throw new Error('FULFILLMENT_READ_SESSION_UNAVAILABLE');
             }
-            await verifySameDayRenewal({ operationId, client, accountPool,
+            await verifySameDayRenewal({ operationId, client, accountPool, evidenceOnly: reserved.evidenceOnly,
                 reservationGeneration: reserved.reservationGeneration,
                 providerPaymentState: operation.providerPaymentState || 'UNKNOWN',
                 responseData: operation.responseData, assertCurrent: heartbeat.assertCurrent,
@@ -3541,14 +3565,14 @@ async function handleVerifyRenewalFulfillmentHttp(
     const reserved = await reserveProviderAccountForFulfillment({
         operationId,
         beinAccountId: operation.beinAccountId,
-        accountPool,
+        accountPool, consumer: 'REPORT',
     });
     if (!reserved) {
         throw new RetryableRenewalVerificationError(
             new Error('PROVIDER_ACCOUNT_EXECUTION_UNAVAILABLE')
         );
     }
-    const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
+    const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease, reserved.evidenceOnly);
     let attemptRecorded = false;
     try {
         await heartbeat.assertCurrent();
@@ -3609,6 +3633,7 @@ async function handleVerifyRenewalFulfillmentHttp(
             requestedAttemptNo,
         });
         attemptRecorded = true;
+        if (reserved.evidenceOnly) return;
         const fulfillmentState = mapVerificationOutcomeToFulfillmentState({
             outcome: verificationOutcome,
             proofMode: verification.proofMode,
@@ -3853,10 +3878,10 @@ async function handleVerifyReviewCardHttp(
     const reserved = await reserveProviderAccountForFulfillment({
         operationId,
         beinAccountId: operation.beinAccountId,
-        accountPool,
+        accountPool, consumer: 'REPORT',
     });
     if (!reserved) throw new Error('PROVIDER_ACCOUNT_EXECUTION_UNAVAILABLE');
-    const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
+    const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease, reserved.evidenceOnly);
     try {
         await heartbeat.assertCurrent();
         const route = await resolveOperationRoute(reserved.account, {
@@ -3915,6 +3940,7 @@ async function handleVerifyReviewCardHttp(
             reportObservedAt: verification.reportObservedAt,
             contractObservedAt: verification.contractObservedAt,
         });
+        if (reserved.evidenceOnly) return;
         const fulfillmentState = mapVerificationOutcomeToFulfillmentState({
             outcome: verificationOutcome,
             proofMode: fulfillmentProofMode,
@@ -4022,6 +4048,7 @@ async function handleVerifyReviewCardHttp(
 type SelectedRenewalPackage = QuotePackage;
 
 type ReservedProviderExecution = {
+    evidenceOnly?: boolean;
     account: OperationBeinAccount;
     reservationGeneration: number;
     sessionGeneration: string;
@@ -4085,6 +4112,32 @@ async function reserveProviderAccountForFulfillment(input: {
     });
     if (!account?.isActive || !account.automationExclusive) return null;
 
+    // Ended ownership is never reopened for a report. Use only a short account
+    // execution lease, under the same account lock as regular acquisition.
+    if (input.consumer === 'REPORT') {
+        const observation = await prisma.$transaction(async tx => {
+            await tx.$queryRaw`SELECT "id" FROM "operations" WHERE "id" = ${input.operationId} FOR UPDATE`;
+            const op = await tx.operation.findUnique({ where: { id: input.operationId }, select: {
+                status: true, administrativeStopRequestedAt: true, providerAccountCausalReservation: true } });
+            if (!op || op.administrativeStopRequestedAt) return { ended: true, lease: null };
+            if (op.status !== 'REVIEW_REQUIRED' || op.providerAccountCausalReservation?.releasedAt === null)
+                return { ended: false, lease: null };
+            const key = `provider-reservation:account:${input.beinAccountId}`;
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`;
+            if (await findActiveProviderAccountReservationForAccount(tx, input.beinAccountId))
+                return { ended: true, lease: null };
+            const lease = await acquireAccountExecutionLease(input.accountPool.getRedis(), {
+                accountId: input.beinAccountId, operationId: input.operationId,
+                reservationGeneration: op.providerAccountCausalReservation?.reservationGeneration ?? 1,
+                leaseId: randomUUID(), workerId: input.accountPool.getWorkerId(),
+            });
+            return { ended: true, lease };
+        });
+        if (observation.ended) return observation.lease ? { account: decryptAccountPassword(account),
+            reservationGeneration: observation.lease.reservationGeneration,
+            sessionGeneration: String(observation.lease.reservationGeneration),
+            lease: observation.lease, evidenceOnly: true } : null;
+    }
     const claim = await prisma.$transaction((tx) =>
         acquireProviderAccountCausalReservation(tx, {
             operationId: input.operationId,
@@ -4199,18 +4252,19 @@ async function releaseProviderAccountReservation(input: {
 
 function startExecutionLeaseHeartbeat(
     accountPool: AccountPoolManager,
-    lease: AccountExecutionLeaseHandle
+    lease: AccountExecutionLeaseHandle,
+    evidenceOnly = false
 ): { assertCurrent: () => Promise<void>; stop: () => void } {
     let current = true;
     const timer = setInterval(() => {
-        accountPool.renewExecutionLease(lease)
+        (evidenceOnly ? renewAccountExecutionLease(accountPool.getRedis(), lease) : accountPool.renewExecutionLease(lease))
             .then((renewed) => { current = current && renewed; })
             .catch(() => { current = false; });
     }, 30_000);
     timer.unref();
     return {
         assertCurrent: async () => {
-            if (!current || !await accountPool.assertExecutionLease(lease)) {
+            if (!current || !await (evidenceOnly ? assertAccountExecutionLease(accountPool.getRedis(), lease) : accountPool.assertExecutionLease(lease))) {
                 throw new Error('PROVIDER_EXECUTION_LEASE_LOST');
             }
         },

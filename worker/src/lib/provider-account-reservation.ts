@@ -4,9 +4,10 @@ const ENDED_OPERATION_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'EXPIRED']
 
 // Called inside the caller's transaction. Serialize with completion/cancellation
 // before touching the reservation, so a queued continuation cannot reopen it.
-async function lockOperationForReservation(db: ProviderAccountReservationDb, operationId: string): Promise<boolean> {
+async function lockOperationForReservation(db: ProviderAccountReservationDb, operationId: string): Promise<string | null> {
     const rows = await db.$queryRaw<Array<{ status: string; administrative_stop_requested_at: Date | null }>>`SELECT "status", "administrative_stop_requested_at" FROM "operations" WHERE "id" = ${operationId} FOR UPDATE`
     return rows.length === 1 && !rows[0].administrative_stop_requested_at && !ENDED_OPERATION_STATUSES.some(status => status === rows[0].status)
+        ? rows[0].status : null
 }
 
 export type ProviderAccountConsumer =
@@ -149,7 +150,7 @@ export async function findActiveProviderAccountReservationForOperation(
 
 /**
  * Claim an account across baseline capture, provider mutation, delayed checks,
- * and unresolved review. Expiry of the short Redis lease never releases this row.
+ * and the current execution. A released review cannot reacquire ownership.
  */
 export async function acquireProviderAccountCausalReservation(
     db: ProviderAccountReservationDb,
@@ -163,13 +164,17 @@ export async function acquireProviderAccountCausalReservation(
     assertReservationIdentity(input)
     const now = input.now ?? new Date()
     assertAutomaticWindow(input.automaticWindowEndsAt, now)
-    if (!await lockOperationForReservation(db, input.operationId)) {
+    const operationStatus = await lockOperationForReservation(db, input.operationId)
+    if (!operationStatus) {
         return { status: 'OPERATION_ENDED_OR_MISSING', conflictOperationId: input.operationId }
     }
     await lockProviderReservationKeys(db, input.operationId, [input.beinAccountId])
     const existing = await db.providerAccountCausalReservation.findUnique({
         where: { operationId: input.operationId },
     })
+    if (operationStatus === 'REVIEW_REQUIRED' && (!existing || existing.releasedAt)) {
+        return { status: 'OPERATION_ENDED_OR_MISSING', conflictOperationId: input.operationId }
+    }
 
     if (existing?.releasedAt === null) {
         if (existing.beinAccountId !== input.beinAccountId) {

@@ -3,27 +3,27 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-test('start renewal blocks cards with unresolved review operations', () => {
+test('start renewal admission no longer queries unresolved reviews', () => {
     const source = readFileSync(
         join(process.cwd(), 'src', 'lib', 'operations', 'renewal-creation-guard.ts'),
         'utf8'
     )
 
-    assert.match(source, /status: 'REVIEW_REQUIRED'/)
-    assert.match(source, /UNRESOLVED_REVIEW/)
+    assert.doesNotMatch(source, /status: 'REVIEW_REQUIRED'/)
+    assert.doesNotMatch(source, /UNRESOLVED_REVIEW/)
     assert.match(source, /pg_advisory_xact_lock/)
 })
 
-test('central renewal creation guard blocks open fulfillment safety issues', () => {
+test('card admission has no financial issue predicates', () => {
     const source = readFileSync(
         join(process.cwd(), 'src', 'lib', 'operations', 'renewal-creation-guard.ts'),
         'utf8'
     )
 
-    assert.match(source, /PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED/)
-    assert.match(source, /FULFILLMENT_PROOF_CONFLICT/)
-    assert.match(source, /DUPLICATE_RENEWAL_CHARGE_BURST/)
-    assert.match(source, /RENEWAL_FULFILLMENT_REVIEW_PENDING/)
+    assert.doesNotMatch(source, /PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED/)
+    assert.doesNotMatch(source, /FULFILLMENT_PROOF_CONFLICT/)
+    assert.doesNotMatch(source, /DUPLICATE_RENEWAL_CHARGE_BURST/)
+    assert.doesNotMatch(source, /RENEWAL_FULFILLMENT_REVIEW_PENDING/)
 })
 
 test('start renewal atomically acquires the durable card lifecycle reservation before dispatch', () => {

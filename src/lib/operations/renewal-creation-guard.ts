@@ -3,7 +3,7 @@ import { acquireCardLifecycleReservation } from '@/lib/operations/card-lifecycle
 import { readRenewalCardCooldown, RENEWAL_CARD_COOLDOWN_CODE, type CardCooldownSnapshot } from './renewal-card-cooldown'
 import { quoteData } from '../../../shared/operations/package-quote'
 
-export const RENEWAL_CREATION_BLOCKED_CODE = 'RENEWAL_FULFILLMENT_REVIEW_PENDING'
+export const RENEWAL_CREATION_BLOCKED_CODE = 'RENEWAL_OPERATION_ACTIVE'
 export const RENEWAL_LEGACY_ROUTE_DISABLED_CODE = 'RENEWAL_ROUTE_MIGRATION_REQUIRED'
 
 const ACTIVE_OPERATION_STATUSES = [
@@ -15,23 +15,13 @@ const ACTIVE_OPERATION_STATUSES = [
     'COMPLETING',
 ] as const
 
-const FULFILLMENT_SAFETY_ISSUE_TYPES = [
-    'PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED',
-    'FULFILLMENT_PROOF_CONFLICT',
-    'DUPLICATE_RENEWAL_CHARGE_BURST',
-    'STRIPE_RENEWAL_REFUND_CONFLICT',
-] as const
-
 type RenewalCreationTx = Pick<
     Prisma.TransactionClient,
-    'operation' | 'operationIntegrityIssue' | 'cardLifecycleReservation' | 'cardAdministrativeRelease' | '$queryRaw'
+    'operation' | 'cardLifecycleReservation' | '$queryRaw'
 >
 
 export type RenewalCreationBlockReason =
     | 'ADMIN_OPERATION_STOPPED'
-    | 'ADMIN_RELEASE_IN_PROGRESS'
-    | 'UNRESOLVED_REVIEW'
-    | 'FULFILLMENT_INTEGRITY_ISSUE'
     | 'ACTIVE_OPERATION'
     | 'CARD_LIFECYCLE_RESERVED'
     | 'CARD_COOLDOWN'
@@ -82,42 +72,6 @@ async function assertNoRenewalCardConflict(
     cardNumber: string,
     operationId?: string
 ): Promise<void> {
-    const pendingRelease = await tx.cardAdministrativeRelease.findFirst({ where: { cardNumber, state: { not: 'COMPLETED' } },
-        select: { operations: { take: 1, select: { id: true } } } })
-    if (pendingRelease) throw new RenewalCreationBlockedError('ADMIN_RELEASE_IN_PROGRESS', pendingRelease.operations[0]?.id || '')
-    const unresolvedReview = await tx.operation.findFirst({
-        where: {
-            cardNumber,
-            administrativeArchivedAt: null,
-            status: 'REVIEW_REQUIRED',
-            ...(operationId ? { id: { not: operationId } } : {}),
-        },
-        orderBy: { updatedAt: 'desc' },
-        select: { id: true },
-    })
-    if (unresolvedReview) {
-        throw new RenewalCreationBlockedError('UNRESOLVED_REVIEW', unresolvedReview.id)
-    }
-
-    const integrityIssue = await tx.operationIntegrityIssue.findFirst({
-        where: {
-            issueType: { in: [...FULFILLMENT_SAFETY_ISSUE_TYPES] },
-            status: { in: ['OPEN', 'ACKNOWLEDGED'] },
-            operation: {
-                cardNumber,
-                administrativeArchivedAt: null,
-            },
-        },
-        orderBy: { lastSeenAt: 'desc' },
-        select: { operationId: true },
-    })
-    if (integrityIssue) {
-        throw new RenewalCreationBlockedError(
-            'FULFILLMENT_INTEGRITY_ISSUE',
-            integrityIssue.operationId
-        )
-    }
-
     const activeOperation = await tx.operation.findFirst({
         where: {
             cardNumber,
@@ -167,7 +121,7 @@ async function claimReservation(
 
 /**
  * The caller keeps financial writes and the outbox insert in this same transaction.
- * This function serializes the card, checks every durable blocker, creates the
+ * This function serializes active execution and the cooldown, creates the
  * renewal, and claims its lifecycle reservation before returning.
  */
 export async function createGuardedRenewalOperation(
@@ -200,7 +154,7 @@ export async function createGuardedRenewalOperation(
 }
 
 /**
- * Reclaims legacy in-flight renewals and rejects any competing/reviewed card
+ * Reclaims legacy in-flight renewals and rejects competing active execution
  * before a route advances or dispatches provider work.
  */
 export async function ensureGuardedRenewalOperationReservation(
@@ -218,9 +172,6 @@ export async function ensureGuardedRenewalOperationReservation(
         throw new Error('INVALID_RENEWAL_OPERATION')
     }
     if (operation.administrativeStopRequestedAt) throw new RenewalCreationBlockedError('ADMIN_OPERATION_STOPPED', operation.id)
-    if (operation.status === 'REVIEW_REQUIRED') {
-        throw new RenewalCreationBlockedError('UNRESOLVED_REVIEW', operation.id)
-    }
     if (!ACTIVE_OPERATION_STATUSES.includes(
         operation.status as (typeof ACTIVE_OPERATION_STATUSES)[number]
     )) {
@@ -239,7 +190,7 @@ export function renewalCreationBlockedPayload(error: RenewalCreationBlockedError
     }
     return {
         code: RENEWAL_CREATION_BLOCKED_CODE,
-        error: 'This card has an unresolved or active renewal. Resolve it before continuing.',
+        error: RENEWAL_CREATION_BLOCKED_CODE,
         operationId: error.conflictOperationId,
         blockReason: error.reason,
     }

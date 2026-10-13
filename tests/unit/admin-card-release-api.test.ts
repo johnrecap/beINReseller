@@ -40,25 +40,13 @@ for (const role of [null, 'USER', 'AGENT', 'MANAGER']) test(`administrative prev
     assert.deepEqual(h.reads, [])
 })
 
-test('failed administrative decision logs constraint metadata without private values', async t => {
-    const logs: unknown[][] = []
-    t.mock.method(console, 'error', (...args: unknown[]) => { logs.push(args) })
-    const failure = Object.assign(new Error('private-card-7000000011 private-cookie'), { code: 'P2004', meta: {
-        driverAdapterError: { cause: { originalCode: '23514', originalMessage: 'new row violates check constraint "operation_review_adjudications_check_2"', detail: 'private-card-7000000011 private-cookie' } },
-    } })
-    const h = harness('ADMIN', failure)
+test('retired unlock creation is rejected for an admin without accessing storage', async () => {
+    const h = harness()
     const response = await h.post(new Request('https://panel.invalid/decision', { method: 'POST', body: JSON.stringify({
-        action: 'ADMIN_ARCHIVE_AND_UNLOCK_CARD', note: 'Synthetic reason', decisionKey: 'synthetic-failure-request', fingerprint: 'a'.repeat(64), acknowledgeRisk: true,
+        action: 'ADMIN_ARCHIVE_AND_UNLOCK_CARD', note: 'Synthetic reason', decisionKey: 'retired',
     }) }), { params: Promise.resolve({ operationId: 'synthetic-operation' }) })
-    assert.equal(response.status, 500)
-    const body = await response.json()
-    assert.equal(body.code, 'CARD_RELEASE_RETRY_REQUIRED')
-    assert.equal(body.messageKey, 'admin.financialReview.releaseRetry')
-    const diagnostic = JSON.parse(String(logs.at(-1)?.[1]))
-    assert.equal(diagnostic.databaseCode, '23514')
-    assert.equal(diagnostic.errorCode, 'P2004')
-    assert.equal(diagnostic.constraint, 'operation_review_adjudications_check_2')
-    assert.doesNotMatch(JSON.stringify({ logs, body }), /private-cookie|7000000011|new row|detail|stack/)
+    assert.equal(response.status, 400)
+    assert.deepEqual(h.reads, [])
 })
 test('administrative progress polling is read-only and contains no card or provider data', async () => {
     const h = harness()
@@ -66,6 +54,6 @@ test('administrative progress polling is read-only and contains no card or provi
     assert.equal(response.status, 200)
     assert.deepEqual(await response.json(), { id: 'release-one', state: 'DRAINING', lastError: null, completedAt: null, operationIds: ['operation-one'] })
     assert.deepEqual(h.reads, ['progress'])
-    assert.equal((await h.get(new Request('https://panel.invalid/release?cardNumber=invalid'))).status, 400)
+    assert.equal((await h.get(new Request('https://panel.invalid/release?cardNumber=invalid'))).status, 404)
     assert.deepEqual(h.reads, ['progress'])
 })

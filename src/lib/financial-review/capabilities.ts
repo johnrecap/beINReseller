@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { quoteData } from '../../../shared/operations/package-quote'
 import { hasProvenUnsubmittedPayment } from '../../../shared/operations/renewal-pre-payment'
 
-export type ReviewAction = 'KEEP_UNDER_REVIEW' | 'BEIN_EXECUTED_NO_REFUND' | 'REFUND_CUSTOMER' | 'RESOLVE_PRE_MUTATION' | 'ADMIN_ARCHIVE_AND_UNLOCK_CARD'
+export type ReviewAction = 'KEEP_UNDER_REVIEW' | 'BEIN_EXECUTED_NO_REFUND' | 'REFUND_CUSTOMER' | 'RESOLVE_PRE_MUTATION'
 export type ReviewClassification = 'MODERN_RENEWAL' | 'PRE_MUTATION' | 'LEGACY_RENEWAL' | 'INSTALLMENT' | 'CONFLICT' | 'CLOSED' | 'UNSUPPORTED'
 export interface ReviewCapabilities {
     classification: ReviewClassification
@@ -53,7 +53,7 @@ export const reviewCapabilitySelect = {
 export function classifyFinancialReview(operation: ReviewCapabilityContext): ReviewCapabilities {
     const result = classifyFinancialReviewCore(operation)
     if (operation.administrativeStopRequestedAt || operation.administrativeArchivedAt) return { ...result, allowedActions: [], blockedReasonCodes: ['ADMIN_OPERATION_STOPPED'] }
-    return { ...result, allowedActions: [...result.allowedActions, 'ADMIN_ARCHIVE_AND_UNLOCK_CARD'] }
+    return result
 }
 
 function classifyFinancialReviewCore(operation: ReviewCapabilityContext): ReviewCapabilities {

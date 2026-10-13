@@ -52,25 +52,6 @@ export async function GET(request: NextRequest) {
 }
 
 const CARD_START_LOCK_TTL_SECONDS = 30
-const UNRESOLVED_REVIEW_STATUS = 'REVIEW_REQUIRED' as const
-const FULFILLMENT_SAFETY_ISSUE_TYPES = [
-    'PROVIDER_CHARGED_FULFILLMENT_UNVERIFIED',
-    'FULFILLMENT_PROOF_CONFLICT',
-    'DUPLICATE_RENEWAL_CHARGE_BURST',
-] as const
-
-async function findFulfillmentSafetyConflict(cardNumber: string) {
-    return prisma.operationIntegrityIssue.findFirst({
-        where: {
-            issueType: { in: [...FULFILLMENT_SAFETY_ISSUE_TYPES] },
-            status: { in: ['OPEN', 'ACKNOWLEDGED'] },
-            operation: { cardNumber, administrativeArchivedAt: null },
-        },
-        orderBy: { lastSeenAt: 'desc' },
-        select: { id: true, operationId: true, issueType: true },
-    })
-}
-
 /**
  * POST /api/operations/start-renewal
  *
@@ -167,41 +148,6 @@ export async function POST(request: NextRequest) {
                 )
             }
 
-            const reviewOperation = await prisma.operation.findFirst({
-                where: {
-                    cardNumber,
-                    status: UNRESOLVED_REVIEW_STATUS,
-                    administrativeArchivedAt: null,
-                },
-                orderBy: { updatedAt: 'desc' },
-                select: { id: true },
-            })
-
-            if (reviewOperation) {
-                return NextResponse.json(
-                    {
-                        code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
-                        blockReason: 'UNRESOLVED_REVIEW',
-                        error: 'This card has an unresolved review operation. Resolve it before starting a new renewal.',
-                        operationId: reviewOperation.id,
-                    },
-                    { status: 409 }
-                )
-            }
-
-            const fulfillmentConflict = await findFulfillmentSafetyConflict(cardNumber)
-            if (fulfillmentConflict) {
-                return NextResponse.json(
-                    {
-                        code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
-                        blockReason: 'FULFILLMENT_INTEGRITY_ISSUE',
-                        error: 'This card has an unresolved renewal fulfillment safety issue.',
-                        operationId: fulfillmentConflict.operationId,
-                    },
-                    { status: 409 }
-                )
-            }
-
             return NextResponse.json(
                 { error: 'Another request for this card is already in progress. Please try again in a few seconds.' },
                 { status: 409 }
@@ -222,41 +168,6 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json(
                     { error: 'There is an active operation for this card', operationId: existingOperation.id },
                     { status: 400 }
-                )
-            }
-
-            const reviewOperation = await prisma.operation.findFirst({
-                where: {
-                    cardNumber,
-                    status: UNRESOLVED_REVIEW_STATUS,
-                    administrativeArchivedAt: null,
-                },
-                orderBy: { updatedAt: 'desc' },
-                select: { id: true },
-            })
-
-            if (reviewOperation) {
-                return NextResponse.json(
-                    {
-                        code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
-                        blockReason: 'UNRESOLVED_REVIEW',
-                        error: 'This card has an unresolved review operation. Resolve it before starting a new renewal.',
-                        operationId: reviewOperation.id,
-                    },
-                    { status: 409 }
-                )
-            }
-
-            const fulfillmentConflict = await findFulfillmentSafetyConflict(cardNumber)
-            if (fulfillmentConflict) {
-                return NextResponse.json(
-                    {
-                        code: 'RENEWAL_FULFILLMENT_REVIEW_PENDING',
-                        blockReason: 'FULFILLMENT_INTEGRITY_ISSUE',
-                        error: 'This card has an unresolved renewal fulfillment safety issue.',
-                        operationId: fulfillmentConflict.operationId,
-                    },
-                    { status: 409 }
                 )
             }
 

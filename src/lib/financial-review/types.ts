@@ -5,7 +5,6 @@ export type FinancialReviewDecisionAction =
     | 'REFUND_CUSTOMER'
     | 'KEEP_UNDER_REVIEW'
     | 'RESOLVE_PRE_MUTATION'
-    | 'ADMIN_ARCHIVE_AND_UNLOCK_CARD'
 
 export type CardVerificationOutcome =
     | 'LIKELY_RENEWED'

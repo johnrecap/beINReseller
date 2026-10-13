@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-10-13
-> Last synchronized commit: 364da2ed8276360d1286bba3be8826c3e8aaa85f
+> Last synchronized commit: b1b507120e353edfc1443fbe069a832b93622693
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:2af2a12501f129a059a715af765e69e98dbb53267178df4f9c8f2e779cd47a68
+> Working tree fingerprint: SHA256:74e6176917afbff8868572eda40ec0b166d1d784537de560a936a85e7c948131
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Current policy, 2026-10-13: `UPD-20261013-015` removes card admission bans based on prior review, open issues or admin release. Only active execution and the original five-minute cooldown prevent a new attempt. Ended ownership drains automatically; old Reviews remain financial records. New archive/unlock creation is retired; old requests/history remain. See `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`. This supersedes operational blocking described in earlier dated entries. No schema change, provider execution or server deployment.
 
 - Current statistics receipt links, 2026-10-13: `UPD-20261013-014` adds saved-receipt availability and links to ADMIN per-user statistics; owner/ADMIN detail access stays unchanged and manager statistics omit receipt metadata. No invoice reconstruction, schema or financial change. Resume at `docs/PROJECT_GUIDE.md#user-statistics-receipts--delivery-register-2026-10-13`.
 
@@ -50,7 +52,7 @@
 
 - Current localization/capacity supplement, 2026-10-12: `UPD-20261012-003` localizes the renewal surface, prepares an explicit 20 × 4 / pool-2 profile and repairs two baseline/session defects. The completed 200-user local comparison finds no renewal-throughput/queue-wait improvement and nine repeated burst admission errors with twenty workers. Focused fault checks preserve identity/payment/cooldown fences. Test processes, ports and temporary data/tools are cleaned up. Resume from `specs/036-audit-remediation/evidence/localization-capacity-20261012.md`; production, complete OS egress isolation, historical migration and live provider acceptance remain unverified.
 
-- Current cooldown, 2026-10-12: `UPD-20261012-002` adds a five-minute card hold from the first ended package-renewal attempt, including failure, plus a localized countdown. Immutable DB deadline and shared admission guard prevent refresh/rejected clicks/late Reports from extending it. Review blocks remain independent. Local SQL/API/browser tests pass; the migration, native concurrent-worker acceptance and deployment remain unverified. Resume at `specs/036-audit-remediation/audit-register.md#supplemental-card-cooldown--2026-10-12` and `docs/deployment/audit-remediation-release.md`.
+- Current cooldown, 2026-10-12: `UPD-20261012-002` adds a five-minute card hold from the first ended package-renewal attempt, including failure, plus a localized countdown. Immutable DB deadline and shared admission guard prevent refresh/rejected clicks/late Reports from extending it. Review records remain independent; their card-block effect is removed by `UPD-20261013-015`. Local SQL/API/browser tests pass; the migration, native concurrent-worker acceptance and deployment remain unverified. Resume at `specs/036-audit-remediation/audit-register.md#supplemental-card-cooldown--2026-10-12` and `docs/deployment/audit-remediation-release.md`.
 
 - Current repair, 2026-10-12: `UPD-20261012-001` implements the observed cart/Reports contracts and quote/promo/full-provider serial binding. Local tests pass; unknown later-stage or promo outcomes stop safely. Provider acceptance, real-service races and incident/server attribution remain INCOMPLETE. No provider calls, deployment, subagents or business-money changes in this continuation. Resume at `specs/036-audit-remediation/evidence/package-identity-repair.md`, not historical UI acceptance counts.
 
@@ -203,6 +205,8 @@
 
 ### FE-003 — Localization and RTL-aware content
 
+- Review policy 2026-10-13: Remove obsolete unlock/card-review-block labels consistently in ar/en/bn; cancellation has pending and neutral completed feedback. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - Statistics receipt column, unavailable and new-tab descriptions reuse `renewalReceipt` in ar/en/bn. Sources: `src/i18n/translations`; `UPD-20261013-014`.
 
 - Hold repair: `renewalHold` ar/en/bn catalogs provide reason, specific issue, stage, last-update and pagination copy without changing the flat operation-message contract. Sources: `src/i18n/translations`; `UPD-20261013-011`.
@@ -253,7 +257,9 @@
 
 ### FE-007 — Reseller operational workspace
 
-- Administrative release: packages polling and heartbeat show a neutral stop/archive result instead of reopening old selection; known completed results retain success and receipts. History keeps the archived attempt and disables stale cancellation. Sources: `src/app/api/operations/[id]/packages/route.ts`; `src/app/dashboard/renew/page.tsx`; `src/components/history/OperationsTable.tsx`; `UPD-20261013-012`.
+- Review policy 2026-10-13: Cancellation waits for Worker CANCELLED; active execution and cooldown have separate feedback; review is an operation state. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
+- Historical administrative release (creation retired by `UPD-20261013-015`): packages polling and heartbeat show a neutral stop/archive result instead of reopening old selection; known completed results retain success and receipts. History keeps the archived attempt and disables stale cancellation. Sources: `src/app/api/operations/[id]/packages/route.ts`; `src/app/dashboard/renew/page.tsx`; `src/components/history/OperationsTable.tsx`; `UPD-20261013-012`.
 
 - Hold repair: active rows show a bounded cause/stage/update and an admin-only review link. Financial review includes terminal blockers, 100-row cursor navigation and operation/card search prefill. Existing action capabilities govern terminal repair buttons. Sources: `src/app/dashboard/operations/active/page.tsx`; `src/components/admin/financial-review/FinancialReviewClient.tsx`; `UPD-20261013-011`.
 
@@ -285,9 +291,11 @@
 
 ### FE-008 — Role operations and administration workspace
 
+- Review policy 2026-10-13: New unlock button/dialog/preview removed; prior administrative archive details and ordinary financial decisions remain. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - ADMIN user statistics enable `canViewReceipts` in the shared dialog; operation and deduction rows open the same saved receipt in a new tab. The default manager caller has no receipt UI. Sources: `src/components/admin/users/UsersTable.tsx`; `src/components/admin/users/UserStatsDialog.tsx`; `UPD-20261013-014`.
 
-- Administrative release: global/per-operation preview, required reason/risk acknowledgement, draining status and an archive tab reuse the existing review surface in ar/en/bn. Actor/reason/time and late observations remain visible. Sources: `src/components/admin/financial-review/CardReleaseDialog.tsx`; `src/components/admin/financial-review/FinancialReviewClient.tsx`; `UPD-20261013-012`.
+- Historical administrative release (creation retired by `UPD-20261013-015`): global/per-operation preview, required reason/risk acknowledgement, draining status and an archive tab reuse the existing review surface in ar/en/bn. Actor/reason/time and late observations remain visible. Sources: `src/components/admin/financial-review/FinancialReviewClient.tsx`; `src/components/admin/financial-review/FinancialReviewClient.tsx`; `UPD-20261013-012`.
 
 - Provider reports 2026-10-13: `?tab=bein-provider` lazy-loads the exact-account report panel. Seven-day Cairo default, max 31-day range, searchable accounts, 50-row invoice-descending pages and cached card/invoice search; changing accounts aborts obsolete polling/results. Sources: `src/components/admin/report-center/BeinProviderReportPanel.tsx`; `src/hooks/useProviderReport.ts`; `UPD-20261013-001`.
 
@@ -313,7 +321,9 @@
 
 ### BE-002 — Operation domain and recovery services
 
-- Administrative release: scoped idempotent decision under the existing card lock; saved stop precedes HTTP drain, then archive/reservation release commits atomically without settlement. Recovery excludes stopped operations. Sources: `shared/operations/admin-card-release.ts`; `src/lib/operations/recovery.ts`; `UPD-20261013-012`.
+- Review policy 2026-10-13: Shared closure recognizes flow-2 CANCELLATION_CONFIRM preparation. Ended ownership cleanup is independent from financial adjudication. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
+- Historical administrative release (creation retired by `UPD-20261013-015`): scoped idempotent decision under the existing card lock; saved stop precedes HTTP drain, then archive/reservation release commits atomically without settlement. Recovery excludes stopped operations. Sources: `shared/operations/admin-card-release.ts`; `src/lib/operations/recovery.ts`; `UPD-20261013-012`.
 
 - Hold repair: positive unsubmitted-payment assessment is shared across web/Worker/quote closure and admin capabilities. Atomic closure clears disproven local fulfillment issues, cancels unattempted final dispatches and releases reservations; ambiguous payment and cross-operation conflicts remain protected. Sources: `shared/operations/renewal-pre-payment.ts`; `src/lib/operations/pre-mutation-renewal-finalization.ts`; `worker/src/lib/pre-mutation-renewal-finalization.ts`; `UPD-20261013-011`.
 
@@ -419,9 +429,11 @@
 
 ### API-007 — Admin route contract catalog
 
+- Review policy 2026-10-13: New ADMIN_ARCHIVE_AND_UNLOCK_CARD decisions reject; card-release GET reads an existing releaseId only, with ADMIN permission. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - Admin user stats add `receiptAvailable` via one owner-scoped batch of the displayed operation and deduction IDs, using the actual receipt projector. Manager stats do not opt in; no proof/receipt contents enter these new fields. Sources: `src/lib/users/stats-report.ts`; `src/app/api/admin/users/[id]/stats/route.ts`; `UPD-20261013-014`.
 
-- Administrative release: ADMIN-only read-only preview/progress GET and existing decision POST with `ADMIN_ARCHIVE_AND_UNLOCK_CARD`, reason, stable key, scope fingerprint and risk acknowledgement. Writer rechecks active ADMIN; stale preview is 409, draining 202, completed 200; responses include scoped operation IDs. Sources: `src/app/api/admin/financial-review/card-release/route.ts`; `src/app/api/admin/financial-review/[operationId]/decision/route.ts`; `tests/unit/admin-card-release-api.test.ts`; `UPD-20261013-012`.
+- Historical administrative release (creation retired by `UPD-20261013-015`): ADMIN-only read-only preview/progress GET and existing decision POST with `ADMIN_ARCHIVE_AND_UNLOCK_CARD`, reason, stable key, scope fingerprint and risk acknowledgement. Writer rechecks active ADMIN; stale preview is 409, draining 202, completed 200; responses include scoped operation IDs. Sources: `src/app/api/admin/financial-review/card-release/route.ts`; `src/app/api/admin/financial-review/[operationId]/decision/route.ts`; `tests/unit/admin-card-release-api.test.ts`; `UPD-20261013-012`.
 
 - Account cooldown removal: list/detail retain compatibility fields as null/zero; obsolete cooldown config controls, allowlist and seeds are removed. Authorization remains unchanged. Sources: `src/app/api/admin/bein-accounts`; `src/app/api/admin/bein-config/route.ts`; `src/components/admin/BeINConfigForm.tsx`; `tests/unit/account-cooldown-removal.test.ts`; `UPD-20261013-006`.
 
@@ -467,6 +479,8 @@
 
 ### API-011 — Renewal payment and fulfillment evidence contract
 
+- Review policy 2026-10-13: Admission no longer queries financial reviews/issues/admin releases. Durable locked cancel is idempotent and rejects started confirmation. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - Hold repair: start errors add `blockReason`; owner-scoped operation reads add `hold`, with an admin-only review URL. Admin financial review adds cursor/nextCursor pages and terminal blockers. `RESOLVE_PRE_MUTATION` positively rechecks terminal leftovers, execution ownership and canonical settlement; administrative replay records an audited note. Sources: `src/app/api/admin/financial-review`; `shared/operations/renewal-hold.ts`; `UPD-20261013-011`.
 
 - Precision 2026-10-13: Numeric public `price` stays compatible; internal optional `priceText`/`priceDecimal` remain server-owned quote/session JSON and older numeric quotes need no page reconstruction. Search and transactional report proof use the same narrow display-name and exact decimal rules. Sources: `shared/operations/package-quote.ts`; `shared/operations/provider-price.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-010`.
@@ -482,7 +496,7 @@
 - State: VERIFIED
 - Sources: `shared/operations/renewal-fulfillment.ts`; `src/app/api/operations/start-renewal/route.ts`; `src/app/api/operations/[id]/packages/route.ts`; `src/app/api/admin/financial-review`; `worker/src/http/sold-packages-report.ts`; `worker/src/lib/renewal-fulfillment-correlation.ts`; `worker/src/lib/fulfillment-finalization.ts`; `worker/src/http-queue-processor.ts`
 - Current state: Renewal responses distinguish provider payment from fulfillment. A confirmed beIN debit is `CHARGED` evidence only; automatic completion requires one complete post-Pay Sold Report diff candidate and one active contract with the identical unique non-empty Invoice, all bound to the exact baseline, provider-account reservation generation, card, amount, package, and latest recorded verification attempt.
-- Boundary: Default `REVIEW_ONLY` persists evidence/attempts but never auto-claims proof or completes. Charged/no-proof, report-only, contract-only, incomplete/check-failed, stale/replayed/conflicting evidence remains review-required and blocks another renewal for the card. The compatibility final-pay classification name `CONFIRMED_SUCCESS` remains in the HTTP layer and must not be consumed as fulfillment authority.
+- Boundary: Default `REVIEW_ONLY` persists evidence/attempts but never auto-claims proof or completes. Charged/no-proof, report-only, contract-only, incomplete/check-failed, stale/replayed/conflicting evidence remains review-required without blocking another renewal after active execution and the cooldown end. The compatibility final-pay classification name `CONFIRMED_SUCCESS` remains in the HTTP layer and must not be consumed as fulfillment authority.
 - Connections: `API-003`, `DATA-002`, `DATA-010`, `FLOW-007`, `FEAT-010`, `FEAT-015`, `RISK-009`
 - Phase 4: Final confirmation compares the accepted current quote under canonical lock before deriving debit. Concurrent requests produce one deduction/dispatch; consent-less old snapshots fail closed. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
@@ -497,7 +511,9 @@
 
 ### DATA-002 — Operations, dispatch, accounting, and integrity
 
-- Administrative release: additive release/request records and Operation stop/archive/context fields; SQL fences prohibit late financial/lifecycle mutation after stop. Unresolved issues and all original money/invoice evidence stay unchanged. Sources: `prisma/migrations/20261013190000_admin_card_release/migration.sql`; `shared/operations/admin-card-release.ts`; `UPD-20261013-012`.
+- Review policy 2026-10-13: No schema/migration edits. Release writes only owned reservations; old amounts/status/proof/issues/cooldown are preserved. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
+- Historical administrative release (creation retired by `UPD-20261013-015`): additive release/request records and Operation stop/archive/context fields; SQL fences prohibit late financial/lifecycle mutation after stop. Unresolved issues and all original money/invoice evidence stay unchanged. Sources: `prisma/migrations/20261013190000_admin_card_release/migration.sql`; `shared/operations/admin-card-release.ts`; `UPD-20261013-012`.
 
 - Hold repair: existing JSON stores `prePaymentClosurePolicyVersion: 1`; no schema/migration change. Local issue resolution, confirmation-dispatch cancellation and reservation release share the settlement transaction; replay retains the original cooldown and cannot create a second refund. Sources: `shared/operations/renewal-pre-payment.ts`; `UPD-20261013-011`.
 
@@ -610,7 +626,9 @@
 
 ### FLOW-001 — Reseller operation execution flow
 
-- Administrative release: current scope -> ADMIN stop/audit -> registered HTTP drain or bounded deadline -> atomic archive/release -> new attempt under normal protections. Actual start-renewal prechecks and the durable guard both ignore only completed archives. Old cooldown timestamps and other-card issues remain. Sources: `shared/operations/admin-card-release.ts`; `src/lib/operations/renewal-creation-guard.ts`; `src/app/api/operations/start-renewal/route.ts`; `UPD-20261013-012`.
+- Review policy 2026-10-13: Start -> active execution/cooldown guard -> existing renewal flow. Review no longer gates a subsequent card attempt. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
+- Historical administrative release (creation retired by `UPD-20261013-015`): current scope -> ADMIN stop/audit -> registered HTTP drain or bounded deadline -> atomic archive/release -> new attempt under normal protections. Actual start-renewal prechecks and the durable guard both ignore only completed archives. Old cooldown timestamps and other-card issues remain. Sources: `shared/operations/admin-card-release.ts`; `src/lib/operations/renewal-creation-guard.ts`; `src/app/api/operations/start-renewal/route.ts`; `UPD-20261013-012`.
 
 - Cooldown 2026-10-12: Ended package attempt -> immutable database deadline -> authenticated countdown -> guarded next admission after expiry. Reloads/rejected starts/follow-up proof do not reset it, and unresolved financial review can block admission longer than five minutes. Sources: `src/lib/operations/renewal-card-cooldown.ts`; `src/hooks/useRenewalCardCooldown.ts`; `UPD-20261012-002`.
 
@@ -656,6 +674,8 @@
 - Connections: `BE-006`, `DATA-003`, `INT-004`, `OPS-004`, `FEAT-016`, `FEAT-017`
 
 ### FLOW-007 — Proof-gated reseller renewal
+
+- Review policy 2026-10-13: A released old report job is evidence-only. Same-day invoice finalization rejects an earlier unresolved matching sale candidate. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
 - Hold repair: no post-selection Check/reload/promo changes. Proven pre-payment failure closes local holds; post-final and conflicting evidence stay reviewable. Newly admitted policy-tagged v2 reviews can recover after their worker owner drains; historical unresolved monetary cases require an admin. Sources: `src/lib/maintenance/renewal-hold-maintenance.ts`; `UPD-20261013-011`.
 
@@ -786,7 +806,9 @@
 
 ### JOB-003 — HTTP operation worker
 
-- Administrative release: operation context installs request admission/observation interceptors on clients, including recreated session transports. Old jobs stop before HTTP; late success is observation only. Sources: `worker/src/http-queue-processor.ts`; `worker/src/http/HttpClientService.ts`; `worker/tests/admin-card-release-http.test.ts`; `UPD-20261013-012`.
+- Review policy 2026-10-13: Ended mutating jobs do not reopen ownership; released review Reports can acquire only a temporary account lease and retain observations. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
+- Historical administrative release (creation retired by `UPD-20261013-015`): operation context installs request admission/observation interceptors on clients, including recreated session transports. Old jobs stop before HTTP; late success is observation only. Sources: `worker/src/http-queue-processor.ts`; `worker/src/http/HttpClientService.ts`; `worker/tests/admin-card-release-http.test.ts`; `UPD-20261013-012`.
 
 - Pre-final selection 2026-10-13: v2 START_RENEWAL converts the queue lock into an operation account reservation and fenced lease before provider reads/quote publication. Promo apply/remove marks its POST once and cannot replay an uncertain revision; Add/Sell/STB preparation failures close only when final-payment and sale evidence are absent. Sources: `worker/src/http-queue-processor.ts`; `worker/src/lib/promo-quote.ts`; `worker/src/lib/pre-mutation-renewal-finalization.ts`; `UPD-20261013-009`.
 
@@ -811,9 +833,11 @@
 
 ### JOB-005 — Maintenance, timeout, and recovery
 
-- Administrative release: bounded resume handles saved draining decisions and retryable owner-lock cleanup. Stopped operations cannot re-enter verification, recovery, awards, completion effects or reservation refresh. Sources: `src/lib/maintenance/operation-maintenance-runner.ts`; `shared/operations/admin-card-release.ts`; `UPD-20261013-012`.
+- Review policy 2026-10-13: Existing bounded cleanup covers ended card-only/account holds, including historical review; checks HTTP deadline and owned Redis leases. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
-- Hold repair: a bounded rotating scan repairs positively proven terminal leftovers and only policy-tagged new v2 reviews. It rechecks evidence and Redis execution/legacy ownership inside the finalizer; unknown, duplicate/Stripe and historical unresolved review cases remain held. Sources: `src/lib/maintenance/renewal-hold-maintenance.ts`; `src/lib/maintenance/operation-maintenance-runner.ts`; `UPD-20261013-011`.
+- Historical administrative release (creation retired by `UPD-20261013-015`): bounded resume handles saved draining decisions and retryable owner-lock cleanup. Stopped operations cannot re-enter verification, recovery, awards, completion effects or reservation refresh. Sources: `src/lib/maintenance/operation-maintenance-runner.ts`; `shared/operations/admin-card-release.ts`; `UPD-20261013-012`.
+
+- Hold repair: a bounded rotating scan repairs positively proven terminal leftovers and only policy-tagged new v2 reviews. It rechecks evidence and Redis execution/legacy ownership inside the finalizer; unknown, duplicate/Stripe and historical unresolved financial cases remain reviewable, while ended reservations release through the independent execution cleanup. Sources: `src/lib/maintenance/renewal-hold-maintenance.ts`; `src/lib/maintenance/operation-maintenance-runner.ts`; `UPD-20261013-011`.
 
 - Extended quality 2026-09-08: Maintenance has fresh per-cycle tokens, one active local cycle and signal drain before closing dependencies; cross-process safety still requires row fences and idempotency. Sources: `specs/036-audit-remediation/evidence/extended-quality-verification.md`; `UPD-20260908-003`. Earlier dated results are historical.
 
@@ -975,6 +999,8 @@
 
 ### SEC-002 — Audit, diagnostic, and redaction boundary
 
+- Review policy 2026-10-13: New release/cancellation/report logs contain operation ID, stage and counts only; no card, receiver, promo or session payload. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - Hold repair: new diagnostics expose operation/stage/decision, fixed reasons and resolution/release counts only. `hold` projects allowlisted causes/issue types/stages/update times; ordinary owners receive no admin review URL or provider session material. Sources: `shared/operations/renewal-hold.ts`; `shared/operations/renewal-pre-payment.ts`; `UPD-20261013-011`.
 
 - Local backlog 2026-09-08: Maintenance logs omit raw provider/connection exceptions; preflight/effect health uses aggregate metadata. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
@@ -1023,11 +1049,13 @@
 
 ### TEST-001 — Fast unit and source-contract suites
 
+- Review policy 2026-10-13: Current final suites: 915 root passes, 493 Worker passes/five Redis skips, 124 mocked browser cases; types/builds/scoped lint pass. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - Statistics receipt addition: 909 root passes/zero skips, eight focused cases, 16 mocked browser cases, types/scoped lint/web build pass. Actual component/receipt projector with synthetic auth/database/network only; native DB, real authentication and physical printer output are NOT_VERIFIED. Sources: `tests/unit/user-stats-receipts.test.ts`; `tests/browser/panel-stats-receipt-cases.cjs`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-014`.
 
 - Current archive CHECK repair: 905 root passes, 490 Worker passes/five Redis skips, 92 mocked browser cases, both types/builds and scoped lint pass. The fixture now installs original adjudication CHECKs/immutability; the regression reproduces rollback before and completion after the additive migration. Production/native/full-history limits remain. Sources: `tests/unit/admin-card-release-adjudication.test.ts`; `tests/helpers/pglite-prisma.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-013`.
 
-- Administrative release: 903 root passes, 490 Worker passes/five native Redis skips and 92 mocked review-browser cases; actual Prisma/PGlite migration and archive rollback plus Axios adapter late-response tests. Root/Worker types/builds and scoped lint pass. Native service races/full migration provenance remain unverified; full lint has unrelated baseline errors. Sources: `tests/unit/admin-card-release.test.ts`; `tests/unit/admin-card-release-api.test.ts`; `worker/tests/admin-card-release-http.test.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-012`.
+- Historical administrative release (creation retired by `UPD-20261013-015`): 903 root passes, 490 Worker passes/five native Redis skips and 92 mocked review-browser cases; actual Prisma/PGlite migration and archive rollback plus Axios adapter late-response tests. Root/Worker types/builds and scoped lint pass. Native service races/full migration provenance remain unverified; full lint has unrelated baseline errors. Sources: `tests/unit/admin-card-release.test.ts`; `tests/unit/admin-card-release-api.test.ts`; `worker/tests/admin-card-release-http.test.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-012`.
 
 - Account lifecycle 2026-10-13: 872 distinct root cases pass, including the separate successful rerun of the filesystem-blocked temporary-Git test. Worker suite: 347 pass / five Redis-dependent skips. Both TypeScript checks and scoped lint pass; one existing unused-import warning remains. Seven lifecycle tests first reproduce late-acquisition/renewal defects, then pass. Sources: `tests/unit/provider-reservation-maintenance.test.ts`; `tests/unit/account-cooldown-removal.test.ts`; `worker/tests/provider-reservation-lifecycle.test.ts`; `worker/tests/account-cooldown-removal.test.ts`; `UPD-20261013-006`.
 
@@ -1126,6 +1154,8 @@
 
 ### TEST-008 — Renewal fulfillment safety verification
 
+- Review policy 2026-10-13: Real Prisma/PGlite regressions verify financial preservation, cancellation, replay, original cooldown and invoice ambiguity; two native PostgreSQL tests remain gated. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - Hold repair: 890 root cases, 489 Worker passes/five Redis skips and 82 review browser scenarios; both types/builds and changed-file lint pass. Actual Prisma SQL through an in-memory PostgreSQL transport checks replay/rollback/refund-once, separate operations, bounded maintenance, admin terminal repair and unchanged cooldown admission. Native multi-process PostgreSQL/Redis races remain NOT_VERIFIED; full lint retains unrelated errors. Sources: `tests/unit/renewal-hold-persistence.test.ts`; `tests/unit/renewal-hold-safety.test.ts`; `worker/tests/renewal-hold-closure.test.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-011`.
 
 - Precision 2026-10-13: Three original failures reproduced before repair. Root 887 pass; Worker 488 pass/five Redis skips; both types/builds and scoped lint pass. Four complete mocked journeys use actual HTTP methods, session JSON restoration, confirmation API, report scanner and proof finalizer; storage/cookie/concurrency dependencies are synthetic. Broad lint has seven errors in four unchanged tracked mobile/customer files plus 171 ignored-artifact errors; native service races and live checkout remain NOT_VERIFIED. Sources: `worker/tests/precise-package-report.test.ts`; `worker/tests/precise-renewal-journey.test.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-010`.
@@ -1166,7 +1196,9 @@
 
 ### OPS-002 — Production migration and web build order
 
-- Administrative release: coordinated migration/client/web/Workers/maintenance/KeepAlive cutover is mandatory before using the button. No automatic runtime-version attestation; old consumers cannot run after an archive. Deployment and historical card decisions are user-owned and unexecuted here. Sources: `docs/deployment/audit-remediation-release.md#admin-card-release--2026-10-13`; `UPD-20261013-012`.
+- Review policy 2026-10-13: Drain active mutations then build/restart web, all Workers, maintenance and KeepAlive at one SHA. No new migration; historical financial review remains untouched. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
+- Historical administrative release (creation retired by `UPD-20261013-015`): coordinated migration/client/web/Workers/maintenance/KeepAlive cutover is mandatory before using the button. No automatic runtime-version attestation; old consumers cannot run after an archive. Deployment and historical card decisions are user-owned and unexecuted here. Sources: `docs/deployment/audit-remediation-release.md#admin-card-release--2026-10-13`; `UPD-20261013-012`.
 
 - Failed deploy 2026-10-13: User-supplied production output shows P3018/55P04 at `20261013120000_same_day_report_renewal` after PM2 stop. Pull the ordered enum migration, inspect the failed history/schema, mark only the verified failed attempt rolled back, then deploy and build/restart uniformly. Do not mark it applied or replay payments; target state and resumed processes remain UNKNOWN. Sources: `docs/deployment/audit-remediation-release.md`; `UPD-20261013-008`.
 
@@ -1455,6 +1487,8 @@
 
 ### FEAT-015 — Financial review, spend ledger, and integrity monitoring
 
+- Review policy 2026-10-13: Financial review remains available but is no longer a permanent card admission ban. No admin unlock decision is needed after execution and cooldown end. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - Administrative override 2026-10-13 supersedes the evidence requirement only for scoped archive/unlock: all current blockers can be waived after old execution drains, with no financial classification change. Normal completion/refund rules remain. Local unit/SQL/browser/HTTP/build checks are bounded; native races and production remain unverified. Sources: `docs/PROJECT_GUIDE.md#admin-card-release--delivery-register-2026-10-13`; `UPD-20261013-012`.
 
 - Hold repair: terminal blocking issues/reservations remain discoverable independently of history age or a zero displayed amount. Only positive pre-payment/canonical-settlement capabilities allow closure; other financial evidence still uses existing review decisions. Sources: `src/lib/financial-review/capabilities.ts`; `src/app/api/admin/financial-review/route.ts`; `UPD-20261013-011`.
@@ -1658,6 +1692,8 @@
 
 ### IMPACT-008 — Renewal fulfillment proof blast radius
 
+- Review policy 2026-10-13: Admission, ownership cleanup, Reports attribution and cancellation changed together; original provider sale steps and financial authority gates remain. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
 - State: VERIFIED
 - Sources: `specs/035-renewal-fulfillment-proof/plan.md`; `worker/src/http/sold-packages-report.ts`; `worker/src/lib/fulfillment-baseline.ts`; `worker/src/lib/fulfillment-finalization.ts`; `worker/src/http-queue-processor.ts`; `src/lib/maintenance/renewal-fulfillment-verification-maintenance.ts`; `src/lib/operations/recovery.ts`; `src/lib/financial-review`; `src/app/api/operations/start-renewal/route.ts`; `prisma/schema.prisma#model-OperationFulfillmentProof`
 - Current state: Changing renewal completion evidence affects Sold Report WebForms/pagination, provider session and mutation retry safety, account/card reservations, contract matching, verification retry/maintenance, operation status, refunds, spend-ledger provenance, recovery, points, success notifications, duplicate guards, admin decisions, localized UI, historical reconciliation, schema deployment, database concurrency, and mixed-version rollout.
@@ -1667,9 +1703,18 @@
 
 ## 19. Technical Decisions
 
-### DEC-011 — Let ADMIN waive every current card block without financial settlement
+### DEC-012 — Financial review does not permanently block a card
 
 - State: VERIFIED
+- Date: 2026-10-13
+- Sources: `user:approved deletion of administrative card blocking`; `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `src/lib/operations/renewal-creation-guard.ts`; `shared/operations/renewal-pre-payment.ts`
+- Decision: Delete the blocking conditions and new unlock workflow. Preserve active execution exclusion, original five-minute cooldown, financial review evidence and existing historical stop/archive fences. Old released Reports cannot auto-settle; invoice ambiguity stays reviewable. No bypass service or automatic historical financial decisions.
+- Connections: `DEC-008`, `DEC-011`, `FLOW-007`, `FEAT-015`, `JOB-005`
+
+### DEC-011 — Let ADMIN waive every current card block without financial settlement
+
+- State: DEPRECATED
+- Superseded by: `DEC-012`; retained only for already accepted administrative requests and immutable history.
 - Sources: `user:explicit approved administrative archive and full cooldown waiver`; `shared/operations/admin-card-release.ts`; `docs/PROJECT_GUIDE.md#admin-card-release--delivery-register-2026-10-13`
 - Decision: Scope covers every currently blocking attempt for the chosen card, including unknown/conflicting evidence and the existing five-minute wait. A reason and duplicate-purchase risk acknowledgement precede stopping old execution; archive preserves actual money/status/evidence and never declares non-payment. New attempts and other cards remain normally protected.
 - Connections: `FEAT-015`, `SEC-005`, `DATA-002`, `UPD-20261013-012`
@@ -1696,7 +1741,7 @@
 - State: VERIFIED
 - Date: 2026-10-12
 - Sources: `user:five-minute card cooldown request and explicit end-of-attempt clarification`; `prisma/migrations/20261012120000_renewal_card_cooldown/migration.sql`; `src/lib/operations/renewal-creation-guard.ts`
-- Decision: Five minutes from the first ended package-renewal attempt regardless of success. A rejected click, refresh or later Reports result does not restart it. Only another ended attempt receives its own window. Existing unresolved financial review remains a separate block; countdown expiry does not resolve it.
+- Decision: Five minutes from the first ended package-renewal attempt regardless of success. A rejected click, refresh or later Reports result does not restart it. Only another ended attempt receives its own window. Unresolved financial review remains a separate record; it does not block new renewal after execution and the countdown end (`UPD-20261013-015`).
 - Boundary: Local implementation/testing only, no provider actions, deployment or subagents. Historical end times are not fabricated from mutable timestamps.
 
 ### DEC-007 — Plan remediation separately from implementation and release
@@ -1771,7 +1816,9 @@
 
 ### RISK-001 — Live production and external state are unverified
 
-- Administrative release: local simulation cannot guarantee cancellation of a request already accepted by beIN. Native PostgreSQL/Redis contention, full historical migration installation and coordinated production process parity remain unverified. Admin deliberately accepts duplicate-sale risk; old money/evidence remains available. Sources: `docs/PROJECT_GUIDE.md`; `docs/deployment/audit-remediation-release.md`; `UPD-20261013-012`.
+- Review policy 2026-10-13: Native service contention and provider/production acceptance remain unverified; PGlite uses a serial connection and browser HTTP is mocked. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
+
+- Historical administrative release (creation retired by `UPD-20261013-015`): local simulation cannot guarantee cancellation of a request already accepted by beIN. Native PostgreSQL/Redis contention, full historical migration installation and coordinated production process parity remain unverified. Admin deliberately accepts duplicate-sale risk; old money/evidence remains available. Sources: `docs/PROJECT_GUIDE.md`; `docs/deployment/audit-remediation-release.md`; `UPD-20261013-012`.
 
 - Account incident 2026-10-13: supplied output establishes three active accounts held by ended paid renewals plus 42 inactive accounts; zero cooldown dates. Live proof/reservation chronology and deployed code remain UNKNOWN. Do not infer release eligibility from COMPLETED or reactivate all accounts. The local repair deliberately retains unproven paid holds and unresolved review. Sources: `specs/036-audit-remediation/audit-register.md#account-availability-continuation--2026-10-13`; `UPD-20261013-006`.
 
@@ -1974,6 +2021,16 @@
 
 ## 22. Change Ledger
 
+### UPD-20261013-015 — Delete permanent review-based card admission blocks
+
+- Date: 2026-10-13
+- State: VERIFIED
+- Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `src/lib/operations/renewal-creation-guard.ts`; `shared/operations/renewal-pre-payment.ts`; `src/lib/maintenance/provider-reservation-maintenance.ts`; `worker/src/http-queue-processor.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `tests/unit/renewal-review-release-db.test.ts`; `tests/unit/renewal-cancellation-db.test.ts`; `tests/browser/renewal-card-cooldown.cjs`
+- Affected IDs: `FE-003`, `FE-007`, `FE-008`, `BE-002`, `API-007`, `API-011`, `DATA-002`, `FLOW-001`, `FLOW-007`, `JOB-003`, `JOB-005`, `SEC-002`, `TEST-001`, `TEST-008`, `OPS-002`, `FEAT-015`, `IMPACT-008`, `RISK-001`, `FRESH-001`, `DEC-012`
+- Delta: Remove financial-review/issue/admin-release admission checks and new archive-unlock creation. Existing maintenance releases drained ended ownership, including old reviews, without financial mutations. Fence released jobs, retain Reports observations only, reject ambiguous earlier invoice attribution and fix durable second-confirm cancellation. Preserve old administrative history and schema.
+- Evidence: Initial guard regression failed before deletion; final 915 root passes, 493 Worker passes/five Redis skips, 124 mocked browser cases, actual Prisma/PGlite SQL regressions, types/builds/scoped lint/encoding pass. Native PostgreSQL integration has two gated tests, documented separately from SQL simulation.
+- Runtime impact: RUNTIME_CHANGE_NOT_DEPLOYED. No provider/payment calls, production rows, historical financial decisions or subagents. Authorized GitHub push; user deploys all roles together.
+
 ### UPD-20261013-014 — Link saved receipts from ADMIN user statistics
 
 - Date: 2026-10-13
@@ -1998,7 +2055,7 @@
 
 - Date: 2026-10-13
 - State: VERIFIED
-- Sources: `docs/PROJECT_GUIDE.md#admin-card-release--delivery-register-2026-10-13`; `shared/operations/admin-card-release.ts`; `prisma/migrations/20261013190000_admin_card_release/migration.sql`; `src/components/admin/financial-review/CardReleaseDialog.tsx`; `tests/unit/admin-card-release.test.ts`; `tests/unit/admin-card-release-api.test.ts`; `worker/tests/admin-card-release-http.test.ts`; `tests/browser/panel-review-cases.cjs`
+- Sources: `docs/PROJECT_GUIDE.md#admin-card-release--delivery-register-2026-10-13`; `shared/operations/admin-card-release.ts`; `prisma/migrations/20261013190000_admin_card_release/migration.sql`; `src/components/admin/financial-review/FinancialReviewClient.tsx`; `tests/unit/admin-card-release.test.ts`; `tests/unit/admin-card-release-api.test.ts`; `worker/tests/admin-card-release-http.test.ts`; `tests/browser/panel-review-cases.cjs`
 - Affected IDs: `FE-007`, `FE-008`, `BE-002`, `API-007`, `DATA-002`, `FLOW-001`, `JOB-003`, `JOB-005`, `SEC-005`, `OPS-002`, `FEAT-015`, `TEST-001`, `FRESH-001`
 - Delta: Added current-scope preview, active-ADMIN decision, stable replay key, request drain, atomic archive/release, financial fences, cooldown waiver, neutral owner progress and localized archive/audit UI. New attempts remain normally guarded; no original financial result or open issue is rewritten.
 - Evidence: 903 root passes, 490 Worker passes/five Redis skips, 92 mocked review-browser cases, actual Prisma/PGlite migration/archive/replay/rollback and actual Axios late-response interception; root/Worker types/builds pass. Changed-file lint has no errors; full lint retains unrelated errors. Native PostgreSQL/Redis contention, native complete historical migration chain, provider cancellation and production remain NOT_VERIFIED.
@@ -2343,6 +2400,8 @@
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
+
+- Review policy 2026-10-13: Latest scoped delta is UPD-20261013-015; older hold/unlock policy is superseded without deleting history or migrations. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
 - Latest scoped delta: `UPD-20261013-014`, ADMIN statistics receipt links with existing owner/ADMIN permission. Header records the settled pre-commit baseline; commit metadata changes freshness without changing verified runtime files.
 

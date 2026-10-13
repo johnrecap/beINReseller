@@ -11,8 +11,8 @@ export type CardReservationOperationStatus =
     | 'EXPIRED'
 
 export type CardLifecycleReservationDisposition =
-    | { action: 'HOLD'; reason: 'UNRESOLVED_REVIEW' | 'UNSAFE_OR_ACTIVE' }
-    | { action: 'RELEASE'; reason: 'MANUAL_REVIEW_RESOLVED' | 'SAFE_TERMINAL' }
+    | { action: 'HOLD'; reason: 'UNSAFE_OR_ACTIVE' }
+    | { action: 'RELEASE'; reason: 'MANUAL_REVIEW_RESOLVED' | 'SAFE_TERMINAL' | 'EXECUTION_ENDED' }
 
 const TERMINAL_STATUSES = new Set<CardReservationOperationStatus>([
     'COMPLETED',
@@ -34,11 +34,11 @@ export function resolveCardLifecycleReservationDisposition(input: {
     }
 
     if (input.operationStatus === 'REVIEW_REQUIRED') {
-        return { action: 'HOLD', reason: 'UNRESOLVED_REVIEW' }
+        return { action: 'RELEASE', reason: 'EXECUTION_ENDED' }
     }
 
-    if (input.terminalResolutionSafe && TERMINAL_STATUSES.has(input.operationStatus)) {
-        return { action: 'RELEASE', reason: 'SAFE_TERMINAL' }
+    if (TERMINAL_STATUSES.has(input.operationStatus)) {
+        return { action: 'RELEASE', reason: input.terminalResolutionSafe ? 'SAFE_TERMINAL' : 'EXECUTION_ENDED' }
     }
 
     return { action: 'HOLD', reason: 'UNSAFE_OR_ACTIVE' }
@@ -46,7 +46,7 @@ export function resolveCardLifecycleReservationDisposition(input: {
 
 export type CardLifecycleReservationDb = Pick<
     Prisma.TransactionClient,
-    'cardLifecycleReservation' | '$queryRaw'
+    'operation' | 'cardLifecycleReservation' | '$queryRaw'
 >
 
 export type AcquireCardLifecycleReservationResult =
@@ -107,6 +107,11 @@ export async function acquireCardLifecycleReservation(
     const cardNumber = normalizeCardNumber(input.cardNumber)
     const now = input.now ?? new Date()
     await lockCardReservationKeys(db, input.operationId, cardNumber)
+    await db.$queryRaw`SELECT "id" FROM "operations" WHERE "id" = ${input.operationId} FOR UPDATE`
+    const operation = await db.operation.findUnique({ where: { id: input.operationId },
+        select: { status: true, administrativeStopRequestedAt: true } })
+    if (!operation || operation.administrativeStopRequestedAt ||
+        ['REVIEW_REQUIRED', ...TERMINAL_STATUSES].includes(operation.status)) throw new Error('INVALID_RENEWAL_OPERATION_STATE')
     const existing = await db.cardLifecycleReservation.findUnique({
         where: { operationId: input.operationId },
     })

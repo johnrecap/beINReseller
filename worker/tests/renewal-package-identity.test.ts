@@ -188,6 +188,69 @@ test('a compact Sell confirmation with the same offer proceeds to receiver entry
         post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
 })
 
+// Reconstructed from the 2026-10-13 production structural diagnostic, not
+// captured provider HTML: item above, then colspan=2 Remaining/note, exact
+// money, empty tail. The diagnostic's terminal #_ was the money cell.
+const liveSellFooter = '<tr><td colspan="2">Remaining<div>* Money due if any will be added to the current package as extended validity</div></td><td>86.40 USD</td><td></td></tr>'
+const sellWithFooter = (footer: string) => compactSellSummary().replace('</table>', `${footer}</table>`)
+
+test('diagnosed three-cell Sell footer prepares receiver entry without OK or Pay', async () => {
+    const h = purchaseClient([summary(), sellWithFooter(liveSellFooter), summary()])
+    const prepared = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(prepared.awaitingConfirm, true)
+    assert.equal(h.posts.length, 3)
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') ||
+        post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+test('diagnosed footer also accepts the named three-column package row above it', async () => {
+    const sell = summary().replace(/<tr><td colspan="2">Remaining[\s\S]*?<\/tr>/, liveSellFooter)
+    const h = purchaseClient([summary(), sell, summary()])
+    const prepared = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(prepared.awaitingConfirm, true)
+    assert.equal(h.posts.length, 3)
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') ||
+        post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+test('diagnosed footer cannot hide a different package in the row above its amount', async () => {
+    const wrongUpperRow = sellWithFooter(liveSellFooter).replace(selected.name, 'Premium 24 Months (24 Months)')
+    const h = purchaseClient([summary(), wrongUpperRow, summary()])
+    const result = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.selectionFailure?.stage, 'SELL')
+    assert.equal(result.selectionFailure?.reason, 'CART_QUOTE_MISMATCH')
+    assert.equal(h.posts.length, 2)
+})
+
+test('diagnosed Sell footer retains the applied promo through receiver preparation', async () => {
+    const quote = { ...selected, appliedPromoCode: 'SAVE' }
+    const withPromo = (html: string) => html.replace('txtPromoCode" value=""', 'txtPromoCode" value="SAVE"')
+    const h = purchaseClient([withPromo(summary()), withPromo(sellWithFooter(liveSellFooter)), withPromo(summary())])
+    h.client.renewalSelection.promoCode = 'SAVE'
+    const prepared = await h.client.completePurchase(quote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(prepared.awaitingConfirm, true)
+    assert.equal(prepared.packageEvidence.promoCode, 'SAVE')
+    assert.equal(h.posts.length, 3)
+    assert.ok(h.posts.every(post => post.get('ctl00$ContentPlaceHolder1$txtPromoCode') === 'SAVE'))
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') ||
+        post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+for (const [reason, footer] of [
+    ['wrong footer amount', liveSellFooter.replace('86.40 USD</td><td></td>', '216 USD</td><td></td>')],
+    ['nonempty trailing cell', liveSellFooter.replace('<td></td></tr>', '<td>Extra Package</td></tr>')],
+    ['trailing selection', liveSellFooter.replace('<td></td></tr>', '<td><input type="checkbox" name="extra"></td></tr>')],
+    ['wrong label', liveSellFooter.replace('>Remaining<div>', '>Extra Package<div>')],
+    ['missing colspan', liveSellFooter.replace('colspan="2"', '')],
+] as const) {
+    test(`diagnosed three-cell Sell footer rejects ${reason} before receiver entry`, async () => {
+        const h = purchaseClient([summary(), sellWithFooter(footer), summary()])
+        const result = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+        assert.equal(result.selectionFailure?.stage, 'SELL')
+        assert.equal(h.posts.length, 2)
+    })
+}
+
 for (const [label, footer] of [
     ['nested total label', '<tr><td><span>Total Amount:</span></td><td>86.40 USD</td></tr>'],
     ['empty selection column', '<tr><td></td><td><span>Remaining:</span></td><td>86.40 USD</td></tr>'],

@@ -271,20 +271,27 @@ export function readRenewalSummary(html: string, expected: QuotePackage, cardNum
     if (rows.length === 3) {
         const total = $(rows[2]).children('td')
         const addLabel = normalized(total.eq(0).clone().children().remove().end().text())
-        // Sell may render its total label inside a span or reserve an empty
-        // selection cell. Neither changes the one-line quote or payable total.
-        const sellLabel = normalized(total.slice(0, -1).text())
+        // Sell may reserve an empty selection cell, or put a trailing empty
+        // cell after the amount. In the latter layout the package is still in
+        // the item row above; the amount is the middle cell of this footer.
+        const trailingEmpty = stage !== 'ADD' && total.length === 3 && total.eq(0).attr('colspan') === '2'
+        const sellLabel = normalized((trailingEmpty ? total.eq(0) : total.slice(0, -1)).text())
         const sellTotal = /^(?:remaining|grand total|total amount|total|amount due|net total|net amount)\s*[:：*\-]?\s*$/.test(sellLabel) ||
             /^remaining\s*\*?\s*money due if any will be added to the current package as extended validity\.?$/.test(sellLabel)
+        const validThreeCellSell = trailingEmpty
+            ? total.eq(1).attr('colspan') === undefined && total.eq(2).attr('colspan') === undefined &&
+                normalized(total.eq(2).text()) === '' && total.eq(2).find('[name]').length === 0
+            : normalized(total.eq(0).text()) === '' && total.eq(0).attr('colspan') === undefined
         if (stage === 'ADD'
             ? total.length !== 2 || total.eq(0).attr('colspan') !== '2' || addLabel !== 'remaining'
             : (total.length !== 2 && total.length !== 3) || !sellTotal ||
-                total.is('[rowspan]') || (total.length === 3 &&
-                    (normalized(total.eq(0).text()) !== '' || total.eq(0).find('input,select,button').length > 0))) {
+                total.is('[rowspan]') || $(rows[2]).children().length !== total.length ||
+                total.find('input,select,button').length > 0 ||
+                (total.length === 3 && !validThreeCellSell)) {
             reject('CART_TOTAL_ROW_UNVERIFIED')
         }
         let totalAmount: ReturnType<typeof money>
-        try { totalAmount = money(total.last().text()) }
+        try { totalAmount = money((trailingEmpty ? total.eq(1) : total.last()).text()) }
         catch { return reject('CART_TOTAL_AMOUNT_UNVERIFIED') }
         if (totalAmount.price !== amount.price || totalAmount.currency !== amount.currency) {
             reject('CART_TOTAL_MISMATCH')

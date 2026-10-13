@@ -1,18 +1,22 @@
+import { quotedPriceDecimal } from './provider-price'
+export { positiveDecimal, quotedPriceDecimal, readProviderPrice } from './provider-price'
+
 // A package key identifies a row within one operation's quote, never a beIN product.
 export type QuoteState = 'PENDING' | 'READY' | 'FAILED'
 export type PromoAction = 'APPLY' | 'REMOVE'
 export type QuotePackage = {
     index: number; name: string; price: number; currency?: string
+    priceText?: string; priceDecimal?: string
     checkboxValue?: string; checkboxSelector?: string
     quoteRevision?: number; packageKey?: string; appliedPromoCode?: string | null
 }
 type QuoteOperation = { responseData?: unknown; availablePackages?: unknown; promoCode?: string | null; selectedPackage?: unknown }
 
-export function sameQuotedPackage(left: Pick<QuotePackage, 'name' | 'price' | 'currency'>,
-    right: Pick<QuotePackage, 'name' | 'price' | 'currency'>): boolean {
+export function sameQuotedPackage(left: Pick<QuotePackage, 'name' | 'price' | 'priceDecimal' | 'currency'>,
+    right: Pick<QuotePackage, 'name' | 'price' | 'priceDecimal' | 'currency'>): boolean {
     const normalize = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase()
     return Boolean(left.name?.trim()) && normalize(left.name) === normalize(right.name) &&
-        Number.isFinite(left.price) && left.price > 0 && left.price === right.price &&
+        quotedPriceDecimal(left) !== null && quotedPriceDecimal(left) === quotedPriceDecimal(right) &&
         (left.currency || 'USD') === (right.currency || 'USD')
 }
 
@@ -40,7 +44,7 @@ export function quoteRevisionOf(data: unknown): number {
 function packageRows(value: unknown): QuotePackage[] {
     if (!Array.isArray(value)) return []
     return value.filter((row): row is QuotePackage => row && Number.isSafeInteger(row.index) && row.index >= 0 &&
-        typeof row.name === 'string' && row.name.trim().length > 0 && Number.isFinite(row.price) && row.price > 0)
+        typeof row.name === 'string' && row.name.trim().length > 0 && quotedPriceDecimal(row) !== null)
 }
 
 export function readyPackageQuote(previous: unknown, packages: readonly QuotePackage[], revision: number, promoCode: string | null) {
@@ -82,6 +86,7 @@ export function assertFinalQuote(operation: QuoteOperation, revision: number | u
         packageIndex: selected.index as number | undefined })
     if (selected.quoteRevision !== revision || selected.name !== result.selectedPackage.name ||
         selected.price !== result.selectedPackage.price || selected.currency !== result.selectedPackage.currency ||
+        quotedPriceDecimal(selected as unknown as QuotePackage) !== quotedPriceDecimal(result.selectedPackage) ||
         selected.appliedPromoCode !== result.promoCode) {
         throw new Error('PACKAGE_QUOTE_CONFLICT')
     }

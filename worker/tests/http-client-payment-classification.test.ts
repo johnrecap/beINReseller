@@ -125,6 +125,7 @@ test('parses package prices with arbitrary decimal precision', () => {
     };
     for (const [text, expected] of [['86.4000', 86.4], ['174.1234', 174.1234], ['1,200.50', 1200.5]] as const) {
         const parsed = client.extractPackagesFromHtml(cheerio.load(`<table id="ContentPlaceHolder1_gvAvailablePackages">
+            <tr><th></th><th>Package Name</th><th>Full Price</th></tr>
             <tr><td><input type="checkbox" name="current-row"></td><td><span id="pkg_lblName">Premium 6 Months</span></td>
             <td>${text} USD</td></tr></table>`));
         assert.equal(parsed.length, 1);

@@ -1,6 +1,8 @@
 import { Prisma, type ProviderPaymentState } from '@prisma/client'
 import type { SoldReportSafeRow, SoldReportScanResult } from '../http/sold-packages-report'
 import type { QuotePackage } from '../../../shared/operations/package-quote'
+import { positiveDecimal, quotedPriceDecimal } from '../../../shared/operations/provider-price'
+import { compareReportPackageName } from './report-package-identity'
 import { getRenewalFulfillmentConfig } from './fulfillment-baseline'
 import { captureRenewalCompletionInTransaction } from './fulfillment-finalization'
 import { prisma } from './prisma'
@@ -14,16 +16,14 @@ export function cairoReportDay(at: Date): string {
 }
 
 const exact = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase()
-const money = (value: string | number) => {
-    const parsed = typeof value === 'number' ? value : Number(value.replace(/,/g, ''))
-    return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) : null
-}
 
 export type SameDayReportMatch = {
     outcome: 'MATCHED' | 'VALID_NO_MATCH' | 'INCOMPLETE_SCAN' | 'CHECK_FAILED' | 'PROOF_CONFLICT'
     reasonCode: string
     row: SoldReportSafeRow | null
     candidateCount: number
+    diagnostics?: { cardTypeMatches: number; nameMatches: number; amountMatches: number;
+        currencyMatches: number; claimedMatches: number; displayRules: string[] }
 }
 
 export function correlateSameDayReport(input: {
@@ -42,26 +42,38 @@ export function correlateSameDayReport(input: {
     const serial = input.smartcardType === 'CISCO' && /^\d{10}$/.test(expectedCard)
         ? expectedCard.slice(0, -1) : expectedCard
     const expectedItem = `Card_${input.smartcardType}`
-    const amount = money(input.selectedPackage.price)
+    const amount = quotedPriceDecimal(input.selectedPackage)
     if (!amount || !input.selectedPackage.name?.trim() || !['CISCO', 'IRDETO'].includes(input.smartcardType)) {
         return { outcome: 'PROOF_CONFLICT', reasonCode: 'INVALID_SELECTED_PACKAGE', row: null, candidateCount: 0 }
     }
-    const matching = input.report.rows.filter(row =>
-        (row.cardNumber.trim() === expectedCard || row.cardNumber.trim() === serial) &&
-        exact(row.itemType) === exact(expectedItem) &&
-        exact(row.packageName) === exact(input.selectedPackage.name) &&
-        money(row.providerAmount) === amount &&
-        row.currency.toUpperCase() === (input.selectedPackage.currency || 'USD').toUpperCase())
+    const diagnostics = { cardTypeMatches: 0, nameMatches: 0, amountMatches: 0,
+        currencyMatches: 0, claimedMatches: 0, displayRules: [] as string[] }
+    const rules = new Set<string>()
+    const matching = input.report.rows.filter(row => {
+        if (!(row.cardNumber.trim() === expectedCard || row.cardNumber.trim() === serial) ||
+            exact(row.itemType) !== exact(expectedItem)) return false
+        diagnostics.cardTypeMatches++
+        const name = compareReportPackageName(input.selectedPackage.name, row.packageName)
+        for (const rule of name.rules) rules.add(rule)
+        const amountMatches = positiveDecimal(row.providerAmount) === amount
+        const currencyMatches = row.currency.toUpperCase() === (input.selectedPackage.currency || 'USD').toUpperCase()
+        if (name.matches) diagnostics.nameMatches++
+        if (amountMatches) diagnostics.amountMatches++
+        if (currencyMatches) diagnostics.currencyMatches++
+        return name.matches && amountMatches && currencyMatches
+    })
+    diagnostics.displayRules = [...rules]
     const available = matching.filter(row => {
         const owner = input.claimedInvoices.get(row.invoiceNo.trim())
+        if (owner && owner !== input.operationId) diagnostics.claimedMatches++
         return !owner || owner === input.operationId
     })
     if (available.length > 1) return { outcome: 'PROOF_CONFLICT', reasonCode: 'MULTIPLE_MATCHING_INVOICES',
-        row: null, candidateCount: available.length }
+        row: null, candidateCount: available.length, diagnostics }
     if (available.length === 0) return { outcome: matching.length ? 'PROOF_CONFLICT' : 'VALID_NO_MATCH',
         reasonCode: matching.length ? 'MATCHING_INVOICE_ALREADY_CLAIMED' : 'NO_SAME_DAY_MATCH',
-        row: null, candidateCount: 0 }
-    return { outcome: 'MATCHED', reasonCode: 'ONE_SAME_DAY_INVOICE', row: available[0], candidateCount: 1 }
+        row: null, candidateCount: 0, diagnostics }
+    return { outcome: 'MATCHED', reasonCode: 'ONE_SAME_DAY_INVOICE', row: available[0], candidateCount: 1, diagnostics }
 }
 
 export async function claimSameDayFinalMutation(input: {
@@ -176,11 +188,53 @@ export async function finalizeSameDayReport(input: {
     attemptId: string
     attemptNo: number
 }): Promise<'COMPLETED' | 'ALREADY_COMPLETED' | 'PROOF_CONFLICT'> {
+    const reportAmount = positiveDecimal(input.row.providerAmount)
+    // The existing proof column is Decimal(18,2). Never let PostgreSQL silently
+    // round a future provider amount that this unchanged schema cannot retain.
+    if (!reportAmount || !/^\d{1,16}(?:\.\d{1,2})?$/.test(reportAmount)) {
+        console.warn('[HTTP] Report finalization stopped:', JSON.stringify({ operationId: input.operationId,
+            stage: 'REPORT_FINALIZE', reasonCode: 'REPORT_AMOUNT_NOT_STORABLE' }))
+        return 'PROOF_CONFLICT'
+    }
     if (input.providerPaymentState === 'NOT_CHARGED' || !/^\d{4}-\d{2}-\d{2}$/.test(input.reportDate))
         return 'PROOF_CONFLICT'
     try {
         return await prisma.$transaction(async tx => {
             await tx.$queryRaw`SELECT "id" FROM "operations" WHERE "id" = ${input.operationId} FOR UPDATE`
+            const op = await tx.operation.findUnique({ where: { id: input.operationId }, include: {
+                fulfillmentProof: true, providerInvoiceClaim: true,
+                refundSettlements: { select: { id: true } },
+                transactions: { where: { type: 'REFUND' }, select: { id: true } },
+                cardLifecycleReservation: true, providerAccountCausalReservation: true,
+                fulfillmentVerification: { include: { attempts: { orderBy: { attemptNo: 'desc' }, take: 1 } } },
+                chargedBeinSpendLedger: { select: { beinAccountId: true } },
+            } })
+            if (!op || op.renewalFlowVersion !== 2 || op.type !== 'RENEW' || !op.userId || op.customerId ||
+                op.beinAccountId !== input.beinAccountId || op.refundSettlements.length || op.transactions.length ||
+                op.chargedBeinSpendLedger && op.chargedBeinSpendLedger.beinAccountId !== input.beinAccountId)
+                return 'PROOF_CONFLICT'
+            const selected = op.selectedPackage as QuotePackage | null
+            const verification = op.fulfillmentVerification
+            const opContext = typeof op.responseData === 'string'
+                ? (() => { try { return JSON.parse(op.responseData) as Record<string, unknown> } catch { return {} } })()
+                : op.responseData && typeof op.responseData === 'object' && !Array.isArray(op.responseData)
+                    ? op.responseData as Record<string, unknown> : {}
+            const itemType = typeof opContext.smartcardType === 'string'
+                ? opContext.smartcardType.toUpperCase() : 'CISCO'
+            const rowCheck = selected && correlateSameDayReport({
+                report: { outcome: 'COMPLETE', dealerContextHash: input.dealerContextHash,
+                    rows: [input.row], pageCount: 1, pageCap: 1, scanAttemptCount: 1,
+                    firstPageWatermark: input.row.rowFingerprint },
+                cardNumber: op.cardNumber, smartcardType: itemType, selectedPackage: selected,
+                claimedInvoices: new Map(), operationId: op.id,
+            })
+            const rowStillMatches = rowCheck?.outcome === 'MATCHED'
+            console.log('[HTTP] Report transaction recheck:', JSON.stringify({ operationId: op.id,
+                stage: 'REPORT_FINALIZE', quoteRevision: selected?.quoteRevision,
+                outcome: rowCheck?.outcome, reasonCode: rowCheck?.reasonCode,
+                candidateCount: rowCheck?.candidateCount, ...rowCheck?.diagnostics }))
+            if (op.status === 'COMPLETED') return rowStillMatches && op.fulfillmentProof?.invoiceNo === input.row.invoiceNo &&
+                op.fulfillmentProof.proofKind === 'SOLD_REPORT_SAME_DAY' ? 'ALREADY_COMPLETED' : 'PROOF_CONFLICT'
             const reservations = await tx.$queryRaw<Array<{ operationId: string }>>`
                 SELECT card."operation_id" AS "operationId"
                 FROM "card_lifecycle_reservations" card
@@ -194,35 +248,6 @@ export async function finalizeSameDayReport(input: {
                 FOR UPDATE OF card, account
             `
             if (reservations.length !== 1) return 'PROOF_CONFLICT'
-            const op = await tx.operation.findUnique({ where: { id: input.operationId }, include: {
-                fulfillmentProof: true, providerInvoiceClaim: true,
-                refundSettlements: { select: { id: true } },
-                transactions: { where: { type: 'REFUND' }, select: { id: true } },
-                cardLifecycleReservation: true, providerAccountCausalReservation: true,
-                fulfillmentVerification: { include: { attempts: { orderBy: { attemptNo: 'desc' }, take: 1 } } },
-                chargedBeinSpendLedger: { select: { beinAccountId: true } },
-            } })
-            if (!op || op.renewalFlowVersion !== 2 || op.type !== 'RENEW' || !op.userId || op.customerId ||
-                op.beinAccountId !== input.beinAccountId || op.refundSettlements.length || op.transactions.length ||
-                op.chargedBeinSpendLedger && op.chargedBeinSpendLedger.beinAccountId !== input.beinAccountId)
-                return 'PROOF_CONFLICT'
-            if (op.status === 'COMPLETED') return op.fulfillmentProof?.invoiceNo === input.row.invoiceNo &&
-                op.fulfillmentProof.proofKind === 'SOLD_REPORT_SAME_DAY' ? 'ALREADY_COMPLETED' : 'PROOF_CONFLICT'
-            const selected = op.selectedPackage as QuotePackage | null
-            const verification = op.fulfillmentVerification
-            const opContext = typeof op.responseData === 'string'
-                ? (() => { try { return JSON.parse(op.responseData) as Record<string, unknown> } catch { return {} } })()
-                : op.responseData && typeof op.responseData === 'object' && !Array.isArray(op.responseData)
-                    ? op.responseData as Record<string, unknown> : {}
-            const itemType = typeof opContext.smartcardType === 'string'
-                ? opContext.smartcardType.toUpperCase() : 'CISCO'
-            const rowStillMatches = selected && correlateSameDayReport({
-                report: { outcome: 'COMPLETE', dealerContextHash: input.dealerContextHash,
-                    rows: [input.row], pageCount: 1, pageCap: 1, scanAttemptCount: 1,
-                    firstPageWatermark: input.row.rowFingerprint },
-                cardNumber: op.cardNumber, smartcardType: itemType, selectedPackage: selected,
-                claimedInvoices: new Map(), operationId: op.id,
-            }).outcome === 'MATCHED'
             const persistedDay = op.providerPayRequestedAt ||
                 (opContext.directOkSuccess === true ? op.providerMutationStartedAt : null)
             if (!['COMPLETING', 'REVIEW_REQUIRED'].includes(op.status) || !selected ||
@@ -252,7 +277,7 @@ export async function finalizeSameDayReport(input: {
                 contractExpiryDate: input.row.contractExpiryDate, verificationSource: 'POST_FINAL_PAY',
                 providerCheckedAt: input.observedAt, reportObservedAt: input.observedAt,
                 reportRowFingerprint: input.row.rowFingerprint,
-                providerAmount: new Prisma.Decimal(input.row.providerAmount.replace(/,/g, '')),
+                providerAmount: new Prisma.Decimal(reportAmount),
                 currency: input.row.currency, reportPackageName: input.row.packageName,
                 reportItemType: input.row.itemType, dealerContextHash: input.dealerContextHash,
                 reportDate: new Date(`${input.reportDate}T00:00:00.000Z`),

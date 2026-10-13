@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-10-13
-> Last synchronized commit: 0ba04145512f04dfaa828c05d2c792e11c809ec4
+> Last synchronized commit: 08fc12b26da7e7e739906d72ef7dbb9a1f0f6172
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:33f097b96de8300e82ad282f1e8380e45b471593a9ab680acf2344b1ef0182c7
+> Working tree fingerprint: SHA256:4c46183dddcd7c67e9762a1b2a62e24888a4b17d0171e3422ad3c7be9411145a
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Current precision repair, 2026-10-13: `UPD-20261013-010` reads the original package name and exact price from header-mapped cells, retains optional text/decimal snapshots across Workers and compares known Reports display variants without losing duration/offer or rounding amounts. Local mocked journeys reach one receipt/completion/release, including a lost Pay reply. No provider or production execution, schema change or historical resettlement. Resume at `docs/PROJECT_GUIDE.md#recent-changes`.
 
 - Current pre-final selection repair, 2026-10-13: `UPD-20261013-009` reserves the chosen beIN account before a v2 quote is shown, makes promo revisions use their actual response, and distinguishes Add/Sell/STB preparation from final OK/Pay. A verified no-debit preparation failure closes FAILED and releases the account; final-payment markers or sale evidence still hold for review. Local tests/types/build pass, while the incident's actual Sell HTML, production process versions and historical operation remain unverified/unchanged. Resume at `docs/PROJECT_GUIDE.md#project-guide` and the linked Worker tests.
 
@@ -437,6 +439,8 @@
 
 ### API-011 — Renewal payment and fulfillment evidence contract
 
+- Precision 2026-10-13: Numeric public `price` stays compatible; internal optional `priceText`/`priceDecimal` remain server-owned quote/session JSON and older numeric quotes need no page reconstruction. Search and transactional report proof use the same narrow display-name and exact decimal rules. Sources: `shared/operations/package-quote.ts`; `shared/operations/provider-price.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-010`.
+
 - Pre-final selection 2026-10-13: The existing promo/selection/operation endpoints retain their contracts. A failed v2 promo revision publishes no selectable prior packages; exact safe Add/Sell/STB failure becomes FAILED without wallet debit, while ambiguous final mutation or sale evidence remains review-required. The consumer projection gates the localized no-charge message on absent debit/refund and absent final Pay. Sources: `src/app/api/operations/[id]/apply-promo/route.ts`; `shared/operations/package-quote.ts`; `shared/operations/consumer-progress.ts`; `UPD-20261013-009`.
 
 - Version 2, 2026-10-13: New renewals require one exact same-day Sold Report invoice after final mutation; `GET /api/operations/[id]` returns an owner/admin-only confirmed `receipt`, and list rows expose `receiptAvailable`. The receipt does not expose raw proof or provider credentials. Old v1 baseline/contract and `REVIEW_ONLY` behavior below is version-specific. Sources: `src/app/api/operations/[id]/route.ts`; `src/app/api/operations/route.ts`; `src/lib/operations/receipt.ts`; `UPD-20261013-007`.
@@ -462,6 +466,8 @@
 - Connections: `AUTH-001`, `AUTH-004`, `AUTH-005`, `FEAT-002`, `FEAT-003`
 
 ### DATA-002 — Operations, dispatch, accounting, and integrity
+
+- Precision 2026-10-13: Optional original price text and canonical decimal travel inside existing package/session JSON, with no schema change. The Decimal(18,2) proof capacity is checked before persistence; an unsupported amount reviews instead of being silently rounded. Sources: `shared/operations/provider-price.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-010`.
 
 - Cooldown 2026-10-12: Both schemas add nullable Operation.renewalCooldownUntil and a card/deadline index. A database trigger stamps the first ended non-installment RENEW outcome and preserves it through every later update. Pending and historical rows are not backfilled. Sources: `prisma/migrations/20261012120000_renewal_card_cooldown/migration.sql`; `worker/prisma/schema.prisma`; `UPD-20261012-002`.
 
@@ -612,6 +618,8 @@
 - Connections: `BE-006`, `DATA-003`, `INT-004`, `OPS-004`, `FEAT-016`, `FEAT-017`
 
 ### FLOW-007 — Proof-gated reseller renewal
+
+- Precision 2026-10-13: Header-mapped original name/price/currency/control stay on the same saved operation page. After consent, report matching strips only supported display differences; exact duration, offer, amount and currency are rechecked inside finalization. Same-operation proof reuse occurs before testing already-released reservations and creates no second receipt/effect. No added Check/reload/promo replay. Sources: `worker/src/http/HttpClientService.ts`; `worker/src/lib/report-package-identity.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-010`.
 
 - Pre-final selection 2026-10-13: In v2, Add then Sell confirms the selected cart, then both STB fields are prepared; OK/Pay and customer wallet deduction occur only after final consent. START_RENEWAL reserves its account before the quote is published, and selection continues from its saved page. Safe preparation errors/replays do not resend Add/Sell and close without financial review; final mutation markers or sale evidence still require it. Promo apply/remove invalidates the old quote and records the POST barrier before submission. Sources: `worker/src/http-queue-processor.ts`; `worker/src/lib/pre-mutation-renewal-finalization.ts`; `worker/src/lib/promo-quote.ts`; `UPD-20261013-009`.
 
@@ -769,6 +777,8 @@
 - Connections: `APP-006`, `API-003`, `DATA-002`, `JOB-002`, `RISK-001`
 
 ### INT-001 — beIN HTTP/provider automation
+
+- Precision 2026-10-13: Available packages require unique Package Name / Full Price headers and valid same-row checkbox/name/one-price cells, before/after arbitrary promo. Reports accepts Add/Renewal prefixes, only redundant matching duration suffixes and event Full Payment spelling differences; it never uses fuzzy words or cent rounding. New diagnostics omit private identifiers and raw HTML. Sources: `worker/src/http/HttpClientService.ts`; `worker/src/lib/report-package-identity.ts`; `shared/operations/provider-price.ts`; `UPD-20261013-010`.
 
 - Pre-final selection 2026-10-13: The Add cart still requires its observed strict table; later Sell/STB confirmation accepts a compact table only with one exact package, amount/currency, displayed total, card/type and accepted promo identity. Structural/parser reasons are recorded without page HTML; commercial mismatch still blocks. Promo quotes use the response's current package price/currency. The reported live Sell response was not captured, so compatibility is NOT_VERIFIED. Sources: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/lib/promo-quote.ts`; `UPD-20261013-009`.
 
@@ -1057,6 +1067,8 @@
 - Connections: `TEST-002`, `RISK-001`, `RISK-004`, `FEAT-002`, `FEAT-003`, `FEAT-006`, `FEAT-010`–`FEAT-018`
 
 ### TEST-008 — Renewal fulfillment safety verification
+
+- Precision 2026-10-13: Three original failures reproduced before repair. Root 887 pass; Worker 488 pass/five Redis skips; both types/builds and scoped lint pass. Four complete mocked journeys use actual HTTP methods, session JSON restoration, confirmation API, report scanner and proof finalizer; storage/cookie/concurrency dependencies are synthetic. Broad lint has seven errors in four unchanged tracked mobile/customer files plus 171 ignored-artifact errors; native service races and live checkout remain NOT_VERIFIED. Sources: `worker/tests/precise-package-report.test.ts`; `worker/tests/precise-renewal-journey.test.ts`; `docs/PROJECT_GUIDE.md`; `UPD-20261013-010`.
 
 - Pre-final selection 2026-10-13: Local synthetic identity/parser tests cover compact Sell, altered commercial terms, promo echo and POST barrier. New pre-final closure tests cover safe no-charge failure versus final mutation timestamp/stage, and root consumer tests cover localized projection. Full root/Worker unit suites, both TypeScript checks, schema sync, scoped lint and local web/Worker builds passed; real Sell HTML, disposable service race, production parity and a live purchase remain NOT_VERIFIED. Sources: `worker/tests/renewal-package-identity.test.ts`; `worker/tests/pre-final-selection-closure.test.ts`; `tests/unit/operation-consumer-state-contract.test.ts`; `UPD-20261013-009`.
 
@@ -1436,6 +1448,8 @@
 
 ### FEAT-020 — Renewal fulfillment proof and duplicate-charge containment
 
+- Precision 2026-10-13: Same-day proof now tolerates only explicit provider display variants and compares decimals without rounding. Finalization repeats the comparison under transaction and can reuse its own completed invoice after release. Existing day/account/card/type/unique unclaimed invoice rules and ambiguous financial review stay intact. Sources: `worker/src/lib/same-day-report-fulfillment.ts`; `worker/src/lib/report-package-identity.ts`; `UPD-20261013-010`.
+
 - Pre-final selection 2026-10-13: The v2 preparation marker distinguishes Add/Sell/STB from final OK/Pay. A verified no-debit preparation stop releases the account/card reservation and keeps the existing five-minute card cooldown; a final mutation marker, debit or sale evidence still blocks safe closure and requires review. Historic stuck operations require case-specific admin evidence before any decision, with no direct status edit. Sources: `worker/src/lib/pre-mutation-renewal-finalization.ts`; `src/lib/operations/pre-mutation-renewal-finalization.ts`; `src/lib/financial-review/capabilities.ts`; `UPD-20261013-009`.
 
 - Version 2, 2026-10-13: New operations use same-day unique report proof rather than the v1 baseline/active-contract proof; marker, invoice uniqueness, no repeat Pay, review hold and atomic completion/release remain. A same-day identical prior outside sale can still be misattributed because Reports has no sale timestamp. Local code is PARTIAL pending native migration/race and provider compatibility evidence. Sources: `worker/src/lib/same-day-report-fulfillment.ts`; `prisma/migrations/20261013120000_same_day_report_renewal/migration.sql`; `UPD-20261013-007`.
@@ -1754,6 +1768,8 @@
 
 ### RISK-009 — Renewal proof migration and reported duplicate deductions are not live-verified
 
+- Precision 2026-10-13: Exact matching is locally simulated; same-day prior-sale ambiguity and native service/provider/deployment gaps remain. Decimal precision above the unchanged proof-column capacity now holds rather than rounds. Broad ESLint is not globally clean. Sources: `docs/PROJECT_GUIDE.md`; `worker/tests/precise-renewal-journey.test.ts`; `UPD-20261013-010`.
+
 - Selection incident 2026-10-13: User log for a v2 attempt shows Add succeeded and Sell returned `PACKAGE_QUOTE_CHANGED` before STB, OK or Pay. The exact rejected Sell HTML is absent, so the predicate responsible and real-provider compatibility of the compact parser remain NOT_VERIFIED. The historical attempt, account reservation, charges and deployed Worker versions were not altered or verified by this local repair. Source: user-supplied worker log in this task; `worker/src/http/renewal-purchase-guard.ts`; `UPD-20261013-009`.
 
 - Migration incident 2026-10-13: Production deploy stopped at P3018/55P04, before a confirmed build/restart. Local ordered SQL repair does not establish the target database's failed-record/partial-DDL state or live service health; inspect both before recovery. Source: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `UPD-20261013-008`.
@@ -1871,6 +1887,17 @@
 - Phase 4: Phase 4 T015-T017 complete, 10/46 accepted; synthetic API/worker/DB and six mocked browser groups verified with independent review. Later phases and T007/T008/T012 remain open. Saved locally, no commit/push/deploy. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ## 22. Change Ledger
+
+### UPD-20261013-010 — Read exact package cells and correlate report display variants
+
+- Date: 2026-10-13
+- State: PARTIAL
+- Trigger: Maintainer approved precise same-row package/price extraction, preserved provider names, exact-decimal report correlation and a tested GitHub handoff without provider calls or subagents.
+- Sources: `shared/operations/provider-price.ts`; `shared/operations/package-quote.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http-queue-processor.ts`; `worker/src/lib/report-package-identity.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `worker/tests/precise-package-report.test.ts`; `worker/tests/precise-renewal-journey.test.ts`; `docs/PROJECT_GUIDE.md`
+- Delta: Map unique provider columns and retain exact price text/decimal through quote/session/selection; apply narrow Reports display equivalence and exact amount checks in search and transaction. Preserve all commercial terms, claims and flow guards; reuse the same completed invoice without re-claiming and reject unrepresentable proof amounts rather than rounding. Add bounded private-data-free diagnostics.
+- Evidence: Three red regressions, four complete mocked journeys and current full unit/type/build/scoped-lint checks are documented in the guide. Full lint retains unchanged source/ignored-artifact debt. Native DB/Redis races, live provider compatibility and production cutover remain NOT_VERIFIED.
+- Affected IDs: `API-011`, `DATA-002`, `FLOW-007`, `INT-001`, `TEST-008`, `FEAT-020`, `RISK-009`, `FRESH-001`
+- Runtime impact: RUNTIME_CHANGE_NOT_DEPLOYED
 
 ### UPD-20261013-009 — Distinguish package selection preparation from final payment
 
@@ -2190,6 +2217,8 @@
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
+
+- Latest scoped delta: `UPD-20261013-010`, precise package/price cells and narrow same-day Reports equivalence. Current local verification and its native-service/provider/lint limitations are recorded in `docs/PROJECT_GUIDE.md`; no historical acceptance or production state is changed.
 
 - Latest scoped delta: `UPD-20261013-009`, v2 pre-final selection/account/promo/summary failure repair, locally simulated only. The earlier `UPD-20261013-008` enum migration recovery remains separate. Exact Sell HTML, production process parity, the historical operation, failed migration record/schema, native retry and release gates remain open. Historical UI/036 acceptance counters are unchanged.
 

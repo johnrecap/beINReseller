@@ -14,9 +14,9 @@ function form(label: string, value: string, serial = '7', confirm = false, packa
         <input name="${field}tbSerial1" value="${serial}" maxlength="${value === '8' ? '9' : '16'}">
         <input type="submit" name="${field}btnLoad1" value="Load">
         ${confirm ? `<input name="${field}tbSerial2"><input type="submit" name="${field}btnLoad2" value="Load">` : ''}
-        ${packages ? `<table id="ContentPlaceHolder1_gvAvailablePackages"><tr><th>Package</th><th>Price</th></tr>
+        ${packages ? `<table id="ContentPlaceHolder1_gvAvailablePackages"><tr><th></th><th>Package Name</th><th>Full Price</th></tr>
         <tr><td><input type="checkbox" name="${field}gvAvailablePackages$ctl02$cbSelect">
-        <span id="ContentPlaceHolder1_gvAvailablePackages_lblName_0">Premium 6 Months</span></td><td>108 USD</td></tr></table>` : ''}`
+        </td><td><span id="ContentPlaceHolder1_gvAvailablePackages_lblName_0">Premium 6 Months</span></td><td>108 USD</td></tr></table>` : ''}`
 }
 
 function clientFor(responses: string[], logs?: string[]) {

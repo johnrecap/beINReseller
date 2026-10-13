@@ -39,7 +39,7 @@ import {
     CheckCardForSignalResult
 } from './types';
 import { encodeSuccessfulControls } from './webforms-form';
-import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
+import { canonicalJson, readProviderPrice, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
 import { assertPreparedRenewal, buildPromoSubmission, describeRenewalCartFooter, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, PromoValidationError, RenewalSummaryConflict, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase, type RenewalSummaryStage } from './renewal-purchase-guard';
 import {
     scanSoldPackagesReport as runSoldPackagesReportScan,
@@ -321,6 +321,7 @@ export class HttpClientService {
             throw new Error('PACKAGE_QUOTE_CHANGED');
     }
     private preparedRenewal: PreparedRenewalPurchase | null = null;
+    private packageReadEvidence: LoadPackagesResult['readEvidence'];
     private lastInstallmentPageHtml: string | null = null;  // Stored by loadInstallment for payInstallment
 
     // Session tracking for persistent login
@@ -654,68 +655,47 @@ export class HttpClientService {
      */
     private extractPackagesFromHtml($: cheerio.CheerioAPI, logPrefix: string = ''): AvailablePackage[] {
         const packages: AvailablePackage[] = [];
-
         const table = $('table[id="ContentPlaceHolder1_gvAvailablePackages"]');
+        this.packageReadEvidence = { nameColumn: -1, priceColumn: -1, rowCount: 0, reasonCode: 'PACKAGE_TABLE_UNVERIFIED' };
         if (table.length !== 1) return [];
         const packageRows = table.find('tr').filter((_index, row) => $(row).closest('table')[0] === table[0]);
+        const headers = $(packageRows[0]).children('th').map((_, cell) => $(cell).text().replace(/\s+/g, ' ').trim().toLowerCase()).get();
+        const nameColumn = headers.indexOf('package name');
+        const priceColumn = headers.indexOf('full price');
+        this.packageReadEvidence = { nameColumn, priceColumn, rowCount: Math.max(0, packageRows.length - 1), reasonCode: 'PACKAGE_COLUMNS_UNVERIFIED' };
+        if (headers.length < 3 || nameColumn < 0 || priceColumn < 0 ||
+            headers.filter(header => header === 'package name').length !== 1 ||
+            headers.filter(header => header === 'full price').length !== 1) return [];
         let invalid = false;
-
         console.log(`[HTTP] Found ${packageRows.length} package rows${logPrefix ? ` ${logPrefix}` : ''}`);
-
         packageRows.each((index, row) => {
+            if (index === 0) return;
             const $row = $(row);
-
-            // CRITICAL FIX: Skip rows that contain a table (nested/container rows)
-            if ($row.find('table').length > 0) {
+            const cells = $row.children('td');
+            if (cells.length !== headers.length || cells.is('[colspan],[rowspan]') || $row.find('table').length > 0) {
                 invalid = true;
-                console.log(`[HTTP] Skipping row ${index} - contains nested table (container row)`);
                 return;
             }
-
             const checkbox = $row.find('input[type="checkbox"]');
-
-            // CRITICAL FIX 2: Skip rows with multiple checkboxes (container row)
-            if (checkbox.length > 1) {
+            if (checkbox.length !== 1 || cells.eq(nameColumn).find('input[type="checkbox"]').length ||
+                cells.eq(priceColumn).find('input[type="checkbox"]').length) {
                 invalid = true;
-                console.log(`[HTTP] Skipping row ${index} - contains ${checkbox.length} checkboxes (container row)`);
                 return;
             }
-
-            if (checkbox.length === 1) {
-                const checkboxName = checkbox.attr('name') || '';
-                const checkboxPostKey = checkboxName;
-
-                console.log(`[HTTP] Checkbox ${index} found in available-packages grid`);
-
-                // Extract package name
-                const nameSpan = $row.find('span[id*="lblName"]');
-                const name = nameSpan.text().trim();
-                if (nameSpan.length !== 1 || !name || !checkboxPostKey || checkbox.is(':disabled')) {
-                    invalid = true;
-                    return;
-                }
-
-                // Extract price (look for USD pattern)
-                // NOTE: beIN formats prices with commas (e.g., "1,200 USD")
-                // so we must include commas in the digit capture group and strip them before parsing
-                const rowText = $row.text();
-                const priceMatches = [...rowText.matchAll(/(?:^|[^\d.])([\d,]+(?:\.\d+)?)\s*([A-Z]{3})\b/g)];
-                const price = priceMatches.length === 1 ? Number(priceMatches[0][1].replace(/,/g, '')) : 0;
-
-                if (price > 0) {
-                    packages.push({
-                        index,
-                        name,
-                        price,
-                        currency: priceMatches[0][2],
-                        checkboxValue: checkboxPostKey
-                    });
-                    console.log(`[HTTP] Package ${index}: "${name}" - ${price} ${priceMatches[0][2]}${logPrefix ? ` ${logPrefix}` : ''}`);
-                } else invalid = true;
+            const nameCell = cells.eq(nameColumn);
+            const nameSpan = nameCell.find('span[id*="lblName"]');
+            const name = nameSpan.text().trim();
+            const checkboxValue = checkbox.attr('name') || '';
+            const amount = readProviderPrice(cells.eq(priceColumn).text());
+            if (nameSpan.length !== 1 || !name || name !== nameCell.text().trim() || !checkboxValue ||
+                checkbox.is(':disabled') || checkbox.parents('fieldset[disabled]').length || !amount) {
+                invalid = true;
+                return;
             }
+            packages.push({ index, name, ...amount, checkboxValue });
         });
-
         if (new Set(packages.map(pkg => pkg.checkboxValue)).size !== packages.length) invalid = true;
+        this.packageReadEvidence.reasonCode = invalid ? 'PACKAGE_ROW_UNVERIFIED' : packages.length ? 'READY' : 'NO_PACKAGE_ROWS';
         return invalid ? [] : packages;
     }
 
@@ -1737,6 +1717,7 @@ export class HttpClientService {
      * @param smartcardType - 'CISCO' or 'IRDETO' (default: CISCO) - determines which dropdown option to select
      */
     async loadPackages(cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
+        this.packageReadEvidence = undefined;
         this.renewalSelection = null;
         this.preparedRenewal = null;
         console.log(`[HTTP] Loading packages (smartcard type: ${smartcardType})`);
@@ -1979,7 +1960,8 @@ export class HttpClientService {
                 return {
                     success: false,
                     packages: [],
-                    error: 'No packages available for this card'
+                    error: 'No packages available for this card',
+                    readEvidence: this.packageReadEvidence
                 };
             }
 
@@ -2003,7 +1985,7 @@ export class HttpClientService {
                 success: true,
                 packages,
                 stbNumber: this.currentStbNumber || undefined,
-                dealerBalance  // NEW: For balance verification
+                dealerBalance, readEvidence: this.packageReadEvidence
             };
 
         } catch (error: unknown) {
@@ -2132,6 +2114,7 @@ export class HttpClientService {
         this.renewalSelection = null;
         this.preparedRenewal = null;
         let providerPostSent = false;
+        this.packageReadEvidence = undefined;
         console.log(`[HTTP] ${removing ? 'Removing' : 'Applying'} promo code`);
         const fail = (failureStage: NonNullable<LoadPackagesResult['failureStage']>, failureReason: string,
             stateField?: keyof HiddenFields): LoadPackagesResult => {
@@ -2139,7 +2122,7 @@ export class HttpClientService {
                 action: removing ? 'REMOVE' : 'APPLY', failureStage, failureReason, stateField, providerPostSent,
             }));
             return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
-                failureStage, failureReason, providerPostSent };
+                failureStage, failureReason, providerPostSent, readEvidence: this.packageReadEvidence };
         };
 
         try {
@@ -2230,7 +2213,8 @@ export class HttpClientService {
             return {
                 success: true,
                 packages,
-                stbNumber: this.currentStbNumber || undefined
+                stbNumber: this.currentStbNumber || undefined,
+                readEvidence: this.packageReadEvidence
             };
 
         } catch (error) {

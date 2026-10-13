@@ -1,11 +1,13 @@
 import * as cheerio from 'cheerio'
-import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote'
+import { canonicalJson, readProviderPrice, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote'
 import type { HiddenFields } from './types'
 import { collectSuccessfulControls, encodeSuccessfulControls } from './webforms-form'
 
 export interface RenewalSummaryEvidence {
     packageName: string
     price: number
+    priceText?: string
+    priceDecimal?: string
     currency: string
     cardNumber: string
     promoCode: string | null
@@ -153,12 +155,10 @@ export function readStbFields(html: string, stb: string, requireEcho = false): R
     return { [first.attr('name')!]: stb, [second.attr('name')!]: stb }
 }
 
-function money(text: string): { price: number; currency: string } {
-    const match = text.trim().match(/^(\d+|\d{1,3}(?:,\d{3})+)(\.\d{1,2}0*)?\s*([A-Z]{3})$/)
-    if (!match) throw conflict()
-    const price = Number((match[1] + (match[2] || '')).replace(/,/g, ''))
-    if (!Number.isFinite(price) || price <= 0 || !Number.isSafeInteger(Math.round(price * 100))) throw conflict()
-    return { price, currency: match[3] }
+function money(text: string) {
+    const amount = readProviderPrice(text)
+    if (!amount) throw conflict()
+    return amount
 }
 
 /** Only CISCO's observed 10 -> 9 mapping removes a digit. Other supported types
@@ -335,7 +335,7 @@ export function readRenewalSummary(html: string, expected: QuotePackage, cardNum
         let totalAmount: ReturnType<typeof money>
         try { totalAmount = money((trailingEmpty ? total.eq(1) : total.last()).text()) }
         catch { return reject('CART_TOTAL_AMOUNT_UNVERIFIED') }
-        if (totalAmount.price !== amount.price || totalAmount.currency !== amount.currency) {
+        if (totalAmount.priceDecimal !== amount.priceDecimal || totalAmount.currency !== amount.currency) {
             reject('CART_TOTAL_MISMATCH')
         }
     }
@@ -345,7 +345,7 @@ export function readRenewalSummary(html: string, expected: QuotePackage, cardNum
     try { displayedTotal = money(totalLabels.text()) }
     catch { return reject('CART_DISPLAYED_TOTAL_UNVERIFIED') }
     if (!sameQuotedPackage({ name: packageName, ...amount }, expected) ||
-        displayedTotal.price !== amount.price || displayedTotal.currency !== amount.currency) reject('CART_QUOTE_MISMATCH')
+        displayedTotal.priceDecimal !== amount.priceDecimal || displayedTotal.currency !== amount.currency) reject('CART_QUOTE_MISMATCH')
     let identity: ReturnType<typeof readProviderCardIdentity>
     try { identity = readProviderCardIdentity(html, cardNumber, smartcardType) }
     catch { return reject('CART_CARD_IDENTITY_UNVERIFIED') }

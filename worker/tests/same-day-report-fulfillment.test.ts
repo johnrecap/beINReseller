@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { loadIsolatedModule } from '../../tests/helpers/promo-dispatch-harness'
 import type { SoldReportSafeRow, SoldReportScanResult } from '../src/http/sold-packages-report'
+import * as price from '../../shared/operations/provider-price'
+import * as identity from '../src/lib/report-package-identity'
 
 const { cairoReportDay, correlateSameDayReport } = loadIsolatedModule<{
     cairoReportDay: (at: Date) => string
@@ -13,6 +15,7 @@ const { cairoReportDay, correlateSameDayReport } = loadIsolatedModule<{
 }>('worker/src/lib/same-day-report-fulfillment.ts', {
     '@prisma/client': { Prisma: {} }, './fulfillment-baseline': {},
     './fulfillment-finalization': {}, './prisma': {},
+    '../../../shared/operations/provider-price': price, './report-package-identity': identity,
 })
 
 const selected = { name: 'Premium 6 Months + 20% OFF (6 Months)', price: 86.4, currency: 'USD' }

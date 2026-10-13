@@ -1703,7 +1703,7 @@ async function handleStartRenewalHttp(
     const cachedPackageData = flowVersion === 2 ? null : await getCachedPackages(cardNumber);
     const cachedStb = flowVersion === 2 ? null : cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
 
-    let packagesResult: { success: boolean; packages: AvailablePackage[]; stbNumber?: string; dealerBalance?: number; error?: string };
+    let packagesResult: LoadPackagesResult;
 
     if (cachedStb) {
         // STB is cached — only run loadPackages (skip checkCard entirely)
@@ -1769,6 +1769,9 @@ async function handleStartRenewalHttp(
         console.log(`[HTTP] Card/package preparation completed in ${Date.now() - startTime}ms`);
     }
 
+    console.log('[HTTP] Package columns read:', JSON.stringify({ operationId,
+        stage: 'LOAD_PACKAGES', quoteRevision: 0, ...packagesResult.readEvidence,
+        success: packagesResult.success, packageCount: packagesResult.packages.length }));
     if (!packagesResult.success) {
         throw new Error(packagesResult.error || 'Failed to load packages');
     }
@@ -1799,6 +1802,8 @@ async function handleStartRenewalHttp(
         index: pkg.index,
         name: pkg.name,
         price: pkg.price,
+        priceText: pkg.priceText,
+        priceDecimal: pkg.priceDecimal,
         currency: pkg.currency || 'USD',
         checkboxSelector: pkg.checkboxValue, // Keep for compatibility (backend)
         checkboxValue: pkg.checkboxValue,    // Add for Flutter compatibility
@@ -1976,6 +1981,9 @@ async function handleApplyPromoHttp(
         } : undefined);
         await heartbeat.assertCurrent();
         const quoteReady = result.success && result.packages.length > 0;
+        console.log('[HTTP] Package columns read:', JSON.stringify({ operationId,
+            stage: promoAction === 'REMOVE' ? 'REMOVE_PROMO' : 'APPLY_PROMO', quoteRevision: revision,
+            ...result.readEvidence, success: result.success, packageCount: result.packages.length }));
         if (quoteReady) {
             await heartbeat.assertCurrent();
             if (current.renewalFlowVersion === 2) client.setRenewalQuoteRevision(revision);
@@ -3356,8 +3364,12 @@ async function verifySameDayRenewal(input: {
         operationId: current.id });
     if (match.outcome === 'MATCHED' && input.providerPaymentState === 'NOT_CHARGED') {
         match = { outcome: 'PROOF_CONFLICT', reasonCode: 'PROVIDER_REJECTION_REPORT_CONFLICT',
-            row: null, candidateCount: match.candidateCount };
+            row: null, candidateCount: match.candidateCount, diagnostics: match.diagnostics };
     }
+    console.log('[HTTP] Same-day report match:', JSON.stringify({ operationId: current.id,
+        stage: 'SOLD_REPORT', quoteRevision: quoteData(current.responseData).quoteRevision,
+        outcome: match.outcome, reasonCode: match.reasonCode, candidateCount: match.candidateCount,
+        ...match.diagnostics }));
     const attempt = await recordSameDayAttempt({ operationId: current.id,
         outcome: match.outcome, reasonCode: match.reasonCode, report,
         candidateCount: match.candidateCount, candidateInvoiceNo: match.row?.invoiceNo || null,

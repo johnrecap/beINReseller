@@ -681,7 +681,7 @@ test('promo consent survives preparation only when every response retains that c
 
 function promoResponse(name: string, amount: string, code: string) {
     const identity = observedCart(name, amount, code).replace(/<fieldset>[\s\S]*?<\/fieldset>/, '')
-    return hidden + identity + `<table id="ContentPlaceHolder1_gvAvailablePackages"><tr><td><input type="checkbox" name="promo-row"></td><td><span id="pkg_lblName">${name}</span></td><td>${amount} USD</td></tr></table>`
+    return hidden + identity + `<table id="ContentPlaceHolder1_gvAvailablePackages"><tr><th></th><th>Package Name</th><th>Full Price</th></tr><tr><td><input type="checkbox" name="promo-row"></td><td><span id="pkg_lblName">${name}</span></td><td>${amount} USD</td></tr></table>`
 }
 
 for (const [label, response, successful] of [
@@ -825,7 +825,7 @@ test('matching simulated purchase needs a new report invoice and the exact activ
 test('available packages never include another grid even when it has more rows', () => {
     const row = (name: string) => `<tr class="GridRow"><td><input type="checkbox" name="${name}"></td><td><span id="${name}_lblName">${name} 6 Months</span></td><td>86.40 USD</td></tr>`
     const client = Object.create(httpPrototype())
-    const parsed = client.extractPackagesFromHtml(cheerio.load(`<table id="ContentPlaceHolder1_gvAvailablePackages">${row('Premium')}</table><table>${row('Other')}${row('Third')}</table>`))
+    const parsed = client.extractPackagesFromHtml(cheerio.load(`<table id="ContentPlaceHolder1_gvAvailablePackages"><tr><th></th><th>Package Name</th><th>Full Price</th></tr>${row('Premium')}</table><table>${row('Other')}${row('Third')}</table>`))
     assert.deepEqual(Array.from(parsed, (pkg: { name: string }) => pkg.name), ['Premium 6 Months'])
 })
 

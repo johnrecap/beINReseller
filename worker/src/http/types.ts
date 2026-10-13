@@ -50,6 +50,8 @@ export interface AvailablePackage {
     index: number;
     name: string;
     price: number;
+    priceText?: string;
+    priceDecimal?: string;
     checkboxValue: string; // The actual form value to submit
     currency?: string; // Older cached USD quotes may omit this field.
 }
@@ -63,6 +65,7 @@ export interface LoadPackagesResult {
     failureStage?: 'PRE_SUBMIT' | 'PROVIDER_REJECTED' | 'POST_RESPONSE_UNVERIFIED';
     failureReason?: string;
     providerPostSent?: boolean;
+    readEvidence?: { nameColumn: number; priceColumn: number; rowCount: number; reasonCode: string };
 }
 
 export interface PurchaseResult {

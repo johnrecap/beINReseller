@@ -66,6 +66,16 @@ test('explicit removal matches pending null while the previously applied code re
     } }, 3, undefined, 'REMOVE'), true)
 })
 
+test('failed promo retains its diagnostic reason without treating a pre-submit failure as a provider request', () => {
+    const failed = promoResultData({}, [], 1, 'DYNAMIC', false, {
+        error: 'PROMO_REFRESH_UNVERIFIED', failureStage: 'PRE_SUBMIT',
+        failureReason: 'WEBFORMS_STATE_MISMATCH', providerPostSent: false,
+    })
+    assert.equal(failed.quoteState, 'FAILED')
+    assert.equal('promoFailureReason' in failed && failed.promoFailureReason, 'WEBFORMS_STATE_MISMATCH')
+    assert.equal('promoProviderPostSent' in failed && failed.promoProviderPostSent, false)
+})
+
 test('promo refresh preserves IRDETO context, fences both requests and removes only by explicit action', async () => {
     const calls: unknown[] = []
     const client = {

@@ -33,6 +33,13 @@ export class RenewalSummaryConflict extends Error {
     }
 }
 
+export class PromoValidationError extends Error {
+    constructor(readonly reason: string, readonly stateField?: keyof HiddenFields) {
+        super('PROMO_REFRESH_UNVERIFIED')
+        this.name = 'PromoValidationError'
+    }
+}
+
 /** Bounded structural evidence for an unsupported provider footer. Never log
  * response HTML, cell text, prices, serials, promo values or WebForms state. */
 export function describeRenewalCartFooter(html: string) {
@@ -180,26 +187,46 @@ export function buildPromoSubmission(html: string, state: HiddenFields, cardNumb
     const promoInput = form.find(`input[name="${promoName}"]`)
     const button = form.find(`input[name="${buttonName}"]`)
     if ((!promoCode && !removing) || (removing && promoCode !== '') ||
-        promoCode !== promoCode.toUpperCase() || forms.length !== 1 ||
-        promoInput.length !== 1 || promoInput.is(':disabled') ||
-        button.length !== 1 || button.attr('type')?.toLowerCase() !== 'submit' ||
-        !button.attr('value') || button.is(':disabled') ||
-        form.find('select[name="ctl00$ContentPlaceHolder1$ddlType"]').length !== 1 ||
-        form.find('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').length !== 1 ||
-        form.find('table[id="ContentPlaceHolder1_gvAvailablePackages"]').length !== 1 ||
-        $('table[id="ContentPlaceHolder1_gvPackagesCart"]').length ||
-        form.find('table[id="ContentPlaceHolder1_gvAvailablePackages"] input[type="checkbox"]:checked').length) {
-        throw new Error('PROMO_REFRESH_UNVERIFIED')
+        promoCode !== promoCode.toUpperCase()) throw new PromoValidationError('PROMO_CODE_INVALID')
+    if (forms.length !== 1) throw new PromoValidationError('FORM_MISSING_OR_AMBIGUOUS')
+    if (promoInput.length !== 1 || promoInput.is(':disabled')) {
+        throw new PromoValidationError('PROMO_INPUT_MISSING_OR_UNAVAILABLE')
     }
-    readProviderCardIdentity(html, cardNumber, smartcardType)
+    if (
+        button.length !== 1 || button.attr('type')?.toLowerCase() !== 'submit' ||
+        !button.attr('value') || button.is(':disabled')) {
+        throw new PromoValidationError('PROMO_SUBMIT_MISSING_OR_UNAVAILABLE')
+    }
+    if (
+        form.find('select[name="ctl00$ContentPlaceHolder1$ddlType"]').length !== 1 ||
+        form.find('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').length !== 1) {
+        throw new PromoValidationError('CARD_CONTROLS_MISSING_OR_AMBIGUOUS')
+    }
+    if (form.find('table[id="ContentPlaceHolder1_gvAvailablePackages"]').length !== 1) {
+        throw new PromoValidationError('PACKAGE_GRID_MISSING_OR_AMBIGUOUS')
+    }
+    if ($('table[id="ContentPlaceHolder1_gvPackagesCart"]').length) throw new PromoValidationError('CART_NOT_EMPTY')
+    if (form.find('table[id="ContentPlaceHolder1_gvAvailablePackages"] input[type="checkbox"]:checked').length) {
+        throw new PromoValidationError('PACKAGE_ALREADY_SELECTED')
+    }
+    try { readProviderCardIdentity(html, cardNumber, smartcardType) }
+    catch { throw new PromoValidationError('CARD_CONTEXT_MISMATCH') }
     if (!state.__VIEWSTATE || !state.__EVENTVALIDATION ||
         form.find('input[name="__VIEWSTATE"]').length !== 1 ||
-        form.find('input[name="__EVENTVALIDATION"]').length !== 1 ||
-        Object.entries(state).some(([name, value]) => {
-            const fields = form.find(`input[name="${name}"]`)
-            return fields.length !== 1 || String(fields.val() ?? '') !== value
-        })) {
-        throw new Error('PROMO_REFRESH_UNVERIFIED')
+        form.find('input[name="__EVENTVALIDATION"]').length !== 1) {
+        throw new PromoValidationError('WEBFORMS_REQUIRED_STATE_MISSING')
+    }
+    const optionalState = new Set<keyof HiddenFields>(['__VIEWSTATEGENERATOR', '__LASTFOCUS', '__EVENTTARGET', '__EVENTARGUMENT'])
+    const knownState = new Set<keyof HiddenFields>(['__VIEWSTATE', '__EVENTVALIDATION', ...optionalState])
+    for (const [name, value] of Object.entries(state)) {
+        const fields = form.find(`input[name="${name}"]`)
+        const fieldName = name as keyof HiddenFields
+        // extractHiddenFields supplies empty defaults for optional controls.
+        // Their absence is valid; never add them to the native form's POST.
+        if (fields.length === 0 && value === '' && optionalState.has(fieldName)) continue
+        if (fields.length !== 1 || String(fields.val() ?? '') !== value) {
+            throw new PromoValidationError('WEBFORMS_STATE_MISMATCH', knownState.has(fieldName) ? fieldName : undefined)
+        }
     }
     const controls = collectSuccessfulControls(html, { activatedSubmitName: buttonName,
         overrides: { [promoName]: promoCode, __EVENTTARGET: '', __EVENTARGUMENT: '' } })
@@ -207,7 +234,7 @@ export function buildPromoSubmission(html: string, state: HiddenFields, cardNumb
     if (post.getAll(promoName).length !== 1 || post.getAll(buttonName).length !== 1 ||
         post.has('ctl00$ContentPlaceHolder1$btnAddToCart') ||
         post.has('ctl00$ContentPlaceHolder1$btnSell') ||
-        post.has('ctl00$ContentPlaceHolder1$BtnPay')) throw new Error('PROMO_REFRESH_UNVERIFIED')
+        post.has('ctl00$ContentPlaceHolder1$BtnPay')) throw new PromoValidationError('PROMO_POST_CONTROLS_UNVERIFIED')
     return post
 }
 

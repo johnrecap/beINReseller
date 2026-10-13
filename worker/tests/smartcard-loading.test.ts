@@ -19,23 +19,36 @@ function form(label: string, value: string, serial = '7', confirm = false, packa
         <span id="ContentPlaceHolder1_gvAvailablePackages_lblName_0">Premium 6 Months</span></td><td>108 USD</td></tr></table>` : ''}`
 }
 
-function clientFor(responses: string[]) {
+function clientFor(responses: string[], logs?: string[]) {
     const posts: URLSearchParams[] = []
+    const next = () => { assert.ok(responses.length, 'unexpected provider request'); return { data: responses.shift()! } }
+    const transport = { get: async () => next(), post: async (_url: string, body: string) => {
+        posts.push(new URLSearchParams(body)); return next()
+    } }
     const dependencies: Record<string, unknown> = {
         cheerio, './renewal-purchase-guard': guard, '../../../shared/operations/package-quote': quote,
     }
     for (const name of ['axios', 'axios-retry', 'axios-cookiejar-support', 'tough-cookie', 'https', '../lib/prisma',
         '../utils/totp-generator', '../utils/proxy-manager', 'http-cookie-agent/http', 'socks-proxy-agent', 'https-proxy-agent',
         './webforms-form', './sold-packages-report', '../../../shared/operations/renewal-fulfillment-config']) dependencies[name] = {}
+    dependencies.axios = { default: { create: () => transport } }
+    dependencies['axios-retry'] = { default: () => {} }
+    dependencies['axios-cookiejar-support'] = { wrapper: (value: unknown) => value }
+    class SyntheticCookieJar {
+        static async deserialize() { return new SyntheticCookieJar() }
+        async serialize() { return { cookies: [] } }
+    }
+    dependencies['tough-cookie'] = { CookieJar: SyntheticCookieJar }
     const prototype = loadIsolatedModule<{ HttpClientService: { prototype: object } }>(
-        'worker/src/http/HttpClientService.ts', dependencies).HttpClientService.prototype
-    const next = () => { assert.ok(responses.length, 'unexpected provider request'); return { data: responses.shift()! } }
+        'worker/src/http/HttpClientService.ts', dependencies, [], {}, logs ? { console: {
+            log: (...parts: unknown[]) => logs.push(parts.join(' ')), info: (...parts: unknown[]) => logs.push(parts.join(' ')),
+            warn: (...parts: unknown[]) => logs.push(parts.join(' ')), error: (...parts: unknown[]) => logs.push(parts.join(' ')),
+        } } : {}).HttpClientService.prototype
     const client = Object.assign(Object.create(prototype), {
         config: { renewUrl: '/renew', checkUrl: '/check' }, currentStbNumber: null,
+        accountId: 'synthetic-account', jar: new SyntheticCookieJar(),
         buildFullUrl: (path: string) => `https://synthetic.invalid${path}`, buildPostHeaders: () => ({}),
-        axios: { get: async () => next(), post: async (_url: string, body: string) => {
-            posts.push(new URLSearchParams(body)); return next()
-        } },
+        axios: transport,
     })
     // The test controls authentication independently; all HTTP is mocked.
     client.checkForSessionExpiry = (html: string) => html.includes('NLogin.aspx') ? 'Session expired' : null
@@ -74,6 +87,81 @@ test('live-shaped disabled confirmation controls preserve identity and all fourt
     assert.equal(h.posts[2].has(field + 'tbSerial1'), false)
     assert.equal(h.posts[2].get('__VIEWSTATE'), 'synthetic-confirm')
     assert.equal(h.posts.some(post => [...post.keys()].some(key => /btnSell|BtnPay|btnAdd/i.test(key))), false)
+})
+
+for (const crossWorker of [false, true]) test(`actual package loader can submit a changing promo ${crossWorker ? 'after worker handoff' : 'on the same worker'} without inventing absent optional hidden controls`, async () => {
+    const loadedForm = observedSmartcardForm('packages')
+    const promoForm = loadedForm.replace('name="ctl00$ContentPlaceHolder1$txtPromoCode" value=""',
+        'name="ctl00$ContentPlaceHolder1$txtPromoCode" value="DYNAMIC-OFFER"')
+        .replace('Together 3 Months (3 Months)', 'Together 3 Months + seasonal offer (3 Months)')
+        .replace('27&nbsp;USD', '24.30&nbsp;USD')
+    const h = clientFor([
+        ...['initial', 'selected', 'confirm'].map(stage => observedSmartcardForm(stage as Parameters<typeof observedSmartcardForm>[0])),
+        loadedForm, promoForm,
+    ])
+    assert.equal((await h.client.loadPackages('7000000001', 'CISCO')).success, true)
+
+    const target = crossWorker ? clientFor([promoForm]) : h
+    if (crossWorker) await target.client.importSession(JSON.parse(JSON.stringify(await h.client.exportSession())))
+    const result = await target.client.applyPromoCode('DYNAMIC-OFFER', '7000000001', 'CISCO')
+    assert.equal(result.success, true, result.error)
+    assert.equal(result.packages[0].name, 'Together 3 Months + seasonal offer (3 Months)')
+    assert.equal(result.packages[0].price, 24.3)
+    const allPosts = crossWorker ? [...h.posts, ...target.posts] : h.posts
+    assert.equal(allPosts.length, 4)
+    const post = allPosts[3]
+    assert.equal(post.get(field + 'btnPromoCode'), 'Submit')
+    assert.equal(post.get(field + 'txtPromoCode'), 'DYNAMIC-OFFER')
+    assert.equal(post.has('__LASTFOCUS'), false)
+    assert.equal(post.has('__VIEWSTATEGENERATOR'), false)
+    assert.equal(post.has(field + 'ddlType'), false)
+    assert.equal(post.has(field + 'tbSerial1'), false)
+    assert.equal(allPosts.some(body => [...body.keys()].some(key => /btnSell|BtnPay|btnAdd/i.test(key))), false)
+})
+
+test('promo rejects stale optional state and logs only the fixed reason and field name', async () => {
+    const logs: string[] = []
+    const h = clientFor([], logs)
+    const html = observedSmartcardForm('packages')
+    const state = h.client.extractHiddenFields(html)
+    state.__LASTFOCUS = 'PRIVATE_STALE_FOCUS'
+    h.client.currentViewState = state
+    h.client.renewalSelection = { packages: [], viewState: state, cardNumber: '7000000001',
+        smartcardType: 'CISCO', promoCode: null, formHtml: html }
+    const result = await h.client.applyPromoCode('PRIVATE_PROMO', '7000000001', 'CISCO')
+    assert.equal(result.success, false)
+    assert.equal(result.failureStage, 'PRE_SUBMIT')
+    assert.equal(result.failureReason, 'WEBFORMS_STATE_MISMATCH')
+    assert.equal(result.providerPostSent, false)
+    assert.equal(h.posts.length, 0)
+    const diagnostics = logs.filter(line => line.includes('Promo validation stopped:')).join('\n')
+    assert.match(diagnostics, /WEBFORMS_STATE_MISMATCH/)
+    assert.match(diagnostics, /__LASTFOCUS/)
+    assert.doesNotMatch(diagnostics, /PRIVATE_STALE_FOCUS|PRIVATE_PROMO|7000000001|synthetic-validation/)
+})
+
+test('promo preserves optional hidden controls when the actual page includes them', () => {
+    const h = clientFor([])
+    const html = observedSmartcardForm('packages').replace('</form>',
+        '<input id="__LASTFOCUS" name="__LASTFOCUS" value="synthetic-focus">' +
+        '<input id="__VIEWSTATEGENERATOR" name="__VIEWSTATEGENERATOR" value="synthetic-generator"></form>')
+    const state = h.client.extractHiddenFields(html)
+    const post = guard.buildPromoSubmission(html, state, '7000000001', 'CISCO', 'DYNAMIC')
+    assert.equal(post.get('__LASTFOCUS'), 'synthetic-focus')
+    assert.equal(post.get('__VIEWSTATEGENERATOR'), 'synthetic-generator')
+})
+
+for (const [label, mutate] of [
+    ['required state missing', (html: string) => html.replace(/<input id="__EVENTVALIDATION"[^>]*>/, '')],
+    ['required state changed', (html: string) => html.replace('synthetic-validation-packages', 'other-state')],
+    ['duplicate optional state', (html: string) => html.replace('</form>', '<input name="__LASTFOCUS" value=""><input name="__LASTFOCUS" value=""></form>')],
+] as const) test(`promo still rejects ${label} before its HTTP request`, () => {
+    const h = clientFor([])
+    const html = observedSmartcardForm('packages')
+    const state = h.client.extractHiddenFields(html)
+    assert.throws(() => guard.buildPromoSubmission(mutate(html), state, '7000000001', 'CISCO', 'DYNAMIC'),
+        guard.PromoValidationError)
+    assert.equal(h.posts.length, 0)
 })
 
 for (const [type, value, label, card, serial] of [

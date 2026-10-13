@@ -1987,6 +1987,12 @@ async function handleApplyPromoHttp(
         }
         console.log(`[HTTP] Promo ${promoAction} revision ${revision}: ${quoteReady ? 'QUOTE_READY' :
             result.failureStage || 'PRE_SUBMIT'}`);
+        if (!quoteReady && result.failureReason) {
+            console.warn('[HTTP] Promo quote rejected:', JSON.stringify({
+                operationId, revision, action: promoAction, reason: result.failureReason,
+                providerPostSent: result.providerPostSent === true,
+            }));
+        }
         if (quoteReady) await publish(result, heartbeat.assertCurrent);
         else await finishFailedPromo({ ...result, success: false, packages: [],
             error: result.error || 'PROMO_REFRESH_UNVERIFIED' }, heartbeat.assertCurrent);

@@ -40,7 +40,7 @@ import {
 } from './types';
 import { encodeSuccessfulControls } from './webforms-form';
 import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
-import { assertPreparedRenewal, buildPromoSubmission, describeRenewalCartFooter, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, RenewalSummaryConflict, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase, type RenewalSummaryStage } from './renewal-purchase-guard';
+import { assertPreparedRenewal, buildPromoSubmission, describeRenewalCartFooter, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, PromoValidationError, RenewalSummaryConflict, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase, type RenewalSummaryStage } from './renewal-purchase-guard';
 import {
     scanSoldPackagesReport as runSoldPackagesReportScan,
     type SoldReportScanOptions,
@@ -2133,6 +2133,14 @@ export class HttpClientService {
         this.preparedRenewal = null;
         let providerPostSent = false;
         console.log(`[HTTP] ${removing ? 'Removing' : 'Applying'} promo code`);
+        const fail = (failureStage: NonNullable<LoadPackagesResult['failureStage']>, failureReason: string,
+            stateField?: keyof HiddenFields): LoadPackagesResult => {
+            console.warn('[HTTP] Promo validation stopped:', JSON.stringify({
+                action: removing ? 'REMOVE' : 'APPLY', failureStage, failureReason, stateField, providerPostSent,
+            }));
+            return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
+                failureStage, failureReason, providerPostSent };
+        };
 
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
@@ -2140,8 +2148,7 @@ export class HttpClientService {
             if (!this.currentViewState || !previousSelection || !previousSelection.formHtml || previousSelection.cardNumber !== cardNumber ||
                 previousSelection.smartcardType !== smartcardType || (!promoCode.trim() && !removing) ||
                 canonicalJson(previousSelection.viewState) !== canonicalJson(this.currentViewState)) {
-                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
-                    failureStage: 'PRE_SUBMIT', providerPostSent: false };
+                return fail('PRE_SUBMIT', 'SELECTION_CONTEXT_UNVERIFIED');
             }
             if (removing && previousSelection.promoCode === null) {
                 this.renewalSelection = previousSelection;
@@ -2153,6 +2160,12 @@ export class HttpClientService {
             // authority for all enabled form fields in this WebForms POST.
             const promoFormData = buildPromoSubmission(previousSelection.formHtml,
                 this.currentViewState, cardNumber, smartcardType, promoCode, removing);
+
+            console.info('[HTTP] Promo submission guard passed:', JSON.stringify({
+                action: removing ? 'REMOVE' : 'APPLY',
+                optionalStateDefaultsOmitted: (['__VIEWSTATEGENERATOR', '__LASTFOCUS'] as const)
+                    .filter(name => this.currentViewState?.[name] === '' && !promoFormData.has(name)),
+            }));
 
             console.log('[HTTP] POST promo code submit...');
             await assertExecutionCurrent?.();
@@ -2171,8 +2184,7 @@ export class HttpClientService {
             const error = this.checkForErrors(promoRes.data);
             if (error) {
                 console.log('[HTTP] Promo code rejected by provider');
-                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
-                    failureStage: 'PROVIDER_REJECTED', providerPostSent };
+                return fail('PROVIDER_REJECTED', 'PROVIDER_REJECTED');
             }
 
             // Update ViewState from response
@@ -2187,14 +2199,15 @@ export class HttpClientService {
             // commercial quote change; unsupported/unchanged promo outcomes stay blocked.
             const promoInputs = $('input[name="ctl00$ContentPlaceHolder1$txtPromoCode"]');
             if (packages.length > 0) {
-                readProviderCardIdentity(promoRes.data, cardNumber, smartcardType);
+                try { readProviderCardIdentity(promoRes.data, cardNumber, smartcardType); }
+                catch { throw new PromoValidationError('RESPONSE_CARD_CONTEXT_MISMATCH'); }
                 const changed = packages.length !== previousSelection.packages.length ||
                     packages.some(pkg => !previousSelection.packages.some(old => sameQuotedPackage(pkg, old)));
-                if (!this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION ||
-                    promoInputs.length !== 1 || String(promoInputs.val()).trim() !== promoCode || !changed) {
-                    return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
-                        failureStage: 'POST_RESPONSE_UNVERIFIED', providerPostSent };
-                }
+                if (!this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION)
+                    return fail('POST_RESPONSE_UNVERIFIED', 'RESPONSE_WEBFORMS_STATE_MISSING');
+                if (promoInputs.length !== 1 || String(promoInputs.val()).trim() !== promoCode)
+                    return fail('POST_RESPONSE_UNVERIFIED', 'RESPONSE_PROMO_ECHO_MISMATCH');
+                if (!changed) return fail('POST_RESPONSE_UNVERIFIED', 'RESPONSE_QUOTE_UNCHANGED');
             }
 
             // Check if promo code resulted in empty packages (User Requirement)
@@ -2205,17 +2218,10 @@ export class HttpClientService {
                 const promoError = $('[id*="lblError"], .error, span[style*="red"]').text().trim();
                 if (promoError) {
                     console.log('[HTTP] Promo response contained an error');
-                    return {
-                        success: false,
-                        packages: [],
-                        error: 'PROMO_REFRESH_UNVERIFIED',
-                        failureStage: 'PROVIDER_REJECTED',
-                        providerPostSent
-                    };
+                    return fail('PROVIDER_REJECTED', 'PROVIDER_REJECTED');
                 }
 
-                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
-                    failureStage: 'POST_RESPONSE_UNVERIFIED', providerPostSent };
+                return fail('POST_RESPONSE_UNVERIFIED', 'RESPONSE_PACKAGES_MISSING');
             }
 
             console.log(`[HTTP] ✅ Loaded ${packages.length} packages with promo code`);
@@ -2227,10 +2233,11 @@ export class HttpClientService {
                 stbNumber: this.currentStbNumber || undefined
             };
 
-        } catch {
+        } catch (error) {
             console.error(`[HTTP] Promo ${removing ? 'removal' : 'application'} failed at ${providerPostSent ? 'POST_RESPONSE_UNVERIFIED' : 'PRE_SUBMIT'}`);
-            return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED',
-                failureStage: providerPostSent ? 'POST_RESPONSE_UNVERIFIED' : 'PRE_SUBMIT', providerPostSent };
+            return fail(providerPostSent ? 'POST_RESPONSE_UNVERIFIED' : 'PRE_SUBMIT',
+                error instanceof PromoValidationError ? error.reason : 'UNEXPECTED_FAILURE',
+                error instanceof PromoValidationError ? error.stateField : undefined);
         }
     }
 

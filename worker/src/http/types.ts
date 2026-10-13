@@ -61,6 +61,7 @@ export interface LoadPackagesResult {
     dealerBalance?: number;  // Dealer's current credit balance for verification
     error?: string;
     failureStage?: 'PRE_SUBMIT' | 'PROVIDER_REJECTED' | 'POST_RESPONSE_UNVERIFIED';
+    failureReason?: string;
     providerPostSent?: boolean;
 }
 

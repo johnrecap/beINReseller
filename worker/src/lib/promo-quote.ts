@@ -20,11 +20,12 @@ export function isCurrentPromo(operation: { status: string; responseData: unknow
 
 export function promoResultData(previous: unknown, packages: readonly QuotePackage[], revision: number,
     promoCode: string | null, success: boolean,
-    failure?: Pick<LoadPackagesResult, 'error' | 'failureStage' | 'providerPostSent'>) {
+    failure?: Pick<LoadPackagesResult, 'error' | 'failureStage' | 'failureReason' | 'providerPostSent'>) {
     return success ? readyPackageQuote(previous, packages, revision, promoCode)
         : { ...quoteData(previous), quoteRevision: revision, quoteState: 'FAILED' as const,
             refreshing: false, promoApplied: false, error: failure?.error || 'PROMO_REFRESH_FAILED',
             promoFailureStage: failure?.failureStage || 'PRE_SUBMIT',
+            ...(failure?.failureReason ? { promoFailureReason: failure.failureReason } : {}),
             promoProviderPostSent: failure?.providerPostSent === true }
 }
 

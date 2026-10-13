@@ -194,6 +194,84 @@ test('a compact Sell confirmation with the same offer proceeds to receiver entry
 const liveSellFooter = '<tr><td colspan="2">Remaining<div>* Money due if any will be added to the current package as extended validity</div></td><td>86.40 USD</td><td></td></tr>'
 const sellWithFooter = (footer: string) => compactSellSummary().replace('</table>', `${footer}</table>`)
 
+// Offline Add variants reuse known footer semantics. The production promo Add
+// response body was not captured, so these are not claimed as its exact markup.
+const promoQuote = { ...selected, name: 'Together 6 Months + 20% OFF (6 Months)', price: 43.2,
+    quoteRevision: 1, packageKey: '1.0', appliedPromoCode: 'DYNAMIC' }
+const promoSummary = () => summary(promoQuote.name, '43.20 USD').replace('txtPromoCode" value=""', 'txtPromoCode" value="DYNAMIC"')
+const addWithFooter = (footer: string) => promoSummary().replace(/<tr><td colspan="2">Remaining[\s\S]*?<\/tr>/, footer)
+const promoPurchaseClient = (add: string) => {
+    const h = purchaseClient([add, promoSummary(), promoSummary()])
+    h.client.renewalSelection.packages = [promoQuote]
+    h.client.renewalSelection.promoCode = 'DYNAMIC'
+    return h
+}
+
+test('promo Add with a wrapped Remaining label preserves the selected offer before Sell', async () => {
+    const footer = '<tr><td colspan="2"><span>Remaining</span><div>* Money due if any will be added to the current package as extended validity</div></td><td><div>43.20USD</div></td></tr>'
+    const h = promoPurchaseClient(addWithFooter(footer))
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.awaitingConfirm, true)
+    assert.equal(result.packageEvidence.packageName, promoQuote.name)
+    assert.equal(result.packageEvidence.price, 43.2)
+    assert.equal(h.posts.length, 3)
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') || post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+for (const [label, footer] of [
+    ['known middle amount and empty tail', liveSellFooter.replace('86.40', '43.20')],
+    ['leading empty selection cell', '<tr><td></td><td><span>Total Amount:</span></td><td>43.20 USD</td></tr>'],
+    ['wrapped total label', '<tr><td colspan="2"><span>Total Amount:</span></td><td>43.20 USD</td></tr>'],
+] as const) test(`promo Add accepts ${label} only after exact quote validation`, async (t) => {
+    const info: string[] = []
+    t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
+    const h = promoPurchaseClient(addWithFooter(footer))
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.awaitingConfirm, true)
+    assert.equal(h.posts.length, 3)
+    const accepted = info.filter(line => line.startsWith('[HTTP] ADD quote guard passed:'))
+    assert.equal(accepted.length, 1)
+    assert.match(accepted[0], /"quoteRevision":1/)
+    for (const secret of [fullCard, providerCard, promoQuote.name, '43.20', 'DYNAMIC']) {
+        assert.equal(accepted[0].includes(secret), false)
+    }
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') || post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+const promoMiddleFooter = liveSellFooter.replace('86.40', '43.20')
+for (const [label, page] of [
+    ['wrong package at the same price', addWithFooter(promoMiddleFooter).replace(promoQuote.name, 'Together 12 Months + 20% OFF (12 Months)')],
+    ['wrong footer amount', addWithFooter(promoMiddleFooter.replace('43.20 USD</td><td></td>', '54 USD</td><td></td>'))],
+    ['extra trailing package', addWithFooter(promoMiddleFooter.replace('<td></td></tr>', '<td>Extra package</td></tr>'))],
+    ['extra trailing selection', addWithFooter(promoMiddleFooter.replace('<td></td></tr>', '<td><input name="extra" type="checkbox"></td></tr>'))],
+    ['different promo', addWithFooter(promoMiddleFooter).replace('txtPromoCode" value="DYNAMIC"', 'txtPromoCode" value="OTHER"')],
+    ['different currency', addWithFooter(promoMiddleFooter).replaceAll('USD', 'EUR')],
+] as const) test(`promo Add rejects ${label} before Sell`, async (t) => {
+    const info: string[] = []
+    t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
+    const h = promoPurchaseClient(page)
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.success, false)
+    assert.equal(result.selectionFailure?.stage, 'ADD')
+    assert.equal(h.posts.length, 1)
+    assert.equal(info.some(line => line.startsWith('[HTTP] ADD quote guard passed:')), false)
+})
+
+test('unsupported Add footer logs bounded structure without package, price, promo or card values', async (t) => {
+    const warn: string[] = []
+    t.mock.method(console, 'warn', (...args: unknown[]) => { warn.push(args.map(String).join(' ')) })
+    const h = promoPurchaseClient(addWithFooter(promoMiddleFooter.replace('Remaining', 'PRIVATE_SUBSCRIBER_NAME')))
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.selectionFailure?.reason, 'CART_TOTAL_ROW_UNVERIFIED')
+    assert.equal(h.posts.length, 1)
+    const diagnostic = warn.filter(line => line.startsWith('[HTTP] ADD cart footer structure:'))
+    assert.equal(diagnostic.length, 1)
+    assert.match(diagnostic[0], /"layout":"MIDDLE_AMOUNT_EMPTY_TAIL"/)
+    for (const secret of [fullCard, providerCard, promoQuote.name, '43.20', 'DYNAMIC', 'PRIVATE_SUBSCRIBER_NAME']) {
+        assert.equal(diagnostic[0].includes(secret), false)
+    }
+})
+
 test('diagnosed three-cell Sell footer logs acceptance and prepares receiver entry without OK or Pay', async (t) => {
     const info: string[] = []
     t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })

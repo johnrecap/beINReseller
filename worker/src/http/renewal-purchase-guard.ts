@@ -306,24 +306,22 @@ export function readRenewalSummary(html: string, expected: QuotePackage, cardNum
     catch { return reject('CART_ITEM_AMOUNT_UNVERIFIED') }
     if (rows.length === 3) {
         const total = $(rows[2]).children('td')
-        const addLabel = normalized(total.eq(0).clone().children().remove().end().text())
-        // Sell may reserve an empty selection cell, or put a trailing empty
-        // cell after the amount. In the latter layout the package is still in
-        // the item row above; the amount is the middle cell of this footer.
-        const trailingEmpty = stage !== 'ADD' && total.length === 3 && total.eq(0).attr('colspan') === '2'
-        const sellLabel = normalized((trailingEmpty ? total.eq(0) : total.slice(0, -1)).text())
-        const sellTotal = /^(?:remaining|grand total|total amount|total|amount due|net total|net amount)\s*[:：*\-]?\s*$/.test(sellLabel) ||
-            /^remaining\s*\*?\s*money due if any will be added to the current package as extended validity\.?$/.test(sellLabel)
-        const validThreeCellSell = trailingEmpty
+        // Footer formatting does not change the package row above it. Use
+        // the same known labels/layouts at Add and Sell, including wrapped text.
+        const trailingEmpty = total.length === 3 && total.eq(0).attr('colspan') === '2'
+        const totalLabel = normalized((trailingEmpty ? total.eq(0) : total.slice(0, -1)).text())
+        const knownTotalLabel = /^(?:remaining|grand total|total amount|total|amount due|net total|net amount)\s*[:：*\-]?\s*$/.test(totalLabel) ||
+            /^remaining\s*\*?\s*money due if any will be added to the current package as extended validity\.?$/.test(totalLabel)
+        const validTwoCell = total.length === 2 && total.eq(1).attr('colspan') === undefined &&
+            (total.eq(0).attr('colspan') === '2' || stage !== 'ADD' && total.eq(0).attr('colspan') === undefined)
+        const validThreeCell = trailingEmpty
             ? total.eq(1).attr('colspan') === undefined && total.eq(2).attr('colspan') === undefined &&
                 normalized(total.eq(2).text()) === '' && total.eq(2).find('[name]').length === 0
-            : normalized(total.eq(0).text()) === '' && total.eq(0).attr('colspan') === undefined
-        if (stage === 'ADD'
-            ? total.length !== 2 || total.eq(0).attr('colspan') !== '2' || addLabel !== 'remaining'
-            : (total.length !== 2 && total.length !== 3) || !sellTotal ||
-                total.is('[rowspan]') || $(rows[2]).children().length !== total.length ||
-                total.find('input,select,button').length > 0 ||
-                (total.length === 3 && !validThreeCellSell)) {
+            : normalized(total.eq(0).text()) === '' && total.toArray().every(cell => $(cell).attr('colspan') === undefined)
+        if ((total.length !== 2 && total.length !== 3) || !knownTotalLabel ||
+            total.is('[rowspan]') || $(rows[2]).children().length !== total.length ||
+            total.find('input,select,button').length > 0 ||
+            (total.length === 2 && !validTwoCell) || (total.length === 3 && !validThreeCell)) {
             reject('CART_TOTAL_ROW_UNVERIFIED')
         }
         let totalAmount: ReturnType<typeof money>

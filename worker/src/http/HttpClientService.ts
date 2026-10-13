@@ -2259,24 +2259,26 @@ export class HttpClientService {
         }
         try {
             const evidence = readRenewalSummary(html, selected, cardNumber, smartcardType, stage);
-            if (stage === 'SELL') {
-                let footerLayout = 'UNAVAILABLE';
-                try {
-                    footerLayout = describeRenewalCartFooter(html).layout;
-                } catch {
-                    // Diagnostic parsing must never change an accepted purchase decision.
-                }
-                console.info('[HTTP] SELL quote guard passed:', JSON.stringify({
-                    footerLayout,
-                    quoteRevision: evidence.quoteRevision,
-                }));
+            let footerLayout = 'UNAVAILABLE';
+            try {
+                footerLayout = describeRenewalCartFooter(html).layout;
+            } catch {
+                // Diagnostic parsing must never change an accepted purchase decision.
             }
+            console.info(`[HTTP] ${stage} quote guard passed:`, JSON.stringify({
+                footerLayout,
+                quoteRevision: evidence.quoteRevision,
+            }));
             return evidence;
         } catch (error) {
             if (error instanceof RenewalSummaryConflict) {
                 console.warn(`[HTTP] ${error.stage} cart validation stopped: ${error.reason}`);
-                if (error.stage === 'SELL' && error.reason === 'CART_TOTAL_ROW_UNVERIFIED') {
-                    console.warn('[HTTP] SELL cart footer structure:', JSON.stringify(describeRenewalCartFooter(html)));
+                if (error.reason.startsWith('CART_TOTAL_')) {
+                    try {
+                        console.warn(`[HTTP] ${error.stage} cart footer structure:`, JSON.stringify(describeRenewalCartFooter(html)));
+                    } catch {
+                        console.warn(`[HTTP] ${error.stage} cart footer structure unavailable`);
+                    }
                 }
             }
             throw error;

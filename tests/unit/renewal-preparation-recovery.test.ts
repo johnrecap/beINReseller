@@ -87,7 +87,7 @@ test('maintenance logs the operation and recovery reason without provider detail
         runOperationMaintenanceCycle: () => Promise<{ changed: number }>
     }>('src/lib/maintenance/operation-maintenance-runner.ts', {
         'node:crypto': { default: crypto },
-        '@/lib/prisma': { default: { operation: { findMany: async () => [{ id: 'operation-1' }] } } },
+        '@/lib/prisma': { default: { cardAdministrativeRelease: { findMany: async () => [] }, operation: { findMany: async () => [{ id: 'operation-1' }] } } },
         '@/lib/redis': { default: { set: async () => 'OK' } },
         '@/lib/operations/recovery': { recoverOperationIfNeeded: async () => ({
             changed: true, skipped: false, previousStatus: 'COMPLETING', newStatus: 'EXPIRED',

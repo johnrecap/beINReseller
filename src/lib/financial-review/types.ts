@@ -1,10 +1,11 @@
-export type FinancialReviewState = 'needs_decision' | 'follow_up' | 'refunded' | 'bein_executed'
+export type FinancialReviewState = 'needs_decision' | 'follow_up' | 'refunded' | 'bein_executed' | 'archived'
 
 export type FinancialReviewDecisionAction =
     | 'BEIN_EXECUTED_NO_REFUND'
     | 'REFUND_CUSTOMER'
     | 'KEEP_UNDER_REVIEW'
     | 'RESOLVE_PRE_MUTATION'
+    | 'ADMIN_ARCHIVE_AND_UNLOCK_CARD'
 
 export type CardVerificationOutcome =
     | 'LIKELY_RENEWED'
@@ -123,6 +124,9 @@ export interface FinancialReviewManualFulfillmentEvidenceAudit {
 }
 
 export interface FinancialReviewItem {
+    lateProviderObservations?: Array<{ resultCode: string | null; finishedAt: string | null }>
+    administrativeRelease?: { id: string; state: string; note: string; requestedAt: string; completedAt: string | null;
+        lastError: string | null; actor: { username: string } } | null
     hold?: import('../../../shared/operations/renewal-hold').RenewalHoldInfo | null
     capabilities?: import('./capabilities').ReviewCapabilities
     id: string

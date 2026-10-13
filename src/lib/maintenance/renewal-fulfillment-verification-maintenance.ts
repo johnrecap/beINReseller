@@ -54,6 +54,7 @@ async function loadDueVerificationStore(): Promise<DueVerificationStore> {
                     { nextCheckAt: null, lastOutcome: 'MATCHED' },
                 ],
                 operation: {
+                    administrativeStopRequestedAt: null,
                     type: 'RENEW',
                     status: { in: ['COMPLETING', 'REVIEW_REQUIRED'] },
                     providerMutationStartedAt: { not: null },

@@ -10,7 +10,7 @@ function loadMaintenance() {
         runOperationMaintenanceCycle: () => Promise<{ errors: string[] }>
     }>('src/lib/maintenance/operation-maintenance-runner.ts', {
         'node:crypto': { default: crypto },
-        '@/lib/prisma': { default: { operation: { findMany: async () => [{ id: 'synthetic-operation' }] } } },
+        '@/lib/prisma': { default: { cardAdministrativeRelease: { findMany: async () => [] }, operation: { findMany: async () => [{ id: 'synthetic-operation' }] } } },
         '@/lib/redis': { default: { set: secretFailure } },
         '@/lib/operations/recovery': { recoverOperationIfNeeded: secretFailure },
         '@/lib/operation-dispatch': { runDispatchWatchdog: async () => ({ scanned: 0, recovered: 0, skipped: 0, retried: 0, review: 0, refunded: 0, errors: [] }) },

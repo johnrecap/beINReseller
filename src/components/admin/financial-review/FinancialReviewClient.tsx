@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PanelDialog } from '@/components/ui/dialog'
+import { CardReleaseDialog } from './CardReleaseDialog'
 import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { usePanelRequest } from '@/hooks/usePanelRequest'
 import { withRequestDeadline } from '@/lib/request-deadline'
@@ -75,6 +76,7 @@ const getTabs = (t: ReturnType<typeof useTranslation>['t']): Array<{ id: Financi
     { id: 'follow_up', label: t.panelUi.reviewCopy.followUp },
     { id: 'refunded', label: t.panelUi.reviewCopy.refunded },
     { id: 'bein_executed', label: t.panelUi.reviewCopy.executed },
+    { id: 'archived', label: t.admin.financialReview.archivedTab },
     { id: 'all', label: t.panelUi.reviewCopy.all },
 ]
 
@@ -140,6 +142,7 @@ export default function FinancialReviewClient() {
     const [error, setError] = useState<string | null>(null)
     const [dialog, setDialog] = useState<DecisionDialogState>(null)
     const [busyOperationId, setBusyOperationId] = useState<string | null>(null)
+    const [releaseCard, setReleaseCard] = useState<string | null>(null)
 
     const fetchItems = useCallback(() => {
         const params = new URLSearchParams({ state, days: '90', ...(search.trim() ? { q: search.trim() } : {}), ...(cursor ? { cursor } : {}) })
@@ -248,6 +251,8 @@ export default function FinancialReviewClient() {
         <div className="min-h-screen bg-background p-4 sm:p-6" dir={dir}>
             <div className="mx-auto flex max-w-7xl flex-col gap-6">
                 <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <button className="review-button review-button-danger" disabled={loading || readError !== null || busyOperationId !== null}
+                        onClick={() => setReleaseCard('')}>{t.admin.financialReview.releaseAction}</button>
                     <div className="space-y-2">
                         <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-sm text-amber-200">
                             <AlertTriangle className="h-4 w-4" />
@@ -335,7 +340,9 @@ export default function FinancialReviewClient() {
                                 item={item}
                                 busy={busyOperationId !== null || loading}
                                 onVerify={() => verifyCard(item)}
-                                onDecision={(action) => { if (!mutationPending.current && !loading) { setError(null); setDialog({ item, action, decisionKey: crypto.randomUUID() }) } }}
+                                onDecision={(action) => { if (!mutationPending.current && !loading) { setError(null);
+                                    if (action === 'ADMIN_ARCHIVE_AND_UNLOCK_CARD') setReleaseCard(item.cardNumber)
+                                    else setDialog({ item, action, decisionKey: crypto.randomUUID() }) } }}
                             />
                         ))
                     ) : (
@@ -353,7 +360,9 @@ export default function FinancialReviewClient() {
                 </div>
             </div>
 
-            {dialog && readError === null && (
+            {releaseCard !== null && readError === null && <CardReleaseDialog initialCard={releaseCard}
+                onClose={() => setReleaseCard(null)} onComplete={() => { void fetchItems() }} />}
+            {dialog && dialog.action !== 'ADMIN_ARCHIVE_AND_UNLOCK_CARD' && readError === null && (
                 <DecisionDialog
                     state={dialog}
                     busy={busyOperationId === dialog.item.id}
@@ -383,6 +392,7 @@ function ReviewCard({
     const latestCheck = item.review.latestCardVerification
     const latestDecision = item.review.latestDecision
     const canDecide = item.state === 'needs_decision' || item.state === 'follow_up' ||
+        item.capabilities?.allowedActions.includes('ADMIN_ARCHIVE_AND_UNLOCK_CARD') === true ||
         item.capabilities?.allowedActions.includes('RESOLVE_PRE_MUTATION') === true
     const allowed = (action: FinancialReviewDecisionAction) => item.capabilities?.allowedActions.includes(action) === true
     const beinAccountName =
@@ -422,7 +432,7 @@ function ReviewCard({
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-foreground">{t.panelUi.reviewCopy.card} {item.cardNumber}</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">{item.hold
+                        <p className="mt-1 text-sm text-muted-foreground">{item.state === 'archived' ? t.operations.administrativelyArchived : item.hold
                             ? t.renewalHold.holdReasons[item.hold.blockReason] : item.evidence.reason}</p>
                         {item.hold && <p className="mt-1 text-sm text-muted-foreground">
                             {t.renewalHold.holdStage}: {t.renewalHold.holdStages[item.hold.stage]} · {t.renewalHold.holdLastChecked}: {new Date(item.hold.lastCheckedAt).toLocaleString(locale)}
@@ -442,6 +452,8 @@ function ReviewCard({
 
                 {canDecide ? (
                     <div className="flex flex-wrap gap-2 xl:max-w-[460px] xl:justify-end">
+                        {allowed('ADMIN_ARCHIVE_AND_UNLOCK_CARD') && <button disabled={busy} className="review-button review-button-danger"
+                            onClick={() => onDecision('ADMIN_ARCHIVE_AND_UNLOCK_CARD')}>{t.admin.financialReview.releaseAction}</button>}
                         <button onClick={onVerify} disabled={busy || item.status !== 'REVIEW_REQUIRED'} className="review-button">
                             <ShieldCheck className="h-4 w-4" />
                             {t.admin.financialReview.liveCheckAction}
@@ -471,7 +483,16 @@ function ReviewCard({
                 )}
             </div>
 
-            {item.capabilities && (
+            {item.administrativeRelease && <div className="mt-4 rounded-lg border border-border p-3 text-sm">
+                <strong>{item.administrativeRelease.state === 'COMPLETED' ? t.admin.financialReview.archivedTab : t.admin.financialReview.releaseDraining}</strong>
+                <p>{t.admin.financialReview.releaseActor}: {item.administrativeRelease.actor.username} · {new Date(item.administrativeRelease.requestedAt).toLocaleString(locale)}</p>
+                <p className="whitespace-pre-wrap break-words">{item.administrativeRelease.note}</p>
+                {item.lateProviderObservations?.map((observation, index) => <p key={index} className="mt-2 text-amber-300">
+                    {observation.resultCode?.includes('EXPLICIT_SALE_SUCCESS') ? t.admin.financialReview.releaseLateSuccess : t.admin.financialReview.releaseLateObservation}
+                    {observation.finishedAt && <span> · {new Date(observation.finishedAt).toLocaleString(locale)}</span>}
+                </p>)}
+            </div>}
+            {item.capabilities && !item.administrativeRelease && (
                 <div className="mt-4 rounded-lg border border-border bg-background p-3 text-sm" role="status">
                     <strong>{t.admin.financialReview.classifications[item.capabilities.classification]}</strong>
                     {item.capabilities.blockedReasonCodes.length > 0 && <p className="mt-1 text-muted-foreground">
@@ -686,6 +707,10 @@ function DecisionDialog({
     }
 
     const copy = {
+        ADMIN_ARCHIVE_AND_UNLOCK_CARD: {
+            title: t.admin.financialReview.releaseAction, body: t.admin.financialReview.releaseWarning,
+            confirm: t.admin.financialReview.releaseAction, paymentStatus: null,
+        },
         RESOLVE_PRE_MUTATION: {
             title: t.admin.financialReview.preMutationTitle,
             body: t.admin.financialReview.preMutationDescription,

@@ -6,6 +6,7 @@ import { runDispatchWatchdog } from '@/lib/operation-dispatch'
 import { repairCompletionEffects } from '@/lib/maintenance/completion-effect-maintenance'
 import { repairTerminalProviderReservations, type ProviderReservationMaintenanceSummary } from '@/lib/maintenance/provider-reservation-maintenance'
 import { repairRenewalHolds, type RenewalHoldMaintenanceSummary } from '@/lib/maintenance/renewal-hold-maintenance'
+import { resumeCardReleases } from '../../../shared/operations/admin-card-release'
 import {
     retryStaleCapturedOperationSpendAwardRuns,
     type OperationSpendAwardRunMaintenanceSummary,
@@ -81,6 +82,7 @@ async function findRecoverableOperationIds(now: Date, limit: number): Promise<st
 
     const operations = await prisma.operation.findMany({
         where: {
+            administrativeStopRequestedAt: null,
             OR: [
                 {
                     status: 'PROCESSING',
@@ -161,6 +163,10 @@ export async function runOperationMaintenanceCycle(
     let completionEffects: Awaited<ReturnType<typeof repairCompletionEffects>> | null = null
     let providerReservations: ProviderReservationMaintenanceSummary = { inspected: 0, released: 0, held: 0, errors: [] }
     let renewalHolds: RenewalHoldMaintenanceSummary = { inspected: 0, repaired: 0, held: 0, errors: [] }
+
+    try {
+        await resumeCardReleases(prisma, staleLimit, redis)
+    } catch { errors.push('admin-card-release-maintenance') }
 
     try {
         renewalHolds = await repairRenewalHolds({ now: started, limit: staleLimit })

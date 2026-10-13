@@ -33,6 +33,7 @@ export async function GET(
                 status: true,
                 captchaImage: true,
                 captchaExpiry: true,
+                administrativeStopRequestedAt: true,
             },
         })
 
@@ -43,6 +44,9 @@ export async function GET(
         if (operation.userId !== authUser.id) {
             return NextResponse.json({ error: 'Unauthorized access to this operation' }, { status: 403 })
         }
+
+        if (operation.administrativeStopRequestedAt) return NextResponse.json({ error: 'ADMIN_OPERATION_STOPPED',
+            code: 'ADMIN_OPERATION_STOPPED', messageKey: 'operations.administrativelyArchived' }, { status: 409 })
 
         if (operation.status !== 'AWAITING_CAPTCHA') {
             return NextResponse.json({ error: 'Verification code not required for this operation' }, { status: 400 })
@@ -94,7 +98,7 @@ export async function POST(
 
         const operation = await prisma.operation.findUnique({
             where: { id },
-            select: { id: true, userId: true, status: true }
+            select: { id: true, userId: true, status: true, administrativeStopRequestedAt: true }
         })
 
         if (!operation) {
@@ -108,6 +112,9 @@ export async function POST(
         if (operation.status !== 'AWAITING_CAPTCHA') {
             return NextResponse.json({ error: 'This operation is not waiting for a verification code' }, { status: 400 })
         }
+
+        if (operation.administrativeStopRequestedAt) return NextResponse.json({ error: 'ADMIN_OPERATION_STOPPED',
+            code: 'ADMIN_OPERATION_STOPPED', messageKey: 'operations.administrativelyArchived' }, { status: 409 })
 
         // Update with solution
         await prisma.operation.update({

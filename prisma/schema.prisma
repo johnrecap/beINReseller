@@ -315,6 +315,7 @@ model User {
   refundSettlementsOwned RenewalRefundSettlement[] @relation("RefundSettlementOwner")
   refundSettlementsAuthored RenewalRefundSettlement[] @relation("RefundSettlementActor")
   reviewAdjudications OperationReviewAdjudication[]
+  administrativeCardReleases CardAdministrativeRelease[]
 
   @@index([lastLoginAt])
   @@index([lastOperationAt])
@@ -859,6 +860,11 @@ model Operation {
   completedAt DateTime? @map("completed_at")
   // Written once by the database when a package-renewal attempt first ends.
   renewalCooldownUntil DateTime? @map("renewal_cooldown_until")
+  administrativeStopRequestedAt DateTime? @map("administrative_stop_requested_at")
+  administrativeArchivedAt DateTime? @map("administrative_archived_at")
+  administrativeReleaseId String? @map("administrative_release_id")
+  administrativeRelease CardAdministrativeRelease? @relation("ReleaseScope", fields: [administrativeReleaseId], references: [id], onDelete: Restrict)
+  providerRequests OperationProviderRequest[]
 
   user                             User?                               @relation(fields: [userId], references: [id])
   customer                         Customer?                           @relation(fields: [customerId], references: [id])
@@ -891,12 +897,45 @@ model Operation {
   @@index([userId, status, createdAt])
   @@index([cardNumber, status])
   @@index([cardNumber, renewalCooldownUntil])
+  @@index([administrativeReleaseId])
   @@index([beinAccountId])
   @@index([heartbeatExpiry])
   @@index([status, heartbeatExpiry])
   @@index([fulfillmentState, fulfillmentVerificationOutcome])
   @@index([providerMutationStartedAt])
   @@map("operations")
+}
+
+model CardAdministrativeRelease {
+  id String @id @default(cuid())
+  decisionKey String @unique @map("decision_key")
+  cardNumber String @map("card_number")
+  actorId String @map("actor_id")
+  note String
+  fingerprint String
+  state String @default("REQUESTED")
+  requestedAt DateTime @default(now()) @map("requested_at")
+  completedAt DateTime? @map("completed_at")
+  lastError String? @map("last_error")
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  operations Operation[] @relation("ReleaseScope")
+  @@index([state, requestedAt])
+  @@index([cardNumber, requestedAt])
+  @@map("card_administrative_releases")
+}
+
+model OperationProviderRequest {
+  id String @id @default(cuid())
+  operationId String @map("operation_id")
+  method String
+  startedAt DateTime @default(now()) @map("started_at")
+  deadlineAt DateTime @map("deadline_at")
+  finishedAt DateTime? @map("finished_at")
+  resultCode String? @map("result_code")
+  observedAfterStop Boolean @default(false) @map("observed_after_stop")
+  operation Operation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  @@index([operationId, finishedAt, deadlineAt])
+  @@map("operation_provider_requests")
 }
 
 model OperationDispatch {

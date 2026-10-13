@@ -24,10 +24,12 @@ const FULFILLMENT_SAFETY_ISSUE_TYPES = [
 
 type RenewalCreationTx = Pick<
     Prisma.TransactionClient,
-    'operation' | 'operationIntegrityIssue' | 'cardLifecycleReservation' | '$queryRaw'
+    'operation' | 'operationIntegrityIssue' | 'cardLifecycleReservation' | 'cardAdministrativeRelease' | '$queryRaw'
 >
 
 export type RenewalCreationBlockReason =
+    | 'ADMIN_OPERATION_STOPPED'
+    | 'ADMIN_RELEASE_IN_PROGRESS'
     | 'UNRESOLVED_REVIEW'
     | 'FULFILLMENT_INTEGRITY_ISSUE'
     | 'ACTIVE_OPERATION'
@@ -80,9 +82,13 @@ async function assertNoRenewalCardConflict(
     cardNumber: string,
     operationId?: string
 ): Promise<void> {
+    const pendingRelease = await tx.cardAdministrativeRelease.findFirst({ where: { cardNumber, state: { not: 'COMPLETED' } },
+        select: { operations: { take: 1, select: { id: true } } } })
+    if (pendingRelease) throw new RenewalCreationBlockedError('ADMIN_RELEASE_IN_PROGRESS', pendingRelease.operations[0]?.id || '')
     const unresolvedReview = await tx.operation.findFirst({
         where: {
             cardNumber,
+            administrativeArchivedAt: null,
             status: 'REVIEW_REQUIRED',
             ...(operationId ? { id: { not: operationId } } : {}),
         },
@@ -99,6 +105,7 @@ async function assertNoRenewalCardConflict(
             status: { in: ['OPEN', 'ACKNOWLEDGED'] },
             operation: {
                 cardNumber,
+                administrativeArchivedAt: null,
             },
         },
         orderBy: { lastSeenAt: 'desc' },
@@ -115,6 +122,7 @@ async function assertNoRenewalCardConflict(
         where: {
             cardNumber,
             status: { in: [...ACTIVE_OPERATION_STATUSES] },
+            administrativeArchivedAt: null,
             ...(operationId ? { id: { not: operationId } } : {}),
         },
         orderBy: { createdAt: 'desc' },
@@ -204,11 +212,12 @@ export async function ensureGuardedRenewalOperationReservation(
 
     const operation = await tx.operation.findUnique({
         where: { id: input.operationId },
-        select: { id: true, type: true, cardNumber: true, status: true, purpose: true },
+        select: { id: true, type: true, cardNumber: true, status: true, purpose: true, administrativeStopRequestedAt: true },
     })
     if (!operation || operation.type !== 'RENEW' || operation.cardNumber !== cardNumber) {
         throw new Error('INVALID_RENEWAL_OPERATION')
     }
+    if (operation.administrativeStopRequestedAt) throw new RenewalCreationBlockedError('ADMIN_OPERATION_STOPPED', operation.id)
     if (operation.status === 'REVIEW_REQUIRED') {
         throw new RenewalCreationBlockedError('UNRESOLVED_REVIEW', operation.id)
     }

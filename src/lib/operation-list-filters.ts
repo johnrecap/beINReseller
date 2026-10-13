@@ -26,6 +26,7 @@ export function buildOperationListWhere(
     }
 
     if (status === 'active') {
+        where.administrativeArchivedAt = null
         where.status = {
             in: ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'AWAITING_FINAL_CONFIRM', 'COMPLETING', 'REVIEW_REQUIRED'],
         }

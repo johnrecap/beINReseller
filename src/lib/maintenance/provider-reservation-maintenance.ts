@@ -53,7 +53,7 @@ export async function repairTerminalProviderReservations(options: { limit?: numb
     const limit = Number.isFinite(options.limit) ? Math.max(1, Math.min(200, Math.floor(options.limit!))) : 50
     const summary: ProviderReservationMaintenanceSummary = { inspected: 0, released: 0, held: 0, errors: [] }
     const rows = await prisma.providerAccountCausalReservation.findMany({
-        where: { releasedAt: null, operation: { status: { in: [...ENDED] } }, ...(afterId ? { id: { gt: afterId } } : {}) },
+        where: { releasedAt: null, operation: { administrativeStopRequestedAt: null, status: { in: [...ENDED] } }, ...(afterId ? { id: { gt: afterId } } : {}) },
         select: { id: true, operationId: true, beinAccountId: true, reservationGeneration: true },
         orderBy: { id: 'asc' }, take: limit,
     })

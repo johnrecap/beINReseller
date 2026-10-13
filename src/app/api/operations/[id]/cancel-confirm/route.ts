@@ -52,6 +52,7 @@ export async function POST(
                 amount: true,
                 selectedPackage: true,
                 responseData: true,
+                administrativeStopRequestedAt: true,
             },
         })
 
@@ -69,6 +70,9 @@ export async function POST(
                 { status: 403 }
             )
         }
+
+        if (operation.administrativeStopRequestedAt) return NextResponse.json({ error: 'ADMIN_OPERATION_STOPPED',
+            code: 'ADMIN_OPERATION_STOPPED', messageKey: 'operations.administrativelyArchived' }, { status: 409 })
 
         // Check status - only allow cancel from AWAITING_FINAL_CONFIRM
         if (operation.status !== 'AWAITING_FINAL_CONFIRM') {

@@ -32,6 +32,7 @@ interface UseOperationHeartbeatOptions {
     enabled: boolean
     /** Callback when operation expires (optional) */
     onExpired?: () => void
+    onAdministrativeStop?: () => void
     /** Callback when heartbeat fails repeatedly (optional) */
     onError?: (error: string) => void
     /** Heartbeat interval in ms (default: 2000) */
@@ -52,6 +53,7 @@ export function useOperationHeartbeat({
     operationId,
     enabled,
     onExpired,
+    onAdministrativeStop,
     onError,
     intervalMs = DEFAULT_INTERVAL_MS
 }: UseOperationHeartbeatOptions): HeartbeatState {
@@ -79,6 +81,14 @@ export function useOperationHeartbeat({
                 failureCountRef.current = 0
                 isActiveRef.current = true
             } else if (response.status === 404 || response.status === 409 || response.status === 410) {
+                if (response.status === 409) {
+                    const body = await response.json().catch(() => ({}))
+                    if (body.code === 'ADMIN_OPERATION_STOPPED') {
+                        isActiveRef.current = false
+                        onAdministrativeStop?.()
+                        return
+                    }
+                }
                 // 404: Operation not found or not in waiting state
                 // 409: Operation state changed while heartbeat request was in flight
                 // 410: Server-side hard deadline expired (operation auto-cancelled)
@@ -97,7 +107,7 @@ export function useOperationHeartbeat({
                 onError?.(`Heartbeat failed ${MAX_FAILURES} times: ${errorMsg}`)
             }
         }
-    }, [operationId, enabled, onExpired, onError])
+    }, [operationId, enabled, onExpired, onAdministrativeStop, onError])
 
     // Handle visibility change (pause heartbeat when tab is hidden)
     useEffect(() => {

@@ -60,6 +60,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             where: { id: operationId },
             select: {
                 id: true,
+                administrativeStopRequestedAt: true,
                 status: true,
                 responseData: true,
                 cardNumber: true,
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             },
         })
 
-        if (!operation || operation.status !== OperationStatus.REVIEW_REQUIRED) {
+        if (!operation || operation.administrativeStopRequestedAt || operation.status !== OperationStatus.REVIEW_REQUIRED) {
             return NextResponse.json({ error: 'Operation is not reviewable' }, { status: 409 })
         }
         if (!hasReviewFinalPaymentEvidence(operation)) {

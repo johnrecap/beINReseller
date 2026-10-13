@@ -11,9 +11,10 @@ export interface RenewalHoldInfo {
 }
 
 export function projectRenewalHold(op: PrePaymentContext & { type: string; updatedAt: Date | string;
+    administrativeArchivedAt?: Date | null;
     integrityIssues?: Array<{ issueType: string }>; cardLifecycleReservation?: { releasedAt: Date | null } | null;
     providerAccountCausalReservation?: { releasedAt: Date | null } | null }): RenewalHoldInfo | null {
-    if (op.type !== 'RENEW') return null
+    if (op.type !== 'RENEW' || op.administrativeArchivedAt) return null
     const issues = (op.integrityIssues || []).some(row => RENEWAL_BLOCKING_ISSUES.some(kind => kind === row.issueType))
     const reservation = op.cardLifecycleReservation?.releasedAt === null || op.providerAccountCausalReservation?.releasedAt === null
     if (op.status !== 'REVIEW_REQUIRED' && !(issues || reservation && ['FAILED', 'CANCELLED', 'EXPIRED', 'COMPLETED'].includes(op.status))) return null

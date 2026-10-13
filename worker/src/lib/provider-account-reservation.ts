@@ -5,8 +5,8 @@ const ENDED_OPERATION_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'EXPIRED']
 // Called inside the caller's transaction. Serialize with completion/cancellation
 // before touching the reservation, so a queued continuation cannot reopen it.
 async function lockOperationForReservation(db: ProviderAccountReservationDb, operationId: string): Promise<boolean> {
-    const rows = await db.$queryRaw<Array<{ status: string }>>`SELECT "status" FROM "operations" WHERE "id" = ${operationId} FOR UPDATE`
-    return rows.length === 1 && !ENDED_OPERATION_STATUSES.some(status => status === rows[0].status)
+    const rows = await db.$queryRaw<Array<{ status: string; administrative_stop_requested_at: Date | null }>>`SELECT "status", "administrative_stop_requested_at" FROM "operations" WHERE "id" = ${operationId} FOR UPDATE`
+    return rows.length === 1 && !rows[0].administrative_stop_requested_at && !ENDED_OPERATION_STATUSES.some(status => status === rows[0].status)
 }
 
 export type ProviderAccountConsumer =

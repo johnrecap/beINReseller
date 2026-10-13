@@ -16,7 +16,7 @@ function fixture() {
     const runner = loadIsolatedModule<{ startOperationMaintenanceRunner: (options?: { intervalMs?: number; leaderTtlMs?: number; once?: boolean }) => Promise<void> }>(
         'src/lib/maintenance/operation-maintenance-runner.ts', {
             'node:crypto': { default: { randomUUID: () => String(++sequence) } },
-            '@/lib/prisma': { default: { operation: { findMany: async () => [] }, $disconnect: async () => { events.push('db-close') } } },
+            '@/lib/prisma': { default: { cardAdministrativeRelease: { findMany: async () => [] }, operation: { findMany: async () => [] }, $disconnect: async () => { events.push('db-close') } } },
             '@/lib/redis': { default: {
                 set: async (key: string, token: string) => {
                     if (key !== 'operation-maintenance:leader') return 'OK'

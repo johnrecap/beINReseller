@@ -293,6 +293,47 @@ function withFinalPayOutcome<T extends PurchaseResult | PayInstallmentResult>(
 }
 
 export class HttpClientService {
+    private operationRequestScope?: {
+        begin(method: string): Promise<{ id: string; deadlineAt: Date }>
+        finish(id: string, result: string): Promise<void>
+    };
+
+    setOperationRequestScope(scope: NonNullable<HttpClientService['operationRequestScope']>): void {
+        this.operationRequestScope = scope;
+        this.installOperationRequestGuards();
+    }
+
+    private installOperationRequestGuards(): void {
+        if (!this.operationRequestScope) return;
+        this.axios.interceptors.request.use(async config => {
+            const scope = this.operationRequestScope;
+            if (!scope) return config;
+            const request = await scope.begin(config.method || 'GET');
+            (config as typeof config & { operationRequestId?: string }).operationRequestId = request.id;
+            config.timeout = Math.min(config.timeout || 30000, 30000);
+            config['axios-retry'] = { retries: 0 };
+            const remaining = request.deadlineAt.getTime() - Date.now();
+            if (remaining <= 0) throw new Error('ADMIN_OPERATION_STOPPED');
+            const deadline = AbortSignal.timeout(Math.min(30000, remaining));
+            config.signal = config.signal ? AbortSignal.any([config.signal as AbortSignal, deadline]) : deadline;
+            return config;
+        });
+        this.axios.interceptors.response.use(async response => {
+            const id = (response.config as typeof response.config & { operationRequestId?: string }).operationRequestId;
+            if (id) {
+                const text = typeof response.data === 'string' ? cheerio.load(response.data)('body').text() : '';
+                const kind = text.includes('Contract Created Successfully') || text.includes('Package Added Successfully')
+                    ? 'EXPLICIT_SALE_SUCCESS' : 'RESPONSE_RECEIVED';
+                // Observation only. Even an explicit late success never grants completion authority.
+                await this.operationRequestScope?.finish(id, `HTTP_${response.status}:${kind}`);
+            }
+            return response;
+        }, async (error: unknown) => {
+            const config = (error as { config?: { operationRequestId?: string } })?.config;
+            if (config?.operationRequestId) await this.operationRequestScope?.finish(config.operationRequestId, 'TRANSPORT_ERROR_RESULT_UNKNOWN');
+            throw error;
+        });
+    }
     private axios: AxiosInstance;
     private jar: CookieJar;
     private config!: BeINHttpConfig;
@@ -414,6 +455,7 @@ export class HttpClientService {
         }
 
         configureProviderRetryPolicy(this.axios);
+        this.installOperationRequestGuards();
     }
 
     /**
@@ -1039,6 +1081,7 @@ export class HttpClientService {
             }
 
             configureProviderRetryPolicy(this.axios);
+            this.installOperationRequestGuards();
 
             if (data.viewState) {
                 this.currentViewState = data.viewState;
@@ -1121,6 +1164,7 @@ export class HttpClientService {
         }
 
         configureProviderRetryPolicy(this.axios);
+        this.installOperationRequestGuards();
         console.log('[HTTP] Session reset (cookies cleared, axios rebuilt)');
     }
 

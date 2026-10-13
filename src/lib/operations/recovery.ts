@@ -429,7 +429,7 @@ export async function recoverOperationIfNeeded(
                 },
             })
 
-            if (!operation) {
+            if (!operation || operation.administrativeStopRequestedAt) {
                 return {
                     operationId,
                     changed: false,

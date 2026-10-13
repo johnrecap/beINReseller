@@ -11,7 +11,7 @@ import { classifyFinancialReview, reviewCapabilitySelect } from '@/lib/financial
 import { projectRenewalHold } from '../../../../../shared/operations/renewal-hold'
 import { RENEWAL_BLOCKING_ISSUES } from '../../../../../shared/operations/renewal-pre-payment'
 
-const REVIEW_STATES: FinancialReviewState[] = ['needs_decision', 'follow_up', 'refunded', 'bein_executed']
+const REVIEW_STATES: FinancialReviewState[] = ['needs_decision', 'follow_up', 'refunded', 'bein_executed', 'archived']
 const CLOSED_REVIEW_DECISION_FILTERS: Prisma.OperationWhereInput[] = [
     { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'BEIN_EXECUTED_NO_REFUND' } },
     { responseData: { path: ['financialReview', 'latestDecision', 'action'], equals: 'REFUND_CUSTOMER' } },
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
         const operations = await prisma.operation.findMany({
             where: {
                 OR: [
+                    { administrativeReleaseId: { not: null } },
                     // Open reviews must remain discoverable for as long as they
                     // block a card; the date window applies to closed history.
                     { status: OperationStatus.REVIEW_REQUIRED },
@@ -160,7 +161,11 @@ export async function GET(request: NextRequest) {
                 const item = buildFinancialReviewItem(operation, walletDebitLookup)
                 const hold = projectRenewalHold(operation)
                 return item ? { ...item, hold, ...(hold && operation.status !== 'REVIEW_REQUIRED'
-                    ? { state: 'needs_decision' as const } : {}), capabilities: classifyFinancialReview(operation) } : null
+                    ? { state: 'needs_decision' as const } : {}),
+                    ...(operation.administrativeArchivedAt ? { state: 'archived' as const } : {}),
+                    administrativeRelease: operation.administrativeRelease,
+                    lateProviderObservations: operation.providerRequests,
+                    capabilities: classifyFinancialReview(operation) } : null
             })
             .filter((item): item is NonNullable<typeof item> => Boolean(item))
 

@@ -13,6 +13,7 @@ export async function repairRenewalHolds(options: { limit?: number; now?: Date }
     const limit = Number.isFinite(options.limit) ? Math.max(1, Math.min(200, Math.floor(options.limit!))) : 50
     const summary: RenewalHoldMaintenanceSummary = { inspected: 0, repaired: 0, held: 0, errors: [] }
     const rows = await prisma.operation.findMany({ where: {
+        administrativeStopRequestedAt: null,
         type: 'RENEW', userId: { not: null }, customerId: null,
         AND: [{ OR: [{ purpose: null }, { purpose: 'RENEWAL' }] }],
         ...(afterId ? { id: { gt: afterId } } : {}),

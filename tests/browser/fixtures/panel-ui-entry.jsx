@@ -68,6 +68,17 @@ if(c.view==='eid') {
   return Response.json({success:true});
  }
 }
+if(c.view==='review'&&String(url).startsWith('/api/admin/financial-review/card-release')) {
+ if(c.releaseReadError)return Response.json({error:'Synthetic denial'},{status:c.releaseReadError});
+ if(String(url).includes('releaseId='))return Response.json({id:'synthetic-release',state:c.releasePolling?'DRAINING':'COMPLETED'});
+ return Response.json({cardNumber:'0000000000',fingerprint:'a'.repeat(64),operationId:'synthetic-review-operation',
+  operations:c.releaseEmpty?[]:[{id:'synthetic-review-operation',stage:'UNKNOWN',paymentState:'UNKNOWN',packageName:'Synthetic package',
+   customerDeducted:0,customerRefunded:0,issueTypes:['FULFILLMENT_PROOF_CONFLICT'],cardReserved:true,accountReserved:true,cooldownUntil:'2026-10-13T12:05:00Z'}]});
+}
+if(c.view==='review'&&String(url).endsWith('/decision')&&o.method==='POST'&&JSON.parse(o.body).action==='ADMIN_ARCHIVE_AND_UNLOCK_CARD') {
+ if(c.releaseWriteError)return Response.json({error:'CARD_RELEASE_PREVIEW_CHANGED'},{status:c.releaseWriteError});
+ return Response.json({success:true,releaseId:'synthetic-release',state:c.releasePolling?'DRAINING':'COMPLETED'},{status:c.releasePolling?202:200});
+}
 if(c.view==='review'&&String(url).startsWith('/api/admin/financial-review?')) {
  const query=new URL(String(url),'http://audit.invalid').searchParams;
  if(c.reviewRace&&query.get('q')==='old')await new Promise(resolve=>setTimeout(resolve,650));

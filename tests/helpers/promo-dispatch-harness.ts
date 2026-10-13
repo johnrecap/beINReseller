@@ -11,6 +11,8 @@ import * as packageQuote from '../../shared/operations/package-quote'
 import * as consumerProgress from '../../shared/operations/consumer-progress'
 import * as renewalPrePayment from '../../shared/operations/renewal-pre-payment'
 import * as renewalHold from '../../shared/operations/renewal-hold'
+import * as administrativeRelease from '../../shared/operations/admin-card-release'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { mergeOperationPhaseEvidence } from '../../src/lib/operation-safety'
 
 // Execute the real module body with explicit dependencies. Unlisted imports
@@ -25,11 +27,13 @@ export function loadIsolatedModule<T>(path: string, dependencies: Record<string,
     }).outputText
     const sandboxModule = { exports: {} }
     runInNewContext(compiled, {
-        module: sandboxModule, exports: sandboxModule.exports, console, Response, URL, URLSearchParams, Date, Error,
+        module: sandboxModule, exports: sandboxModule.exports, console, Response, URL, URLSearchParams, Date, Error, AbortSignal, AbortController,
         process: { env },
         setTimeout: (callback: () => void) => { callback(); return 0 },
         ...globals,
         require: (name: string) => {
+            if (name === 'node:async_hooks') return { AsyncLocalStorage }
+            if (/^(\.\.\/)+shared\/operations\/admin-card-release$/.test(name)) return administrativeRelease
             if (/^(\.\.\/)+shared\/operations\/consumer-progress$/.test(name)) return consumerProgress
             if (/^(\.\.\/)+shared\/operations\/renewal-pre-payment$/.test(name)) return renewalPrePayment
             if (/^(\.\.\/)+shared\/operations\/renewal-hold$/.test(name)) return renewalHold

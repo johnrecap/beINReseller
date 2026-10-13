@@ -1,6 +1,8 @@
 import { quoteData } from './package-quote'
 
 export interface ConsumerProgressContext {
+    administrativeStopRequestedAt?: Date | string | null
+    administrativeArchivedAt?: Date | string | null
     status: string
     providerPaymentState?: string | null
     fulfillmentState?: string | null
@@ -13,6 +15,11 @@ export interface ConsumerProgressContext {
 
 /** Read-only, additive panel contract. Never infer a refund from FAILED/EXPIRED. */
 export function projectOperationProgress(operation: ConsumerProgressContext, now = new Date()) {
+    if (operation.administrativeStopRequestedAt) return {
+        reviewRequired: false, reportVerificationPending: false, confirmationExpired: false,
+        settlementState: 'ADMINISTRATIVELY_ARCHIVED', nextAction: 'VIEW_HISTORY',
+        messageKey: operation.administrativeArchivedAt ? 'operations.administrativelyArchived' : 'operations.administrativeStopPending',
+    }
     const data = quoteData(operation.responseData)
     const payment = operation.providerPaymentState ?? data.providerPaymentState
     const fulfillment = operation.fulfillmentState ?? data.fulfillmentState

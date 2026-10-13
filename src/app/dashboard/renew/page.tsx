@@ -41,7 +41,7 @@ interface AvailablePackage {
 
 interface OperationResult {
     success: boolean
-    pending?: 'reviewRequired' | 'pendingSettlement'
+    pending?: 'reviewRequired' | 'pendingSettlement' | 'administrativelyArchived' | 'administrativeStopPending'
     message: (t: ReturnType<typeof useTranslation>['t']) => string
 }
 
@@ -279,6 +279,10 @@ export default function RenewWizardPage() {
     useOperationHeartbeat({
         operationId,
         enabled: shouldSendHeartbeat,
+        onAdministrativeStop: () => {
+            setResult({ success: false, pending: 'administrativeStopPending', message: t => t.operations.administrativeStopPending })
+            setStep('processing')
+        },
         onExpired: () => {
             // Operation was expired by cleanup cron
             setResult({ success: false, message: t => t.renew.feedback.expired })
@@ -325,6 +329,12 @@ export default function RenewWizardPage() {
                 return
             }
 
+            if (data.administrativeStopRequestedAt) {
+                setResult({ success: data.status === 'COMPLETED', pending: data.administrativeArchivedAt ? 'administrativelyArchived' : 'administrativeStopPending', message: t => data.administrativeArchivedAt
+                    ? t.operations.administrativelyArchived : t.operations.administrativeStopPending })
+                setStep('result')
+                return
+            }
             if (data.status === 'AWAITING_CAPTCHA') {
                 // Only skip showing CAPTCHA if user already submitted a solution
                 // (worker is still processing it)

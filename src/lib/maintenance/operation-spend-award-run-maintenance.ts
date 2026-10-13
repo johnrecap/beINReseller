@@ -90,6 +90,7 @@ async function findEligibleCapturedRuns(
     return prisma.operationSpendAwardRun.findMany({
         where: {
             status: 'CAPTURED',
+            operation: { administrativeStopRequestedAt: null },
             capturedAt: { lte: staleBefore },
             OR: [
                 { nextFinalizationAttemptAt: null },

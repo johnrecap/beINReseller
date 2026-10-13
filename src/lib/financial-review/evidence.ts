@@ -10,6 +10,8 @@ import { classifyProviderEvidence } from './evidence-provenance'
 type JsonRecord = Record<string, unknown>
 
 type ReviewOperation = {
+    administrativeReleaseId?: string | null
+    administrativeArchivedAt?: Date | null
     id: string
     type: string
     cardNumber: string
@@ -132,6 +134,8 @@ function deriveState(review: FinancialReviewMetadata, evidence: FinancialReviewE
 
 export function getStateLabel(state: FinancialReviewState): string {
     switch (state) {
+        case 'archived':
+            return 'مؤرشفة بقرار إداري'
         case 'needs_decision':
             return 'محتاج قرار'
         case 'follow_up':
@@ -152,7 +156,7 @@ export function buildFinancialReviewItem(
     const review = extractFinancialReviewMetadata(operation.responseData)
     const blockingLeftovers = Boolean(operation.integrityIssues?.length ||
         operation.cardLifecycleReservation?.releasedAt === null || operation.providerAccountCausalReservation?.releasedAt === null)
-    if (operation.status !== 'REVIEW_REQUIRED' && operation.status !== 'COMPLETED' && !review.latestDecision && !blockingLeftovers) return null
+    if (operation.status !== 'REVIEW_REQUIRED' && operation.status !== 'COMPLETED' && !review.latestDecision && !blockingLeftovers && !operation.administrativeReleaseId) return null
     const packageInfo = extractSelectedPackage(operation)
     const hasUserDeduction = operation.transactions.some((transaction) => transaction.type === 'OPERATION_DEDUCT')
     const hasRefund = operation.transactions.some((transaction) => transaction.type === 'REFUND')
@@ -273,7 +277,7 @@ export function buildFinancialReviewItem(
         manualEvidenceId: operation.manualFulfillmentEvidence?.id || null,
     }
 
-    const state = deriveState(review, evidence)
+    const state = operation.administrativeArchivedAt ? 'archived' : deriveState(review, evidence)
 
     return {
         id: operation.id,

@@ -87,6 +87,9 @@ export async function POST(
             )
         }
 
+        if (operation.administrativeStopRequestedAt) return NextResponse.json({ error: 'ADMIN_OPERATION_STOPPED',
+            code: 'ADMIN_OPERATION_STOPPED', messageKey: 'operations.administrativelyArchived' }, { status: 409 })
+
         if (operation.type === 'RENEW') {
             const cancellation = await finalizeWebPreMutationRenewalTermination({
                 operationId: id,

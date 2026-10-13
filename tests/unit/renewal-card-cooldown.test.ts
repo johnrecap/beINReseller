@@ -12,6 +12,7 @@ test('a finished renewal blocks a fresh operation before reservation, debit or d
     let writes = 0
     const until = new Date(Date.now() + 240_000)
     const tx = {
+        cardAdministrativeRelease: { findFirst: async () => null },
         $queryRaw: async () => [],
         operation: {
             findFirst: async ({ where }: { where: Record<string, unknown> }) =>
@@ -36,6 +37,7 @@ for (const scenario of ['repeat', 'other-user', 'expired', 'other-card', 'review
         let cooldownReads = 0
         const until = new Date(Date.now() + (scenario === 'expired' ? -1 : 120_000))
         const tx = {
+            cardAdministrativeRelease: { findFirst: async () => null },
             $queryRaw: async () => [],
             operation: {
                 findFirst: async ({ where }: { where: { status?: unknown; cardNumber: string; renewalCooldownUntil?: { gt: Date } } }) => {

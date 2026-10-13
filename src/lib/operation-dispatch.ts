@@ -109,6 +109,7 @@ export async function dispatchPendingOperationJobs(options?: {
             attempts: { lt: maxAttempts },
             nextAttemptAt: { lte: new Date() },
             operation: {
+                administrativeStopRequestedAt: null,
                 status: { notIn: [...NON_DISPATCHABLE_OPERATION_STATUSES] },
             },
             ...(options?.operationIds?.length
@@ -133,6 +134,7 @@ export async function dispatchPendingOperationJobs(options?: {
                 attempts: row.attempts,
                 nextAttemptAt: { lte: new Date() },
                 operation: {
+                    administrativeStopRequestedAt: null,
                     status: { notIn: [...NON_DISPATCHABLE_OPERATION_STATUSES] },
                 },
             },

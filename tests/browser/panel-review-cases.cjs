@@ -38,7 +38,7 @@ module.exports=async function reviewCases({p,render,check}) {
  }
  for(const status of [401,403,500]) {
   await ready();await p.evaluate(status=>window.audit.reviewError=status,status);
-  await p.locator('main header button').click();await p.getByRole('alert').waitFor();
+  await p.getByRole('button',{name:await p.evaluate(()=>window.qaText.panelUi.reviewCopy.refreshList),exact:true}).click();await p.getByRole('alert').waitFor();
   assert.equal(await p.locator('article').count(),0);
   if(status!==401){await p.evaluate(()=>delete window.audit.reviewError);await p.getByRole('alert').getByRole('button').click();await p.getByText('Synthetic review',{exact:true}).waitFor();}
   check('review clears inaccessible/stale data HTTP '+status);
@@ -79,6 +79,45 @@ module.exports=async function reviewCases({p,render,check}) {
   const writes=await p.evaluate(()=>window.requests.filter(r=>r.url.endsWith('/decision')));assert.equal(writes.length,1);
   const body=writes[0].body;assert.equal(body.action,'BEIN_EXECUTED_NO_REFUND');assert.ok(body.decisionKey);assert.equal(body.manualFulfillmentEvidence.invoiceNo,'SYNTHETIC-INVOICE');assert.equal(body.manualFulfillmentEvidence.beinAccountId,'synthetic-bein');assert.equal(body.manualFulfillmentEvidence.cardNumberSnapshot,'0000000000');assert.equal(body.manualFulfillmentEvidence.providerAmount,'90.00');assert.equal(body.manualFulfillmentEvidence.currency,'USD');assert.equal(body.sourceReference,legacy?'synthetic-reference':undefined);
   check('review manual evidence '+(legacy?'legacy':'current')+' '+(success?'success':'rejection')+' '+language);
+ }
+ for(const language of ['ar','en','bn'])for(const width of [360,1280]) {
+  const copy=await ready({language},width);
+  await p.locator('article').getByRole('button',{name:copy.releaseAction,exact:true}).click();
+  const modal=p.getByRole('dialog');await modal.getByText('Synthetic package',{exact:true}).waitFor();
+  const confirm=modal.getByRole('button',{name:copy.releaseAction,exact:true});assert.equal(await confirm.isDisabled(),true);
+  await modal.getByLabel(copy.releaseReason,{exact:true}).fill('Synthetic admin accepts unresolved result');
+  assert.equal(await confirm.isDisabled(),true);await modal.getByRole('checkbox').check();
+  assert.equal(await modal.evaluate(e=>e.scrollWidth<=e.clientWidth+1),true);
+  if(language==='ar')await p.screenshot({path:require('node:path').join(process.env.PANEL_QA_OUTPUT,'release-ar-'+width+'.png'),fullPage:false});
+  await confirm.click();await modal.getByText(copy.releaseComplete,{exact:true}).waitFor();
+  const writes=await p.evaluate(()=>window.requests.filter(r=>r.url.endsWith('/decision')));
+  assert.equal(writes.length,1);assert.equal(writes[0].body.action,'ADMIN_ARCHIVE_AND_UNLOCK_CARD');
+  assert.equal(writes[0].body.acknowledgeRisk,true);assert.equal(writes[0].body.fingerprint,'a'.repeat(64));
+  assert.equal('manualVerification' in writes[0].body,false);check('admin release confirmation '+language+' '+width);
+ }
+ {
+  const copy=await ready({releasePolling:true});await p.locator('article').getByRole('button',{name:copy.releaseAction,exact:true}).click();
+  const modal=p.getByRole('dialog');await modal.getByText('Synthetic package',{exact:true}).waitFor();
+  await modal.getByLabel(copy.releaseReason,{exact:true}).fill('Wait for prior request');await modal.getByRole('checkbox').check();
+  await modal.getByRole('button',{name:copy.releaseAction,exact:true}).click();await modal.getByText(copy.releaseDraining,{exact:true}).waitFor();
+  assert.equal(await modal.getByText(copy.releaseComplete,{exact:true}).count(),0);await p.evaluate(()=>{window.audit.releasePolling=false});
+  await modal.getByText(copy.releaseComplete,{exact:true}).waitFor({timeout:8000});
+  assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.url.endsWith('/decision')).length),1);check('admin release drains and polls without duplicate decision');
+ }
+ {
+  const copy=await ready({releaseWriteError:409});await p.locator('article').getByRole('button',{name:copy.releaseAction,exact:true}).click();
+  const modal=p.getByRole('dialog');await modal.getByText('Synthetic package',{exact:true}).waitFor();
+  await modal.getByLabel(copy.releaseReason,{exact:true}).fill('Stale scope');await modal.getByRole('checkbox').check();
+  await modal.getByRole('button',{name:copy.releaseAction,exact:true}).click();await modal.getByText(copy.releaseChanged,{exact:true}).waitFor();
+  assert.equal(await modal.getByRole('checkbox').isChecked(),false);check('admin release requires a fresh preview after conflict');
+ }
+ {
+  const copy=await ready({releaseReadError:403});await p.locator('article').getByRole('button',{name:copy.releaseAction,exact:true}).click();
+  await p.getByRole('dialog').waitFor({state:'hidden'});assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.url.endsWith('/decision')).length),0);check('admin release denial clears the preview');
+ }
+ {
+  const copy=await ready({reviewArchived:true});await p.getByRole('button',{name:copy.archivedTab,exact:true}).click();
+  await p.getByText('Synthetic archive reason',{exact:true}).waitFor();assert.equal(await p.locator('article').getByRole('button',{name:copy.releaseAction,exact:true}).count(),0);check('admin archive retains actor reason and read-only details');
  }
  await ready({reviewRace:true});const search=p.locator('main input');await search.fill('old');await search.fill('name+tag&test');
  await p.getByText('name+tag&test',{exact:true}).waitFor();await p.waitForTimeout(800);

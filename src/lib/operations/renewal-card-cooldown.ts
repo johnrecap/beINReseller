@@ -16,7 +16,7 @@ export async function readRenewalCardCooldown(
     now = new Date(),
 ): Promise<CardCooldownSnapshot> {
     const row = await db.operation.findFirst({
-        where: { cardNumber, type: 'RENEW', renewalCooldownUntil: { gt: now } },
+        where: { cardNumber, type: 'RENEW', administrativeArchivedAt: null, renewalCooldownUntil: { gt: now } },
         orderBy: { renewalCooldownUntil: 'desc' },
         select: { renewalCooldownUntil: true },
     })

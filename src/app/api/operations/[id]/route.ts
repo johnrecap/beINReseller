@@ -37,6 +37,8 @@ export async function GET(
             where: { id },
             select: {
                 id: true,
+                administrativeStopRequestedAt: true,
+                administrativeArchivedAt: true,
                 type: true,
                 cardNumber: true,
                 amount: true,

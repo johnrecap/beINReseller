@@ -43,6 +43,8 @@ export async function GET(
                 userId: true,
                 cardNumber: true,
                 status: true,
+                administrativeStopRequestedAt: true,
+                administrativeArchivedAt: true,
                 stbNumber: true,
                 availablePackages: true,
                 promoCode: true,
@@ -76,7 +78,10 @@ export async function GET(
         const progress = projectOperationProgress(operation)
         const respond = (body: Record<string, unknown>) => NextResponse.json({
             ...body, ...progress, messageKey: progress.messageKey ?? body.messageKey,
+            administrativeStopRequestedAt: operation.administrativeStopRequestedAt,
+            administrativeArchivedAt: operation.administrativeArchivedAt,
         })
+        if (operation.administrativeStopRequestedAt) return respond({ success: operation.status === 'COMPLETED', status: operation.status })
         if (progress.confirmationExpired) return respond({ success: false, status: operation.status })
 
         // 4. Check status

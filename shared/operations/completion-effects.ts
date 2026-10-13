@@ -41,6 +41,7 @@ export async function deliverCompletionEffects(db: EffectDatabase, options: { li
     const limit = Number.isFinite(options.limit) ? Math.max(1, Math.min(200, Math.floor(options.limit!))) : 50
     const leaseOwner = randomUUID()
     const rows = await db.operationCompletionEffect.findMany({ where: {
+        operation: { administrativeStopRequestedAt: null },
         ...(options.operationId ? { operationId: options.operationId } : {}),
         OR: [{ state: 'PENDING', nextAttemptAt: { lte: now } }, { state: 'DELIVERING', nextAttemptAt: { lte: now } }],
     }, orderBy: { nextAttemptAt: 'asc' }, take: limit })

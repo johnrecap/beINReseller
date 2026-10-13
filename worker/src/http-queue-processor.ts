@@ -15,6 +15,10 @@ import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage, classifyFinalPayOutcome, type LoadPackagesResult } from './http';
 import type { FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
 import { AccountPoolManager, getQueueManager, lockAccount, unlockAccount } from './pool';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { assertAdministrativeExecutionAllowed, beginOperationProviderRequest, finishOperationProviderRequest } from '../../shared/operations/admin-card-release';
+const operationRequestContext = new AsyncLocalStorage<string>();
+
 import {
     acquireAccountExecutionLease,
     assertAccountExecutionLease,
@@ -818,6 +822,11 @@ function prepareSharedSessionForCache<T extends { viewState?: unknown; renewalSe
  */
 async function createOperationClient(account: OperationBeinAccount, route: EffectiveBeinRoute): Promise<HttpClientService> {
     const client = new HttpClientService(route.proxyConfig, account.id);
+    const operationId = operationRequestContext.getStore();
+    if (operationId) client.setOperationRequestScope({
+        begin: method => beginOperationProviderRequest(prisma, operationId, method),
+        finish: (id, result) => finishOperationProviderRequest(prisma, id, result),
+    });
     await client.initialize();
     console.log(`[HTTP] Created operation client for ${account.username}: ${safeRouteLogSuffix(route)}`);
 
@@ -1217,6 +1226,11 @@ export async function processOperationHttp(
     job: Job<OperationJobData>,
     accountPool: AccountPoolManager
 ): Promise<void> {
+    if (job.data.type === 'CHECK_ACCOUNT_BALANCE') return processOperationHttpScoped(job, accountPool);
+    return operationRequestContext.run(job.data.operationId, () => processOperationHttpScoped(job, accountPool));
+}
+
+async function processOperationHttpScoped(job: Job<OperationJobData>, accountPool: AccountPoolManager): Promise<void> {
     const { operationId, type, cardNumber, promoCode, userId, accountId, smartcardType } = job.data;
     const revision = actionRevision(type, job.data.actionRevision);
     let selectedAccountId: string | null = null;
@@ -1224,6 +1238,7 @@ export async function processOperationHttp(
     console.log(`📥 [HTTP] Processing ${operationId}: ${type}`);
 
     try {
+        if (type !== 'CHECK_ACCOUNT_BALANCE') await assertAdministrativeExecutionAllowed(prisma, operationId);
         switch (type) {
             case 'CHECK_ACCOUNT_BALANCE':
                 if (accountId) {
@@ -1279,6 +1294,13 @@ export async function processOperationHttp(
                 throw new Error(`Unsupported operation type for HTTP: ${type}`);
         }
     } catch (error: unknown) {
+        const stopped = type === 'CHECK_ACCOUNT_BALANCE' ? null : await prisma.operation.findUnique({
+            where: { id: operationId }, select: { administrativeStopRequestedAt: true },
+        });
+        if (stopped?.administrativeStopRequestedAt) {
+            console.info('[AdminCardRelease]', JSON.stringify({ operationId, stage: 'OLD_JOB_STOPPED', jobType: type }));
+            return;
+        }
         if (error instanceof QuoteHoldPersistenceError) {
             // Retain the reservation and surface a failed job for operator recovery.
             // Replaying COMPLETE_PURCHASE would replay provider cart preparation.

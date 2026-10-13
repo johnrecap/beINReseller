@@ -64,7 +64,7 @@ async function findFulfillmentSafetyConflict(cardNumber: string) {
         where: {
             issueType: { in: [...FULFILLMENT_SAFETY_ISSUE_TYPES] },
             status: { in: ['OPEN', 'ACKNOWLEDGED'] },
-            operation: { cardNumber },
+            operation: { cardNumber, administrativeArchivedAt: null },
         },
         orderBy: { lastSeenAt: 'desc' },
         select: { id: true, operationId: true, issueType: true },
@@ -155,6 +155,7 @@ export async function POST(request: NextRequest) {
                 where: {
                     cardNumber,
                     status: { in: [...ACTIVE_OPERATION_STATUSES] },
+                    administrativeArchivedAt: null,
                 },
                 orderBy: { createdAt: 'desc' },
             })
@@ -170,6 +171,7 @@ export async function POST(request: NextRequest) {
                 where: {
                     cardNumber,
                     status: UNRESOLVED_REVIEW_STATUS,
+                    administrativeArchivedAt: null,
                 },
                 orderBy: { updatedAt: 'desc' },
                 select: { id: true },
@@ -212,6 +214,7 @@ export async function POST(request: NextRequest) {
                 where: {
                     cardNumber,
                     status: { in: [...ACTIVE_OPERATION_STATUSES] },
+                    administrativeArchivedAt: null,
                 },
             })
 
@@ -226,6 +229,7 @@ export async function POST(request: NextRequest) {
                 where: {
                     cardNumber,
                     status: UNRESOLVED_REVIEW_STATUS,
+                    administrativeArchivedAt: null,
                 },
                 orderBy: { updatedAt: 'desc' },
                 select: { id: true },

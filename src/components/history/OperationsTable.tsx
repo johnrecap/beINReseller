@@ -23,6 +23,8 @@ interface Operation {
     confirmationExpired?: boolean
     reviewRequired?: boolean
     receiptAvailable?: boolean
+    administrativeStopRequestedAt?: string | null
+    administrativeArchivedAt?: string | null
 }
 
 interface OperationsTableProps {
@@ -239,7 +241,7 @@ export default function OperationsTable({
                                 </TableCell>
                                 <TableCell className="px-6 py-4">
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusColors[op.status] || 'bg-gray-100 dark:bg-gray-800'} transition-transform hover:scale-105`}>
-                                        {getStatusLabel(op.status)}
+                                        {op.administrativeArchivedAt && op.status !== 'COMPLETED' ? t.panelUi.administrativelyArchived : getStatusLabel(op.status)}
                                     </span>
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-sm text-muted-foreground">
@@ -257,7 +259,7 @@ export default function OperationsTable({
                                             className="inline-flex rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                                             {t.renewalReceipt.view}
                                         </a>
-                                    ) : CANCELLABLE_STATUSES.includes(op.status) ? (
+                                    ) : !op.administrativeStopRequestedAt && !op.administrativeArchivedAt && CANCELLABLE_STATUSES.includes(op.status) ? (
                                         <button
                                             onClick={() => handleCancel(op)}
                                             disabled={cancellingId === op.id}
@@ -302,7 +304,7 @@ export default function OperationsTable({
                                     {(t.operations as Record<string, string>)[op.type === 'CHECK_BALANCE' ? 'checkBalance' : op.type === 'SIGNAL_REFRESH' ? 'refreshSignal' : 'renew'] || op.type}
                                 </span>
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${statusColors[op.status] || 'bg-gray-100 dark:bg-gray-800'}`}>
-                                    {getStatusLabel(op.status)}
+                                    {op.administrativeArchivedAt && op.status !== 'COMPLETED' ? t.panelUi.administrativelyArchived : getStatusLabel(op.status)}
                                 </span>
                             </div>
                         </div>
@@ -323,7 +325,7 @@ export default function OperationsTable({
                                     {t.renewalReceipt.view}
                                 </a>
                             )}
-                            {CANCELLABLE_STATUSES.includes(op.status) && (
+                            {!op.administrativeStopRequestedAt && !op.administrativeArchivedAt && CANCELLABLE_STATUSES.includes(op.status) && (
                                 <button
                                     onClick={() => handleCancel(op)}
                                     disabled={cancellingId === op.id}

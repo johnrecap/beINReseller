@@ -23,12 +23,14 @@ import { classifyFinancialReview, reviewCapabilitySelect } from '@/lib/financial
 import { finalizeLegacyReview } from '@/lib/operations/legacy-review-finalization'
 import { finalizeWebPreMutationRenewalTermination } from '@/lib/operations/pre-mutation-renewal-finalization'
 import redis from '@/lib/redis'
+import { requestCardRelease, completeCardRelease } from '../../../../../../../shared/operations/admin-card-release'
 
 const DECISION_ACTIONS: FinancialReviewDecisionAction[] = [
     'BEIN_EXECUTED_NO_REFUND',
     'REFUND_CUSTOMER',
     'KEEP_UNDER_REVIEW',
     'RESOLVE_PRE_MUTATION',
+    'ADMIN_ARCHIVE_AND_UNLOCK_CARD',
 ]
 
 type RouteContext = {
@@ -48,6 +50,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
             note?: string
             decisionKey?: string
             sourceReference?: string
+            fingerprint?: string
+            acknowledgeRisk?: boolean
             manualVerification?: {
                 cardRenewed?: boolean
                 actualBeinDebitAmount?: number
@@ -91,6 +95,31 @@ export async function POST(request: NextRequest, context: RouteContext) {
             return NextResponse.json({ error: 'INVALID_DECISION_NOTE', code: 'INVALID_DECISION_NOTE',
                 messageKey: 'admin.financialReview.decisionNoteValidation' }, { status: 400 })
         }
+
+        if (action === 'ADMIN_ARCHIVE_AND_UNLOCK_CARD') {
+            try {
+                const release = await requestCardRelease(prisma, { operationId, actorId: authResult.user.id, note,
+                    decisionKey: body.decisionKey || '', fingerprint: body.fingerprint || '', acknowledgeRisk: body.acknowledgeRisk === true })
+                const result = await completeCardRelease(prisma, release.id, redis)
+                const included = await prisma.operation.findMany({ where: { administrativeReleaseId: release.id }, select: { id: true }, orderBy: { id: 'asc' } })
+                return NextResponse.json({ success: true, releaseId: result.id, state: result.state, lastError: result.lastError,
+                    operationIds: included.map(operation => operation.id) },
+                    { status: result.state === 'COMPLETED' ? 200 : 202 })
+            } catch (error) {
+                const code = error instanceof Error ? error.message : ''
+                if (['INVALID_CARD_RELEASE_DECISION', 'ADMIN_REQUIRED', 'CARD_RELEASE_KEY_CONFLICT',
+                    'CARD_RELEASE_IN_PROGRESS', 'CARD_RELEASE_PREVIEW_CHANGED'].includes(code))
+                    return NextResponse.json({ error: code, code, messageKey: 'admin.financialReview.releaseChanged' },
+                        { status: code === 'ADMIN_REQUIRED' ? 403 : code === 'INVALID_CARD_RELEASE_DECISION' ? 400 : 409 })
+                console.error('[AdminCardRelease]', JSON.stringify({ operationId, stage: 'REQUEST_RETRY_REQUIRED' }))
+                return NextResponse.json({ error: 'CARD_RELEASE_RETRY_REQUIRED', code: 'CARD_RELEASE_RETRY_REQUIRED',
+                    messageKey: 'admin.financialReview.releaseRetry' }, { status: 500 })
+            }
+        }
+
+        const stoppedOperation = await prisma.operation.findUnique({ where: { id: operationId }, select: { administrativeStopRequestedAt: true, administrativeArchivedAt: true } })
+        if (stoppedOperation?.administrativeStopRequestedAt || stoppedOperation?.administrativeArchivedAt) return NextResponse.json({ error: 'ADMIN_OPERATION_STOPPED',
+            code: 'ADMIN_OPERATION_STOPPED', messageKey: 'operations.administrativelyArchived' }, { status: 409 })
 
         if (action === 'RESOLVE_PRE_MUTATION') {
             const result = await finalizeWebPreMutationRenewalTermination({ operationId, terminalStatus: 'FAILED',

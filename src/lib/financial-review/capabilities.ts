@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { quoteData } from '../../../shared/operations/package-quote'
 import { hasProvenUnsubmittedPayment } from '../../../shared/operations/renewal-pre-payment'
 
-export type ReviewAction = 'KEEP_UNDER_REVIEW' | 'BEIN_EXECUTED_NO_REFUND' | 'REFUND_CUSTOMER' | 'RESOLVE_PRE_MUTATION'
+export type ReviewAction = 'KEEP_UNDER_REVIEW' | 'BEIN_EXECUTED_NO_REFUND' | 'REFUND_CUSTOMER' | 'RESOLVE_PRE_MUTATION' | 'ADMIN_ARCHIVE_AND_UNLOCK_CARD'
 export type ReviewClassification = 'MODERN_RENEWAL' | 'PRE_MUTATION' | 'LEGACY_RENEWAL' | 'INSTALLMENT' | 'CONFLICT' | 'CLOSED' | 'UNSUPPORTED'
 export interface ReviewCapabilities {
     classification: ReviewClassification
@@ -16,6 +16,8 @@ export interface ReviewCapabilityContext {
     beinAccountId: string | null; cardNumber: string; amount: number; selectedPackage?: unknown; responseData?: unknown
     providerPaymentState?: string | null; providerMutationStartedAt?: Date | null; providerMutationStage?: string | null
     renewalFlowVersion?: number | null
+    administrativeStopRequestedAt?: Date | null
+    administrativeArchivedAt?: Date | null
     fulfillmentState?: string | null; fulfillmentVerificationOutcome?: string | null; fulfillmentAuthority?: string | null
     transactions: Array<{ type: string; amount: number; userId?: string | null }>
     dispatches?: Array<{ jobType: string; status: string; attempts: number }>
@@ -33,6 +35,11 @@ export const reviewCapabilitySelect = {
     cardNumber: true, amount: true, selectedPackage: true, responseData: true, providerPaymentState: true,
     providerMutationStartedAt: true, providerMutationStage: true, renewalFlowVersion: true, fulfillmentAuthority: true,
     fulfillmentState: true, fulfillmentVerificationOutcome: true,
+    administrativeStopRequestedAt: true, administrativeArchivedAt: true, administrativeReleaseId: true,
+    administrativeRelease: { select: { id: true, state: true, note: true, requestedAt: true, completedAt: true, lastError: true,
+        actor: { select: { username: true } } } },
+    providerRequests: { where: { observedAfterStop: true }, orderBy: { finishedAt: 'desc' }, take: 5,
+        select: { resultCode: true, finishedAt: true } },
     transactions: { select: { type: true, amount: true, userId: true } },
     dispatches: { select: { jobType: true, status: true, attempts: true } },
     refundSettlements: { select: { state: true } },
@@ -44,6 +51,12 @@ export const reviewCapabilitySelect = {
 } as const satisfies Prisma.OperationSelect
 
 export function classifyFinancialReview(operation: ReviewCapabilityContext): ReviewCapabilities {
+    const result = classifyFinancialReviewCore(operation)
+    if (operation.administrativeStopRequestedAt || operation.administrativeArchivedAt) return { ...result, allowedActions: [], blockedReasonCodes: ['ADMIN_OPERATION_STOPPED'] }
+    return { ...result, allowedActions: [...result.allowedActions, 'ADMIN_ARCHIVE_AND_UNLOCK_CARD'] }
+}
+
+function classifyFinancialReviewCore(operation: ReviewCapabilityContext): ReviewCapabilities {
     const hold = (classification: ReviewClassification, ...blockedReasonCodes: string[]): ReviewCapabilities => ({
         classification, allowedActions: operation.status === 'REVIEW_REQUIRED' ? ['KEEP_UNDER_REVIEW'] : [],
         requiredEvidenceFields: {}, requiredNote: true, blockedReasonCodes,

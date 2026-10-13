@@ -10,6 +10,7 @@ const PRE_PAYMENT_PHASES = ['PACKAGE_PREPARATION', 'PROVIDER_SALE_PREPARATION_ST
     'CUSTOMER_DEDUCTED', 'DISPATCH_PENDING', 'DISPATCH_FAILED', 'RECOVERY_TIMEOUT']
 
 export interface PrePaymentContext {
+    administrativeStopRequestedAt?: Date | null
     status: string; responseData?: unknown; renewalFlowVersion?: number | null
     providerMutationStartedAt?: Date | null; providerMutationStage?: string | null
     providerPaymentState?: string | null; fulfillmentState?: string | null; fulfillmentAuthority?: string | null
@@ -34,6 +35,7 @@ export function finalProviderMutationMayHaveStarted(input: PrePaymentContext): b
 // Positive evidence is mandatory when clearing an old safety issue. Missing
 // markers alone (especially in a legacy row) are not proof that no sale occurred.
 export function hasProvenUnsubmittedPayment(input: PrePaymentContext): boolean {
+    if (input.administrativeStopRequestedAt) return false
     const data = quoteData(input.responseData)
     return input.providerPaymentState === 'NOT_SUBMITTED' && data.finalPaySubmitted === false &&
         PRE_PAYMENT_PHASES.includes(String(data.operationPhase ?? data.phase)) &&

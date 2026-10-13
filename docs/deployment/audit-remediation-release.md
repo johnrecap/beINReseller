@@ -1,5 +1,13 @@
 # Audit remediation release gates
 
+## Admin card release — 2026-10-13
+
+The explicitly authorized administrative override requires additive migration `20261013190000_admin_card_release`, matching Prisma clients, and the same reviewed web, panel Workers, maintenance and KeepAlive revision. Close new admission, finish current operations at their existing safe boundaries, then stop all affected processes before migrating/building. Stop `bein-web` before replacing `.next`. Preserve the actual `PANEL_WORKER_COUNT`; do not infer a new capacity target from this feature. Apply `prisma migrate deploy`, generate both clients, build both packages, and start the coordinated ecosystem only after both builds pass. The feature has no automatic mixed-version attestation: operators must verify process start times and executed artifact versions as described below.
+
+Deployment alone does not archive a historical card. An ADMIN uses the review button, reads the current scope, enters a reason and acknowledges possible duplicate purchase. A pending request resumes through maintenance; do not create a second decision or replay Pay after interruption. Native concurrent PostgreSQL/Redis, the complete historical migration chain and production/provider acceptance remain unverified by the local PGlite/Axios/browser checks. See the [current delivery register](../PROJECT_GUIDE.md#admin-card-release--delivery-register-2026-10-13).
+
+After an administrative stop/archive, keep compatible consumers in service. A prior application that ignores stop flags could reintroduce evidence processing or provider requests; database write fences alone cannot prevent an old HTTP client from sending a request. Rollback therefore keeps admission and old consumers stopped until compatibility is proven. Never delete the decision, drop its fences, change unknown payment status, or repeat a charge to complete rollback.
+
 ## Same-day report migration recovery — 2026-10-13
 
 The first production attempt at `20261013120000_same_day_report_renewal` failed with Prisma P3018/PostgreSQL `55P04`: it added `SOLD_REPORT_SAME_DAY` and used it in a CHECK constraint within the same transaction. Its published SQL must remain unchanged for checksum continuity. The earlier `20261013115959_same_day_report_enum_values` commits the three new labels before the original migration runs. A local PGlite test reproduces and repairs this specific failure; native production state is not verified here.

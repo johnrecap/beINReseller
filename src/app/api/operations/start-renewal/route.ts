@@ -24,10 +24,12 @@ async function getAuthUser(request: NextRequest) {
 }
 
 // Validation schema
+const cardNumberSchema = z.string().regex(/^\d{10,16}$/, 'Card number must contain 10 to 16 digits')
 const startRenewalSchema = z.object({
-    cardNumber: z.string().min(10).max(16).regex(/^\d+$/, 'Card number must contain only digits'),
+    cardNumber: cardNumberSchema,
     smartcardType: z.enum(['CISCO', 'IRDETO']).default('CISCO').optional(),
-})
+}).refine(value => (value.smartcardType || 'CISCO') !== 'CISCO' || value.cardNumber.length === 10,
+    { path: ['cardNumber'], message: 'CISCO card number must contain 10 digits' })
 
 const ACTIVE_OPERATION_STATUSES = ['PENDING', 'PROCESSING', 'AWAITING_CAPTCHA', 'AWAITING_PACKAGE', 'COMPLETING', 'AWAITING_FINAL_CONFIRM'] as const
 // Same authenticated renewal surface; this lookup never creates an operation.
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
         const limited = await withRateLimit(`renewal-cooldown:${user.id}`, RATE_LIMITS.operations)
         if (!limited.allowed) return NextResponse.json({ error: 'RATE_LIMIT_EXCEEDED' },
             { status: 429, headers: rateLimitHeaders(limited.result) })
-        const card = startRenewalSchema.shape.cardNumber.safeParse(new URL(request.url).searchParams.get('cardNumber'))
+        const card = cardNumberSchema.safeParse(new URL(request.url).searchParams.get('cardNumber'))
         if (!card.success) return NextResponse.json({ error: 'INVALID_CARD_NUMBER' }, { status: 400 })
         return NextResponse.json(await readRenewalCardCooldown(prisma, card.data), { headers: { 'Cache-Control': 'no-store' } })
     } catch {
@@ -259,6 +261,7 @@ export async function POST(request: NextRequest) {
                         status: 'PENDING',
                         providerPaymentState: 'NOT_SUBMITTED',
                         fulfillmentState: 'UNVERIFIED',
+                        renewalFlowVersion: 2,
                     },
                 })
 

@@ -23,7 +23,7 @@ type ReviewOperation = {
     user: { id: string; username: string } | null
     customer: { id: string; name: string; email: string } | null
     beinAccount: { id: string; username: string | null; label: string | null } | null
-    fulfillmentAuthority?: 'NONE' | 'AUTOMATED_COMPOSITE' | 'MANUAL_PROVIDER_CONFIRMATION' | null
+    fulfillmentAuthority?: 'NONE' | 'AUTOMATED_COMPOSITE' | 'AUTOMATED_REPORT' | 'MANUAL_PROVIDER_CONFIRMATION' | null
     chargedBeinSpendLedger: {
         id: string
         beinAccountId: string
@@ -254,7 +254,7 @@ export function buildFinancialReviewItem(
         financiallyImpacted,
         fulfillmentVerified: Boolean(
             operation.fulfillmentProof &&
-            operation.fulfillmentProof.proofKind === 'SOLD_REPORT_CONTRACT_CORRELATION' &&
+            ['SOLD_REPORT_CONTRACT_CORRELATION', 'SOLD_REPORT_SAME_DAY'].includes(operation.fulfillmentProof.proofKind || '') &&
             operation.fulfillmentProof.operationId === operation.id &&
             operation.beinAccount &&
             operation.fulfillmentProof.beinAccountId === operation.beinAccount.id &&

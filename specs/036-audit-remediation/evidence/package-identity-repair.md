@@ -1,5 +1,7 @@
 # Exact renewal package repair — 2026-10-12
 
+The subsequent read-only end-to-end comparison of current panel source and signed-in provider Check/Packages/Sold Report pages is recorded in [renewal flow comparison](renewal-readonly-flow-comparison-20261013.md). It separates the observed pre-repair loading error from unproven historical wrong-package incidents and retains later payment-form/provider-acceptance gaps.
+
 Status: local guards implemented; **live provider compatibility and production incident attribution are INCOMPLETE**. Base source: `4f21f643f95588caa6048a72a6099205054aae1c`. The user approved this implementation plan and prohibited subagents. No Spec Kit workflow, deployment, purchase, business database mutation or refund was performed.
 
 ## Smartcard loading regression repair — 2026-10-13

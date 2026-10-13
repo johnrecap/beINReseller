@@ -130,8 +130,6 @@ export default function BeINConfigForm() {
             fields: [
                 { key: 'pool_max_requests_per_account', label: t.admin.config.fields.maxRequestsPerAccount || 'Max requests per account', type: 'number', placeholder: '5', hint: t.admin.config.hints?.maxRequestsPerAccount || 'Allowed requests per account within the time window' },
                 { key: 'pool_rate_limit_window_seconds', label: t.admin.config.fields.rateLimitWindow || 'Rate Limit Window (seconds)', type: 'number', placeholder: '300', hint: t.admin.config.hints?.rateLimitWindow || '300 = 5 minutes' },
-                { key: 'pool_cooldown_after_failures', label: t.admin.config.fields.cooldownAfterFailures || 'Failures before cooldown', type: 'number', placeholder: '3' },
-                { key: 'pool_cooldown_duration_seconds', label: t.admin.config.fields.cooldownDuration || 'Cooldown duration (seconds)', type: 'number', placeholder: '600', hint: t.admin.config.hints?.cooldownDuration || '600 = 10 minutes' },
                 { key: 'pool_min_delay_ms', label: t.admin.config.fields.minDelay || 'Min delay (ms)', type: 'number', placeholder: '2000' },
                 { key: 'pool_max_delay_ms', label: t.admin.config.fields.maxDelay || 'Max delay (ms)', type: 'number', placeholder: '5000' },
                 { key: 'pool_max_consecutive_failures', label: t.admin.config.fields.maxConsecutiveFailures || 'Max consecutive failures', type: 'number', placeholder: '5' },

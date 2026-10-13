@@ -84,6 +84,15 @@ export type FinalPayOutcomeCategory =
 export interface SessionData {
     cookies: string; // JSON serialized cookies
     viewState?: HiddenFields;
+    renewalSelection?: {
+        packages: AvailablePackage[];
+        viewState: HiddenFields;
+        cardNumber: string;
+        smartcardType: string;
+        promoCode: string | null;
+        quoteRevision?: number;
+        formHtml?: string;
+    };
     preparedRenewal?: PreparedRenewalPurchase;
     lastLoginTime?: string;
 

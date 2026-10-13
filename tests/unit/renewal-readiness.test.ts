@@ -6,6 +6,15 @@ import { loadIsolatedModule } from '../helpers/promo-dispatch-harness'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 
+test('historical provider-account cooldowns no longer block renewal admission', async () => {
+    const db = { setting: { findMany: async () => [] }, beinAccount: { count: async (query: unknown) => {
+        return JSON.stringify(query).includes('cooldownUntil') ? 0 : 1
+    } } }
+    const result = await getRenewalReadiness(db as unknown as Parameters<typeof getRenewalReadiness>[0])
+    assert.equal(result.ready, true)
+    assert.equal(result.reasonCode, 'READY')
+})
+
 test('T035 requested ENFORCE is blocked when attestation is missing even if fallback mode is REVIEW_ONLY', async () => {
     const db = { setting: { findMany: async () => [{ key: 'bein_renewal_fulfillment_proof_mode', value: 'ENFORCE' }] },
         beinAccount: { count: async () => 3 } }

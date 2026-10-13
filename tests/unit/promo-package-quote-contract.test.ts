@@ -91,10 +91,11 @@ test('actual apply API creates one pending revision, replays it, and rejects cha
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ promoCode: code, actionRevision: 1 }),
     }), { params: Promise.resolve({ id: 'synthetic-op' }) })
-    const first = await send('FIRST')
+    const first = await send('seasonoffers')
     assert.equal(first.status, 202)
     assert.equal((await first.json()).quoteState, 'PENDING')
-    assert.equal((await send('FIRST')).status, 202)
+    assert.equal(JSON.parse(String(current.responseData)).requestedPromoCode, 'SEASONOFFERS')
+    assert.equal((await send('SEASONOFFERS')).status, 202)
     assert.equal(rows.length, 1)
     assert.equal((await send('OTHER')).status, 409)
     assert.equal(rows.length, 1)

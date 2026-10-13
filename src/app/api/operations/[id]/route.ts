@@ -6,6 +6,7 @@ import {
     buildChargedBeinAccountAudit,
     redactOperationResponseData,
 } from '@/lib/operation-detail-audit'
+import { projectRenewalReceipt } from '@/lib/operations/receipt'
 
 /**
  * Helper to get authenticated user from session OR mobile token
@@ -48,6 +49,16 @@ export async function GET(
                 finalConfirmExpiry: true,
                 providerPaymentState: true,
                 fulfillmentState: true,
+                fulfillmentAuthority: true,
+                fulfillmentProof: {
+                    select: {
+                        proofKind: true, invoiceNo: true, cardNumberSnapshot: true,
+                        reportItemType: true, reportPackageName: true, promoCodeSnapshot: true,
+                        providerAmount: true, currency: true, contractStartDate: true,
+                        contractExpiryDate: true, reportDate: true, reportObservedAt: true,
+                        customerChargedAmount: true,
+                    },
+                },
                 transactions: { where: { type: 'REFUND' }, select: { type: true } },
                 refundSettlements: { select: { state: true } },
                 chargedBeinSpendLedger: {
@@ -91,12 +102,14 @@ export async function GET(
         // Remove userId from response
         const operationData = {
             ...operation,
+            receipt: projectRenewalReceipt(operation),
             chargedBeinAccount: buildChargedBeinAccountAudit(operation, authUser.role === 'ADMIN'),
             ...projectOperationProgress(operation),
         }
         delete (operationData as { userId?: string }).userId
         delete (operationData as { chargedBeinSpendLedger?: unknown }).chargedBeinSpendLedger
         delete (operationData as { beinAccount?: unknown }).beinAccount
+        delete (operationData as { fulfillmentProof?: unknown }).fulfillmentProof
         delete (operationData as { transactions?: unknown }).transactions
         delete (operationData as { refundSettlements?: unknown }).refundSettlements
 

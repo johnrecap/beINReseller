@@ -93,7 +93,7 @@ export interface FinancialReviewEvidence {
     financiallyImpacted: boolean
     fulfillmentVerified: boolean
     fulfillmentProofId: string | null
-    fulfillmentAuthority: 'NONE' | 'AUTOMATED_COMPOSITE' | 'MANUAL_PROVIDER_CONFIRMATION'
+    fulfillmentAuthority: 'NONE' | 'AUTOMATED_COMPOSITE' | 'AUTOMATED_REPORT' | 'MANUAL_PROVIDER_CONFIRMATION'
     manualEvidenceId: string | null
 }
 

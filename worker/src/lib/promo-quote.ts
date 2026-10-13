@@ -92,16 +92,28 @@ export async function holdQuoteConflict(db: { $transaction<T>(run: (tx: Prisma.T
     })
 }
 
-// Always reload the exact card/type before applying/removing a promo: a restored
-// login session does not prove that its current WebForms page belongs to this quote.
+// Legacy quotes rebuild the page. V2 must keep its operation-scoped WebForms
+// page: a reload loses the card/type selection and can change package controls.
 export async function refreshPromoPackages(client: {
     loadPackages(cardNumber: string, smartcardType: string): Promise<LoadPackagesResult>
-    applyPromoCode(code: string, cardNumber: string, smartcardType: string): Promise<LoadPackagesResult>
-}, input: { cardNumber: string; smartcardType: string; promoAction: PromoAction; promoCode?: string }, assertCurrent: () => Promise<void>) {
+    applyPromoCode(code: string, cardNumber: string, smartcardType: string,
+        assertCurrent?: () => Promise<void>): Promise<LoadPackagesResult>
+    removePromoCode?(cardNumber: string, smartcardType: string,
+        assertCurrent?: () => Promise<void>): Promise<LoadPackagesResult>
+}, input: { cardNumber: string; smartcardType: string; promoAction: PromoAction;
+    promoCode?: string; reuseCurrentPage?: boolean }, assertCurrent: () => Promise<void>) {
     await assertCurrent()
+    if (input.reuseCurrentPage) {
+        if (input.promoAction === 'REMOVE') {
+            if (!client.removePromoCode) return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' }
+            return client.removePromoCode(input.cardNumber, input.smartcardType, assertCurrent)
+        }
+        if (!input.promoCode) return { success: false, packages: [], error: 'PROMO_REFRESH_FAILED' }
+        return client.applyPromoCode(input.promoCode, input.cardNumber, input.smartcardType, assertCurrent)
+    }
     const loaded = await client.loadPackages(input.cardNumber, input.smartcardType)
     if (!loaded.success || input.promoAction === 'REMOVE') return loaded
     if (!input.promoCode) return { success: false, packages: [], error: 'PROMO_REFRESH_FAILED' }
     await assertCurrent()
-    return client.applyPromoCode(input.promoCode, input.cardNumber, input.smartcardType)
+    return client.applyPromoCode(input.promoCode, input.cardNumber, input.smartcardType, assertCurrent)
 }

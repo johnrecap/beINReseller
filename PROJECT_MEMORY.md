@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-10-13
-> Last synchronized commit: 2ea7fa2f17cbd946e981ec5603473f3833c24a1a
+> Last synchronized commit: 374ab9183e1712a64d663fd19fb976f8bb3b7c7a
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:9e87e75eee0a2e99f2f5de40a05015a54102a785df7dd34adeb65656369278c5
+> Working tree fingerprint: SHA256:21365ff655bf1e16f9c0549a021605a3797b578ef84544e9c84c7dcb6703c1a9
 
 ## 1. Project Identity
 
@@ -20,9 +20,19 @@
 
 ## 2. Current System Snapshot
 
+- Current v2 renewal change, 2026-10-13: `UPD-20261013-007` binds newly created package renewals to one operation-scoped Sell Packages page across promo, selection and Add; it removes post-selection Check/reload/promo reapply and uses one exact unclaimed invoice from the executing account's Cairo Pay-day Sold Report, with a saved owner/admin receipt. Local source/tests/types/build pass; disposable PostgreSQL/Redis migration/races, real checkout and production cutover are NOT_VERIFIED. Historical v1 operations retain baseline/contract verification. Resume at `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`.
+
+- Current account lifecycle repair, 2026-10-13: `UPD-20261013-006` removes provider-account cooldowns while retaining the card cooldown and ownership/financial guards. Late jobs cannot reopen terminal reservations; signal-check completion releases its hold atomically; bounded maintenance repairs eligible terminal holds using existing completion evidence and without financial/status writes. Local regression/types pass; native concurrency, the three reported paid renewals' evidence and deployed Worker versions remain unverified. Resume at `specs/036-audit-remediation/audit-register.md#account-availability-continuation--2026-10-13`.
+
+- Current CISCO serial clarification, 2026-10-13: `UPD-20261013-005` retracts the prior assistant request for approval based on treating a nine-digit provider field as an incomplete/different card. The native browser and current Worker submit the full nine-digit field value, including its prefilled first digit, in both Load steps; the customer's ten-digit card remains separate. This is a documentation correction, not a runtime repair. The current live promo response and later checkout remain unverified. Resume at `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`.
+
+- Current dynamic-promo renewal repair, 2026-10-13: `UPD-20261013-004` uppercases arbitrary submitted codes, derives the promo POST from the current bound WebForms form, and refuses changed card/type/state or stale selection. A fresh card/STB check now precedes Add; unlabelled or ambiguous receiver values and a changed pairing stop before cart mutation. Known direct identifier/page-snippet logs were removed. Root/Worker unit suites and both TypeScript checks pass locally. The live Sell Packages pre-Load form was inspected, but the browser approval review blocked the first Load; actual promo response, checkout, new invoice and deployed Worker parity remain unverified. No beIN purchase, payment, deployment or subagent. Resume at `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`.
+
+- Current read-only flow review, 2026-10-13: `UPD-20261013-003` traces card entry to quote, cart, final confirmation and same-account Sold Report proof. The live signed-in report's criteria/grid shape is observed; supplied logs identify the pre-repair loading failure, while deployed Worker parity remains unknown. Scheduled-start and outside-sale correlation holds and STB/logging improvements are documented without a runtime change. No provider sale/payment or subagent. Resume at `specs/036-audit-remediation/evidence/renewal-readonly-flow-comparison-20261013.md`.
+
 - Current smartcard repair, 2026-10-13: `UPD-20261013-002` fixes the bare-label rejection using the provider's observed `Smartcard:` prefix and exact CISCO/IRDETO values. Current read-only browser HTTP confirms both CISCO serial steps and the second POST's omission of disabled controls, now mirrored by the worker. Actual-loader/identity/promo/Reports and translated failure-state tests pass locally. Latest user clarification prohibits renewal; only HTTP observation is authorized. No package selection, cart, sale, payment, deployment or subagents. Live IRDETO input mapping and later checkout remain unverified. Resume at `specs/036-audit-remediation/evidence/package-identity-repair.md`.
 
-- Current provider-report supplement, 2026-10-13: `UPD-20261013-001` adds the admin account-scoped Sold Packages report browser via existing HTTP Workers, temporary Redis results and localized UI. Verified locally with 855 root / 306 Worker cases, three native Redis/BullMQ/HTTP cases and nineteen mocked-browser scenarios; isolated builds/types pass and temporary resources are removed. No schema or financial-state change, live beIN access, deployment or subagents. Resume from `specs/036-audit-remediation/evidence/provider-report-browser-20261013.md`; live compatibility and synchronized production Worker versions remain unverified.
+- Current provider-report supplement, 2026-10-13: `UPD-20261013-001` adds the admin account-scoped Sold Packages report browser via existing HTTP Workers, temporary Redis results and localized UI. Verified locally with 855 root / 306 Worker cases, three native Redis/BullMQ/HTTP cases and nineteen mocked-browser scenarios; isolated builds/types pass and temporary resources are removed. That implementation run had no live beIN access; the later `UPD-20261013-003` browser read confirms the provider report's date/Dealer/All/grid structure only. No schema or financial-state change, deployment or subagents. Resume from `specs/036-audit-remediation/evidence/provider-report-browser-20261013.md`; live panel-adapter compatibility and synchronized production Worker versions remain unverified.
 
 - Current localization/capacity supplement, 2026-10-12: `UPD-20261012-003` localizes the renewal surface, prepares an explicit 20 × 4 / pool-2 profile and repairs two baseline/session defects. The completed 200-user local comparison finds no renewal-throughput/queue-wait improvement and nine repeated burst admission errors with twenty workers. Focused fault checks preserve identity/payment/cooldown fences. Test processes, ports and temporary data/tools are cleaned up. Resume from `specs/036-audit-remediation/evidence/localization-capacity-20261012.md`; production, complete OS egress isolation, historical migration and live provider acceptance remain unverified.
 
@@ -225,6 +235,10 @@
 
 ### FE-007 — Reseller operational workspace
 
+- Dynamic promo 2026-10-13: The API normalizes submitted codes to uppercase; the UI's existing quote revision and selection reset remain the customer authority after apply/remove. No new UI text or endpoint was added. Source: `src/app/api/operations/[id]/apply-promo/route.ts`; `src/app/dashboard/renew/page.tsx`; `UPD-20261013-004`.
+
+- Read-only flow review 2026-10-13: The UI sends full card/type, displays the revision-bound quote and selected confirmation, and treats confirmed API dispatch as processing until fulfillment polling resolves. Source: `specs/036-audit-remediation/evidence/renewal-readonly-flow-comparison-20261013.md`; `UPD-20261013-003`.
+
 - Smartcard failure 2026-10-13: Unsupported provider forms map to `operations.providerSmartcardFormUnsupported` in en/ar/bn and show the existing operation reference. Refund/review evidence retains message precedence. Sources: `shared/operations/consumer-progress.ts`; `src/app/dashboard/renew/page.tsx`; `src/i18n/translations`; `UPD-20261013-002`.
 
 - Localization 2026-10-12: Renewal, signal and installment feedback use the selected en/ar/bn tokens, including dynamic terminal results and language-switch accessibility text. The initial document is en/ltr; persisted locale controls hydrated direction. Provider names and document exports stay original. Sources: `src/app/dashboard/renew/page.tsx`; `src/components/renewal`; `src/i18n/translations`; `UPD-20261012-003`.
@@ -334,6 +348,8 @@
 
 ### API-003 — Operation orchestration and recovery services
 
+- Dynamic promo 2026-10-13: `POST /api/operations/[id]/apply-promo` trims and uppercases the variable code before its idempotent revision/dispatch identity is persisted. Existing ownership, reservation and error-key behavior is unchanged. Source: `src/app/api/operations/[id]/apply-promo/route.ts`; `tests/unit/promo-package-quote-contract.test.ts`; `UPD-20261013-004`.
+
 - Local backlog 2026-09-08: Attempt-CAS dispatch and financial evidence locks are active; late phase writes cannot erase Pay markers. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
 
 - State: VERIFIED
@@ -370,6 +386,8 @@
 - Phase 4: Apply requires actionRevision/APPLY/REMOVE; packages exposes safe revision/state/applied-code rows. Select requires current quoteRevision/index, optional scoped packageKey; final confirm requires accepted revision. Conflicts fail before debit/dispatch. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### API-007 — Admin route contract catalog
+
+- Account cooldown removal: list/detail retain compatibility fields as null/zero; obsolete cooldown config controls, allowlist and seeds are removed. Authorization remains unchanged. Sources: `src/app/api/admin/bein-accounts`; `src/app/api/admin/bein-config/route.ts`; `src/components/admin/BeINConfigForm.tsx`; `tests/unit/account-cooldown-removal.test.ts`; `UPD-20261013-006`.
 
 - Provider reports 2026-10-13: ADMIN-only `POST /api/admin/reports/bein-provider` accepts exact account/from/to and queues one read; `GET /api/admin/reports/bein-provider/[requestId]` returns cached status/page. `GET /api/admin/bein-accounts?view=report-options` returns minimal username/label/eligibility DTOs without credentials, proxies or sessions. Sources: `src/app/api/admin/reports/bein-provider`; `src/app/api/admin/bein-accounts/route.ts`; `tests/unit/provider-report-api.test.ts`; `UPD-20261013-001`.
 
@@ -412,6 +430,8 @@
 - Connections: `BE-003`, `AUTH-006`, `SEC-003`, `TEST-001`
 
 ### API-011 — Renewal payment and fulfillment evidence contract
+
+- Version 2, 2026-10-13: New renewals require one exact same-day Sold Report invoice after final mutation; `GET /api/operations/[id]` returns an owner/admin-only confirmed `receipt`, and list rows expose `receiptAvailable`. The receipt does not expose raw proof or provider credentials. Old v1 baseline/contract and `REVIEW_ONLY` behavior below is version-specific. Sources: `src/app/api/operations/[id]/route.ts`; `src/app/api/operations/route.ts`; `src/lib/operations/receipt.ts`; `UPD-20261013-007`.
 
 - Cooldown 2026-10-12: The existing start-renewal route adds a read-only authenticated/permission/rate-limited GET with cardNumber, cooldownUntil, serverNow and remainingSeconds. Guarded mutations return 409/RENEWAL_CARD_COOLDOWN with the same snapshot and message key; no history/user/account identity is exposed. This does not replace fulfillment review errors. Sources: `src/app/api/operations/start-renewal/route.ts`; `src/lib/operations/renewal-creation-guard.ts`; `tests/unit/renewal-card-cooldown.test.ts`; `UPD-20261012-002`.
 
@@ -527,6 +547,8 @@
 
 ### DATA-010 — Renewal fulfillment proof source of truth
 
+- Version 2, 2026-10-13: `renewal_flow_version` keeps historical operations on v1; new operations store the Pay-request day and may claim `SOLD_REPORT_SAME_DAY`/`AUTOMATED_REPORT` without a baseline or contract. The new migration keeps legacy contract status mandatory and adds day, promo and customer-charge snapshots for the immutable receipt. Local schema validates; migration execution is NOT_VERIFIED. Sources: `prisma/migrations/20261013120000_same_day_report_renewal/migration.sql`; `prisma/schema.prisma`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-007`.
+
 - State: VERIFIED
 - Sources: `prisma/schema.prisma#model-OperationFulfillmentProof`; `prisma/schema.prisma#model-OperationFulfillmentBaseline`; `prisma/schema.prisma#model-OperationFulfillmentVerificationAttempt`; `prisma/migrations/20260824090000_renewal_fulfillment_proof/migration.sql`; `prisma/migrations/20260824130000_sold_report_fulfillment_correlation/migration.sql`; `prisma/migrations/20260824180000_fulfillment_proof_composite_integrity/migration.sql`; `worker/src/lib/fulfillment-baseline.ts`; `worker/src/lib/fulfillment-finalization.ts`; `tests/integration/renewal-fulfillment-finalization-claim-guard-db.test.ts`
 - Current state: A baseline stores the complete pre-Pay Invoice set for the reserved provider account/card. Ordered verification attempts store the post-Pay Sold Report/contract outcome. The finalizer locks the operation and exact latest attempt, requires the active baseline, candidate Invoice, observation times, reservation generation, card/account context and, for `CHARGED`, matching provider spend-ledger account before atomically claiming one composite proof and completion.
@@ -582,6 +604,12 @@
 - Connections: `BE-006`, `DATA-003`, `INT-004`, `OPS-004`, `FEAT-016`, `FEAT-017`
 
 ### FLOW-007 — Proof-gated reseller renewal
+
+- Version 2, 2026-10-13: Initial card-paired Check and package load establish the operation page; promo apply/remove posts on that same page. Selection uses the saved card/type/cookies/ViewState/revision and unique offer before Add, without another Check, reload, promo reapply or account failover. Final OK/Pay is marked once; a complete same-account, Cairo-day Sold Report with exactly one unclaimed card/type/full-offer/amount/currency invoice can complete atomically without a contract Check. Missing/multiple/late evidence holds review and never replays Pay. The older baseline/contract description below applies to v1 only. Sources: `worker/src/http-queue-processor.ts`; `worker/src/lib/promo-quote.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `UPD-20261013-007`.
+
+- Dynamic promo 2026-10-13: Promo POST uses enabled controls from the exact loaded card/type/ViewState form and its actual submit value. Missing/ambiguous/stale form or unchanged/unbound offer fails before a new quote. Purchase preparation rechecks the card/STB and exact selected offer before Add; after Sell it posts the same STB in both later receiver fields and retains their verified echo for final OK. Cart and same-invoice Reports/contract gates remain. The one-hour STB cache can speed quote display but no longer authorizes Add alone. Source: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/http-queue-processor.ts`; `UPD-20261013-004`.
+
+- Read-only provider comparison 2026-10-13: Live CISCO preparation and the Dealer-scoped nine-column Sold Report match the known form/grid structure. A Check contract does not prove a sale by the selected Dealer. Exact baseline/new-invoice/contract gates remain; scheduled start and outside account sale conservatively hold for review. Later checkout and production parity are unverified. Source: `specs/036-audit-remediation/evidence/renewal-readonly-flow-comparison-20261013.md`; `UPD-20261013-003`.
 
 - Smartcard preparation 2026-10-13: Fresh type selection accepts only the observed explicit prefix/value pair and verifies postback selection before serial submission. The second POST omits disabled type/first-serial controls as the browser does, retaining identity checks before/after. Field-length conflicts stop instead of trimming an unverified format. Existing quote/cart/invoice and financial proof fences remain unchanged. The worker may skip the STB lookup using its card-scoped one-hour cache but still posts the STB in both checkout fields; the latter is source evidence, not a live sale observation. Sources: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/http-queue-processor.ts`; `worker/src/lib/package-cache.ts`; `UPD-20261013-002`.
 
@@ -730,6 +758,12 @@
 
 ### INT-001 — beIN HTTP/provider automation
 
+- CISCO serial clarification 2026-10-13: The selected provider input is prefilled with `7` and has a total maxlength of nine; its complete value, not only manually typed digits, is sent in native and Worker Load POSTs. The CISCO Worker derives it from the first nine digits of the ten-digit customer card. The previous approval request based on an incomplete-card interpretation is withdrawn. Sources: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/tests/smartcard-loading.test.ts`; `specs/036-audit-remediation/evidence/package-identity-repair.md`; `UPD-20261013-005`.
+
+- Dynamic promo 2026-10-13: The signed-in pre-Load form fields and prior authorized two-step CISCO Load request trace inform the Worker form-bound promo submission. The actual live promo POST/response was not captured because browser approval rejected Load. Explicit card-labelled STB extraction replaces the former arbitrary-number fallback; known direct identifier logs in HTTP/cache/queue paths were removed. Source: `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`; `UPD-20261013-004`.
+
+- Read-only comparison 2026-10-13: Signed-in report Apply used the live Dealer/All/date criteria and returned `ContentPlaceHolder1_GridView1` with nine expected headers and one dealer group. Check and this report are separate authorities. The actual panel HTTP report adapter, post-sale screens and IRDETO continuation remain unverified live. `checkCard`'s unanchored 15-digit STB fallback and identifier-rich logs merit a separate safety/privacy repair. Source: `specs/036-audit-remediation/evidence/renewal-readonly-flow-comparison-20261013.md`; `UPD-20261013-003`.
+
 - Smartcard labels 2026-10-13: Original and current browser receipts confirm `Smartcard: CISCO` / `8` and `Smartcard: Irdeto` / `1`. One shared resolver enforces these identities in loading and cart reads; duplicate/unknown controls fail closed. Current HTTP/DOM confirms CISCO nine-character serial submission/echo and IRDETO maxlength 10. IRDETO's actual input mapping remains NOT_VERIFIED because no serial was submitted for that type. Sources: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/tests/fixtures/smartcard-observed.ts`; `specs/036-audit-remediation/evidence/package-identity-repair.md`; `UPD-20261013-002`.
 
 - Provider browser 2026-10-13: The existing report parser optionally applies fresh WebForms date controls and All items while preserving Dealer/full-scan guards; financial default criteria are unchanged. A dedicated account-bound HTTP client restricts requests to report/login, uses cancellation and allows one fresh login, with explicit CAPTCHA/incomplete errors. Sources: `worker/src/http/sold-packages-report.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/lib/provider-report-reader.ts`; `UPD-20261013-001`.
@@ -756,7 +790,8 @@
 
 - State: VERIFIED
 - Sources: `worker/src/pool/account-pool-manager.ts`; `worker/src/pool/account-locking.ts`; `worker/src/pool/account-queue-manager.ts`; `worker/src/pool/rate-limiter.ts`; `worker/src/pool/health-checker.ts`; `prisma/schema.prisma#model-BeinAccount`
-- Current state: Workers select eligible active accounts, isolate `customerOnly` traffic, serialize concurrent use with Redis locks, queue when capacity is exhausted, apply account cooldown/rate limits, and expose pool health. Account lock TTL is five minutes and route/session evidence remains account-aware.
+- Current state: Workers select eligible active accounts, isolate `customerOnly` traffic, serialize concurrent use with Redis locks, queue when capacity is exhausted, and retain rate limits and configured auto-disable. Provider-account cooldowns are disabled; old DB/Redis values are ignored. Account lock TTL is five minutes and route/session evidence remains account-aware.
+- Lifecycle repair 2026-10-13: reservation acquisition/transfer locks and rechecks the operation; hard-terminal states cannot reacquire/renew/use it. Completed signal checks release in the completion transaction. Bounded maintenance releases eligible terminal leftovers after Redis execution drains; uncertain review retains causal ownership. Sources: `worker/src/lib/provider-account-reservation.ts`; `worker/src/http-queue-processor.ts`; `src/lib/maintenance/provider-reservation-maintenance.ts`; `UPD-20261013-006`.
 - Connections: `JOB-003`, `JOB-007`, `INT-001`, `DATA-002`, `FEAT-014`
 
 ### JOB-007 — Redis coordination, session, and cache contract
@@ -849,6 +884,8 @@
 
 ### ENV-006 — Database-backed settings registry
 
+- Retired 2026-10-13: `pool_cooldown_after_failures` and `pool_cooldown_duration_seconds` no longer control any Worker, admission or UI path; stored values need no deletion. Sources: `worker/src/pool/account-pool-manager.ts`; `src/app/api/admin/bein-config/route.ts`; `scripts/seed-pool-settings.ts`; `UPD-20261013-006`.
+
 - State: VERIFIED
 - Sources: `prisma/schema.prisma#model-Setting`; `src/app/api/settings/route.ts`; `src/app/api/admin/bein-config/route.ts`; `src/lib/maintenance/effective-status.ts`; `src/lib/points/settings.ts`; `docs/current-project-prd.md#Settings-Environment-And-Secrets-Contract`
 - Current state: Durable setting keys include operation prices; beIN login/renew/check/signal/installment URLs and selectors; Worker session/retry/headless/keepalive options; `maintenance_mode`, message and pause; `bein_connection_mode`; login-failure threshold; installment development mode; sidebar visibility flags; announcement/store/notification settings; and point-program settings in dedicated models.
@@ -909,6 +946,8 @@
 ## 15. Testing and Quality
 
 ### TEST-001 — Fast unit and source-contract suites
+
+- Account lifecycle 2026-10-13: 872 distinct root cases pass, including the separate successful rerun of the filesystem-blocked temporary-Git test. Worker suite: 347 pass / five Redis-dependent skips. Both TypeScript checks and scoped lint pass; one existing unused-import warning remains. Seven lifecycle tests first reproduce late-acquisition/renewal defects, then pass. Sources: `tests/unit/provider-reservation-maintenance.test.ts`; `tests/unit/account-cooldown-removal.test.ts`; `worker/tests/provider-reservation-lifecycle.test.ts`; `worker/tests/account-cooldown-removal.test.ts`; `UPD-20261013-006`.
 
 - Provider browser 2026-10-13: Current full root gate passes 855 cases / 106 files without skips/failures; nine report API/auth/metadata cases included. Source: `specs/036-audit-remediation/evidence/provider-report-browser-20261013.md`; `UPD-20261013-001`.
 
@@ -1004,6 +1043,12 @@
 - Connections: `TEST-002`, `RISK-001`, `RISK-004`, `FEAT-002`, `FEAT-003`, `FEAT-006`, `FEAT-010`–`FEAT-018`
 
 ### TEST-008 — Renewal fulfillment safety verification
+
+- Version 2, 2026-10-13: Synthetic same-page promo, session, exact cart/Pay, daily-report matching, receipt projection and route-owner checks pass. Full Worker suite: 356 pass/0 fail/5 Redis skips; root suite: 877 pass/0 fail/0 skips in a permitted local run after the sandbox blocked its temporary Git fixture. Both TypeScript checks, Prisma validate/schema parity, scoped lint and local web/Worker builds pass. Disposable PostgreSQL migration/concurrency, Redis recovery, authenticated browser and live beIN checkout remain NOT_VERIFIED. Sources: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `worker/tests/same-day-report-fulfillment.test.ts`; `tests/unit/renewal-receipt-route.test.ts`; `UPD-20261013-007`.
+
+- Dynamic promo 2026-10-13: Focused actual-route/HTTP-client synthetic cases cover uppercase code, bound form controls, stale state, other card/type, old checked row, renamed offer at the same price, labelled STB, stale receiver clearing, dual receiver-field POST/echo, cart and report/contract mismatch. Full root and Worker unit suites exit zero with a workspace-owned test temp and bundled Python; root/Worker TypeScript checks pass. This does not verify live promo acceptance, Check response compatibility or a new sale. Source: `tests/unit/promo-package-quote-contract.test.ts`; `worker/tests/renewal-package-identity.test.ts`; `worker/tests/promo-package-refresh.test.ts`; `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`; `UPD-20261013-004`.
+
+- Review verification 2026-10-13: Four focused Worker suites pass 95/95 without skips, covering the current smartcard loader and synthetic observed report/correlation behavior. The live report's table/criteria shape was inspected separately; no live sale, parser replay of raw provider HTML or production end-to-end proof was tested. Source: `specs/036-audit-remediation/evidence/renewal-readonly-flow-comparison-20261013.md`; `UPD-20261013-003`.
 
 - Smartcard regression 2026-10-13: The real loader's prefixed-label case failed before the fix; all 23 dedicated cases now pass, including fourteen observed package rows and disabled controls. Six focused Worker suites pass 129 cases. Consumer contracts pass six cases and mocked browser QA passes 32 scenarios with zero external requests or real operations. Root/Worker types, isolated emission, schema sync and scoped lint pass with six existing warnings. These tests do not establish live IRDETO, checkout or production acceptance. Sources: `worker/tests/smartcard-loading.test.ts`; `worker/tests/fixtures/smartcard-observed.ts`; `tests/unit/operation-consumer-state-contract.test.ts`; `tests/browser/renewal-card-cooldown.cjs`; `specs/036-audit-remediation/evidence/package-identity-repair.md`; `UPD-20261013-002`.
 
@@ -1254,6 +1299,8 @@
 
 ### FEAT-010 — Subscription renewal wizard
 
+- Version 2, 2026-10-13: Newly created package renewals keep the selected provider page across Workers and promo changes, then wait for exact same-day report proof. A confirmed receipt appears in the renewal result/history after completion. The v1 behavior in the older current-state line below is retained for operations already created. Sources: `src/app/dashboard/renew/page.tsx`; `src/components/history/OperationsTable.tsx`; `worker/src/http-queue-processor.ts`; `UPD-20261013-007`.
+
 - Local backlog 2026-09-08: Readiness, safe progress and bounded polling extend accepted promo fencing; provider final-cart evidence remains deferred. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
 
 - Review repair 2026-09-08: Local handoff, pre-sale quote-conflict closure and transport-deadline gaps fixed; synthetic panel confirmation/retry passes. Final Add/Sell cart/total needs authentic provider evidence under T038/T053. Source: `specs/036-audit-remediation/evidence/review-repairs.md`; `UPD-20260908-001`.
@@ -1288,7 +1335,7 @@
 
 ### FEAT-013 — Balance movements, activity, analytics, and reports
 
-- Provider browser 2026-10-13: Admin can select a beIN username and fetch its Sold Packages Details, including external sales, by date through the existing HTTP worker. Results are display-only, not failure history or fulfillment proof. Local tests pass; live-provider behavior remains NOT_VERIFIED. Sources: `src/components/admin/report-center/BeinProviderReportPanel.tsx`; `src/app/api/admin/reports/bein-provider`; `worker/src/lib/provider-report-reader.ts`; `UPD-20261013-001`.
+- Provider browser 2026-10-13: Admin can select a beIN username and fetch its Sold Packages Details, including external sales, by date through the existing HTTP worker. Results are display-only, not failure history or fulfillment proof. Local tests pass; the later browser inspection confirms the provider report page/grid shape, but does not test the panel adapter against the live provider. Sources: `src/components/admin/report-center/BeinProviderReportPanel.tsx`; `src/app/api/admin/reports/bein-provider`; `worker/src/lib/provider-report-reader.ts`; `UPD-20261013-001`; `UPD-20261013-003`.
 
 - State: VERIFIED
 - Status: WORKING
@@ -1298,6 +1345,8 @@
 - Impact: UI, API, data aggregation, audit, exports
 
 ### FEAT-014 — beIN accounts, sessions, proxies, and automation configuration
+
+- 2026-10-13: provider cooldown controls/badge retired; API legacy fields return no effective cooldown. Ended-account reservation repair is independent of the permanent active flag; disabled accounts are never auto-enabled by maintenance. Admin legacy lock presentation still does not describe DB reservation ownership. Sources: `src/app/dashboard/admin/bein-accounts/page.tsx`; `src/components/admin/BeINConfigForm.tsx`; `src/lib/maintenance/provider-reservation-maintenance.ts`; `UPD-20261013-006`.
 
 - State: VERIFIED
 - Status: WORKING
@@ -1364,6 +1413,8 @@
 - Impact: UI, API, queue volume, collision guards, recovery
 
 ### FEAT-020 — Renewal fulfillment proof and duplicate-charge containment
+
+- Version 2, 2026-10-13: New operations use same-day unique report proof rather than the v1 baseline/active-contract proof; marker, invoice uniqueness, no repeat Pay, review hold and atomic completion/release remain. A same-day identical prior outside sale can still be misattributed because Reports has no sale timestamp. Local code is PARTIAL pending native migration/race and provider compatibility evidence. Sources: `worker/src/lib/same-day-report-fulfillment.ts`; `prisma/migrations/20261013120000_same_day_report_renewal/migration.sql`; `UPD-20261013-007`.
 
 - Runtime verification 2026-10-12: Disposable service smoke and mixed load exercise exact promo/cart/Reports/contract completion after correcting baseline SQL and exported account binding. Native reservation/proof constraints and Redis fences pass focused checks. These narrow results supersede earlier absence of native evidence, not the unresolved live compatibility, full migration, settlement and production gates. Source: `specs/036-audit-remediation/evidence/localization-capacity-20261012.md`; `UPD-20261012-003`.
 
@@ -1472,6 +1523,8 @@
 
 ### IMPACT-005 — Redis, account pool, and provider-route blast radius
 
+- 2026-10-13: deploy all Workers and web/maintenance together for removal of account cooldowns and terminal reacquisition fencing. The recovery scan never deletes an active Redis owner or changes the operation/account attribution, money or card hold. Sources: `worker/src/lib/provider-account-reservation.ts`; `src/lib/maintenance/provider-reservation-maintenance.ts`; `UPD-20261013-006`.
+
 - Provider reports share the queue limit and account lock/route/session boundaries with customer work, but keep display results outside financial proof. Synchronized Worker deployment is required for the added job type. Sources: `shared/reports`; `worker/src/lib/provider-report-reader.ts`; `UPD-20261013-001`.
 
 - State: VERIFIED
@@ -1507,6 +1560,23 @@
 - Connections: `IMPACT-001`, `IMPACT-003`, `IMPACT-005`, `IMPACT-006`, `DATA-010`, `FLOW-007`, `FEAT-020`, `OPS-002`, `RISK-009`
 
 ## 19. Technical Decisions
+
+### DEC-010 — Keep v2 on the selected page and prove from the Pay-day report
+
+- State: VERIFIED
+- Date: 2026-10-13
+- Sources: `user:approved same-page/same-day renewal plan`; `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `worker/src/lib/same-day-report-fulfillment.ts`
+- Decision: Newly started package renewals use the operation's saved provider page and one exact unclaimed invoice in the executing account's Cairo Pay-day Sold Report; old v1 attempts retain their initial policy. No pre-sale baseline, post-selection Check/reload/promo reapply, contract Check after Pay, repeated Pay or automatic absence-based refund. The report criterion's same-day attribution limitation is explicitly accepted.
+- Boundary: Local implementation only; migration, native races, live provider and mixed-version release are not accepted.
+- Connections: `FLOW-007`, `DATA-010`, `FEAT-010`, `FEAT-020`, `RISK-009`, `WORK-004`
+
+### DEC-009 — Bind a changing promo to the provider's current WebForms quote
+
+- State: PARTIAL
+- Date: 2026-10-13
+- Sources: `worker/src/http/renewal-purchase-guard.ts`; `src/app/api/operations/[id]/apply-promo/route.ts`; `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`
+- Decision: Uppercase the supplied code but never bake in a campaign or discount. Derive the promo POST from the same card/type/form state that produced the displayed list. Any missing or conflicting field stops; a changed quote needs an explicit new package selection. Invoice/contract proof and review-only financial uncertainty remain independent of code acceptance.
+- Boundary: Local tests only. The actual provider promo response and deployed mixed-Worker state have not been verified.
 
 ### DEC-008 — Start the card cooldown at attempt end
 
@@ -1588,7 +1658,11 @@
 
 ### RISK-001 — Live production and external state are unverified
 
-- Provider report browser 2026-10-13: Local simulated HTTP and native Redis tests do not prove live login/report layouts, historical coverage or production load. No live provider access/deployment occurred. Sources: `specs/036-audit-remediation/evidence/provider-report-browser-20261013.md`; `UPD-20261013-001`.
+- Account incident 2026-10-13: supplied output establishes three active accounts held by ended paid renewals plus 42 inactive accounts; zero cooldown dates. Live proof/reservation chronology and deployed code remain UNKNOWN. Do not infer release eligibility from COMPLETED or reactivate all accounts. The local repair deliberately retains unproven paid holds and unresolved review. Sources: `specs/036-audit-remediation/audit-register.md#account-availability-continuation--2026-10-13`; `UPD-20261013-006`.
+
+- Dynamic promo 2026-10-13: The current browser's pre-Load WebForms controls were read, but the automatic approval review blocked the serial Load, so no live promo response or checkout was observed. Local form/identity/report tests cannot prove beIN acceptance or deployed Worker parity; unknown provider layouts now fail closed and require review. Source: `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`; `UPD-20261013-004`.
+
+- Provider report browser 2026-10-13: Local simulated HTTP and native Redis tests do not prove live panel-adapter operation, historical coverage or production load. The subsequent read-only browser visit confirmed Dealer/All/date controls and the report grid, not the panel adapter or a new-sale correlation. No deployment occurred. Sources: `specs/036-audit-remediation/evidence/provider-report-browser-20261013.md`; `specs/036-audit-remediation/evidence/renewal-readonly-flow-comparison-20261013.md`; `UPD-20261013-003`.
 
 - Cooldown 2026-10-12: Source and PGlite/UI behavior are verified locally, but the actual server needs the trigger migration and matching processes. Native multi-connection tests and full deployed-schema migration rehearsal remain unverified; no live activation is claimed. Sources: `docs/deployment/audit-remediation-release.md`; `UPD-20261012-002`.
 
@@ -1656,6 +1730,8 @@
 
 ### RISK-009 — Renewal proof migration and reported duplicate deductions are not live-verified
 
+- Version 2, 2026-10-13: New same-day report attribution has an approved temporal limit: Reports lacks an independent sale timestamp, so an identical earlier same-day invoice or a crash after the Pay-intent marker but before HTTP Pay can be mistaken for this attempt. Local tests do not establish provider response shape, disposable DB/Redis races or deployment parity. Do not deploy or claim incident resolution from this change alone. Source: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `UPD-20261013-007`.
+
 - Incident scope, 2026-10-12: Two supplied screenshots show wrong-package renewals; deployed causes remain unproven without server logs/artifacts. The cart parser now follows the inspected DOM; later Sell/STB/OK/Pay and real promo outcomes are still unobserved and may stop affected renewals. IRDETO retains the full serial pending actual format evidence; scheduled starts/credit extensions remain conservative holds. Source: `specs/036-audit-remediation/evidence/package-identity-repair.md`; `UPD-20261012-001`. Do not deploy or resolve balances from local simulation.
 
 - State: UNKNOWN
@@ -1721,6 +1797,14 @@
 
 ### WORK-004 — Renewal fulfillment proof and duplicate-charge containment
 
+- Version 2 continuation 2026-10-13: Locally implemented one-page promo/selection, daily report proof and persistent receipt. New migration and production cutover are NOT_VERIFIED; old v1 attempts keep their original policy. The evidence register lists each requirement and release gate. Source: `specs/036-audit-remediation/audit-register.md#same-page-renewal-and-same-day-report-continuation--2026-10-13`; `UPD-20261013-007`.
+
+- Account lifecycle continuation: cooldown removal and terminal reservation fences/repair verified locally. Pending: read the supplied paid operations' proof and reservation chronology, confirm deployed versions, and exercise native PostgreSQL/Redis races before production acceptance. Source: `specs/036-audit-remediation/audit-register.md#account-availability-continuation--2026-10-13`; `UPD-20261013-006`.
+
+- Dynamic promo continuation 2026-10-13: Local runtime change binds promo POST to the current provider form and rechecks card/STB before Add; exact package/cart/invoice guards remain, with no new Pay retry or automatic refund. The live Load/promo response and synchronized production Workers are open release checks. Source: `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`; `UPD-20261013-004`.
+
+- Read-only review 2026-10-13: Full UI/API/Worker path and live Check/CISCO package/report pages are mapped in the linked evidence. The existing source stops rather than substitutes another package; exact live checkout and post-sale proof remain unverified. The supplied pre-repair logs explain the immediate loading error, not the older wrong-package incidents. Source: `specs/036-audit-remediation/evidence/renewal-readonly-flow-comparison-20261013.md`; `UPD-20261013-003`.
+
 - Local performance supplement 2026-10-12: Localization/configuration, representative journey, 200-user comparison, isolated fault assertions and cleanup are recorded. Twenty workers did not improve measured renewal throughput and failed burst admission targets; this candidate is not a production capacity fix. Native focused DB/Redis cases pass. Historical migration, native OS egress isolation, live provider and deployment acceptance remain open. Sources: `specs/036-audit-remediation/evidence/localization-capacity-20261012.md`; `UPD-20261012-003`.
 
 - Cooldown 2026-10-12: User-authorized local supplement is implemented with 14 focused cases, ten browser scenarios and current full-unit/type/schema checks. Existing review containment survives timer expiry. Remaining native DB/process/deployment checks are explicitly open, and no financial/provider execution occurred. Sources: `specs/036-audit-remediation/audit-register.md#supplemental-card-cooldown--2026-10-12`; `UPD-20261012-002`.
@@ -1757,6 +1841,53 @@
 - Phase 4: Phase 4 T015-T017 complete, 10/46 accepted; synthetic API/worker/DB and six mocked browser groups verified with independent review. Later phases and T007/T008/T012 remain open. Saved locally, no commit/push/deploy. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ## 22. Change Ledger
+
+### UPD-20261013-007 — Versioned same-page renewal, daily report proof and receipt
+
+- Date: 2026-10-13
+- State: PARTIAL
+- Trigger: Maintainer approved the v2 renewal plan and clarified that a Sell Packages reload loses card/type selection.
+- Sources: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`; `prisma/migrations/20261013120000_same_day_report_renewal/migration.sql`; `worker/src/http-queue-processor.ts`; `worker/src/lib/same-day-report-fulfillment.ts`; `src/lib/operations/receipt.ts`; `docs/PROJECT_GUIDE.md`
+- Delta: New package attempts retain the same operation page across Workers and promo changes, stop on lost/mismatched state, correlate one exact Cairo-day provider invoice after mutation, complete/claim/release atomically, and expose a protected local receipt. Existing v1 operations and financial holds remain versioned. No real provider mutation or deployment.
+- Evidence: Local unit/Worker/types/schema/lint/build checks and linked register; migration/concurrency and live-provider compatibility remain NOT_VERIFIED. A same-day prior identical sale remains a known attribution risk.
+- Affected IDs: `API-011`, `DATA-002`, `DATA-010`, `FLOW-007`, `JOB-003`, `JOB-005`, `FEAT-010`, `FEAT-020`, `TEST-008`, `DEC-010`, `RISK-009`, `WORK-004`, `FRESH-001`
+- Runtime impact: RUNTIME_CHANGE_NOT_DEPLOYED
+
+### UPD-20261013-006 — Remove account cooldowns and repair ended account ownership
+
+- Date: 2026-10-13
+- State: PARTIAL
+- Sources: `worker/src/pool`; `worker/src/lib/provider-account-reservation.ts`; `worker/src/http-queue-processor.ts`; `src/lib/maintenance/provider-reservation-maintenance.ts`; `src/lib/maintenance/operation-maintenance-runner.ts`; `src/lib/renewal-readiness.ts`; `src/app/api/admin/bein-accounts`; `tests/unit/provider-reservation-maintenance.test.ts`; `worker/tests/provider-reservation-lifecycle.test.ts`; `docs/PROJECT_GUIDE.md`; `specs/036-audit-remediation/audit-register.md`
+- Affected IDs: `API-007`, `JOB-006`, `ENV-006`, `TEST-001`, `FEAT-014`, `IMPACT-005`, `RISK-001`, `WORK-004`, `FRESH-001`
+- Delta: Honor explicit removal of provider-account cooldowns only; preserve card/rate/review guards. Fence terminal reservation reopening and release completed checks atomically. Repair eligible ended account holds with stored domain proof and generation checks, after Redis owners drain. Original account attribution, operation state, money and card deadlines remain intact.
+- Impact: Local source/tests only; no migration, provider request, server mutation, push, deployment or subagent. Native service races and exact production paid-operation release eligibility remain unverified; existing UI lock/count ambiguity is documented.
+
+### UPD-20261013-005 — Clarify complete native CISCO serial POST value
+
+- Date: 2026-10-13
+- State: VERIFIED
+- Sources: `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/tests/smartcard-loading.test.ts`; `specs/036-audit-remediation/evidence/package-identity-repair.md`; `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`; `specs/036-audit-remediation/audit-register.md`; `docs/PROJECT_GUIDE.md`
+- Affected IDs: `INT-001`, `RISK-001`, `FRESH-001`
+- Delta: Correct the prior assistant's incomplete-card interpretation. Native and Worker Load POSTs carry the entire nine-digit CISCO provider field value, including the digit prefilled in the UI; the customer's ten-digit card remains separate. Withdraw the unnecessary approval request. Focused existing mapping/HTTP-client tests pass.
+- Impact: NO_RUNTIME_IMPACT. Documentation only; no provider Load, package mutation, purchase, payment, deployment or subagent. Live promo and later checkout remain unverified.
+
+### UPD-20261013-004 — Bind dynamic promo to the current quote and recheck receiver
+
+- Date: 2026-10-13
+- State: PARTIAL
+- Sources: `src/app/api/operations/[id]/apply-promo/route.ts`; `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/http-queue-processor.ts`; `worker/src/lib/package-cache.ts`; `tests/unit/promo-package-quote-contract.test.ts`; `worker/tests/renewal-package-identity.test.ts`; `worker/tests/promo-package-refresh.test.ts`; `specs/036-audit-remediation/evidence/dynamic-promo-renewal-20261013.md`; `specs/036-audit-remediation/audit-register.md`; `docs/PROJECT_GUIDE.md`
+- Affected IDs: `FE-007`, `API-003`, `FLOW-007`, `INT-001`, `TEST-008`, `DEC-009`, `RISK-001`, `WORK-004`, `FRESH-001`
+- Delta: Normalize variable coupon input, build its POST from the exact current provider form, reject stale/missing/conflicting controls, preserve unique full-offer/cart/report proof, clear/recheck the card's labelled STB before Add, and remove known direct identifier/page-snippet logs. Local unit suites, types and scoped lint pass.
+- Impact: RUNTIME_CHANGE_NOT_DEPLOYED. Live promo/Check-after-Load and new-sale report behavior remain unverified because browser approval blocked Load; server Worker artifacts and historical incidents were not inspected. No live sale, payment, refund, database schema change or subagent.
+
+### UPD-20261013-003 — Trace renewal against read-only live provider pages
+
+- Date: 2026-10-13
+- State: PARTIAL
+- Sources: `src/app/dashboard/renew/page.tsx`; `src/app/api/operations/start-renewal/route.ts`; `src/app/api/operations/[id]/select-package/route.ts`; `src/app/api/operations/[id]/confirm-purchase/route.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/http/renewal-purchase-guard.ts`; `worker/src/http/sold-packages-report.ts`; `worker/src/http-queue-processor.ts`; `worker/src/lib/renewal-fulfillment-correlation.ts`; `specs/036-audit-remediation/evidence/renewal-readonly-flow-comparison-20261013.md`; `specs/036-audit-remediation/audit-register.md`; `docs/PROJECT_GUIDE.md`
+- Affected IDs: `FE-007`, `FLOW-007`, `INT-001`, `TEST-008`, `FEAT-013`, `RISK-001`, `WORK-004`, `FRESH-001`
+- Delta: Document the current card/quote/cart/confirmation/Reports path against authorized live Check, CISCO preparation and Dealer-scoped Sold Report observations. Distinguish the pre-repair loading failure from unproven wrong-package incidents; record conservative scheduled-start/outside-sale holds, STB provenance/logging risk and later-stage live gaps. Four focused suites pass 95 cases.
+- Impact: NO_RUNTIME_IMPACT. Documentation only; no source behavior, schema, production state, provider sale/payment, refund or subagent action. Live panel HTTP adapter, IRDETO/promo/checkout and production Worker parity remain unverified.
 
 ### UPD-20261013-002 — Repair prefixed smartcard selection during package loading
 
@@ -2008,7 +2139,7 @@
 
 ### FRESH-001 — Local synchronization baseline
 
-- Latest scoped delta: `UPD-20261013-002`, observed smartcard-label repair with actual-loader, downstream proof and localized consumer checks. Current evidence: `specs/036-audit-remediation/evidence/package-identity-repair.md`. Provider-report, capacity and cooldown changes remain in place; live IRDETO, later checkout, historical migration and production gates remain open. Historical UI/036 acceptance counters are unchanged.
+- Latest scoped delta: `UPD-20261013-007`, v2 same-page renewal and same-day report receipt, not deployed. Current evidence: `specs/036-audit-remediation/evidence/same-day-report-renewal-20261013.md`. Earlier v1/promo/smartcard/report/capacity/cooldown work remains; native migration/races, live checkout, incident attribution and production gates remain open. Historical UI/036 acceptance counters are unchanged.
 
 
 - State: VERIFIED

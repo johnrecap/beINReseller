@@ -65,6 +65,7 @@ enum FulfillmentVerificationOutcome {
 enum FulfillmentAuthority {
   NONE
   AUTOMATED_COMPOSITE
+  AUTOMATED_REPORT
   MANUAL_PROVIDER_CONFIRMATION
 }
 
@@ -76,11 +77,13 @@ enum FulfillmentProofMode {
 enum FulfillmentProofKind {
   LEGACY_CONTRACT_ONLY
   SOLD_REPORT_CONTRACT_CORRELATION
+  SOLD_REPORT_SAME_DAY
 }
 
 enum ProviderInvoiceClaimKind {
   LEGACY_PROOF
   SOLD_REPORT_CONTRACT_CORRELATION
+  SOLD_REPORT_SAME_DAY
   MANUAL_PROVIDER_CONFIRMATION
 }
 
@@ -811,12 +814,14 @@ model Operation {
   status          OperationStatus @default(PENDING)
   responseMessage String?         @map("response_message")
   responseData    Json?           @map("response_data")
+  renewalFlowVersion Int          @default(1) @map("renewal_flow_version")
 
   providerPaymentState           ProviderPaymentState?           @map("provider_payment_state")
   fulfillmentState               FulfillmentState?               @map("fulfillment_state")
   fulfillmentVerificationOutcome FulfillmentVerificationOutcome? @map("fulfillment_verification_outcome")
   fulfillmentAuthority           FulfillmentAuthority?           @default(NONE) @map("fulfillment_authority")
   providerMutationStartedAt      DateTime?                       @map("provider_mutation_started_at")
+  providerPayRequestedAt         DateTime?                       @map("provider_pay_requested_at")
   providerMutationStage          ProviderMutationStage?          @map("provider_mutation_stage")
   purpose                        OperationPurpose?               @map("purpose")
 
@@ -1279,7 +1284,7 @@ model OperationFulfillmentProof {
   proofKind            FulfillmentProofKind @default(LEGACY_CONTRACT_ONLY) @map("proof_kind")
   selectedPackageName  String?              @map("selected_package_name")
   contractPackageName  String?              @map("contract_package_name")
-  contractStatus       String               @map("contract_status")
+  contractStatus       String?              @map("contract_status")
   contractType         String?              @map("contract_type")
   contractStartDate    String?              @map("contract_start_date")
   contractExpiryDate   String?              @map("contract_expiry_date")
@@ -1296,6 +1301,10 @@ model OperationFulfillmentProof {
   reportPackageName    String?              @map("report_package_name")
   reportItemType       String?              @map("report_item_type")
   dealerContextHash    String?              @map("dealer_context_hash")
+  reportDate           DateTime?            @map("report_date") @db.Date
+  providerSubmittedAt  DateTime?            @map("provider_submitted_at")
+  promoCodeSnapshot    String?              @map("promo_code_snapshot")
+  customerChargedAmount Decimal?            @map("customer_charged_amount") @db.Decimal(18, 2)
   verifiedAt           DateTime             @default(now()) @map("verified_at")
   createdAt            DateTime             @default(now()) @map("created_at")
   updatedAt            DateTime             @updatedAt @map("updated_at")

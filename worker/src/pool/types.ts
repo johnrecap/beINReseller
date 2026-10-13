@@ -8,10 +8,6 @@ export interface PoolConfig {
     maxRequestsPerAccount: number
     /** Rate limit window in seconds (e.g., 300 = 5 minutes) */
     rateLimitWindowSeconds: number
-    /** Number of failures before applying cooldown */
-    cooldownAfterFailures: number
-    /** Cooldown duration in seconds */
-    cooldownDurationSeconds: number
     /** Minimum delay between requests in milliseconds */
     minDelayMs: number
     /** Maximum delay between requests in milliseconds */
@@ -29,8 +25,6 @@ export interface AccountHealth {
     reason?: string
     /** Number of requests in the current rate limit window */
     requestsInWindow: number
-    /** Remaining cooldown time in seconds */
-    cooldownRemaining?: number
 }
 
 export interface PoolStatus {
@@ -40,7 +34,7 @@ export interface PoolStatus {
     activeAccounts: number
     /** Number of accounts available right now */
     availableNow: number
-    /** Number of accounts in cooldown */
+    /** Legacy response field, always zero: account cooldowns are disabled. */
     inCooldown: number
     /** Number of rate-limited accounts */
     rateLimited: number

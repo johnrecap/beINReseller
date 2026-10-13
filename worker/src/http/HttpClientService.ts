@@ -40,7 +40,7 @@ import {
 } from './types';
 import { encodeSuccessfulControls } from './webforms-form';
 import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
-import { assertPreparedRenewal, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase } from './renewal-purchase-guard';
+import { assertPreparedRenewal, buildPromoSubmission, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase } from './renewal-purchase-guard';
 import {
     scanSoldPackagesReport as runSoldPackagesReportScan,
     type SoldReportScanOptions,
@@ -301,7 +301,25 @@ export class HttpClientService {
     // Current page state
     private currentViewState: HiddenFields | null = null;
     private currentStbNumber: string | null = null;
-    private renewalSelection: { packages: AvailablePackage[]; viewState: HiddenFields; cardNumber: string; smartcardType: string; promoCode: string | null } | null = null;
+    private renewalSelection: { packages: AvailablePackage[]; viewState: HiddenFields; cardNumber: string; smartcardType: string; promoCode: string | null; quoteRevision?: number; formHtml?: string } | null = null;
+
+    setRenewalQuoteRevision(revision: number): void {
+        if (!this.renewalSelection || !Number.isSafeInteger(revision) || revision < 0)
+            throw new Error('PACKAGE_QUOTE_CHANGED');
+        this.renewalSelection.quoteRevision = revision;
+    }
+
+    assertRenewalSelection(selected: QuotePackage, expected: { cardNumber: string; smartcardType: string }): void {
+        const state = this.renewalSelection;
+        if (!state || !this.currentViewState || !this.isSessionActive() ||
+            state.cardNumber !== expected.cardNumber || state.smartcardType !== expected.smartcardType ||
+            state.quoteRevision !== selected.quoteRevision ||
+            selected.packageKey !== `${selected.quoteRevision}.${selected.index}` ||
+            state.promoCode !== (selected.appliedPromoCode || null) ||
+            canonicalJson(state.viewState) !== canonicalJson(this.currentViewState) ||
+            state.packages.filter(pkg => sameQuotedPackage(pkg, selected)).length !== 1)
+            throw new Error('PACKAGE_QUOTE_CHANGED');
+    }
     private preparedRenewal: PreparedRenewalPurchase | null = null;
     private lastInstallmentPageHtml: string | null = null;  // Stored by loadInstallment for payInstallment
 
@@ -664,12 +682,10 @@ export class HttpClientService {
             }
 
             if (checkbox.length === 1) {
-                const checkboxId = checkbox.attr('id') || '';
                 const checkboxName = checkbox.attr('name') || '';
                 const checkboxPostKey = checkboxName;
 
-                // Log both id and name for debugging
-                console.log(`[HTTP] Checkbox ${index}: id="${checkboxId}" name="${checkboxName}"`);
+                console.log(`[HTTP] Checkbox ${index} found in available-packages grid`);
 
                 // Extract package name
                 const nameSpan = $row.find('span[id*="lblName"]');
@@ -749,7 +765,7 @@ export class HttpClientService {
                 // Only return as error if it's short enough to be an error message
                 // and doesn't contain navigation patterns
                 if (errorText.length > 3 && errorText.length < 200 && !isNavigation) {
-                    console.log(`[HTTP] Error detected: ${errorText}`);
+                    console.log('[HTTP] Provider error detected');
                     return errorText;
                 }
             }
@@ -975,6 +991,7 @@ export class HttpClientService {
             cookies: JSON.stringify(cookieStr),
             accountId: this.accountId,
             viewState: this.currentViewState || undefined,
+            renewalSelection: this.renewalSelection || undefined,
             preparedRenewal: this.preparedRenewal || undefined,
             lastLoginTime: new Date().toISOString(),
             loginTimestamp: this.sessionExpiresAt ? (this.sessionExpiresAt - timeoutMs) : now,
@@ -1045,6 +1062,7 @@ export class HttpClientService {
 
             if (data.viewState) {
                 this.currentViewState = data.viewState;
+                this.renewalSelection = data.renewalSelection || null;
                 this.preparedRenewal = data.preparedRenewal || null;
                 if (this.preparedRenewal) this.currentStbNumber = this.preparedRenewal.stbNumber;
             }
@@ -1305,7 +1323,7 @@ export class HttpClientService {
     async login(username: string, password: string, totpSecret?: string): Promise<LoginResult> {
         this.renewalSelection = null;
         this.preparedRenewal = null;
-        console.log(`[HTTP] Starting login for: ${username}`);
+        console.log('[HTTP] Starting login');
 
         // Check if session is still active - verify on beIN server before trusting
         if (this.isSessionActive()) {
@@ -1400,9 +1418,7 @@ export class HttpClientService {
                 // Check if we got an image or HTML error page
                 if (contentType.includes('text/html')) {
                     console.error('[HTTP] CAPTCHA request returned HTML instead of image - session issue');
-                    // Log first 200 chars of response for debugging
-                    const htmlSnippet = Buffer.from(captchaRes.data).toString('utf-8').substring(0, 200);
-                    console.error(`[HTTP] Response: ${htmlSnippet}...`);
+                    console.error('[HTTP] CAPTCHA response could not be parsed');
                     throw new Error('CAPTCHA fetch failed - server returned HTML');
                 }
 
@@ -1518,10 +1534,9 @@ export class HttpClientService {
             if ($('#Login1_UserName').length || $('#Login1_LoginButton').length) {
                 // === DEBUG: Log page details ===
                 const allRedSpans = $('span[style*="Red"], span[style*="red"]').map((i, el) => $(el).text().trim()).get();
-                const bodySnippet = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 500);
                 console.log(`[HTTP] 📄 DEBUG - Page title: ${pageTitle}`);
-                console.log(`[HTTP] 📄 DEBUG - Red spans found: ${JSON.stringify(allRedSpans)}`);
-                console.log(`[HTTP] 📄 DEBUG - Body snippet: ${bodySnippet}...`);
+                console.log(`[HTTP] Red spans found: ${allRedSpans.length}`);
+                console.log('[HTTP] Login response body inspected');
                 // === END DEBUG ===
 
                 // Still on login page - check for specific error
@@ -1554,7 +1569,8 @@ export class HttpClientService {
      * Extracts STB number for later use
      */
     async checkCard(cardNumber: string): Promise<CheckCardResult> {
-        console.log(`[HTTP] Checking card: ${cardNumber}`);
+        this.currentStbNumber = null;
+        console.log('[HTTP] Checking card');
 
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
@@ -1613,7 +1629,7 @@ export class HttpClientService {
             // Check for errors
             const error = this.checkForErrors(checkRes.data);
             if (error) {
-                console.log(`[HTTP] ❌ Check card error: "${error}"`);
+                console.log('[HTTP] Check card rejected by provider');
                 return { success: false, error };
             }
 
@@ -1621,7 +1637,7 @@ export class HttpClientService {
             const responseHtml = checkRes.data as string;
             if (responseHtml.includes('Invalid Serial') || responseHtml.includes('not found')) {
                 console.log(`[HTTP] ⚠️ Check page returned invalid/not found error`);
-                console.log(`[HTTP] Response preview: ${responseHtml.slice(0, 300).replace(/\s+/g, ' ')}...`);
+                console.log('[HTTP] Check response did not confirm the card');
             }
 
             // DEBUG: Log all inputs to see if layout is unexpected
@@ -1629,44 +1645,15 @@ export class HttpClientService {
             const inputs = $check('input[type="text"]');
             console.log(`[HTTP] Check page inputs: ${inputs.length}`);
             inputs.each((i, el) => {
-                console.log(`[HTTP] Input ${i}: name="${$check(el).attr('name')}" value="${$check(el).val()}"`);
+                console.log(`[HTTP] Input ${i}: name="${$check(el).attr('name')}"`);
             });
 
-            // Extract STB number from response - IMPROVED patterns from Playwright
-            const $ = cheerio.load(checkRes.data);
-            const pageText = $('body').text();
-
-            // Pattern 1: "STB(s): 947242535522003" (from beIN Check page)
-            let stbMatch = pageText.match(/STB\(s\)[:\s]*(\d{10,})/i)?.[1];
-
-            // Pattern 2: "STB: 947242535522003"
-            if (!stbMatch) {
-                stbMatch = pageText.match(/STB[:\s]+(\d{10,})/i)?.[1];
-            }
-
-            // Pattern 3: ContentPlaceHolder1_lblSerial contains "paired to STB(s): XXXXX"
-            if (!stbMatch) {
-                const lblSerial = $('#ContentPlaceHolder1_lblSerial').text();
-                stbMatch = lblSerial.match(/STB\(s\)[:\s]*(\d{10,})/i)?.[1] ||
-                    lblSerial.match(/(\d{15})/)?.[1];
-            }
-
-            // Pattern 4: Arabic label "رقم الريسيفر"
-            if (!stbMatch) {
-                stbMatch = pageText.match(/رقم الريسيفر[:\s]*(\d{10,})/)?.[1];
-            }
-
-            // Pattern 5: Any 15-digit number as fallback
-            if (!stbMatch) {
-                stbMatch = pageText.match(/(\d{15})/)?.[1];
-            }
-
-            // AUDIT FIX: Validate STB format before storing
-            if (stbMatch && stbMatch.length >= 10 && /^\d+$/.test(stbMatch)) {
-                this.currentStbNumber = stbMatch;
-                console.log(`[HTTP] ✅ STB extracted: ${stbMatch}`);
+            const stb = readCheckedCardStb(responseHtml, cardNumber);
+            if (stb) {
+                this.currentStbNumber = stb;
+                console.log('[HTTP] STB extracted');
             } else {
-                console.log('[HTTP] ⚠️ STB not found in response');
+                console.log('[HTTP] STB/card pairing not verified in Check response');
             }
 
             // NOTE: Not updating this.currentViewState here — checkCard runs in parallel
@@ -1675,7 +1662,6 @@ export class HttpClientService {
             return {
                 success: true,
                 stbNumber: this.currentStbNumber || undefined,
-                cardInfo: pageText.slice(0, 200)
             };
 
         } catch (error: unknown) {
@@ -1696,7 +1682,7 @@ export class HttpClientService {
      */
     async startRenewalWithCheck(cardNumber: string): Promise<LoadPackagesResult> {
         console.log(`[HTTP] ========== START RENEWAL WITH CHECK ==========`);
-        console.log(`[HTTP] Card: ${cardNumber}`);
+        console.log('[HTTP] Card check started');
 
         try {
             // Step 1: Go to Check page first (like Playwright does)
@@ -1704,7 +1690,7 @@ export class HttpClientService {
             const checkResult = await this.checkCard(cardNumber);
 
             if (!checkResult.success) {
-                console.log(`[HTTP] ❌ Card validation failed: ${checkResult.error}`);
+                console.log('[HTTP] Card validation failed');
                 return {
                     success: false,
                     packages: [],
@@ -1714,7 +1700,7 @@ export class HttpClientService {
 
             console.log(`[HTTP] ✅ Card validated successfully`);
             if (this.currentStbNumber) {
-                console.log(`[HTTP] ✅ STB extracted: ${this.currentStbNumber}`);
+                console.log('[HTTP] STB extracted');
             } else {
                 console.log(`[HTTP] ⚠️ STB not found - will try to extract later`);
             }
@@ -1753,7 +1739,7 @@ export class HttpClientService {
     async loadPackages(cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
         this.renewalSelection = null;
         this.preparedRenewal = null;
-        console.log(`[HTTP] Loading packages for card: ${cardNumber} (smartcard type: ${smartcardType})`);
+        console.log(`[HTTP] Loading packages (smartcard type: ${smartcardType})`);
 
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
@@ -1883,7 +1869,7 @@ export class HttpClientService {
             errorLabels.each((i, el) => {
                 const text = $(el).text().trim();
                 if (text && text.length > 5 && text.length < 200) {
-                    console.log(`[HTTP] Label ${i}: "${text.slice(0, 100)}"`);
+                    console.log(`[HTTP] Provider label ${i} contains an error`);
                 }
             });
 
@@ -1897,7 +1883,7 @@ export class HttpClientService {
                 // Try to find the actual message near the keyword
                 const invalidMatch = $('body').text().match(/invalid[^.]{0,50}/i);
                 if (invalidMatch) {
-                    console.log(`[HTTP] Context: "${invalidMatch[0]}"`);
+                    console.log('[HTTP] Provider response contains an invalid-value message');
                 }
             }
 
@@ -2011,7 +1997,8 @@ export class HttpClientService {
             readProviderCardIdentity(loadRes.data, cardNumber, smartcardType);
             const loadedPromo = String($('input[name="ctl00$ContentPlaceHolder1$txtPromoCode"]').val() || '').trim();
             if (loadedPromo) throw new Error('PACKAGE_QUOTE_CHANGED');
-            this.renewalSelection = { packages, viewState: { ...this.currentViewState }, cardNumber, smartcardType, promoCode: null };
+            this.renewalSelection = { packages, viewState: { ...this.currentViewState }, cardNumber, smartcardType,
+                promoCode: null, formHtml: loadRes.data };
             return {
                 success: true,
                 packages,
@@ -2138,42 +2125,48 @@ export class HttpClientService {
      * @param cardNumber - Card number (for re-extracting packages)
      * @returns Updated packages with discounted prices
      */
-    async applyPromoCode(promoCode: string, cardNumber: string, smartcardType: string = 'CISCO'): Promise<LoadPackagesResult> {
+    async applyPromoCode(promoCode: string, cardNumber: string, smartcardType: string = 'CISCO',
+        assertExecutionCurrent?: () => Promise<void>, removing = false): Promise<LoadPackagesResult> {
         const previousSelection = this.renewalSelection;
         this.renewalSelection = null;
         this.preparedRenewal = null;
-        console.log(`[HTTP] Applying promo code: ${promoCode}`);
+        console.log('[HTTP] Applying promo code');
 
         try {
             const renewUrl = this.buildFullUrl(this.config.renewUrl);
 
-            if (!this.currentViewState || !previousSelection || previousSelection.cardNumber !== cardNumber ||
-                previousSelection.smartcardType !== smartcardType || !promoCode.trim() ||
+            if (!this.currentViewState || !previousSelection || !previousSelection.formHtml || previousSelection.cardNumber !== cardNumber ||
+                previousSelection.smartcardType !== smartcardType || (!promoCode.trim() && !removing) ||
                 canonicalJson(previousSelection.viewState) !== canonicalJson(this.currentViewState)) {
                 return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
             }
+            if (removing && previousSelection.promoCode === null) {
+                this.renewalSelection = previousSelection;
+                return { success: true, packages: previousSelection.packages,
+                    stbNumber: this.currentStbNumber || undefined };
+            }
 
-            // Step 1: POST promo code
-            const promoFormData: Record<string, string> = {
-                ...this.currentViewState,
-                'ctl00$ContentPlaceHolder1$txtPromoCode': promoCode,
-                'ctl00$ContentPlaceHolder1$btnPromoCode': 'Submit'
-            };
+            // The current loaded page, not a guessed button or an old row, is
+            // authority for all enabled form fields in this WebForms POST.
+            const promoFormData = buildPromoSubmission(previousSelection.formHtml,
+                this.currentViewState, cardNumber, smartcardType, promoCode, removing);
 
             console.log('[HTTP] POST promo code submit...');
+            await assertExecutionCurrent?.();
             const promoRes = await this.axios.post(
                 renewUrl,
-                this.buildFormData(promoFormData),
+                promoFormData,
                 {
                     headers: this.buildPostHeaders(renewUrl)
                 }
             );
+            await assertExecutionCurrent?.();
 
             // Check for errors
             const error = this.checkForErrors(promoRes.data);
             if (error) {
-                console.log(`[HTTP] ⚠️ Promo code error: ${error}`);
-                return { success: false, packages: [], error };
+                console.log('[HTTP] Promo code rejected by provider');
+                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
             }
 
             // Update ViewState from response
@@ -2204,48 +2197,35 @@ export class HttpClientService {
                 // Check if there was a specific error message on page
                 const promoError = $('[id*="lblError"], .error, span[style*="red"]').text().trim();
                 if (promoError) {
-                    console.log(`[HTTP] Promo Error Text: "${promoError}"`);
+                    console.log('[HTTP] Promo response contained an error');
                     return {
                         success: false,
                         packages: [],
-                        error: promoError
+                        error: 'PROMO_REFRESH_UNVERIFIED'
                     };
                 }
 
-                // Fallback: some responses return an intermediate page after promo submit.
-                // Re-loading packages with same session/card recovers the real package list.
-                const fallbackReload = await this.loadPackages(cardNumber, smartcardType);
-                this.renewalSelection = null;
-                if (fallbackReload.success && fallbackReload.packages.length > 0) {
-                    console.log(`[HTTP] Promo fallback reload recovered ${fallbackReload.packages.length} packages`);
-                    return {
-                        success: false,
-                        error: 'PROMO_REFRESH_UNVERIFIED',
-                        packages: fallbackReload.packages,
-                        stbNumber: fallbackReload.stbNumber,
-                        dealerBalance: fallbackReload.dealerBalance
-                    };
-                }
-
-                return {
-                    success: false,
-                    packages: [],
-                    error: fallbackReload.error || 'No promo code found please try again'
-                };
+                return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
             }
 
             console.log(`[HTTP] ✅ Loaded ${packages.length} packages with promo code`);
-            this.renewalSelection = { packages, viewState: { ...this.currentViewState }, cardNumber, smartcardType, promoCode };
+            this.renewalSelection = { packages, viewState: { ...this.currentViewState }, cardNumber, smartcardType, promoCode,
+                formHtml: promoRes.data };
             return {
                 success: true,
                 packages,
                 stbNumber: this.currentStbNumber || undefined
             };
 
-        } catch (error: unknown) {
-            console.error('[HTTP] Apply promo error:', getHttpErrorMessage(error));
-            return { success: false, packages: [], error: `Promo failed: ${getHttpErrorMessage(error)}` };
+        } catch {
+            console.error('[HTTP] Apply promo failed without a verified quote');
+            return { success: false, packages: [], error: 'PROMO_REFRESH_UNVERIFIED' };
         }
+    }
+
+    async removePromoCode(cardNumber: string, smartcardType: string = 'CISCO',
+        assertExecutionCurrent?: () => Promise<void>): Promise<LoadPackagesResult> {
+        return this.applyPromoCode('', cardNumber, smartcardType, assertExecutionCurrent, true);
     }
 
     // =============================================
@@ -2274,7 +2254,9 @@ export class HttpClientService {
         promoCode?: string,
         stbNumber?: string,
         skipFinalClick: boolean = false,
-        assertExecutionCurrent?: () => Promise<void>
+        assertExecutionCurrent?: () => Promise<void>,
+        requireSavedQuoteRevision = false,
+        expectedContext?: { cardNumber: string; smartcardType: string }
     ): Promise<PurchaseResult> {
         console.log(`[HTTP] Completing purchase: ${selectedPackage.name} - ${selectedPackage.price} USD`);
 
@@ -2300,6 +2282,9 @@ export class HttpClientService {
             this.preparedRenewal = null;
             if (!selection || !this.currentViewState.__VIEWSTATE || !this.currentViewState.__EVENTVALIDATION ||
                 !Number.isSafeInteger(selectedPackage.quoteRevision) || selectedPackage.packageKey !== `${selectedPackage.quoteRevision}.${selectedPackage.index}` ||
+                (requireSavedQuoteRevision && selection.quoteRevision !== selectedPackage.quoteRevision) ||
+                (expectedContext && (selection.cardNumber !== expectedContext.cardNumber ||
+                    selection.smartcardType !== expectedContext.smartcardType)) ||
                 !selection.smartcardType || (this.sessionExpiresAt && this.sessionExpiresAt <= Date.now()) ||
                 canonicalJson(selection.viewState) !== canonicalJson(this.currentViewState) ||
                 selection.promoCode !== (selectedPackage.appliedPromoCode || null) ||
@@ -2338,7 +2323,7 @@ export class HttpClientService {
             // Check for errors in response
             const addError = this.checkForErrors(res.data);
             if (addError) {
-                console.log(`[HTTP] ❌ Add to cart error: ${addError}`);
+                console.log('[HTTP] Add to cart rejected by provider');
                 return { success: false, message: `Add to cart failed: ${addError}` };
             }
 
@@ -2368,7 +2353,7 @@ export class HttpClientService {
             // Check for errors
             const sellError = this.checkForErrors(res.data);
             if (sellError) {
-                console.log(`[HTTP] ❌ Sell error: ${sellError}`);
+                console.log('[HTTP] Sell rejected by provider');
                 return { success: false, message: `Sell failed: ${sellError}` };
             }
 
@@ -2383,7 +2368,7 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$txtPromoCode': selection.promoCode || ''
             };
 
-            console.log(`[HTTP] POST STB: ${stb}`);
+            console.log('[HTTP] POST STB');
             await assertExecutionCurrent?.();
             res = await this.axios.post(
                 renewUrl,
@@ -2398,7 +2383,7 @@ export class HttpClientService {
             // Check for errors
             const stbError = this.checkForErrors(res.data);
             if (stbError) {
-                console.log(`[HTTP] ❌ STB error: ${stbError}`);
+                console.log('[HTTP] STB entry rejected by provider');
                 return { success: false, message: `STB entry failed: ${stbError}` };
             }
 
@@ -2477,7 +2462,9 @@ export class HttpClientService {
         expectedCost?: number,
         onFinalProviderMutationStarted?: (stage: 'FINAL_OK') => Promise<void>,
         assertExecutionCurrent?: () => Promise<void>,
-        expectedSelection?: { selectedPackage: QuotePackage; cardNumber: string }
+        expectedSelection?: { selectedPackage: QuotePackage; cardNumber: string },
+        onPayRequestStarted?: () => Promise<void>,
+        allowReportOnlyDirectSuccess = false
     ): Promise<PurchaseResult> {
         console.log('[HTTP] Confirming purchase...');
         let finalPaySubmitted = false;
@@ -2521,7 +2508,7 @@ export class HttpClientService {
                 'ctl00$ContentPlaceHolder1$txtPromoCode': prepared.summary.promoCode || ''
             };
 
-            console.log(`[HTTP] POST confirm (Ok) with STB: ${stb}...`);
+            console.log('[HTTP] POST confirm (Ok) with STB');
             if (!onFinalProviderMutationStarted) {
                 return withFinalPayOutcome({
                     success: false,
@@ -2543,7 +2530,7 @@ export class HttpClientService {
             // Check for errors after OK
             const okError = this.checkForErrors(res.data);
             if (okError) {
-                console.log(`[HTTP] ❌ OK button error: ${okError}`);
+                console.log('[HTTP] Final confirmation rejected by provider');
                 return withFinalPayOutcome({ success: false, message: okError }, false);
             }
 
@@ -2581,6 +2568,14 @@ export class HttpClientService {
                     }
 
                     console.log('[HTTP] ⚠️ Direct success text before Pay could not be verified by balance delta');
+                    if (allowReportOnlyDirectSuccess) return withFinalPayOutcome({
+                        success: true,
+                        message: 'Contract Created Successfully',
+                        newBalance: balanceAfterDirect ?? undefined,
+                        beinBalanceBefore: balanceBefore ?? undefined,
+                        beinBalanceAfter: balanceAfterDirect ?? undefined,
+                        outcomeCategory: 'UNCERTAIN_REVIEW_REQUIRED',
+                    }, false, expectedCost);
                     return withFinalPayOutcome({
                         success: false,
                         message: 'Direct success text before Pay could not be verified by balance delta',
@@ -2625,8 +2620,9 @@ export class HttpClientService {
             };
 
             console.log('[HTTP] POST Pay (Direct Payment)...');
-            finalPaySubmitted = true;
             await assertExecutionCurrent?.();
+            await onPayRequestStarted?.();
+            finalPaySubmitted = true;
             res = await this.axios.post(
                 renewUrl,
                 this.buildFormData(payFormData),
@@ -2640,7 +2636,7 @@ export class HttpClientService {
             // Check for immediate errors
             const payError = this.checkForErrors(res.data);
             if (payError) {
-                console.log(`[HTTP] ❌ Pay error: ${payError}`);
+                console.log('[HTTP] Pay rejected by provider');
                 return withFinalPayOutcome({
                     success: false,
                     message: payError,
@@ -3034,7 +3030,7 @@ export class HttpClientService {
      * @returns Card status without triggering activation
      */
     async checkCardForSignal(cardNumber: string): Promise<CheckCardForSignalResult> {
-        console.log(`[HTTP] Checking card for signal: ${cardNumber}`);
+        console.log('[HTTP] Checking card for signal');
 
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
@@ -3177,7 +3173,7 @@ export class HttpClientService {
             // Check for errors
             const error = this.checkForErrors(checkRes.data);
             if (error) {
-                console.log(`[HTTP] ❌ Check card error: "${error}"`);
+                console.log('[HTTP] Check card rejected by provider');
                 return { success: false, error };
             }
 
@@ -3193,8 +3189,8 @@ export class HttpClientService {
             const messageText = messagesDiv.text();
 
             // === DEBUG: Log page content for troubleshooting ===
-            console.log(`[HTTP] 📄 DEBUG - pageText (first 800 chars): ${pageText.replace(/\s+/g, ' ').trim().substring(0, 800)}...`);
-            console.log(`[HTTP] 📄 DEBUG - messagesDiv: ${messageText.replace(/\s+/g, ' ').trim()}`);
+            console.log('[HTTP] Check page parsed');
+            console.log('[HTTP] Check page messages inspected');
             // === END DEBUG ===
 
             // Check if Premium
@@ -3228,7 +3224,7 @@ export class HttpClientService {
 
             // Extract Contracts Table
             const contracts = this.extractContractsTable($);
-            console.log(`[HTTP] ✅ Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}, CanActivate=${canActivate}, Contracts=${contracts.length}`);
+            console.log(`[HTTP] Card status parsed: Premium=${isPremium}, CanActivate=${canActivate}, Contracts=${contracts.length}`);
 
             return {
                 success: true,
@@ -3363,7 +3359,7 @@ export class HttpClientService {
 
             console.log(`[HTTP] Extracted ${contracts.length} contracts from table`);
             if (Object.keys(skippedRows).length > 0) {
-                console.log(`[HTTP] Skipped contract rows: ${JSON.stringify(skippedRows)}`);
+                console.log(`[HTTP] Skipped ${skippedRows.length} contract rows`);
             }
         } catch (error: unknown) {
             console.error('[HTTP] Error extracting contracts:', getHttpErrorMessage(error));
@@ -3380,7 +3376,7 @@ export class HttpClientService {
      * @returns Activation result
      */
     async activateSignalOnly(cardNumber: string): Promise<SignalRefreshResult> {
-        console.log(`[HTTP] Activating signal for card: ${cardNumber}`);
+        console.log('[HTTP] Activating signal for card');
 
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
@@ -3589,7 +3585,7 @@ export class HttpClientService {
      * @returns Signal refresh result with card status and activation result
      */
     async activateSignal(cardNumber: string): Promise<SignalRefreshResult> {
-        console.log(`[HTTP] Activating signal for card: ${cardNumber}`);
+        console.log('[HTTP] Activating signal for card');
 
         try {
             const checkUrl = this.buildFullUrl(this.config.checkUrl);
@@ -3639,7 +3635,7 @@ export class HttpClientService {
             // Check for errors
             const error = this.checkForErrors(checkRes.data);
             if (error) {
-                console.log(`[HTTP] ❌ Check card error: "${error}"`);
+                console.log('[HTTP] Check card rejected by provider');
                 return { success: false, error };
             }
 
@@ -3681,7 +3677,7 @@ export class HttpClientService {
                 ? { current: parseInt(activateMatch[1]), max: parseInt(activateMatch[2]) }
                 : { current: 0, max: 20 };
 
-            console.log(`[HTTP] Card status: Premium=${isPremium}, STB=${stbNumber}, Expiry=${expiryDate}, Balance=$${walletBalance}, Activate=${activateCount.current}/${activateCount.max}`);
+            console.log(`[HTTP] Card status parsed: Premium=${isPremium}`);
 
             // Check if we can activate (limit reached)
             if (activateCount.current >= activateCount.max) {
@@ -3737,7 +3733,7 @@ export class HttpClientService {
 
             console.log('[HTTP] POST activate signal (submit button)...');
             console.log(`[HTTP] Button param: ${activateBtnName}="${activateBtnValue}"`);
-            console.log(`[HTTP] Card param: ctl00$ContentPlaceHolder1$tbSerial="${cardNumber}"`);
+            console.log('[HTTP] Card serial control prepared');
             const activateRes = await this.axios.post(
                 checkUrl,
                 this.buildFormData(activateFormData),
@@ -3902,8 +3898,8 @@ export class HttpClientService {
      */
     async loadInstallment(cardNumber: string): Promise<import('./types').LoadInstallmentResult> {
         console.log(`[HTTP] ====== INSTALLMENT DEBUG START ======`);
-        console.log(`[HTTP] STEP 1: Card received in function: "${cardNumber}" (length: ${cardNumber.length})`);
-        console.log(`[HTTP] Loading installment for card: ${cardNumber}`);
+        console.log(`[HTTP] STEP 1: Card length ${cardNumber.length}`);
+        console.log('[HTTP] Loading installment for card');
 
         try {
             const installmentUrl = this.buildFullUrl(this.config.installmentUrl);
@@ -3983,7 +3979,7 @@ export class HttpClientService {
             const formattedCardNumber = cardNumber.length === 10
                 ? cardNumber.slice(0, -1)  // Remove only the last digit
                 : cardNumber;
-            console.log(`[HTTP] Card formatting: "${cardNumber}" (${cardNumber.length} digits) -> "${formattedCardNumber}" (${formattedCardNumber.length} digits)`);
+            console.log(`[HTTP] Card formatting: ${cardNumber.length} -> ${formattedCardNumber.length} digits`);
 
             // ====== TWO-STEP CISCO POSTBACK ======
             // ASP.NET requires a postback when changing the dropdown to load CISCO-specific form.
@@ -4055,7 +4051,7 @@ export class HttpClientService {
                 [ciscoLoadBtnId]: ciscoLoadBtnValue
             };
 
-            console.log(`[HTTP] POST 2: Entering card ${formattedCardNumber} and clicking Load...`);
+            console.log('[HTTP] POST 2: Entering card and clicking Load...');
             const loadRes = await this.axios.post(
                 installmentUrl,
                 this.buildFormData(loadFormData),
@@ -4067,7 +4063,7 @@ export class HttpClientService {
             // Check for errors
             const loadError = this.checkForErrors(loadRes.data);
             if (loadError) {
-                console.log(`[HTTP] ❌ Load error: "${loadError}"`);
+                console.log('[HTTP] Installment Load rejected by provider');
                 return { success: false, hasInstallment: false, error: loadError };
             }
 
@@ -4077,20 +4073,18 @@ export class HttpClientService {
             // Step 4: Analyze response page
             const $load = cheerio.load(loadRes.data);
 
-            // DEBUG: Dump the ContentPlaceHolder area to see what's there
-            const contentArea = $load('#ContentPlaceHolder1_PaymentZone, [id*="ContentPlaceHolder1"]').first().html()?.trim().slice(0, 1000) || '';
-            console.log(`[HTTP] DEBUG: ContentPlaceHolder raw HTML (first 1000 chars): "${contentArea.replace(/\s+/g, ' ')}"`);
+            console.log('[HTTP] Installment response content inspected');
 
             // DEBUG: Check for ASP.NET validation spans (often contain error messages)
             const validationSpans = $load('span[id*="Validator"], span[style*="color:Red"], span[style*="color:red"], .validation-error').map((_, el) => $load(el).text().trim()).get();
             if (validationSpans.length > 0) {
-                console.log(`[HTTP] DEBUG: Validation messages: ${validationSpans.join(', ')}`);
+                console.log(`[HTTP] Installment validation messages: ${validationSpans.length}`);
             }
 
             // DEBUG: Check for any alert/error labels
             const lblMsg = $load('[id*="lblMsg"], [id*="Label"], .error, .alert, .warning').first().text().trim();
             if (lblMsg) {
-                console.log(`[HTTP] DEBUG: Message on page: "${lblMsg.slice(0, 100)}"`);
+                console.log('[HTTP] Installment message present on page');
             }
 
             // DEBUG: Log what elements are found on the page
@@ -4220,7 +4214,7 @@ export class HttpClientService {
             // Check for errors
             const detailsError = this.checkForErrors(detailsRes.data);
             if (detailsError) {
-                console.log(`[HTTP] ❌ Details error: "${detailsError}"`);
+                console.log('[HTTP] Installment details rejected by provider');
                 return { success: false, hasInstallment: false, error: detailsError };
             }
 
@@ -4243,10 +4237,9 @@ export class HttpClientService {
      * Used by loadInstallment after the page is loaded
      * 
      * @param $ - Cheerio instance with loaded HTML
-     * @param cardNumber - Card number for logging
      * @returns Installment details
      */
-    private parseInstallmentDetails($: cheerio.CheerioAPI, cardNumber: string): import('./types').LoadInstallmentResult {
+    private parseInstallmentDetails($: cheerio.CheerioAPI, _cardNumber: string): import('./types').LoadInstallmentResult {
         // Check if contract information section exists using multiple strategies
         const contractSection = $('#ContentPlaceHolder1_pnlContractInfo, [id*="ContractInfo"]');
         const payBtn = $('[id*="btnPayInstallment"], input[value*="Pay Installment"]');
@@ -4365,7 +4358,7 @@ export class HttpClientService {
 
             // Dump the matched table HTML for debugging
             const tableHtml = $.html(table);
-            console.log(`[HTTP] PARSE: === INSTALLMENT TABLE HTML (${tableHtml.length} chars) ===`);
+            console.log(`[HTTP] PARSE: Installment table length ${tableHtml.length}`);
             console.log(tableHtml.slice(0, 2000));
             console.log(`[HTTP] PARSE: === END INSTALLMENT TABLE HTML ===`);
 
@@ -4380,7 +4373,7 @@ export class HttpClientService {
             let headerIdx = -1;
             directRows.each((i, row) => {
                 const rowText = $(row).text().trim();
-                console.log(`[HTTP] PARSE: Row[${i}] text = "${rowText.slice(0, 100)}"`);
+                console.log(`[HTTP] PARSE: Row[${i}] inspected`);
                 if (rowText.includes('Installment 1') || rowText.includes('Installment 2')) {
                     headerIdx = i;
                 }
@@ -4392,9 +4385,8 @@ export class HttpClientService {
                 // Get direct child cells only
                 const cells = dataRow.children('td, th');
                 console.log(`[HTTP] PARSE: Data row has ${cells.length} direct cells`);
-                cells.each((i, cell) => {
-                    const cellText = $(cell).text().trim();
-                    console.log(`[HTTP] PARSE: DataCell[${i}] = "${cellText}"`);
+                cells.each((i) => {
+                    console.log(`[HTTP] PARSE: DataCell[${i}] inspected`);
                 });
                 if (cells.length >= 2) {
                     // IMPORTANT: Each cell has stacked values like: 180<br><span>180</span>
@@ -4411,7 +4403,7 @@ export class HttpClientService {
                     };
                     const v1Text = getFirstTextNode(cells.eq(0));
                     const v2Text = getFirstTextNode(cells.eq(1));
-                    console.log(`[HTTP] PARSE: First text node: cell0="${v1Text}", cell1="${v2Text}"`);
+                    console.log('[HTTP] PARSE: First text nodes inspected');
                     const v1 = parseFloat(v1Text.replace(/[^0-9.]/g, '')) || 0;
                     const v2 = parseFloat(v2Text.replace(/[^0-9.]/g, '')) || 0;
                     if (v1 > 0) installment1 = v1;
@@ -4463,7 +4455,7 @@ export class HttpClientService {
                     dateInputs.push(val);
                 }
             });
-            console.log(`[HTTP] PARSE: Date inputs found: ${JSON.stringify(dateInputs)}`);
+            console.log(`[HTTP] PARSE: Date inputs found: ${dateInputs.length}`);
             if (!contractStartDate && dateInputs.length >= 1) contractStartDate = dateInputs[0];
             if (!contractExpiryDate && dateInputs.length >= 2) contractExpiryDate = dateInputs[1];
         }
@@ -4476,7 +4468,7 @@ export class HttpClientService {
         // Strategy 1: Use getInputVal helper (tries .val() AND .attr('value'))
         const invoiceRaw = getInputVal('input[id*="txtInvoicePrice"], input[id*="InvoicePrice"], input[name*="txtInvoicePrice"]');
         const dealerRaw = getInputVal('input[id*="txtDealerPrice"], input[id*="DealerPrice"], input[name*="txtDealerPrice"]');
-        console.log(`[HTTP] PARSE: Invoice input raw = "${invoiceRaw}", Dealer input raw = "${dealerRaw}"`);
+        console.log('[HTTP] PARSE: Invoice and dealer amounts inspected');
         if (invoiceRaw) invoicePrice = parseFloat(invoiceRaw.replace(/[^0-9.]/g, '')) || 0;
         if (dealerRaw) dealerPrice = parseFloat(dealerRaw.replace(/[^0-9.]/g, '')) || 0;
 
@@ -4536,8 +4528,7 @@ export class HttpClientService {
             remarks: getInputVal('textarea[id*="txtRemarks"], [id*="txtRemarks"], [name*="txtRemarks"]') ||
                 getByFieldTitle('Remarks') || ''
         };
-        console.log(`[HTTP] PARSE: Subscriber = "${subscriber.name}", Email = "${subscriber.email}", Mobile = "${subscriber.mobile}"`);
-        console.log(`[HTTP] PARSE: City = "${subscriber.city}", Country = "${subscriber.country}", STB = "${subscriber.stbModel}"`);
+        console.log('[HTTP] PARSE: Subscriber fields inspected');
 
         // ====== EXTRACT DEALER BALANCE ======
         const pageText = $('body').text();
@@ -4546,7 +4537,7 @@ export class HttpClientService {
         const dealerBalance = balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : undefined;
 
         console.log(`[HTTP] ✅ Installment loaded: ${packageText}, Dealer Price: ${dealerPrice} USD`);
-        console.log(`[HTTP]    Subscriber: ${subscriber.name}, Mobile: ${subscriber.mobile}`);
+        console.log('[HTTP] Subscriber details parsed');
 
         return {
             success: true,

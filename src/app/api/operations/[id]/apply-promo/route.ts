@@ -22,7 +22,7 @@ async function getAuthUser(request: NextRequest) {
 const promoSchema = z.object({
     actionRevision: z.number().int().min(1).max(2147483647),
     promoAction: z.enum(['APPLY', 'REMOVE']).default('APPLY'),
-    promoCode: z.string().trim().min(1).max(100).optional(),
+    promoCode: z.string().trim().min(1).max(100).transform(code => code.toUpperCase()).optional(),
 }).refine(input => input.promoAction === 'REMOVE' || Boolean(input.promoCode))
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

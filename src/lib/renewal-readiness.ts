@@ -18,7 +18,6 @@ export async function getRenewalReadiness(db: ReadinessDb, input: {
     // The regular worker pool currently leaves customerOnly undefined. Match
     // that scope; do not silently move existing customer jobs/accounts.
     const eligibility: Prisma.BeinAccountWhereInput = { isActive: true, automationExclusive: true,
-        OR: [{ cooldownUntil: null }, { cooldownUntil: { lte: now } }],
         ...(input.minBalance !== undefined ? { dealerBalance: { gte: input.minBalance } } : {}) }
     if (input.lockAssignedAccount && input.beinAccountId) {
         await db.$queryRaw`SELECT "id" FROM "bein_accounts" WHERE "id" = ${input.beinAccountId} FOR SHARE`

@@ -60,8 +60,6 @@ const BEIN_SETTINGS_KEYS = [
     // Pool Settings (Account Distribution)
     'pool_max_requests_per_account',
     'pool_rate_limit_window_seconds',
-    'pool_cooldown_after_failures',
-    'pool_cooldown_duration_seconds',
     'pool_min_delay_ms',
     'pool_max_delay_ms',
     'pool_max_consecutive_failures',

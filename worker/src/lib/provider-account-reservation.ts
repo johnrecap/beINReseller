@@ -1,5 +1,14 @@
 import type { Prisma, ProviderAccountCausalReservation } from '@prisma/client'
 
+const ENDED_OPERATION_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED', 'EXPIRED'] as const
+
+// Called inside the caller's transaction. Serialize with completion/cancellation
+// before touching the reservation, so a queued continuation cannot reopen it.
+async function lockOperationForReservation(db: ProviderAccountReservationDb, operationId: string): Promise<boolean> {
+    const rows = await db.$queryRaw<Array<{ status: string }>>`SELECT "status" FROM "operations" WHERE "id" = ${operationId} FOR UPDATE`
+    return rows.length === 1 && !ENDED_OPERATION_STATUSES.some(status => status === rows[0].status)
+}
+
 export type ProviderAccountConsumer =
     | 'RENEWAL'
     | 'INSTALLMENT'
@@ -59,7 +68,7 @@ export type AcquireProviderAccountReservationResult =
         reservation: ProviderAccountCausalReservation
       }
     | {
-        status: 'ACCOUNT_ALREADY_RESERVED' | 'OPERATION_ALREADY_RESERVED'
+        status: 'ACCOUNT_ALREADY_RESERVED' | 'OPERATION_ALREADY_RESERVED' | 'OPERATION_ENDED_OR_MISSING'
         conflictOperationId: string
       }
 
@@ -154,6 +163,9 @@ export async function acquireProviderAccountCausalReservation(
     assertReservationIdentity(input)
     const now = input.now ?? new Date()
     assertAutomaticWindow(input.automaticWindowEndsAt, now)
+    if (!await lockOperationForReservation(db, input.operationId)) {
+        return { status: 'OPERATION_ENDED_OR_MISSING', conflictOperationId: input.operationId }
+    }
     await lockProviderReservationKeys(db, input.operationId, [input.beinAccountId])
     const existing = await db.providerAccountCausalReservation.findUnique({
         where: { operationId: input.operationId },
@@ -236,6 +248,7 @@ export async function assertActiveProviderAccountReservation(
             beinAccountId: input.beinAccountId,
             reservationGeneration: input.reservationGeneration,
             releasedAt: null,
+            operation: { status: { notIn: [...ENDED_OPERATION_STATUSES] } },
         },
         select: { id: true },
     })
@@ -262,6 +275,7 @@ export async function renewProviderAccountCausalReservation(
             beinAccountId: input.beinAccountId,
             reservationGeneration: input.reservationGeneration,
             releasedAt: null,
+            operation: { status: { notIn: [...ENDED_OPERATION_STATUSES] } },
         },
         data: {
             renewedAt: now,
@@ -294,6 +308,7 @@ export async function transferProviderAccountCausalReservation(
     }
     const now = input.now ?? new Date()
     assertAutomaticWindow(input.automaticWindowEndsAt, now)
+    if (!await lockOperationForReservation(db, input.operationId)) return { status: 'STALE_OWNER' }
     await lockProviderReservationKeys(db, input.operationId, [
         input.fromBeinAccountId,
         input.toBeinAccountId,

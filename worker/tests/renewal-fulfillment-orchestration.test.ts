@@ -54,7 +54,7 @@ test('durable final-provider marker is claimed before confirmPurchase can send O
         'async function handleConfirmPurchaseHttp',
         'async function handleVerifyReviewCardHttp'
     )
-    const markerIndex = confirmSource.indexOf('claimFinalProviderMutationStart(')
+    const markerIndex = confirmSource.indexOf('claimSameDayFinalMutation : claimFinalProviderMutationStart')
     const confirmIndex = confirmSource.indexOf('client.confirmPurchase(', markerIndex)
 
     assert.ok(markerIndex >= 0)
@@ -79,7 +79,7 @@ test('2026-08-24 regression: reopened reservation generation blocks an old basel
     const markerSource = fulfillmentConfigSource.slice(markerStart, markerEnd)
 
     assert.ok(markerStart >= 0 && markerEnd > markerStart)
-    assert.match(confirmSource, /claimFinalProviderMutationStart\(\{[\s\S]*reservationGeneration:\s*reserved\.reservationGeneration/)
+    assert.match(confirmSource, /claimSameDayFinalMutation : claimFinalProviderMutationStart\)\(\{[\s\S]*reservationGeneration:\s*reserved\.reservationGeneration/)
     assert.match(markerSource, /reservationGeneration:\s*number/)
     assert.match(markerSource, /account_reservation\."reservation_generation"\s*=\s*\$\{input\.reservationGeneration\}/)
     assert.match(markerSource, /baseline\."session_generation"\s*=\s*\$\{String\(input\.reservationGeneration\)\}/)

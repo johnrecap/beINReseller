@@ -1,4 +1,12 @@
 export const ar = {
+    renewalReceipt: {
+        view: 'عرض الفاتورة', title: 'فاتورة تجديد الباقة', print: 'طباعة الفاتورة',
+        operation: 'رقم العملية', invoice: 'فاتورة beIN', card: 'رقم الكارت', itemType: 'نوع الجهاز',
+        package: 'الباقة / العرض', promo: 'البروموكود المقبول', providerAmount: 'مبلغ البيع في beIN',
+        customerAmount: 'المبلغ المخصوم منك', start: 'بداية الاشتراك', expiry: 'نهاية الاشتراك',
+        reportDate: 'يوم تقرير البيع (القاهرة)', verifiedAt: 'وقت التحقق', unavailable: 'لا توجد فاتورة مؤكدة لهذه العملية.',
+        loading: 'جارٍ تحميل الفاتورة…', back: 'العودة إلى السجل',
+    },
     reportCenter: { title: 'مركز التقارير', admin: 'تقارير الإدارة', active: 'التقرير الحالي', open: 'فتح الصفحة الكاملة',
         description: 'التحليلات والمتابعة وتقارير المصروفات وحالة الحسابات والسجلات في مكان واحد.',
         failed: 'تعذّر تحميل التقرير. اختر تبويبًا آخر أو حدّث الصفحة.' },
@@ -940,6 +948,7 @@ export const ar = {
         expiresIn: 'ينتهي خلال',
         seconds: 'ثانية',
         providerChargedVerifyingFulfillment: 'تم خصم الدفع من beIN وجارٍ التحقق من تنفيذ الباقة.',
+        waitingForReport: 'بانتظار تأكيد تقرير مبيعات beIN. لن يُرسل دفع جديد.',
         providerChargedFulfillmentUnderReview: 'تم الخصم لكن الباقة غير مؤكدة — تحت مراجعة الإدارة.',
         fulfillmentReviewPending: 'توجد مراجعة سلامة تجديد مفتوحة لهذا الكارت.',
         cardCooldownActive: 'التجديد معلّق مؤقتًا للكارت',

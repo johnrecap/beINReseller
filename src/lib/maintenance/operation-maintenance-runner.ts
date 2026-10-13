@@ -4,6 +4,7 @@ import redis from '@/lib/redis'
 import { recoverOperationIfNeeded } from '@/lib/operations/recovery'
 import { runDispatchWatchdog } from '@/lib/operation-dispatch'
 import { repairCompletionEffects } from '@/lib/maintenance/completion-effect-maintenance'
+import { repairTerminalProviderReservations, type ProviderReservationMaintenanceSummary } from '@/lib/maintenance/provider-reservation-maintenance'
 import {
     retryStaleCapturedOperationSpendAwardRuns,
     type OperationSpendAwardRunMaintenanceSummary,
@@ -33,6 +34,7 @@ export interface MaintenanceCycleSummary {
     awardRuns: OperationSpendAwardRunMaintenanceSummary
     verificationJobs: RenewalVerificationJobMaintenanceSummary
     completionEffects: Awaited<ReturnType<typeof repairCompletionEffects>> | null
+    providerReservations: ProviderReservationMaintenanceSummary
     errors: string[]
 }
 
@@ -155,6 +157,17 @@ export async function runOperationMaintenanceCycle(
     }
     const errors: string[] = []
     let completionEffects: Awaited<ReturnType<typeof repairCompletionEffects>> | null = null
+    let providerReservations: ProviderReservationMaintenanceSummary = { inspected: 0, released: 0, held: 0, errors: [] }
+
+    try {
+        providerReservations = await repairTerminalProviderReservations({ now: started, limit: staleLimit })
+        inspected += providerReservations.inspected
+        changed += providerReservations.released
+        skipped += providerReservations.held
+        errors.push(...providerReservations.errors.map(id => `provider-reservation:${id}`))
+    } catch {
+        errors.push('provider-reservation-maintenance')
+    }
 
     try {
         const dispatch = await runDispatchWatchdog({
@@ -235,6 +248,7 @@ export async function runOperationMaintenanceCycle(
     const summary: MaintenanceCycleSummary = {
         cycleId,
         completionEffects,
+        providerReservations,
         status: errors.length > 0 ? 'degraded' : inspected > 0 ? 'healthy' : 'idle',
         startedAt: started.toISOString(),
         finishedAt: finished.toISOString(),
@@ -282,6 +296,8 @@ export async function runOperationMaintenanceCycle(
             errorCount: verificationJobs.errors.length,
         },
         errorCount: errors.length,
+        providerReservations: { inspected: providerReservations.inspected, released: providerReservations.released,
+            held: providerReservations.held, errorCount: providerReservations.errors.length },
         durationMs: summary.durationMs,
     }))
 

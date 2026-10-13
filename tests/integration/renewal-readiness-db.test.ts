@@ -18,7 +18,7 @@ for (const state of ['inactive', 'not-exclusive', 'available', 'cooldown', 'owne
             const operationId = state === 'foreign' ? 'another-operation' : f.operationId
             const input = { operationId, beinAccountId: f.accountId, minBalance: 174 }
             const result = await getRenewalReadiness(f.db, input)
-            assert.equal(result.ready, ['available', 'owned', 'released'].includes(state))
+            assert.equal(result.ready, ['available', 'cooldown', 'owned', 'released'].includes(state))
             assert.equal(result.providerSessionVerified, false)
             if (state === 'owned') {
                 assert.equal(result.eligibleAccountCount, 0)

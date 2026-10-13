@@ -22,6 +22,7 @@ interface Operation {
     nextAction?: string
     confirmationExpired?: boolean
     reviewRequired?: boolean
+    receiptAvailable?: boolean
 }
 
 interface OperationsTableProps {
@@ -251,7 +252,12 @@ export default function OperationsTable({
                                     {format(new Date(op.createdAt), 'HH:mm dd/MM/yyyy', { locale: getDateLocale() })}
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-center">
-                                    {CANCELLABLE_STATUSES.includes(op.status) ? (
+                                    {op.receiptAvailable ? (
+                                        <a href={`/dashboard/operations/${op.id}/receipt`}
+                                            className="inline-flex rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                                            {t.renewalReceipt.view}
+                                        </a>
+                                    ) : CANCELLABLE_STATUSES.includes(op.status) ? (
                                         <button
                                             onClick={() => handleCancel(op)}
                                             disabled={cancellingId === op.id}
@@ -311,6 +317,12 @@ export default function OperationsTable({
                                 )}
                             </div>
 
+                            {op.receiptAvailable && (
+                                <a href={`/dashboard/operations/${op.id}/receipt`}
+                                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                                    {t.renewalReceipt.view}
+                                </a>
+                            )}
                             {CANCELLABLE_STATUSES.includes(op.status) && (
                                 <button
                                     onClick={() => handleCancel(op)}

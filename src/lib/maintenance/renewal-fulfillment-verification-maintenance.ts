@@ -53,12 +53,15 @@ async function loadDueVerificationStore(): Promise<DueVerificationStore> {
                     { nextCheckAt: { lte: now } },
                     { nextCheckAt: null, lastOutcome: 'MATCHED' },
                 ],
-                activeBaselineId: { not: null },
                 operation: {
                     type: 'RENEW',
                     status: { in: ['COMPLETING', 'REVIEW_REQUIRED'] },
                     providerMutationStartedAt: { not: null },
                 },
+                AND: [{ OR: [
+                    { activeBaselineId: { not: null }, operation: { renewalFlowVersion: 1 } },
+                    { activeBaselineId: null, operation: { renewalFlowVersion: 2 } },
+                ] }],
             },
             select: {
                 operationId: true,

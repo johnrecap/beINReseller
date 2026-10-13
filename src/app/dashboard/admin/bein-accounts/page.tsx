@@ -15,7 +15,6 @@ import {
     RotateCcw,
     CheckCircle,
     XCircle,
-    Clock,
     AlertTriangle,
     Users,
     Loader2,
@@ -363,9 +362,6 @@ export default function BeinAccountsPage() {
     const getStatusBadge = (account: BeinAccount) => {
         if (!account.isActive) {
             return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />{t.adminBeinAccounts?.status?.disabled || 'Disabled'}</Badge>
-        }
-        if (account.cooldownUntil && new Date(account.cooldownUntil) > new Date()) {
-            return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" />{t.adminBeinAccounts?.status?.cooldown || 'Cooldown'}</Badge>
         }
         if (account.consecutiveFailures >= 3) {
             return <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />{t.adminBeinAccounts?.status?.error || 'Error'}</Badge>

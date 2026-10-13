@@ -1,4 +1,12 @@
 export const en = {
+    renewalReceipt: {
+        view: 'View receipt', title: 'Renewal receipt', print: 'Print receipt',
+        operation: 'Operation', invoice: 'beIN invoice', card: 'Card / serial', itemType: 'Device type',
+        package: 'Package / offer', promo: 'Accepted promo code', providerAmount: 'beIN sale amount',
+        customerAmount: 'Amount charged to you', start: 'Subscription start', expiry: 'Subscription end',
+        reportDate: 'Sale report day (Cairo)', verifiedAt: 'Verified at', unavailable: 'No confirmed receipt is available for this operation.',
+        loading: 'Loading receipt…', back: 'Back to history',
+    },
     reportCenter: { title: 'Reports Center', admin: 'Admin reporting', active: 'Active', open: 'Open full page',
         description: 'Analytics, monitoring, spend reports, account health, and logs in one workspace.',
         failed: 'This report failed to load. Choose another tab or refresh the page.' },
@@ -940,6 +948,7 @@ export const en = {
         expiresIn: 'Expires in',
         seconds: 'seconds',
         providerChargedVerifyingFulfillment: 'Payment was deducted by beIN. Verifying package activation...',
+        waitingForReport: 'Waiting for beIN sales report confirmation. No new payment will be sent.',
         providerChargedFulfillmentUnderReview: 'Payment was deducted, but package activation is not confirmed. Administration is reviewing it.',
         fulfillmentReviewPending: 'A renewal safety review is still open for this card.',
         cardCooldownActive: 'Renewal is temporarily paused for card',

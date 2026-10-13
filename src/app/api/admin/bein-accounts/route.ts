@@ -70,15 +70,6 @@ export async function GET(request: NextRequest) {
                 if (!account.isActive || !account.automationExclusive) continue
                 if (lockStatus.locked) continue
 
-                // Check cooldown
-                const cooldownKey = `bein:account:cooldown:${account.id}`
-                const cooldownTTL = await redis.ttl(cooldownKey)
-
-                if (cooldownTTL > 0) {
-                    poolStatus.inCooldown++
-                    continue
-                }
-
                 // Check rate limit
                 const requestsKey = `bein:account:${account.id}:requests`
                 const windowSeconds = 300 // 5 minutes
@@ -100,7 +91,6 @@ export async function GET(request: NextRequest) {
             poolStatus.availableNow = accounts.filter(a =>
                 a.isActive
                 && a.automationExclusive
-                && (!a.cooldownUntil || a.cooldownUntil < new Date())
             ).length
         }
 
@@ -116,7 +106,7 @@ export async function GET(request: NextRequest) {
                 priority: account.priority,
                 lastUsedAt: account.lastUsedAt,
                 usageCount: account.usageCount,
-                cooldownUntil: account.cooldownUntil,
+                cooldownUntil: null, // Ignore historical account cooldowns.
                 consecutiveFailures: account.consecutiveFailures,
                 consecutiveLoginFailures: account.consecutiveLoginFailures,
                 totalFailures: account.totalFailures,

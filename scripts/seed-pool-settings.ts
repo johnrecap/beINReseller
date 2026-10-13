@@ -10,8 +10,6 @@ const poolSettings = [
     { key: 'pool_round_robin_enabled', value: 'true' },
     { key: 'pool_max_requests_per_account', value: '5' },
     { key: 'pool_rate_limit_window_seconds', value: '300' },
-    { key: 'pool_cooldown_after_failures', value: '3' },
-    { key: 'pool_cooldown_duration_seconds', value: '600' },
     { key: 'pool_min_delay_ms', value: '2000' },
     { key: 'pool_max_delay_ms', value: '5000' },
     { key: 'pool_random_delay_enabled', value: 'true' },

@@ -17,6 +17,7 @@ function loadMaintenance() {
         '@/lib/maintenance/operation-spend-award-run-maintenance': { retryStaleCapturedOperationSpendAwardRuns: secretFailure },
         '@/lib/maintenance/renewal-fulfillment-verification-maintenance': { repairDueRenewalVerificationJobs: secretFailure },
         '@/lib/maintenance/completion-effect-maintenance': { repairCompletionEffects: secretFailure },
+        '@/lib/maintenance/provider-reservation-maintenance': { repairTerminalProviderReservations: secretFailure },
     }, ['boundedBatch'])
 }
 

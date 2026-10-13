@@ -364,10 +364,18 @@ export default function RenewWizardPage() {
                     ? t.operations.providerSmartcardFormUnsupported : t.renew.result.failed })
                 setStep('result')
             } else if (data.status === 'REVIEW_REQUIRED') {
+                if (data.reportVerificationPending) {
+                    setFulfillmentStatusMessage(true)
+                    setStep('completing')
+                    statusPollTimer.current = setTimeout(pollStatus, 2000)
+                    return
+                }
                 setResult({
                     success: false,
                     pending: 'reviewRequired',
-                    message: t => data.messageKey === 'operations.packageQuoteChangedReview'
+                    message: t => data.messageKey === 'operations.waitingForReport'
+                        ? t.operations.waitingForReport
+                        : data.messageKey === 'operations.packageQuoteChangedReview'
                         ? t.operations.packageQuoteChangedReview
                         : data.messageKey === 'operations.providerChargedFulfillmentUnderReview'
                         ? t.operations.providerChargedFulfillmentUnderReview
@@ -1280,6 +1288,12 @@ export default function RenewWizardPage() {
                                     </>
                                 )}
                                 <p className="text-muted-foreground mb-6">{result.message(t)}</p>
+                                {result.success && operationId && (
+                                    <a href={`/dashboard/operations/${operationId}/receipt`}
+                                        className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 me-3 mb-3 text-sm font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                                        {t.renewalReceipt.view}
+                                    </a>
+                                )}
                                 <Button onClick={handleReset} variant="outline" className="gap-2">
                                     <Sparkles className="h-4 w-4" />
                                     {t.renew.result.newOperation}

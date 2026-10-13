@@ -1,7 +1,7 @@
 /**
  * Account Pool Manager
  * Manages the smart distribution of beIN accounts using Round Robin
- * with rate limiting, cooldowns, and health tracking
+ * with rate limiting, ownership checks, and health tracking
  */
 
 import Redis from 'ioredis'
@@ -34,7 +34,6 @@ import {
 import type { ProviderAccountCausalReservation } from '@prisma/client'
 
 const COUNTER_KEY = 'bein:pool:counter'
-const COOLDOWN_PREFIX = 'bein:account:cooldown:'
 const ACCOUNT_LOCK_TTL_SECONDS = 300
 
 export interface ReservedAccountAcquisition {
@@ -68,8 +67,6 @@ export class AccountPoolManager {
         this.config = {
             maxRequestsPerAccount: 5,
             rateLimitWindowSeconds: 300,
-            cooldownAfterFailures: 3,
-            cooldownDurationSeconds: 600,
             minDelayMs: 2000,
             maxDelayMs: 5000,
             maxConsecutiveFailures: 5,
@@ -88,7 +85,7 @@ export class AccountPoolManager {
 
     /**
      * Get the next available account using Round Robin
-     * Skips accounts that are rate-limited, in cooldown, or locked
+     * Skips accounts that are rate-limited, reserved, or locked
      */
     async getNextAvailableAccount(operationId?: string): Promise<BeinAccount | null> {
         if (!this.configLoaded) {
@@ -102,10 +99,6 @@ export class AccountPoolManager {
             providerAccountCausalReservations: {
                 none: { releasedAt: null },
             },
-            OR: [
-                { cooldownUntil: null },
-                { cooldownUntil: { lte: new Date() } },
-            ],
         }
 
         // Apply customerOnly filter if set
@@ -113,7 +106,7 @@ export class AccountPoolManager {
             whereClause.customerOnly = this.customerOnly
         }
 
-        // Get all active accounts not in cooldown
+        // Legacy account cooldown dates are intentionally ignored.
         const accounts = await prisma.beinAccount.findMany({
             where: whereClause,
             include: {
@@ -160,7 +153,7 @@ export class AccountPoolManager {
             return decryptAccountPassword(account)
         }
 
-        console.warn('⚠️ All accounts are rate-limited, in cooldown, or locked')
+        console.warn('All eligible accounts are rate-limited, reserved, or locked')
         return null
     }
 
@@ -242,10 +235,6 @@ export class AccountPoolManager {
             isActive: true,
             automationExclusive: true,
             providerAccountCausalReservations: { none: { releasedAt: null } },
-            OR: [
-                { cooldownUntil: null },
-                { cooldownUntil: { lte: new Date() } },
-            ],
             ...(input.excludeAccountIds?.length
                 ? { id: { notIn: input.excludeAccountIds } }
                 : {}),
@@ -281,7 +270,7 @@ export class AccountPoolManager {
                 })
             )
             if (claim.status !== 'ACQUIRED' && claim.status !== 'ALREADY_HELD') {
-                if (claim.status === 'OPERATION_ALREADY_RESERVED') return null
+                if (claim.status === 'OPERATION_ALREADY_RESERVED' || claim.status === 'OPERATION_ENDED_OR_MISSING') return null
                 continue
             }
             const reservation = claim.reservation
@@ -372,7 +361,7 @@ export class AccountPoolManager {
 
     /**
      * Mark an account as failed
-     * Tracks failures and applies cooldown if threshold reached
+     * Tracks failures and retains configured permanent auto-disable behavior
      */
     async markAccountFailed(accountId: string, error: string, operationId?: string): Promise<void> {
         try {
@@ -385,12 +374,6 @@ export class AccountPoolManager {
                 lastErrorAt: new Date(),
             },
         })
-
-        // Apply cooldown if threshold reached
-        if (account.consecutiveFailures >= this.config.cooldownAfterFailures) {
-            await this.setCooldown(accountId, this.config.cooldownDurationSeconds)
-            console.log(`⏳ Account ${accountId} put in cooldown after ${account.consecutiveFailures} failures`)
-        }
 
         // Auto-disable if max failures reached
         if (
@@ -409,38 +392,6 @@ export class AccountPoolManager {
         } finally {
             await this.releaseLock(accountId, operationId)
         }
-    }
-
-    /**
-     * Put an account in cooldown
-     */
-    async setCooldown(accountId: string, seconds: number): Promise<void> {
-        const cooldownUntil = new Date(Date.now() + seconds * 1000)
-
-        // Update database
-        await prisma.beinAccount.update({
-            where: { id: accountId },
-            data: { cooldownUntil },
-        })
-
-        // Set Redis key for fast checking
-        await this.redis.setex(`${COOLDOWN_PREFIX}${accountId}`, seconds, '1')
-
-        console.log(`⏳ Account ${accountId} in cooldown for ${seconds}s (until ${cooldownUntil.toISOString()})`)
-    }
-
-    /**
-     * Clear cooldown for an account
-     */
-    async clearCooldown(accountId: string): Promise<void> {
-        await prisma.beinAccount.update({
-            where: { id: accountId },
-            data: { cooldownUntil: null },
-        })
-
-        await this.redis.del(`${COOLDOWN_PREFIX}${accountId}`)
-
-        console.log(`✅ Cooldown cleared for account ${accountId}`)
     }
 
     /**
@@ -472,17 +423,6 @@ export class AccountPoolManager {
                 isAvailable: false,
                 reason: 'Account has an active causal reservation',
                 requestsInWindow: 0,
-            }
-        }
-
-        // Check cooldown in Redis (fast)
-        const cooldownTTL = await this.redis.ttl(`${COOLDOWN_PREFIX}${accountId}`)
-        if (cooldownTTL > 0) {
-            return {
-                isAvailable: false,
-                reason: `In cooldown (${cooldownTTL}s remaining)`,
-                requestsInWindow: 0,
-                cooldownRemaining: cooldownTTL,
             }
         }
 
@@ -533,7 +473,6 @@ export class AccountPoolManager {
         const accounts = await prisma.beinAccount.findMany()
 
         let available = 0
-        let inCooldown = 0
         let rateLimited = 0
 
         for (const account of accounts) {
@@ -542,8 +481,6 @@ export class AccountPoolManager {
             const health = await this.checkAccountHealth(account.id)
             if (health.isAvailable) {
                 available++
-            } else if (health.cooldownRemaining) {
-                inCooldown++
             } else {
                 rateLimited++
             }
@@ -553,7 +490,7 @@ export class AccountPoolManager {
             totalAccounts: accounts.length,
             activeAccounts: accounts.filter(isProviderAccountAutomationEligible).length,
             availableNow: available,
-            inCooldown,
+            inCooldown: 0, // Retained response field; account cooldowns are disabled.
             rateLimited,
         }
     }
@@ -581,8 +518,6 @@ export class AccountPoolManager {
         this.config = {
             maxRequestsPerAccount: parseInt(get('pool_max_requests_per_account', '5')),
             rateLimitWindowSeconds: parseInt(get('pool_rate_limit_window_seconds', '300')),
-            cooldownAfterFailures: parseInt(get('pool_cooldown_after_failures', '3')),
-            cooldownDurationSeconds: parseInt(get('pool_cooldown_duration_seconds', '600')),
             minDelayMs: parseInt(get('pool_min_delay_ms', '2000')),
             maxDelayMs: parseInt(get('pool_max_delay_ms', '5000')),
             maxConsecutiveFailures: parseInt(get('pool_max_consecutive_failures', '5')),
@@ -712,10 +647,6 @@ export class AccountPoolManager {
                 none: { releasedAt: null },
             },
             id: { notIn: excludeAccountIds },
-            OR: [
-                { cooldownUntil: null },
-                { cooldownUntil: { lte: new Date() } },
-            ],
         }
 
         // Add balance filter if specified
@@ -788,10 +719,6 @@ export class AccountPoolManager {
             providerAccountCausalReservations: {
                 none: { releasedAt: null },
             },
-            OR: [
-                { cooldownUntil: null },
-                { cooldownUntil: { lte: new Date() } },
-            ],
         }
 
         // Apply customerOnly filter if set

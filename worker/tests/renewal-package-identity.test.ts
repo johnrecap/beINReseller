@@ -28,10 +28,83 @@ test('exported HTTP session retains its bound account and rejects importing anot
     assert.equal(client.sessionValid, false)
 })
 
+test('operation session preserves the selected WebForms offer and its quote revision across workers', async () => {
+    const selection = { packages: [{ index: 0, name: 'Premium 6 Months', price: 86.4,
+        checkboxValue: 'provider-row-17' }], viewState: { __VIEWSTATE: 'state',
+        __EVENTVALIDATION: 'validation' }, cardNumber: '7517717372', smartcardType: 'CISCO', promoCode: 'SEASONOFFERS' }
+    const client = Object.assign(Object.create(httpPrototype()), {
+        accountId: 'account-bound', jar: { serialize: async () => ({ cookies: [] }) },
+        currentViewState: selection.viewState, renewalSelection: selection,
+        preparedRenewal: null, sessionExpiresAt: null,
+    })
+    client.setRenewalQuoteRevision(4)
+    const snapshot = JSON.parse(JSON.stringify(await client.exportSession()))
+    assert.equal(snapshot.renewalSelection.quoteRevision, 4)
+    assert.equal(snapshot.renewalSelection.packages[0].checkboxValue, 'provider-row-17')
+    assert.equal(snapshot.renewalSelection.promoCode, 'SEASONOFFERS')
+})
+
+test('saved offer refuses another revision, card or equally priced different package before Add', () => {
+    const state = { __VIEWSTATE: 'state', __EVENTVALIDATION: 'validation' }
+    const client = Object.assign(Object.create(httpPrototype()), {
+        sessionValid: true, sessionExpiresAt: Date.now() + 60_000,
+        currentViewState: state,
+        renewalSelection: { packages: [{ index: 8, name: 'Premium 6 Months', price: 86.4,
+            checkboxValue: 'moved-row' }], viewState: state, cardNumber: '7517717372',
+            smartcardType: 'CISCO', promoCode: 'SEASONOFFERS', quoteRevision: 7 },
+    })
+    const quote = { index: 2, name: 'Premium 6 Months', price: 86.4, currency: 'USD',
+        quoteRevision: 7, packageKey: '7.2', appliedPromoCode: 'SEASONOFFERS' }
+    const context = { cardNumber: '7517717372', smartcardType: 'CISCO' }
+    assert.doesNotThrow(() => client.assertRenewalSelection(quote, context))
+    assert.throws(() => client.assertRenewalSelection({ ...quote, quoteRevision: 8,
+        packageKey: '8.2' }, context), /PACKAGE_QUOTE_CHANGED/)
+    assert.throws(() => client.assertRenewalSelection(quote, { ...context,
+        cardNumber: '7517717373' }), /PACKAGE_QUOTE_CHANGED/)
+    assert.throws(() => client.assertRenewalSelection({ ...quote, name: 'Basic 6 Months' },
+        context), /PACKAGE_QUOTE_CHANGED/)
+})
+
 const selected = { index: 0, name: 'Premium 6 Months + 20% OFF (6 Months)', price: 86.4, currency: 'USD',
     checkboxValue: 'current-control', quoteRevision: 2, packageKey: '2.0', appliedPromoCode: null }
 const state = { __VIEWSTATE: 'synthetic-state', __VIEWSTATEGENERATOR: 'generator', __EVENTVALIDATION: 'validation' }
 const hidden = Object.entries(state).map(([name, value]) => `<input type="hidden" id="${name}" name="${name}" value="${value}">`).join('')
+const promoForm = `<form id="aspnetForm">${hidden}
+    <input type="hidden" name="__EVENTTARGET" value=""><input type="hidden" name="__EVENTARGUMENT" value="">
+    <select name="ctl00$ContentPlaceHolder1$ddlType"><option value="1">Smartcard: Irdeto</option>
+        <option value="8" selected>Smartcard: CISCO</option></select>
+    <input name="ctl00$ContentPlaceHolder1$tbSerial1" value="${providerCard}" maxlength="9">
+    <table id="ContentPlaceHolder1_gvAvailablePackages"><tr><td><input type="checkbox" name="fresh-row"></td></tr></table>
+    <input name="ctl00$ContentPlaceHolder1$txtPromoCode" value="">
+    <input type="submit" name="ctl00$ContentPlaceHolder1$btnPromoCode" value="Submit">
+    <input type="submit" name="ctl00$ContentPlaceHolder1$btnAddToCart" value="Add >">
+    </form>`
+
+test('Check page STB proof requires this card and one labelled receiver', () => {
+    const result = (card: string, text: string) => `<body><input name="ctl00$ContentPlaceHolder1$tbSerial" value="${card}">${text}</body>`
+    assert.equal(purchaseGuard.readCheckedCardStb(result(fullCard, 'STB(s): 947242535522003'), fullCard), '947242535522003')
+    assert.equal(purchaseGuard.readCheckedCardStb(result('7000000000', 'STB(s): 947242535522003'), fullCard), null)
+    assert.equal(purchaseGuard.readCheckedCardStb(result(fullCard, '947242535522003'), fullCard), null)
+    assert.equal(purchaseGuard.readCheckedCardStb(result(fullCard,
+        'STB(s): 947242535522003 STB: 947242535522004'), fullCard), null)
+    assert.equal(purchaseGuard.readCheckedCardStb(result(fullCard,
+        'STB(s): 947242535522003, 947242535522004'), fullCard), null)
+})
+
+test('Check request clears a receiver left from an earlier card when this response has no pairing', async () => {
+    const client = Object.assign(Object.create(httpPrototype()), {
+        config: { checkUrl: '/check', loginUrl: '/login' }, currentStbNumber: '947242535522003',
+        buildFullUrl: (path: string) => path, buildPostHeaders: () => ({}),
+        checkForSessionExpiry: () => null, checkForErrors: () => null,
+        extractHiddenFields: () => state, extractButtonValue: () => 'Check',
+        axios: { get: async () => ({ data: hidden }), post: async () => ({ data:
+            `<body>${hidden}<input name="ctl00$ContentPlaceHolder1$tbSerial" value="${fullCard}">No receiver here</body>` }) },
+    })
+    const checked = await client.checkCard(fullCard)
+    assert.equal(checked.success, true)
+    assert.equal(checked.stbNumber, undefined)
+    assert.equal(client.getSTBNumber(), null)
+})
 
 // Observed Add cart structure, with synthetic offers. Repeated later-stage HTML is
 // a simulation only: no live Sell/STB/OK/Pay response was captured.
@@ -49,7 +122,8 @@ function purchaseClient(responses: string[]) {
     const posts: URLSearchParams[] = []
     const client = Object.assign(Object.create(httpPrototype()), {
         config: { renewUrl: '/renew' }, currentViewState: state, currentStbNumber: 'synthetic-stb',
-        renewalSelection: { packages: [selected], viewState: { ...state }, cardNumber: fullCard, smartcardType: 'CISCO', promoCode: null },
+        renewalSelection: { packages: [selected], viewState: { ...state }, cardNumber: fullCard,
+            smartcardType: 'CISCO', promoCode: null, formHtml: promoForm },
         buildFullUrl: () => 'https://synthetic.invalid/renew', buildPostHeaders: () => ({}),
         axios: { post: async (_url: string, body: string) => { posts.push(new URLSearchParams(body));
             assert.ok(responses.length, 'unexpected provider POST'); return { data: responses.shift() } },
@@ -87,6 +161,29 @@ async function preparedClient(finalResponses: string[]) {
     assert.equal(prepared.packageEvidence.packageName, selected.name)
     return h
 }
+
+test('the checked receiver is entered in both later STB fields and retained for final OK', async () => {
+    const h = await preparedClient([paymentPage(), paidPage])
+    const first = 'ctl00$ContentPlaceHolder1$tbStbSerial1'
+    const second = 'ctl00$ContentPlaceHolder1$tbStbSerial2'
+    assert.equal(h.posts[2].get(first), 'synthetic-stb')
+    assert.equal(h.posts[2].get(second), 'synthetic-stb')
+    assert.equal(h.posts[2].has('ctl00$ContentPlaceHolder1$btnStbOk'), false)
+    await h.client.confirmPurchase(86.4, async () => {}, async () => {}, accepted)
+    assert.equal(h.posts[3].get(first), 'synthetic-stb')
+    assert.equal(h.posts[3].get(second), 'synthetic-stb')
+    assert.equal(h.posts[3].get('ctl00$ContentPlaceHolder1$btnStbOk'), 'Ok')
+})
+
+test('a mismatched second receiver echo stops before final OK', async () => {
+    const changedEcho = summary().replace('tbStbSerial2" value="synthetic-stb"',
+        'tbStbSerial2" value="another-receiver"')
+    const h = purchaseClient([summary(), summary(), changedEcho])
+    const result = await h.client.completePurchase(selected, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.message, 'PACKAGE_QUOTE_CHANGED')
+    assert.equal(h.posts.length, 3)
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk')), false)
+})
 
 for (const stage of [0, 1, 2, 3]) {
     test(`unreadable or expired response at purchase stage ${stage} cannot reach Pay`, async () => {
@@ -202,6 +299,59 @@ for (const [label, response, successful] of [
     assert.equal(h.client.renewalSelection?.promoCode || null, successful ? 'SAVE' : null)
 })
 
+test('promo POST uses only enabled controls in the current bound form', async () => {
+    const h = purchaseClient([promoResponse(selected.name, '64.80', 'SEASONOFFERS')])
+    const result = await h.client.applyPromoCode('SEASONOFFERS', fullCard, 'CISCO')
+    assert.equal(result.success, true)
+    assert.equal(h.posts[0].get('ctl00$ContentPlaceHolder1$ddlType'), '8')
+    assert.equal(h.posts[0].get('ctl00$ContentPlaceHolder1$tbSerial1'), providerCard)
+    assert.equal(h.posts[0].get('__VIEWSTATE'), state.__VIEWSTATE)
+    assert.equal(h.posts[0].get('ctl00$ContentPlaceHolder1$txtPromoCode'), 'SEASONOFFERS')
+    assert.equal(h.posts[0].has('ctl00$ContentPlaceHolder1$btnAddToCart'), false)
+    assert.equal(h.posts[0].has('fresh-row'), false)
+})
+
+test('removing a promo uses the same card and WebForms page without reload', async () => {
+    const h = purchaseClient([promoResponse(selected.name, '86.40', '')])
+    h.client.renewalSelection.promoCode = 'SEASONOFFERS'
+    h.client.renewalSelection.packages = [{ ...selected, price: 64.8 }]
+    h.client.renewalSelection.formHtml = promoForm.replace(
+        'name="ctl00$ContentPlaceHolder1$txtPromoCode" value=""',
+        'name="ctl00$ContentPlaceHolder1$txtPromoCode" value="SEASONOFFERS"')
+    h.client.loadPackages = async () => { throw new Error('FORBIDDEN_RELOAD') }
+    const result = await h.client.removePromoCode(fullCard, 'CISCO')
+    assert.equal(result.success, true)
+    assert.equal(result.packages[0].price, 86.4)
+    assert.equal(h.posts.length, 1)
+    assert.equal(h.posts[0].get('ctl00$ContentPlaceHolder1$tbSerial1'), providerCard)
+    assert.equal(h.posts[0].get('ctl00$ContentPlaceHolder1$ddlType'), '8')
+    assert.equal(h.posts[0].get('ctl00$ContentPlaceHolder1$txtPromoCode'), '')
+})
+
+test('a changed promo offer name remains the new quote identity even at the old price', async () => {
+    const renamed = 'Premium 6 Months + 25% OFF (6 Months)'
+    const h = purchaseClient([promoResponse(renamed, '86.40', 'SEASONOFFERS')])
+    const result = await h.client.applyPromoCode('SEASONOFFERS', fullCard, 'CISCO')
+    assert.equal(result.success, true)
+    assert.equal(result.packages[0].name, renamed)
+    assert.throws(() => matchFreshPackage(result.packages, selected), /PACKAGE_QUOTE_CHANGED/)
+})
+
+for (const [label, form] of [
+    ['old viewstate', promoForm.replace(state.__VIEWSTATE, 'old-state')],
+    ['duplicate viewstate', promoForm.replace(`name="__VIEWSTATE" value="${state.__VIEWSTATE}">`,
+        `name="__VIEWSTATE" value="${state.__VIEWSTATE}"><input name="__VIEWSTATE" value="${state.__VIEWSTATE}">`)],
+    ['other card', promoForm.replace(providerCard, '700000002')],
+    ['other type', promoForm.replace('option value="8" selected', 'option value="8"')],
+    ['missing submit', promoForm.replace('btnPromoCode', 'missingPromoButton')],
+    ['selected old row', promoForm.replace('name="fresh-row"', 'name="fresh-row" checked')],
+] as const) test(`promo form ${label} stops before provider POST`, async () => {
+    const h = purchaseClient([])
+    h.client.renewalSelection.formHtml = form
+    assert.equal((await h.client.applyPromoCode('SEASONOFFERS', fullCard, 'CISCO')).success, false)
+    assert.equal(h.posts.length, 0)
+})
+
 test('expired selection cannot Add and a changed promo context cannot Submit', async () => {
     const expired = purchaseClient([])
     expired.client.sessionExpiresAt = Date.now() - 1
@@ -258,6 +408,9 @@ test('matching simulated purchase needs a new report invoice and the exact activ
     input.contractCheck.contracts[0].package = 'Premium 24 Months'
     assert.notEqual(correlateRenewalFulfillment(input).outcome, 'MATCHED')
     input.contractCheck.contracts[0].package = selected.name
+    input.postReport.rows[0].packageName = 'Premium 6 Months + 25% OFF (6 Months)'
+    assert.notEqual(correlateRenewalFulfillment(input).outcome, 'MATCHED')
+    input.postReport.rows[0].packageName = selected.name
     input.contractCheck.contracts[0].invoiceNo = 'unrelated'
     assert.notEqual(correlateRenewalFulfillment(input).outcome, 'MATCHED')
 })

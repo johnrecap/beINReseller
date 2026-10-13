@@ -42,6 +42,7 @@ export const GET = withAuth(async (request: Request, session) => {
                     completedAt: true,
                     createdAt: true,
                     updatedAt: true,
+                    fulfillmentProof: { select: { proofKind: true } },
                     // New fields for final confirmation
                     selectedPackage: true,
                     stbNumber: true,
@@ -54,10 +55,13 @@ export const GET = withAuth(async (request: Request, session) => {
             prisma.operation.count({ where }),
         ])
 
-        const safeOperations = operations.map(({ responseData, transactions, refundSettlements, ...operation }) => {
+        const safeOperations = operations.map(({ responseData, transactions, refundSettlements, fulfillmentProof, ...operation }) => {
             const evidence = parseOperationResponseData(responseData)
             return {
                 ...operation,
+                receiptAvailable: operation.status === 'COMPLETED' &&
+                    operation.fulfillmentAuthority === 'AUTOMATED_REPORT' &&
+                    fulfillmentProof?.proofKind === 'SOLD_REPORT_SAME_DAY',
                 ...projectOperationProgress({ ...operation, responseData, transactions, refundSettlements }),
                 providerPaymentState: operation.providerPaymentState ?? (
                     typeof evidence.providerPaymentState === 'string' ? evidence.providerPaymentState : null

@@ -27,6 +27,7 @@ test('actual orchestrator retries promo reservation failure without financial cl
         './lib/session-cache', './lib/package-cache', './lib/bein-login-tracking', './lib/bein-connection-mode',
         './lib/final-pay-evidence', './lib/fulfillment-finalization', './lib/renewal-no-charge-finalization',
         './lib/pre-mutation-renewal-finalization', './lib/renewal-verification-retry', './lib/fulfillment-baseline',
+        './lib/same-day-report-fulfillment',
         './lib/provider-account-reservation', './lib/renewal-fulfillment-correlation', '../../shared/operations/renewal-fulfillment']) {
         deps[name] = new Proxy({}, { get: (_target, key) => () => { financialCalls.push(`${name}:${String(key)}`); throw new Error('UNEXPECTED_DEPENDENCY') } })
     }
@@ -79,7 +80,30 @@ test('promo refresh preserves IRDETO context, fences both requests and removes o
     assert.deepEqual(calls, ['fence', ['load', 'synthetic-card', 'IRDETO']])
 })
 
-test('actual HTTP promo fallback cannot certify an ordinary list and retains IRDETO', async () => {
+test('v2 promo changes the current card-bound page without a package reload', async () => {
+    const calls: string[] = []
+    const client = {
+        loadPackages: async () => { calls.push('reload'); throw new Error('FORBIDDEN_RELOAD') },
+        applyPromoCode: async (_code: string, _card: string, _type: string,
+            assertCurrent?: () => Promise<void>) => {
+            await assertCurrent?.(); calls.push('apply');
+            return { success: true, packages: [selected] }
+        },
+        removePromoCode: async (_card: string, _type: string,
+            assertCurrent?: () => Promise<void>) => {
+            await assertCurrent?.(); calls.push('remove');
+            return { success: true, packages: [selected] }
+        },
+    }
+    const fence = async () => { calls.push('fence') }
+    await refreshPromoPackages(client, { cardNumber: 'synthetic-card', smartcardType: 'CISCO',
+        promoAction: 'APPLY', promoCode: 'NEW', reuseCurrentPage: true }, fence)
+    await refreshPromoPackages(client, { cardNumber: 'synthetic-card', smartcardType: 'CISCO',
+        promoAction: 'REMOVE', reuseCurrentPage: true }, fence)
+    assert.deepEqual(calls, ['fence', 'fence', 'apply', 'fence', 'fence', 'remove'])
+})
+
+test('actual HTTP promo failure never reloads or certifies an ordinary list', async () => {
     const deps: Record<string, unknown> = { cheerio, './renewal-purchase-guard': purchaseGuard,
         '../../../shared/operations/package-quote': packageQuote }
     for (const name of ['axios', 'axios-retry', 'axios-cookiejar-support', 'tough-cookie', 'https', '../lib/prisma',
@@ -87,16 +111,26 @@ test('actual HTTP promo fallback cannot certify an ordinary list and retains IRD
         './webforms-form', './sold-packages-report', '../../../shared/operations/renewal-fulfillment-config']) deps[name] = {}
     const { HttpClientService } = loadIsolatedModule<{ HttpClientService: { prototype: object } }>('worker/src/http/HttpClientService.ts', deps)
     const calls: unknown[] = []
+    const card = '7000000000'
+    const state = { __VIEWSTATE: 'synthetic-state', __VIEWSTATEGENERATOR: 'generator', __EVENTVALIDATION: 'validation' }
+    const formHtml = `<form>${Object.entries(state).map(([name, value]) =>
+        `<input name="${name}" value="${value}">`).join('')}
+        <select name="ctl00$ContentPlaceHolder1$ddlType"><option value="1" selected>Smartcard: Irdeto</option></select>
+        <input name="ctl00$ContentPlaceHolder1$tbSerial1" value="${card}">
+        <table id="ContentPlaceHolder1_gvAvailablePackages"><tr><td><input type="checkbox" name="old-row"></td></tr></table>
+        <input name="ctl00$ContentPlaceHolder1$txtPromoCode" value="">
+        <input type="submit" name="ctl00$ContentPlaceHolder1$btnPromoCode" value="Submit"></form>`
     const client = Object.assign(Object.create(HttpClientService.prototype), {
-        config: { renewUrl: '/synthetic' }, currentViewState: { synthetic: 'state' },
-        renewalSelection: { packages: [selected], viewState: { synthetic: 'state' }, cardNumber: 'synthetic-card', smartcardType: 'IRDETO', promoCode: null },
+        config: { renewUrl: '/synthetic' }, currentViewState: state,
+        renewalSelection: { packages: [selected], viewState: state, cardNumber: card, smartcardType: 'IRDETO',
+            promoCode: null, formHtml },
         buildFullUrl: () => 'http://synthetic.invalid', buildFormData: () => '', buildPostHeaders: () => ({}),
         checkForErrors: () => null, extractHiddenFields: () => ({}),
         axios: { post: async () => ({ data: '<html><body>Intermediate response</body></html>' }) },
         loadPackages: async (...args: unknown[]) => { calls.push(args); return { success: true, packages: [selected] } },
     })
-    const result = await client.applyPromoCode('SYNTHETIC', 'synthetic-card', 'IRDETO')
+    const result = await client.applyPromoCode('SYNTHETIC', card, 'IRDETO')
     assert.equal(result.success, false)
     assert.equal(result.error, 'PROMO_REFRESH_UNVERIFIED')
-    assert.deepEqual(calls, [['synthetic-card', 'IRDETO']])
+    assert.deepEqual(calls, [])
 })

@@ -22,10 +22,12 @@ export type FulfillmentProofMode = 'REVIEW_ONLY' | 'ENFORCE'
 export type FulfillmentProofKind =
     | 'LEGACY_CONTRACT_ONLY'
     | 'SOLD_REPORT_CONTRACT_CORRELATION'
+    | 'SOLD_REPORT_SAME_DAY'
 
 export type FulfillmentAuthority =
     | 'NONE'
     | 'AUTOMATED_COMPOSITE'
+    | 'AUTOMATED_REPORT'
     | 'MANUAL_PROVIDER_CONFIRMATION'
 
 export type FinalPayFinancialOutcome =
@@ -91,8 +93,10 @@ export function decideRenewalTerminalState(input: {
 }): { decision: RenewalTerminalDecision; refundAllowed: boolean } {
     if (input.fulfillmentState === 'VERIFIED') {
         const automatedAuthority =
-            input.fulfillmentAuthority === 'AUTOMATED_COMPOSITE' &&
-            input.proofKind === 'SOLD_REPORT_CONTRACT_CORRELATION'
+            (input.fulfillmentAuthority === 'AUTOMATED_COMPOSITE' &&
+                input.proofKind === 'SOLD_REPORT_CONTRACT_CORRELATION') ||
+            (input.fulfillmentAuthority === 'AUTOMATED_REPORT' &&
+                input.proofKind === 'SOLD_REPORT_SAME_DAY')
         const manualAuthority =
             input.fulfillmentAuthority === 'MANUAL_PROVIDER_CONFIRMATION' &&
             input.manualEvidenceComplete === true

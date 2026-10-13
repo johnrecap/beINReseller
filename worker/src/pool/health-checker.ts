@@ -34,9 +34,6 @@ export async function getAccountHealthReport(
     const totalOps = account.totalSuccess + account.totalFailures
     const successRate = totalOps > 0 ? (account.totalSuccess / totalOps) * 100 : 100
 
-    // Check cooldown TTL
-    const cooldownTTL = await redis.ttl(`bein:account:${accountId}:cooldown`)
-
     // Get request count in window
     const requestsKey = `bein:account:${accountId}:requests`
     const requestCount = await redis.zcard(requestsKey)
@@ -63,7 +60,7 @@ export async function getAccountHealthReport(
             requestsInWindow: requestCount,
             consecutiveFailures: account.consecutiveFailures,
             lastUsedAt: account.lastUsedAt,
-            cooldownRemaining: cooldownTTL > 0 ? cooldownTTL : null,
+            cooldownRemaining: null,
         },
     }
 }

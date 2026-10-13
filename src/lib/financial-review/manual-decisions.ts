@@ -140,7 +140,8 @@ export function isFinancialReviewDecisionAllowed(input: DecisionGuardInput): Dec
             (
                 input.evidence.fulfillmentVerified &&
                 Boolean(input.evidence.fulfillmentProofId) &&
-                input.evidence.fulfillmentAuthority === 'AUTOMATED_COMPOSITE'
+                (input.evidence.fulfillmentAuthority === 'AUTOMATED_COMPOSITE' ||
+                    input.evidence.fulfillmentAuthority === 'AUTOMATED_REPORT')
             ) ||
             hasCompleteManualFulfillmentEvidence(input.manualFulfillmentEvidence)
         ) {

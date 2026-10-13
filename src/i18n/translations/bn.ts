@@ -1,4 +1,12 @@
 export const bn = {
+    renewalReceipt: {
+        view: 'রসিদ দেখুন', title: 'নবায়নের রসিদ', print: 'রসিদ প্রিন্ট করুন',
+        operation: 'অপারেশন', invoice: 'beIN ইনভয়েস', card: 'কার্ড নম্বর', itemType: 'ডিভাইসের ধরন',
+        package: 'প্যাকেজ / অফার', promo: 'গৃহীত প্রচার কোড', providerAmount: 'beIN বিক্রয়মূল্য',
+        customerAmount: 'আপনার কাছ থেকে কাটা অর্থ', start: 'সাবস্ক্রিপশন শুরু', expiry: 'সাবস্ক্রিপশন শেষ',
+        reportDate: 'বিক্রয় রিপোর্টের দিন (কায়রো)', verifiedAt: 'যাচাইয়ের সময়', unavailable: 'এই অপারেশনের নিশ্চিত রসিদ পাওয়া যায়নি।',
+        loading: 'রসিদ লোড হচ্ছে…', back: 'ইতিহাসে ফিরুন',
+    },
     reportCenter: { title: 'রিপোর্ট কেন্দ্র', admin: 'অ্যাডমিন রিপোর্ট', active: 'বর্তমান', open: 'সম্পূর্ণ পৃষ্ঠা খুলুন',
         description: 'বিশ্লেষণ, পর্যবেক্ষণ, খরচের রিপোর্ট, অ্যাকাউন্টের অবস্থা ও লগ একই জায়গায়।',
         failed: 'এই রিপোর্ট লোড করা যায়নি। অন্য ট্যাব বেছে নিন বা পৃষ্ঠা রিফ্রেশ করুন।' },
@@ -940,6 +948,7 @@ export const bn = {
         expiresIn: 'শেষ হবে',
         seconds: 'সেকেন্ড',
         providerChargedVerifyingFulfillment: 'beIN পেমেন্ট কেটেছে। প্যাকেজ চালু হয়েছে কি না যাচাই করা হচ্ছে...',
+        waitingForReport: 'beIN বিক্রয় রিপোর্টের নিশ্চয়তার অপেক্ষা চলছে। নতুন পেমেন্ট পাঠানো হবে না।',
         providerChargedFulfillmentUnderReview: 'পেমেন্ট কাটা হয়েছে, কিন্তু প্যাকেজ চালু হওয়া নিশ্চিত নয়—অ্যাডমিন পর্যালোচনা করছে।',
         fulfillmentReviewPending: 'এই কার্ডের জন্য একটি নবায়ন নিরাপত্তা পর্যালোচনা এখনো খোলা আছে।',
         cardCooldownActive: 'এই কার্ডের নবায়ন সাময়িকভাবে স্থগিত',

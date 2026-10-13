@@ -123,7 +123,7 @@ export async function cacheSTB(cardNumber: string, stbNumber: string): Promise<v
         await redis.setex(key, STB_CACHE_TTL_MIN * 60, stbNumber);
         
         const maskedCard = cardNumber.slice(0, 4) + '****';
-        console.log(`[PackageCache] 💾 Cached STB ${stbNumber} for ${maskedCard} (TTL: ${STB_CACHE_TTL_MIN} min)`);
+        console.log(`[PackageCache] Cached STB for ${maskedCard} (TTL: ${STB_CACHE_TTL_MIN} min)`);
     } catch (error: unknown) {
         console.error(`[PackageCache] ⚠️ Failed to cache STB:`, (error instanceof Error ? error.message : 'Unknown error'));
     }
@@ -143,7 +143,7 @@ export async function getCachedSTB(cardNumber: string): Promise<string | null> {
         if (stb) {
             cacheMetrics.stbHits++;
             const maskedCard = cardNumber.slice(0, 4) + '****';
-            console.log(`[PackageCache] ✅ STB HIT for ${maskedCard}: ${stb}`);
+            console.log(`[PackageCache] STB HIT for ${maskedCard}`);
             return stb;
         }
         

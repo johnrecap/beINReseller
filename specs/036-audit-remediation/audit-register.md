@@ -1,5 +1,27 @@
 # سجل نتائج المراجعة وخريطة الإصلاح
 
+## Account availability continuation — 2026-10-13
+
+Authorized: remove beIN account cooldowns only; retain the requested five-minute card cooldown, account ownership, financial review and request-rate limits. User-supplied read-only server output shows 45 accounts, 42 inactive and three active accounts reserved by COMPLETED operations, with no account cooldown dates. The user confirms these were paid renewals. This establishes reservation/inactivity as the current capacity blocker, not cooldown; completion evidence and deployed code remain unknown. Subsequent authorization explicitly requires releasing the execution account when an operation ends, without removing historical account attribution. Local work only, no subagents or provider mutations.
+
+| Requirement / source | Action and verification | State |
+| --- | --- | --- |
+| User: no account cooldowns | Stop writing/reading account cooldowns in every pool path and renewal admission; ignore historical DB/Redis values, remove admin controls and seed/config keys. | VERIFIED locally — actual-module tests cover all four selection paths, readiness, admin list/detail/config and historical values |
+| User: keep card cooldown | Preserve card deadlines/countdown, reservations, locks, rate limits and financial safeguards; exercise connected tests. | VERIFIED locally — existing card SQL/admission/countdown tests and ownership negatives pass |
+| Supplied availability incident and lifecycle clarification | Block late acquisition/renewal for ended operations; release the completed check handoff atomically; add bounded maintenance repair of terminal reservations using existing completion evidence. Retain unresolved financial review and card protections; never change balances/status to free an account. | VERIFIED locally — seven reservation and ten cleanup/wiring tests; exact production operation evidence and native concurrency NOT_VERIFIED |
+| Skills: current evidence and handoff | Reproduce first regression, run focused suites/types/lint, then update guide and project ledger. | VERIFIED locally — current tests and docs below; production acceptance remains open |
+
+Local evidence: `worker/tests/account-cooldown-removal.test.ts`, `worker/tests/provider-reservation-lifecycle.test.ts`, `tests/unit/account-cooldown-removal.test.ts`, `tests/unit/provider-reservation-maintenance.test.ts`, the existing renewal-readiness/card suites and the full root/Worker regressions. Cooldown regression first failed four assertions; late reservation acquisition/renewal failed seven cases before repair. Current root result: 871 pass plus one sandbox-blocked temporary-Git test, followed by successful 3/3 isolated rerun with authorized filesystem access (872 distinct root cases pass). Worker result: 347 pass, zero failures, five native-Redis skips. Root/Worker TypeScript and scoped lint pass; one pre-existing unused import warning remains in `http-queue-processor.ts`. Native PostgreSQL/Redis concurrency, live HTTP and production release are not proved by these mocks; the updated native readiness test was not run against a business database.
+
+Semantic finding: the paid finalizer already releases both reservations in its completion transaction. The underlying acquisition helper could nevertheless reopen a released reservation without rechecking terminal operation state; maintenance never selected completed rows. These are reproduced local defects, not proof of the specific production chronology. A completed signal check independently left its reservation active while awaiting optional Activate, now repaired atomically. Cleanup retains uncertain financial review, missing paid proof, open integrity issues, mismatched account/generation and active Redis owners. It updates only the account reservation; it never certifies a new sale, changes a balance/status, clears card review or erases historical account attribution. Existing admin `Unlocked`/available-count presentation omits DB reservation state and remains a documented gap.
+
+Final focused rerun: 26/26 lifecycle/maintenance cases pass after adding a contradictory nested financial-evidence check to pre-payment cleanup. UTF-8/BOM/mojibake review covers all changed source/documents; no introduced encoding issue. Handoff: `docs/PROJECT_GUIDE.md` and `PROJECT_MEMORY.md` / `UPD-20261013-006`. No migration, provider request, production database change, push, deployment or subagent. The account-lifecycle source repair is locally verified; resolution of the three live paid-renewal holds remains INCOMPLETE pending their stored completion evidence and deployed Worker versions.
+
+
+## Read-only renewal flow comparison — 2026-10-13
+
+The current card-entry → package quote → cart/final confirmation → Sold Report/contract proof path was compared with the signed-in provider's Check, CISCO package form and account-scoped Sold Packages Details report. The supplied production logs' immediate post-GET `PACKAGE_QUOTE_CHANGED` is attributable to the pre-repair prefixed smartcard label parser; current local source fixes it, but deployed Worker parity is NOT_VERIFIED. The live report yielded the expected nine-column sales grid for the selected 06–13 October range; a Check contract absent from this account's sales report cannot be treated as this account's new sale. Later Sell/STB/OK/Pay and actual promo responses remain NOT_VERIFIED because no provider transaction was authorized. Existing correlation safely holds scheduled-start and unrelated-account-sale cases for review, with completion-rate implications. STB fallback and identifier logging are source improvements to address separately. Four focused local suites: 95 pass/0 fail/0 skip; no source behavior, balances or provider subscriptions changed. Detailed stage map, findings and priorities: [renewal read-only comparison](evidence/renewal-readonly-flow-comparison-20261013.md). No subagents.
+
 ## Supplemental provider report browser — 2026-10-12
 
 Authorized: admin Reports tab reads the selected beIN account's Sold Packages Details through existing HTTP workers; seven-day default, maximum 31-day range, localized en/ar/bn. Local synthetic verification only; no provider purchases, deployment or subagents. Existing identity/cooldown work is preserved.
@@ -199,6 +221,33 @@ Semantic review: the clock is anchored to the first end state rather than a muta
 نسخة الإنتاج، الترحيلات المطبقة، الأرصدة والبيانات القديمة، جلسات beIN وتنسيق التقارير الحي، العمليات الجارية، PM2/cron الفعلي، ونسخة تطبيق الموبايل الخارجي لم تُفحص. T052–T055 تحدد الأدلة المطلوبة. نجاح التخطيط لا يزيل هذه الحدود.
 
 ## Package identity repair — 2026-10-11
+
+### Same-page renewal and same-day report continuation — 2026-10-13
+
+The maintainer approved a new versioned renewal path. It supersedes the baseline/second-Check/package-reload/contract-proof requirements **for newly started v2 package renewals only**; older in-flight v1 operations retain their original proof policy. This is an ordinary implementation and does not activate or accept Spec Kit tasks. Evidence and limits: [same-day renewal](evidence/same-day-report-renewal-20261013.md).
+
+| Requirement / source | Action / verification | Status |
+| --- | --- | --- |
+| Selected package cannot change after reload/promo | Persist the exact operation page before READY; apply/remove promo on that page and invalidate old selection. At Add, restore the same account, card/type, ViewState, quote revision and unique commercial offer; no re-Check, re-Load, promo reapply or account failover. | VERIFIED locally with synthetic HTTP and session tests; live provider page changes NOT_VERIFIED |
+| Confirm cart, Pay and same-day invoice | Keep cart/summary guards and one mutation marker. Scan the executing account's Cairo Pay day with Dealer/All/page stability; one unclaimed exact invoice completes with a transactionally saved receipt. Unknown/duplicate/mismatched evidence holds review and never retries Pay. | VERIFIED local source/correlation tests; database race and live invoice NOT_VERIFIED |
+| Receipt and safe visibility | Store report sale and customer deduction separately, expose only after completion to operation owner/admin, link from history and renewal result in three languages. | VERIFIED local route/privacy/types/build; authenticated browser NOT_VERIFIED |
+| Migration and rollback boundary | Add v2 operation marker, same-day proof/claim enums and proof fields. Existing contract-status requirement remains for legacy proof. Stop new admission and deploy migrations/web/all Workers/maintenance from one version; rollback disables new v2 admission without deleting evidence or replaying Pay. | Schema validate and static review VERIFIED; fresh/old disposable PostgreSQL migration runs and production cutover NOT_VERIFIED |
+
+The report filter establishes only the selected Cairo day; it has no sale timestamp. A same-day prior external sale with identical card/type/package/offer/price can be misattributed under this approved criterion. That risk and absent live checkout evidence prevent a production safety guarantee.
+
+### Dynamic promo renewal continuation — 2026-10-13
+
+Authorized scope: implement the accepted dynamic-promo safeguards locally and compare the live provider's readable HTTP form evidence; no Add, Sell, Pay, subscription, deployment or subagent. This is an ordinary source repair, not a new Spec Kit task acceptance. Evidence: [dynamic promo renewal repair](evidence/dynamic-promo-renewal-20261013.md).
+
+Correction to the earlier assistant approval request: CISCO's selected field is prefilled with its first digit, but the native browser and Worker submit the complete nine-digit field value in each Load POST. The ten-digit customer card and nine-digit provider serial are separate identities. Treating the submitted value as an incomplete/different card solely because the first digit is prefilled was incorrect; that approval request is withdrawn. Live promo/checkout response coverage remains open.
+
+| Requirement / source | Action / verification | Status / evidence |
+| --- | --- | --- |
+| User: inspect actual HTTP and changing promo | Compare the signed-in Sell Packages form and prior authorized two-step Load trace with Worker field names; rebuild promo POST from the current bound form; uppercase the supplied code without hardcoding a campaign. | VERIFIED for current form and local synthetic POST; actual live promo request/response NOT_VERIFIED because automated browser approval rejected Load |
+| User: never switch selected package | Invalidate prior quote on promo change; require unique current full name/offer, price/currency, card/type, cart total and new same-invoice report/active contract proof. | VERIFIED locally in focused and full unit suites; live checkout and new invoice NOT_VERIFIED |
+| User: retain STB, duplicate-charge and review guards | Clear stale STB, reject unlabelled/ambiguous Check value, recheck pairing before Add; preserve final mutation and review-only retry rules. | VERIFIED locally; live Check parser compatibility and production races NOT_VERIFIED |
+| User: redact Worker logs and test without purchase | Remove known direct identifier/promo/page-snippet logs; run root/Worker tests, types and lint with synthetic HTTP only. | VERIFIED for changed paths and current local runs; broader unstructured exception-log audit remains open |
+| Release parity | Compare running source/build hashes of every PM2 Worker and web before any production judgment. | NOT_VERIFIED: no SSH access or deployment in this task |
 
 ### Smartcard loading incident continuation — 2026-10-13
 

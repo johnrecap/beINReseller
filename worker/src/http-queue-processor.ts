@@ -86,6 +86,10 @@ import {
 } from './lib/final-pay-evidence';
 import type { FulfillmentProofCandidate } from './lib/fulfillment-proof';
 import { finalizeAutomatedRenewalFulfillment } from './lib/fulfillment-finalization';
+import {
+    cairoReportDay, claimSameDayFinalMutation, correlateSameDayReport,
+    finalizeSameDayReport, markSameDayPayRequest, recordSameDayAttempt,
+} from './lib/same-day-report-fulfillment';
 import { finalizeRenewalNoChargeFailure } from './lib/renewal-no-charge-finalization';
 import { finalizePreMutationRenewalTermination } from './lib/pre-mutation-renewal-finalization';
 import {
@@ -201,6 +205,8 @@ function mergeOperationPhaseData(
         jobType: string;
         finalPaySubmitted?: boolean;
         finalPaySubmittedAt?: string;
+        directOkSuccess?: boolean;
+        reportDate?: string;
         finalPayRequestStartedAt?: string;
         finalProviderMutationStartedAt?: string;
         providerMutationStage?: 'FINAL_OK';
@@ -219,7 +225,7 @@ function mergeOperationPhaseData(
         verificationOutcome?: FulfillmentVerificationOutcome;
         nextVerificationAt?: string | null;
         fulfillmentProofMode?: FulfillmentProofMode;
-        proofKind?: 'LEGACY_CONTRACT_ONLY' | 'SOLD_REPORT_CONTRACT_CORRELATION';
+        proofKind?: 'LEGACY_CONTRACT_ONLY' | 'SOLD_REPORT_CONTRACT_CORRELATION' | 'SOLD_REPORT_SAME_DAY';
         providerEvidenceCapturedAt?: string;
         providerEvidenceContext?: {
             operationId: string;
@@ -797,8 +803,10 @@ const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
  * Shared Redis sessions should only carry cookies and expiry metadata.
  * ViewState is operation-specific and must not be reused across flows.
  */
-function prepareSharedSessionForCache<T extends { viewState?: unknown }>(sessionData: T): T {
+function prepareSharedSessionForCache<T extends { viewState?: unknown; renewalSelection?: unknown; preparedRenewal?: unknown }>(sessionData: T): T {
     sessionData.viewState = undefined;
+    sessionData.renewalSelection = undefined;
+    sessionData.preparedRenewal = undefined;
     return sessionData;
 }
 
@@ -1307,12 +1315,14 @@ export async function processOperationHttp(
                 beinAccountId: true,
                 status: true,
                 type: true,
+                cardNumber: true,
                 responseData: true,
                 providerMutationStartedAt: true,
                 providerPaymentState: true,
                 fulfillmentState: true,
                 fulfillmentVerificationOutcome: true,
                 purpose: true,
+                renewalFlowVersion: true,
                 installmentEvidence: { select: { correlationKey: true } },
             }
         });
@@ -1340,6 +1350,18 @@ export async function processOperationHttp(
             message: getErrMsg(error)
         }, finalPayStarted);
         if (op.type === 'RENEW' && finalPayStarted) {
+            if (op.renewalFlowVersion === 2) {
+                await prisma.operation.updateMany({ where: { id: operationId,
+                    status: { notIn: HARD_TERMINAL_STATUS_LIST } }, data: {
+                    status: 'REVIEW_REQUIRED', providerPaymentState: 'UNKNOWN',
+                    fulfillmentState: 'VERIFYING', finalConfirmExpiry: null,
+                    responseMessage: 'Provider response uncertain; awaiting read-only sold report verification.',
+                } });
+                await scheduleRenewalFulfillmentVerification({ operationId,
+                    cardNumber: op.cardNumber, attemptNo: 0,
+                    retryDueAt: new Date(Date.now() + 5_000), accountPool });
+                return;
+            }
             const noChargeFinalization = await finalizeRenewalNoChargeFailure({
                 operationId,
                 responseData: mergeOperationPhaseData(op.responseData, {
@@ -1451,6 +1473,9 @@ async function handleStartRenewalHttp(
     smartcardType?: string
 ): Promise<void> {
     console.log(`🚀 [HTTP] Starting renewal for ${operationId}`);
+    const flowVersion = (await prisma.operation.findUnique({
+        where: { id: operationId }, select: { renewalFlowVersion: true },
+    }))?.renewalFlowVersion || 1;
 
     await checkIfCancelled(operationId);
 
@@ -1645,14 +1670,14 @@ async function handleStartRenewalHttp(
 
     // Use cache only to skip card/STB lookup before final Pay.
     // Package prices/options are still loaded fresh from beIN for this operation.
-    const cachedPackageData = await getCachedPackages(cardNumber);
-    const cachedStb = cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
+    const cachedPackageData = flowVersion === 2 ? null : await getCachedPackages(cardNumber);
+    const cachedStb = flowVersion === 2 ? null : cachedPackageData?.stbNumber || await getCachedSTB(cardNumber);
 
     let packagesResult: { success: boolean; packages: AvailablePackage[]; stbNumber?: string; dealerBalance?: number; error?: string };
 
     if (cachedStb) {
         // STB is cached — only run loadPackages (skip checkCard entirely)
-        console.log(`[HTTP] ⚡ STB CACHE HIT (${cachedStb}) — running loadPackages only`);
+        console.log('[HTTP] STB cache hit — running loadPackages only');
         client.setSTBNumber(cachedStb);
         stbNumber = cachedStb;
 
@@ -1677,8 +1702,9 @@ async function handleStartRenewalHttp(
             'checkCard'
         );
 
-        if (!checkResult.success) {
-            console.log(`⚠️ [HTTP] checkCard failed: ${checkResult.error} (non-fatal, STB may not be available)`);
+        if (!checkResult.success || !checkResult.stbNumber) {
+            if (flowVersion === 2) throw new Error('CARD_STB_UNAVAILABLE');
+            console.log('[HTTP] checkCard failed; STB may not be available');
         } else {
             stbNumber = checkResult.stbNumber;
             // Cache STB (fire-and-forget)
@@ -1743,6 +1769,7 @@ async function handleStartRenewalHttp(
     // CRITICAL: Export session data for cross-worker access.
     // Different PM2 workers have separate memory, so the operation-scoped
     // ViewState and cookies are stored server-side in Redis only.
+    if (flowVersion === 2) client.setRenewalQuoteRevision(0);
     const sessionData = await client.exportSession();
     await saveOperationSessionToCache(operationId, sessionData, 180, route);
 
@@ -1837,25 +1864,30 @@ async function handleApplyPromoHttp(
             operationId, responseData: current.responseData, legacyFallback: true,
         });
         const client = await createOperationClient(reserved.account, route);
-        await restoreOperationSession(operationId, current.responseData, client, route).catch(() => false);
-        if (!client.isSessionActive() || !await client.validateSession()) {
+        const restored = await restoreOperationSession(operationId, current.responseData, client, route)
+            .catch(() => false);
+        if (current.renewalFlowVersion === 2 && (!restored || !client.isSessionActive()))
+            throw new Error('PROMO_OPERATION_SESSION_EXPIRED');
+        if (current.renewalFlowVersion !== 2 && (!client.isSessionActive() || !await client.validateSession())) {
             await performReLogin(client, reserved.account, route, 'promoQuoteRefresh', reserved.lease);
         }
         const context = parseResponseDataObject(current.responseData);
         const result = await refreshPromoPackages(client, {
             cardNumber: current.cardNumber,
             smartcardType: typeof context.smartcardType === 'string' ? context.smartcardType : 'CISCO',
-            promoAction, promoCode,
+            promoAction, promoCode, reuseCurrentPage: current.renewalFlowVersion === 2,
         }, heartbeat.assertCurrent);
         await heartbeat.assertCurrent();
-        const accepted = await publish(result, heartbeat.assertCurrent);
-        if (accepted && result.success) {
+        if (result.success) {
             await heartbeat.assertCurrent();
+            if (current.renewalFlowVersion === 2) client.setRenewalQuoteRevision(revision);
             const session = await client.exportSession();
-            await saveOperationSessionToCacheFenced(getRedisConnection(), {
+            const saved = await saveOperationSessionToCacheFenced(getRedisConnection(), {
                 operationId, session, ttlSeconds: 180, route, lease: reserved.lease,
             });
+            if (!saved) throw new Error('PROMO_OPERATION_SESSION_SAVE_FAILED');
         }
+        await publish(result, heartbeat.assertCurrent);
     } catch (error) {
         console.error('[HTTP] Promo quote refresh failed:', getErrMsg(error));
         // A failed preparation is not a financial failure/refund. Its quote stays
@@ -1900,6 +1932,7 @@ async function handleCompletePurchaseHttp(
             cardNumber: true,
             status: true,
             providerMutationStartedAt: true,
+            renewalFlowVersion: true,
             responseData: true  // Contains saved session from START_RENEWAL
         }
     });
@@ -1960,7 +1993,8 @@ async function handleCompletePurchaseHttp(
             selectedPackage,
             promoCode,
             accountPool,
-            triedAccountIds
+            triedAccountIds,
+            operation.renewalFlowVersion
         );
 
         if (attemptResult.success) {
@@ -2000,6 +2034,10 @@ async function handleCompletePurchaseHttp(
             });
             return;
         }
+
+        // Version 2 is bound to one account and one saved WebForms offer.
+        // A fresh login or a different account would create a different quote.
+        if (operation.renewalFlowVersion === 2) throw new Error(lastError);
 
         // Check if we should retry with a different account
         if (!attemptResult.shouldRetryDifferentAccount) {
@@ -2083,7 +2121,8 @@ async function attemptPurchaseWithAccount(
     selectedPackage: QuotePackage,
     promoCode: string | undefined,
     accountPool: AccountPoolManager,
-    triedAccountIds: string[]
+    triedAccountIds: string[],
+    renewalFlowVersion: number
 ): Promise<{
     success: boolean;
     shouldRetryDifferentAccount: boolean;
@@ -2123,13 +2162,16 @@ async function attemptPurchaseWithAccount(
             legacyFallback: triedAccountIds.length === 0
         });
         const client = await createOperationClient(account, route);
-        if (!client.isSessionActive() || !await client.validateSession()) {
+        if (renewalFlowVersion === 2) {
+            const restored = await restoreOperationSession(operationId, operation.responseData, client, route);
+            if (!restored || !client.isSessionActive()) throw new Error('PACKAGE_SESSION_EXPIRED');
+        } else if (!client.isSessionActive() || !await client.validateSession()) {
             await updateProgress(operationId, 'Logging in...');
             await performReLogin(client, account, route, 'renewalBaselinePreparation', reservedExecution.lease);
         }
         await leaseHeartbeat.assertCurrent();
 
-        const baseline = await captureRenewalFulfillmentBaseline({
+        const baseline = renewalFlowVersion === 2 ? null : await captureRenewalFulfillmentBaseline({
             operationId,
             beinAccountId: accountId,
             cardNumber: operation.cardNumber,
@@ -2138,7 +2180,7 @@ async function attemptPurchaseWithAccount(
             client,
             assertExecutionCurrent: leaseHeartbeat.assertCurrent,
         });
-        if (!baseline.complete || !baseline.baselineId) {
+        if (baseline && (!baseline.complete || !baseline.baselineId)) {
             throw new Error(`FULFILLMENT_BASELINE_INCOMPLETE: ${baseline.reasonCode}`);
         }
 
@@ -2146,24 +2188,39 @@ async function attemptPurchaseWithAccount(
             ? savedData.smartcardType
             : 'CISCO';
         await leaseHeartbeat.assertCurrent();
-        const packagesResult = await client.loadPackages(operation.cardNumber, savedSmartcardType);
-        if (!packagesResult.success) {
+        if (renewalFlowVersion === 2) client.assertRenewalSelection(selectedPackage, {
+            cardNumber: operation.cardNumber, smartcardType: savedSmartcardType,
+        });
+        // A cached receiver is only a hint for showing the quote. Re-read the
+        // requested card before any cart mutation and refuse a changed pairing.
+        const checkedCard = renewalFlowVersion === 2
+            ? { success: Boolean(operation.stbNumber), stbNumber: operation.stbNumber || undefined }
+            : await client.checkCard(operation.cardNumber);
+        await leaseHeartbeat.assertCurrent();
+        if (!checkedCard.success || !checkedCard.stbNumber ||
+            (operation.stbNumber && checkedCard.stbNumber !== operation.stbNumber)) throw new Error('PACKAGE_QUOTE_CHANGED');
+        const packagesResult = renewalFlowVersion === 2 ? null
+            : await client.loadPackages(operation.cardNumber, savedSmartcardType);
+        if (packagesResult && !packagesResult.success) {
             throw new Error(packagesResult.error || 'Failed to load packages after complete baseline');
         }
 
-        let freshPackages = packagesResult.packages;
+        let freshPackages = packagesResult?.packages || [];
         const effectivePromoCode = selectedPackage.appliedPromoCode || null;
         if ((operation.promoCode || null) !== effectivePromoCode ||
             (promoCode !== undefined && (promoCode || null) !== effectivePromoCode)) throw new Error('PACKAGE_QUOTE_CHANGED');
-        if (effectivePromoCode) {
+        if (effectivePromoCode && renewalFlowVersion !== 2) {
             saleMutationStarted = true;
             await leaseHeartbeat.assertCurrent();
             const promoResult = await client.applyPromoCode(effectivePromoCode, operation.cardNumber, savedSmartcardType);
             if (!promoResult.success) throw new Error(promoResult.error || 'Promo reapply failed');
             freshPackages = promoResult.packages;
         }
-        const rematchedPackage = rematchSelectedPackage(freshPackages, selectedPackage);
-        const dealerBalance = packagesResult.dealerBalance;
+        const rematchedPackage = renewalFlowVersion === 2 ? selectedPackage
+            : rematchSelectedPackage(freshPackages, selectedPackage);
+        const dealerBalance = renewalFlowVersion === 2
+            ? toNullableNumber(savedData.dealerBalance) ?? undefined
+            : packagesResult?.dealerBalance;
 
         if (dealerBalance !== undefined) {
             await prisma.beinAccount.update({
@@ -2177,7 +2234,7 @@ async function attemptPurchaseWithAccount(
         if (dealerBalance !== undefined && dealerBalance < rematchedPackage.price) {
             console.log(`[HTTP] ❌ INSUFFICIENT DEALER BALANCE: ${dealerBalance} USD < ${rematchedPackage.price} USD`);
 
-            // Mark account for cooldown
+            // Record failure; account cooldowns are disabled.
             await accountPool.markAccountFailed(
                 accountId,
                 `INSUFFICIENT_BALANCE: ${dealerBalance} < ${rematchedPackage.price}`,
@@ -2213,7 +2270,7 @@ async function attemptPurchaseWithAccount(
             jobType: 'COMPLETE_PURCHASE',
             providerMutationMayHaveStarted: true,
             providerPreparationMutationStartedAt: preparationStartedAt,
-            fulfillmentBaselineId: baseline.baselineId,
+            fulfillmentBaselineId: baseline?.baselineId || null,
             fulfillmentSessionGeneration: reservedExecution.sessionGeneration,
             savedAt: preparationStartedAt,
         }, route);
@@ -2235,9 +2292,12 @@ async function attemptPurchaseWithAccount(
         const result = await client.completePurchase(
             selectedPackage,
             undefined,
-            operation.stbNumber || undefined,
+            checkedCard.stbNumber,
             true, // skipFinalClick - pause for confirmation
-            leaseHeartbeat.assertCurrent
+            leaseHeartbeat.assertCurrent,
+            renewalFlowVersion === 2,
+            renewalFlowVersion === 2 ? { cardNumber: operation.cardNumber,
+                smartcardType: savedSmartcardType } : undefined
         );
         await leaseHeartbeat.assertCurrent();
 
@@ -2279,7 +2339,7 @@ async function attemptPurchaseWithAccount(
                     jobType: 'COMPLETE_PURCHASE',
                     finalPaySubmitted: false,
                     providerMutationMayHaveStarted: true,
-                    fulfillmentBaselineId: baseline.baselineId,
+                    fulfillmentBaselineId: baseline?.baselineId || null,
                     fulfillmentSessionGeneration: reservedExecution.sessionGeneration,
                     purchaseIdentity: result.packageEvidence,
                     savedAt: new Date().toISOString()
@@ -2352,7 +2412,7 @@ async function attemptPurchaseWithAccount(
 
     } catch (error: unknown) {
         const errorMessage = getErrMsg(error) || 'Unknown error';
-        console.log(`[HTTP] ❌ attemptPurchaseWithAccount failed: ${errorMessage}`);
+        console.log(`[HTTP] Purchase attempt failed: ${/^[A-Z0-9_]+$/.test(errorMessage) ? errorMessage : 'PROVIDER_REQUEST_FAILED'}`);
 
         if (errorMessage === 'PACKAGE_QUOTE_CHANGED') {
             if (leaseHeartbeat) {
@@ -2440,6 +2500,8 @@ async function handleConfirmPurchaseHttp(
             providerMutationStartedAt: true,
             providerMutationStage: true,
             providerPaymentState: true,
+            providerPayRequestedAt: true,
+            renewalFlowVersion: true,
         },
     });
     if (!operation || !operation.beinAccountId) {
@@ -2640,7 +2702,8 @@ async function handleConfirmPurchaseHttp(
                 }),
                 route
             );
-            const marker = await claimFinalProviderMutationStart({
+            const marker = await (operation.renewalFlowVersion === 2
+                ? claimSameDayFinalMutation : claimFinalProviderMutationStart)({
                 operationId,
                 beinAccountId: operation.beinAccountId!,
                 cardNumber: operation.cardNumber,
@@ -2648,17 +2711,30 @@ async function handleConfirmPurchaseHttp(
                 responseData: markerResponseData,
             });
             if (!marker.claimed || !marker.startedAt) {
-                throw new Error('Final provider mutation blocked: ' + marker.reason);
+                throw new Error('Final provider mutation blocked: ' + ('reason' in marker ? marker.reason : 'stale_context'));
             }
             finalPayResponseData = markerResponseData;
             finalMutationStartedAt = marker.startedAt;
         };
-        const rawResult = await client.confirmPurchase(
-            expectedProviderAmount,
-            claimMutationStart,
-            leaseHeartbeat.assertCurrent,
-            selectedPackage ? { selectedPackage, cardNumber: operation.cardNumber } : undefined
-        );
+        let rawResult: PurchaseResult;
+        try {
+            rawResult = await client.confirmPurchase(
+                expectedProviderAmount,
+                claimMutationStart,
+                leaseHeartbeat.assertCurrent,
+                selectedPackage ? { selectedPackage, cardNumber: operation.cardNumber } : undefined,
+                operation.renewalFlowVersion === 2 ? async () => {
+                    await leaseHeartbeat.assertCurrent();
+                    await markSameDayPayRequest(operationId);
+                } : undefined,
+                operation.renewalFlowVersion === 2
+            );
+        } catch (error) {
+            if (operation.renewalFlowVersion !== 2 || !finalMutationStartedAt) throw error;
+            // A lost OK/Pay response is ambiguous; do not replay either mutation.
+            rawResult = { success: false, message: 'PROVIDER_RESPONSE_LOST',
+                outcomeCategory: 'UNCERTAIN_REVIEW_REQUIRED', finalPaySubmitted: true };
+        }
 
         if (rawResult.message === 'PACKAGE_QUOTE_CHANGED') {
             if (!await holdQuoteConflict(prisma, {
@@ -2715,6 +2791,8 @@ async function handleConfirmPurchaseHttp(
                 jobType: 'CONFIRM_PURCHASE',
                 finalPaySubmitted: result.finalPaySubmitted === true,
                 finalPaySubmittedAt: new Date().toISOString(),
+                directOkSuccess: operation.renewalFlowVersion === 2 && result.success === true &&
+                    result.finalPaySubmitted !== true && /Contract Created Successfully|Package Added Successfully/i.test(result.message),
                 dealerBalanceBefore: finalPayEvidence.finalBalanceBefore,
                 dealerBalanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
                 dealerBalanceAfter: finalPayEvidence.finalBalanceAfter,
@@ -2744,6 +2822,32 @@ async function handleConfirmPurchaseHttp(
             },
         });
         if (paymentPersisted.count !== 1) return;
+
+        if (operation.renewalFlowVersion === 2) {
+            if (providerPaymentState === 'CHARGED' && shouldRecordConfirmedProviderSpend(finalPayEvidence)) {
+                const ledger = await recordConfirmedBeinSpend({
+                    operationId, userId: operation.userId, beinAccountId: operation.beinAccountId,
+                    dealerBalanceBefore: finalPayEvidence.finalBalanceBefore,
+                    dealerBalanceAfter: finalPayEvidence.finalBalanceAfter,
+                    evidenceSource: 'BALANCE_DELTA',
+                    balanceBeforeSource: finalPayEvidence.finalBalanceBeforeSource,
+                    balanceAfterSource: finalPayEvidence.finalBalanceAfterSource,
+                });
+                if (ledgerResultBlocksCompletion(ledger)) {
+                    await persistRenewalFulfillmentState({ operationId, providerPaymentState,
+                        fulfillmentState: 'PROOF_CONFLICT', verificationOutcome: 'PROOF_CONFLICT',
+                        status: 'REVIEW_REQUIRED', responseData: postPayResponseData,
+                        responseMessage: 'Provider balance evidence conflicts with this operation.' });
+                    return;
+                }
+            }
+            await verifySameDayRenewal({ operationId, operation, client, accountPool,
+                reservationGeneration: reserved.reservationGeneration, providerPaymentState,
+                responseData: postPayResponseData, assertCurrent: leaseHeartbeat.assertCurrent,
+                renewReadSession: () => performReLogin(client, account, route,
+                    'sameDayReportAfterPay', reserved.lease) });
+            return;
+        }
 
         await leaseHeartbeat.assertCurrent();
         const verification = await verifyRenewalFulfillmentWithProvider({
@@ -3042,6 +3146,136 @@ async function handleConfirmPurchaseHttp(
     }
 }
 
+async function verifySameDayRenewal(input: {
+    operationId: string;
+    operation?: { beinAccountId: string | null; cardNumber: string };
+    client: HttpClientService;
+    accountPool: AccountPoolManager;
+    reservationGeneration: number;
+    providerPaymentState: ProviderPaymentState;
+    responseData: unknown;
+    assertCurrent: () => Promise<void>;
+    renewReadSession: () => Promise<boolean>;
+    requestedAttemptNo?: number;
+}): Promise<void> {
+    const current = await prisma.operation.findUnique({ where: { id: input.operationId }, select: {
+        id: true, status: true, renewalFlowVersion: true, beinAccountId: true,
+        cardNumber: true, selectedPackage: true, responseData: true,
+        providerMutationStartedAt: true, providerPayRequestedAt: true,
+    } });
+    if (!current || current.renewalFlowVersion !== 2 || !current.beinAccountId ||
+        isTerminalStatus(current.status)) return;
+    const selected = current.selectedPackage as QuotePackage | null;
+    const context = parseResponseDataObject(input.responseData);
+    const smartcardType = typeof context.smartcardType === 'string' ? context.smartcardType.toUpperCase() : 'CISCO';
+    const submittedAt = current.providerPayRequestedAt ||
+        (context.directOkSuccess === true ? current.providerMutationStartedAt : null);
+    if (!selected || !submittedAt) {
+        await persistRenewalFulfillmentState({ operationId: current.id,
+            providerPaymentState: input.providerPaymentState, fulfillmentState: 'PROOF_CONFLICT',
+            verificationOutcome: 'PROOF_CONFLICT', status: 'REVIEW_REQUIRED',
+            responseData: mergeOperationPhaseData(input.responseData, {
+                operationPhase: 'POST_FINAL_PAY_REVIEW', jobType: 'VERIFY_RENEWAL_FULFILLMENT',
+                fulfillmentReasonCode: 'MISSING_PAY_DATE_OR_DIRECT_OK_SUCCESS',
+            }), responseMessage: 'Provider mutation could not be tied to a report day. Manual review required.' });
+        return;
+    }
+    const reportDate = cairoReportDay(submittedAt);
+    const config = await getRenewalFulfillmentConfig();
+    let report: Awaited<ReturnType<HttpClientService['scanSoldPackagesReport']>>;
+    try {
+        await input.assertCurrent();
+        report = await input.client.scanSoldPackagesReport({
+            pageCap: config.reportPageCap, scanAttempts: config.reportScanAttempts,
+            dateRange: { from: reportDate, to: reportDate },
+        });
+        await input.assertCurrent();
+        if (report.reasonCode === 'LOGIN_REQUIRED') {
+            const loggedIn = await input.renewReadSession();
+            if (loggedIn) {
+                await input.assertCurrent();
+                report = await input.client.scanSoldPackagesReport({
+                    pageCap: config.reportPageCap, scanAttempts: config.reportScanAttempts,
+                    dateRange: { from: reportDate, to: reportDate },
+                });
+                await input.assertCurrent();
+            }
+        }
+    } catch {
+        await input.assertCurrent();
+        report = { outcome: 'CHECK_FAILED', reasonCode: 'SOLD_REPORT_READ_FAILED',
+            dealerContextHash: null, rows: [], pageCount: 0,
+            pageCap: config.reportPageCap, scanAttemptCount: 0, firstPageWatermark: null };
+    }
+    const observedAt = new Date();
+    const invoices = report.rows.map(row => row.invoiceNo.trim()).filter(Boolean);
+    const claims = invoices.length ? await prisma.providerInvoiceClaim.findMany({
+        where: { beinAccountId: current.beinAccountId, invoiceNo: { in: invoices } },
+        select: { invoiceNo: true, operationId: true },
+    }) : [];
+    let match = correlateSameDayReport({ report, cardNumber: current.cardNumber,
+        smartcardType, selectedPackage: selected,
+        claimedInvoices: new Map(claims.map(claim => [claim.invoiceNo, claim.operationId])),
+        operationId: current.id });
+    if (match.outcome === 'MATCHED' && input.providerPaymentState === 'NOT_CHARGED') {
+        match = { outcome: 'PROOF_CONFLICT', reasonCode: 'PROVIDER_REJECTION_REPORT_CONFLICT',
+            row: null, candidateCount: match.candidateCount };
+    }
+    const attempt = await recordSameDayAttempt({ operationId: current.id,
+        outcome: match.outcome, reasonCode: match.reasonCode, report,
+        candidateCount: match.candidateCount, candidateInvoiceNo: match.row?.invoiceNo || null,
+        observedAt, requestedAttemptNo: input.requestedAttemptNo });
+    const responseData = mergeOperationPhaseData(input.responseData, {
+        operationPhase: 'POST_FINAL_PAY_REVIEW', jobType: 'VERIFY_RENEWAL_FULFILLMENT',
+        providerPaymentState: input.providerPaymentState, fulfillmentState: 'VERIFYING',
+        verificationOutcome: match.outcome, fulfillmentReasonCode: match.reasonCode,
+        fulfillmentInvoiceNo: match.row?.invoiceNo || undefined, proofKind: 'SOLD_REPORT_SAME_DAY',
+        reportDate, nextVerificationAt: attempt.retryDueAt?.toISOString() || null,
+    });
+    await prisma.operation.updateMany({ where: { id: current.id,
+        status: { in: ['COMPLETING', 'REVIEW_REQUIRED'] } }, data: {
+        status: 'REVIEW_REQUIRED', providerPaymentState: input.providerPaymentState,
+        fulfillmentState: match.outcome === 'PROOF_CONFLICT' ? 'PROOF_CONFLICT' : 'VERIFYING',
+        fulfillmentVerificationOutcome: match.outcome, responseData,
+        responseMessage: 'Waiting for beIN sold report verification.', finalConfirmExpiry: null,
+    } });
+    if (match.outcome === 'MATCHED' && match.row && report.dealerContextHash) {
+        await input.assertCurrent();
+        const result = await finalizeSameDayReport({ operationId: current.id,
+            beinAccountId: current.beinAccountId, reservationGeneration: input.reservationGeneration,
+            providerPaymentState: input.providerPaymentState, reportDate, submittedAt,
+            observedAt, dealerContextHash: report.dealerContextHash,
+            row: match.row, attemptId: attempt.attemptId, attemptNo: attempt.attemptNo });
+        if (result === 'COMPLETED' || result === 'ALREADY_COMPLETED') {
+            if (result === 'COMPLETED') await finalizeRenewalSideEffects(current.id, input.accountPool);
+            return;
+        }
+        await prisma.$transaction(async tx => {
+            await tx.operationFulfillmentVerificationAttempt.update({
+                where: { id: attempt.attemptId }, data: {
+                    outcome: 'PROOF_CONFLICT', reasonCode: 'DATABASE_PROOF_CLAIM_CONFLICT',
+                },
+            });
+            await tx.operationFulfillmentVerification.update({
+                where: { operationId: current.id }, data: {
+                    state: 'CONFLICT', lastOutcome: 'PROOF_CONFLICT',
+                    lastReasonCode: 'DATABASE_PROOF_CLAIM_CONFLICT', nextCheckAt: null,
+                    terminalAt: new Date(),
+                },
+            });
+        });
+        await persistRenewalFulfillmentState({ operationId: current.id,
+            providerPaymentState: input.providerPaymentState, fulfillmentState: 'PROOF_CONFLICT',
+            verificationOutcome: 'PROOF_CONFLICT', status: 'REVIEW_REQUIRED', responseData,
+            responseMessage: 'Invoice claim or finalization conflicted; manual review required.' });
+        return;
+    }
+    if (attempt.retryDueAt) await scheduleRenewalFulfillmentVerification({
+        operationId: current.id, cardNumber: current.cardNumber,
+        attemptNo: attempt.attemptNo, retryDueAt: attempt.retryDueAt, accountPool: input.accountPool,
+    });
+}
+
 async function handleVerifyRenewalFulfillmentHttp(
     operationId: string,
     accountPool: AccountPoolManager,
@@ -3060,6 +3294,7 @@ async function handleVerifyRenewalFulfillmentHttp(
             status: true,
             providerMutationStartedAt: true,
             providerPaymentState: true,
+            renewalFlowVersion: true,
             chargedBeinSpendLedger: { select: { beinAccountId: true } },
         },
     });
@@ -3071,6 +3306,38 @@ async function handleVerifyRenewalFulfillmentHttp(
         operation.status !== OperationStatus.COMPLETING &&
         operation.status !== OperationStatus.REVIEW_REQUIRED
     ) return;
+
+    if (operation.renewalFlowVersion === 2) {
+        const reserved = await reserveProviderAccountForFulfillment({ operationId,
+            beinAccountId: operation.beinAccountId, accountPool });
+        if (!reserved) throw new RetryableRenewalVerificationError(
+            new Error('PROVIDER_ACCOUNT_EXECUTION_UNAVAILABLE'));
+        const heartbeat = startExecutionLeaseHeartbeat(accountPool, reserved.lease);
+        try {
+            await heartbeat.assertCurrent();
+            const route = await resolveOperationRoute(reserved.account, {
+                operationId, responseData: operation.responseData, legacyFallback: true });
+            const client = await createOperationClient(reserved.account, route);
+            const restored = await restoreOperationSession(operationId, operation.responseData, client, route)
+                .catch(() => false);
+            if (!restored || !client.isSessionActive()) {
+                const loggedIn = await performReLogin(client, reserved.account, route,
+                    'sameDayReportReadOnlyRetry', reserved.lease);
+                if (!loggedIn) throw new Error('FULFILLMENT_READ_SESSION_UNAVAILABLE');
+            }
+            await verifySameDayRenewal({ operationId, client, accountPool,
+                reservationGeneration: reserved.reservationGeneration,
+                providerPaymentState: operation.providerPaymentState || 'UNKNOWN',
+                responseData: operation.responseData, assertCurrent: heartbeat.assertCurrent,
+                requestedAttemptNo,
+                renewReadSession: () => performReLogin(client, reserved.account, route,
+                    'sameDayReportReadOnlyRetry', reserved.lease) });
+        } finally {
+            heartbeat.stop();
+            await accountPool.releaseExecutionLease(reserved.lease).catch(() => undefined);
+        }
+        return;
+    }
 
     const activeBaseline = await getActiveRenewalFulfillmentBaseline(operationId);
     if (!activeBaseline || activeBaseline.activeBaseline.supersededAt !== null) {
@@ -3368,6 +3635,7 @@ async function handleVerifyReviewCardHttp(
             status: true,
             providerMutationStartedAt: true,
             providerPaymentState: true,
+            renewalFlowVersion: true,
             chargedBeinSpendLedger: { select: { beinAccountId: true } },
         },
     });
@@ -3376,6 +3644,11 @@ async function handleVerifyReviewCardHttp(
         operation.status !== OperationStatus.REVIEW_REQUIRED ||
         !hasReviewFinalPaymentEvidence(operation.responseData)
     ) return;
+
+    // Version 2 has no pre-sale baseline or contract requirement. Its scheduled
+    // read-only attempts are handled by VERIFY_RENEWAL_FULFILLMENT; terminal
+    // ambiguity stays for a human rather than running legacy correlation.
+    if (operation.renewalFlowVersion === 2) return;
 
     // Admin live verification still requires the active non-superseded causal baseline.
     const activeBaseline = await getActiveRenewalFulfillmentBaseline(operationId);
@@ -4742,6 +5015,16 @@ async function handleSignalCheckHttp(
                     'WORKER_SIGNAL_CHECK',
                     signalCheckCompletedAt
                 );
+                // The check has ended. A later Activate deliberately reacquires
+                // the same account and reloads the card under a new lease.
+                await tx.providerAccountCausalReservation.updateMany({
+                    where: { operationId, releasedAt: null },
+                    data: { releasedAt: signalCheckCompletedAt, releaseReason: 'SAFE_TERMINAL:SIGNAL_CHECK_COMPLETED' },
+                });
+                await tx.cardLifecycleReservation.updateMany({
+                    where: { operationId, releasedAt: null },
+                    data: { releasedAt: signalCheckCompletedAt, releaseReason: 'SAFE_TERMINAL:SIGNAL_CHECK_COMPLETED' },
+                });
             }
             return update;
         });
@@ -5125,7 +5408,7 @@ async function handleCheckAccountBalance(
 
     const testCardNumber = recentOp?.cardNumber || '0000000000';
 
-    console.log(`[HTTP] Fetching balance using card: ${testCardNumber}`);
+    console.log('[HTTP] Fetching balance using a test card');
 
     // Fetch dealer balance
     await assertBalanceGuardOwnership();
@@ -5365,7 +5648,7 @@ async function handleStartInstallmentHttp(
 
     // Step 2: Load installment details
     await updateProgress(operationId, 'Loading installment data...');
-    console.log(`[HTTP] Loading installment for card ${cardNumber}`);
+    console.log('[HTTP] Loading installment for card');
 
     await installmentLeaseHeartbeat.assertCurrent();
     const installmentResult = await client.loadInstallment(cardNumber);
@@ -5586,7 +5869,7 @@ async function handleConfirmInstallmentHttp(
 
     // Re-load installment to ensure card is loaded and ViewState is fresh
     await updateProgress(operationId, 'Loading installment data...');
-    console.log(`[HTTP] Re-loading installment for card ${cardNumber} before payment...`);
+    console.log('[HTTP] Re-loading installment before payment...');
     await installmentLeaseHeartbeat.assertCurrent();
     const loadResult = await client.loadInstallment(cardNumber);
 

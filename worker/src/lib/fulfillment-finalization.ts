@@ -566,7 +566,7 @@ async function hasRefund(
     return Boolean(resellerRefund || customerRefund)
 }
 
-async function captureCompletion(
+export async function captureRenewalCompletionInTransaction(
     tx: Prisma.TransactionClient,
     operationId: string,
     completionSource: string,
@@ -762,7 +762,7 @@ export async function finalizeAutomatedRenewalFulfillment(input: {
             if (verificationUpdated.count !== 1) {
                 throw new Error('FULFILLMENT_VERIFICATION_FINALIZATION_CONFLICT')
             }
-            await captureCompletion(tx, operation.id, 'AUTOMATED_COMPOSITE_FULFILLMENT', completedAt)
+            await captureRenewalCompletionInTransaction(tx, operation.id, 'AUTOMATED_COMPOSITE_FULFILLMENT', completedAt)
             await Promise.all([
                 tx.operationIntegrityIssue.updateMany({
                     where: {
@@ -950,7 +950,7 @@ export async function finalizeManualRenewalFulfillment(input: {
             })
             if (updated.count !== 1) throw new Error('OPERATION_FINALIZATION_CONFLICT')
 
-            await captureCompletion(tx, operation.id, 'ADMIN_MANUAL_FULFILLMENT', completedAt)
+            await captureRenewalCompletionInTransaction(tx, operation.id, 'ADMIN_MANUAL_FULFILLMENT', completedAt)
             await Promise.all([
                 tx.operationIntegrityIssue.updateMany({
                     where: {

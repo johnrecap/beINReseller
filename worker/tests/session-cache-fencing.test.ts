@@ -87,7 +87,11 @@ test('prepared purchase identity is kept only in the fenced operation session an
     const boundary = new LeaseCasRedisBoundary()
     const lease = handle()
     boundary.setLease(lease)
-    const session = { cookies: 'synthetic-cookie', accountId: lease.accountId, preparedRenewal: {
+    const session = { cookies: 'synthetic-cookie', accountId: lease.accountId,
+        renewalSelection: { packages: [{ index: 0, name: 'Premium 6 Months', price: 86.4,
+            checkboxValue: 'provider-row-19' }], viewState: { __VIEWSTATE: 'offer-state' },
+            cardNumber: '7517717372', smartcardType: 'CISCO', promoCode: 'SEASONOFFERS', quoteRevision: 2 },
+        preparedRenewal: {
         selectedPackage: { index: 0, name: 'Premium 6 Months', price: 86.4, currency: 'USD', quoteRevision: 2,
             packageKey: '2.0', appliedPromoCode: null },
         summary: { packageName: 'Premium 6 Months', price: 86.4, currency: 'USD', cardNumber: 'synthetic', promoCode: null },
@@ -98,10 +102,12 @@ test('prepared purchase identity is kept only in the fenced operation session an
     assert.equal(await saveOperationSessionToCacheFenced(boundary, input), true)
     const payload = boundary.readCachedPayload()!
     assert.deepEqual(JSON.parse(payload).preparedRenewal, session.preparedRenewal)
+    assert.deepEqual(JSON.parse(payload).renewalSelection, session.renewalSelection)
     assert.equal(await saveOperationSessionToCacheFenced(boundary, { ...input, route: { accountId: 'other', routeKey: 'direct' } }), false)
     assert.equal(boundary.readCachedPayload(), payload)
     assert.equal(await saveSessionToCacheFenced(boundary, { accountId: lease.accountId, routeKey: 'direct', session, ttlSeconds: 90, lease }), true)
     assert.equal(JSON.parse(boundary.readCachedPayload()!).preparedRenewal, undefined)
+    assert.equal(JSON.parse(boundary.readCachedPayload()!).renewalSelection, undefined)
 })
 
 test('T028 Redis session CAS remains fenced after lease handoff', { skip: !runRedisIntegration }, async () => {

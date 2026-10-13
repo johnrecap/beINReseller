@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio'
 import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote'
 import type { HiddenFields } from './types'
+import { collectSuccessfulControls, encodeSuccessfulControls } from './webforms-form'
 
 export interface RenewalSummaryEvidence {
     packageName: string
@@ -106,6 +107,70 @@ export function readProviderCardIdentity(html: string, cardNumber: string, smart
     catch { throw conflict() }
     if (cards.length !== 1 || String(cards.val()).trim() !== providerSerial) throw conflict()
     return { cardNumber, providerSerial, smartcardType }
+}
+
+/** Rebuild the promo POST from the same bound WebForms response that supplied
+ * the displayed offer. A stale form or missing control must never be guessed. */
+export function buildPromoSubmission(html: string, state: HiddenFields, cardNumber: string,
+    smartcardType: string, promoCode: string, removing = false): URLSearchParams {
+    const $ = cheerio.load(html)
+    const forms = $('form')
+    const form = forms.eq(0)
+    const promoName = 'ctl00$ContentPlaceHolder1$txtPromoCode'
+    const buttonName = 'ctl00$ContentPlaceHolder1$btnPromoCode'
+    const promoInput = form.find(`input[name="${promoName}"]`)
+    const button = form.find(`input[name="${buttonName}"]`)
+    if ((!promoCode && !removing) || (removing && promoCode !== '') ||
+        promoCode !== promoCode.toUpperCase() || forms.length !== 1 ||
+        promoInput.length !== 1 || promoInput.is(':disabled') ||
+        button.length !== 1 || button.attr('type')?.toLowerCase() !== 'submit' ||
+        !button.attr('value') || button.is(':disabled') ||
+        form.find('select[name="ctl00$ContentPlaceHolder1$ddlType"]').length !== 1 ||
+        form.find('input[name="ctl00$ContentPlaceHolder1$tbSerial1"]').length !== 1 ||
+        form.find('table[id="ContentPlaceHolder1_gvAvailablePackages"]').length !== 1 ||
+        $('table[id="ContentPlaceHolder1_gvPackagesCart"]').length ||
+        form.find('table[id="ContentPlaceHolder1_gvAvailablePackages"] input[type="checkbox"]:checked').length) {
+        throw new Error('PROMO_REFRESH_UNVERIFIED')
+    }
+    readProviderCardIdentity(html, cardNumber, smartcardType)
+    if (!state.__VIEWSTATE || !state.__EVENTVALIDATION ||
+        form.find('input[name="__VIEWSTATE"]').length !== 1 ||
+        form.find('input[name="__EVENTVALIDATION"]').length !== 1 ||
+        Object.entries(state).some(([name, value]) => {
+            const fields = form.find(`input[name="${name}"]`)
+            return fields.length !== 1 || String(fields.val() ?? '') !== value
+        })) {
+        throw new Error('PROMO_REFRESH_UNVERIFIED')
+    }
+    const controls = collectSuccessfulControls(html, { activatedSubmitName: buttonName,
+        overrides: { [promoName]: promoCode, __EVENTTARGET: '', __EVENTARGUMENT: '' } })
+    const post = encodeSuccessfulControls(controls)
+    if (post.getAll(promoName).length !== 1 || post.getAll(buttonName).length !== 1 ||
+        post.has('ctl00$ContentPlaceHolder1$btnAddToCart') ||
+        post.has('ctl00$ContentPlaceHolder1$btnSell') ||
+        post.has('ctl00$ContentPlaceHolder1$BtnPay')) throw new Error('PROMO_REFRESH_UNVERIFIED')
+    return post
+}
+
+/** A receiver number is usable only when the Check response identifies this
+ * card and has one explicitly labelled STB. An unrelated 15-digit page value
+ * or an STB left on a reused client is not evidence. */
+export function readCheckedCardStb(html: string, cardNumber: string): string | null {
+    const $ = cheerio.load(html)
+    const text = $('body').text().replace(/\s+/g, ' ')
+    const cardInputs = $('input[name="ctl00$ContentPlaceHolder1$tbSerial"]')
+    const escapedCard = cardNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const echoed = cardInputs.length === 1 && String(cardInputs.val()).trim() === cardNumber ||
+        new RegExp(`(?:^|\\D)${escapedCard}(?:\\D|$)`).test(text)
+    if (!echoed) return null
+    const labels = [text, $('#ContentPlaceHolder1_lblSerial').text()]
+    if (labels.some(value => /(?:\bSTB(?:\(s\))?|رقم الريسيفر)\s*:\s*\d{10,16}\s*[,;/]\s*\d{10,16}/i.test(value))) return null
+    const candidates = labels.flatMap(value => [
+        ...value.matchAll(/\bSTB(?:\(s\))?\s*:\s*(\d{10,16})\b/gi),
+        ...value.matchAll(/رقم الريسيفر\s*:\s*(\d{10,16})\b/g),
+    ].map(match => match[1]))
+    const unique = [...new Set(candidates)]
+    return unique.length === 1 ? unique[0] : null
 }
 
 /** Observed Add cart contract. Later responses must retain this evidence or stop;

@@ -56,7 +56,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
         // Get current rate limit count from Redis
         let requestsInWindow = 0
-        let cooldownRemaining = 0
 
         try {
             const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379')
@@ -65,10 +64,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             const windowStart = Date.now() - (windowSeconds * 1000)
             const requestsKey = `bein:account:${id}:requests`
             requestsInWindow = await redis.zcount(requestsKey, windowStart, '+inf')
-
-            const cooldownKey = `bein:account:cooldown:${id}`
-            const ttl = await redis.ttl(cooldownKey)
-            cooldownRemaining = ttl > 0 ? ttl : 0
 
             await redis.quit()
         } catch (redisError) {
@@ -82,7 +77,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 password: '******', // Don't expose password
                 successRate: Math.round(successRate * 100) / 100,
                 requestsInWindow,
-                cooldownRemaining
+                cooldownUntil: null,
+                cooldownRemaining: 0,
             }
         })
 

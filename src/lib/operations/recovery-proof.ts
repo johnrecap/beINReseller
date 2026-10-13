@@ -158,6 +158,14 @@ export function hasRecoveryProviderCompletionProof(input: {
         return true
     }
 
+    if (
+        fulfillmentAuthority === 'AUTOMATED_REPORT' && proof?.id &&
+        proof.proofKind === 'SOLD_REPORT_SAME_DAY' && proof.invoiceNo.trim() &&
+        input.operationId && proof.operationId === input.operationId &&
+        input.beinAccountId && proof.beinAccountId === input.beinAccountId &&
+        input.cardNumber && proof.cardNumberSnapshot === input.cardNumber
+    ) return true
+
     const manual = input.manualFulfillmentEvidence
     return Boolean(
         fulfillmentAuthority === 'MANUAL_PROVIDER_CONFIRMATION' &&

@@ -33,6 +33,49 @@ export class RenewalSummaryConflict extends Error {
     }
 }
 
+/** Bounded structural evidence for an unsupported provider footer. Never log
+ * response HTML, cell text, prices, serials, promo values or WebForms state. */
+export function describeRenewalCartFooter(html: string) {
+    const $ = cheerio.load(html)
+    const cart = $('table[id="ContentPlaceHolder1_gvPackagesCart"]')
+    const rows = cart.find('tr')
+    const footer = rows.last()
+    const cells = footer.children('td,th')
+    const label = normalized(cells.slice(0, -1).text())
+    const span = (value: string | undefined) => value === undefined ? null :
+        /^\d{1,2}$/.test(value) && Number(value) <= 12 ? Number(value) : 'other'
+    const genericWords = new Set(['remaining', 'total', 'grand', 'amount', 'due', 'net', 'money', 'if', 'any',
+        'will', 'be', 'added', 'to', 'the', 'current', 'package', 'as', 'extended', 'validity'])
+    const labelPattern = label.replace(/\p{L}+/gu, word => genericWords.has(word) ? word : '_')
+        .replace(/\d+/g, '#').slice(0, 160)
+    return {
+        cartCount: cart.length,
+        rowCount: rows.length,
+        footerChildCount: footer.children().length,
+        cells: cells.slice(0, 6).map((_, cell) => {
+            const value = $(cell)
+            let exactMoney = false
+            try { money(value.text()); exactMoney = true } catch { /* structural diagnostic only */ }
+            return {
+                tag: cell.tagName,
+                colspan: span(value.attr('colspan')),
+                rowspan: span(value.attr('rowspan')),
+                controls: value.find('input,select,button').length,
+                names: value.find('[id^="ContentPlaceHolder1_gvPackagesCart_lblName_"]').length,
+                exactMoney,
+                empty: normalized(value.text()) === '',
+            }
+        }).get(),
+        labelLength: label.length,
+        labelPattern,
+        labelHasRemaining: /\bremaining\b/.test(label),
+        labelHasTotal: /\btotal\b/.test(label),
+        labelHasDue: /\bdue\b/.test(label),
+        labelHasPackage: /\bpackage\b/.test(label),
+        labelHasDigits: /\d/.test(label),
+    }
+}
+
 export class ProviderSmartcardFormError extends Error {
     constructor(readonly reason: string, readonly requestedType: string) {
         super('PROVIDER_SMARTCARD_FORM_UNSUPPORTED')

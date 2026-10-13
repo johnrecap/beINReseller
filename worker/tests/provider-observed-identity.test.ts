@@ -1,15 +1,36 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readRenewalSummary, providerSerialFor } from '../src/http/renewal-purchase-guard'
+import { describeRenewalCartFooter, readRenewalSummary, providerSerialFor } from '../src/http/renewal-purchase-guard'
 import { parseSoldPackagesReportPage, scanSoldPackagesReport } from '../src/http/sold-packages-report'
 import { samePackage, boundPurchaseIdentity, correlateRenewalFulfillment } from '../src/lib/renewal-fulfillment-correlation'
-import { observedCart, observedReport, fullCard } from './fixtures/renewal-observed'
+import { observedCart, observedReport, fullCard, providerCard } from './fixtures/renewal-observed'
 
 const quote = { index: 0, name: 'Premium 6 Months (6 Months)', price: 108, currency: 'USD', appliedPromoCode: null, quoteRevision: 2, packageKey: '2.0' }
 test('observed cart binds the dedicated grid, provider serial, checkbox, Remaining and total', () => {
     const result = readRenewalSummary(observedCart(), quote, fullCard)
     assert.equal(result.cardNumber, fullCard)
     assert.equal(result.price, 108)
+})
+test('Sell footer diagnostic reports structure without customer or provider response values', () => {
+    const html = observedCart('Private Package 24 Months', '86.40', 'PRIVATEPROMO') +
+        '<input name="__VIEWSTATE" value="secret-state">'
+    const diagnostic = describeRenewalCartFooter(html)
+    assert.equal(diagnostic.cartCount, 1)
+    assert.equal(diagnostic.rowCount, 3)
+    assert.equal(diagnostic.cells.length, 2)
+    assert.equal(diagnostic.cells[0].colspan, 2)
+    assert.equal(diagnostic.cells[1].exactMoney, true)
+    assert.equal(diagnostic.labelHasRemaining, true)
+    assert.match(diagnostic.labelPattern, /^remaining/)
+    const serialized = JSON.stringify(diagnostic)
+    for (const sensitive of [fullCard, providerCard, 'Private', '86.40', 'PRIVATEPROMO', 'secret-state']) {
+        assert.equal(serialized.includes(sensitive), false)
+    }
+    const hostile = describeRenewalCartFooter(html.replace('colspan="2">Remaining',
+        'colspan="private-token">Customer Alice 12345'))
+    assert.equal(hostile.cells[0].colspan, 'other')
+    assert.equal(JSON.stringify(hostile).includes('Alice'), false)
+    assert.equal(JSON.stringify(hostile).includes('12345'), false)
 })
 test('actual report criteria support a complete fresh Apply and stability recheck', async () => {
     const html = observedReport()

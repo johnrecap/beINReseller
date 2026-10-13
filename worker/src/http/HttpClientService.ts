@@ -40,7 +40,7 @@ import {
 } from './types';
 import { encodeSuccessfulControls } from './webforms-form';
 import { canonicalJson, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
-import { assertPreparedRenewal, buildPromoSubmission, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, RenewalSummaryConflict, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase, type RenewalSummaryStage } from './renewal-purchase-guard';
+import { assertPreparedRenewal, buildPromoSubmission, describeRenewalCartFooter, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, RenewalSummaryConflict, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase, type RenewalSummaryStage } from './renewal-purchase-guard';
 import {
     scanSoldPackagesReport as runSoldPackagesReportScan,
     type SoldReportScanOptions,
@@ -2255,6 +2255,9 @@ export class HttpClientService {
         } catch (error) {
             if (error instanceof RenewalSummaryConflict) {
                 console.warn(`[HTTP] ${error.stage} cart validation stopped: ${error.reason}`);
+                if (error.stage === 'SELL' && error.reason === 'CART_TOTAL_ROW_UNVERIFIED') {
+                    console.warn('[HTTP] SELL cart footer structure:', JSON.stringify(describeRenewalCartFooter(html)));
+                }
             }
             throw error;
         }

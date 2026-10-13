@@ -207,6 +207,60 @@ const promoPurchaseClient = (add: string) => {
     return h
 }
 
+// The 08:31 production diagnostic establishes two footer cells: an empty
+// colspan=2 label, then one exact amount. Text, state and money here are synthetic.
+const unlabelledPromoFooter = '<tr><td colspan="2">&nbsp;</td><td>43.20 USD</td></tr>'
+test('diagnosed unlabelled promo Add total must match the named item and displayed total', async (t) => {
+    const info: string[] = []
+    t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
+    const h = promoPurchaseClient(addWithFooter(unlabelledPromoFooter))
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.awaitingConfirm, true)
+    assert.equal(result.packageEvidence.packageName, promoQuote.name)
+    assert.equal(result.packageEvidence.price, 43.2)
+    assert.equal(h.posts.length, 3)
+    assert.match(info.find(line => line.startsWith('[HTTP] ADD quote guard passed:')) || '',
+        /"footerLayout":"UNLABELLED_TWO_CELL_TOTAL"/)
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') || post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+test('the same unlabelled promo footer remains bound through Sell and receiver entry', async (t) => {
+    const info: string[] = []
+    t.mock.method(console, 'info', (...args: unknown[]) => { info.push(args.map(String).join(' ')) })
+    const page = addWithFooter(unlabelledPromoFooter)
+    const h = purchaseClient([page, page, page])
+    h.client.renewalSelection.packages = [promoQuote]
+    h.client.renewalSelection.promoCode = 'DYNAMIC'
+    const result = await h.client.completePurchase(promoQuote, undefined, 'synthetic-stb', true, async () => {})
+    assert.equal(result.awaitingConfirm, true)
+    assert.equal(h.posts.length, 3)
+    for (const stage of ['ADD', 'SELL', 'STB']) {
+        const logged = info.filter(line => line.startsWith(`[HTTP] ${stage} quote guard passed:`))
+        assert.equal(logged.length, 1)
+        assert.match(logged[0], /"footerLayout":"UNLABELLED_TWO_CELL_TOTAL"/)
+        assert.doesNotMatch(logged[0], /DYNAMIC|43\.20|Together|700000000/)
+    }
+    assert.ok(h.posts.every(post => post.get('ctl00$ContentPlaceHolder1$txtPromoCode') === 'DYNAMIC'))
+    assert.equal(h.posts.some(post => post.has('ctl00$ContentPlaceHolder1$btnStbOk') || post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
+})
+
+for (const [label, page, reason] of [
+    ['different package at the same price', addWithFooter(unlabelledPromoFooter).replace(promoQuote.name, 'Together 12 Months + 20% OFF (12 Months)'), 'CART_QUOTE_MISMATCH'],
+    ['wrong footer amount', addWithFooter(unlabelledPromoFooter.replace('43.20', '54')), 'CART_TOTAL_MISMATCH'],
+    ['all amounts changed together', addWithFooter(unlabelledPromoFooter).replaceAll('43.20', '54'), 'CART_QUOTE_MISMATCH'],
+    ['different currency', addWithFooter(unlabelledPromoFooter).replaceAll('USD', 'EUR'), 'CART_QUOTE_MISMATCH'],
+    ['different promo', addWithFooter(unlabelledPromoFooter).replace('txtPromoCode" value="DYNAMIC"', 'txtPromoCode" value="OTHER"'), 'CART_PROMO_MISMATCH'],
+    ['missing label colspan', addWithFooter(unlabelledPromoFooter.replace('colspan="2"', '')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['extra footer cell', addWithFooter(unlabelledPromoFooter.replace('</tr>', '<td></td></tr>')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['hidden control in the empty cell', addWithFooter(unlabelledPromoFooter.replace('&nbsp;', '<input type="hidden" name="extra" value="">')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['named element in the empty cell', addWithFooter(unlabelledPromoFooter.replace('&nbsp;', '<span name="extra"></span>')), 'CART_TOTAL_ROW_UNVERIFIED'],
+    ['missing independent displayed total', addWithFooter(unlabelledPromoFooter).replace(/<span id="ContentPlaceHolder1_lblTotalAmount">[^<]*<\/span>/, ''), 'CART_DISPLAYED_TOTAL_MISSING_OR_AMBIGUOUS'],
+] as const) test(`unlabelled promo total still rejects ${label}`, () => {
+    assert.throws(() => purchaseGuard.readRenewalSummary(page, promoQuote, fullCard, 'CISCO', 'ADD'),
+        (error: unknown) => error instanceof purchaseGuard.RenewalSummaryConflict &&
+            error.stage === 'ADD' && error.reason === reason)
+})
+
 test('promo Add with a wrapped Remaining label preserves the selected offer before Sell', async () => {
     const footer = '<tr><td colspan="2"><span>Remaining</span><div>* Money due if any will be added to the current package as extended validity</div></td><td><div>43.20USD</div></td></tr>'
     const h = promoPurchaseClient(addWithFooter(footer))

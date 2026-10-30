@@ -6,6 +6,32 @@ import { readProviderReport, ReportReadError, type ReportReaderRuntime } from '.
 import { defaultReportDates, validReportCriteria, reportPage, type ProviderReportRequest } from '../../shared/reports/bein-provider'
 import { HttpClientService } from '../src/http/HttpClientService'
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
+import { loginHttpFailure, loginMessageFailure } from '../../shared/bein/login-failure'
+
+test('report login records only explicit credential rejection under its current owner', async () => {
+    const tracked: unknown[] = []
+    const revision = new Date('2026-10-30T00:00:00Z')
+    const r = runtime({ recordLoginResult: async (...args: unknown[]) => { tracked.push(args) } } as any)
+    r.client.isSessionActive = () => false
+    Object.assign(r.client, { getLoginTrackingRevision: () => revision })
+    r.client.login = async () => loginMessageFailure('Invalid username or password') as any
+    await assert.rejects(readProviderReport(request, r.services, new AbortController().signal), /LOGIN_FAILED/)
+    assert.equal(tracked.length, 1)
+    assert.equal((tracked[0] as any[])[0], request.accountId)
+    assert.equal((tracked[0] as any[])[2], revision)
+})
+
+for (const status of [402, 407, 429]) test(`report login ${status} returns connection/rate classification without a retry`, async () => {
+    const r = runtime()
+    let attempts = 0
+    r.client.isSessionActive = () => false
+    r.client.login = async () => { attempts++; return loginHttpFailure(status) as any }
+    await assert.rejects(readProviderReport(request, r.services, new AbortController().signal),
+        (error: unknown) => error instanceof ReportReadError && error.code === (status === 429 ? 'PROVIDER_RATE_LIMITED' : 'CONNECTION_FAILED'))
+    assert.equal(attempts, 1)
+    assert.equal(r.calls.includes('scan'), false)
+    assert.equal(r.calls.at(-1), 'release')
+})
 
 const request: ProviderReportRequest = { id: 'request-a', accountId: 'account-a', from: '2026-10-06', to: '2026-10-12',
     state: 'QUEUED', createdAt: Date.now(), deadline: Date.now() + 300_000 }

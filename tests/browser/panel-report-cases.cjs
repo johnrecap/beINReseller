@@ -54,4 +54,35 @@ module.exports = async function reportCases({p,render,check}) {
   }
   check(view+(view==='analytics'?' period changes retain contract':' old period cannot overwrite new period'));
  }
+ for(const language of ['ar','en','bn']) {
+  await render({view:'loginMonitor',language,opsHang:true},360);
+  await p.locator('main svg.animate-spin').waitFor();
+  assert.equal(await p.locator('main table').count(),0);
+  assert.equal(await p.locator('main tbody button').count(),0);
+  assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  check('login recovery '+language+' pending read has loader and no stale actions');
+  await render({view:'loginMonitor',language,loginUnknown:true,writeFailure:true,writeStatus:409,holdWrite:true},360);
+  const copy=await p.evaluate(()=>window.qaText.panelUi.reportCopy);
+  await p.getByText(copy.needsLoginReview,{exact:true}).waitFor();
+  assert.equal(await p.getByText(copy.needsPassword,{exact:true}).count(),0);
+  const reset=p.locator('main tbody button');
+  await reset.evaluate(el=>{el.click();el.click()});
+  await p.waitForFunction(()=>!!window.releaseWrite);
+  assert.equal(await reset.isDisabled(),true);
+  assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
+  await p.evaluate(()=>window.releaseWrite());
+  await p.getByText(copy.accountBusy,{exact:true}).waitFor();
+  assert.equal(await p.getByText('synthetic-bein',{exact:true}).count(),1);
+  assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  if(language==='ar'){
+   await reset.scrollIntoViewIfNeeded();
+   await p.waitForTimeout(350); // Finish the existing toast entry transition before visual evidence.
+   await p.screenshot({path:require('node:path').join(process.env.PANEL_QA_OUTPUT||'output/panel-ui','login-review-ar-360.png'),fullPage:true});
+  }
+  check('login recovery '+language+' unknown review / busy / single pending action / retained row');
+  await render({view:'loginMonitor',language,loginEmpty:true},390);
+  await p.getByText(copy.noLoginFailures,{exact:true}).waitFor();
+  assert.equal(await p.locator('main tbody button').count(),0);
+  check('login recovery '+language+' empty state');
+ }
 };

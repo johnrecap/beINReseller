@@ -39,6 +39,7 @@ import {
     CheckCardForSignalResult
 } from './types';
 import { encodeSuccessfulControls } from './webforms-form';
+import { loginHttpFailure, loginMessageFailure, loginExceptionFailure } from '../../../shared/bein/login-failure';
 import { canonicalJson, readProviderPrice, sameQuotedPackage, type QuotePackage } from '../../../shared/operations/package-quote';
 import { assertPreparedRenewal, buildPromoSubmission, describeRenewalCartFooter, readCheckedCardStb, readRenewalSummary, providerSerialFor, readProviderCardIdentity, readProviderSmartcardOption, validateProviderSerialInput, ProviderSmartcardFormError, PromoValidationError, RenewalSummaryConflict, requirePurchaseControl, readStbFields, type PreparedRenewalPurchase, type RenewalSummaryStage } from './renewal-purchase-guard';
 import {
@@ -1307,6 +1308,10 @@ export class HttpClientService {
 
             // Check if we got redirected to login page (session expired)
             const sessionExpiry = this.checkForSessionExpiry(response.data);
+            if (loginHttpFailure(response.status) || !this.hasAuthenticatedContent(response.data)) {
+                this.invalidateSession();
+                return false;
+            }
             if (sessionExpiry) {
                 console.log(`[HTTP] validateSession: Session expired - ${sessionExpiry}`);
                 this.invalidateSession();
@@ -1329,7 +1334,7 @@ export class HttpClientService {
             return true;
 
         } catch (error: unknown) {
-            console.error(`[HTTP] validateSession error: ${getHttpErrorMessage(error)}`);
+            console.error('[HTTP] Session validation failed:', loginExceptionFailure(error).failureCode);
             // Don't invalidate on network error - might be temporary
             return false;
         }
@@ -1344,7 +1349,21 @@ export class HttpClientService {
      * Returns CAPTCHA image if required
      * Skips login if session is still active
      */
+    private loginTrackingRevision?: Date;
+
+    getLoginTrackingRevision(): Date | undefined { return this.loginTrackingRevision; }
+
+    private async captureLoginTrackingRevision(): Promise<void> {
+        this.loginTrackingRevision = undefined;
+        if (!this.accountId) throw new Error('LOGIN_ACCOUNT_REQUIRED');
+        const account = await prisma.beinAccount.findUnique({ where: { id: this.accountId }, select: { updatedAt: true } });
+        if (!account) throw new Error('LOGIN_ACCOUNT_UNAVAILABLE');
+        this.loginTrackingRevision = account.updatedAt;
+    }
+
     async login(username: string, password: string, totpSecret?: string): Promise<LoginResult> {
+        try { await this.captureLoginTrackingRevision(); }
+        catch { this.invalidateSession(); return loginMessageFailure(); }
         this.renewalSelection = null;
         this.preparedRenewal = null;
         console.log('[HTTP] Starting login');
@@ -1368,20 +1387,31 @@ export class HttpClientService {
                 const ipCheckRes = await this.axios.get('https://api.ipify.org?format=json', { timeout: 10000 });
                 console.log(`[HTTP] 🌐 Current IP (via proxy): ${ipCheckRes.data?.ip || 'unknown'}`);
             } catch (ipErr: unknown) {
-                console.log(`[HTTP] ⚠️ IP check failed: ${getHttpErrorMessage(ipErr)}`);
+                console.log('[HTTP] IP check unavailable');
             }
             // === END DEBUG ===
 
             // Step 1: GET login page
-            console.log(`[HTTP] GET ${this.config.loginUrl}`);
+            console.log('[HTTP] GET login page');
             const loginPageRes = await this.axios.get(this.config.loginUrl);
             console.log(`[HTTP] Login page status: ${loginPageRes.status}`);
+
+            const pageFailure = loginHttpFailure(loginPageRes.status);
+            if (pageFailure) { this.invalidateSession(); return pageFailure; }
+            if (this.hasAuthenticatedContent(loginPageRes.data)) {
+                this.markSessionValid();
+                return { success: true };
+            }
 
             // Extract hidden fields
             this.currentViewState = this.extractHiddenFields(loginPageRes.data);
 
             // Check for CAPTCHA using database selector
             const $ = cheerio.load(loginPageRes.data);
+            if (!$('#Login1_UserName, input[name="Login1$UserName"]').length || !this.currentViewState.__VIEWSTATE) {
+                this.invalidateSession();
+                return loginMessageFailure();
+            }
 
             // Use selector from database config (e.g., Login1_ImageVerificationDealer_Image)
             // Remove any leading # to avoid duplication
@@ -1402,9 +1432,9 @@ export class HttpClientService {
             console.log(`[HTTP] CAPTCHA selector: #${captchaSelector}, found: ${captchaImg.length > 0}`);
 
             if (captchaImg.length) {
-                if (this.reportReadScope) return { success: false, requiresCaptcha: true };
+                if (this.reportReadScope) return { ...loginMessageFailure('CAPTCHA'), requiresCaptcha: true };
                 const captchaSrc = captchaImg.attr('src');
-                console.log(`[HTTP] CAPTCHA detected, src: ${captchaSrc?.substring(0, 100)}...`);
+                console.log('[HTTP] CAPTCHA detected');
 
                 // Check if it's already a data URI (base64 embedded)
                 if (captchaSrc?.startsWith('data:image')) {
@@ -1413,7 +1443,7 @@ export class HttpClientService {
                     if (base64Match) {
                         console.log('[HTTP] CAPTCHA is embedded data URI');
                         return {
-                            success: false,
+                            ...loginMessageFailure('CAPTCHA'),
                             requiresCaptcha: true,
                             captchaImage: base64Match[1] // Raw base64 without prefix
                         };
@@ -1425,7 +1455,7 @@ export class HttpClientService {
                     ? captchaSrc
                     : this.buildFullUrl(captchaSrc || '');
 
-                console.log(`[HTTP] Fetching CAPTCHA from: ${captchaUrl}`);
+                console.log('[HTTP] Fetching CAPTCHA image');
 
                 // Let axios-cookiejar-support handle Cookie header automatically
                 const captchaRes = await this.axios.get(captchaUrl, {
@@ -1436,6 +1466,8 @@ export class HttpClientService {
                     }
                 });
 
+                const captchaFailure = loginHttpFailure(captchaRes.status);
+                if (captchaFailure) { this.invalidateSession(); return captchaFailure; }
                 const contentType = captchaRes.headers['content-type'] || 'image/png';
                 console.log(`[HTTP] CAPTCHA content-type: ${contentType}, size: ${captchaRes.data.length} bytes`);
 
@@ -1453,7 +1485,7 @@ export class HttpClientService {
                 // that matches the CAPTCHA we just fetched
 
                 return {
-                    success: false,
+                    ...loginMessageFailure('CAPTCHA'),
                     requiresCaptcha: true,
                     captchaImage: captchaBase64
                 };
@@ -1463,14 +1495,26 @@ export class HttpClientService {
             return await this.submitLogin(username, password, totpSecret);
 
         } catch (error: unknown) {
-            console.error('[HTTP] Login error:', getHttpErrorMessage(error));
-            return { success: false, error: `Login failed: ${getHttpErrorMessage(error)}` };
+            this.invalidateSession();
+            const failure = loginExceptionFailure(error);
+            console.error('[HTTP] Login failed:', failure.failureCode);
+            return failure;
         }
     }
 
     /**
      * Submit login credentials (after CAPTCHA if needed)
      */
+    private hasAuthenticatedContent(html: unknown): boolean {
+        if (typeof html !== 'string') return false;
+        const $ = cheerio.load(html);
+        if ($('#Login1_UserName, #Login1_LoginButton, input[name="Login1$UserName"], input[name="Login1$Password"]').length) return false;
+        // An authenticated navigation/control is required; title and generic layout are insufficient.
+        const logout = $('a[href*="Logout"], a[href*="logout"]').length > 0 ||
+            /^(?:log\s*out|sign\s*out)$/i.test($('[id*="LoginStatus"]').text().trim());
+        return logout || $('[id*="ContentPlaceHolder1_btnCheck"], [id*="ContentPlaceHolder1_tbSmartCard"], [id*="ContentPlaceHolder1_gv"]').length > 0;
+    }
+
     async submitLogin(
         username: string,
         password: string,
@@ -1478,7 +1522,7 @@ export class HttpClientService {
         captchaSolution?: string
     ): Promise<LoginResult> {
         if (!this.currentViewState) {
-            return { success: false, error: 'ViewState not available - call login() first' };
+            return loginMessageFailure();
         }
 
         try {
@@ -1515,18 +1559,26 @@ export class HttpClientService {
 
             console.log(`[HTTP] Login response: ${loginRes.status}`);
 
+            const responseFailure = loginHttpFailure(loginRes.status);
+            if (responseFailure) { this.invalidateSession(); return responseFailure; }
+            const responseUrl = loginRes.request?.res?.responseUrl || '';
+            if (/\/(?:[^/?]*error)[^/?]*(?:[?/#]|$)/i.test(responseUrl)) {
+                this.invalidateSession();
+                return loginMessageFailure();
+            }
+
             // Check for errors in HTML
             const error = this.checkForErrors(loginRes.data);
             if (error) {
-                return { success: false, error };
+                this.invalidateSession();
+                return loginMessageFailure(error);
             }
 
             // Check if still on login page (login failed)
             const $ = cheerio.load(loginRes.data);
             const pageTitle = $('title').text().trim();
 
-            // === FIX: Check page title first for success indicators ===
-            // beIN may include login form elements as hidden fields even after successful login
+            // A familiar title still requires authenticated content and no login form.
             const successTitlePatterns = ['Finance', 'Module', 'Dashboard', 'Dealers', 'Packages', 'Check', 'frmCheck'];
             const isSuccessPage = successTitlePatterns.some(pattern =>
                 pageTitle.toLowerCase().includes(pattern.toLowerCase())
@@ -1539,17 +1591,19 @@ export class HttpClientService {
                 const hasSignInAndCaptcha = bodyText.includes('Sign In') && bodyText.includes('Enter the following code');
 
                 if (hasLoginFormInBody || hasSignInAndCaptcha) {
-                    console.log(`[HTTP] ⚠️ FAKE LOGIN DETECTED — Title "${pageTitle}" but body has login form`);
-                    return { success: false, error: 'Login failed — server returned login page with cached title' };
+                    console.log('[HTTP] Authentication rejected: response still contains login form');
+                    this.invalidateSession();
+                    return loginMessageFailure();
                 }
 
                 // LAYER 3: Positive indicator — confirm authenticated content exists
-                const hasContentPlaceHolder = $('[id*="ContentPlaceHolder1"]').length > 0;
+                const hasContentPlaceHolder = this.hasAuthenticatedContent(loginRes.data);
                 if (!hasContentPlaceHolder) {
-                    console.log(`[HTTP] ⚠️ SUSPICIOUS LOGIN — Title OK but no ContentPlaceHolder found (continuing)`);
+                    this.invalidateSession();
+                    return loginMessageFailure();
                 }
 
-                console.log(`[HTTP] ✅ Login verified! (Page: ${pageTitle})`);
+                console.log('[HTTP] Login verified by authenticated content');
                 this.markSessionValid();
                 return { success: true };
             }
@@ -1558,29 +1612,36 @@ export class HttpClientService {
             if ($('#Login1_UserName').length || $('#Login1_LoginButton').length) {
                 // === DEBUG: Log page details ===
                 const allRedSpans = $('span[style*="Red"], span[style*="red"]').map((i, el) => $(el).text().trim()).get();
-                console.log(`[HTTP] 📄 DEBUG - Page title: ${pageTitle}`);
+                console.log('[HTTP] Login form returned');
                 console.log(`[HTTP] Red spans found: ${allRedSpans.length}`);
                 console.log('[HTTP] Login response body inspected');
                 // === END DEBUG ===
 
                 // Still on login page - check for specific error
                 const errorSpan = $('span[style*="Red"]').first().text().trim();
-                return { success: false, error: errorSpan || 'Login failed - invalid credentials' };
+                this.invalidateSession();
+                return loginMessageFailure(errorSpan);
             }
 
             // Check URL for success indicators
             const finalUrl = loginRes.request?.res?.responseUrl || '';
             if (finalUrl.toLowerCase().includes('login') || finalUrl.toLowerCase().includes('error')) {
-                return { success: false, error: 'Login failed - redirected to error page' };
+                this.invalidateSession();
+                return loginMessageFailure();
             }
 
-            console.log('[HTTP] ✅ Login successful!');
-            this.markSessionValid();
-            return { success: true };
+            if (this.hasAuthenticatedContent(loginRes.data)) {
+                this.markSessionValid();
+                return { success: true };
+            }
+            this.invalidateSession();
+            return loginMessageFailure();
 
         } catch (error: unknown) {
-            console.error('[HTTP] Submit login error:', getHttpErrorMessage(error));
-            return { success: false, error: `Submit failed: ${getHttpErrorMessage(error)}` };
+            this.invalidateSession();
+            const failure = loginExceptionFailure(error);
+            console.error('[HTTP] Submit login failed:', failure.failureCode);
+            return failure;
         }
     }
 

@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-30",
+  "scope": "Local implementation acceptance only; no production/provider acceptance or author approval",
+  "base_commit": "a3bc54d6ed9f2cc46a047c7894005db2f0528de9",
+  "checks": [
+    {
+      "name": "root-unit",
+      "command": "node scripts/run-audit-gates.cjs unit",
+      "exit_code": 0,
+      "result": "PASS",
+      "tests": 922,
+      "pass": 922,
+      "fail": 0,
+      "skipped": 0,
+      "transient_log": "tmp/unit-suite-accepted.tap",
+      "log_sha256": "8165b4437785cb90a3ae55670dc9bf5fbc30be38555750782f7e0ae5aa62dbea"
+    },
+    {
+      "name": "worker-all-with-native-cache",
+      "command": "RUN_REDIS_INTEGRATION=1 TEST_REDIS_URL=<disposable-loopback-db15> node --import tsx --test --test-concurrency=4 worker/tests/*.test.ts",
+      "exit_code": 0,
+      "result": "PASS",
+      "tests": 543,
+      "pass": 543,
+      "fail": 0,
+      "skipped": 0,
+      "transient_log": "tmp/worker-suite-complete.tap",
+      "log_sha256": "58e556992db05ab3c8b9a1c1c2e2d4e2949a16e42c170d5ad793e61603a31e52"
+    },
+    {
+      "name": "native-recovery",
+      "command": "node --require ./tests/helpers/panel-http-network-guard.cjs --import tsx --test tests/integration/bein-login-recovery.test.ts",
+      "exit_code": 0,
+      "result": "PASS",
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "transient_log": "tmp/login-native-accepted.tap",
+      "log_sha256": "4482c0d2245339d16ffa00b80a4ae348feda033941d69bf0099ff46588a1b99d"
+    },
+    {
+      "name": "web-build",
+      "command": "npm run build (synthetic loopback configuration)",
+      "exit_code": 0,
+      "result": "PASS",
+      "transient_log": "tmp/web-build-delivery.txt",
+      "log_sha256": "eda5c07b06af7758c5b041e067321ba5db22fea55d2c4893b9491a9d9c22407e"
+    },
+    {
+      "name": "worker-build",
+      "command": "npm --prefix worker run build",
+      "exit_code": 0,
+      "result": "PASS",
+      "transient_log": "tmp/worker-build-accepted.txt",
+      "log_sha256": "1cf5c723272cd071519d742ece1c55431bd8193178140588edc8ac1c331b8653"
+    },
+    {
+      "name": "browser",
+      "command": "PANEL_QA_SCOPE=reports PLAYWRIGHT_MODULE=<installed-playwright-module> node tests/browser/panel-ui-repairs.cjs",
+      "exit_code": 0,
+      "result": "PASS",
+      "transient_log": "tmp/browser-reports-delivery.txt",
+      "log_sha256": "eb0989055972edd9aeaa5f5e2a862c0bc7d479e2067f0c9c530fb574e7ef776c",
+      "tests": 102,
+      "passed": 102,
+      "page_errors": 0
+    },
+    {
+      "name": "root-types",
+      "command": "npx tsc --noEmit --pretty false",
+      "exit_code": 0,
+      "result": "PASS",
+      "transient_log": "tmp/web-types-current.txt",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "scoped-eslint",
+      "command": "npx eslint shared/bein/login-failure.ts shared/reports/bein-provider.ts src/lib/bein-account-recovery.ts src/app/api/admin/bein-accounts/[id]/reset/route.ts src/app/api/admin/bein-accounts/[id]/login-failures/reset/route.ts src/app/api/admin/bein-accounts/login-failures/route.ts src/app/dashboard/admin/bein-accounts/page.tsx src/components/admin/report-center/LoginMonitorPanel.tsx src/i18n/translations/ar.ts src/i18n/translations/en.ts src/i18n/translations/bn.ts",
+      "exit_code": 0,
+      "result": "PASS",
+      "transient_log": "tmp/incident-eslint.txt",
+      "log_sha256": "5bf46be8dcc4d46f77ccbab77b666d968f3a7ecc34dfddaa09d08ce63d927582"
+    }
+  ],
+  "runtime_sources": [
+    {
+      "path": "shared/bein/login-failure.ts",
+      "sha256": "b205e7548f563dde1b6776a04f7bd532cbaa6d24a95cf9dcf843ee9fdd4342ae"
+    },
+    {
+      "path": "shared/reports/bein-provider.ts",
+      "sha256": "0b9ca9a3b42b03f3f5687632f2b3ce4da3afc32c96abc4c7aea61a659a252ca7"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/[id]/login-failures/reset/route.ts",
+      "sha256": "4cc70804e30182ac3590e5901e8f6399c6c4620297cd63e34e63f4eb163c4ca1"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/[id]/reset/route.ts",
+      "sha256": "fe8802de197371f0599bc8851809405af5921ec051560c0ce24465a2fd1ccd45"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/login-failures/route.ts",
+      "sha256": "8df0c6f81e9f0d00b45732da0d048701be81bb2d64ad73b7babb0f1e5da133d8"
+    },
+    {
+      "path": "src/app/dashboard/admin/bein-accounts/page.tsx",
+      "sha256": "4e2da5fb547d38bb26722d95c9bc9c7473cc142b1d37c491683b9388f1265a7c"
+    },
+    {
+      "path": "src/components/admin/report-center/LoginMonitorPanel.tsx",
+      "sha256": "6f9a7d61a0e9ba2c419df9c2382c771779bf4be66f93b53c9bf7cdce34b9f65e"
+    },
+    {
+      "path": "src/i18n/translations/ar.ts",
+      "sha256": "228dc38340ccf44139dc8d427afbde069ddae7058d0be96bff550c0875f60721"
+    },
+    {
+      "path": "src/i18n/translations/bn.ts",
+      "sha256": "2a8a4a8a4bbc2c05ce0995887436b53aad38686cec72d2bf78c48e2c5059589a"
+    },
+    {
+      "path": "src/i18n/translations/en.ts",
+      "sha256": "6a890494eddcf134aa31089f40c489b7c25130a957e1de546fd10e8787583b01"
+    },
+    {
+      "path": "src/lib/bein-account-recovery.ts",
+      "sha256": "5e8f84a85d689b9f7e7f4338e94c4d39a2b7cccfd20012e91ee96029a26ed784"
+    },
+    {
+      "path": "tests/browser/fixtures/panel-operations-data.js",
+      "sha256": "91961bad630894a54bb538f088c3b1b933c5421c355d0bfaefe00134a60425dd"
+    },
+    {
+      "path": "tests/browser/fixtures/panel-ui-entry.jsx",
+      "sha256": "fcaf0e03f3e11ae809f3ba328c2f3f801fcaf1c3c06d3c0512260129469cb1f4"
+    },
+    {
+      "path": "tests/browser/panel-report-cases.cjs",
+      "sha256": "d53a2eba844dd481f047083c17a7140953eadc75d5f734867bd375de62176455"
+    },
+    {
+      "path": "tests/helpers/promo-dispatch-harness.ts",
+      "sha256": "5947ec5b5270b3a73a0489b17d1b280a4c8f119ae9946d2944ab1594e40818ab"
+    },
+    {
+      "path": "tests/integration/bein-login-recovery.test.ts",
+      "sha256": "df43490ee39259f145f6dcabbb77a34446ccca3ebceb44a2da2fce96b393e4d9"
+    },
+    {
+      "path": "tests/unit/bein-account-recovery.test.ts",
+      "sha256": "9e8642eeb25ee58c0def9eeeffab436fdc71ff4bef16e99e7bdcadfebcbb265e"
+    },
+    {
+      "path": "worker/src/http-queue-processor.ts",
+      "sha256": "9eda140bac4a2c4a9993c4bd8c3138330d0bb59d811c98fc9afc4fb89055ed30"
+    },
+    {
+      "path": "worker/src/http/HttpClientService.ts",
+      "sha256": "51be0f15b2525637693a861014e0b97fff023f99633e622ec1b4fd78ba19cb70"
+    },
+    {
+      "path": "worker/src/http/types.ts",
+      "sha256": "8097dedf36077d10548e440f32c85b2fe698683bf53cfe4d1c7be2b28af592ca"
+    },
+    {
+      "path": "worker/src/lib/bein-login-tracking.ts",
+      "sha256": "a25808b7cac416658bfd3c9446550257e245a9234642bf59dbeb630df8b8d215"
+    },
+    {
+      "path": "worker/src/lib/provider-report-reader.ts",
+      "sha256": "be5f8f64ae8844067b85919508cef4178f435f241f2b5c157b87db6f531c4e68"
+    },
+    {
+      "path": "worker/src/lib/session-cache.ts",
+      "sha256": "8a65a739e74a864e87b2067c7605f70815a51222ae7e65a34c65a74405e6f984"
+    },
+    {
+      "path": "worker/src/lib/session-keepalive.ts",
+      "sha256": "72650f405deb9971cc266db472c3bb6ed7c22ec41aa3658dc50478044977ddcf"
+    },
+    {
+      "path": "worker/tests/deferred-verification-route.test.ts",
+      "sha256": "8abbcbba9caace31c09c02166afdf8160c1ff10e2d4ed009a2228f2d29e1ff3c"
+    },
+    {
+      "path": "worker/tests/keepalive-login-recovery.test.ts",
+      "sha256": "35d4c5f2ad5bde2c5084b94f15389750f0b68a700932427443ddb6883519d1ea"
+    },
+    {
+      "path": "worker/tests/login-failure-classification.test.ts",
+      "sha256": "7fdff8b9ca1169e9ac8ea92a613180f73408dd771554377c26531d0967e17755"
+    },
+    {
+      "path": "worker/tests/login-retry-consumers.test.ts",
+      "sha256": "4442259621ed0880ac5ba5e4b8bd4d9a33c88fd415f0701e06f2cdc92b7fceb9"
+    },
+    {
+      "path": "worker/tests/login-tracking-recovery.test.ts",
+      "sha256": "fd28c996ca6094ea756c41769024be2ae7746ba68eaa9a0b61de79c118f83455"
+    },
+    {
+      "path": "worker/tests/provider-report-browser.test.ts",
+      "sha256": "bc8a43323ec967f91ba55524114758c1896c0b4d1d19c370fa84a194fa8a5562"
+    },
+    {
+      "path": "worker/tests/relogin-execution-lease.test.ts",
+      "sha256": "fb8f679b8d72fede4f82d6534bc3f9f82bb40016bb276159f8c0e79635299152"
+    }
+  ],
+  "native_runtime": {
+    "postgresql": "17.11",
+    "memurai": "8.2.0",
+    "redis_api": "8.2.10",
+    "os": "Windows",
+    "node_egress": "restricted to owned loopback ports",
+    "cleanup": "test schemas absent; Redis dbsize 0; listeners/processes stopped; temporary native runtime removed"
+  },
+  "browser": {
+    "passed": 99,
+    "page_errors": 0,
+    "visual_review": "Arabic 360px screenshot inspected; see verification.md"
+  },
+  "external_gates": [
+    "Linux/PM2 artifact parity and reviewed worker count",
+    "fresh beIN direct login and two complete KeepAlive cycles",
+    "historical specs/036-audit-remediation/evidence/plan-guard.json"
+  ]
+}

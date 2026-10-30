@@ -1,5 +1,14 @@
 # Research: beIN Connection Mode
 
+## 2026-10-30 incident decisions
+
+- Production evidence shows sameDayReportReadOnlyRetry selecting assigned_proxy after the global direct-mode switch; GET and POST return 402 then generic credential failures disable the account. Current source confirms both verification branches resolve legacy/snapshot routes.
+- HTTP login accepts status below 500 and parses HTML before checking 402/407/429; fallback titles/unknown pages can mark sessions valid. Classify status first and require positive authenticated content.
+- Existing counter tracking increments and disables in separate writes. Manual reset deletes account lock/rate keys while omitting the login counter. Use atomic SQL and the existing ownership primitive for all reset/tracking writers.
+- Chosen: manual single-account ADMIN recovery; no migration/backfill; conservative unknown errors. Rejected: bulk SQL activation (races and stale sessions), deleting Redis locks (ownership theft), retrying direct automatically (purchase drift), increasing retry/worker budgets (load).
+- Official specify-cli 1.2.5 was restored locally from the official package. Version/features and integration status ran; Codex files are intact. Six customized shared scripts/templates were reviewed and preserved; official converge was bootstrapped separately without overwriting them.
+- Tests prove local contracts only. Original provider authentication HTML and real-service concurrency/live PM2 acceptance need current evidence; never claim them from mocks. Historical 036 missing plan-guard remains open.
+
 ## Decision: Use a manual global mode, not automatic fallback
 
 **Decision**: Add `bein_connection_mode` with values `assigned_proxy` and `server_ip`. Do not automatically retry direct server IP after a proxy `502`.
@@ -60,7 +69,7 @@
 
 ## Decision: keepalive uses the same resolver
 
-**Decision**: keepalive resolves effective route through the same worker helper used by operations and caches HTTP clients by account plus effective route.
+**Decision**: keepalive resolves effective route through the same worker helper used by operations. The 2026-10-30 recovery amendment makes HTTP clients cycle-local and restores only the account/effective-route Redis cache, preventing old in-memory state from undoing manual invalidation.
 
 **Rationale**: keepalive must not refresh a proxy session while operations are in server-IP mode, or reuse a client from a different route.
 

@@ -1,5 +1,19 @@
 # Project Guide
 
+## Login recovery publication handoff (2026-10-30)
+
+The user authorized commit/push of the tested repair to `codex/027-login-recovery` and will execute the [guarded server commands](deployment/login-recovery-20261030.md). The handoff preserves the reported ten-worker topology, rejects unreviewed schema/dependency drift, retains previous builds, restores an absent KeepAlive through the ecosystem and uses one ADMIN reset-and-activate for `Bn-xtr-544`. Existing build scripts and generated customer entry are covered. No additional application behavior changed in this publication step. Actual admission/drain, production artifact parity and two KeepAlive cycles remain pending; 036 historical evidence is not recertified.
+
+## Login/proxy recovery — local delivery (2026-10-30)
+
+The accepted Spec Kit 027 incident amendment separates proxy/network failures from genuine credential rejection. Deferred v1/v2 verification reads select current connection mode once on the original account; purchase/Pay continuations retain their saved route and proof rules. `402/407/429` stop immediate login retries and do not increase password-failure counters. Unknown pages require login review, not an assumed password change.
+
+ADMIN reset-and-activate now clears the selected account's login counter/reason under ownership; counter-only reset leaves its active flag unchanged. Busy or reserved accounts return 409. Recovery preserves other owners' locks, request budgets, operation sessions/reservations and balances. Revision-fenced SQL and owner-fenced cache writes prevent stale workers from undoing reset. KeepAlive loads only current account/route cookies each cycle; no automatic account reactivation.
+
+Local acceptance: 922 root cases, 543 worker cases including five native cache tests, one compound PostgreSQL/Redis-API race scenario, 102 browser checks, types and both production builds. Native services were PostgreSQL 17.11 and Memurai-for-Redis 8.2.0 on Windows; this is not a Linux production rehearsal. Semantic/UI review and current source/command receipts: [027 evidence](../specs/027-bein-connection-mode/evidence/verification.md).
+
+No migration, provider purchase, commit/push or deployment was performed. The [release runbook](../specs/027-bein-connection-mode/quickstart.md) requires actual PM2/artifact parity, admission drain, stopping web before replacing `.next`, then one manual recovery and two complete KeepAlive cycles. Last user-reported panel worker count was ten; preserve the reviewed actual inventory. Historical 036 missing `evidence/plan-guard.json` and other live gates remain open. Resume from Spec Kit 027 T032–T045 and `UPD-20261030-001`, without rerunning a broad database reset.
+
 ## Review is not a card block — delivery register (2026-10-13)
 
 Accepted policy supersedes the earlier hold/archive-unlock policy: remove review-based card admission bans. Preserve the original five-minute cooldown, active execution exclusion, financial evidence and review decisions. Retire new administrative unlock requests; retain existing archive history and finish already accepted stops. No new bypass service, schema change, subagents, live provider calls or production edits.

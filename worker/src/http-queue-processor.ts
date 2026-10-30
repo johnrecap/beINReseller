@@ -28,6 +28,7 @@ import {
     getAccountLockStatus,
     isAccountExecutionLeaseActive,
     parkAccountLockForHandoff,
+    parseAccountLockOwner,
     transitionAccountLockToExecutionLease,
     type AccountExecutionLeaseHandle,
 } from './pool/account-locking';
@@ -834,7 +835,7 @@ async function createOperationClient(account: OperationBeinAccount, route: Effec
     try {
         const cachedSession = await getSessionFromCache(account.id, route.routeKey);
         if (cachedSession) {
-            await client.importSession(cachedSession);
+            await client.importSession(prepareSharedSessionForCache({ ...cachedSession }));
             client.markSessionValidFromCache(cachedSession.expiresAt);
             const expiryText = typeof cachedSession.expiresAt === 'number'
                 ? new Date(cachedSession.expiresAt).toISOString()
@@ -867,14 +868,14 @@ function isSessionExpiredError(message: string | undefined): boolean {
         message.includes('Login page');
 }
 
-async function trackCredentialLoginFailure(accountId: string, reason: string | undefined): Promise<void> {
+async function trackCredentialLoginFailure(accountId: string, reason: string | undefined, revision?: Date): Promise<void> {
     if (shouldCountAsCredentialFailure(reason)) {
-        await recordLoginFailure(accountId, reason);
+        await recordLoginFailure(accountId, reason, revision);
     }
 }
 
-async function trackFreshLoginSuccess(accountId: string): Promise<void> {
-    await recordLoginSuccess(accountId);
+async function trackFreshLoginSuccess(accountId: string, revision?: Date): Promise<void> {
+    await recordLoginSuccess(accountId, revision);
 }
 
 /**
@@ -920,6 +921,15 @@ async function waitForReLoginRetry(
 }
 
 type ReLoginFencedSessionInput = Parameters<typeof saveSessionToCacheFenced>[1];
+type SharedSessionGuard = { key: string; owner: string };
+
+async function captureSharedSessionGuard(accountId: string, workerId: string, operationId?: string): Promise<SharedSessionGuard | undefined> {
+    const key = `bein:account:lock:${accountId}`;
+    const owner = await getRedisConnection().get(key);
+    const parsed = parseAccountLockOwner(owner);
+    if (!owner || parsed.workerId !== workerId || (operationId && parsed.operationId !== operationId)) return undefined;
+    return { key, owner };
+}
 
 export interface ReLoginRuntime {
     assertExecutionLeaseCurrent: (
@@ -927,9 +937,10 @@ export interface ReLoginRuntime {
     ) => Promise<void>;
     getCaptchaApiKey: () => Promise<string | null>;
     solveCaptcha: (apiKey: string, captchaImage: string) => Promise<string>;
-    trackCredentialLoginFailure: (accountId: string, reason: string | undefined) => Promise<void>;
-    trackFreshLoginSuccess: (accountId: string) => Promise<void>;
+    trackCredentialLoginFailure: (accountId: string, reason: string | undefined, revision?: Date) => Promise<void>;
+    trackFreshLoginSuccess: (accountId: string, revision?: Date) => Promise<void>;
     saveSessionToCacheFenced: (input: ReLoginFencedSessionInput) => Promise<boolean>;
+    captureSharedSessionGuard?: (accountId: string) => Promise<SharedSessionGuard | undefined>;
 }
 
 const DEFAULT_RELOGIN_RUNTIME: ReLoginRuntime = {
@@ -942,6 +953,7 @@ const DEFAULT_RELOGIN_RUNTIME: ReLoginRuntime = {
     trackCredentialLoginFailure,
     trackFreshLoginSuccess,
     saveSessionToCacheFenced: (input) => saveSessionToCacheFenced(getRedisConnection(), input),
+    captureSharedSessionGuard: (accountId) => captureSharedSessionGuard(accountId, WORKER_ID),
 };
 
 export async function performReLogin(
@@ -953,6 +965,8 @@ export async function performReLogin(
     runtime: ReLoginRuntime = DEFAULT_RELOGIN_RUNTIME
 ): Promise<boolean> {
     let lastError: string = 'Login failed';
+    // Capture ownership before HTTP. Never publish a late result under a newer owner's guard.
+    const sharedGuard = executionLease ? undefined : await runtime.captureSharedSessionGuard?.(account.id);
 
     for (let attempt = 1; attempt <= MAX_LOGIN_RETRIES; attempt++) {
         try {
@@ -962,9 +976,6 @@ export async function performReLogin(
 
             // Clear cached session on first attempt only
             if (attempt === 1) {
-                if (!executionLease) {
-                    await deleteSessionFromCache(account.id, route.routeKey);
-                }
                 httpClient.invalidateSession();
             }
 
@@ -999,8 +1010,9 @@ export async function performReLogin(
 
                         if (!loginWithCaptcha.success) {
                             lastError = loginWithCaptcha.error || 'Login failed after CAPTCHA';
-                            await runtime.trackCredentialLoginFailure(account.id, lastError);
+                            await runtime.trackCredentialLoginFailure(account.id, lastError, httpClient.getLoginTrackingRevision?.());
                             console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
+                            if (loginWithCaptcha.retryable === false) return false;
 
                             if (attempt < MAX_LOGIN_RETRIES) {
                                 console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
@@ -1012,7 +1024,7 @@ export async function performReLogin(
                         console.log(`[HTTP] ✅ Login with CAPTCHA successful on attempt ${attempt}`);
                     } catch (captchaError: unknown) {
                         if (isProviderExecutionLeaseLostError(captchaError)) throw captchaError;
-                        lastError = `CAPTCHA auto-solve failed: ${getErrMsg(captchaError)}`;
+                        lastError = 'CAPTCHA auto-solve failed';
                         console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${lastError}`);
 
                         if (attempt < MAX_LOGIN_RETRIES) {
@@ -1024,12 +1036,13 @@ export async function performReLogin(
                 } else {
                     lastError = 'Re-login requires CAPTCHA but no API key configured';
                     // Don't retry for missing API key — won't change between attempts
-                    throw new Error(lastError);
+                    return false;
                 }
             } else if (!loginResult.success) {
                 lastError = loginResult.error || 'Login failed';
-                await runtime.trackCredentialLoginFailure(account.id, lastError);
+                await runtime.trackCredentialLoginFailure(account.id, lastError, httpClient.getLoginTrackingRevision?.());
                 console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
+                if (loginResult.retryable === false) return false;
 
                 if (attempt < MAX_LOGIN_RETRIES) {
                     console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
@@ -1039,7 +1052,7 @@ export async function performReLogin(
             }
 
             // === LOGIN SUCCESS ===
-            await runtime.trackFreshLoginSuccess(account.id);
+            await runtime.trackFreshLoginSuccess(account.id, httpClient.getLoginTrackingRevision?.());
 
             // Save new session to cache
             await runtime.assertExecutionLeaseCurrent(executionLease);
@@ -1056,13 +1069,13 @@ export async function performReLogin(
                     accountId: account.id,
                     routeKey: route.routeKey,
                     session: sharedSession,
-                    ttlSeconds: httpClient.getSessionTimeout(),
+                    ttlSeconds: httpClient.getSessionTimeout() * 60,
                     lease: executionLease,
                 });
                 if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
                 await runtime.assertExecutionLeaseCurrent(executionLease);
-            } else {
-                await saveSessionToCache(account.id, route.routeKey, sharedSession, httpClient.getSessionTimeout());
+            } else if (sharedGuard) {
+                await saveSessionToCache(account.id, route.routeKey, sharedSession, httpClient.getSessionTimeout(), sharedGuard);
             }
             console.log(`[HTTP] ✅ Fresh login successful for ${operationName} (attempt ${attempt})`);
 
@@ -1070,7 +1083,8 @@ export async function performReLogin(
 
         } catch (error: unknown) {
             if (isProviderExecutionLeaseLostError(error)) throw error;
-            lastError = getErrMsg(error);
+            if (getErrMsg(error) === 'ACCOUNT_SESSION_GUARD_LOST') throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
+            lastError = 'Login attempt could not complete';
             console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} threw: ${lastError}`);
 
             if (attempt < MAX_LOGIN_RETRIES) {
@@ -1118,7 +1132,8 @@ async function withSessionRetry<T>(
         }
 
         console.log(`[HTTP] ⚠️ Session expired (thrown) during ${operationName}, performing fresh login...`);
-        await performReLogin(httpClient, account, route, operationName, executionLease);
+        if (!await performReLogin(httpClient, account, route, operationName, executionLease))
+            throw new Error('PROVIDER_LOGIN_UNAVAILABLE');
 
         // Retry the operation once
         return await operation();
@@ -1133,7 +1148,8 @@ async function withSessionRetry<T>(
             console.log(`[HTTP] ⚠️ Session expired (returned) during ${operationName}, performing fresh login...`);
             console.log(`[HTTP] Error was: ${resultObj.error}`);
 
-            await performReLogin(httpClient, account, route, operationName, executionLease);
+            if (!await performReLogin(httpClient, account, route, operationName, executionLease))
+                throw new Error('PROVIDER_LOGIN_UNAVAILABLE');
 
             // Retry the operation once
             console.log(`[HTTP] 🔄 Retrying ${operationName} after re-login...`);
@@ -1563,6 +1579,7 @@ async function handleStartRenewalHttp(
     const startHeartbeat = startReservation ? startExecutionLeaseHeartbeat(accountPool, startReservation.lease) : null;
     try {
     await startHeartbeat?.assertCurrent();
+    const sharedGuard = startReservation ? undefined : await captureSharedSessionGuard(selectedAccount.id, accountPool.getWorkerId(), operationId);
     const route = await resolveOperationRoute(selectedAccount, {
         operationId,
         ignoreSnapshot: true
@@ -1696,8 +1713,7 @@ async function handleStartRenewalHttp(
             if (!loginWithCaptcha.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginWithCaptcha.error || 'Login failed after CAPTCHA'
-                );
+                    loginWithCaptcha.error || 'Login failed after CAPTCHA', client.getLoginTrackingRevision?.());
                 // Release lock before throwing
                 await releaseLoginLock(selectedAccount.id, WORKER_ID);
                 throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
@@ -1705,23 +1721,31 @@ async function handleStartRenewalHttp(
         } else if (!loginResult.success) {
             await trackCredentialLoginFailure(
                 selectedAccount.id,
-                loginResult.error || 'Login failed'
-            );
+                loginResult.error || 'Login failed', client.getLoginTrackingRevision?.());
             // Release lock before throwing
             await releaseLoginLock(selectedAccount.id, WORKER_ID);
             throw new Error(loginResult.error || 'Login failed');
         }
 
-        await trackFreshLoginSuccess(selectedAccount.id);
+        await trackFreshLoginSuccess(selectedAccount.id, client.getLoginTrackingRevision?.());
 
         // Login successful - save session to Redis cache
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(selectedAccount.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
+            if (startReservation) {
+                const saved = await saveSessionToCacheFenced(getRedisConnection(), {
+                    accountId: selectedAccount.id, routeKey: route.routeKey,
+                    session: prepareSharedSessionForCache(sessionData), ttlSeconds: sessionTimeout * 60, lease: startReservation.lease,
+                });
+                if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
+            } else if (sharedGuard) {
+                await saveSessionToCache(selectedAccount.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout, sharedGuard);
+            }
             console.log(`[HTTP] 💾 Session saved to Redis cache (TTL: ${sessionTimeout} min)`);
         } catch (saveError) {
-            console.error(`[HTTP] ⚠️ Failed to save session to cache:`, saveError);
+            if (isProviderExecutionLeaseLostError(saveError) || getErrMsg(saveError) === 'ACCOUNT_SESSION_GUARD_LOST') throw saveError;
+            console.error('[HTTP] Failed to save reusable login session');
         }
 
         // Release login lock
@@ -1996,7 +2020,8 @@ async function handleApplyPromoHttp(
         if (current.renewalFlowVersion === 2 && (!restored || !client.isSessionActive()))
             throw new Error('PROMO_OPERATION_SESSION_EXPIRED');
         if (current.renewalFlowVersion !== 2 && (!client.isSessionActive() || !await client.validateSession())) {
-            await performReLogin(client, reserved.account, route, 'promoQuoteRefresh', reserved.lease);
+            if (!await performReLogin(client, reserved.account, route, 'promoQuoteRefresh', reserved.lease))
+                throw new Error('PROVIDER_LOGIN_UNAVAILABLE');
         }
         const context = parseResponseDataObject(current.responseData);
         const result = await refreshPromoPackages(client, {
@@ -2349,7 +2374,8 @@ async function attemptPurchaseWithAccount(
             if (!restored || !client.isSessionActive()) throw new Error('PACKAGE_SESSION_EXPIRED');
         } else if (!client.isSessionActive() || !await client.validateSession()) {
             await updateProgress(operationId, 'Logging in...');
-            await performReLogin(client, account, route, 'renewalBaselinePreparation', reservedExecution.lease);
+            if (!await performReLogin(client, account, route, 'renewalBaselinePreparation', reservedExecution.lease))
+                throw new Error('PROVIDER_LOGIN_UNAVAILABLE');
         }
         await leaseHeartbeat.assertCurrent();
 
@@ -3514,11 +3540,10 @@ async function handleVerifyRenewalFulfillmentHttp(
         try {
             await heartbeat.assertCurrent();
             const route = await resolveOperationRoute(reserved.account, {
-                operationId, responseData: operation.responseData, legacyFallback: true });
+                operationId, ignoreSnapshot: true });
             const client = await createOperationClient(reserved.account, route);
-            const restored = await restoreOperationSession(operationId, operation.responseData, client, route)
-                .catch(() => false);
-            if (!restored || !client.isSessionActive()) {
+            // Verification reads never restore purchase cookies/ViewState or rewrite its route.
+            if (!client.isSessionActive() || !await client.validateSession()) {
                 const loggedIn = await performReLogin(client, reserved.account, route,
                     'sameDayReportReadOnlyRetry', reserved.lease);
                 if (!loggedIn) throw new Error('FULFILLMENT_READ_SESSION_UNAVAILABLE');
@@ -3578,17 +3603,10 @@ async function handleVerifyRenewalFulfillmentHttp(
         await heartbeat.assertCurrent();
         const route = await resolveOperationRoute(reserved.account, {
             operationId,
-            responseData: operation.responseData,
-            legacyFallback: true,
+            ignoreSnapshot: true,
         });
         const client = await createOperationClient(reserved.account, route);
-        const restored = await restoreOperationSession(
-            operationId,
-            operation.responseData,
-            client,
-            route
-        );
-        if (!restored || !client.isSessionActive() || !await client.validateSession()) {
+        if (!client.isSessionActive() || !await client.validateSession()) {
             const loggedIn = await performReLogin(
                 client,
                 reserved.account,
@@ -4894,21 +4912,20 @@ async function handleSignalRefreshHttp(
                 if (!loginWithCaptcha.success) {
                     await trackCredentialLoginFailure(
                         account.id,
-                        loginWithCaptcha.error || 'Login failed after CAPTCHA'
-                    );
+                        loginWithCaptcha.error || 'Login failed after CAPTCHA', httpClient.getLoginTrackingRevision?.());
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
                 console.log('🔑 [HTTP] Login with CAPTCHA successful');
             } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
+                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed', httpClient.getLoginTrackingRevision?.());
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             } else {
                 console.log('🔑 [HTTP] Login successful');
             }
 
-            await trackFreshLoginSuccess(account.id);
+            await trackFreshLoginSuccess(account.id, httpClient.getLoginTrackingRevision?.());
 
             // Save session to cache after successful login
             try {
@@ -4918,7 +4935,7 @@ async function handleSignalRefreshHttp(
                     accountId: account.id,
                     routeKey: route.routeKey,
                     session: prepareSharedSessionForCache(sessionData),
-                    ttlSeconds: sessionTimeout,
+                    ttlSeconds: sessionTimeout * 60,
                     lease: reservedSignalRefreshExecution.lease,
                 });
                 if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
@@ -5170,18 +5187,17 @@ async function handleSignalCheckHttp(
                 if (!loginWithCaptcha.success) {
                     await trackCredentialLoginFailure(
                         account.id,
-                        loginWithCaptcha.error || 'Login failed after CAPTCHA'
-                    );
+                        loginWithCaptcha.error || 'Login failed after CAPTCHA', httpClient.getLoginTrackingRevision?.());
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
             } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
+                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed', httpClient.getLoginTrackingRevision?.());
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             }
 
-            await trackFreshLoginSuccess(account.id);
+            await trackFreshLoginSuccess(account.id, httpClient.getLoginTrackingRevision?.());
 
             // Login successful - save session to Redis cache
             try {
@@ -5191,7 +5207,7 @@ async function handleSignalCheckHttp(
                         accountId: account.id,
                         routeKey: route.routeKey,
                         session: prepareSharedSessionForCache(loginSessionData),
-                        ttlSeconds: sessionTimeout,
+                        ttlSeconds: sessionTimeout * 60,
                         lease: reservedSignalExecution.lease,
                     });
                     if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
@@ -5566,6 +5582,7 @@ async function handleCheckAccountBalance(
 
     try {
         await assertBalanceGuardOwnership();
+        const sharedGuard = await captureSharedSessionGuard(accountId, workerId, guardOperationId);
         const reservationAfterGuard = await findActiveProviderAccountReservationForAccount(
             prisma,
             accountId
@@ -5614,19 +5631,20 @@ async function handleCheckAccountBalance(
         }
 
         if (!loginResult.success) {
-            await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed');
+            await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed', client.getLoginTrackingRevision?.());
             throw new Error(loginResult.error || 'Login failed');
         }
 
-        await trackFreshLoginSuccess(account.id);
+        await trackFreshLoginSuccess(account.id, client.getLoginTrackingRevision?.());
 
         // Save session to cache
         try {
             const sessionData = await client.exportSession();
             const sessionTimeout = client.getSessionTimeout();
-            await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout);
+            if (sharedGuard) await saveSessionToCache(account.id, route.routeKey, prepareSharedSessionForCache(sessionData), sessionTimeout, sharedGuard);
         } catch (saveError) {
-            console.error('[HTTP] Failed to save session:', saveError);
+            if (getErrMsg(saveError) === 'ACCOUNT_SESSION_GUARD_LOST') throw balanceGuardLostError();
+            console.error('[HTTP] Failed to save reusable balance session');
         }
     }
 
@@ -5846,21 +5864,19 @@ async function handleStartInstallmentHttp(
             if (!loginWithCaptcha.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginWithCaptcha.error || 'Login failed after CAPTCHA'
-                );
+                    loginWithCaptcha.error || 'Login failed after CAPTCHA', client.getLoginTrackingRevision?.());
                 await releaseLoginLock(selectedAccount.id, WORKER_ID);
                 throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
             }
         } else if (!loginResult.success) {
             await trackCredentialLoginFailure(
                 selectedAccount.id,
-                loginResult.error || 'Login failed'
-            );
+                loginResult.error || 'Login failed', client.getLoginTrackingRevision?.());
             await releaseLoginLock(selectedAccount.id, WORKER_ID);
             throw new Error(loginResult.error || 'Login failed');
         }
 
-        await trackFreshLoginSuccess(selectedAccount.id);
+        await trackFreshLoginSuccess(selectedAccount.id, client.getLoginTrackingRevision?.());
 
         // Save session to cache
         try {
@@ -5870,7 +5886,7 @@ async function handleStartInstallmentHttp(
                 accountId: selectedAccount.id,
                 routeKey: route.routeKey,
                 session: prepareSharedSessionForCache(sessionData),
-                ttlSeconds: sessionTimeout,
+                ttlSeconds: sessionTimeout * 60,
                 lease: reservedInstallmentExecution.lease,
             });
             if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
@@ -6080,11 +6096,10 @@ async function handleConfirmInstallmentHttp(
             if (!loginResult.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginResult.error || 'Login failed'
-                );
+                    loginResult.error || 'Login failed', client.getLoginTrackingRevision?.());
                 throw new Error(loginResult.error || 'Login failed for installment confirm');
             }
-            await trackFreshLoginSuccess(selectedAccount.id);
+            await trackFreshLoginSuccess(selectedAccount.id, client.getLoginTrackingRevision?.());
             // Save session to cache
             try {
                 const sessionData = await client.exportSession();
@@ -6093,7 +6108,7 @@ async function handleConfirmInstallmentHttp(
                     accountId: selectedAccount.id,
                     routeKey: route.routeKey,
                     session: prepareSharedSessionForCache(sessionData),
-                    ttlSeconds: sessionTimeout,
+                    ttlSeconds: sessionTimeout * 60,
                     lease: reservedInstallmentExecution.lease,
                 });
                 if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');

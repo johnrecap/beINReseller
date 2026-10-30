@@ -1,4 +1,5 @@
 import {usePanelCommand} from '@/hooks/usePanelRequest';
+import {Toaster} from '@/components/ui/sonner';
 import {operationsPayload} from './tests/browser/fixtures/panel-operations-data';
 import {financialReportData} from './tests/browser/fixtures/panel-financial-report-data';
 import Logs from '@/components/admin/LogsTable';
@@ -42,6 +43,7 @@ function statsPayload(id, moreTx, moreOp) {
 function StatsFixture(){const[id,setId]=React.useState('stats-a');React.useEffect(()=>{window.switchStatsUser=()=>setId('stats-b');return()=>{delete window.switchStatsUser}},[]);return <UserStats isOpen userId={id} username={id} onClose={()=>window.panelClosed=true} statsEndpoint={c.managerStats?'/api/manager/users/'+id+'/stats':undefined} canCorrectBalance={!c.managerStats} canViewReceipts={!c.managerStats}/>}
 function InactiveFixture(){const[filters,setFilters]=React.useState({days:30,sortBy:'lastLogin',sortOrder:'desc'});const[page,setPage]=React.useState(1);return <InactiveUsersTable users={[{id:'inactive',username:'synthetic-inactive',email:'long-synthetic-email@example.invalid',role:'USER',lastLoginAt:new Date('2026-07-01T00:00:00Z'),lastOperationAt:null,daysSinceLastActivity:69,loginCount:12,totalOperations:31,activityStatus:'critical',createdAt:new Date('2026-01-01T00:00:00Z')}]} total={21} page={page} limit={10} totalPages={3} filters={filters} onFiltersChange={delta=>{window.filterChanges.push(delta);setFilters(old=>({...old,...delta}));setPage(1)}} onPageChange={setPage} onViewUser={id=>window.viewedUser=id}/>}
 window.routes=[];window.requests=[];window.qaText={ar,en,bn}[c.language];window.filterChanges=[];window.auditAlerts=[];window.alert=m=>window.auditAlerts.push(String(m));
+if(c.view==='loginMonitor'){const toastRoot=document.createElement('div');document.body.append(toastRoot);createRoot(toastRoot).render(<Toaster position="top-center" richColors/>);}
 if(c.manualHandoff){window.opened=[];window.copied=[];window.open=(url)=>{const item={location:{href:url},close:()=>{item.closed=true}};window.opened.push(item);return item;};Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copied.push(text)}}});}
 if(c.view==='receipt')window.print=()=>{window.printed=(window.printed||0)+1};
 if(c.view==='activeOperations'||c.beinPositive||c.view==='proxies')window.confirm=()=>true;
@@ -119,7 +121,7 @@ if(c.view==='proxies'&&String(url)==='/api/admin/proxies/import'&&JSON.parse(o.b
 if(c.commandHang && ['PATCH','POST','PUT','DELETE'].includes(o.method))return new Promise(()=>{});
 if(c.commandBodyHang && ['PATCH','POST','PUT','DELETE'].includes(o.method))return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode('{'));}}));
 if(c.commandBadBody && ['PATCH','POST','PUT','DELETE'].includes(o.method))return new Response('{');
-if(c.writeFailure && ['PATCH','POST','PUT','DELETE'].includes(o.method)){if(c.holdWrite)await new Promise(resolve=>window.releaseWrite=resolve);else await new Promise(r=>setTimeout(r,350));return Response.json({error:'Synthetic rejection'},{status:c.writeStatus||500});}
+if(c.writeFailure && ['PATCH','POST','PUT','DELETE'].includes(o.method)){if(c.holdWrite)await new Promise(resolve=>window.releaseWrite=resolve);else await new Promise(r=>setTimeout(r,350));return Response.json({error:'Synthetic rejection',code:c.writeStatus===409?'BEIN_ACCOUNT_BUSY':undefined},{status:c.writeStatus||500});}
 if(c.writeSuccess && ['PATCH','POST','PUT','DELETE'].includes(o.method)) return Response.json({success:true,...(c.beinPositive||c.view==='proxies'?{balance:222,result:{ip:'192.0.2.10'}}:{}),user:{id:'synthetic-created'},...(c.manualHandoff&&String(url).endsWith('/decision')&&JSON.parse(o.body).decision==='APPROVE'?{whatsappHandoff:{id:'synthetic-handoff',destinationLabel:'Synthetic group',groupUrl:'https://example.invalid/group',phone:'0000000000',phoneUrl:'https://example.invalid/user',messageText:'Synthetic message only',groupOpenAvailable:true,phoneOpenAvailable:true,createdAt:'2026-09-08T00:00:00Z'}}:{})});
 const opsPayload=financialReportData(url,c)||operationsPayload(url,c);
 if(opsPayload && (!o.method || o.method==='GET')) {

@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "scope": "027 planning artifact consistency rechecked after local implementation; historical pre-implementation report retained; production NOT_VERIFIED; register: specs/036-audit-remediation/audit-register.md",
+  "result": "PASS",
+  "contract_sha256": "2caf905cc7a35a6c9acfa9d4a9390219ab2fe75bc560b874d69b9a2b4978d1a7",
+  "validator_sha256": "e40a4231f09aad286608ae0e8f92cd1d11c4cf35df35be4e78c17a08a6b83c76",
+  "errors": [],
+  "units": [
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Tasks: beIN Connection Mode",
+      "original_heading": "Tasks: [FEATURE NAME]",
+      "required_fields": [
+        "Input",
+        "Prerequisites",
+        "Tests",
+        "Organization"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Format and paths",
+      "original_heading": "Format: `[ID] [P?] [Story] Description`",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Required Detail Block For Every Task",
+      "original_heading": "Required Detail Block For Every Task",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Path Conventions",
+      "original_heading": "Path Conventions",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Phase 1: Setup (Test Seams First)",
+      "original_heading": "Phase 1: Setup (Shared Infrastructure)",
+      "required_fields": [
+        "Purpose"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Phase 2: Foundational (Shared Contracts)",
+      "original_heading": "Phase 2: Foundational (Blocking Prerequisites)",
+      "required_fields": [
+        "Purpose",
+        "⚠️ CRITICAL",
+        "Checkpoint"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Phase 3: User Story 1 - Switch beIN Connection Mode Safely (Priority: P1) MVP",
+      "original_heading": "Phase 3: User Story 1 - [Title] (Priority: P1) 🎯 MVP",
+      "required_fields": [
+        "Goal",
+        "Independent Test"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Tests for User Story 1",
+      "original_heading": "Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Implementation for User Story 1",
+      "original_heading": "Implementation for User Story 1",
+      "required_fields": [
+        "Checkpoint"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Phase 4: User Story 2 - Keep Each Operation On One Route (Priority: P1)",
+      "original_heading": "Phase 4: User Story 2 - [Title] (Priority: P2)",
+      "required_fields": [
+        "Goal",
+        "Independent Test"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Tests for User Story 2",
+      "original_heading": "Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Implementation for User Story 2",
+      "original_heading": "Implementation for User Story 2",
+      "required_fields": [
+        "Checkpoint"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Phase 5: User Story 3 - Keep Sessions Route-Safe (Priority: P1)",
+      "original_heading": "Phase 5: User Story 3 - [Title] (Priority: P3)",
+      "required_fields": [
+        "Goal",
+        "Independent Test"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Tests for User Story 3",
+      "original_heading": "Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Implementation for User Story 3",
+      "original_heading": "Implementation for User Story 3",
+      "required_fields": [
+        "Checkpoint"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Phase 8: Polish & Cross-Cutting Verification",
+      "original_heading": "Phase N: Polish & Cross-Cutting Concerns",
+      "required_fields": [
+        "Purpose"
+      ]
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Dependencies & Execution Order",
+      "original_heading": "Dependencies & Execution Order",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Phase Dependencies",
+      "original_heading": "Phase Dependencies",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "User Story Dependencies",
+      "original_heading": "User Story Dependencies",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Within Each User Story",
+      "original_heading": "Within Each User Story",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Parallel Opportunities",
+      "original_heading": "Parallel Opportunities",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Parallel Example: User Story 1",
+      "original_heading": "Parallel Example: User Story 1",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Implementation Strategy",
+      "original_heading": "Implementation Strategy",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "MVP First",
+      "original_heading": "MVP First (User Story 1 Only)",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Incremental Delivery",
+      "original_heading": "Incremental Delivery",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Parallel Team Strategy",
+      "original_heading": "Parallel Team Strategy",
+      "required_fields": []
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "heading": "Notes",
+      "original_heading": "Notes",
+      "required_fields": []
+    }
+  ],
+  "snapshots": {
+    ".specify/templates/tasks-template.md": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108",
+    "specs/027-bein-connection-mode/spec.md": "bad13ba43b3ce081f9db7b02f9794ef821e0ba585ff3afb40a0e39099459f38b",
+    "specs/027-bein-connection-mode/tasks.md": "7d029afaff3e6c3e77ed7314be6ecbae87d850a6c76512ee77e885d85596af05",
+    "specs/027-bein-connection-mode/analysis.md": "c1c4422ff46a72971c115cc8568b275707ad3aa9af5862e9cbb3cbed57bf7b45"
+  },
+  "limits": "PASS verifies the declared contract only. It cannot prove complete requirement selection, source reading, semantic judgment, or author approval."
+}

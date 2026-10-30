@@ -1,5 +1,11 @@
 # Data Model: beIN Connection Mode
 
+## 2026-10-30 recovery amendment
+
+No new schema/index/backfill. BeinAccount remains source of truth for isActive, consecutiveLoginFailures, lastLoginAttemptAt, lastLoginFailureAt, lastLoginFailureReason and lastSuccessfulLoginAt. Classifier metadata is transient/compatible; historical strings are conservatively projected, never rewritten by inference. Counter increment plus threshold disable is one atomic write under account ownership. Recovery resets selected fields transactionally and invalidates reusable sessions under the same ownership. Existing operation route metadata, financial evidence, balances, invoices and reservations are unchanged.
+
+LoginResult adds optional failureCategory/failureCode/httpStatus/retryable. Shared session identity remains account+route; read jobs have a fresh current-route client with no purchase ViewState import. Admin counter-only reset and reset-and-activate are distinct state transitions; neither succeeds on a busy/reserved account.
+
 ## ConnectionModeSetting
 
 **Represents**: The admin-selected global route strategy for new beIN worker actions.

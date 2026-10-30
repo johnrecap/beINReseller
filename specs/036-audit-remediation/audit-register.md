@@ -1,5 +1,19 @@
 # سجل نتائج المراجعة وخريطة الإصلاح
 
+## Login/proxy recovery — 2026-10-30
+
+Explicit Spec Kit implementation authorization; manual ADMIN activation only, all connected incident paths, no subagents. Canonical amendment/tasks: ../027-bein-connection-mode/. Historical missing evidence/plan-guard.json remains NOT_VERIFIED; no old acceptance is inferred.
+
+| Requirement/source | Action/check | State/evidence |
+| --- | --- | --- |
+| User accepted plan; Spec Kit governance | Restore CLI, amend 027/contracts, checklist/tasks/analyze, preserve 036 financial fences | VERIFIED locally: ../027-bein-connection-mode/analysis.md; CLI 1.2.5, six existing customizations preserved |
+| FR-021–024; connected-impact/TDD/auth | Read-only route exception, typed HTTP errors, positive authentication, atomic/fenced tracking, all consumers | VERIFIED locally: ../027-bein-connection-mode/evidence/verification.md; 543 worker cases and native SQL/Redis-API races |
+| FR-025–027; API/localization/data/privacy | Owned single-account recovery, no foreign lock/rate/financial mutation, ar/en/bn review UI | VERIFIED locally: 922 root cases, 102 browser checks; current source fingerprints in 027 evidence |
+| Always-on/templates/docs/memory | Current original-template check, semantic source review, guide and ledger | Local current results recorded in 027 evidence and PROJECT_MEMORY.md / UPD-20261030-001; no historical 036 closure |
+| FR-028 deployment | Drain/parity/rollback, manual restore, fresh login and two KeepAlive cycles | NOT_VERIFIED: local runbook does not prove live acceptance |
+
+Native test runtime was PostgreSQL 17.11 + Memurai-for-Redis 8.2.0 on Windows, isolated and disposable. Linux/production compatibility, the missing historical 036 contract and prior release obligations remain NOT_VERIFIED. No new migration, financial replay, provider access, production reset or subagents.
+
 ## Account availability continuation — 2026-10-13
 
 Authorized: remove beIN account cooldowns only; retain the requested five-minute card cooldown, account ownership, financial review and request-rate limits. User-supplied read-only server output shows 45 accounts, 42 inactive and three active accounts reserved by COMPLETED operations, with no account cooldown dates. The user confirms these were paid renewals. This establishes reservation/inactivity as the current capacity blocker, not cooldown; completion evidence and deployed code remain unknown. Subsequent authorization explicitly requires releasing the execution account when an operation ends, without removing historical account attribution. Local work only, no subagents or provider mutations.

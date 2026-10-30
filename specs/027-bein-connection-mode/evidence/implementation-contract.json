@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "scope": "027 T032-T045 local implementation and handoff only. Existing register: specs/036-audit-remediation/audit-register.md. Production/provider acceptance, Linux PM2 rehearsal, prior 036 gaps and author approval are NOT_VERIFIED and excluded from this local closure. Semantic review is separate in verification.md and analysis.md.",
+  "sources": [
+    {
+      "path": ".specify/templates/tasks-template.md",
+      "sha256": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108"
+    },
+    {
+      "path": ".specify/memory/constitution.md",
+      "sha256": "904c785fd7f1aeb7a3c5c8a5c72a804b6ef0304d9d929199a46f7969bd75d8a5"
+    },
+    {
+      "path": "specs/027-bein-connection-mode/spec.md",
+      "sha256": "bad13ba43b3ce081f9db7b02f9794ef821e0ba585ff3afb40a0e39099459f38b"
+    },
+    {
+      "path": "specs/027-bein-connection-mode/plan.md",
+      "sha256": "78d304d82b20e96e99ed309d10405af396a665641bcf61b304d5322ac65cb9a7"
+    },
+    {
+      "path": "specs/027-bein-connection-mode/tasks.md",
+      "sha256": "7d029afaff3e6c3e77ed7314be6ecbae87d850a6c76512ee77e885d85596af05"
+    },
+    {
+      "path": "specs/027-bein-connection-mode/evidence/verification-results.json",
+      "sha256": "7bb95efbdc1cd6f3b15736d2ad8efc4201990c5af49a4e37f7db88fd3802e4c9"
+    }
+  ],
+  "templates": [
+    {
+      "path": ".specify/templates/tasks-template.md",
+      "sha256": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108",
+      "heading": "Required Detail Block For Every Task",
+      "unit_heading_pattern": "^- \\[[ xX]\\] (T\\d{3})\\b",
+      "artifacts": [
+        {
+          "path": "specs/027-bein-connection-mode/tasks.md",
+          "expected_ids": [
+            "T001",
+            "T002",
+            "T003",
+            "T004",
+            "T005",
+            "T006",
+            "T007",
+            "T008",
+            "T009",
+            "T010",
+            "T011",
+            "T012",
+            "T013",
+            "T014",
+            "T015",
+            "T016",
+            "T017",
+            "T018",
+            "T019",
+            "T020",
+            "T021",
+            "T022",
+            "T023",
+            "T024",
+            "T025",
+            "T026",
+            "T027",
+            "T028",
+            "T029",
+            "T030",
+            "T031",
+            "T032",
+            "T033",
+            "T034",
+            "T035",
+            "T036",
+            "T037",
+            "T038",
+            "T039",
+            "T040",
+            "T041",
+            "T042",
+            "T043",
+            "T044",
+            "T045"
+          ],
+          "heading_bindings": {
+            "Tasks: [FEATURE NAME]": "Tasks: beIN Connection Mode",
+            "Format: `[ID] [P?] [Story] Description`": "Format and paths",
+            "Phase 1: Setup (Shared Infrastructure)": "Phase 1: Setup (Test Seams First)",
+            "Phase 2: Foundational (Blocking Prerequisites)": "Phase 2: Foundational (Shared Contracts)",
+            "Phase 3: User Story 1 - [Title] (Priority: P1) 🎯 MVP": "Phase 3: User Story 1 - Switch beIN Connection Mode Safely (Priority: P1) MVP",
+            "Phase 4: User Story 2 - [Title] (Priority: P2)": "Phase 4: User Story 2 - Keep Each Operation On One Route (Priority: P1)",
+            "Phase 5: User Story 3 - [Title] (Priority: P3)": "Phase 5: User Story 3 - Keep Sessions Route-Safe (Priority: P1)",
+            "Phase N: Polish & Cross-Cutting Concerns": "Phase 8: Polish & Cross-Cutting Verification",
+            "MVP First (User Story 1 Only)": "MVP First",
+            "Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️": "Tests for User Story 1",
+            "Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️": "Tests for User Story 2",
+            "Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️": "Tests for User Story 3"
+          }
+        }
+      ],
+      "format": "speckit-markdown"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "027-T032",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T032 [US6] Restore CLI and inspect existing integration in `specs/027-bein-connection-mode/research.md`",
+      "action": "T032 [US6] Restore CLI and inspect existing integration in `specs/027-bein-connection-mode/research.md`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "CLI 1.2.5; zero missing managed files"
+        }
+      ]
+    },
+    {
+      "id": "027-T033",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T033 [US6] Amend specification, design and contracts in `specs/027-bein-connection-mode/{spec,plan,research,data-model,quickstart}.md and contracts/`",
+      "action": "T033 [US6] Amend specification, design and contracts in `specs/027-bein-connection-mode/{spec,plan,research,data-model,quickstart}.md and contracts/`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/analysis.md",
+          "sha256": "c1c4422ff46a72971c115cc8568b275707ad3aa9af5862e9cbb3cbed57bf7b45",
+          "quote": "Current code, tests, original task detail fields and evidence were reviewed against 28 functional requirements, nine success criteria, six stories, ten incident acceptance rows, six implementation stages and all five constitution principles."
+        }
+      ]
+    },
+    {
+      "id": "027-T034",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T034 [US6] Validate requirements checklist and scoped analyze in `specs/027-bein-connection-mode/{checklists/incident-requirements,analysis}.md`",
+      "action": "T034 [US6] Validate requirements checklist and scoped analyze in `specs/027-bein-connection-mode/{checklists/incident-requirements,analysis}.md`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/analysis.md",
+          "sha256": "c1c4422ff46a72971c115cc8568b275707ad3aa9af5862e9cbb3cbed57bf7b45",
+          "quote": "Requirement-quality checklist 10/10 reviewed. Zero unresolved CRITICAL/HIGH/MEDIUM design findings."
+        }
+      ]
+    },
+    {
+      "id": "027-T035",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T035 [US6] Reproduce HTTP classification and false-success incident in `worker/tests/login-failure-classification.test.ts`",
+      "action": "T035 [US6] Reproduce HTTP classification and false-success incident in `worker/tests/login-failure-classification.test.ts`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "The original HTTP-boundary tests failed on GET/POST/tunnel transport classification and false login success."
+        }
+      ]
+    },
+    {
+      "id": "027-T036",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T036 [US6] Reproduce deferred route and unsafe reset in `worker/tests/deferred-verification-route.test.ts; tests/unit/bein-account-recovery.test.ts`",
+      "action": "T036 [US6] Reproduce deferred route and unsafe reset in `worker/tests/deferred-verification-route.test.ts; tests/unit/bein-account-recovery.test.ts`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "The actual v1/v2 queue-handler fixture observed assigned proxy instead of current direct mode. The real reset endpoints returned success on a foreign lock."
+        }
+      ]
+    },
+    {
+      "id": "027-T037",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T037 [US6] Classify login and require authenticated evidence in `shared/bein/login-failure.ts; worker/src/http/{types,HttpClientService}.ts`",
+      "action": "T037 [US6] Classify login and require authenticated evidence in `shared/bein/login-failure.ts; worker/src/http/{types,HttpClientService}.ts`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "HTTP status checks precede HTML and credential submission, positive authenticated controls are required, and generic responses remain unknown."
+        }
+      ]
+    },
+    {
+      "id": "027-T038",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T038 [US6] Apply classification and atomic tracking to all consumers in `worker/src/lib/{bein-login-tracking,session-keepalive,provider-report-reader}.ts; worker/src/http-queue-processor.ts`",
+      "action": "T038 [US6] Apply classification and atomic tracking to all consumers in `worker/src/lib/{bein-login-tracking,session-keepalive,provider-report-reader}.ts; worker/src/http-queue-processor.ts`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "Conditional SQL increments and disables in one statement, advances UTC timestamp precision monotonically, and rejects stale responses after recovery."
+        }
+      ]
+    },
+    {
+      "id": "027-T039",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T039 [US6] Resolve deferred v1/v2 reads using current mode in `worker/src/http-queue-processor.ts; worker/src/lib/bein-connection-mode.ts`",
+      "action": "T039 [US6] Resolve deferred v1/v2 reads using current mode in `worker/src/http-queue-processor.ts; worker/src/lib/bein-connection-mode.ts`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "The fix follows the current route once per deferred read on the original account. Purchase continuation restore and all final Pay/evidence matching remain unchanged."
+        }
+      ]
+    },
+    {
+      "id": "027-T040",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T040 [US6] Isolate deferred read sessions in `worker/src/http-queue-processor.ts; worker/src/lib/session-cache.ts`",
+      "action": "T040 [US6] Isolate deferred read sessions in `worker/src/http-queue-processor.ts; worker/src/lib/session-cache.ts`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "Shared-cookie import strips purchase ViewState/selection/prepared state."
+        }
+      ]
+    },
+    {
+      "id": "027-T041",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T041 [US6] Implement owned manual recovery in `src/lib/bein-account-recovery.ts; src/app/api/admin/bein-accounts/[id]/{reset,login-failures/reset}/route.ts`",
+      "action": "T041 [US6] Implement owned manual recovery in `src/lib/bein-account-recovery.ts; src/app/api/admin/bein-accounts/[id]/{reset,login-failures/reset}/route.ts`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "Both ADMIN endpoints acquire the existing account guard, reject causal reservations/execution leases, invalidate only that account's reusable sessions, and release by exact owner."
+        }
+      ]
+    },
+    {
+      "id": "027-T042",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T042 [US6] Present accurate login review and localized actions in `src/app/api/admin/bein-accounts/login-failures/route.ts; src/components/admin/report-center/LoginMonitorPanel.tsx; src/i18n/translations/{ar,en,bn}.ts`",
+      "action": "T042 [US6] Present accurate login review and localized actions in `src/app/api/admin/bein-accounts/login-failures/route.ts; src/components/admin/report-center/LoginMonitorPanel.tsx; src/i18n/translations/{ar,en,bn}.ts`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "Unknown reasons say login review, while reset-counter copy explicitly says it does not enable the account."
+        }
+      ]
+    },
+    {
+      "id": "027-T043",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T043 [US6] Verify integrated safeguards and current builds in `worker/tests/; tests/unit/; tests/integration/; specs/027-bein-connection-mode/evidence/`",
+      "action": "T043 [US6] Verify integrated safeguards and current builds in `worker/tests/; tests/unit/; tests/integration/; specs/027-bein-connection-mode/evidence/`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "| Report browser harness | 102 passed, no page errors |"
+        }
+      ]
+    },
+    {
+      "id": "027-T044",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T044 [US6] Update safe deployment and project handoff in `specs/027-bein-connection-mode/quickstart.md; docs/PROJECT_GUIDE.md; PROJECT_MEMORY.md; specs/036-audit-remediation/audit-register.md`",
+      "action": "T044 [US6] Update safe deployment and project handoff in `specs/027-bein-connection-mode/quickstart.md; docs/PROJECT_GUIDE.md; PROJECT_MEMORY.md; specs/036-audit-remediation/audit-register.md`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/evidence/verification.md",
+          "sha256": "9bc4bde21b442adb7d312687cdc0560fc8ef6af3fade437e981263cab7617af0",
+          "quote": "NOT_VERIFIED: production source/artifact parity, actual worker inventory/count, drain, release/rollback execution, fresh beIN direct authentication and two complete KeepAlive cycles after one manual activation."
+        }
+      ]
+    },
+    {
+      "id": "027-T045",
+      "source": "specs/027-bein-connection-mode/tasks.md",
+      "source_quote": "T045 [US6] Analyze and converge current implementation in `specs/027-bein-connection-mode/{analysis,tasks}.md and evidence/`",
+      "action": "T045 [US6] Analyze and converge current implementation in `specs/027-bein-connection-mode/{analysis,tasks}.md and evidence/`",
+      "status": "VERIFIED",
+      "reason": "Scoped local completion; external release gates remain in the register.",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/analysis.md",
+          "sha256": "c1c4422ff46a72971c115cc8568b275707ad3aa9af5862e9cbb3cbed57bf7b45",
+          "quote": "Outcome: `converged`; zero tasks appended."
+        }
+      ]
+    }
+  ]
+}

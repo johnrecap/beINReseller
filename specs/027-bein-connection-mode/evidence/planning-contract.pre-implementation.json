@@ -1,0 +1,106 @@
+{
+  "scope": "027 incident planning only; implementation and production NOT_VERIFIED; existing register: specs/036-audit-remediation/audit-register.md",
+  "sources": [
+    {
+      "path": ".specify/templates/tasks-template.md",
+      "sha256": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108"
+    },
+    {
+      "path": "specs/027-bein-connection-mode/spec.md",
+      "sha256": "0d4d97459c100dfa43db59c56dc4ee4764ac91a2d6fcd888c6bf31847482230a"
+    }
+  ],
+  "templates": [
+    {
+      "path": ".specify/templates/tasks-template.md",
+      "sha256": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108",
+      "heading": "Required Detail Block For Every Task",
+      "unit_heading_pattern": "^- \\[[ xX]\\] (T\\d{3})\\b",
+      "artifacts": [
+        {
+          "path": "specs/027-bein-connection-mode/tasks.md",
+          "expected_ids": [
+            "T001",
+            "T002",
+            "T003",
+            "T004",
+            "T005",
+            "T006",
+            "T007",
+            "T008",
+            "T009",
+            "T010",
+            "T011",
+            "T012",
+            "T013",
+            "T014",
+            "T015",
+            "T016",
+            "T017",
+            "T018",
+            "T019",
+            "T020",
+            "T021",
+            "T022",
+            "T023",
+            "T024",
+            "T025",
+            "T026",
+            "T027",
+            "T028",
+            "T029",
+            "T030",
+            "T031",
+            "T032",
+            "T033",
+            "T034",
+            "T035",
+            "T036",
+            "T037",
+            "T038",
+            "T039",
+            "T040",
+            "T041",
+            "T042",
+            "T043",
+            "T044",
+            "T045"
+          ],
+          "heading_bindings": {
+            "Tasks: [FEATURE NAME]": "Tasks: beIN Connection Mode",
+            "Format: `[ID] [P?] [Story] Description`": "Format and paths",
+            "Phase 1: Setup (Shared Infrastructure)": "Phase 1: Setup (Test Seams First)",
+            "Phase 2: Foundational (Blocking Prerequisites)": "Phase 2: Foundational (Shared Contracts)",
+            "Phase 3: User Story 1 - [Title] (Priority: P1) \ud83c\udfaf MVP": "Phase 3: User Story 1 - Switch beIN Connection Mode Safely (Priority: P1) MVP",
+            "Phase 4: User Story 2 - [Title] (Priority: P2)": "Phase 4: User Story 2 - Keep Each Operation On One Route (Priority: P1)",
+            "Phase 5: User Story 3 - [Title] (Priority: P3)": "Phase 5: User Story 3 - Keep Sessions Route-Safe (Priority: P1)",
+            "Phase N: Polish & Cross-Cutting Concerns": "Phase 8: Polish & Cross-Cutting Verification",
+            "MVP First (User Story 1 Only)": "MVP First",
+            "Tests for User Story 1 (OPTIONAL - only if tests requested) \u26a0\ufe0f": "Tests for User Story 1",
+            "Tests for User Story 2 (OPTIONAL - only if tests requested) \u26a0\ufe0f": "Tests for User Story 2",
+            "Tests for User Story 3 (OPTIONAL - only if tests requested) \u26a0\ufe0f": "Tests for User Story 3"
+          }
+        }
+      ],
+      "format": "speckit-markdown"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "027-PLAN",
+      "source": "specs/027-bein-connection-mode/spec.md",
+      "source_quote": "No subagents.",
+      "action": "Trace accepted scope without delegation; see audit-register.md",
+      "status": "VERIFIED",
+      "evidence": [
+        {
+          "path": "specs/027-bein-connection-mode/analysis.md",
+          "sha256": "5b09d23a7f4cccd3df56b19b842bbc6b2c6f587ff1ef5edacc1a28b4c2fba50f",
+          "quote": "Zero unresolved CRITICAL/HIGH/MEDIUM design findings."
+        }
+      ],
+      "reason": "Accepted incident design and original task labels must be checked before source edits."
+    }
+  ],
+  "schema_version": 1
+}

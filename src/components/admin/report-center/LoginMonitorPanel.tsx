@@ -31,6 +31,7 @@ interface LoginFailureAccount {
     lastLoginFailureReason: string | null
     lastSuccessfulLoginAt: string | null
     needsPasswordUpdate: boolean
+    requiresLoginReview?: boolean
 }
 
 interface LoginFailuresResponse {
@@ -103,10 +104,10 @@ export default function LoginMonitorPanel() {
             const data = await res.json()
 
             if (!res.ok || !data.success) {
-                throw new Error(data.error || t.panelUi.reportCopy.resetTrackingFailed)
+                throw new Error(data.code === 'BEIN_ACCOUNT_BUSY' ? t.panelUi.reportCopy.accountBusy : t.panelUi.reportCopy.resetTrackingFailed)
             }
 
-            toast.success(data.message || t.panelUi.reportCopy.resetTrackingSuccess)
+            toast.success(t.panelUi.reportCopy.resetTrackingSuccess)
             await fetchAccounts()
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : t.panelUi.reportCopy.resetTrackingFailed
@@ -226,14 +227,15 @@ export default function LoginMonitorPanel() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-center">
-                                            <Badge variant={account.needsPasswordUpdate ? 'destructive' : 'secondary'}>
-                                                {account.needsPasswordUpdate ? t.panelUi.reportCopy.needsPassword : t.panelUi.reportCopy.belowThreshold}
+                                            <Badge className="min-w-32 justify-center whitespace-normal" variant={account.needsPasswordUpdate ? 'destructive' : 'secondary'}>
+                                                {account.needsPasswordUpdate ? t.panelUi.reportCopy.needsPassword : t.panelUi.reportCopy.needsLoginReview}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
+                                                className="min-w-32 whitespace-normal"
                                                 onClick={() => handleReset(account.id)}
                                                 disabled={resettingAccountId === account.id}
                                             >

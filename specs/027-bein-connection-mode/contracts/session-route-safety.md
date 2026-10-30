@@ -37,4 +37,8 @@ Example identities:
 
 ## Security
 
+## 2026-10-30 read and recovery amendment
+
+Deferred verification clients use only account-and-current-route reusable sessions, stripping purchase ViewState/prepared context. They do not restore operation snapshots or legacy account-only sessions. Pin the selected route for the entire read job, including re-login. Manual recovery acquires the account's existing execution ownership, rejects busy/reserved accounts, invalidates reusable sessions for that account only, and releases by owner comparison. Operation snapshots, reservations, request budgets and foreign locks must survive.
+
 Route keys and route metadata are safe to log. Session bodies, cookies, ViewState, storage state, and secrets are not safe to log.

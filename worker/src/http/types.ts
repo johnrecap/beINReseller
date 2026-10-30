@@ -2,6 +2,7 @@
  * HTTP Client Types for beIN Automation
  */
 import type { PreparedRenewalPurchase, RenewalSummaryEvidence, RenewalSummaryStage } from './renewal-purchase-guard';
+import type { LoginFailure } from '../../../shared/bein/login-failure';
 
 export interface HiddenFields {
     __VIEWSTATE: string;
@@ -37,6 +38,10 @@ export interface LoginResult {
     requiresCaptcha?: boolean;
     captchaImage?: string; // Base64
     error?: string;
+    failureCategory?: LoginFailure['failureCategory'];
+    failureCode?: string;
+    httpStatus?: number;
+    retryable?: boolean;
 }
 
 export interface CheckCardResult {

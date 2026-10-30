@@ -73,9 +73,11 @@ worker/src/http/*.bak_*
 !/docs/deployment/
 /docs/deployment/*
 !/docs/deployment/audit-remediation-release.md
+!/docs/deployment/login-recovery-20261030.md
 /.vscode/
 /testsprite_tests/
 /tmp/
+/.tools/
 
 # Local/project prompt notes and non-runtime handoff docs
 /BEIN_OFFICIAL_FIELDS_AND_FLOWS.md

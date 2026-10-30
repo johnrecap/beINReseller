@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { getBeinLoginFailureThreshold } from '@/lib/get-bein-login-failure-threshold'
+import { isCredentialLoginFailure } from '../../../../../../shared/bein/login-failure'
 
 export async function GET(request: NextRequest) {
     try {
@@ -37,7 +38,9 @@ export async function GET(request: NextRequest) {
             threshold,
             accounts: accounts.map((account) => ({
                 ...account,
-                needsPasswordUpdate: account.consecutiveLoginFailures >= threshold,
+                requiresLoginReview: account.consecutiveLoginFailures >= threshold,
+                needsPasswordUpdate: account.consecutiveLoginFailures >= threshold && isCredentialLoginFailure(account.lastLoginFailureReason ?? undefined),
+                failureCategory: isCredentialLoginFailure(account.lastLoginFailureReason ?? undefined) ? 'credentials' : 'unknown',
             })),
         })
     } catch (error) {

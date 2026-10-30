@@ -9,7 +9,8 @@ export type ProviderReportRow = {
     contractStartDate: string; contractExpiryDate: string; providerAmount: string; currency: 'USD'
 }
 export type ProviderReportError = 'ACCOUNT_BUSY' | 'ACCOUNT_UNAVAILABLE' | 'LOGIN_FAILED' |
-    'CAPTCHA_REQUIRED' | 'REPORT_INCOMPLETE' | 'REPORT_TIMEOUT' | 'REPORT_FAILED' | 'RATE_LIMITED'
+    'CAPTCHA_REQUIRED' | 'REPORT_INCOMPLETE' | 'REPORT_TIMEOUT' | 'REPORT_FAILED' | 'RATE_LIMITED' |
+    'CONNECTION_FAILED' | 'PROVIDER_RATE_LIMITED'
 export type ProviderReportRequest = ProviderReportCriteria & {
     id: string; createdAt: number; deadline: number
     state: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'

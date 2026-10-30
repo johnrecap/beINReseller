@@ -44,6 +44,10 @@
 
 ## Phase 2: Foundational (Shared Contracts)
 
+**⚠️ CRITICAL**: These original shared contracts remain prerequisites for every incident change; do not weaken financial or session ownership.
+
+**Checkpoint**: Re-run current route/session regressions in T043; historical completion is not current verification.
+
 **Purpose**: Implement reusable constants and helpers that block all user-story work.
 
 - [x] T005 Implement shared admin connection-mode constants in `src/lib/bein-connection-mode.ts`
@@ -341,3 +345,163 @@
 ### Production-Safe Increment
 
 Do not deploy only the UI toggle without route-stable worker and session-route safety. The safe minimum is admin setting + worker route resolver + operation snapshots + route-aware sessions.
+
+## Phase 9: 2026-10-30 incident amendment
+
+Sequential single-agent execution. T001–T031 are historical; the following tasks carry current incident evidence.
+
+### Tests for User Story 1
+
+Existing setting tests plus AC01/05 in T036/T039 verify switching current traffic without changing assignments.
+
+### Tests for User Story 2
+
+Operation route snapshots and actual v1/v2 read-handler tests (T036/T039) distinguish pinned mutations from deferred reads.
+
+### Tests for User Story 3
+
+Session key/route tests and T040 three-account fixtures reject legacy/mismatched purchase sessions.
+
+- [x] T032 [US6] Restore CLI and inspect existing integration in `specs/027-bein-connection-mode/research.md`
+  - Reason: Missing CLI prevents verified Spec Kit lifecycle.
+  - Expected: Official version/status receipts; preserve customized templates.
+  - Possible bugs: Forced upgrade destroys project rules.
+  - Fix/Mitigation: Bootstrap only missing skill; no force.
+  - Verification: specify version --features --json; specify integration status --json
+  - Dependencies: none.
+
+- [x] T033 [US6] Amend specification, design and contracts in `specs/027-bein-connection-mode/{spec,plan,research,data-model,quickstart}.md and contracts/`
+  - Reason: FR-021–028 require explicit read exception and ownership policy.
+  - Expected: All AC01–AC10 linked; no purchase route or proof weakening.
+  - Possible bugs: Old pinned-route prose contradicts new read exception.
+  - Fix/Mitigation: Scope exception to deferred verification and original account; preserve history.
+  - Verification: Read current artifacts against accepted plan and constitution.
+  - Dependencies: T032.
+
+- [x] T034 [US6] Validate requirements checklist and scoped analyze in `specs/027-bein-connection-mode/{checklists/incident-requirements,analysis}.md`
+  - Reason: No source changes before a consistent plan.
+  - Expected: Zero unresolved CRITICAL/HIGH; each requirement has task and check.
+  - Possible bugs: Historical 036 PASS inferred from partial evidence.
+  - Fix/Mitigation: Keep 036 gaps open; check current original template labels.
+  - Verification: Prerequisites script; original-template verifier and FR/AC coverage review.
+  - Dependencies: T033.
+
+- [x] T035 [US6] Reproduce HTTP classification and false-success incident in `worker/tests/login-failure-classification.test.ts`
+  - Reason: AC02–04 failures are currently mislabeled credentials.
+  - Expected: Red actual GET/POST/tunnel/HTML assertions before fixes.
+  - Possible bugs: Mock bypasses real client parsing.
+  - Fix/Mitigation: Exercise real HttpClientService with synthetic HTTP boundary.
+  - Verification: node --import tsx --test worker/tests/login-failure-classification.test.ts
+  - Dependencies: T034.
+
+- [x] T036 [US6] Reproduce deferred route and unsafe reset in `worker/tests/deferred-verification-route.test.ts; tests/unit/bein-account-recovery.test.ts`
+  - Reason: AC01/05–09 require connected regressions.
+  - Expected: Red assertions for current route and ownership-safe reset.
+  - Possible bugs: Pure helper passes while call sites remain pinned.
+  - Fix/Mitigation: Test both actual queue branches and both API actions.
+  - Verification: node --import tsx --test worker/tests/deferred-verification-route.test.ts tests/unit/bein-account-recovery.test.ts
+  - Dependencies: T035.
+
+- [x] T037 [US6] Classify login and require authenticated evidence in `shared/bein/login-failure.ts; worker/src/http/{types,HttpClientService}.ts`
+  - Reason: FR-022/023 separate transport from credential rejection.
+  - Expected: GET rejection prevents POST; typed safe failures, positive success.
+  - Possible bugs: Raw HTML leaks secrets; title-only success.
+  - Fix/Mitigation: Allowlist codes/messages and explicit authenticated markers.
+  - Verification: T035 suite incl 402 GET/POST/tunnel,407,429,5xx,DNS,timeout,CAPTCHA,explicit rejection,unknown200.
+  - Dependencies: T036.
+
+- [x] T038 [US6] Apply classification and atomic tracking to all consumers in `worker/src/lib/{bein-login-tracking,session-keepalive,provider-report-reader}.ts; worker/src/http-queue-processor.ts`
+  - Reason: FR-024/AC07 require consistent counters and stale-writer fences.
+  - Expected: Only genuine rejection increments; one atomic disable; terminal transport stops loops.
+  - Possible bugs: One consumer still string-counts; reset overwritten by late worker.
+  - Fix/Mitigation: Inventory all login/submit/tracker sites, ownership before mutation, race tests.
+  - Verification: Focused tracking/lease/KeepAlive/report tests; isolated PG/Redis race acceptance.
+  - Dependencies: T037.
+
+- [x] T039 [US6] Resolve deferred v1/v2 reads using current mode in `worker/src/http-queue-processor.ts; worker/src/lib/bein-connection-mode.ts`
+  - Reason: FR-021 fixes original incident without moving Pay.
+  - Expected: Read route pinned per job on original account; purchase snapshot unchanged.
+  - Possible bugs: Generic resolver change moves purchase continuation.
+  - Fix/Mitigation: Dedicated read-only resolution only.
+  - Verification: T036 route suite plus operation-route-snapshot and precise-renewal-journey suites.
+  - Dependencies: T038.
+
+- [x] T040 [US6] Isolate deferred read sessions in `worker/src/http-queue-processor.ts; worker/src/lib/session-cache.ts`
+  - Reason: FR-011–013/021 prohibit purchase ViewState/wrong-route import.
+  - Expected: Use reusable route cache only; stale/mismatched/legacy snapshots ignored.
+  - Possible bugs: Old operation restore reintroduces proxy cookies.
+  - Fix/Mitigation: Remove operation restore only from deferred reads; preserve purchase restore.
+  - Verification: Route cache, three-account, stale-session, missing proxy, duplicate/lost-lease cases.
+  - Dependencies: T039.
+
+- [x] T041 [US6] Implement owned manual recovery in `src/lib/bein-account-recovery.ts; src/app/api/admin/bein-accounts/[id]/{reset,login-failures/reset}/route.ts`
+  - Reason: FR-025 must restore account without stealing lock.
+  - Expected: 409 on busy/reserved; reset counter/reason; activation only explicit action.
+  - Possible bugs: Partial DB/cache failure, stolen lock, erased rate budget.
+  - Fix/Mitigation: Shared account lease and transactional DB update; compare-owner release; narrow session invalidation.
+  - Verification: T036 endpoint tests plus isolated PostgreSQL/Redis races and nonADMIN cases.
+  - Dependencies: T040.
+
+- [x] T042 [US6] Present accurate login review and localized actions in `src/app/api/admin/bein-accounts/login-failures/route.ts; src/components/admin/report-center/LoginMonitorPanel.tsx; src/i18n/translations/{ar,en,bn}.ts`
+  - Reason: FR-026 unknown errors must not demand password change.
+  - Expected: Compatible API, review state and distinct reset actions in three languages.
+  - Possible bugs: Missing catalog token or old field consumers break.
+  - Fix/Mitigation: Additive fields; reuse components/tokens and test pending/error/empty/mobileRTL.
+  - Verification: API projection tests, catalog/type checks and browser state checks.
+  - Dependencies: T041.
+
+- [x] T043 [US6] Verify integrated safeguards and current builds in `worker/tests/; tests/unit/; tests/integration/; specs/027-bein-connection-mode/evidence/`
+  - Reason: AC01–10 require meaningful combined evidence.
+  - Expected: Current local tests, race proof, type/build/UI evidence, no financial mutations.
+  - Possible bugs: Mocks mistaken for live or skips reported as passes.
+  - Fix/Mitigation: Record skips/failures separately; synthetic HTTP and isolated services only.
+  - Verification: npm run test:unit; npm run test:worker; root/worker typechecks/builds; PG/Redis and browser checks.
+  - Dependencies: T042.
+
+- [x] T044 [US6] Update safe deployment and project handoff in `specs/027-bein-connection-mode/quickstart.md; docs/PROJECT_GUIDE.md; PROJECT_MEMORY.md; specs/036-audit-remediation/audit-register.md`
+  - Reason: FR-028 requires parity/drain/rollback and durable evidence.
+  - Expected: Runbook distinguishes local/live; current guide/memory and original-template report.
+  - Possible bugs: pm2 save persists incomplete topology; mixed builds serve stale UI.
+  - Fix/Mitigation: Verify all roles/count, drain, stop web for build, no queue/lock deletion.
+  - Verification: Docs/memory validators, encoding/privacy diff, runbook semantic review; live acceptance remains pending deployment.
+  - Dependencies: T043.
+
+- [x] T045 [US6] Analyze and converge current implementation in `specs/027-bein-connection-mode/{analysis,tasks}.md and evidence/`
+  - Reason: Constitution and all accepted requirements must match final code.
+  - Expected: No unbuilt gaps hidden; new tasks appended where needed.
+  - Possible bugs: Checkbox counts substituted for semantic acceptance.
+  - Fix/Mitigation: Inspect source and checks; preserve 036 missing contract and unproven live gates.
+  - Verification: speckit-analyze + speckit-converge until no new buildable tasks; original-template checker.
+  - Dependencies: T044.
+
+## Format and paths
+
+Checklist IDs are stable; US6 is the incident story. No parallel-agent execution. Paths are relative to repository root; worker/src and src are separate runtime owners, shared contains common contracts, worker/tests and tests/unit contain their regression suites.
+
+## Required Detail Block For Every Task
+
+Each task retains Reason, Expected, Possible bugs, Fix/Mitigation and Verification from the original template. New incident tasks also declare dependencies. Historical task checkboxes are not evidence for the incident.
+
+## Path Conventions
+
+Use exact repository-relative paths above. Runtime worker code lives under worker/src; application API/UI under src. Spec artifacts remain in this feature; existing 036 audit-register carries cross-feature obligations.
+
+### Within Each User Story
+
+Reproduce the failure first, inspect the representative red assertion, implement in dependency order, verify negatives and connected consumers, then record current evidence before marking complete.
+
+## Parallel Example: User Story 1
+
+No agents or concurrent mutations are authorized. Independent read-only tool lookups may be batched; task ownership and acceptance remain in this chat.
+
+### Incremental Delivery
+
+Complete T032–T045 in order; no partial production release. Tests may be run per slice, but final combined checks precede the deployment handoff.
+
+### Parallel Team Strategy
+
+Not applicable: the user explicitly requires direct work without agents. All dependencies are executed by the primary agent.
+
+## Notes
+
+No hidden permission, deployment or financial authority comes from checklist completion. Preserve 036 historical gaps and separate local acceptance from upstream/provider acceptance.

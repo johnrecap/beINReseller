@@ -173,6 +173,7 @@ export async function getSessionFromCache(accountId: string, routeKey: string): 
         }
 
         const rawSession = JSON.parse(data);
+        if (rawSession.accountId !== accountId) return null;
         const now = Date.now();
 
         // Decompress ViewState if it was compressed
@@ -274,7 +275,8 @@ export async function saveSessionToCache(
     accountId: string,
     routeKey: string,
     session: SessionData,
-    ttlMinutes: number = 16
+    ttlMinutes: number = 16,
+    guard?: { key: string; owner: string }
 ): Promise<void> {
     try {
         const redis = getRedisConnection();
@@ -306,11 +308,20 @@ export async function saveSessionToCache(
             ttlMinutes * 60                       // Or provided TTL
         );
 
-        await redis.setex(key, redisTtlSeconds, JSON.stringify(sessionToSave));
+        if (guard) {
+            if (guard.key !== `bein:account:lock:${accountId}` || !guard.owner) throw new Error('ACCOUNT_SESSION_GUARD_LOST');
+            const saved = await redis.eval(`
+                if redis.call("get", KEYS[1]) ~= ARGV[1] then return 0 end
+                redis.call("set", KEYS[2], ARGV[2], "EX", ARGV[3])
+                return 1
+            `, 2, guard.key, key, guard.owner, JSON.stringify(sessionToSave), redisTtlSeconds);
+            if (saved !== 1) throw new Error('ACCOUNT_SESSION_GUARD_LOST');
+        } else await redis.setex(key, redisTtlSeconds, JSON.stringify(sessionToSave));
 
         const expiresInMin = Math.floor(expiresInMs / 60000);
         console.log(`[Session Cache] 💾 Saved session for account ${accountId.substring(0, 8)}... (expires in ${expiresInMin} min, Redis TTL: ${Math.floor(redisTtlSeconds / 60)} min)`);
     } catch (error) {
+        if (guard) throw new Error('ACCOUNT_SESSION_GUARD_LOST');
         console.error(`[Session Cache] Error saving session:`, error);
         // Don't throw - graceful degradation
     }

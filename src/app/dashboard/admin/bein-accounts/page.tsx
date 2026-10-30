@@ -106,7 +106,7 @@ interface PoolStatus {
 async function accountCommand(url: string, init: RequestInit) {
     return withRequestDeadline(async signal => {
         const response = await fetch(url, { ...init, signal })
-        if (!response.ok) throw new Error('ACCOUNT_COMMAND_REJECTED')
+        if (!response.ok) throw new Error(response.status === 409 ? 'BEIN_ACCOUNT_BUSY' : 'ACCOUNT_COMMAND_REJECTED')
         const data = await response.json() as { success: boolean; error?: string; message?: string; balance?: number }
         if (!data.success) throw new Error('ACCOUNT_COMMAND_REJECTED')
         return data
@@ -272,11 +272,12 @@ export default function BeinAccountsPage() {
                 method: 'POST'
             })
             if (data.success) {
-                toast.success(data.message)
+                toast.success(t.panelUi.reportCopy.resetActivateSuccess)
                 fetchAccounts()
             }
-        } catch {
-            notifyError(t.adminBeinAccounts?.messages?.resetFailed || 'Failed to reset account')
+        } catch (error) {
+            notifyError(error instanceof Error && error.message === 'BEIN_ACCOUNT_BUSY'
+                ? t.panelUi.reportCopy.accountBusy : t.adminBeinAccounts.messages.resetFailed)
         } finally {
             endMutation()
         }
@@ -695,7 +696,7 @@ export default function BeinAccountsPage() {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => handleResetAccount(account)}
-                                                    title={t.adminBeinAccounts?.actions?.reset || 'Reset'}
+                                                    title={t.panelUi.reportCopy.resetActivate}
                                                 >
                                                     <RotateCcw className="h-4 w-4" />
                                                 </Button>

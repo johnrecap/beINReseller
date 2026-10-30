@@ -14,6 +14,7 @@
  */
 
 import { prisma } from './prisma';
+import { randomUUID } from 'node:crypto';
 import { getRedisConnection } from './redis';
 import { HttpClientService } from '../http/HttpClientService';
 import { CaptchaSolver } from '../utils/captcha-solver';
@@ -78,8 +79,6 @@ interface KeepAliveStats {
     }>;
 }
 
-// HTTP client cache (per account)
-const httpClients = new Map<string, HttpClientService>();
 const KEEPALIVE_ACCOUNT_GUARD_TTL_SECONDS = 120;
 const KEEPALIVE_ACCOUNT_GUARD_HEARTBEAT_MS = 30_000;
 
@@ -123,24 +122,17 @@ async function getHttpClient(
     account: BeinAccount & { proxy?: Proxy | null },
     route: EffectiveBeinRoute
 ): Promise<HttpClientService> {
-    const cacheKey = `${account.id}:${route.routeKey}`;
-    let client = httpClients.get(cacheKey);
-
-    if (!client) {
-        client = new HttpClientService(route.proxyConfig, account.id);
-        await client.initialize();
-        httpClients.set(cacheKey, client);
-        console.log(`[KeepAlive] Created HTTP client for ${account.username}: ${safeRouteLogSuffix(route)}`);
-    }
-
-    // Try to restore session from Redis cache — but only if the client
-    // doesn't already have a valid active session. Importing blindly
-    // creates a new CookieJar + axios instance, which destroys any
-    // in-flight request cookies on a shared client.
+    // Redis is authoritative for reusable sessions. Do not resurrect an in-memory
+    // client after manual recovery invalidates this account's shared cookies.
+    const client = new HttpClientService(route.proxyConfig, account.id);
+    await client.initialize();
     if (!client.isSessionActive()) {
         try {
             const cachedSession = await getSessionFromCache(account.id, route.routeKey);
             if (cachedSession) {
+                delete cachedSession.viewState;
+                delete cachedSession.renewalSelection;
+                delete cachedSession.preparedRenewal;
                 await client.importSession(cachedSession);
                 client.markSessionValidFromCache(cachedSession.expiresAt);
             }
@@ -384,7 +376,7 @@ export class SessionKeepAliveService {
             };
         }
 
-        const guardOwner = `keepalive-${process.pid}-${accountId}`;
+        const guardOwner = `keepalive-${process.pid}-${randomUUID()}`;
         const guardAcquired = await lockAccount(
             this.redis,
             accountId,
@@ -434,18 +426,22 @@ export class SessionKeepAliveService {
                     durationMs: Date.now() - startTime,
                 };
             }
-            return await this.refreshSessionWithGuard(rawAccount);
+            return await this.refreshSessionWithGuard(rawAccount, guardOwner);
         } finally {
             clearInterval(heartbeat);
             await unlockAccount(this.redis, accountId, guardOwner).catch(() => false);
         }
     }
 
-    private async refreshSessionWithGuard(rawAccount: BeinAccount & { proxy?: Proxy | null }): Promise<AccountRefreshResult> {
+    private async refreshSessionWithGuard(rawAccount: BeinAccount & { proxy?: Proxy | null }, guardOwner: string): Promise<AccountRefreshResult> {
         // SECURITY: Decrypt encrypted password from DB
         const account = decryptAccountPassword(rawAccount);
         const startTime = Date.now();
         const accountId = account.id;
+        const cacheGuard = { key: `bein:account:lock:${accountId}`, owner: guardOwner };
+        const assertGuard = async () => {
+            if (await this.redis.get(cacheGuard.key) !== guardOwner) throw new Error('KEEPALIVE_ACCOUNT_GUARD_LOST');
+        };
         const username = account.username;
         const route = await resolveKeepAliveRoute(account);
 
@@ -474,7 +470,8 @@ export class SessionKeepAliveService {
                 const now = Date.now();
                 sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
                 sessionData.loginTimestamp = now;
-                await saveSessionToCache(accountId, route.routeKey, sessionData, 16);
+                await assertGuard();
+                await saveSessionToCache(accountId, route.routeKey, sessionData, 16, cacheGuard);
                 console.log(`[KeepAlive] ${username}: Session validated on beIN and extended`);
                 return {
                     accountId,
@@ -534,12 +531,14 @@ export class SessionKeepAliveService {
                     );
 
                     if (finalLogin.success) {
-                        await recordLoginSuccess(accountId);
+                        await assertGuard();
+                        await recordLoginSuccess(accountId, client.getLoginTrackingRevision());
                         const sessionData = await client.exportSession();
                         const now = Date.now();
                         sessionData.expiresAt = now + (15 * 60 * 1000);
                         sessionData.loginTimestamp = now;
-                        await saveSessionToCache(accountId, route.routeKey, sessionData, 16);
+                        await assertGuard();
+                        await saveSessionToCache(accountId, route.routeKey, sessionData, 16, cacheGuard);
                         console.log(`[KeepAlive] ${username}: Login successful (CAPTCHA solved on attempt ${attempt})`);
                         return {
                             accountId,
@@ -560,7 +559,8 @@ export class SessionKeepAliveService {
                         lastCaptchaError = finalLogin.error;
                         failureAlreadyRecorded = true;
                         if (shouldCountAsCredentialFailure(finalLogin.error)) {
-                            await recordLoginFailure(accountId, finalLogin.error);
+                            await assertGuard();
+                            await recordLoginFailure(accountId, finalLogin.error, client.getLoginTrackingRevision());
                             console.log(`[KeepAlive] ${username}: FAKE LOGIN on attempt ${attempt} — failure recorded (consecutiveLoginFailures incremented)`);
                         }
                         // Reset session and retry with fresh CAPTCHA
@@ -580,10 +580,10 @@ export class SessionKeepAliveService {
                         lastCaptchaError = finalLogin.error || 'Login failed after CAPTCHA';
                         break;
                     }
-                } catch (captchaError: unknown) {
-                    const captchaMsg = captchaError instanceof Error ? captchaError.message : String(captchaError);
-                    console.error(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt} error:`, captchaMsg);
-                    lastCaptchaError = captchaMsg;
+                } catch {
+                    await assertGuard();
+                    console.error(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt} failed`);
+                    lastCaptchaError = 'CAPTCHA processing failed';
                     // On solve error, we need a fresh CAPTCHA — re-login to get one
                     if (attempt < MAX_CAPTCHA_RETRIES) {
                         try {
@@ -601,7 +601,8 @@ export class SessionKeepAliveService {
 
             // All CAPTCHA attempts exhausted — record if not already done per-attempt
             if (!failureAlreadyRecorded && shouldCountAsCredentialFailure(lastCaptchaError)) {
-                await recordLoginFailure(accountId, lastCaptchaError);
+                await assertGuard();
+                await recordLoginFailure(accountId, lastCaptchaError, client.getLoginTrackingRevision());
             }
             console.error(`[KeepAlive] ${username}: All ${MAX_CAPTCHA_RETRIES} CAPTCHA attempts failed`);
             return {
@@ -616,13 +617,15 @@ export class SessionKeepAliveService {
 
         // Login without CAPTCHA
         if (loginResult.success) {
-            await recordLoginSuccess(accountId);
+            await assertGuard();
+            await recordLoginSuccess(accountId, client.getLoginTrackingRevision());
             const sessionData = await client.exportSession();
             // FIX: Update timestamps before saving
             const now = Date.now();
             sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
             sessionData.loginTimestamp = now;
-            await saveSessionToCache(accountId, route.routeKey, sessionData, 16);
+            await assertGuard();
+            await saveSessionToCache(accountId, route.routeKey, sessionData, 16, cacheGuard);
             console.log(`[KeepAlive] ${username}: Login successful`);
             return {
                 accountId,
@@ -633,7 +636,8 @@ export class SessionKeepAliveService {
         }
 
         if (shouldCountAsCredentialFailure(loginResult.error)) {
-            await recordLoginFailure(accountId, loginResult.error);
+            await assertGuard();
+            await recordLoginFailure(accountId, loginResult.error, client.getLoginTrackingRevision());
         }
 
         return {
@@ -694,6 +698,6 @@ export class SessionKeepAliveService {
  * Close all HTTP clients (cleanup)
  */
 export function closeAllKeepAliveClients(): void {
-    console.log(`[KeepAlive] Closing ${httpClients.size} HTTP clients...`);
-    httpClients.clear();
+    // Clients are cycle-local; no reusable in-memory sessions survive a recovery.
+    console.log('[KeepAlive] HTTP clients are released after each refresh');
 }

@@ -6,6 +6,8 @@
 
 ## Summary
 
+**2026-10-30 amendment takes precedence for deferred reads and login recovery.** Accepted scope and AC01–AC10 are in `spec.md`. Preserve the existing purchase-path implementation and Spec 036 financial guards.
+
 Add an admin-controlled beIN connection mode that lets new beIN worker actions use either saved account proxies or the server IP emergency route. The implementation must preserve saved proxy assignments, keep each operation on the route it started with, separate sessions by route, and avoid any increase in retries, worker concurrency, keepalive cadence, or automatic fallback behavior.
 
 ## Planning Quality Standard
@@ -110,7 +112,7 @@ worker/
 - Valid setting values are `assigned_proxy` and `server_ip`; missing/invalid values default to `assigned_proxy`.
 - Operation route snapshot source of truth is non-secret metadata stored in `operations.responseData`.
 - Shared sessions move from account-only Redis keys to account-and-route keys. Old account-only Redis session keys are legacy and must not be imported by the new route-aware paths.
-- Legacy operations without route snapshot continue under assigned-proxy behavior even if the admin toggled server-IP emergency mode after the operation started.
+- Legacy mutating continuations without route snapshot continue under assigned-proxy behavior even if the admin toggled server-IP emergency mode after the operation started. Dedicated deferred verification reads use FR-021's current-route exception.
 
 ## API Authorization Rules
 
@@ -129,7 +131,7 @@ worker/
 
 - Local tests can prove route selection and session separation, but cannot prove beIN accepts the server IP.
 - Emergency mode depends on the upstream beIN portal allowing the server IP.
-- Production toggling should be done after active operations drain when possible. If not possible, the route snapshot guard protects existing operations but old operations without snapshots use legacy assigned-proxy behavior.
+- Production toggling should be done after active operations drain when possible. If not possible, the route snapshot guard protects existing purchases and old mutating continuations without snapshots use legacy assigned-proxy behavior; deferred reads follow FR-021.
 - Browser/UI verification proves the admin setting is saved, not that all workers have immediately reloaded it unless logs or worker tests confirm setting reload behavior.
 
 ## Phase 0 Research Decisions
@@ -158,3 +160,24 @@ See [research.md](./research.md).
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | None | No constitution violation is needed | No simpler alternative was rejected |
+
+## Incident implementation sequence
+
+1. T032–T034: restore official CLI, inspect integration without force, amend this feature and its contracts, requirements checklist and analyze. Keep the missing historical 036 contract explicitly open. No source edits before the scoped gate passes.
+2. T035–T036: actual HTTP-boundary and queue/recovery regression tests; retain expected red assertions before implementation.
+3. T037–T038: shared typed classifier in `shared/bein/`, compatible `worker/src/http/types.ts`, HTTP guards/positive evidence in `HttpClientService.ts`; update queue, KeepAlive and report consumers. One SQL statement increments and disables genuine failures; existing account execution ownership must fence state writes and manual recovery.
+4. T039–T040: deferred v1/v2 read routes ignore purchase snapshots only at their dedicated entry points; use account/route shared session with no purchase ViewState, preserve proof correlation and read lease/duplicate guards. All mutating call sites remain pinned.
+5. T041–T042: shared ADMIN recovery service for both existing endpoints; acquire existing account lease, reject reservations/busy, transactional counter reset and session invalidation. Compare-owner release only; no account lock/rate budget deletion. API additive review classification and catalog-driven ar/en/bn labels in `LoginMonitorPanel.tsx`.
+6. T043–T045: complete connected suites, isolated PG/Redis ownership races, UI states/mobile RTL, typechecks/builds, current evidence and scoped contract checker, guide/memory/runbook. Run analyze/converge and append tasks for discovered necessary gaps rather than silently omitting them.
+
+### Connected impact and invariants
+
+Tracking uses the existing account updatedAt as a compare-and-set revision captured before login HTTP. Counter/success writes condition on that revision and advance it monotonically; recovery advances the same revision. This fences stale HTTP responses even after lease expiry without schema changes. Ownership still guards provider/cache work; revision checking is not a substitute for locks.
+
+KeepAlive clients are cycle-local and restore only the current account/route Redis entry, so recovery cannot be undone by an old in-memory session. Shared-cache publication compares the captured legacy owner or execution lease atomically. Legacy callers without a captured matching guard keep their session local. Fenced cache APIs receive seconds converted from the existing configuration's minutes. Every boolean re-login consumer stops before replaying its action when login returns false. Display report login uses the same revision-fenced credential tracking while its returned rows remain non-financial.
+
+`HttpClientService.login/submitLogin` → queue initial login/re-login/balance/actions, `session-keepalive`, `provider-report-reader` → shared login tracking → `bein_accounts` → ADMIN failure list, counter reset, reset-and-activate, monitor catalog. Session cache + account execution lease + operation reservations connect every writer. Audit all `login`, `submitLogin`, `recordLoginFailure` and reset call sites. No new schema/index/backfill is expected; SQL must use actual mapped column names. Redis cleanup is account-specific and must not include operation cache, request counters or execution/reservation keys. Historical error strings remain unchanged until explicit recovery.
+
+### Verification and rollout boundaries
+
+Mock HTTP first, then dedicated isolated PostgreSQL/Redis fixtures, then root/worker tests, type checks and builds. Inspect the first red→green case before applying the pattern to all consumers. Use existing harnesses, no live `.env` credentials. Negative tests cover every AC row. Keep HTTP acceptance, race proof, UI inspection and production evidence separate; missing checks stay NOT_VERIFIED. See `quickstart.md` for safe release. Existing role count was 10 in user logs, not a new recommended count. No publication or live purchase is part of local implementation.

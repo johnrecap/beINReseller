@@ -4,10 +4,10 @@
 > Memory role: derived index and resumption state; use it to locate evidence, never as proof.
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
-> Last synchronized: 2026-10-13
-> Last synchronized commit: b1b507120e353edfc1443fbe069a832b93622693
+> Last synchronized: 2026-10-30
+> Last synchronized commit: a3bc54d6ed9f2cc46a047c7894005db2f0528de9
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:74e6176917afbff8868572eda40ec0b166d1d784537de560a936a85e7c948131
+> Working tree fingerprint: SHA256:18aaf3e9a12c686b8fb0dd47c180fb1bdc2f339fa7d8279f48b4e843f3bb8062
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Current login/proxy recovery, 2026-10-30: approved Spec Kit 027 incident implementation is locally verified. Deferred read-only reports follow current mode; proxy failures do not disable accounts as bad passwords; ADMIN recovery is owned and manual. Source/build parity, production fresh login and two KeepAlive cycles remain unverified. Resume at `specs/027-bein-connection-mode/quickstart.md`; no broad DB reset. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Current policy, 2026-10-13: `UPD-20261013-015` removes card admission bans based on prior review, open issues or admin release. Only active execution and the original five-minute cooldown prevent a new attempt. Ended ownership drains automatically; old Reviews remain financial records. New archive/unlock creation is retired; old requests/history remain. See `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`. This supersedes operational blocking described in earlier dated entries. No schema change, provider execution or server deployment.
 
@@ -103,6 +105,8 @@
 - Connections: `APP-002`, `APP-003`, `JOB-003`, `INT-001`, `FEAT-001`
 
 ### APP-005 — Session keepalive process
+
+- 2026-10-30: KeepAlive now uses a cycle-local client and current route cache, with exact-owner cache writes; it cannot resurrect a manually invalidated in-memory session. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - State: VERIFIED
 - Sources: `worker/src/keepalive.ts#main`; `worker/src/lib/session-keepalive.ts`; `ecosystem.config.js#bein-keepalive`
@@ -205,6 +209,8 @@
 
 ### FE-003 — Localization and RTL-aware content
 
+- 2026-10-30: Unknown login failures use review wording; reset-and-activate, counter-only and busy messages are catalogued in ar/en/bn. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - Review policy 2026-10-13: Remove obsolete unlock/card-review-block labels consistently in ar/en/bn; cancellation has pending and neutral completed feedback. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
 - Statistics receipt column, unavailable and new-tab descriptions reuse `renewalReceipt` in ar/en/bn. Sources: `src/i18n/translations`; `UPD-20261013-014`.
@@ -291,6 +297,8 @@
 
 ### FE-008 — Role operations and administration workspace
 
+- 2026-10-30: Existing login monitor/account actions distinguish review, busy conflict, counter reset and manual activation; narrow-screen badges/actions retain readable minimum widths. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - Review policy 2026-10-13: New unlock button/dialog/preview removed; prior administrative archive details and ordinary financial decisions remain. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
 - ADMIN user statistics enable `canViewReceipts` in the shared dialog; operation and deduction rows open the same saved receipt in a new tab. The default manager caller has no receipt UI. Sources: `src/components/admin/users/UsersTable.tsx`; `src/components/admin/users/UserStatsDialog.tsx`; `UPD-20261013-014`.
@@ -365,6 +373,8 @@
 
 ### BE-006 — Configuration, maintenance, and observability services
 
+- 2026-10-30: Shared recovery service uses existing account advisory/Redis ownership, a transactional account revision advance and account-only reusable-session invalidation. No schema/backfill or automatic activation. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - Local backlog 2026-09-08: Readiness checks accounts/reservations before financial admission; maintenance exposes bounded effect backlog/age/exhaustion. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
 
 - State: VERIFIED
@@ -428,6 +438,8 @@
 - Phase 4: Apply requires actionRevision/APPLY/REMOVE; packages exposes safe revision/state/applied-code rows. Select requires current quoteRevision/index, optional scoped packageKey; final confirm requires accepted revision. Conflicts fail before debit/dispatch. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### API-007 — Admin route contract catalog
+
+- 2026-10-30: Both ADMIN recovery endpoints now return BEIN_ACCOUNT_BUSY/409 for active ownership/reservations; only the existing reset action activates. Failure-list metadata is additive and preserves historical reason strings. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Review policy 2026-10-13: New ADMIN_ARCHIVE_AND_UNLOCK_CARD decisions reject; card-release GET reads an existing releaseId only, with ADMIN permission. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
@@ -510,6 +522,8 @@
 - Connections: `AUTH-001`, `AUTH-004`, `AUTH-005`, `FEAT-002`, `FEAT-003`
 
 ### DATA-002 — Operations, dispatch, accounting, and integrity
+
+- 2026-10-30: Login counters and threshold disable use one conditional SQL update fenced by the Prisma updatedAt revision. Manual recovery advances the same UTC revision; monetary rows, operation attribution and reservations are unchanged. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Review policy 2026-10-13: No schema/migration edits. Release writes only owned reservations; old amounts/status/proof/issues/cooldown are preserved. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
@@ -625,6 +639,8 @@
 ## 10. Data Flows
 
 ### FLOW-001 — Reseller operation execution flow
+
+- 2026-10-30: Only deferred v1/v2 verification resolves current connection mode once per job on the original account. Purchase/Pay route snapshots, proof matching and idempotency stay pinned. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Review policy 2026-10-13: Start -> active execution/cooldown guard -> existing renewal flow. Review no longer gates a subsequent card attempt. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
@@ -806,6 +822,8 @@
 
 ### JOB-003 — HTTP operation worker
 
+- 2026-10-30: All login-result consumers stop on terminal transport/rate errors. Boolean re-login failure stops action replay; only explicit credential rejection reaches revision-fenced counters. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - Review policy 2026-10-13: Ended mutating jobs do not reopen ownership; released review Reports can acquire only a temporary account lease and retain observations. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
 - Historical administrative release (creation retired by `UPD-20261013-015`): operation context installs request admission/observation interceptors on clients, including recreated session transports. Old jobs stop before HTTP; late success is observation only. Sources: `worker/src/http-queue-processor.ts`; `worker/src/http/HttpClientService.ts`; `worker/tests/admin-card-release-http.test.ts`; `UPD-20261013-012`.
@@ -825,6 +843,8 @@
 - Phase 4: Exact card/type reload for apply/remove, unverified fallback rejected, fresh package must uniquely match name/price. Publication is fenced; promo errors bypass financial closure. Explicit null means removal. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### JOB-004 — beIN session keepalive
+
+- 2026-10-30: Current Redis cookies are authoritative each cycle; cycle-local clients plus exact-owner cache publication preserve manual recovery and account/route isolation. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - State: VERIFIED
 - Sources: `worker/src/keepalive.ts`; `worker/src/lib/session-keepalive.ts`; `worker/src/lib/session-cache.ts`
@@ -849,6 +869,8 @@
 - Connections: `APP-006`, `API-003`, `DATA-002`, `JOB-002`, `RISK-001`
 
 ### INT-001 — beIN HTTP/provider automation
+
+- 2026-10-30: HTTP status is checked before HTML/credential POST, and success needs positive authenticated content. 402/407/429 stop immediate loops; generic error redirects are unknown. Live direct-IP acceptance is not established. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Precision 2026-10-13: Available packages require unique Package Name / Full Price headers and valid same-row checkbox/name/one-price cells, before/after arbitrary promo. Reports accepts Add/Renewal prefixes, only redundant matching duration suffixes and event Full Payment spelling differences; it never uses fuzzy words or cent rounding. New diagnostics omit private identifiers and raw HTML. Sources: `worker/src/http/HttpClientService.ts`; `worker/src/lib/report-package-identity.ts`; `shared/operations/provider-price.ts`; `UPD-20261013-010`.
 
@@ -891,6 +913,8 @@
 - Connections: `JOB-003`, `JOB-007`, `INT-001`, `DATA-002`, `FEAT-014`
 
 ### JOB-007 — Redis coordination, session, and cache contract
+
+- 2026-10-30: Shared cache rejects wrong-account entries and strips purchase ViewState on import. Legacy owner/fenced lease CAS protects writes; configured session minutes are converted to seconds for fenced storage. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Report browser: `bein:report-browser:*` keys hold five-minute active admission, 30-second pacing, ten-minute pending metadata and five-minute terminal results. Lua execution/terminal tokens prevent duplicate reads or stale completion. Polling reads cache only. Sources: `shared/reports/bein-provider-store.ts`; `tests/integration/provider-report-redis.test.ts`; `UPD-20261013-001`.
 
@@ -943,6 +967,8 @@
 - Boundary: Database, Redis, auth, provider, and payment secrets remain server/Worker-only; inspect code for additional domain names when changing a feature.
 
 ### ENV-002 — Worker and maintenance process configuration
+
+- 2026-10-30: Test-only BEIN_LOGIN_TEST_DATABASE_URL and BEIN_LOGIN_TEST_REDIS_URL require explicit disposable loopback services; no production fallback. Runtime worker count/concurrency/retry/cadence settings were not increased. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Prepared candidate 2026-10-12: `deployment/panel-workers.env.example` records the reviewed count; it must be exported before loading PM2. Worker pool/concurrency/drain settings live in the shared factory. This is a local test target and does not attest to any running production count. Sources: `deployment/panel-workers.cjs`; `docs/deployment/audit-remediation-release.md`; `UPD-20261012-003`.
 
@@ -1021,6 +1047,8 @@
 
 ### SEC-004 — Credential encryption and log-secret exclusion
 
+- 2026-10-30: New login error codes/messages are allowlisted; raw transport/CAPTCHA exceptions are not returned or logged by the changed login paths. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - State: VERIFIED
 - Sources: `src/lib/crypto.ts`; `worker/src/lib/crypto.ts`; `src/lib/activity-log-redaction.ts`; `src/lib/auth/login-diagnostics.ts`; `src/lib/operation-detail-audit.ts`; `scripts/backfill-credential-encryption.ts`; `scripts/encrypt-bein-passwords.ts`
 - Current state: beIN credential storage supports encryption through `BEIN_ENCRYPTION_KEY`, plaintext fallback is an explicit compatibility flag, migration scripts backfill encrypted credentials, and redaction removes password/hash/token/TOTP/session/cookie/authorization/provider-credential fields from diagnostic surfaces.
@@ -1048,6 +1076,8 @@
 ## 15. Testing and Quality
 
 ### TEST-001 — Fast unit and source-contract suites
+
+- 2026-10-30: Current incident root gate: 922 tests, no failures/skips. This supersedes historical counts only for the current checked source. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Review policy 2026-10-13: Current final suites: 915 root passes, 493 Worker passes/five Redis skips, 124 mocked browser cases; types/builds/scoped lint pass. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
@@ -1086,6 +1116,8 @@
 
 ### TEST-002 — Database-gated integration suites
 
+- 2026-10-30: Dedicated native incident fixture validates stale-worker/reset races with PostgreSQL 17.11 and Memurai-for-Redis 8.2.0. It creates/drops only unique test schema/keys; Linux production Redis remains unverified. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - Capacity supplement 2026-10-12: Fourteen focused native disposable PostgreSQL cases cover baseline capture, card/account reservations, provider identity and proof constraints. The bootstrap uses current schema plus required constraints/triggers and does not validate historical migration provisioning or the complete DB gate. Sources: `tests/integration/renewal-baseline-capture-db.test.ts`; `specs/036-audit-remediation/evidence/localization-capacity-20261012.md`; `UPD-20261012-003`.
 
 - Local backlog 2026-09-08: 22-file DB gate passed 171 cases plus seven distinct new integration follow-ups (178 total); 71 business tables empty after cleanup. Sources: `specs/036-audit-remediation/evidence/local-backlog-verification.md`; `UPD-20260908-002`. Earlier dated results are historical.
@@ -1099,6 +1131,8 @@
 - Phase 4: 14 synthetic PostgreSQL cases pass with zero skips, including final-confirm concurrency and applied-code removal. All 71 business tables empty afterwards; no restored/interactive/provider access. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### TEST-003 — Static, schema, build, and Worker checks
+
+- 2026-10-30: Current incident worker gate: 543 tests with Redis enabled, no failures/skips; 99 report-browser cases, types and both builds pass. Six Spec Kit customizations remain intentionally preserved. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Provider browser 2026-10-13: 306 Worker cases / 31 files pass with isolated Redis and zero skips. Three native report queue/HTTP cases and nineteen mocked-browser scenarios pass, alongside root/Worker types, schema parity, scoped lint and isolated builds. Temporary server/build copy/binaries are removed; production/full CI remain unverified. Sources: `tests/integration/provider-report-redis.test.ts`; `tests/browser/bein-provider-report.cjs`; `specs/036-audit-remediation/evidence/provider-report-browser-20261013.md`; `UPD-20261013-001`.
 
@@ -1196,6 +1230,8 @@
 
 ### OPS-002 — Production migration and web build order
 
+- 2026-10-30: Incident release requires actual artifact/process parity, admission drain and stopped web before .next replacement, then one manual activation and two KeepAlive cycles; not executed in production. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - Review policy 2026-10-13: Drain active mutations then build/restart web, all Workers, maintenance and KeepAlive at one SHA. No new migration; historical financial review remains untouched. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 
 - Historical administrative release (creation retired by `UPD-20261013-015`): coordinated migration/client/web/Workers/maintenance/KeepAlive cutover is mandatory before using the button. No automatic runtime-version attestation; old consumers cannot run after an archive. Deployment and historical card decisions are user-owned and unexecuted here. Sources: `docs/deployment/audit-remediation-release.md#admin-card-release--2026-10-13`; `UPD-20261013-012`.
@@ -1216,6 +1252,10 @@
 - Connections: `APP-001`, `APP-002`, `APP-004`, `APP-005`, `APP-006`, `RISK-001`
 
 ### OPS-003 — PM2 process and log topology
+
+- 2026-10-30 publication handoff: `docs/deployment/login-recovery-20261030.md` checks the last reported ten-worker inventory and existing entry/cwd before cutover, retains previous artifacts and documents manual account recovery. Actual server checks remain pending; `UPD-20261030-002` records the user's publication authorization.
+
+- 2026-10-30: Last user-observed topology has ten panel workers; it is not a newly selected target. PANEL_WORKER_COUNT is required even for targeted ecosystem loading; never save incomplete PM2 topology. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Extended quality 2026-09-08: bein-maintenance now declares kill_timeout 300000. Apply ecosystem configuration during authorized release; no current PM2 process was restarted. Forced termination beyond the bound still requires recovery. Sources: `specs/036-audit-remediation/evidence/extended-quality-verification.md`; `UPD-20260908-003`. Earlier dated results are historical.
 
@@ -1476,6 +1516,8 @@
 
 ### FEAT-014 — beIN accounts, sessions, proxies, and automation configuration
 
+- 2026-10-30: Incident repair is locally verified: transport classification, current read routing, safe manual recovery and review UI. Production/provider outcome is pending; automatic activation and financial replay are excluded. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - 2026-10-13: provider cooldown controls/badge retired; API legacy fields return no effective cooldown. Ended-account reservation repair is independent of the permanent active flag; disabled accounts are never auto-enabled by maintenance. Admin legacy lock presentation still does not describe DB reservation ownership. Sources: `src/app/dashboard/admin/bein-accounts/page.tsx`; `src/components/admin/BeINConfigForm.tsx`; `src/lib/maintenance/provider-reservation-maintenance.ts`; `UPD-20261013-006`.
 
 - State: VERIFIED
@@ -1662,6 +1704,8 @@
 - Connections: `FEAT-006`, `FLOW-005`, `API-009`, `BE-005`, `DATA-004`, `AUTH-003`, `JOB-001`, `INT-003`, `SEC-006`
 
 ### IMPACT-005 — Redis, account pool, and provider-route blast radius
+
+- 2026-10-30: Deploy compatible web/all workers/KeepAlive together: routing, classified counters, manual recovery revision and Redis owner fences form one cross-process contract. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - 2026-10-13: deploy all Workers and web/maintenance together for removal of account cooldowns and terminal reacquisition fencing. The recovery scan never deletes an active Redis owner or changes the operation/account attribution, money or card hold. Sources: `worker/src/lib/provider-account-reservation.ts`; `src/lib/maintenance/provider-reservation-maintenance.ts`; `UPD-20261013-006`.
 
@@ -1852,6 +1896,8 @@
 
 ### RISK-004 — Browser and isolated-database release checks remain manual
 
+- 2026-10-30: Scoped native incident SQL/Redis-API and browser checks now exist; they do not close Linux/PM2/provider acceptance or the historical missing 036 plan-guard contract. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
+
 - State: VERIFIED
 - Sources: `docs/PROJECT_GUIDE.md#Next-Tasks-And-Backlog`
 - Severity: Medium for release confidence in recent ownership/password UI flows.
@@ -1937,6 +1983,14 @@
 
 ## 21. Open Tasks
 
+### WORK-009 — Login/proxy incident release follow-up
+
+- State: PARTIAL
+- Publication handoff 2026-10-30: User authorized commit/push on `codex/027-login-recovery` and requested commands for personal server execution. Guarded ten-worker instructions and manual `Bn-xtr-544` recovery are in `docs/deployment/login-recovery-20261030.md`; live acceptance remains pending. See `UPD-20261030-002`.
+- Sources: `specs/027-bein-connection-mode/tasks.md`; `specs/027-bein-connection-mode/evidence/verification.md`; `specs/027-bein-connection-mode/quickstart.md`
+- Current state: Local T032–T045 implementation and checks completed; live source/build parity, admission drain, one ADMIN activation and two KeepAlive cycles are pending. No production mutation or provider purchase was performed.
+- Connections: `FEAT-014`, `JOB-003`, `JOB-004`, `API-007`, `IMPACT-005`, `RISK-004`
+
 ### WORK-008 — Administrative card archive/unlock delivery
 
 - State: PARTIAL
@@ -2020,6 +2074,25 @@
 - Phase 4: Phase 4 T015-T017 complete, 10/46 accepted; synthetic API/worker/DB and six mocked browser groups verified with independent review. Later phases and T007/T008/T012 remain open. Saved locally, no commit/push/deploy. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ## 22. Change Ledger
+
+### UPD-20261030-002 — Authorize publication and prepare server commands
+
+- Date: 2026-10-30
+- State: VERIFIED
+- Sources: `docs/deployment/login-recovery-20261030.md`; `docs/PROJECT_GUIDE.md`; `ecosystem.config.js`; `worker/ecosystem.config.js`; `worker/package.json`
+- Affected IDs: `OPS-003`, `WORK-009`, `FRESH-001`
+- Delta: User explicitly authorized commit/push of the already-tested repair and requested server deployment instructions. Prepared a bounded same-schema/dependency cutover, previous-build preservation, existing-role restarts, missing-KeepAlive restoration and one ADMIN activation. Publication SHA/remote outcome is supplied by the chat delivery receipt, not guessed in this pre-commit record.
+- Impact: NO_RUNTIME_IMPACT; publication/runbook only. No server execution or production account activation performed; ingress/drain/version/provider acceptance and historical 036 evidence stay open.
+- Synchronization boundary: header metadata is the checked pre-commit snapshot. Committing the ledger changes the Git baseline itself; the publication receipt verifies remote SHA and clean tree separately, without claiming a self-referential post-commit fingerprint.
+
+### UPD-20261030-001 — Proxy/login classification and owned manual recovery
+
+- Date: 2026-10-30
+- State: VERIFIED
+- Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `specs/027-bein-connection-mode/evidence/verification-results.json`; `docs/PROJECT_GUIDE.md`; `src/lib/bein-account-recovery.ts`; `shared/bein/login-failure.ts`
+- Affected IDs: `APP-005`, `FE-003`, `FE-008`, `BE-006`, `API-007`, `DATA-002`, `FLOW-001`, `JOB-003`, `JOB-004`, `JOB-007`, `INT-001`, `ENV-002`, `SEC-004`, `TEST-001`, `TEST-002`, `TEST-003`, `OPS-002`, `OPS-003`, `FEAT-014`, `IMPACT-005`, `RISK-004`, `WORK-009`, `FRESH-001`
+- Delta: Deferred reads use current route; typed transport failures cannot masquerade as bad credentials; ownership and account revisions protect manual recovery. KeepAlive/report/queue consumers and three-language review UI are integrated.
+- Impact: Runtime login, sessions, counters, ADMIN recovery, API/UI and verification changed; no migration, historical backfill, money mutation, automatic activation, commit/push, deployment or live provider access. Native Windows tests are not production acceptance.
 
 ### UPD-20261013-015 — Delete permanent review-based card admission blocks
 
@@ -2400,6 +2473,8 @@
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
+
+- 2026-10-30: Latest scoped delta is UPD-20261030-001. The header describes the settled local incident worktree; unrelated historical acceptance and production state are not recertified. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Review policy 2026-10-13: Latest scoped delta is UPD-20261013-015; older hold/unlock policy is superseded without deleting history or migrations. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
 

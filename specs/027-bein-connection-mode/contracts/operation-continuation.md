@@ -20,7 +20,7 @@ Rules:
 - If `responseData.beinRoute.accountId` matches the current beIN account, use that route.
 - If the step intentionally switches to a different beIN account, compute and store a new route snapshot for the new account.
 - If no route snapshot exists, use legacy assigned-proxy behavior.
-- Never use the current global mode to override a valid operation route snapshot.
+- Never override a valid purchase/confirmation/payment route snapshot. Exception: deferred fulfillment verification reads (v1 and v2) resolve current mode once on the original account. They never overwrite the purchase snapshot, replay Pay, or promote display-only reports to financial proof.
 
 ## Failure Behavior
 

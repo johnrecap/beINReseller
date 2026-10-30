@@ -2,6 +2,21 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { ReLoginRuntime } from '../src/http-queue-processor'
 import type { AccountExecutionLeaseHandle } from '../src/pool/account-locking'
+import { loginHttpFailure } from '../../shared/bein/login-failure'
+
+for (const status of [402, 407, 429]) for (const captcha of [false, true]) test(`re-login ${status} stops immediately (CAPTCHA=${captcha})`, async () => {
+    const perform = await loadPerformReLogin()
+    let attempts = 0, submits = 0, saves = 0
+    const client = { invalidateSession() {}, login: async () => { attempts++; return captcha
+        ? { success: false, requiresCaptcha: true, captchaImage: 'synthetic' } : loginHttpFailure(status) },
+        submitLogin: async () => { submits++; return loginHttpFailure(status) } }
+    const runtime: ReLoginRuntime = { assertExecutionLeaseCurrent: async () => {}, getCaptchaApiKey: async () => 'synthetic',
+        solveCaptcha: async () => 'synthetic', trackCredentialLoginFailure: async () => {}, trackFreshLoginSuccess: async () => {},
+        saveSessionToCacheFenced: async () => { saves++; return true } }
+    const result = await perform(client as any, { id: 'account-1', username: 'synthetic', password: 'synthetic' } as any,
+        { mode: 'server_ip', routeKey: 'direct', accountId: 'account-1' } as any, 'report', lease, runtime)
+    assert.equal(result, false); assert.equal(attempts, 1); assert.equal(submits, captcha ? 1 : 0); assert.equal(saves, 0)
+})
 
 process.env.DATABASE_URL ||= 'postgresql://test:test@127.0.0.1:9/test'
 process.env.REDIS_URL ||= 'redis://127.0.0.1:9'
@@ -33,6 +48,19 @@ const lease: AccountExecutionLeaseHandle = {
     workerId: 'worker-1',
     acquiredAt: '2026-08-25T00:00:00.000Z',
 }
+
+test('successful re-login preserves the configured minutes when publishing a fenced cache entry', async () => {
+    const perform = await loadPerformReLogin()
+    let ttl = 0
+    const client = { invalidateSession() {}, login: async () => ({ success: true }),
+        exportSession: async () => ({ cookies: 'synthetic' }), getSessionTimeout: () => 15 }
+    const runtime: ReLoginRuntime = { assertExecutionLeaseCurrent: async () => {}, getCaptchaApiKey: async () => null,
+        solveCaptcha: async () => '', trackCredentialLoginFailure: async () => {}, trackFreshLoginSuccess: async () => {},
+        saveSessionToCacheFenced: async input => { ttl = input.ttlSeconds; return true } }
+    assert.equal(await perform(client as any, { id: 'a', username: 'synthetic', password: 'synthetic' } as any,
+        { mode: 'server_ip', routeKey: 'direct', accountId: 'a' } as any, 'read', lease, runtime), true)
+    assert.equal(ttl, 900, '15 configured minutes must not expire after 15 seconds')
+})
 
 const scenarios = [
     {

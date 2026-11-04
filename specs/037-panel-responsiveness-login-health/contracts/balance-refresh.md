@@ -29,3 +29,6 @@ On success: confirm request/run ownership and current account eligibility, read 
 On failure: store a safe FAILED result before propagating the failure to BullMQ; if Redis persistence also fails, log only the safe request ID/code and let bounded deadline/unavailable handling control follow-up. Do not swallow CHECK_ACCOUNT_BALANCE errors. Legacy jobs without requestId use the existing balance handler and now correctly reject failures, without inventing a request record. No changes to customer CHECK_BALANCE business semantics.
 
 Timeout/failure/missing result can permit an explicit later read-only refresh after active-request reconciliation and account-lease eligibility; it must never resubmit a financial operation. Late results cannot replace terminal state, a newer request result or an ADMIN-recovered account state.
+### Delivery confirmation
+
+For a queued request, confirm the deterministic BullMQ job before acknowledging delivery. On an uncertain enqueue, inspect the job and the Redis request. A missing or terminal job can fail only a still-queued request by compare-and-set; a worker that already claimed it owns its final result. Old queued status reads use the same fence after a five-second grace period. Clients reconcile an expired result against current account work before enabling a fresh display read.

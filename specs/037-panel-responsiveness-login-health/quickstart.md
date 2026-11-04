@@ -39,6 +39,10 @@ Repeat the relevant scopes command, dialogs, financial, operation-dialogs, activ
 
 First prove C01 with a held fetch/body, then all C01–C07 at 360/768/1280 and ar/en/bn. Check real mouse click and keyboard action on a second resource before releasing the held response, Hide/X/Escape cleanup, elementFromPoint, focus restoration, latest navigation, reload, actor switch and result arriving after navigation. Capture screenshots and explicit observations of enabled independent controls and correct pending/uncertain text. Browser mocks do not prove actual App Router navigation; additionally run the existing app in an isolated fixture environment and delay real route data while preserving the shell. Never use live provider purchases to test responsiveness.
 
+### Q04b — Browser to balance worker
+
+With a disposable loopback Redis on port 16379, set `BALANCE_REFRESH_TEST_REDIS_URL=redis://127.0.0.1:16379/15` and set `PLAYWRIGHT_MODULE` to the installed Playwright module if needed. From the root run `node --import tsx tests/browser/balance-background.cjs`. Chrome uses native fetch. A real BullMQ consumer calls the production dispatcher against disposable Prisma/PGlite and an HTTP test provider. The fixture supplies an ADMIN identity and follows actual links between two test documents. Receipts and screenshots appear under `output/panel-ui/037-background`.
+
 ## Q05 — Integrated checks
 
 From the repository root after implementation, with isolated build/test configuration and no running server using the same build directory:

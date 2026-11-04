@@ -11,7 +11,7 @@ module.exports=async function commandCases({p,render,check}) {
   await p.locator('#dialog-opener').click();await modal.waitFor();assert.equal(await modal.locator('button[type=submit]').isDisabled(),true);
   assert.equal(await modal.locator(dialogKind==='edit'?'[name=email]':'#reset-new-password').inputValue(),dialogKind==='edit'?'retained@example.invalid':'Synthetic-Only-123!');
   assert.equal(await p.evaluate(()=>Object.values(sessionStorage).some(value=>/Synthetic-Only-123|retained@example/.test(value))),false);
-  await p.evaluate(()=>window.releaseWrite());await p.locator('[data-panel-command-status]').getByText(await p.evaluate(()=>window.qaText.panelUi.commandTracker.uncertain),{exact:false}).waitFor();
+  await p.evaluate(()=>window.releaseWrite());await p.keyboard.press('Escape');await modal.waitFor({state:'detached'});await p.locator('[data-panel-command-toggle]').click();await p.locator('[data-panel-command-status]').getByText(await p.evaluate(()=>window.qaText.panelUi.commandTracker.uncertain),{exact:false}).waitFor();
   assert.equal(await p.evaluate(()=>window.requests.filter(r=>['PATCH','POST'].includes(r.method)).length),1);
   assert.equal(await p.evaluate(()=>!!window.saved),false);
   check('037 '+dialogKind+' hides pending request, restores draft and prevents replay');
@@ -22,7 +22,7 @@ module.exports=async function commandCases({p,render,check}) {
  await p.waitForFunction(()=>typeof window.releaseWrite==='function');
  await p.getByRole('button',{name:'Synthetic route switch',exact:true}).click();
  assert.equal(await p.locator('[data-owned-commands]').count(),0);
- assert.equal(await p.locator('[data-panel-command-status]').count(),1);
+ assert.equal(await p.locator('[data-panel-command-status]').count(),0);await p.locator('[data-panel-command-toggle]').click();await p.locator('[data-panel-command-status]').waitFor();
  await p.evaluate(()=>window.releaseWrite());
  await p.evaluate(()=>window.pendingOwned);
  await p.getByRole('button',{name:'Synthetic route switch',exact:true}).click();
@@ -39,7 +39,8 @@ module.exports=async function commandCases({p,render,check}) {
  await p.keyboard.press('Escape');
  await p.getByRole('dialog').waitFor({state:'detached'});
  await p.evaluate(()=>window.releaseWrite());
- await p.locator('[data-panel-command-status]').waitFor();
+ await p.locator('[data-panel-command-toggle]').click();await p.locator('[data-panel-command-status]').waitFor();
+ await p.keyboard.press('Escape');
  await p.locator('#dialog-opener').click();
  assert.equal(await p.getByRole('dialog').locator('button[type=submit]').isDisabled(),true);
  assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='PATCH').length),1);

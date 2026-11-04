@@ -117,6 +117,16 @@ export default function BeinAccountsPage() {
             ? observed.balance : account.dealerBalance
     }
     const balancePending = (id: string) => balanceRefresh.receipts.some(receipt => receipt.state === 'PENDING' && receipt.resources.includes(`beinAccount/${id}`))
+    const renderBalanceFeedback = (id: string) => {
+        const copy = t.panelUi.commandTracker
+        const failure = balanceRefresh.failure(id)
+        const unknown = balanceRefresh.receipts.find(r => r.state === 'UNCERTAIN' && r.resources.includes(`beinAccount/${id}`))
+        if (unknown) return <div role="status" className="text-xs text-muted-foreground">
+            {copy.checking}{' '}<button className="underline" type="button" onClick={() => void balanceRefresh.retryStatus(unknown.attempt)}>{copy.retryStatus}</button>
+        </div>
+        if (failure) return <p role="status" className="text-xs text-destructive">{copy.balanceErrors[failure] || copy.balanceErrors.BALANCE_FAILED}</p>
+        return null
+    }
     const accountCommand = async (url: string, init: RequestInit) => {
         const id = url.split('/')[4]
         let resource = `beinAccount/${id}`
@@ -714,6 +724,7 @@ export default function BeinAccountsPage() {
                                                     )}
                                                 </Button>
                                             </div>
+                                            {renderBalanceFeedback(account.id)}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <span className={account.successRate >= 80 ? 'text-green-600' : account.successRate >= 50 ? 'text-yellow-600' : 'text-red-600'}>

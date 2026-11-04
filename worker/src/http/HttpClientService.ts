@@ -18,6 +18,7 @@ import { CookieJar } from 'tough-cookie';
 import * as cheerio from 'cheerio';
 import https from 'https';
 import { prisma } from '../lib/prisma';
+import type { BalanceRefreshError } from '../../../shared/bein/balance-refresh';
 import { TOTPGenerator } from '../utils/totp-generator';
 import { getProxyManager, ProxyConfig } from '../utils/proxy-manager';
 // FIX: Import createCookieAgent for proper proxy + cookie integration
@@ -2154,14 +2155,14 @@ export class HttpClientService {
      * @param cardNumber - Any valid card number to access the packages page
      * @returns The dealer balance in USD, or null if not found
      */
-    async fetchDealerBalance(cardNumber: string): Promise<{ success: boolean; balance: number | null; error?: string }> {
+    async fetchDealerBalance(cardNumber: string): Promise<{ success: boolean; balance: number | null; error?: string; code?: BalanceRefreshError }> {
         console.log(`[HTTP] Fetching dealer balance...`);
 
         try {
             // We need to navigate to the packages page to see the balance
             // First, check if we're logged in
             if (!this.sessionValid) {
-                return { success: false, balance: null, error: 'Not logged in' };
+                return { success: false, balance: null, error: 'Not logged in', code: 'LOGIN_FAILED' };
             }
 
             // Navigate to renewal page
@@ -2169,7 +2170,8 @@ export class HttpClientService {
             console.log('[HTTP] GET renewal page for balance check...');
 
             const renewRes = await this.axios.get(renewUrl, {
-                headers: { 'Referer': this.config.loginUrl }
+                headers: { 'Referer': this.config.loginUrl },
+                validateStatus: status => status >= 200 && status < 300,
             });
 
             // Check for errors
@@ -2196,7 +2198,8 @@ export class HttpClientService {
                 renewUrl,
                 this.buildFormData(cardFormData),
                 {
-                    headers: this.buildPostHeaders(renewUrl)
+                    headers: this.buildPostHeaders(renewUrl),
+                    validateStatus: status => status >= 200 && status < 300,
                 }
             );
 
@@ -2233,7 +2236,9 @@ export class HttpClientService {
 
         } catch (err: unknown) {
             console.error('[HTTP] Fetch balance error:', getHttpErrorMessage(err));
-            return { success: false, balance: null, error: `Fetch failed: ${getHttpErrorMessage(err)}` };
+            const category = loginExceptionFailure(err).failureCategory;
+            return { success: false, balance: null, code: category === 'rate_limit' ? 'PROVIDER_RATE_LIMITED' :
+                category === 'transport' ? 'CONNECTION_FAILED' : 'BALANCE_FAILED' };
         }
     }
 

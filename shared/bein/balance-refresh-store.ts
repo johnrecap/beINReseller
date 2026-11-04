@@ -79,6 +79,23 @@ export async function claimBalanceRefresh(redis: BalanceRedis, id: string, token
     return typeof result === 'string' ? JSON.parse(result) as BalanceRefreshRequest : null
 }
 
+/** Fence a lost enqueue. A delayed job cannot claim after this write, and an
+ * already running job keeps its ownership and result. */
+export async function rejectUndeliveredRefresh(redis: BalanceRedis, request: BalanceRefreshRequest) {
+    const value = await redis.eval(`
+        local raw = redis.call('get', KEYS[1])
+        if not raw then return false end
+        local r = cjson.decode(raw)
+        if r.state == 'QUEUED' then
+            r.state='FAILED'; r.errorCode='QUEUE_UNAVAILABLE'
+            redis.call('set', KEYS[1], cjson.encode(r), 'EX', ARGV[1])
+            if redis.call('get', KEYS[2]) == r.requestId then redis.call('del', KEYS[2]) end
+        end
+        return cjson.encode(r)
+    `, 2, balanceRefreshKey(request.requestId), balanceActiveKey(request.accountId), BALANCE_RESULT_SECONDS)
+    return typeof value === 'string' ? JSON.parse(value) as BalanceRefreshRequest : null
+}
+
 export async function finishBalanceRefresh(redis: BalanceRedis, id: string, token: string,
     result: BalanceRefreshTerminal, now = Date.now()): Promise<boolean> {
     if (result.state === 'COMPLETED' && !validBalanceObservation(result)) throw new Error('BALANCE_NOT_FOUND')

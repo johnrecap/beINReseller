@@ -8,11 +8,12 @@ function fixture(role: string | null = 'ADMIN') {
     const calls: string[] = []
     const request: contract.BalanceRefreshRequest = { requestId: 'synthetic-request', accountId: 'account-a',
         state: 'QUEUED', createdAt: Date.now(), deadline: Date.now() + 300_000, expiresAt: Date.now() + 660_000 }
-    const settings = { active: true, exclusive: true, created: true, queueFails: false, storeFails: false, missing: false }
+    const settings = { active: true, exclusive: true, created: true, queueFails: false, delivered: false, storeFails: false, missing: false }
     const store = {
         admitBalanceRefresh: async () => { calls.push('admit'); if (settings.storeFails) throw new Error('private'); return { created: settings.created, request } },
         readBalanceRefresh: async () => { calls.push('read'); if (settings.storeFails) throw new Error('private'); return settings.missing ? null : request },
         activeBalanceRefresh: async () => { calls.push('active'); if (settings.storeFails) throw new Error('private'); return settings.missing ? null : request },
+        rejectUndeliveredRefresh: async () => { if (request.state === 'QUEUED') { request.state = 'FAILED'; request.errorCode = 'QUEUE_UNAVAILABLE' } return request },
     }
     const api = loadIsolatedModule<{ POST: Handler; GET: Handler }>('src/app/api/admin/bein-accounts/[id]/check-balance/route.ts', {
         'node:crypto': { randomUUID: () => request.requestId },
@@ -23,10 +24,11 @@ function fixture(role: string | null = 'ADMIN') {
         } },
         '@/lib/prisma': { prisma: { beinAccount: { findUnique: async () => { calls.push('account'); return { id: 'account-a', isActive: settings.active, automationExclusive: settings.exclusive } } } } },
         '@/lib/redis': { default: {} },
-        '@/lib/queue': { operationsQueue: { add: async (_name: string, data: { balanceRequestId: string; accountId: string }, options: { attempts: number; jobId: string }) => {
+        '@/lib/queue': { operationsQueue: { getJob: async () => settings.delivered ? { getState: async () => 'waiting' } : null, add: async (_name: string, data: { balanceRequestId: string; accountId: string }, options: { attempts: number; jobId: string }) => {
             calls.push('queue'); assert.equal(data.balanceRequestId, request.requestId); assert.equal(data.accountId, 'account-a');
             assert.equal(options.attempts, 1); assert.ok(options.jobId.includes(request.requestId));
             if (settings.queueFails) throw new Error('private queue delivery uncertain')
+            settings.delivered = true
         } } },
         '../../../../../../../shared/bein/balance-refresh': contract,
         '../../../../../../../shared/bein/balance-refresh-store': store,
@@ -73,14 +75,34 @@ test('invalid modes and ineligible accounts are rejected before admission', asyn
     assert.equal(h.calls.includes('admit'), false)
 })
 
-test('unacknowledged enqueue preserves request identity and status outage is not an empty result', async () => {
+test('missing delivery fails the queued request; a status outage is not an empty result', async () => {
     const h = fixture(); h.settings.queueFails = true
     const response = await h.POST(h.req(), h.context)
     assert.equal(response.status, 503)
     assert.equal((await response.json()).requestId, h.request.requestId)
-    assert.equal(h.request.state, 'QUEUED')
+    assert.equal(h.request.state, 'FAILED')
     h.settings.storeFails = true
     assert.equal((await h.GET(h.req(undefined, '?active=1'), h.context)).status, 503)
+})
+
+test('acknowledgement loss with an existing job still returns its confirmed identity', async () => {
+    const h = fixture()
+    h.settings.queueFails = true
+    h.settings.delivered = true
+    const response = await h.POST(h.req(), h.context)
+    assert.equal(response.status, 202)
+    assert.equal((await response.json()).data.requestId, h.request.requestId)
+})
+
+test('a queued orphan is repaired on duplicate admission or closed on a later status read', async () => {
+    const h = fixture()
+    h.settings.created = false
+    assert.equal((await h.POST(h.req(), h.context)).status, 202)
+    assert.equal(h.calls.filter(c => c === 'queue').length, 1)
+    h.settings.delivered = false
+    h.request.createdAt -= 10000
+    const response = await h.GET(h.req(undefined, '?requestId=synthetic-request'), h.context)
+    assert.equal((await response.json()).data.errorCode, 'QUEUE_UNAVAILABLE')
 })
 
 test('legacy empty-body response uses attributed terminal observation, never a DB timestamp', async () => {

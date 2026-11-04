@@ -237,7 +237,7 @@ T001 and a passing planning gate precede all runtime work. Reuse installed auth,
   - Expected: Every inventory consumer has delayed-response, hide/navigation and duplicate/conflict results; actual App Router shell evidence is separate from mock navigation.
   - Possible bugs: Screenshot-only claims miss blocked clicks, wrong focus, lost reload protection or misleading state copy.
   - Fix/Mitigation: Combine pointer hit-testing and request counts with screenshots and per-scenario semantic judgment; record unverified production behavior separately.
-  - Verification: Q04 complete matrix, exact commands/screenshots and human-readable behavior observations per consumer/locale/viewport.
+  - Verification: Q04 complete matrix, exact commands/screenshots and human-readable behavior observations per consumer/locale/viewport. For the accepted refresh follow-up run the native-fetch browser-to-worker test in Q04b; verify SQL readback, header focus, navigation, and the independent account while the first provider response is held.
 
 - [ ] T022 Run integrated checks from `package.json`, `worker/package.json` and `quickstart.md` against final runtime changes
   - Requirements: FR-021–FR-023, SC-002, SC-004, SC-006. Depends on: T021.

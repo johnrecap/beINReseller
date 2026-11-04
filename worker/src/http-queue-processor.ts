@@ -5728,7 +5728,7 @@ async function handleCheckAccountBalance(
         await assertBalanceGuardOwnership();
         return { balance: balanceResult.balance, updatedAt: observedAt.toISOString() };
     } else {
-        throw new BalanceRefreshFailure('BALANCE_NOT_FOUND');
+        throw new BalanceRefreshFailure(balanceResult.code || 'BALANCE_NOT_FOUND');
     }
     } finally {
         clearInterval(guardHeartbeat);

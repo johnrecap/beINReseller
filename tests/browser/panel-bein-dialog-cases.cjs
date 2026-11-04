@@ -75,7 +75,7 @@ module.exports=async function beinCases({p,render,check}){
   const t=await ready({writeFailure:!success,holdWrite:!success,writeSuccess:success});
   const titles={toggle:t.adminBeinAccounts.actions.disable,reset:t.panelUi.reportCopy.resetActivate,delete:t.adminBeinAccounts.actions.delete,balance:t.adminBeinAccounts.actions.refreshBalance};
   const button=p.getByTitle(titles[action],{exact:true});await button.evaluate(el=>{el.click();el.click()});
-  if(!success){await p.waitForFunction(()=>typeof window.releaseWrite==='function');await p.evaluate(()=>window.releaseWrite());if(action==='balance')await p.locator('[data-panel-command-status]').getByText(await p.evaluate(()=>window.qaText.panelUi.commandTracker.failed),{exact:false}).waitFor();else await p.locator('main [role=alert]').waitFor();}
+  if(!success){await p.waitForFunction(()=>typeof window.releaseWrite==='function');await p.evaluate(()=>window.releaseWrite());if(action==='balance')await p.getByText(await p.evaluate(()=>window.qaText.panelUi.commandTracker.balanceErrors.CONNECTION_FAILED),{exact:true}).waitFor();else await p.locator('main [role=alert]').waitFor();}
   else if(action==='balance')await p.getByText('222 USD',{exact:true}).waitFor();
   else await p.waitForFunction(()=>window.requests.filter(r=>r.url==='/api/admin/bein-accounts'&&r.method==='GET').length>1);
   assert.equal(await p.evaluate(()=>window.requests.filter(r=>['POST','DELETE'].includes(r.method)).length),1);check('beIN '+action+' single command '+(success?'success':'rejection'));

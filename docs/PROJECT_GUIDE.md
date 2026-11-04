@@ -2,6 +2,8 @@
 
 ## Spec Kit 037 implementation checkpoint (2026-11-04)
 
+Follow-up to published baseline 5b32ecb: native browser fetch now dispatches balance and other panel commands without binding the tracker as its receiver. The header tracker starts closed. Balance submissions confirm actual queue delivery, and expired receipts reconcile against current work. Run Q04b in the feature quickstart for the real Chrome → BullMQ → provider fixture → Prisma/PGlite → account row regression. See the follow-up in the implementation evidence for boundaries and results.
+
 Latest continuation: balance polling/status-only retry and C03 edit/reset are wired. Typed terminal health policy reaches KeepAlive/reports/queue/balance; activation routes use protected recovery. Login-reset and low-balance monitor actions share account ownership. Root suite: 961 passed; Worker: 559 passed/five skipped. Current health browser fixture: 30 checks passed in ar/en/bn. Remaining C03–C07, native SQL races, real route lifecycle and combined build/converge gates remain open. Temporary Redis is stopped.
 
 Implementation is authorized and PARTIAL. Read [current execution evidence](../specs/037-panel-responsiveness-login-health/evidence/implementation.md) before continuing task IDs. Earlier chronological checkpoints describe older source versions. No task-level acceptance, production fix, deployment, commit/push or provider/business-data action is claimed.

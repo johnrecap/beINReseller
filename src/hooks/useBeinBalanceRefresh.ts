@@ -9,6 +9,8 @@ export function useBeinBalanceRefresh() {
     return {
         receipts: receipts.filter(receipt => receipt.action === 'bein.balance.refresh'),
         observation: (accountId: string) => owner?.balance.get('current')?.observation(accountId),
+        failure: (accountId: string) => owner?.balance.get('current')?.failure(accountId),
+        retryStatus: (attempt: string) => owner?.balance.get('current')?.retryStatus(attempt),
         start: async (accountId: string, label: string) => {
             const tracker = owner?.balance.get('current')
             if (!owner || !tracker) throw new Error('COMMAND_STORAGE_UNAVAILABLE')

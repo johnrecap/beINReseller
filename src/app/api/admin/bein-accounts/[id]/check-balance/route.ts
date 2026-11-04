@@ -4,10 +4,22 @@ import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { operationsQueue } from '@/lib/queue'
 import redis from '@/lib/redis'
-import { balanceRefreshView } from '../../../../../../../shared/bein/balance-refresh'
-import { activeBalanceRefresh, admitBalanceRefresh, readBalanceRefresh } from '../../../../../../../shared/bein/balance-refresh-store'
+import { balanceRefreshView, type BalanceRefreshRequest } from '../../../../../../../shared/bein/balance-refresh'
+import { activeBalanceRefresh, admitBalanceRefresh, readBalanceRefresh, rejectUndeliveredRefresh } from '../../../../../../../shared/bein/balance-refresh-store'
 
 interface RouteParams { params: Promise<{ id: string }> }
+
+async function deliveryExists(id: string) {
+    const job = await operationsQueue.getJob('balance-' + id)
+    if (!job) return false
+    const state = await job.getState()
+    return !['failed', 'completed', 'unknown'].includes(state)
+}
+
+async function verifyDelivery(request: BalanceRefreshRequest) {
+    if (request.state !== 'QUEUED' || await deliveryExists(request.requestId)) return request
+    return rejectUndeliveredRefresh(redis, request)
+}
 
 function failure(code: string, status: number, requestId?: string) {
     return NextResponse.json({ success: false, error: code, code, ...(requestId ? { requestId } : {}) }, { status })
@@ -21,8 +33,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const requestId = query.get('requestId')
     if ((requestId && requestId.length > 128) || (!requestId && query.get('active') !== '1')) return failure('VALIDATION_ERROR', 400)
     try {
-        const result = requestId ? await readBalanceRefresh(redis, requestId) : await activeBalanceRefresh(redis, id)
+        let result = requestId ? await readBalanceRefresh(redis, requestId) : await activeBalanceRefresh(redis, id)
         if (result && result.accountId !== id) return failure('REQUEST_NOT_FOUND', 404)
+        if (result?.state === 'QUEUED' && Date.now() - result.createdAt > 5000) result = await verifyDelivery(result)
         if (!result && requestId) return failure('REQUEST_NOT_FOUND', 404)
         return NextResponse.json({ success: true, data: result ? balanceRefreshView(result) : null })
     } catch { return failure('STATUS_UNAVAILABLE', 503) }
@@ -49,18 +62,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         if (!account.isActive || !account.automationExclusive) return failure('ACCOUNT_UNAVAILABLE', 409)
         const admission = await admitBalanceRefresh(redis, id, randomUUID())
         requestId = admission.request.requestId
-        if (admission.created) {
+        let confirmed = admission.request
+        if (confirmed.state === 'QUEUED') {
             try {
-                await operationsQueue.add('check-balance', {
+                if (admission.created || !await deliveryExists(requestId)) await operationsQueue.add('check-balance', {
                     type: 'CHECK_ACCOUNT_BALANCE', accountId: id, cardNumber: '0000000000', balanceRequestId: requestId,
-                }, { jobId: 'balance-' + requestId, priority: 0, attempts: 1, removeOnComplete: true, removeOnFail: true })
+                }, { jobId: 'balance-' + requestId, priority: 0, attempts: 1,
+                    removeOnComplete: { age: 660 }, removeOnFail: { age: 660 } })
             } catch {
-                // A rejected add promise does not prove Redis did not accept the job.
-                // Preserve identity and the active claim for status reconciliation.
-                return failure('QUEUE_UNAVAILABLE', 503, requestId)
+                // Re-read the actual job below. Its acknowledgement may have been lost.
             }
+            const result = await verifyDelivery(confirmed)
+            if (!result) return failure('REQUEST_NOT_FOUND', 404, requestId)
+            confirmed = result
+            if (confirmed.state === 'FAILED') return failure(confirmed.errorCode || 'BALANCE_FAILED', 503, requestId)
         }
-        if (asynchronous) return NextResponse.json({ success: true, data: balanceRefreshView(admission.request) }, { status: 202 })
+        if (asynchronous) return NextResponse.json({ success: true, data: balanceRefreshView(confirmed) }, { status: 202 })
 
         // Legacy callers retain response fields, using only this request's result.
         const end = Date.now() + 60_000

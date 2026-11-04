@@ -1,0 +1,165 @@
+{
+  "scope": "Local background refresh and optional command tracker",
+  "baseline": "5b32ecb056159132d730f0b60478ddc081bc84ce",
+  "fixture": {
+    "result": "PASS",
+    "time": "2026-11-04T02:20:51.767Z",
+    "viewport": [
+      390,
+      844
+    ],
+    "transport": "native Chrome fetch, loopback HTTP, BullMQ, production processOperationHttp and HttpClientService, Prisma/PGlite",
+    "first": {
+      "jobs": 1,
+      "providerReads": 1,
+      "balance": 1234
+    },
+    "second": {
+      "successfulBalance": 2345,
+      "failures": [
+        "BALANCE_NOT_FOUND",
+        "PROVIDER_RATE_LIMITED"
+      ]
+    },
+    "checks": [
+      "header closed initially",
+      "Escape restores focus",
+      "page navigation during provider wait",
+      "independent account",
+      "close on unknown",
+      "close on failure",
+      "row updates from attributed result",
+      "database readback",
+      "reload stays closed"
+    ],
+    "limits": "Fixture ADMIN identity, document navigation and synthetic local provider. Production was not contacted."
+  },
+  "logs": {
+    "unit": {
+      "tests": 964,
+      "pass": 964,
+      "fail": 0,
+      "skip": 0,
+      "sha256": "7dea1d6b8ac1490b273443cb8cce5c991d019cf65e4e40403d974721205f3e10"
+    },
+    "worker": {
+      "tests": 564,
+      "pass": 559,
+      "fail": 0,
+      "skip": 5,
+      "sha256": "e7ba75ca0a37a370db4f8ed611bf921a26d390ebfa6c25a9119c50988b1e1ce2"
+    }
+  },
+  "browser": {
+    "command": {
+      "passed": 9,
+      "errors": []
+    },
+    "bein-dialogs": {
+      "passed": 4,
+      "errors": []
+    },
+    "reports": {
+      "passed": 30,
+      "errors": []
+    }
+  },
+  "builds": {
+    "web": "PASS",
+    "worker": "PASS"
+  },
+  "nativeRedis": {
+    "passed": 2,
+    "server": "stopped"
+  },
+  "sources": [
+    {
+      "path": "shared/bein/balance-refresh-store.ts",
+      "sha256": "ae316defa00eafd7206af71af54618ad079363fa10d69a3d7e3357e25ca9094b"
+    },
+    {
+      "path": "shared/bein/balance-refresh.ts",
+      "sha256": "55da92a165c6eba8ef8ee1de54465979f43cc340b2c48a28378ccd7fb624387e"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/[id]/check-balance/route.ts",
+      "sha256": "8fa939f523ded9c784fa7e1fd1bd5636aeeb48ce348c74f169d8592c9a6ab64d"
+    },
+    {
+      "path": "src/app/dashboard/admin/bein-accounts/page.tsx",
+      "sha256": "0526e616becc85084c8024eea6a6c5b745a1098cb3a4841e9520c78bc759de3d"
+    },
+    {
+      "path": "src/components/layout/Header.tsx",
+      "sha256": "41ce9d04f23c345a257f17860b1dd0eed2787b235d915214cbe00350f8904860"
+    },
+    {
+      "path": "src/components/providers/PanelCommandProvider.tsx",
+      "sha256": "ec8abd82ea2b5b5b76d025834a67576effbe25c04d8178a3175192b50ada2405"
+    },
+    {
+      "path": "src/hooks/useBeinBalanceRefresh.ts",
+      "sha256": "becb79708ede95fb918ee7784730781f8a0d1f155ca2464fb537a075d231513b"
+    },
+    {
+      "path": "src/i18n/translations/ar.ts",
+      "sha256": "d773b43eb50bf4930b8f169da8472297164f6311798b76c65b65c702f2fdf59d"
+    },
+    {
+      "path": "src/i18n/translations/bn.ts",
+      "sha256": "89f0b29c5f6d4c5402c571a519a0c478d818ea6b4425eb0ba74abfcf9d79bfb5"
+    },
+    {
+      "path": "src/i18n/translations/en.ts",
+      "sha256": "572415e910bf93da3084470f548860243867c5455f0736ac9d86612b74e62512"
+    },
+    {
+      "path": "src/lib/panel-balance-tracker.ts",
+      "sha256": "85fbc212192d870ffc4670ab9dfc915150a34c4c7aec5d143c958d708dfe9be7"
+    },
+    {
+      "path": "src/lib/panel-command-runner.ts",
+      "sha256": "265d640cba32f0ce41e9ad3a946bf13fe88ebfc6bf44fe5459b2602344f6fd2f"
+    },
+    {
+      "path": "tests/browser/panel-bein-dialog-cases.cjs",
+      "sha256": "6e839778178152892e844005bc3e3bdc512c37448460bdc233cba2d6cd0fd844"
+    },
+    {
+      "path": "tests/browser/panel-command-cases.cjs",
+      "sha256": "46b424be8141b6411118f4bd6e58098cf30cc300597bacbcadc7db444f87d2ea"
+    },
+    {
+      "path": "tests/browser/panel-report-cases.cjs",
+      "sha256": "1c7af1bac032c14aaa3a694102b97be8932568c8a0fff94678ea578654638aa5"
+    },
+    {
+      "path": "tests/integration/bein-balance-refresh.test.ts",
+      "sha256": "9bdced1a21f78b36655e288a9d9983d1d142a985046ed225a0ccc3ceb4d8d25f"
+    },
+    {
+      "path": "tests/unit/bein-balance-refresh-api.test.ts",
+      "sha256": "eeb33ce696ca1b7fde390d2adca751f170568513a569e1f825971732582161df"
+    },
+    {
+      "path": "tests/unit/panel-balance-tracker.test.ts",
+      "sha256": "e6b05e49cd11f9a4f43a1ecd0e793c1c4661c64cbd9788f47b6d07699df46c10"
+    },
+    {
+      "path": "worker/src/http-queue-processor.ts",
+      "sha256": "f91d10ba86e7749775854d510862e9f3aa06a68545a7cceecd4db98aafe4f594"
+    },
+    {
+      "path": "worker/src/http/HttpClientService.ts",
+      "sha256": "f5d14653b85432688a742a0103f18a60a8e3f9913afae34486845a671fb9a9d5"
+    },
+    {
+      "path": "tests/browser/balance-background.cjs",
+      "sha256": "4205ed1c64cc339d6ec863be51c584e27e3fb5509a3fb0f804506ed3267e3fcf"
+    },
+    {
+      "path": "tests/browser/fixtures/balance-background-entry.tsx",
+      "sha256": "a68f15c6fc4ba337c8d61b56ce9751a18c93e21916e477e79f70a299dccae242"
+    }
+  ]
+}

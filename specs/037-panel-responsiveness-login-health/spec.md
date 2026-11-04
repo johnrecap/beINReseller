@@ -133,3 +133,6 @@ An administrator sees accounts with terminal login failures disabled with an act
 - Unknown terminal authentication may quarantine a changed provider page; label it login review, not proved incorrect credentials. Manual reactivation is the accepted policy.
 - Existing bounded retries stay unchanged. Revision capture or configuration failure before authentication cannot establish credential rejection.
 - Historical 027/036 evidence and release gaps remain open; planning acceptance is separate from implementation and production acceptance.
+## Accepted follow-up — background execution and optional tracker
+
+The tracker starts closed and opens only from the dashboard header. Closing it by button or Escape restores focus without disposing any command. Navigation, reload and result delivery must not reopen a closed tracker. A refresh is acknowledged only after queue delivery or an attributable running/terminal result. A lost result is checked against current account work before allowing another manual refresh. Display safe failures in the account row. Acceptance requires a delayed test provider, real queue and Worker, durable balance readback, navigation and an independent second account.

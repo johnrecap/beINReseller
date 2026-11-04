@@ -5,9 +5,9 @@
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
 > Last synchronized: 2026-11-04
-> Last synchronized commit: 7dd89fd119ca5426494e80620426cbaf63a5eec1
+> Last synchronized commit: 5b32ecb056159132d730f0b60478ddc081bc84ce
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:595c565966aa1b2b4b85cf767a338e3f22a7299130a3d7466da4e788c3037fce
+> Working tree fingerprint: SHA256:55f4f32a3e0492a0b4ad4750ee2fb22db7c8143587d8ac084f6276a4d5b3618c
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Latest 037 follow-up: `UPD-20261104-003` supersedes the older incident status below. Chrome reproduced a pre-dispatch illegal invocation. Browser-to-Worker test and current builds pass locally; see `specs/037-panel-responsiveness-login-health/evidence/followup-background.json`. The published baseline is 5b32ecb.
 
 - Current implementation, 2026-11-04: Spec Kit 037 is authorized and PARTIAL. Dashboard receipts, C01/C02, C03 edit/reset, async balance polling and status-only retry have scoped checks. Typed terminal health is wired through login callers; activation routes use protected recovery and monitoring has localized safe reasons. Temporary Redis tests passed and server is stopped. Remaining consumers, native SQL races, health-view browser checks and full acceptance remain open. All task acceptance boxes remain unchecked. Resume from `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; historical 027 and production gates remain open. Sources: `UPD-20261104-002`.
 
@@ -2122,6 +2124,14 @@
 - Phase 4: Phase 4 T015-T017 complete, 10/46 accepted; synthetic API/worker/DB and six mocked browser groups verified with independent review. Later phases and T007/T008/T012 remain open. Saved locally, no commit/push/deploy. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ## 22. Change Ledger
+
+### UPD-20261104-003 — Background balance read and header visibility
+
+- Date: 2026-11-04
+- State: VERIFIED
+- Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; `tests/browser/balance-background.cjs`; `src/lib/panel-balance-tracker.ts`.
+- Affected IDs: `FEAT-024`, `WORK-010`, `IMPACT-010`.
+- Delta: Fixed native fetch binding that prevented browser dispatch. A delayed provider read now persists and updates the row while navigation and another account work. Optional header tracker closes independently; expired receipts check account-active work. Full feature and production acceptance remain open.
 
 ### UPD-20261104-002 — Begin authorized Spec Kit 037 implementation
 

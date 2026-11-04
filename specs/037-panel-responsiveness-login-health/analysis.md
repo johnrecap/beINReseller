@@ -72,4 +72,6 @@ Current planning metrics: **24 functional requirements + 7 success criteria; 24 
 
 ## Next Actions
 
+The header/refresh follow-up narrows T004, T011–T013 and T021 to the incident reproduced in Chrome. A native fetch call made as a tracker method threw before HTTP dispatch. Replacing window.fetch with a fixture function masked that failure. Q04b now follows the production web handler and Worker dispatcher through a delayed provider response, SQL readback, status polling and the rendered row. It also checks queue-delivery confirmation, expiry reconciliation, and tracker close/focus during pending, unknown and failed outcomes. This is local incident coverage; whole-panel task boxes retain their existing status.
+
 Application implementation is authorized. Follow T001–T024 and evidence/implementation.md; do not infer full task completion from partial unit or fixture checks. Missing historical 027 evidence remains separately tracked; do not invent a historical PASS or alter its original requirements to close it.

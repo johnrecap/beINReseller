@@ -4,9 +4,13 @@ export const BALANCE_MAX_MS = BALANCE_QUEUE_MS + BALANCE_RUN_MS
 export const BALANCE_RECORD_SECONDS = 660
 export const BALANCE_RESULT_SECONDS = 300
 export const BALANCE_POLL_MS = 2_000
-export type BalanceRefreshError = 'ACCOUNT_UNAVAILABLE' | 'ACCOUNT_BUSY' | 'LOGIN_FAILED' | 'CAPTCHA_REQUIRED' |
-    'CONNECTION_FAILED' | 'PROVIDER_RATE_LIMITED' | 'BALANCE_NOT_FOUND' | 'BALANCE_TIMEOUT' | 'BALANCE_FAILED' |
-    'QUEUE_UNAVAILABLE' | 'STATUS_UNAVAILABLE' | 'REQUEST_NOT_FOUND'
+const balanceErrors = ['ACCOUNT_UNAVAILABLE', 'ACCOUNT_BUSY', 'LOGIN_FAILED', 'CAPTCHA_REQUIRED',
+    'CONNECTION_FAILED', 'PROVIDER_RATE_LIMITED', 'BALANCE_NOT_FOUND', 'BALANCE_TIMEOUT', 'BALANCE_FAILED',
+    'QUEUE_UNAVAILABLE', 'STATUS_UNAVAILABLE', 'REQUEST_NOT_FOUND'] as const
+export type BalanceRefreshError = typeof balanceErrors[number]
+export function safeBalanceError(value: unknown): BalanceRefreshError {
+    return balanceErrors.find(code => code === value) ?? 'BALANCE_FAILED'
+}
 export interface BalanceObservation { balance: number; updatedAt: string }
 export interface BalanceRefreshRequest {
     requestId: string

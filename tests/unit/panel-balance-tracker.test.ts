@@ -91,3 +91,23 @@ test('balance reconciliation cannot release financial uncertainty; logout stops 
     assert.equal(h.calls.length, 1)
     assert.equal(h.state.snapshot().find(r => r.attempt === 'financial')?.state, 'UNCERTAIN')
 })
+
+test('an expired receipt releases only after an authenticated active lookup confirms no work', async () => {
+    const h = fixture()
+    await new PanelBalanceTracker(h.state, h.send as typeof fetch).start('a', 'display')
+    let active: object | null = { requestId:'other', accountId:'a', state:'RUNNING' }
+    const urls: string[] = []
+    const tracker = new PanelBalanceTracker(h.state, (async (url: string) => {
+        urls.push(url)
+        return url.endsWith('?active=1') ? Response.json({ success:true, data:active }) :
+            Response.json({ code:'REQUEST_NOT_FOUND' }, { status:404 })
+    }) as typeof fetch)
+    await tracker.tick()
+    assert.equal(h.state.snapshot()[0].state, 'UNCERTAIN')
+    active = null
+    await tracker.tick()
+    assert.equal(h.state.snapshot()[0].state, 'FAILED')
+    assert.equal(tracker.failure('a'), 'REQUEST_NOT_FOUND')
+    assert.equal(urls.filter(u => u.endsWith('?active=1')).length, 2)
+    assert.doesNotThrow(() => h.state.claim('bein.balance.refresh', ['beinAccount/a'], 'next'))
+})

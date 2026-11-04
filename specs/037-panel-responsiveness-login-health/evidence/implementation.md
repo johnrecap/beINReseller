@@ -10,6 +10,14 @@ Source findings are not proof of the reported production navigation freeze. Prod
 
 ## Evidence rules
 
+Follow-up verification receipt: `followup-background.json`. Current full root suite 964/964, Worker 559 passed and five skipped. Web and Worker production builds succeeded, and both native Redis integration cases passed. The first web build could not connect to the sandboxed PostCSS child process; the same build completed with the required local process permission. The temporary Redis server was stopped after testing.
+
+### Follow-up to published 5b32ecb: native HTTP and header tracker
+
+The initial full-path test reached no provider requests. A standalone Chrome check using an object's native fetch property threw “Failed to execute 'fetch' on 'Window': Illegal invocation”. The previous browser fixture had replaced fetch with an arrow function. Both the production command runner and the balance tracker now invoke fetch as a standalone function. Header visibility is independent from dashboard-owned background work.
+
+The integrated regression in `tests/browser/balance-background.cjs` uses native Chrome fetch, an actual HTTP route handler with fixture ADMIN authorization, isolated Redis/BullMQ, a real Worker invoking the production balance processor, a delayed local HTTP provider with synthetic cached sessions, and Prisma/PGlite. Account one remained pending across document navigation while account two returned 2345 USD. Releasing the delayed response produced 1234 USD for account one. Fresh database reads matched both results, with one submission, worker invocation and provider read for each successful refresh. Unknown status, invalid provider HTML, 429, close by pointer/Escape, restored focus, and reload were exercised. This is a two-document fixture, not an authenticated production or full Next App Router test. No production account or balance was touched.
+
 The saved planning-validation.json and template-validation.json describe the documentation phase. Subsequent structural runs use separate reports. Tests and semantic browser observations must be recorded separately; no task is checked from a source-only assertion.
 
 ## Current execution checkpoint — 2026-11-04

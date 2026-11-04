@@ -27,7 +27,8 @@ export class PanelCommandRunner {
         this.state.claim(input.action, input.resources, attempt)
         try {
             const { response, body } = await withRequestDeadline(async signal => {
-                const response = await this.send(url, { ...init, signal })
+                const send = this.send
+                const response = await send(url, { ...init, signal })
                 const body: unknown = await response.clone().json()
                 return { response, body }
             }, this.deadlineMs)

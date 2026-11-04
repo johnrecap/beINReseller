@@ -3,11 +3,32 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
 import { admitBalanceRefresh, claimBalanceRefresh, finishBalanceRefresh, readBalanceRefresh,
-    activeBalanceRefresh, balanceRefreshKey, balanceActiveKey } from '../../shared/bein/balance-refresh-store'
+    activeBalanceRefresh, balanceRefreshKey, balanceActiveKey, rejectUndeliveredRefresh } from '../../shared/bein/balance-refresh-store'
 
 const url = process.env.BALANCE_REFRESH_TEST_REDIS_URL
 if (url && (!['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname) || new URL(url).pathname !== '/15'))
     throw new Error('Balance refresh tests require explicit loopback Redis database 15')
+
+test('missing enqueue fences late delivery but cannot revoke a running worker or a newer account request', { skip: !url }, async () => {
+    const redis = new Redis(url!, { maxRetriesPerRequest: 1, retryStrategy: () => null })
+    const account = 'qa-' + randomUUID(), ids = [randomUUID(), randomUUID()]
+    try {
+        const first = (await admitBalanceRefresh(redis, account, ids[0])).request
+        assert.equal((await rejectUndeliveredRefresh(redis, first))?.errorCode, 'QUEUE_UNAVAILABLE')
+        assert.equal(await claimBalanceRefresh(redis, first.requestId, 'delayed'), null)
+        const second = (await admitBalanceRefresh(redis, account, ids[1])).request
+        await rejectUndeliveredRefresh(redis, first)
+        assert.equal((await activeBalanceRefresh(redis, account))?.requestId, ids[1])
+        await claimBalanceRefresh(redis, second.requestId, 'worker')
+        assert.equal((await rejectUndeliveredRefresh(redis, second))?.state, 'RUNNING')
+        assert.equal(await finishBalanceRefresh(redis, ids[1], 'worker', {
+            state: 'COMPLETED', balance: 22, updatedAt: new Date().toISOString(),
+        }), true)
+    } finally {
+        await redis.del(balanceActiveKey(account), ...ids.map(balanceRefreshKey))
+        await redis.quit()
+    }
+})
 
 test('native Redis: one admission, one run owner, terminal fencing, failure and expiry', { skip: !url }, async () => {
     const redis = new Redis(url!, { maxRetriesPerRequest: 1, retryStrategy: () => null })

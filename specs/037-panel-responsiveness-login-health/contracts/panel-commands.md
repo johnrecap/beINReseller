@@ -29,3 +29,6 @@ Use proper Radix lifecycle cleanup rather than forcing document.body pointerEven
 ## Required UI evidence
 
 With delayed fetch and delayed response.json separately, use actual pointer clicks, elementFromPoint and focus assertions after hiding, after mobile menu dismissal and after navigation. Cover returned success, validation, uncertain 500, timeout, stale completion, double submit, same-target conflict, different-target concurrency, reload and actor change. A disabled-attribute assertion alone cannot prove the page is interactive.
+### Header tracker visibility
+
+Command ownership stays in the dashboard provider. The independent header control starts closed, opens only on user input and supports Close and Escape with focus returned to the trigger. Results and navigation never reopen a closed tracker. Expired or uncertain display reads have account-row feedback and can be reconciled without dismissing financial receipts.

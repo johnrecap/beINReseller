@@ -61,7 +61,7 @@ module.exports = async function reportCases({p,render,check}) {
   const activate=p.locator('main tbody button');
   await activate.waitFor(); await activate.evaluate(el=>{el.click();el.click()});
   await p.waitForFunction(()=>!!window.releaseWrite);
-  await p.locator('[data-panel-command-status]').waitFor();
+  await p.locator('[data-panel-command-toggle]').click();await p.locator('[data-panel-command-status]').waitFor();
   assert.equal(await activate.isDisabled(),true);
   assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
   await p.evaluate(()=>window.releaseWrite());
@@ -91,7 +91,7 @@ module.exports = async function reportCases({p,render,check}) {
   const reset=p.locator('main tbody button');
   await reset.evaluate(el=>{el.click();el.click()});
   await p.waitForFunction(()=>!!window.releaseWrite);
-  await p.locator('[data-panel-command-status]').waitFor();
+  await p.locator('[data-panel-command-toggle]').click();await p.locator('[data-panel-command-status]').waitFor();
   assert.equal(await reset.isDisabled(),true);
   assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
   await p.evaluate(()=>window.releaseWrite());

@@ -25,6 +25,7 @@ for (const status of [402, 407, 429, 500, 502, 503]) {
         const { client, calls } = fixture({ status, data: loginForm })
         const result = await client.login('synthetic', 'private-password')
         assert.equal(result.success, false)
+        assert.equal(client.didAttemptLogin(), true)
         assert.deepEqual(calls, ['GET'])
         assert.equal((result as any).httpStatus, status)
         assert.equal((result as any).failureCategory, status === 429 ? 'rate_limit' : 'transport')
@@ -40,6 +41,14 @@ for (const status of [402, 407, 429, 500, 502, 503]) {
         assert.equal(client.isSessionActive(), false)
     })
 }
+
+test('local revision failure is not an actual provider login attempt', async () => {
+    const { client, calls } = fixture({ status: 200, data: loginForm })
+    Object.assign(client, { captureLoginTrackingRevision: async () => { throw new Error('local database unavailable') } })
+    await client.login('synthetic', 'private-password')
+    assert.equal(client.didAttemptLogin(), false)
+    assert.deepEqual(calls, [])
+})
 
 for (const [message, code, status] of [
     ['CONNECT tunnel failed, response 402', undefined, 402],

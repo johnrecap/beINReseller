@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { encryptSecret } from '@/lib/crypto'
 import Redis from 'ioredis'
+import type { Prisma } from '@prisma/client'
+import { recoverBeinAccount, BeinAccountRecoveryError } from '@/lib/bein-account-recovery'
 
 interface RouteParams {
     params: Promise<{ id: string }>
@@ -110,6 +112,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             automationExclusive,
         } = body
 
+        if (isActive !== undefined && typeof isActive !== 'boolean') {
+            return NextResponse.json({ error: 'INVALID_ACCOUNT_ACTIVITY' }, { status: 400 })
+        }
+
         if (automationExclusive !== undefined && typeof automationExclusive !== 'boolean') {
             return NextResponse.json(
                 { error: 'INVALID_AUTOMATION_EXCLUSIVE' },
@@ -158,7 +164,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             updateData.automationExclusive = automationExclusive
         }
 
-        const account = await prisma.$transaction(async (tx) => {
+        const applyEdit = async (tx: Prisma.TransactionClient) => {
             const updatedAccount = await tx.beinAccount.update({
                 where: { id },
                 data: updateData
@@ -184,7 +190,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             }
 
             return updatedAccount
-        })
+        }
+        let account
+        if (isActive === true) {
+            const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', { maxRetriesPerRequest: 1, connectTimeout: 5000, commandTimeout: 5000 })
+            try {
+                await recoverBeinAccount(prisma, redis, id, true, async tx => { await applyEdit(tx) })
+                account = await prisma.beinAccount.findUniqueOrThrow({ where: { id } })
+            } finally { redis.disconnect() }
+        } else {
+            account = await prisma.$transaction(applyEdit)
+        }
 
         return NextResponse.json({
             success: true,
@@ -200,6 +216,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         })
 
     } catch (error) {
+        if (error instanceof BeinAccountRecoveryError) {
+            return NextResponse.json({ error: error.code, code: error.code }, { status: error.code === 'BEIN_ACCOUNT_BUSY' ? 409 : 404 })
+        }
         console.error('Update beIN account error:', error)
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

@@ -4,10 +4,10 @@
 > Memory role: derived index and resumption state; use it to locate evidence, never as proof.
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
-> Last synchronized: 2026-10-30
-> Last synchronized commit: a3bc54d6ed9f2cc46a047c7894005db2f0528de9
+> Last synchronized: 2026-11-04
+> Last synchronized commit: 7dd89fd119ca5426494e80620426cbaf63a5eec1
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:18aaf3e9a12c686b8fb0dd47c180fb1bdc2f339fa7d8279f48b4e843f3bb8062
+> Working tree fingerprint: SHA256:595c565966aa1b2b4b85cf767a338e3f22a7299130a3d7466da4e788c3037fce
 
 ## 1. Project Identity
 
@@ -19,6 +19,8 @@
 - Ledger scope: compact cross-layer source discovery, resumption state, decisions, risks, and material deltas. It does not replace `docs/current-project-prd.md`, `docs/PROJECT_GUIDE.md`, or `specs/`.
 
 ## 2. Current System Snapshot
+
+- Current implementation, 2026-11-04: Spec Kit 037 is authorized and PARTIAL. Dashboard receipts, C01/C02, C03 edit/reset, async balance polling and status-only retry have scoped checks. Typed terminal health is wired through login callers; activation routes use protected recovery and monitoring has localized safe reasons. Temporary Redis tests passed and server is stopped. Remaining consumers, native SQL races, health-view browser checks and full acceptance remain open. All task acceptance boxes remain unchecked. Resume from `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; historical 027 and production gates remain open. Sources: `UPD-20261104-002`.
 
 - Current login/proxy recovery, 2026-10-30: approved Spec Kit 027 incident implementation is locally verified. Deferred read-only reports follow current mode; proxy failures do not disable accounts as bad passwords; ADMIN recovery is owned and manual. Source/build parity, production fresh login and two KeepAlive cycles remain unverified. Resume at `specs/027-bein-connection-mode/quickstart.md`; no broad DB reset. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
@@ -174,7 +176,7 @@
 
 - State: VERIFIED
 - Sources: `specs`; `.specify/feature.json`; `.specify/templates`; `.agents/skills/speckit-analyze/SKILL.md`; `.agents/skills/speckit-implement/SKILL.md`
-- Use: Accepted outcomes, clarifications, architecture decisions, contracts, tasks, checklists, and feature-specific verification for features 011 through 034.
+- Use: Outcomes, clarifications, architecture decisions, contracts, tasks, checklists and evidence. Active documentation is feature 037; its runtime work is PLANNED and earlier feature acceptance is unchanged.
 
 ### SRC-010 — Runtime configuration and deployment
 
@@ -1363,6 +1365,17 @@
 
 ## 17. Feature Registry
 
+### FEAT-024 — Panel responsiveness and provider login health
+
+- Continuation: Dashboard-owned async balance polling/row observations, status-only retry and C03 edit/reset are wired with focused tests. Missing status remains uncertain; specific error copy and remaining creation/transfers/consumers are unfinished. Sources: `src/lib/panel-balance-tracker.ts`; `src/hooks/useBeinBalanceRefresh.ts`; `specs/037-panel-responsiveness-login-health/evidence/implementation.md`.
+
+- State: PARTIAL
+- Status: PARTIAL
+- Sources: `specs/037-panel-responsiveness-login-health/spec.md`; `specs/037-panel-responsiveness-login-health/plan.md`; `specs/037-panel-responsiveness-login-health/tasks.md`; `specs/037-panel-responsiveness-login-health/analysis.md`
+- Current state: Dashboard command owner/C01/C02/C03 edit-reset, async balance polling and terminal-login/recovery/monitor wiring have scoped checks; native Redis store tests pass. Remaining consumers and integrated SQL/Worker/browser acceptance are unfinished. Sources for checks and gaps: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`.
+- Connections: `FEAT-008`, `FEAT-009`, `FEAT-014`, `IMPACT-010`, `DEC-013`, `WORK-010`, `RISK-012`
+- Impact: Current edits affect panel UI/state, shared dialogs, locales, async balance API/store/Worker, login-health callers, recovery and tests. Full verification remains pending; no deployment.
+
 ### FEAT-001 — Reseller operation lifecycle
 
 - Localization/capacity 2026-10-12: Renewal surface follows en/ar/bn including review/pending settlement. A prepared twenty-worker profile preserves all provider/queue limits; the measured 200-user workload is not smooth and the additional workers do not improve verified renewal throughput. This is not a production capacity acceptance. Source: `specs/036-audit-remediation/evidence/localization-capacity-20261012.md`; `UPD-20261012-003`.
@@ -1516,6 +1529,8 @@
 
 ### FEAT-014 — beIN accounts, sessions, proxies, and automation configuration
 
+- Partial 2026-11-04: `FEAT-024` wires first-terminal quarantine and async balance refresh locally. Full acceptance and production parity remain unverified. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`.
+
 - 2026-10-30: Incident repair is locally verified: transport classification, current read routing, safe manual recovery and review UI. Production/provider outcome is pending; automatic activation and financial replay are excluded. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - 2026-10-13: provider cooldown controls/badge retired; API legacy fields return no effective cooldown. Ended-account reservation repair is independent of the permanent active flag; disabled accounts are never auto-enabled by maintenance. Admin legacy lock presentation still does not describe DB reservation ownership. Sources: `src/app/dashboard/admin/bein-accounts/page.tsx`; `src/components/admin/BeINConfigForm.tsx`; `src/lib/maintenance/provider-reservation-maintenance.ts`; `UPD-20261013-006`.
@@ -1649,6 +1664,14 @@
 
 ## 18. Dependency and Impact Map
 
+### IMPACT-010 — Planned command lifecycle and login-health consumers
+
+- State: PLANNED
+- Sources: `specs/037-panel-responsiveness-login-health/research.md`; `specs/037-panel-responsiveness-login-health/contracts`; `specs/037-panel-responsiveness-login-health/tasks.md`
+- Current state: C01–C07 cover all shared panel consumers. Login/recovery covers queue, KeepAlive, reports, pool inspection, reset, toggle, account edit and low-balance reactivation.
+- Connections: `FEAT-024`, `IMPACT-002`, `IMPACT-005`, `IMPACT-006`, `IMPACT-007`
+- Boundary: Preserve financial uncertainty/proof, current auth, account revision/ownership and unrelated low-balance failure policy; no runtime/production claim.
+
 ### IMPACT-009 — Planned audit remediation across financial and consumer boundaries
 
 - Extended quality 2026-09-08: Extended scope T067-T069 covers export geometry, manager DTO/query and maintenance shutdown; T051 repairs in-scope quality, T052 source-history correction. Phone/store and historical SQL remain unchanged. Sources: `specs/036-audit-remediation/evidence/extended-quality-verification.md`; `UPD-20260908-003`. Earlier dated results are historical.
@@ -1746,6 +1769,15 @@
 - Connections: `IMPACT-001`, `IMPACT-003`, `IMPACT-005`, `IMPACT-006`, `DATA-010`, `FLOW-007`, `FEAT-020`, `OPS-002`, `RISK-009`
 
 ## 19. Technical Decisions
+
+### DEC-013 — Document responsive work and first-terminal quarantine
+
+- State: VERIFIED
+- Date: 2026-11-04
+- Sources: `user:accepted Spec Kit 037 documentation plan`; `specs/037-panel-responsiveness-login-health/spec.md`; `specs/037-panel-responsiveness-login-health/contracts`
+- Decision: Whole-panel responsiveness with scoped certainty; first final credential/CAPTCHA/invalid-auth failure disables, transport/rate-limit/pre-auth failures warn separately, ADMIN manually recovers.
+- Boundary: Accepted future policy, not active runtime. Replaces threshold only when implemented; no historical mass disablement, financial replay or production work is authorized now.
+- Connections: `FEAT-024`, `WORK-010`, `RISK-012`
 
 ### DEC-012 — Financial review does not permanently block a card
 
@@ -1857,6 +1889,14 @@
 - Scope: `AUTH-001`, `AUTH-002`, `AUTH-003`, `AUTH-008`, `API-009`, `FEAT-006`.
 
 ## 20. Known Issues and Technical Debt
+
+### RISK-012 — Responsiveness diagnosis and historical evidence
+
+- State: PARTIAL
+- Sources: `specs/037-panel-responsiveness-login-health/research.md`; `specs/037-panel-responsiveness-login-health/analysis.md`; `specs/027-bein-connection-mode/evidence`
+- Current state: Page fieldsets/busy modal guards are source-confirmed; full navigation freeze and authenticated production latency are unverified. Historical 027 plan-guard.json is missing; 037 cannot certify that scope.
+- Mitigation: Planned pointer/router/native-race evidence during authorized implementation; preserve historical incomplete status without invented acceptance.
+- Connections: `FEAT-024`, `WORK-010`, `WORK-009`, `RISK-001`
 
 ### RISK-001 — Live production and external state are unverified
 
@@ -1983,6 +2023,14 @@
 
 ## 21. Open Tasks
 
+### WORK-010 — Implement Spec Kit 037 after documentation handoff
+
+- State: PARTIAL
+- Sources: `specs/037-panel-responsiveness-login-health/tasks.md`; `specs/037-panel-responsiveness-login-health/analysis.md`; `specs/037-panel-responsiveness-login-health/quickstart.md`
+- Current state: Runtime implementation authorized; C01/C02 and foundation are partial, with unit/browser checks. All tasks remain unchecked because complete task-specific acceptance is not assembled. No provider/business-data action, commit/push or deployment.
+- Next step: Resume execution evidence; finish specific balance error copy, integrated Worker/SQL races, remaining C03 creation/transfers and C04–C07, health-view browser acceptance and final build/converge gates directly without agents. Terminal policy/recovery/monitor wiring is implemented but not fully accepted.
+- Connections: `FEAT-024`, `IMPACT-010`, `DEC-013`, `RISK-012`
+
 ### WORK-009 — Login/proxy incident release follow-up
 
 - State: PARTIAL
@@ -2074,6 +2122,24 @@
 - Phase 4: Phase 4 T015-T017 complete, 10/46 accepted; synthetic API/worker/DB and six mocked browser groups verified with independent review. Later phases and T007/T008/T012 remain open. Saved locally, no commit/push/deploy. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ## 22. Change Ledger
+
+### UPD-20261104-002 — Begin authorized Spec Kit 037 implementation
+
+- Date: 2026-11-04
+- State: PARTIAL
+- Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; `src/lib/panel-command-state.ts`; `src/components/providers/PanelCommandProvider.tsx`; `shared/bein/login-health.ts`; `worker/src/lib/bein-login-tracking.ts`
+- Affected IDs: `FEAT-024`, `WORK-010`, `IMPACT-010`, `RISK-012`, `FRESH-001`
+- Delta: Added persistent command ownership, C01/C02 and C03 edit/reset, async balance store/API/Worker/polling and status-only retry. Temporary native Redis tests passed and server stopped. Typed terminal health policy is wired through KeepAlive/reports/queue/balance; activation routes use protected recovery. Monitor/account rows expose safe reasons, obsolete threshold editing is removed, and login-reset/low-balance actions share ownership. Root suite: 961 passed; Worker: 559 passed/five skipped; current health browser fixture: 30 passed. Current scoped receipts and limitations are in evidence/implementation.md.
+- Impact: Partial runtime UI/API/Worker change; no schema change, business/provider action, commit/push or deployment. Remaining consumer migrations, recovery/native SQL races, health browser checks, full combined checks and task acceptance remain open.
+
+### UPD-20261104-001 — Persist Spec Kit 037 documentation and analysis
+
+- Date: 2026-11-04
+- State: VERIFIED
+- Sources: `specs/037-panel-responsiveness-login-health`; `.specify/feature.json`; `AGENTS.md`; `docs/PROJECT_GUIDE.md`
+- Affected IDs: `SRC-009`, `FEAT-014`, `FEAT-024`, `IMPACT-010`, `DEC-013`, `WORK-010`, `RISK-012`, `FRESH-001`
+- Delta: Saved accepted scope, source-grounded contracts, original-template task backlog, checklists and analysis on local codex/037 branch. Included all activation paths in protected recovery; retained uncertainty and historical gaps.
+- Impact: NO_RUNTIME_IMPACT. No runtime task completion, app tests/builds, business/provider operation, commit/push or deployment. Detailed artifacts are not claimed user-reviewed.
 
 ### UPD-20261030-002 — Authorize publication and prepare server commands
 
@@ -2473,6 +2539,8 @@
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
+
+- 2026-11-04: Current scoped delta is `UPD-20261104-002`, partial implementation. Header records the current worktree; full 037, historical test/production acceptance is not recertified. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; `docs/PROJECT_GUIDE.md`.
 
 - 2026-10-30: Latest scoped delta is UPD-20261030-001. The header describes the settled local incident worktree; unrelated historical acceptance and production state are not recertified. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 

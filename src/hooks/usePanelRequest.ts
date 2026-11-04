@@ -1,8 +1,58 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { withRequestDeadline } from '@/lib/request-deadline'
 import { useTranslation } from '@/hooks/useTranslation'
+import { usePanelCommandOwner } from '@/components/providers/PanelCommandProvider'
+import type { PanelCommandInput } from '@/lib/panel-command-runner'
+import type { CommandReceipt } from '@/lib/panel-command-state'
+
+const noReceipts: readonly CommandReceipt[] = Object.freeze([])
+const emptySnapshot = () => noReceipts
+const emptySubscribe = () => () => {}
+
+/** Explicit-resource adapter for migrated callers. Legacy callers are migrated per C01–C07. */
+export function useOwnedPanelCommand() {
+    const owner = usePanelCommandOwner()
+    const { t } = useTranslation()
+    const receipts = useSyncExternalStore(owner?.runner.state.subscribe ?? emptySubscribe,
+        owner?.runner.state.snapshot ?? emptySnapshot, emptySnapshot)
+    const request = useCallback(async (input: Omit<PanelCommandInput, 'attempt'>) => {
+        if (!owner) throw new Error(t.panelUi.commandUnconfirmed)
+        const attempt = crypto.randomUUID()
+        if (input.displayLabel) owner.labels.set(attempt, input.displayLabel)
+        try { return await owner.runner.request({ ...input, attempt }) }
+        catch {
+            if (!owner.runner.state.snapshot().some(r => r.attempt === attempt)) owner.labels.delete(attempt)
+            throw new Error(t.panelUi.commandUnconfirmed)
+        }
+    }, [owner, t.panelUi.commandUnconfirmed])
+    return { request, receipts, state: owner?.runner.state ?? null, drafts: owner?.drafts, actor: owner?.actor }
+}
+
+export function useResourcePanelCommand(resources: readonly string[], action: string,
+    knownRejection?: PanelCommandInput['knownRejection'], displayLabel?: string) {
+    const owned = useOwnedPanelCommand()
+    const relevant = owned.receipts.filter(r => r.resources.some(key => resources.includes(key)))
+    return { ...owned,
+        loading: relevant.some(r => r.state === 'PENDING'),
+        unconfirmed: relevant.some(r => r.state === 'UNCERTAIN'),
+        request: (url: string, init: RequestInit) => owned.request({ action, resources, url, init, knownRejection, displayLabel }),
+    }
+}
+
+/** Capture before dispatch; hidden, replaced and unmounted views cannot apply late callbacks. */
+export function usePanelViewGuard(identity: string | null, open: boolean) {
+    const current = useRef({ identity, open, version: 0, mounted: true })
+    useLayoutEffect(() => {
+        current.current = { identity, open, version: current.current.version + 1, mounted: true }
+        return () => { current.current.mounted = false }
+    }, [identity, open])
+    return () => {
+        const version = current.current.version
+        return () => current.current.mounted && current.current.open && current.current.version === version
+    }
+}
 
 export class PanelRequestError extends Error {
     constructor(public readonly status: number) { super(`PANEL_REQUEST_${status}`) }

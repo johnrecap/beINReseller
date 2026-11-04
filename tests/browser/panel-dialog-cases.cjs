@@ -48,7 +48,7 @@ module.exports=async function dialogCases({p,render,check}) {
    check(scenario+' successful save preserves API body and completes once '+language);continue;
   }
   await p.waitForFunction(()=>!!window.releaseWrite);await p.keyboard.press('Escape');
-  assert.equal(await p.evaluate(()=>window.panelClosed||0),0,'cannot close a pending mutation');
+  assert.equal(await p.evaluate(()=>window.panelClosed||0),['creditControl','edit','resetPassword'].includes(view)?1:0,'only migrated owned mutations allow pending close');
   assert.equal(await form.locator('button[type=submit]').isDisabled(),true,'busy feedback must persist until the admitted request finishes');
   await p.evaluate(()=>window.releaseWrite());await modal.getByRole('alert').waitFor();
   assert.equal(await field.inputValue(),value);assert.equal(await p.evaluate(()=>!!window.saved),false);
@@ -64,7 +64,7 @@ module.exports=async function dialogCases({p,render,check}) {
   }
   await p.keyboard.press('Escape');
   if(view==='createManager')await modal.waitFor({state:'detached'});
-  else assert.equal(await p.evaluate(()=>window.panelClosed),1);
+  else assert.equal(await p.evaluate(()=>window.panelClosed),['creditControl','edit','resetPassword'].includes(view)?2:1);
   check(scenario+' rejects duplicates, retains rejected input and guards close '+language);
  }
  for(const view of ['creditControl','createManager','transferAgent','ownership'])for(const status of [401,403,500]) {

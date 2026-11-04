@@ -135,7 +135,7 @@ pm2 logs bein-web --lines 80
 
 <!-- SPECKIT START -->
 For the current Spec Kit workflow, read
-`specs/036-audit-remediation/plan.md`,
-`specs/036-audit-remediation/spec.md`, and
-`specs/036-audit-remediation/tasks.md` before editing.
+`specs/037-panel-responsiveness-login-health/plan.md`,
+`specs/037-panel-responsiveness-login-health/spec.md`, and
+`specs/037-panel-responsiveness-login-health/tasks.md` before editing.
 <!-- SPECKIT END -->

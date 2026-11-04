@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-04",
+  "scope": "037 balance request store only; Windows Redis-compatible native concurrency, not production Linux acceptance",
+  "runtime": {
+    "name": "Memurai for Redis Developer",
+    "version": "8.2.0",
+    "reportedApi": "8.2.10",
+    "reportedReleaseCandidate": true,
+    "source": "https://www.memurai.com/api/request-download-link?version=windows-redis",
+    "msiSha256": "6D950414C40427FD21DA4044F6A145F4E72B312EEB33E2B914646FB160D7484D",
+    "signature": "Valid Janea Systems, Inc.",
+    "bind": "127.0.0.1:16379",
+    "database": 15,
+    "serviceInstalled": false,
+    "persistentData": false
+  },
+  "result": "PASS",
+  "testOutput": "✔ native Redis: one admission, one run owner, terminal fencing, failure and expiry (15.0928ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 236.6122\n0\n",
+  "cleanup": {
+    "databaseSize": 0,
+    "shutdown": "SHUTDOWN NOSAVE",
+    "processAbsent": true,
+    "listenerAbsent": true
+  },
+  "limitations": [
+    "No PostgreSQL race test",
+    "No provider calls",
+    "No full application integration",
+    "Temporary extracted binaries retained in ignored output/native-037 for further authorized testing; server stopped"
+  ]
+}

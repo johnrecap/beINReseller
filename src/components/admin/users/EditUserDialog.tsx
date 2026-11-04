@@ -1,7 +1,7 @@
 'use client'
 
 import { PanelCommandWarning } from '@/components/ui/PanelLoadError'
-import { usePanelCommand } from '@/hooks/usePanelRequest'
+import { useResourcePanelCommand, usePanelViewGuard } from '@/hooks/usePanelRequest'
 import { useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Loader2 } from 'lucide-react'
@@ -15,18 +15,24 @@ interface EditUserDialogProps {
 }
 
 export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: EditUserDialogProps) {
+    return isOpen && user ? <EditUserForm key={user.id} isOpen={isOpen} onClose={onClose} onSuccess={onSuccess} user={user} /> : null
+}
+
+function EditUserForm({ isOpen, onClose, onSuccess, user }: EditUserDialogProps) {
     const { t, dir } = useTranslation()
-    const { request: command, unconfirmed } = usePanelCommand(isOpen ? user?.id : null)
-    const [loading, setLoading] = useState(false)
+    const { request: command, unconfirmed, loading, drafts } = useResourcePanelCommand([`user/${user?.id}`], 'user.edit', undefined, user?.username)
+    const viewGuard = usePanelViewGuard(user?.id ?? null, isOpen)
+    const draftKey = `userEdit/${user?.id}`
+    const draft = drafts?.get(draftKey) as { email: string; isActive: boolean } | undefined
     const [error, setError] = useState<string | null>(null)
     const submitting = useRef(false)
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        if (unconfirmed || !user || submitting.current) return
+        if (unconfirmed || loading || !user || submitting.current) return
 
         submitting.current = true
-        setLoading(true)
+        const isCurrent = viewGuard()
         setError(null)
 
         const formData = new FormData(e.currentTarget)
@@ -44,34 +50,37 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
 
             if (!res.ok) throw new Error(json.error || t.admin.users.messages.error)
 
-            onSuccess()
-            onClose()
+            drafts?.delete(draftKey)
+            if (isCurrent()) { onSuccess(); onClose() }
         } catch (err) {
-            setError(err instanceof Error ? err.message : t.admin.users.messages.error)
+            if (isCurrent()) setError(err instanceof Error ? err.message : t.admin.users.messages.error)
         } finally {
             submitting.current = false
-            setLoading(false)
         }
     }
 
     if (!isOpen || !user) return null
 
     return (
-        <Dialog open={isOpen} onOpenChange={open => { if (!open && !submitting.current) onClose() }}>
+        <Dialog open={isOpen} onOpenChange={open => { if (!open) onClose() }}>
             <DialogContent panel closeLabel={t.panelUi.close} dir={dir} className="rounded-xl max-w-md p-0 bg-card text-foreground" aria-describedby={undefined}>
                 <div className="flex justify-between items-center p-4 border-b border-gray-100">
                     <DialogTitle className="font-bold text-foreground pe-8">{t.admin.users.dialogs.editTitle}: {user.username}</DialogTitle>
 
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-4 space-y-4">
+                <form onSubmit={handleSubmit} onChange={event => {
+                    const data = new FormData(event.currentTarget)
+                    drafts?.set(draftKey, { email: String(data.get('email') ?? ''), isActive: data.get('isActive') === 'on' })
+                }} className="p-4 space-y-4">
                     <div>
                         <label htmlFor="edit-email" className="block text-sm font-medium text-foreground mb-1">{t.admin.users.dialogs.email}</label>
                         <input
                             id="edit-email"
                             name="email"
                             type="email"
-                            defaultValue={user.email}
+                            defaultValue={draft?.email ?? user.email}
+                            disabled={loading || unconfirmed}
                             required
                             placeholder={t.admin?.users?.dialogs?.email || 'Email'}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-[#00A651] bg-background text-foreground text-sm text-right dir-ltr"
@@ -83,7 +92,8 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
                             name="isActive"
                             type="checkbox"
                             id="isActive"
-                            defaultChecked={user.isActive}
+                            defaultChecked={draft?.isActive ?? user.isActive}
+                            disabled={loading || unconfirmed}
                             className="w-5 h-5 text-[#00A651] rounded focus:ring-[#00A651] cursor-pointer"
                         />
                         <label htmlFor="isActive" className="text-sm font-medium text-foreground cursor-pointer select-none">
@@ -101,8 +111,7 @@ export default function EditUserDialog({ isOpen, onClose, onSuccess, user }: Edi
                     <div className="flex gap-3 pt-2">
                         <button
                             type="button"
-                            onClick={() => { if (!submitting.current) onClose() }}
-                            disabled={loading}
+                            onClick={onClose}
                             className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                         >
                             {t.admin.users.actions.cancel}

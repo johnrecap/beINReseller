@@ -573,6 +573,38 @@ export class HttpClientService {
     }
 
     /** Dedicated display client: cancellation and ownership apply to login AND every report request. */
+    restrictToBalanceReads(signal: AbortSignal, assertOwnership: () => Promise<void>): void {
+        this.reportReadScope = true; // no diagnostic IP request or interactive CAPTCHA solver
+        this.axios.interceptors.request.use(async config => {
+            signal.throwIfAborted();
+            await assertOwnership();
+            signal.throwIfAborted();
+            const login = new URL(this.config.loginUrl);
+            const renew = new URL(this.config.renewUrl, login);
+            const url = new URL(config.url || '', login);
+            const method = (config.method || 'get').toLowerCase();
+            if (url.origin !== login.origin || !['get', 'post'].includes(method) ||
+                (url.pathname !== login.pathname && url.pathname !== renew.pathname)) throw new Error('BALANCE_READ_ONLY_BOUNDARY');
+            if (method === 'post' && url.pathname === renew.pathname) {
+                const form = new URLSearchParams(String(config.data));
+                const allowed = new Set(['__VIEWSTATE', '__VIEWSTATEGENERATOR', '__EVENTVALIDATION', '__EVENTTARGET', '__EVENTARGUMENT', '__LASTFOCUS',
+                    'ctl00$ContentPlaceHolder1$txtSmartNo', 'ctl00$ContentPlaceHolder1$btnSubmit']);
+                if ([...form.keys()].some(key => !allowed.has(key)) || form.get('ctl00$ContentPlaceHolder1$btnSubmit') !== 'Submit' ||
+                    form.get('__EVENTTARGET') || form.get('__EVENTARGUMENT')) throw new Error('BALANCE_READ_ONLY_BOUNDARY');
+            }
+            config.signal = signal;
+            config.timeout = Math.min(config.timeout || 30_000, 30_000);
+            config['axios-retry'] = { retries: 0 };
+            config.beforeRedirect = options => {
+                signal.throwIfAborted();
+                const next = new URL(`${options.protocol}//${options.hostname}${options.port ? `:${options.port}` : ''}${options.path}`);
+                if (next.origin !== login.origin || (options.method || 'GET').toUpperCase() !== 'GET') throw new Error('BALANCE_READ_ONLY_REDIRECT');
+            };
+            return config;
+        });
+    }
+
+    /** Dedicated display client: cancellation and ownership apply to login AND every report request. */
     restrictToReportReads(signal: AbortSignal, assertOwnership: () => Promise<void>): void {
         this.reportReadScope = true;
         this.axios.interceptors.request.use(async config => {
@@ -1361,7 +1393,11 @@ export class HttpClientService {
         this.loginTrackingRevision = account.updatedAt;
     }
 
+    private loginAttempted = false;
+    didAttemptLogin(): boolean { return this.loginAttempted === true; }
+
     async login(username: string, password: string, totpSecret?: string): Promise<LoginResult> {
+        this.loginAttempted = false;
         try { await this.captureLoginTrackingRevision(); }
         catch { this.invalidateSession(); return loginMessageFailure(); }
         this.renewalSelection = null;
@@ -1392,6 +1428,7 @@ export class HttpClientService {
             // === END DEBUG ===
 
             // Step 1: GET login page
+            this.loginAttempted = true;
             console.log('[HTTP] GET login page');
             const loginPageRes = await this.axios.get(this.config.loginUrl);
             console.log(`[HTTP] Login page status: ${loginPageRes.status}`);

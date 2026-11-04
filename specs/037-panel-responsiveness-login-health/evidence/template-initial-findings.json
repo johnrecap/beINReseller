@@ -1,0 +1,8 @@
+{
+  "date": "2026-11-04",
+  "result": "FAIL",
+  "sourceReport": "output/037-template-initial.json",
+  "finding": "Original-template required labels and one quotation missing",
+  "resolution": "A06 in analysis.md; artifacts corrected, templates preserved",
+  "scope": "Historical first planning check, not current acceptance"
+}

@@ -1,0 +1,22 @@
+✔ balance retry requires a known pre-write or rolled-back endpoint error (15.6154ms)
+✔ claims before dispatch; separate resources run while the first response is pending (23.2114ms)
+✔ browser caller abort does not cancel the owned command (0.7002ms)
+✔ body timeout and late completion cannot clear uncertainty or replay (17.6979ms)
+✔ only an explicit pre-effect rejection releases failed transport responses (1.6615ms)
+✔ bad bodies remain uncertain and storage denial sends nothing (0.5513ms)
+✔ an HTTP 200 business failure does not become a success receipt (0.4286ms)
+✔ claims the complete sorted resource set atomically; independent commands proceed (1.6907ms)
+✔ a pending tombstone becomes uncertain on reload and is never replayed or expired (0.3165ms)
+✔ failed persistence refuses dispatch and leaves no partial in-memory claim (0.1895ms)
+✔ settlement requires the exact immutable attempt and unknown outcomes retain their claim (0.2448ms)
+✔ known terminal outcomes free resources and clear only their own tombstone (0.1894ms)
+✔ corrupt storage fails closed, never silently loses an unresolved financial request (0.1258ms)
+✔ only settled receipts can be dismissed; a new command does not erase an unseen result (0.2111ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 399.7838

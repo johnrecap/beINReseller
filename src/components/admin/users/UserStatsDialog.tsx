@@ -3,7 +3,7 @@
 import { PanelDialog } from '@/components/ui/dialog'
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { usePanelRequest, useResourcePanelCommand, usePanelViewGuard } from '@/hooks/usePanelRequest'
 import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { X, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Loader2, DollarSign, ArrowUpCircle, ArrowDownCircle, Wallet, ChevronDown, CheckCircle, Wrench } from 'lucide-react'
 import { format } from 'date-fns'
@@ -121,6 +121,9 @@ export default function UserStatsDialog({
     canViewReceipts = false,
 }: UserStatsDialogProps) {
     const { t, locale } = useTranslation()
+    const { request: correctionCommand, unconfirmed: correctionUnconfirmed, loading: correctionBusy } =
+        useResourcePanelCommand([`user/${userId}`], 'user.correctBalance', undefined, username ?? undefined)
+    const viewGuard = usePanelViewGuard(userId, isOpen)
     const transactionTypeLabels = getTransactionTypeLabels(t)
     const statusLabels = getStatusLabels(t)
 
@@ -146,7 +149,7 @@ export default function UserStatsDialog({
     const loading = reading && !moreMode
     const loadingMore = reading && moreMode
     const readAdmission = useRef<symbol | null>(null)
-    const correctionPending = useRef(false)
+    const correctionPending = useRef(new Set<string>())
     const [data, setData] = useState<StatsData | null>(null)
     const [activeTab, setActiveTab] = useState<'transactions' | 'operations'>('transactions')
     const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -155,8 +158,10 @@ export default function UserStatsDialog({
     const [opHasMore, setOpHasMore] = useState(false)
     const [txTotal, setTxTotal] = useState(0)
     const [opTotal, setOpTotal] = useState(0)
-    const [correcting, setCorrecting] = useState<string | null>(null)
+    const [correctionState, setCorrectionState] = useState<{ userId: string; key: string } | null>(null)
+    const correcting = correctionState?.userId === userId ? correctionState.key : null
     const [correctionSuccess, setCorrectionSuccess] = useState<string | null>(null)
+    const [correctionNotice, setCorrectionNotice] = useState<{ error: boolean; text: string } | null>(null)
 
     // Correction dialog state
     const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false)
@@ -221,7 +226,7 @@ export default function UserStatsDialog({
     }
 
     const handleCorrect = async (alertType: string, operationId?: string) => {
-        if (!userId || !canCorrectBalance || correctionPending.current) return
+        if (!userId || !canCorrectBalance || correctionPending.current.has(userId) || correctionUnconfirmed || correctionBusy) return
 
         // For BALANCE_MISMATCH, open the dialog instead of auto-correcting
         if (alertType === 'BALANCE_MISMATCH') {
@@ -242,21 +247,24 @@ export default function UserStatsDialog({
     }
 
     const submitCorrection = async (alertType: string, operationId?: string, notes?: string) => {
-        if (!userId || !canCorrectBalance || correctionPending.current) return
+        if (!userId || !canCorrectBalance || correctionPending.current.has(userId) || correctionUnconfirmed || correctionBusy) return
+        const isCurrent = viewGuard()
 
-        correctionPending.current = true
+        correctionPending.current.add(userId)
         const key = `${alertType}-${operationId || 'none'}`
-        setCorrecting(key)
+        setCorrectionState({ userId, key })
         setCorrectionSuccess(null)
+        setCorrectionNotice(null)
 
         try {
-            const res = await fetch(`/api/admin/users/${userId}/correct-balance`, {
+            const res = await correctionCommand(`/api/admin/users/${userId}/correct-balance`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type: alertType, operationId, notes })
             })
 
             const result = await res.json()
+            if (!isCurrent()) return
 
             if (!res.ok) {
                 throw new Error(result.error || t.userStats?.correctionFailed || 'Correction failed')
@@ -268,16 +276,16 @@ export default function UserStatsDialog({
                 // Refresh stats after correction
                 await fetchStats()
             } else if (result.alreadyCorrected) {
-                alert(result.message)
+                setCorrectionNotice({ error: false, text: result.message })
                 setCorrectionDialogOpen(false)
             } else {
-                alert(result.message)
+                setCorrectionNotice({ error: false, text: result.message })
             }
         } catch (err) {
-            alert(err instanceof Error ? err.message : t.common?.error || 'Error')
+            if (isCurrent()) setCorrectionNotice({ error: true, text: err instanceof Error ? err.message : t.common.error })
         } finally {
-            correctionPending.current = false
-            setCorrecting(null)
+            correctionPending.current.delete(userId)
+            setCorrectionState(current => current?.userId === userId ? null : current)
         }
     }
 
@@ -289,10 +297,11 @@ export default function UserStatsDialog({
     if (!isOpen) return null
 
     return (
-        <PanelDialog onClose={() => { if (!correctionPending.current) onClose() }} busy={!!correcting} title={<>
+        <PanelDialog onClose={onClose} busy={correctionBusy} allowPendingClose title={<>
                         {t.userStats?.title || 'User Statistics'}: {username}
                     </>} className="max-w-4xl">
             {/* Backdrop */}
+            {correctionNotice && !correctionDialogOpen && <p role={correctionNotice.error ? 'alert' : 'status'} className="p-4">{correctionNotice.text}</p>}
 
 
             {/* Dialog */}
@@ -303,8 +312,7 @@ export default function UserStatsDialog({
                         {t.userStats?.title || 'User Statistics'}: {username}
                     </h2>
                     <button
-                        onClick={() => { if (!correctionPending.current) onClose() }}
-                        disabled={!!correcting}
+                        onClick={onClose}
                         className="shrink-0 p-2 hover:bg-secondary rounded-lg transition-colors"
                         title={t.userStats?.close || 'Close'}
                     >
@@ -523,7 +531,7 @@ export default function UserStatsDialog({
                                                 {canCorrectBalance && (
                                                     <button
                                                         onClick={() => handleCorrect(alert.type, alert.operationId)}
-                                                        disabled={correcting !== null}
+                                                        disabled={correctionBusy || correctionUnconfirmed || correcting !== null}
                                                         className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-xs font-medium transition-colors"
                                                         title={t.userStats?.alerts?.correct}
                                                     >
@@ -583,10 +591,11 @@ export default function UserStatsDialog({
 
                             {/* Correction Dialog (Inline Modal) */}
                             {correctionDialogOpen && data && canCorrectBalance && (
-                                <PanelDialog onClose={() => { if (!correctionPending.current) setCorrectionDialogOpen(false) }} busy={!!correcting} title={<>
+                                <PanelDialog onClose={() => setCorrectionDialogOpen(false)} busy={correctionBusy} allowPendingClose title={<>
                                             <Wrench className="w-5 h-5 text-amber-500" />
                                             {t.userStats?.correction?.dialogTitle}
                                         </>} className="max-w-md">
+                                    {correctionNotice && <p role={correctionNotice.error ? 'alert' : 'status'} className="p-4">{correctionNotice.text}</p>}
 
                                     <div className="relative bg-card rounded-xl shadow-2xl w-full max-w-md p-6">
                                         <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -712,15 +721,14 @@ export default function UserStatsDialog({
                                         {/* Actions */}
                                         <div className="flex gap-3 justify-end">
                                             <button
-                                                onClick={() => { if (!correctionPending.current) setCorrectionDialogOpen(false) }}
-                                                disabled={correcting !== null}
+                                                onClick={() => setCorrectionDialogOpen(false)}
                                                 className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
                                             >
                                                 {t.common?.cancel || 'Cancel'}
                                             </button>
                                             <button
                                                 onClick={handleCorrectionDialogSubmit}
-                                                disabled={correcting !== null}
+                                                disabled={correctionBusy || correctionUnconfirmed || correcting !== null}
                                                 className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 text-sm font-medium transition-colors"
                                             >
                                                 {correcting ? (

@@ -1,5 +1,19 @@
 # Project Guide
 
+## Spec Kit 037 implementation checkpoint (2026-11-04)
+
+Latest continuation: balance polling/status-only retry and C03 edit/reset are wired. Typed terminal health policy reaches KeepAlive/reports/queue/balance; activation routes use protected recovery. Login-reset and low-balance monitor actions share account ownership. Root suite: 961 passed; Worker: 559 passed/five skipped. Current health browser fixture: 30 checks passed in ar/en/bn. Remaining C03–C07, native SQL races, real route lifecycle and combined build/converge gates remain open. Temporary Redis is stopped.
+
+Implementation is authorized and PARTIAL. Read [current execution evidence](../specs/037-panel-responsiveness-login-health/evidence/implementation.md) before continuing task IDs. Earlier chronological checkpoints describe older source versions. No task-level acceptance, production fix, deployment, commit/push or provider/business-data action is claimed.
+
+## Panel responsiveness and login health — Spec Kit 037 planning (2026-11-04)
+
+The user authorized documentation through analyze only. Start at [037 index](../specs/037-panel-responsiveness-login-health/README.md), [tasks](../specs/037-panel-responsiveness-login-health/tasks.md) and [analysis register](../specs/037-panel-responsiveness-login-health/analysis.md). The plan covers whole-panel commands/dialogs/navigation, asynchronous dealer-balance refresh, and first-terminal-login quarantine with protected manual ADMIN activation. Toggle, edit-to-active and low-balance reactivation all belong to the recovery coverage.
+
+Runtime remains unchanged. All 24 implementation/verification tasks are unchecked; no app tests/builds, provider/business-data operations or deployment were executed for this documentation delivery. Source-confirmed page/modal locks are distinguished from unverified navigation-wide incident causality. The local branch is `codex/037-panel-responsiveness-login-health`, based on `7dd89fd119ca5426494e80620426cbaf63a5eec1`; no commit/push is included. Six Spec Kit customizations are preserved.
+
+The missing historical `specs/027-bein-connection-mode/evidence/plan-guard.json`, original 027/036 release gates and production parity remain open. New documentation checks do not recertify that scope. `PROJECT_MEMORY.md` records `UPD-20261104-001` with NO_RUNTIME_IMPACT.
+
 ## Login recovery publication handoff (2026-10-30)
 
 The user authorized commit/push of the tested repair to `codex/027-login-recovery` and will execute the [guarded server commands](deployment/login-recovery-20261030.md). The handoff preserves the reported ten-worker topology, rejects unreviewed schema/dependency drift, retains previous builds, restores an absent KeepAlive through the ecosystem and uses one ADMIN reset-and-activate for `Bn-xtr-544`. Existing build scripts and generated customer entry are covered. No additional application behavior changed in this publication step. Actual admission/drain, production artifact parity and two KeepAlive cycles remain pending; 036 historical evidence is not recertified.

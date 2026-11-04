@@ -1,4 +1,5 @@
 import { endedOperationExecutionIdle, releaseEndedRenewalReservations, EXECUTION_ENDED_STATUSES } from '../../shared/operations/renewal-pre-payment';
+import { BalanceRefreshFailure } from './lib/bein-balance-refresh';
 import { deliverCompletionEffects } from '../../shared/operations/completion-effects';
 
 /**
@@ -15,6 +16,7 @@ import { Job, Queue, UnrecoverableError } from 'bullmq';
 import { prisma } from './lib/prisma';
 import { HttpClientService, AvailablePackage, classifyFinalPayOutcome, type LoadPackagesResult } from './http';
 import type { FinalPayOutcomeCategory, PayInstallmentResult, PurchaseResult } from './http';
+import type { LoginResult } from './http/types';
 import { AccountPoolManager, getQueueManager, lockAccount, unlockAccount } from './pool';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { assertAdministrativeExecutionAllowed, beginOperationProviderRequest, finishOperationProviderRequest } from '../../shared/operations/admin-card-release';
@@ -72,6 +74,8 @@ import {
 import {
     recordLoginFailure,
     recordLoginSuccess,
+    recordLoginHealthSuccess,
+    recordLoginHealthFailure,
     shouldCountAsCredentialFailure,
 } from './lib/bein-login-tracking';
 import {
@@ -155,6 +159,7 @@ interface OperationJobData {
     userId?: string;
     amount?: number;
     accountId?: string;  // For CHECK_ACCOUNT_BALANCE
+    balanceRequestId?: string;
     smartcardType?: string;  // 'CISCO' or 'IRDETO' (default: CISCO)
     verificationAttempt?: number;
 }
@@ -868,7 +873,13 @@ function isSessionExpiredError(message: string | undefined): boolean {
         message.includes('Login page');
 }
 
-async function trackCredentialLoginFailure(accountId: string, reason: string | undefined, revision?: Date): Promise<void> {
+async function trackCredentialLoginFailure(accountId: string, reason: string | LoginResult | undefined, revision?: Date,
+    attempted = false, terminal = true): Promise<void> {
+    if (typeof reason === 'object') {
+        if (!terminal) return;
+        if (!await recordLoginHealthFailure(accountId, reason, revision, { attempted, terminal })) throw new Error('LOGIN_HEALTH_STALE');
+        return;
+    }
     if (shouldCountAsCredentialFailure(reason)) {
         await recordLoginFailure(accountId, reason, revision);
     }
@@ -937,7 +948,7 @@ export interface ReLoginRuntime {
     ) => Promise<void>;
     getCaptchaApiKey: () => Promise<string | null>;
     solveCaptcha: (apiKey: string, captchaImage: string) => Promise<string>;
-    trackCredentialLoginFailure: (accountId: string, reason: string | undefined, revision?: Date) => Promise<void>;
+    trackCredentialLoginFailure: (accountId: string, reason: string | LoginResult | undefined, revision?: Date, attempted?: boolean, terminal?: boolean) => Promise<void>;
     trackFreshLoginSuccess: (accountId: string, revision?: Date) => Promise<void>;
     saveSessionToCacheFenced: (input: ReLoginFencedSessionInput) => Promise<boolean>;
     captureSharedSessionGuard?: (accountId: string) => Promise<SharedSessionGuard | undefined>;
@@ -1010,7 +1021,8 @@ export async function performReLogin(
 
                         if (!loginWithCaptcha.success) {
                             lastError = loginWithCaptcha.error || 'Login failed after CAPTCHA';
-                            await runtime.trackCredentialLoginFailure(account.id, lastError, httpClient.getLoginTrackingRevision?.());
+                            await runtime.trackCredentialLoginFailure(account.id, loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin?.() === true,
+                                loginWithCaptcha.retryable === false || attempt === MAX_LOGIN_RETRIES);
                             console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
                             if (loginWithCaptcha.retryable === false) return false;
 
@@ -1023,7 +1035,10 @@ export async function performReLogin(
 
                         console.log(`[HTTP] ✅ Login with CAPTCHA successful on attempt ${attempt}`);
                     } catch (captchaError: unknown) {
+                        if (getErrMsg(captchaError).startsWith('LOGIN_HEALTH_')) throw captchaError;
                         if (isProviderExecutionLeaseLostError(captchaError)) throw captchaError;
+                        if (attempt === MAX_LOGIN_RETRIES) await runtime.trackCredentialLoginFailure(account.id, loginResult,
+                            httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin?.() === true);
                         lastError = 'CAPTCHA auto-solve failed';
                         console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${lastError}`);
 
@@ -1035,12 +1050,14 @@ export async function performReLogin(
                     }
                 } else {
                     lastError = 'Re-login requires CAPTCHA but no API key configured';
+                    await runtime.trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin?.() === true);
                     // Don't retry for missing API key — won't change between attempts
                     return false;
                 }
             } else if (!loginResult.success) {
                 lastError = loginResult.error || 'Login failed';
-                await runtime.trackCredentialLoginFailure(account.id, lastError, httpClient.getLoginTrackingRevision?.());
+                await runtime.trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin?.() === true,
+                    loginResult.retryable === false || attempt === MAX_LOGIN_RETRIES);
                 console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
                 if (loginResult.retryable === false) return false;
 
@@ -1082,6 +1099,7 @@ export async function performReLogin(
             return true;
 
         } catch (error: unknown) {
+            if (getErrMsg(error).startsWith('LOGIN_HEALTH_')) throw error;
             if (isProviderExecutionLeaseLostError(error)) throw error;
             if (getErrMsg(error) === 'ACCOUNT_SESSION_GUARD_LOST') throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
             lastError = 'Login attempt could not complete';
@@ -1243,7 +1261,23 @@ export async function processOperationHttp(
     job: Job<OperationJobData>,
     accountPool: AccountPoolManager
 ): Promise<void> {
-    if (job.data.type === 'CHECK_ACCOUNT_BALANCE') return processOperationHttpScoped(job, accountPool);
+    if (job.data.type === 'CHECK_ACCOUNT_BALANCE') {
+        const { runBalanceRefreshJob, BalanceRefreshFailure } = await import('./lib/bein-balance-refresh');
+        const store = await import('../../shared/bein/balance-refresh-store');
+        const { accountId, balanceRequestId } = job.data;
+        if (!accountId) throw new BalanceRefreshFailure('ACCOUNT_UNAVAILABLE');
+        if (!balanceRequestId) {
+            await handleCheckAccountBalance(job.id || job.data.operationId, accountId, accountPool);
+            return;
+        }
+        const redis = accountPool.getRedis();
+        await runBalanceRefreshJob(balanceRequestId, accountId, {
+            claim: (id, token) => store.claimBalanceRefresh(redis, id, token),
+            read: id => store.readBalanceRefresh(redis, id),
+            finish: (id, token, result) => store.finishBalanceRefresh(redis, id, token, result),
+        }, (id, signal, assertOwner) => handleCheckAccountBalance(balanceRequestId, id, accountPool, { signal, assertOwner }));
+        return;
+    }
     return operationRequestContext.run(job.data.operationId, () => processOperationHttpScoped(job, accountPool));
 }
 
@@ -1266,15 +1300,7 @@ async function processOperationHttpScoped(job: Job<OperationJobData>, accountPoo
         }
         switch (type) {
             case 'CHECK_ACCOUNT_BALANCE':
-                if (accountId) {
-                    try {
-                        await handleCheckAccountBalance(operationId, accountId, accountPool);
-                    } catch (balanceError: unknown) {
-                        console.error(`❌ [HTTP] CHECK_ACCOUNT_BALANCE failed for ${accountId}:`, getErrMsg(balanceError));
-                        // Don't throw - this job type has no operation to refund
-                    }
-                }
-                return; // Exit early - no operation to update on success or failure
+                throw new Error('BALANCE_DISPATCH_BOUNDARY');
             case 'START_RENEWAL':
                 await handleStartRenewalHttp(operationId, cardNumber, accountPool, smartcardType);
                 break;
@@ -1696,6 +1722,7 @@ async function handleStartRenewalHttp(
                 solution = await waitForCaptchaSolution(operationId);
                 if (!solution) {
                     // Release lock before throwing
+                    await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), client.didAttemptLogin());
                     await releaseLoginLock(selectedAccount.id, WORKER_ID);
                     throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                 }
@@ -1713,7 +1740,7 @@ async function handleStartRenewalHttp(
             if (!loginWithCaptcha.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginWithCaptcha.error || 'Login failed after CAPTCHA', client.getLoginTrackingRevision?.());
+                    loginWithCaptcha, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
                 // Release lock before throwing
                 await releaseLoginLock(selectedAccount.id, WORKER_ID);
                 throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
@@ -1721,7 +1748,7 @@ async function handleStartRenewalHttp(
         } else if (!loginResult.success) {
             await trackCredentialLoginFailure(
                 selectedAccount.id,
-                loginResult.error || 'Login failed', client.getLoginTrackingRevision?.());
+                loginResult, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
             // Release lock before throwing
             await releaseLoginLock(selectedAccount.id, WORKER_ID);
             throw new Error(loginResult.error || 'Login failed');
@@ -4894,6 +4921,7 @@ async function handleSignalRefreshHttp(
 
                     solution = await waitForCaptchaSolution(operationId);
                     if (!solution) {
+                        await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision(), httpClient.didAttemptLogin());
                         await releaseLoginLock(account.id, WORKER_ID);
                         throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                     }
@@ -4912,13 +4940,13 @@ async function handleSignalRefreshHttp(
                 if (!loginWithCaptcha.success) {
                     await trackCredentialLoginFailure(
                         account.id,
-                        loginWithCaptcha.error || 'Login failed after CAPTCHA', httpClient.getLoginTrackingRevision?.());
+                        loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin());
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
                 console.log('🔑 [HTTP] Login with CAPTCHA successful');
             } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed', httpClient.getLoginTrackingRevision?.());
+                await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin());
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             } else {
@@ -5171,6 +5199,7 @@ async function handleSignalCheckHttp(
 
                     solution = await waitForCaptchaSolution(operationId);
                     if (!solution) {
+                        await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision(), httpClient.didAttemptLogin());
                         await releaseLoginLock(account.id, WORKER_ID);
                         throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                     }
@@ -5187,12 +5216,12 @@ async function handleSignalCheckHttp(
                 if (!loginWithCaptcha.success) {
                     await trackCredentialLoginFailure(
                         account.id,
-                        loginWithCaptcha.error || 'Login failed after CAPTCHA', httpClient.getLoginTrackingRevision?.());
+                        loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin());
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
             } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed', httpClient.getLoginTrackingRevision?.());
+                await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin());
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             }
@@ -5484,8 +5513,9 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
 async function handleCheckAccountBalance(
     operationId: string,
     accountId: string,
-    accountPool: AccountPoolManager
-): Promise<void> {
+    accountPool: AccountPoolManager,
+    requestScope?: { signal: AbortSignal; assertOwner: () => Promise<void> }
+): Promise<{ balance: number; updatedAt: string }> {
     console.log(`💰 [HTTP] Checking balance for account ${accountId}`);
 
     // Get account with proxy
@@ -5495,17 +5525,18 @@ async function handleCheckAccountBalance(
     }).then(a => a ? decryptAccountPassword(a) : null);
 
     if (!account) {
-        throw new Error(`Account ${accountId} not found`);
+        throw new BalanceRefreshFailure('ACCOUNT_UNAVAILABLE');
     }
 
     if (!account.isActive) {
-        throw new Error(`Account ${accountId} is not active`);
+        throw new BalanceRefreshFailure('ACCOUNT_UNAVAILABLE');
     }
     if (!account.automationExclusive) {
-        throw new Error('ACCOUNT_NOT_AUTOMATION_EXCLUSIVE');
+        throw new BalanceRefreshFailure('ACCOUNT_UNAVAILABLE');
     }
 
     const guardOperationId = `balance:${operationId}`;
+    let balanceAccountRevision = account.updatedAt;
     const redis = accountPool.getRedis();
     const workerId = accountPool.getWorkerId();
     const reservationBeforeGuard = await findActiveProviderAccountReservationForAccount(
@@ -5523,7 +5554,7 @@ async function handleCheckAccountBalance(
         requester: null,
     });
     if (!accessBeforeGuard.allowed || await isAccountExecutionLeaseActive(redis, accountId)) {
-        throw new Error('ACCOUNT_CAUSALLY_RESERVED');
+        throw new BalanceRefreshFailure('ACCOUNT_BUSY');
     }
 
     const guardAcquired = await lockAccount(
@@ -5533,12 +5564,14 @@ async function handleCheckAccountBalance(
         BALANCE_ACCOUNT_LOCK_TTL_SECONDS,
         guardOperationId
     );
-    if (!guardAcquired) throw new Error('ACCOUNT_BUSY');
+    if (!guardAcquired) throw new BalanceRefreshFailure('ACCOUNT_BUSY');
 
     let guardHeartbeatFailure: Error | null = null;
     let guardHeartbeatInFlight: Promise<void> | null = null;
-    const balanceGuardLostError = () => new Error('ACCOUNT_BALANCE_GUARD_LOST');
+    const balanceGuardLostError = () => new BalanceRefreshFailure('ACCOUNT_BUSY');
     const assertBalanceGuardOwnership = async (): Promise<void> => {
+        requestScope?.signal.throwIfAborted();
+        await requestScope?.assertOwner();
         if (guardHeartbeatFailure) throw guardHeartbeatFailure;
 
         let status;
@@ -5598,7 +5631,7 @@ async function handleCheckAccountBalance(
             requester: null,
         });
         if (!accessAfterGuard.allowed || await isAccountExecutionLeaseActive(redis, accountId)) {
-            throw new Error('ACCOUNT_CAUSALLY_RESERVED');
+            throw new BalanceRefreshFailure('ACCOUNT_BUSY');
         }
         await assertBalanceGuardOwnership();
 
@@ -5609,6 +5642,7 @@ async function handleCheckAccountBalance(
 
     // Get or create HTTP client
     const client = await createOperationClient(account, route);
+    if (requestScope) client.restrictToBalanceReads(requestScope.signal, assertBalanceGuardOwnership);
 
     // Reload config
     await assertBalanceGuardOwnership();
@@ -5627,15 +5661,20 @@ async function handleCheckAccountBalance(
         await assertBalanceGuardOwnership();
 
         if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            throw new Error('Login requires CAPTCHA for balance check');
+            await recordLoginHealthFailure(account.id, loginResult, client.getLoginTrackingRevision(),
+                { attempted: client.didAttemptLogin(), terminal: true });
+            throw new BalanceRefreshFailure('CAPTCHA_REQUIRED');
         }
 
         if (!loginResult.success) {
-            await trackCredentialLoginFailure(account.id, loginResult.error || 'Login failed', client.getLoginTrackingRevision?.());
-            throw new Error(loginResult.error || 'Login failed');
+            await recordLoginHealthFailure(account.id, loginResult, client.getLoginTrackingRevision(),
+                { attempted: client.didAttemptLogin(), terminal: true });
+            throw new BalanceRefreshFailure(loginResult.failureCategory === 'transport' ? 'CONNECTION_FAILED' :
+                loginResult.failureCategory === 'rate_limit' ? 'PROVIDER_RATE_LIMITED' :
+                    loginResult.failureCategory === 'captcha' ? 'CAPTCHA_REQUIRED' : 'LOGIN_FAILED');
         }
 
-        await trackFreshLoginSuccess(account.id, client.getLoginTrackingRevision?.());
+        balanceAccountRevision = await recordLoginHealthSuccess(account.id, client.getLoginTrackingRevision?.());
 
         // Save session to cache
         try {
@@ -5672,22 +5711,24 @@ async function handleCheckAccountBalance(
     const balanceResult = await client.fetchDealerBalance(testCardNumber);
     await assertBalanceGuardOwnership();
 
-    if (balanceResult.success && balanceResult.balance !== null) {
+    if (balanceResult.success && typeof balanceResult.balance === 'number' && Number.isFinite(balanceResult.balance) && balanceResult.balance >= 0) {
+        const observedAt = new Date();
         // Update the account with the new balance
-        await prisma.beinAccount.update({
-            where: { id: accountId },
+        const written = await prisma.beinAccount.updateMany({
+            where: { id: accountId, isActive: true, automationExclusive: true, updatedAt: balanceAccountRevision },
             data: {
                 dealerBalance: balanceResult.balance,
-                balanceUpdatedAt: new Date()
+                balanceUpdatedAt: observedAt
             }
         });
+        if (written.count !== 1) throw balanceGuardLostError();
         await assertBalanceGuardOwnership();
         console.log(`✅ [HTTP] Balance updated: ${balanceResult.balance} USD`);
         await checkAndNotifyLowBalance(accountId, account.label || account.username, balanceResult.balance);
         await assertBalanceGuardOwnership();
+        return { balance: balanceResult.balance, updatedAt: observedAt.toISOString() };
     } else {
-        console.log(`⚠️ [HTTP] Could not fetch balance: ${balanceResult.error}`);
-        throw new Error(balanceResult.error || 'Failed to fetch balance');
+        throw new BalanceRefreshFailure('BALANCE_NOT_FOUND');
     }
     } finally {
         clearInterval(guardHeartbeat);
@@ -5848,6 +5889,7 @@ async function handleStartInstallmentHttp(
 
                 solution = await waitForCaptchaSolution(operationId);
                 if (!solution) {
+                    await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), client.didAttemptLogin());
                     await releaseLoginLock(selectedAccount.id, WORKER_ID);
                     throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                 }
@@ -5864,14 +5906,14 @@ async function handleStartInstallmentHttp(
             if (!loginWithCaptcha.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginWithCaptcha.error || 'Login failed after CAPTCHA', client.getLoginTrackingRevision?.());
+                    loginWithCaptcha, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
                 await releaseLoginLock(selectedAccount.id, WORKER_ID);
                 throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
             }
         } else if (!loginResult.success) {
             await trackCredentialLoginFailure(
                 selectedAccount.id,
-                loginResult.error || 'Login failed', client.getLoginTrackingRevision?.());
+                loginResult, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
             await releaseLoginLock(selectedAccount.id, WORKER_ID);
             throw new Error(loginResult.error || 'Login failed');
         }
@@ -6091,12 +6133,13 @@ async function handleConfirmInstallmentHttp(
                 selectedAccount.totpSecret || undefined
             );
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
+                await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), client.didAttemptLogin());
                 throw new Error('Login requires CAPTCHA for installment confirm');
             }
             if (!loginResult.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginResult.error || 'Login failed', client.getLoginTrackingRevision?.());
+                    loginResult, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
                 throw new Error(loginResult.error || 'Login failed for installment confirm');
             }
             await trackFreshLoginSuccess(selectedAccount.id, client.getLoginTrackingRevision?.());

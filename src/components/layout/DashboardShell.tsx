@@ -5,6 +5,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import { useTranslation } from '@/hooks/useTranslation'
 import { cn } from '@/lib/utils'
+import { PanelCommandProvider } from '@/components/providers/PanelCommandProvider'
 
 interface DashboardShellProps {
     children: React.ReactNode
@@ -15,7 +16,7 @@ export default function DashboardShell({ children }: DashboardShellProps) {
     const { t, dir } = useTranslation()
 
     return (
-        <div className="min-h-screen bg-[var(--color-bg-main)]" dir={dir}>
+        <PanelCommandProvider><div className="min-h-screen bg-[var(--color-bg-main)]" dir={dir}>
             {/* Sidebar */}
             <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -28,10 +29,10 @@ export default function DashboardShell({ children }: DashboardShellProps) {
                 <Header sidebarOpen={sidebarOpen} title={t.common.controlPanel} onMenuClick={() => setSidebarOpen(true)} />
 
                 {/* Page Content */}
-                <main className="min-w-0 p-[var(--page-padding-mobile)] lg:p-[var(--page-padding)] max-w-[var(--content-max-width)] mx-auto">
+                <main tabIndex={-1} data-panel-focus-target className="min-w-0 p-[var(--page-padding-mobile)] lg:p-[var(--page-padding)] max-w-[var(--content-max-width)] mx-auto">
                     {children}
                 </main>
             </div>
-        </div>
+        </div></PanelCommandProvider>
     )
 }

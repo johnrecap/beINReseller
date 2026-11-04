@@ -1,155 +1,78 @@
-/**
- * Check beIN Account Balance API
- * 
- * This endpoint logs into a beIN dealer account and fetches
- * the current credit balance for display in the admin panel.
- * 
- * POST /api/admin/bein-accounts/[id]/check-balance
- */
-
+import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
-import { Queue } from 'bullmq'
+import { operationsQueue } from '@/lib/queue'
 import redis from '@/lib/redis'
+import { balanceRefreshView } from '../../../../../../../shared/bein/balance-refresh'
+import { activeBalanceRefresh, admitBalanceRefresh, readBalanceRefresh } from '../../../../../../../shared/bein/balance-refresh-store'
 
-interface RouteParams {
-    params: Promise<{ id: string }>
+interface RouteParams { params: Promise<{ id: string }> }
+
+function failure(code: string, status: number, requestId?: string) {
+    return NextResponse.json({ success: false, error: code, code, ...(requestId ? { requestId } : {}) }, { status })
 }
 
-// Create a dedicated queue for admin tasks
-const getAdminQueue = () => {
-    return new Queue('operations', {
-        connection: {
-            url: process.env.REDIS_URL || 'redis://localhost:6379',
-        },
-    })
-}
-
-// POST /api/admin/bein-accounts/[id]/check-balance
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
+    const auth = await requireRoleAPIWithMobile(request, 'ADMIN')
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { id } = await params
+    const query = request.nextUrl.searchParams
+    const requestId = query.get('requestId')
+    if ((requestId && requestId.length > 128) || (!requestId && query.get('active') !== '1')) return failure('VALIDATION_ERROR', 400)
     try {
-        const authResult = await requireRoleAPIWithMobile(request, 'ADMIN')
-        if ('error' in authResult) {
-            return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+        const result = requestId ? await readBalanceRefresh(redis, requestId) : await activeBalanceRefresh(redis, id)
+        if (result && result.accountId !== id) return failure('REQUEST_NOT_FOUND', 404)
+        if (!result && requestId) return failure('REQUEST_NOT_FOUND', 404)
+        return NextResponse.json({ success: true, data: result ? balanceRefreshView(result) : null })
+    } catch { return failure('STATUS_UNAVAILABLE', 503) }
+}
+
+export async function POST(request: NextRequest, { params }: RouteParams) {
+    const auth = await requireRoleAPIWithMobile(request, 'ADMIN')
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    let asynchronous = false
+    try {
+        const body = await request.text()
+        if (body.trim()) {
+            const input = JSON.parse(body)
+            if (!input || Array.isArray(input) || input.mode !== 'async') return failure('VALIDATION_ERROR', 400)
+            asynchronous = true
         }
+    } catch { return failure('VALIDATION_ERROR', 400) }
 
-        const { id } = await params
-
-        // Get account details
-        const account = await prisma.beinAccount.findUnique({
-            where: { id },
-            include: { proxy: true }
-        })
-
-        if (!account) {
-            return NextResponse.json({ error: 'Account not found' }, { status: 404 })
-        }
-
-        // Check if account is active
-        if (!account.isActive) {
-            return NextResponse.json({ 
-                error: 'Account inactive - please activate it first' 
-            }, { status: 400 })
-        }
-
-        // Add a job to check balance
-        // The worker will process this and update the database
-        const adminQueue = getAdminQueue()
-        
-        const job = await adminQueue.add('check-balance', {
-            type: 'CHECK_ACCOUNT_BALANCE',
-            accountId: id,
-            cardNumber: '0000000000', // Dummy card number for balance check
-        }, {
-            priority: 0, // High priority
-            attempts: 1, // Only try once
-            removeOnComplete: true,
-            removeOnFail: true,
-        })
-
-        // Wait for the job to complete (with timeout)
-        // Since job has removeOnComplete: true, we check the database for updates
-        const MAX_WAIT_MS = 60000 // 60 seconds
-        const POLL_INTERVAL_MS = 1000 // 1 second
-        const startTime = Date.now()
-
-        // Get the initial balance to detect changes
-        const initialBalance = account.dealerBalance
-        const initialUpdatedAt = account.balanceUpdatedAt?.getTime() || 0
-
-        while (Date.now() - startTime < MAX_WAIT_MS) {
-            // Check if job failed
-            const jobState = await job.getState()
-            
-            if (jobState === 'failed') {
-                const failedReason = job.failedReason || 'Unknown error'
-                return NextResponse.json({
-                    success: false,
-                    error: `Failed to fetch balance: ${failedReason}`
-                }, { status: 500 })
+    const { id } = await params
+    let requestId: string | undefined
+    try {
+        const account = await prisma.beinAccount.findUnique({ where: { id }, select: { id: true, isActive: true, automationExclusive: true } })
+        if (!account) return failure('ACCOUNT_UNAVAILABLE', 404)
+        if (!account.isActive || !account.automationExclusive) return failure('ACCOUNT_UNAVAILABLE', 409)
+        const admission = await admitBalanceRefresh(redis, id, randomUUID())
+        requestId = admission.request.requestId
+        if (admission.created) {
+            try {
+                await operationsQueue.add('check-balance', {
+                    type: 'CHECK_ACCOUNT_BALANCE', accountId: id, cardNumber: '0000000000', balanceRequestId: requestId,
+                }, { jobId: 'balance-' + requestId, priority: 0, attempts: 1, removeOnComplete: true, removeOnFail: true })
+            } catch {
+                // A rejected add promise does not prove Redis did not accept the job.
+                // Preserve identity and the active claim for status reconciliation.
+                return failure('QUEUE_UNAVAILABLE', 503, requestId)
             }
+        }
+        if (asynchronous) return NextResponse.json({ success: true, data: balanceRefreshView(admission.request) }, { status: 202 })
 
-            // Check if balance was updated in database
-            const updatedAccount = await prisma.beinAccount.findUnique({
-                where: { id },
-                select: {
-                    dealerBalance: true,
-                    balanceUpdatedAt: true
-                }
+        // Legacy callers retain response fields, using only this request's result.
+        const end = Date.now() + 60_000
+        while (Date.now() < end) {
+            const result = await readBalanceRefresh(redis, requestId)
+            if (!result || result.accountId !== id) return failure('REQUEST_NOT_FOUND', 404, requestId)
+            if (result.state === 'COMPLETED') return NextResponse.json({
+                success: true, balance: result.balance, updatedAt: result.updatedAt, message: 'BALANCE_UPDATED', requestId,
             })
-
-            const newUpdatedAt = updatedAccount?.balanceUpdatedAt?.getTime() || 0
-
-            // If balanceUpdatedAt changed, the job completed
-            if (newUpdatedAt > initialUpdatedAt) {
-                return NextResponse.json({
-                    success: true,
-                    balance: updatedAccount?.dealerBalance ?? null,
-                    updatedAt: updatedAccount?.balanceUpdatedAt?.toISOString() ?? null,
-                    message: updatedAccount?.dealerBalance !== null && updatedAccount?.dealerBalance !== undefined
-                        ? `Balance updated: ${updatedAccount.dealerBalance} USD`
-                        : 'Balance not found'
-                })
-            }
-
-            // Job completed and removed - check if state is null/undefined
-            if (jobState === 'completed' || jobState === 'unknown' || !jobState) {
-                // Job finished, check database one more time
-                const finalAccount = await prisma.beinAccount.findUnique({
-                    where: { id },
-                    select: {
-                        dealerBalance: true,
-                        balanceUpdatedAt: true
-                    }
-                })
-
-                const finalUpdatedAt = finalAccount?.balanceUpdatedAt?.getTime() || 0
-                
-                if (finalUpdatedAt > initialUpdatedAt) {
-                    return NextResponse.json({
-                        success: true,
-                        balance: finalAccount?.dealerBalance ?? null,
-                        updatedAt: finalAccount?.balanceUpdatedAt?.toISOString() ?? null,
-                        message: finalAccount?.dealerBalance !== null && finalAccount?.dealerBalance !== undefined
-                            ? `Balance updated: ${finalAccount.dealerBalance} USD`
-                            : 'Balance not found'
-                    })
-                }
-            }
-
-            // Wait before next poll
-            await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
+            if (result.state === 'FAILED') return failure(result.errorCode || 'BALANCE_FAILED', 500, requestId)
+            await new Promise(resolve => setTimeout(resolve, Math.min(1000, Math.max(0, end - Date.now()))))
         }
-
-        // Timeout
-        return NextResponse.json({
-            success: false,
-            error: 'Balance fetch timeout - please try again'
-        }, { status: 504 })
-
-    } catch (error) {
-        console.error('Check balance error:', error)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
+        return failure('BALANCE_TIMEOUT', 504, requestId)
+    } catch { return failure('STATUS_UNAVAILABLE', 503, requestId) }
 }

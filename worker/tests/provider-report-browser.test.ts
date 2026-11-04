@@ -8,7 +8,7 @@ import { HttpClientService } from '../src/http/HttpClientService'
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import { loginHttpFailure, loginMessageFailure } from '../../shared/bein/login-failure'
 
-test('report login records only explicit credential rejection under its current owner', async () => {
+test('report login records explicit credential rejection under its current owner', async () => {
     const tracked: unknown[] = []
     const revision = new Date('2026-10-30T00:00:00Z')
     const r = runtime({ recordLoginResult: async (...args: unknown[]) => { tracked.push(args) } } as any)
@@ -19,6 +19,19 @@ test('report login records only explicit credential rejection under its current 
     assert.equal(tracked.length, 1)
     assert.equal((tracked[0] as any[])[0], request.accountId)
     assert.equal((tracked[0] as any[])[2], revision)
+})
+
+for (const failure of [loginMessageFailure(), loginMessageFailure('CAPTCHA'), loginHttpFailure(429), loginHttpFailure(402)])
+test(`report records terminal ${failure!.failureCategory} without turning it into credential text`, async () => {
+    const tracked: any[] = []
+    const r = runtime({ recordLoginResult: async (...args: unknown[]) => { tracked.push(args) } })
+    r.client.isSessionActive = () => false
+    Object.assign(r.client, { didAttemptLogin: () => true })
+    r.client.login = async () => failure as any
+    await assert.rejects(readProviderReport(request, r.services, new AbortController().signal))
+    assert.equal(tracked.length, 1)
+    assert.equal(tracked[0][1].failureCategory, failure!.failureCategory)
+    assert.equal(tracked[0][3], true)
 })
 
 for (const status of [402, 407, 429]) test(`report login ${status} returns connection/rate classification without a retry`, async () => {

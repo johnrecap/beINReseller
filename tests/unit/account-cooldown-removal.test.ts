@@ -28,6 +28,7 @@ function accountApi(path: string, isAdmin = true, redisUnavailable = false) {
         '@/lib/crypto': {}, ioredis: { default: Redis },
         '@/lib/operations/account-lock-release': accountLocks,
         '@/lib/provider-account-identity': {},
+        '@/lib/bein-account-recovery': { recoverBeinAccount: () => { throw new Error('UNEXPECTED_RECOVERY_ON_GET') } },
     })
     return { api, reads: () => ({ cooldownReads, databaseReads, redisReads }) }
 }

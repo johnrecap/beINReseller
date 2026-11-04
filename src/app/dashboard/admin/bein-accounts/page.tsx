@@ -1,9 +1,9 @@
 'use client'
 
-import { usePanelRequest } from '@/hooks/usePanelRequest'
+import { usePanelRequest, useOwnedPanelCommand } from '@/hooks/usePanelRequest'
+import { useBeinBalanceRefresh } from '@/hooks/useBeinBalanceRefresh'
 import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { withRequestDeadline } from '@/lib/request-deadline'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import {
@@ -46,12 +46,14 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
 import { formatBeinDealerBalanceUsd, sumBeinDealerBalances } from '@/lib/admin/bein-account-balances'
+import type { LoginHealthReason } from '../../../../../shared/bein/login-health'
 
 interface BeinAccount {
     id: string
     username: string
     label: string | null
     isActive: boolean
+    loginHealthCode?: LoginHealthReason | null
     priority: number
     customerOnly: boolean
     automationExclusive: boolean
@@ -103,20 +105,45 @@ interface PoolStatus {
     rateLimited: number
 }
 
-async function accountCommand(url: string, init: RequestInit) {
-    return withRequestDeadline(async signal => {
-        const response = await fetch(url, { ...init, signal })
-        if (!response.ok) throw new Error(response.status === 409 ? 'BEIN_ACCOUNT_BUSY' : 'ACCOUNT_COMMAND_REJECTED')
-        const data = await response.json() as { success: boolean; error?: string; message?: string; balance?: number }
-        if (!data.success) throw new Error('ACCOUNT_COMMAND_REJECTED')
-        return data
-    })
-}
-
 export default function BeinAccountsPage() {
     const { data: session, status } = useSession()
     const router = useRouter()
     const { t, dir } = useTranslation()
+    const { request: ownedCommand, receipts, drafts } = useOwnedPanelCommand()
+    const balanceRefresh = useBeinBalanceRefresh()
+    const displayedBalance = (account: BeinAccount) => {
+        const observed = balanceRefresh.observation(account.id)
+        return observed && Date.parse(observed.updatedAt) >= Date.parse(account.balanceUpdatedAt || '1970-01-01')
+            ? observed.balance : account.dealerBalance
+    }
+    const balancePending = (id: string) => balanceRefresh.receipts.some(receipt => receipt.state === 'PENDING' && receipt.resources.includes(`beinAccount/${id}`))
+    const accountCommand = async (url: string, init: RequestInit) => {
+        const id = url.split('/')[4]
+        let resource = `beinAccount/${id}`
+        if (!id) {
+            const username = String(JSON.parse(String(init.body)).username).trim().toLowerCase()
+            const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(username))
+            resource = `beinCreate/${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')}`
+        }
+        const response = await ownedCommand({ action: `bein.${init.method}.${id ? url.split('/')[5] ?? 'account' : 'create'}`,
+            resources: [resource], url, init, displayLabel: id ?
+                accounts.find(account => account.id === id)?.label ?? accounts.find(account => account.id === id)?.username :
+                String(JSON.parse(String(init.body)).username),
+            knownRejection: (response, body) => {
+                if (!body || typeof body !== 'object' || !('error' in body)) return false
+                // Existing account routes return these before their write/queue boundary.
+                if (response.status === 400) return ['INVALID_AUTOMATION_EXCLUSIVE',
+                    'Username and password are required', 'Username already exists'].includes(String(body.error))
+                return response.status === 404 && body.error === 'Account not found'
+            },
+        })
+        if (!response.ok) throw new Error(response.status === 409 ? 'BEIN_ACCOUNT_BUSY' : 'ACCOUNT_COMMAND_REJECTED')
+        const data = await response.json() as { success: boolean; error?: string; message?: string; balance?: number }
+        if (!data.success) throw new Error('ACCOUNT_COMMAND_REJECTED')
+        return data
+    }
+    const accountBlocked = (id: string) => receipts.some(r =>
+        (r.state === 'PENDING' || r.state === 'UNCERTAIN') && r.resources.includes(`beinAccount/${id}`))
     const [accounts, setAccounts] = useState<BeinAccount[]>([])
     const [poolStatus, setPoolStatus] = useState<PoolStatus | null>(null)
     const [proxies, setProxies] = useState<Proxy[]>([])
@@ -126,18 +153,19 @@ export default function BeinAccountsPage() {
     const [unlockAccount, setUnlockAccount] = useState<BeinAccount | null>(null)
     const [unlockReason, setUnlockReason] = useState('')
     const [unlockingId, setUnlockingId] = useState<string | null>(null)
-    const mutationPending = useRef(false)
+    const mutationPending = useRef(new Set<string>())
     const loadedOnce = useRef(false)
     const editOpener = useRef<HTMLElement | null>(null)
     const unlockOpener = useRef<HTMLElement | null>(null)
-    const [mutationBusy, setMutationBusy] = useState(false)
+    const [mutationKeys, setMutationKeys] = useState<ReadonlySet<string>>(new Set())
+    const mutationBusy = mutationKeys.has(editAccount?.id ?? unlockAccount?.id ?? 'create')
     const [mutationError, setMutationError] = useState<string | null>(null)
     const { load: loadProxies, loading: proxiesLoading, error: proxiesError, cancel: cancelProxies } = usePanelRequest()
-    const beginMutation = () => {
-        if (mutationPending.current || loading || error !== null) return false
-        mutationPending.current = true; setMutationBusy(true); setMutationError(null); return true
+    const beginMutation = (key: string) => {
+        if (mutationPending.current.has(key) || accountBlocked(key) || error !== null) return false
+        mutationPending.current.add(key); setMutationKeys(new Set(mutationPending.current)); setMutationError(null); return true
     }
-    const endMutation = () => { mutationPending.current = false; setMutationBusy(false) }
+    const endMutation = (key: string) => { mutationPending.current.delete(key); setMutationKeys(new Set(mutationPending.current)) }
     const notifyError = (message?: string) => { const text = message || t.panelUi.actionFailed; setMutationError(text); toast.error(text) }
     useEffect(() => {
         if (error !== null) { loadedOnce.current = false; setPoolStatus(null); setAccounts([]); setEditAccount(null); setUnlockAccount(null); setAddDialogOpen(false) }
@@ -158,10 +186,23 @@ export default function BeinAccountsPage() {
         automationExclusive: false,
         proxyId: ''
     })
+    const currentForm = useRef(formData)
+    currentForm.current = formData
+    const draftKey = editAccount ? `bein.edit/${editAccount.id}` : 'bein.create'
+    const currentDraft = useRef({ draftKey, formData, open: false })
+    currentDraft.current = { draftKey, formData, open: addDialogOpen || !!editAccount }
+    useEffect(() => () => {
+        const draft = currentDraft.current
+        if (draft.open) drafts?.set(draft.draftKey, draft.formData)
+    }, [drafts])
+    const hideEdit = () => {
+        if (editAccount) drafts?.set(`bein.edit/${editAccount.id}`, formData)
+        setEditAccount(null)
+    }
 
     // State for tracking balance refresh
     const [refreshingBalanceId, setRefreshingBalanceId] = useState<string | null>(null)
-    const totalBeinDealerBalance = sumBeinDealerBalances(accounts)
+    const totalBeinDealerBalance = sumBeinDealerBalances(accounts.map(account => ({ dealerBalance: displayedBalance(account) })))
     const totalBeinDealerBalanceLabel = formatBeinDealerBalanceUsd(totalBeinDealerBalance)
 
     const fetchAccounts = useCallback(async () => {
@@ -195,7 +236,7 @@ export default function BeinAccountsPage() {
 
     const handleAddAccount = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (proxiesLoading || proxiesError !== null || !beginMutation()) return
+        if (proxiesLoading || proxiesError !== null || !beginMutation('create')) return
         try {
             const data = await accountCommand('/api/admin/bein-accounts', {
                 method: 'POST',
@@ -205,21 +246,25 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 toast.success(t.adminBeinAccounts?.messages?.addSuccess || 'Account added successfully')
                 await fetchAccounts()
-                setAddDialogOpen(false)
-                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
+                if (currentForm.current === formData) {
+                    drafts?.delete('bein.create')
+                    setAddDialogOpen(false)
+                    setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
+                }
             } else {
                 notifyError(data.error)
             }
         } catch {
             notifyError(t.adminBeinAccounts?.messages?.addFailed || 'Failed to add account')
         } finally {
-            endMutation()
+            endMutation('create')
         }
     }
 
     const handleUpdateAccount = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!editAccount || proxiesLoading || proxiesError !== null || !beginMutation()) return
+        if (!editAccount || proxiesLoading || proxiesError !== null || !beginMutation(editAccount.id)) return
+        const submittedId = editAccount.id
         try {
             // Only include totpSecret if user entered a new value (not empty)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -236,20 +281,23 @@ export default function BeinAccountsPage() {
             if (data.success) {
                 toast.success(t.adminBeinAccounts?.messages?.updateSuccess || 'Account updated successfully')
                 await fetchAccounts()
-                setEditAccount(null)
-                setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
+                if (currentForm.current === formData) {
+                    drafts?.delete(`bein.edit/${submittedId}`)
+                    setEditAccount(current => current?.id === submittedId ? null : current)
+                    setFormData({ username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
+                }
             } else {
                 notifyError(data.error)
             }
         } catch {
             notifyError(t.adminBeinAccounts?.messages?.updateFailed || 'Failed to update account')
         } finally {
-            endMutation()
+            endMutation(submittedId)
         }
     }
 
     const handleToggleAccount = async (account: BeinAccount) => {
-        if (!beginMutation()) return
+        if (!beginMutation(account.id)) return
         try {
             const data = await accountCommand(`/api/admin/bein-accounts/${account.id}/toggle`, {
                 method: 'POST'
@@ -261,12 +309,12 @@ export default function BeinAccountsPage() {
         } catch {
             notifyError(t.adminBeinAccounts?.messages?.toggleFailed || 'Failed to toggle account status')
         } finally {
-            endMutation()
+            endMutation(account.id)
         }
     }
 
     const handleResetAccount = async (account: BeinAccount) => {
-        if (!beginMutation()) return
+        if (!beginMutation(account.id)) return
         try {
             const data = await accountCommand(`/api/admin/bein-accounts/${account.id}/reset`, {
                 method: 'POST'
@@ -279,7 +327,7 @@ export default function BeinAccountsPage() {
             notifyError(error instanceof Error && error.message === 'BEIN_ACCOUNT_BUSY'
                 ? t.panelUi.reportCopy.accountBusy : t.adminBeinAccounts.messages.resetFailed)
         } finally {
-            endMutation()
+            endMutation(account.id)
         }
     }
 
@@ -291,7 +339,8 @@ export default function BeinAccountsPage() {
             return
         }
 
-        if (!beginMutation()) return
+        if (!beginMutation(unlockAccount.id)) return
+        const submittedId = unlockAccount.id
         setUnlockingId(unlockAccount.id)
         try {
             const data = await accountCommand(`/api/admin/bein-accounts/${unlockAccount.id}/unlock`, {
@@ -310,15 +359,15 @@ export default function BeinAccountsPage() {
         } catch {
             notifyError(t.panelUi.actionFailed)
         } finally {
-            endMutation()
+            endMutation(submittedId)
             setUnlockingId(null)
         }
     }
 
     const handleDeleteAccount = async (account: BeinAccount) => {
-        if (mutationPending.current) return
+        if (mutationPending.current.has(account.id) || accountBlocked(account.id)) return
         if (!confirm(t.adminBeinAccounts?.messages?.deleteConfirm || 'Are you sure you want to delete this account?')) return
-        if (!beginMutation()) return
+        if (!beginMutation(account.id)) return
         try {
             const data = await accountCommand(`/api/admin/bein-accounts/${account.id}`, {
                 method: 'DELETE'
@@ -330,7 +379,7 @@ export default function BeinAccountsPage() {
         } catch {
             notifyError(t.adminBeinAccounts?.messages?.deleteFailed || 'Failed to delete account')
         } finally {
-            endMutation()
+            endMutation(account.id)
         }
     }
 
@@ -340,22 +389,14 @@ export default function BeinAccountsPage() {
             return
         }
 
-        if (!beginMutation()) return
+        if (!beginMutation(account.id)) return
         setRefreshingBalanceId(account.id)
         try {
-            const data = await accountCommand(`/api/admin/bein-accounts/${account.id}/check-balance`, {
-                method: 'POST'
-            })
-            if (data.success) {
-                toast.success(data.message || `${t.adminBeinAccounts?.messages?.balanceUpdated || 'Balance updated'}: ${data.balance} USD`)
-                fetchAccounts()
-            } else {
-                notifyError(data.error || t.adminBeinAccounts?.messages?.balanceFailed || 'Failed to fetch balance')
-            }
+            await balanceRefresh.start(account.id, account.label || account.username)
         } catch {
             notifyError(t.adminBeinAccounts?.messages?.balanceFailed || 'Failed to fetch balance')
         } finally {
-            endMutation()
+            endMutation(account.id)
             setRefreshingBalanceId(null)
         }
     }
@@ -408,7 +449,7 @@ export default function BeinAccountsPage() {
         <div className="space-y-6 min-w-0" dir={dir}>
             {loading && <p role="status">{t.common.loading} {t.panelUi.staleData}</p>}
             {mutationError && !addDialogOpen && !editAccount && !unlockAccount && <p role="alert" className="text-destructive">{mutationError}</p>}
-            <fieldset disabled={mutationBusy || loading} className="contents">
+            <fieldset className="contents">
             {/* Header */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -425,14 +466,19 @@ export default function BeinAccountsPage() {
                         <RefreshCw className="h-4 w-4 ml-2" />
                         {t.adminBeinAccounts?.refresh || t.common?.refresh || 'Refresh'}
                     </Button>
-                    <Dialog open={addDialogOpen} onOpenChange={open => { if (!mutationPending.current) { setMutationError(null); setAddDialogOpen(open) } }}>
+                    <Dialog open={addDialogOpen} onOpenChange={open => {
+                        if (open) setFormData((drafts?.get('bein.create') as typeof formData | undefined) ?? {
+                            username: '', password: '', totpSecret: '', label: '', priority: 0, customerOnly: false, automationExclusive: false, proxyId: '' })
+                        else drafts?.set('bein.create', formData)
+                        setMutationError(null); setAddDialogOpen(open)
+                    }}>
                         <DialogTrigger asChild>
                             <Button>
                                 <Plus className="h-4 w-4 ml-2" />
                                 {t.adminBeinAccounts?.addAccount || 'Add Account'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent panel showClose={!mutationBusy} closeLabel={t.panelUi.close} dir={dir}>
+                        <DialogContent panel closeLabel={t.panelUi.close} dir={dir}>
                             <DialogHeader>
                                 <DialogTitle>{t.adminBeinAccounts?.dialogs?.addTitle || 'Add New Account'}</DialogTitle>
                             </DialogHeader>
@@ -627,7 +673,12 @@ export default function BeinAccountsPage() {
                                                 <span className="text-muted-foreground text-xs">-</span>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-center">{getStatusBadge(account)}</TableCell>
+                                        <TableCell className="text-center">
+                                            {getStatusBadge(account)}
+                                            {account.loginHealthCode && <div className="mt-1 max-w-48 text-xs text-muted-foreground">
+                                                {t.panelUi.reportCopy.loginHealthReasons[account.loginHealthCode]}
+                                            </div>}
+                                        </TableCell>
                                         <TableCell className="text-center">
                                             <Badge variant={account.automationExclusive ? 'success' : 'outline'}>
                                                 {account.automationExclusive
@@ -639,11 +690,11 @@ export default function BeinAccountsPage() {
                                         <TableCell className="text-center">{account.priority}</TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex items-center justify-center gap-1">
-                                                {refreshingBalanceId === account.id ? (
+                                                {refreshingBalanceId === account.id || balancePending(account.id) ? (
                                                     <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                                                ) : account.dealerBalance !== null ? (
+                                                ) : displayedBalance(account) !== null ? (
                                                     <span className="font-bold text-blue-600">
-                                                        {account.dealerBalance} USD
+                                                        {displayedBalance(account)} USD
                                                     </span>
                                                 ) : (
                                                     <span className="text-muted-foreground">-</span>
@@ -653,10 +704,10 @@ export default function BeinAccountsPage() {
                                                     size="sm"
                                                     className="h-6 w-6 p-0"
                                                     onClick={() => handleRefreshBalance(account)}
-                                                    disabled={refreshingBalanceId === account.id || !account.isActive}
+                                                    disabled={refreshingBalanceId === account.id || accountBlocked(account.id) || !account.isActive}
                                                     title={t.adminBeinAccounts?.actions?.refreshBalance || 'Refresh Balance'}
                                                 >
-                                                    {refreshingBalanceId === account.id ? (
+                                                    {refreshingBalanceId === account.id || balancePending(account.id) ? (
                                                         <Loader2 className="h-3 w-3 animate-spin" />
                                                     ) : (
                                                         <RefreshCw className="h-3 w-3" />
@@ -721,7 +772,7 @@ export default function BeinAccountsPage() {
                                                         editOpener.current = event.currentTarget
                                                         setMutationError(null)
                                                         setEditAccount(account)
-                                                        setFormData({
+                                                        setFormData((drafts?.get(`bein.edit/${account.id}`) as typeof formData | undefined) ?? {
                                                             username: account.username,
                                                             password: '',
                                                             totpSecret: '',
@@ -757,12 +808,12 @@ export default function BeinAccountsPage() {
 
             {/* Force Unlock Dialog */}
             <Dialog open={!!unlockAccount} onOpenChange={(open) => {
-                if (!open && !mutationPending.current) {
+                if (!open) {
                     setUnlockAccount(null)
                     setUnlockReason('')
                 }
             }}>
-                <DialogContent panel showClose={!mutationBusy} closeLabel={t.panelUi.close} dir={dir}
+                <DialogContent panel closeLabel={t.panelUi.close} dir={dir}
                     onCloseAutoFocus={event => { if (unlockOpener.current?.isConnected) { event.preventDefault(); unlockOpener.current.focus() } }}>
                     <DialogHeader>
                         <DialogTitle>{t.panelUi.beinUnlock.title}</DialogTitle>
@@ -808,8 +859,8 @@ export default function BeinAccountsPage() {
             </Dialog>
 
             {/* Edit Dialog */}
-            <Dialog open={!!editAccount} onOpenChange={(open) => { if (!open && !mutationPending.current) setEditAccount(null) }}>
-                <DialogContent panel showClose={!mutationBusy} closeLabel={t.panelUi.close} dir={dir}
+            <Dialog open={!!editAccount} onOpenChange={(open) => { if (!open) hideEdit() }}>
+                <DialogContent panel closeLabel={t.panelUi.close} dir={dir}
                     onCloseAutoFocus={event => { if (editOpener.current?.isConnected) { event.preventDefault(); editOpener.current.focus() } }}>
                     <DialogHeader>
                         <DialogTitle>{t.adminBeinAccounts?.dialogs?.editTitle || 'Edit Account'}</DialogTitle>

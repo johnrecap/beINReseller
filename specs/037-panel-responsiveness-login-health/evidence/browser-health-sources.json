@@ -1,0 +1,33 @@
+{
+  "scope": "Synthetic intercepted browser fixture only; no real App Router, native database or production acceptance",
+  "sources": [
+    {
+      "path": "src/components/admin/report-center/LoginMonitorPanel.tsx",
+      "sha256": "047d9acddf5fd81391c63d97d6230425aafef8380b9d6dea041c31786fe1bd58"
+    },
+    {
+      "path": "src/components/admin/report-center/BalanceMonitorPanel.tsx",
+      "sha256": "c4b627c96ae2109b46f4d7c73e9b4351debc7ba1dd8f7ffd9b2ecd6330f13926"
+    },
+    {
+      "path": "src/i18n/translations/ar.ts",
+      "sha256": "5da0b5705156d11b94ceaa4e22867ad14ce08e901d3ab73c2e7ffa14dbaaeacc"
+    },
+    {
+      "path": "src/i18n/translations/en.ts",
+      "sha256": "b595f847a509209dbb5d1a8d1b823430f5ed645f915525ad7f1463ae04da9a8e"
+    },
+    {
+      "path": "src/i18n/translations/bn.ts",
+      "sha256": "7cc6c5e93b3a5ef52a768994bac6e83b5a06ab8b49ade4e2a040ac844687ff88"
+    },
+    {
+      "path": "tests/browser/panel-report-cases.cjs",
+      "sha256": "1604b569a9fd97178938a62c703a14a3d92ba26d01f7022991eb633024115c3a"
+    },
+    {
+      "path": "tests/browser/fixtures/panel-operations-data.js",
+      "sha256": "d2bd9a384c062f978b7f2401a9db7263a2901449b8d9692775342b416b947db7"
+    }
+  ]
+}

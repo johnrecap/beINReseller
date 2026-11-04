@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Isolated browser harness. */
 const assert = require('node:assert/strict');
 module.exports = async function reportCases({p,render,check}) {
+ if(process.env.PANEL_QA_FOCUS!=='037') {
  const views=['analytics','activityReport','balanceMonitor','loginMonitor','integrity'];
  for(const view of views) for(const language of ['ar','en','bn']) for(const width of [360,390,768,1280,1440]) {
   await render({view,language},width);
@@ -54,7 +55,29 @@ module.exports = async function reportCases({p,render,check}) {
   }
   check(view+(view==='analytics'?' period changes retain contract':' old period cannot overwrite new period'));
  }
+ }
  for(const language of ['ar','en','bn']) {
+  await render({view:'balanceMonitor',language,holdWrite:true,writeFailure:true,writeStatus:409},390);
+  const activate=p.locator('main tbody button');
+  await activate.waitFor(); await activate.evaluate(el=>{el.click();el.click()});
+  await p.waitForFunction(()=>!!window.releaseWrite);
+  await p.locator('[data-panel-command-status]').waitFor();
+  assert.equal(await activate.isDisabled(),true);
+  assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
+  await p.evaluate(()=>window.releaseWrite());
+  check('037 low-balance activation owns its resource '+language);
+  for(const code of ['CREDENTIALS_REJECTED','CAPTCHA_EXHAUSTED','AUTH_REVIEW_REQUIRED','CONNECTION_FAILED','RATE_LIMITED','SYSTEM_ERROR']) {
+   await render({view:'loginMonitor',language,loginHealthCode:code},390);
+   const healthCopy=await p.evaluate(()=>window.qaText.panelUi.reportCopy);
+   await p.getByText(healthCopy.loginHealthReasons[code],{exact:true}).waitFor();
+   const warning=['CONNECTION_FAILED','RATE_LIMITED','SYSTEM_ERROR'].includes(code);
+   await p.getByText(warning?healthCopy.loginActive:healthCopy.loginInactive,{exact:true}).waitFor();
+   if(warning)await p.getByText(healthCopy.loginConnectionWarning,{exact:true}).waitFor();
+   assert.equal(await p.getByText(healthCopy.needsPassword,{exact:true}).count(),code==='CREDENTIALS_REJECTED'?1:0);
+   assert.equal(await p.locator('main tbody tr').first().locator('td').nth(1).innerText(),code==='CREDENTIALS_REJECTED'?'1':'0');
+   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+   check('037 localized login reason/activity '+language+' '+code);
+  }
   await render({view:'loginMonitor',language,opsHang:true},360);
   await p.locator('main svg.animate-spin').waitFor();
   assert.equal(await p.locator('main table').count(),0);
@@ -68,6 +91,7 @@ module.exports = async function reportCases({p,render,check}) {
   const reset=p.locator('main tbody button');
   await reset.evaluate(el=>{el.click();el.click()});
   await p.waitForFunction(()=>!!window.releaseWrite);
+  await p.locator('[data-panel-command-status]').waitFor();
   assert.equal(await reset.isDisabled(),true);
   assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
   await p.evaluate(()=>window.releaseWrite());

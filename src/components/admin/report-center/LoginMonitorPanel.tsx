@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { AlertTriangle, KeyRound, Loader2, RefreshCw, RotateCcw } from 'lucide-react'
@@ -16,10 +16,11 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { usePanelRequest, PanelRequestError } from '@/hooks/usePanelRequest'
+import { usePanelRequest, PanelRequestError, useOwnedPanelCommand, usePanelViewGuard } from '@/hooks/usePanelRequest'
 import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { useTranslation } from '@/hooks/useTranslation'
 import { DEFAULT_BEIN_LOGIN_FAILURE_THRESHOLD } from '@/lib/bein-login-failure-threshold'
+import type { LoginHealthReason } from '../../../../shared/bein/login-health'
 
 interface LoginFailureAccount {
     id: string
@@ -32,6 +33,8 @@ interface LoginFailureAccount {
     lastSuccessfulLoginAt: string | null
     needsPasswordUpdate: boolean
     requiresLoginReview?: boolean
+    failureCode?: LoginHealthReason | null
+    isActive?: boolean
 }
 
 interface LoginFailuresResponse {
@@ -59,9 +62,11 @@ export default function LoginMonitorPanel() {
     const router = useRouter()
     const { dir } = useTranslation()
     const { run, loading, error, cancel } = usePanelRequest()
-    const mutationPending = useRef(false)
+    const { request: command, receipts } = useOwnedPanelCommand()
+    const viewGuard = usePanelViewGuard(session?.user?.id ?? null, status === 'authenticated')
+    const accountBlocked = (id: string) => receipts.some(r => r.resources.includes(`beinAccount/${id}`) && ['PENDING', 'UNCERTAIN'].includes(r.state))
+    const accountPending = (id: string) => receipts.some(r => r.resources.includes(`beinAccount/${id}`) && r.state === 'PENDING')
     const refreshing = loading
-    const [resettingAccountId, setResettingAccountId] = useState<string | null>(null)
     const [threshold, setThreshold] = useState(DEFAULT_BEIN_LOGIN_FAILURE_THRESHOLD)
     const [accounts, setAccounts] = useState<LoginFailureAccount[]>([])
 
@@ -93,13 +98,14 @@ export default function LoginMonitorPanel() {
     }, [fetchAccounts, cancel, router, session, status])
 
     const handleReset = async (accountId: string) => {
-        if (mutationPending.current) return
-        mutationPending.current = true
-        setResettingAccountId(accountId)
+        if (accountBlocked(accountId)) return
+        const isCurrent = viewGuard()
 
         try {
-            const res = await fetch(`/api/admin/bein-accounts/${accountId}/login-failures/reset`, {
-                method: 'POST'
+            const res = await command({ action: 'bein.loginHealth.reset', resources: [`beinAccount/${accountId}`],
+                displayLabel: accounts.find(a => a.id === accountId)?.username,
+                url: `/api/admin/bein-accounts/${accountId}/login-failures/reset`, init: { method: 'POST' },
+                knownRejection: (response, body) => response.status === 409 && !!body && typeof body === 'object' && 'code' in body && body.code === 'BEIN_ACCOUNT_BUSY',
             })
             const data = await res.json()
 
@@ -107,14 +113,10 @@ export default function LoginMonitorPanel() {
                 throw new Error(data.code === 'BEIN_ACCOUNT_BUSY' ? t.panelUi.reportCopy.accountBusy : t.panelUi.reportCopy.resetTrackingFailed)
             }
 
-            toast.success(t.panelUi.reportCopy.resetTrackingSuccess)
-            await fetchAccounts()
+            if (isCurrent()) { toast.success(t.panelUi.reportCopy.resetTrackingSuccess); await fetchAccounts() }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : t.panelUi.reportCopy.resetTrackingFailed
-            toast.error(message)
-        } finally {
-            mutationPending.current = false
-            setResettingAccountId(null)
+            if (isCurrent()) toast.error(message)
         }
     }
 
@@ -221,15 +223,16 @@ export default function LoginMonitorPanel() {
                                         <TableCell>
                                             <div
                                                 className="max-w-[320px] truncate text-sm text-muted-foreground"
-                                                title={account.lastLoginFailureReason || t.panelUi.reportCopy.noFailureReason}
+                                                title={account.failureCode ? t.panelUi.reportCopy.loginHealthReasons[account.failureCode] : t.panelUi.reportCopy.noFailureReason}
                                             >
-                                                {account.lastLoginFailureReason || t.panelUi.reportCopy.noFailureReason}
+                                                {account.failureCode ? t.panelUi.reportCopy.loginHealthReasons[account.failureCode] : t.panelUi.reportCopy.noFailureReason}
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Badge className="min-w-32 justify-center whitespace-normal" variant={account.needsPasswordUpdate ? 'destructive' : 'secondary'}>
-                                                {account.needsPasswordUpdate ? t.panelUi.reportCopy.needsPassword : t.panelUi.reportCopy.needsLoginReview}
+                                                {account.needsPasswordUpdate ? t.panelUi.reportCopy.needsPassword : account.requiresLoginReview ? t.panelUi.reportCopy.needsLoginReview : t.panelUi.reportCopy.loginConnectionWarning}
                                             </Badge>
+                                            <div className="text-sm">{account.isActive ? t.panelUi.reportCopy.loginActive : t.panelUi.reportCopy.loginInactive}</div>
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Button
@@ -237,9 +240,9 @@ export default function LoginMonitorPanel() {
                                                 size="sm"
                                                 className="min-w-32 whitespace-normal"
                                                 onClick={() => handleReset(account.id)}
-                                                disabled={resettingAccountId === account.id}
+                                                disabled={accountBlocked(account.id)}
                                             >
-                                                {resettingAccountId === account.id ? (
+                                                {accountPending(account.id) ? (
                                                     <Loader2 className="h-4 w-4 animate-spin" />
                                                 ) : (
                                                     <RotateCcw className="h-4 w-4" />

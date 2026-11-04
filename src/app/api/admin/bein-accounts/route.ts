@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { decodeLoginHealthReason } from '../../../../../shared/bein/login-health'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
 import { encryptSecret } from '@/lib/crypto'
@@ -115,7 +116,9 @@ export async function GET(request: NextRequest) {
                 lastErrorAt: account.lastErrorAt,
                 lastLoginAttemptAt: account.lastLoginAttemptAt,
                 lastLoginFailureAt: account.lastLoginFailureAt,
-                lastLoginFailureReason: account.lastLoginFailureReason,
+                lastLoginFailureReason: decodeLoginHealthReason(account.lastLoginFailureReason),
+                loginHealthCode: account.lastLoginFailureAt && (!account.lastSuccessfulLoginAt || account.lastLoginFailureAt > account.lastSuccessfulLoginAt)
+                    ? decodeLoginHealthReason(account.lastLoginFailureReason) : null,
                 lastSuccessfulLoginAt: account.lastSuccessfulLoginAt,
                 createdAt: account.createdAt,
                 updatedAt: account.updatedAt,

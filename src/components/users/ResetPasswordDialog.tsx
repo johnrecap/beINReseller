@@ -1,8 +1,8 @@
 'use client'
 
 import { PanelCommandWarning } from '@/components/ui/PanelLoadError'
-import { usePanelCommand } from '@/hooks/usePanelRequest'
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { useResourcePanelCommand, usePanelViewGuard } from '@/hooks/usePanelRequest'
+import { FormEvent, useRef, useState } from 'react'
 import { AlertTriangle, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,7 +29,11 @@ type ResetPasswordDialogProps = {
     } | null
 }
 
-export default function ResetPasswordDialog({
+export default function ResetPasswordDialog(props: ResetPasswordDialogProps) {
+    return props.isOpen && props.user ? <ResetPasswordForm key={`${props.scope}:${props.user.id}`} {...props} /> : null
+}
+
+function ResetPasswordForm({
     isOpen,
     onClose,
     onSuccess,
@@ -37,28 +41,21 @@ export default function ResetPasswordDialog({
     user,
 }: ResetPasswordDialogProps) {
     const { t, dir } = useTranslation()
-    const { request: command, unconfirmed } = usePanelCommand(isOpen ? `${scope}:${user?.id}` : null)
+    const { request: command, unconfirmed, loading: submitting, drafts } = useResourcePanelCommand([`user/${user?.id}`], 'user.passwordReset', undefined, user?.username)
+    const viewGuard = usePanelViewGuard(user?.id ?? null, isOpen)
+    const draftKey = `passwordReset/${scope}/${user?.id}`
+    const draft = drafts?.get(draftKey) as { newPassword: string; confirmPassword: string } | undefined
     const copy = t.passwordReset
-    const [newPassword, setNewPassword] = useState('')
-    const [confirmPassword, setConfirmPassword] = useState('')
+    const [newPassword, setNewPassword] = useState(draft?.newPassword ?? '')
+    const [confirmPassword, setConfirmPassword] = useState(draft?.confirmPassword ?? '')
     const [showPassword, setShowPassword] = useState(false)
-    const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
     const submittingRef = useRef(false)
 
-    useEffect(() => {
-        setNewPassword('')
-        setConfirmPassword('')
-        setShowPassword(false)
-        setSubmitting(false)
-        setError(null)
-        setSuccess(false)
-    }, [isOpen, user?.id])
-
     async function submitPasswordReset(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
-        if (unconfirmed || !user || submittingRef.current) return
+        if (unconfirmed || submitting || !user || submittingRef.current) return
 
         if (newPassword.length < 6) {
             setError(copy.minLength)
@@ -71,7 +68,7 @@ export default function ResetPasswordDialog({
         }
 
         submittingRef.current = true
-        setSubmitting(true)
+        const isCurrent = viewGuard()
         setError(null)
         try {
             const response = await command(
@@ -91,19 +88,20 @@ export default function ResetPasswordDialog({
                 throw new Error(messages[code] || copy.errors.SERVER_ERROR)
             }
 
+            drafts?.delete(draftKey)
+            if (!isCurrent()) return
             setNewPassword('')
             setConfirmPassword('')
             setSuccess(true)
             onSuccess?.()
         } catch (requestError) {
-            setError(
+            if (isCurrent()) setError(
                 requestError instanceof Error
                     ? requestError.message
                     : copy.errors.SERVER_ERROR
             )
         } finally {
             submittingRef.current = false
-            setSubmitting(false)
         }
     }
 
@@ -111,7 +109,7 @@ export default function ResetPasswordDialog({
         <Dialog
             open={isOpen}
             onOpenChange={(open) => {
-                if (!open && !submittingRef.current) onClose()
+                if (!open) onClose()
             }}
         >
             <DialogContent panel closeLabel={t.panelUi.close} className="sm:max-w-md" dir={dir}>
@@ -158,8 +156,8 @@ export default function ResetPasswordDialog({
                                         type={showPassword ? 'text' : 'password'}
                                         autoComplete="new-password"
                                         value={newPassword}
-                                        onChange={(event) => setNewPassword(event.target.value)}
-                                        disabled={submitting}
+                                        onChange={(event) => { setNewPassword(event.target.value); drafts?.set(draftKey, { newPassword: event.target.value, confirmPassword }) }}
+                                        disabled={submitting || unconfirmed}
                                         className="w-full rounded-lg border border-border bg-background px-3 py-2 pe-10 text-foreground outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                                     />
                                     <button
@@ -190,8 +188,8 @@ export default function ResetPasswordDialog({
                                     type={showPassword ? 'text' : 'password'}
                                     autoComplete="new-password"
                                     value={confirmPassword}
-                                    onChange={(event) => setConfirmPassword(event.target.value)}
-                                    disabled={submitting}
+                                    onChange={(event) => { setConfirmPassword(event.target.value); drafts?.set(draftKey, { newPassword, confirmPassword: event.target.value }) }}
+                                    disabled={submitting || unconfirmed}
                                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                                 />
                             </div>
@@ -202,8 +200,7 @@ export default function ResetPasswordDialog({
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => { if (!submittingRef.current) onClose() }}
-                            disabled={submitting}
+                            onClick={onClose}
                         >
                             {success ? t.common.close : t.common.cancel}
                         </Button>

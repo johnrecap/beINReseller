@@ -5,11 +5,6 @@ import { Save, Loader2, AlertTriangle, Bell, Code } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/hooks/useTranslation'
 import {
-    DEFAULT_BEIN_LOGIN_FAILURE_THRESHOLD,
-    MAX_BEIN_LOGIN_FAILURE_THRESHOLD,
-    MIN_BEIN_LOGIN_FAILURE_THRESHOLD,
-} from '@/lib/bein-login-failure-threshold'
-import {
     BEIN_CONNECTION_MODE_ASSIGNED_PROXY,
     BEIN_CONNECTION_MODE_SERVER_IP,
     BEIN_CONNECTION_MODE_SETTING_KEY,
@@ -244,27 +239,8 @@ export default function SettingsForm() {
                     </div>
 
                     <div className="space-y-2">
-                        <label
-                            htmlFor="worker_bein_login_failure_threshold"
-                            className="block text-sm font-medium text-foreground"
-                        >
-                            beIN login failure threshold
-                        </label>
-                        <input
-                            id="worker_bein_login_failure_threshold"
-                            name="worker_bein_login_failure_threshold"
-                            type="number"
-                            min={MIN_BEIN_LOGIN_FAILURE_THRESHOLD}
-                            max={MAX_BEIN_LOGIN_FAILURE_THRESHOLD}
-                            required
-                            defaultValue={
-                                settings.worker_bein_login_failure_threshold ||
-                                String(DEFAULT_BEIN_LOGIN_FAILURE_THRESHOLD)
-                            }
-                            className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground"
-                        />
                         <p className="text-sm text-muted-foreground">
-                            Consecutive failed beIN logins before an account is flagged for password update.
+                            {t.panelUi.reportCopy.loginThresholdHint}
                         </p>
                     </div>
                 </div>

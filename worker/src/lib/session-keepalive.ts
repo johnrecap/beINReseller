@@ -17,6 +17,7 @@ import { prisma } from './prisma';
 import { randomUUID } from 'node:crypto';
 import { getRedisConnection } from './redis';
 import { HttpClientService } from '../http/HttpClientService';
+import type { LoginResult } from '../http/types';
 import { CaptchaSolver } from '../utils/captcha-solver';
 import {
     getSessionFromCache,
@@ -24,9 +25,8 @@ import {
     getSessionTTL,
 } from './session-cache';
 import {
-    recordLoginFailure,
+    recordLoginHealthFailure,
     recordLoginSuccess,
-    shouldCountAsCredentialFailure,
 } from './bein-login-tracking';
 import {
     extendLock,
@@ -494,6 +494,11 @@ export class SessionKeepAliveService {
         console.log(`[KeepAlive] ${username}: Session expired on beIN, performing fresh login...`);
 
         const loginResult = await client.login(username, account.password, account.totpSecret || undefined);
+        const recordTerminal = async (result: LoginResult) => {
+            await assertGuard();
+            if (!await recordLoginHealthFailure(accountId, result, client.getLoginTrackingRevision(),
+                { attempted: client.didAttemptLogin(), terminal: true })) throw new Error('LOGIN_HEALTH_STALE');
+        };
 
         // Handle CAPTCHA if required
         if (loginResult.requiresCaptcha && loginResult.captchaImage) {
@@ -501,6 +506,7 @@ export class SessionKeepAliveService {
 
             const apiKey = await getCaptchaApiKey();
             if (!apiKey) {
+                await recordTerminal(loginResult);
                 console.error(`[KeepAlive] ${username}: No 2Captcha API key configured`);
                 return {
                     accountId,
@@ -515,7 +521,7 @@ export class SessionKeepAliveService {
             const MAX_CAPTCHA_RETRIES = 3;
             let lastCaptchaError = '';
             let currentCaptchaImage = loginResult.captchaImage;
-            let failureAlreadyRecorded = false;
+            let finalFailure = loginResult;
 
             for (let attempt = 1; attempt <= MAX_CAPTCHA_RETRIES; attempt++) {
                 try {
@@ -529,6 +535,7 @@ export class SessionKeepAliveService {
                         account.totpSecret || undefined,
                         solution
                     );
+                    finalFailure = finalLogin;
 
                     if (finalLogin.success) {
                         await assertGuard();
@@ -557,30 +564,16 @@ export class SessionKeepAliveService {
                         // FAKE LOGIN — beIN returned login page with cached title
                         // Record failure PER ATTEMPT so 3 fake logins = threshold reached
                         lastCaptchaError = finalLogin.error;
-                        failureAlreadyRecorded = true;
-                        if (shouldCountAsCredentialFailure(finalLogin.error)) {
-                            await assertGuard();
-                            await recordLoginFailure(accountId, finalLogin.error, client.getLoginTrackingRevision());
-                            console.log(`[KeepAlive] ${username}: FAKE LOGIN on attempt ${attempt} — failure recorded (consecutiveLoginFailures incremented)`);
-                        }
-                        // Reset session and retry with fresh CAPTCHA
-                        if (attempt < MAX_CAPTCHA_RETRIES) {
-                            try {
-                                client.resetSession();
-                                const retryLogin = await client.login(username, account.password, account.totpSecret || undefined);
-                                if (retryLogin.requiresCaptcha && retryLogin.captchaImage) {
-                                    currentCaptchaImage = retryLogin.captchaImage;
-                                    continue;
-                                }
-                            } catch { /* fall through to failure */ }
-                        }
+                        // A final invalid authentication response is not another CAPTCHA challenge.
                         break;
                     } else {
                         // Non-CAPTCHA failure (e.g., wrong password, account locked)
                         lastCaptchaError = finalLogin.error || 'Login failed after CAPTCHA';
                         break;
                     }
-                } catch {
+                } catch (error) {
+                    if (finalFailure.success) throw error; // persistence/cache failure is not failed authentication
+                    if (error instanceof Error && error.message.startsWith('LOGIN_HEALTH_')) throw error;
                     await assertGuard();
                     console.error(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt} failed`);
                     lastCaptchaError = 'CAPTCHA processing failed';
@@ -589,21 +582,34 @@ export class SessionKeepAliveService {
                         try {
                             client.resetSession();
                             const retryLogin = await client.login(username, account.password, account.totpSecret || undefined);
+                            finalFailure = retryLogin;
+                            if (retryLogin.success) {
+                                await assertGuard();
+                                await recordLoginSuccess(accountId, client.getLoginTrackingRevision());
+                                const sessionData = await client.exportSession();
+                                const now = Date.now();
+                                sessionData.expiresAt = now + (15 * 60 * 1000);
+                                sessionData.loginTimestamp = now;
+                                await assertGuard();
+                                await saveSessionToCache(accountId, route.routeKey, sessionData, 16, cacheGuard);
+                                return { accountId, username, status: 'logged_in', durationMs: Date.now() - startTime };
+                            }
                             if (retryLogin.requiresCaptcha && retryLogin.captchaImage) {
                                 currentCaptchaImage = retryLogin.captchaImage;
                                 continue;
                             }
-                        } catch { /* fall through to failure */ }
+                        } catch (error) {
+                            if (finalFailure.success) throw error;
+                            if (error instanceof Error && error.message.startsWith('LOGIN_HEALTH_')) throw error;
+                            await assertGuard();
+                        }
                     }
                     break;
                 }
             }
 
-            // All CAPTCHA attempts exhausted — record if not already done per-attempt
-            if (!failureAlreadyRecorded && shouldCountAsCredentialFailure(lastCaptchaError)) {
-                await assertGuard();
-                await recordLoginFailure(accountId, lastCaptchaError, client.getLoginTrackingRevision());
-            }
+            // Only the final outcome changes login health; intermediate challenges do not.
+            await recordTerminal(finalFailure);
             console.error(`[KeepAlive] ${username}: All ${MAX_CAPTCHA_RETRIES} CAPTCHA attempts failed`);
             return {
                 accountId,
@@ -635,10 +641,7 @@ export class SessionKeepAliveService {
             };
         }
 
-        if (shouldCountAsCredentialFailure(loginResult.error)) {
-            await assertGuard();
-            await recordLoginFailure(accountId, loginResult.error, client.getLoginTrackingRevision());
-        }
+        await recordTerminal(loginResult);
 
         return {
             accountId,

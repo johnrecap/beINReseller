@@ -1,0 +1,382 @@
+{
+  "date": "2026-11-03T23:40:45.717Z",
+  "scope": "Partial 037 checkpoint: selected unit/worker cases, types, affected runtime lint and UTF-8/BOM. No full feature acceptance.",
+  "result": "PASS",
+  "sources": [
+    {
+      "path": "src/app/api/admin/bein-accounts/[id]/check-balance/route.ts",
+      "sha256": "3269cddc03856170963dc446575ccff50b4924ac24b8960881512f9fe6901df9"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/[id]/low-balance/reactivate/route.ts",
+      "sha256": "3e7e68a2ed5777f0fbfb9f0393212c862e18fddd88747eea173ca10ee8fad236"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/[id]/route.ts",
+      "sha256": "321ba977dde25cded5182315cdd88533c7e3449d32738935032707fed6ce12cd"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/[id]/toggle/route.ts",
+      "sha256": "3128d177f848b2fee7c218302c79cce96e363a9825860d45a02f46a2f896727e"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/login-failures/route.ts",
+      "sha256": "6cc2a591145476c97be5b3fe4075fef347a4e02f0a6816be33beb6fb212c67d4"
+    },
+    {
+      "path": "src/app/api/admin/bein-accounts/route.ts",
+      "sha256": "2aeaba3a7a75364efc16bbce73360ef7a6a27b31b0e87966a80509bbeeb2b4bf"
+    },
+    {
+      "path": "src/app/dashboard/admin/bein-accounts/page.tsx",
+      "sha256": "d7e0fdf019b21c5cee41cffdc755f8e3c85db27c6fef8cd35ac3e21f278f05ce"
+    },
+    {
+      "path": "src/components/admin/SettingsForm.tsx",
+      "sha256": "e943d1c16d20665a7d9e224ec93d1339982b9c16568eddfea154cd79f05ee5b3"
+    },
+    {
+      "path": "src/components/admin/report-center/BalanceMonitorPanel.tsx",
+      "sha256": "c4b627c96ae2109b46f4d7c73e9b4351debc7ba1dd8f7ffd9b2ecd6330f13926"
+    },
+    {
+      "path": "src/components/admin/report-center/LoginMonitorPanel.tsx",
+      "sha256": "047d9acddf5fd81391c63d97d6230425aafef8380b9d6dea041c31786fe1bd58"
+    },
+    {
+      "path": "src/components/admin/users/AddBalanceDialog.tsx",
+      "sha256": "38ece0de5cb5fb67b922f0ce6f357658a03bcf64c3946cbb68896112fe7d5906"
+    },
+    {
+      "path": "src/components/admin/users/CreditControlDialog.tsx",
+      "sha256": "3d84334127891b16b995f459ed2b49a2a3187bfab38ac8497853a68d45c0be72"
+    },
+    {
+      "path": "src/components/admin/users/EditUserDialog.tsx",
+      "sha256": "db4118ed1ffd3598fd845bb5c9a09e91cf660a69afa4eb95c3dee4400846c6e8"
+    },
+    {
+      "path": "src/components/admin/users/UserStatsDialog.tsx",
+      "sha256": "c9eb35911ed1f1ecd5c764d2787bf018fb682be1304beeb996c1df8a039de6fd"
+    },
+    {
+      "path": "src/components/layout/DashboardShell.tsx",
+      "sha256": "7e1cc14c30ae3432abd0098fcf13570c671458b0d1a1d3c0c119e766d539765b"
+    },
+    {
+      "path": "src/components/manager/users/ManagerAddBalanceDialog.tsx",
+      "sha256": "8e8f0e867e3ff0942fd3b532f9bb1847315c918a41663faf84cec6a447b3e708"
+    },
+    {
+      "path": "src/components/ui/dialog.tsx",
+      "sha256": "dc3203b939ddf7d4d4ec1fb4e129456f179cf44ec91cf98a905a7132389c485b"
+    },
+    {
+      "path": "src/components/users/ResetPasswordDialog.tsx",
+      "sha256": "2a9766dd821845a62e45e58f358adcf95d385d2c3c90a076984729a97e79c154"
+    },
+    {
+      "path": "src/hooks/usePanelRequest.ts",
+      "sha256": "22cb0d76db194ea4b967686755b756be17ebb6c881b41076a42e4806889965c7"
+    },
+    {
+      "path": "src/i18n/translations/ar.ts",
+      "sha256": "5da0b5705156d11b94ceaa4e22867ad14ce08e901d3ab73c2e7ffa14dbaaeacc"
+    },
+    {
+      "path": "src/i18n/translations/bn.ts",
+      "sha256": "7cc6c5e93b3a5ef52a768994bac6e83b5a06ab8b49ade4e2a040ac844687ff88"
+    },
+    {
+      "path": "src/i18n/translations/en.ts",
+      "sha256": "b595f847a509209dbb5d1a8d1b823430f5ed645f915525ad7f1463ae04da9a8e"
+    },
+    {
+      "path": "src/lib/bein-account-recovery.ts",
+      "sha256": "71baef62128efd35768f77ceb3aa4977e734982da0aef92d7bd43415e542aee3"
+    },
+    {
+      "path": "tests/browser/fixtures/panel-ui-entry.jsx",
+      "sha256": "198ebba5f09ab2756f02795514916d7882a4382983219301806a3d569c7bf7fd"
+    },
+    {
+      "path": "tests/browser/panel-bein-dialog-cases.cjs",
+      "sha256": "0ec7a9efbd555a1e8fe07d42d4c4720694a6d3deee1a9a706f1e15026f512f7d"
+    },
+    {
+      "path": "tests/browser/panel-command-cases.cjs",
+      "sha256": "ac1c0deaaf49c147382b85a18fa3416369de90945b3f74778a1dc4060311b6ca"
+    },
+    {
+      "path": "tests/browser/panel-dialog-cases.cjs",
+      "sha256": "25719161fe7bf3465c2044f68a2a72963864a93728f3425ffb945125aa922af6"
+    },
+    {
+      "path": "tests/browser/panel-report-cases.cjs",
+      "sha256": "1604b569a9fd97178938a62c703a14a3d92ba26d01f7022991eb633024115c3a"
+    },
+    {
+      "path": "tests/browser/panel-ui-repairs.cjs",
+      "sha256": "385b3e922fcea0bd39ccefbdbf5cfcb59e8c1af2dac9f5e2ffa1e509561e0c27"
+    },
+    {
+      "path": "tests/helpers/promo-dispatch-harness.ts",
+      "sha256": "6265a86482e75e6414859735ee59f9a6b252a408cb381240512cce4b54c74d9f"
+    },
+    {
+      "path": "tests/unit/account-cooldown-removal.test.ts",
+      "sha256": "e9d6f08c22df87a02fe029f9637ac30892be888c245366b6bf9cbd86398e8495"
+    },
+    {
+      "path": "tests/unit/bein-account-recovery.test.ts",
+      "sha256": "981a4e6af8eede24a5e6f5679380087cd50e89d65d5a744289a0083f501d6662"
+    },
+    {
+      "path": "worker/src/http-queue-processor.ts",
+      "sha256": "017f6f25c8a758d16ea59eb76aa92a4dec0fb917a6065a68700e12d379dba0f5"
+    },
+    {
+      "path": "worker/src/http/HttpClientService.ts",
+      "sha256": "a220c895ef2c439295b672427848bfcaf0c835792e102b8881b7c63f6da8a97f"
+    },
+    {
+      "path": "worker/src/lib/bein-login-tracking.ts",
+      "sha256": "444fc7c4e4429c18cc54ab7ddfcccc6021be6c88ec03d57faaf3d58626f68f8a"
+    },
+    {
+      "path": "worker/src/lib/provider-report-reader.ts",
+      "sha256": "c8efaa364d12719a57c4ab19becd911c0a5f0430644323e5182140979950577f"
+    },
+    {
+      "path": "worker/src/lib/session-keepalive.ts",
+      "sha256": "54d3654b1d5637cf7b3855b488f2d7bebdbb765e1b4ac17f4d700ea0b7bd6531"
+    },
+    {
+      "path": "worker/tests/keepalive-login-recovery.test.ts",
+      "sha256": "3b1cdebae2ccfdecee83725f5ba6bd2a19660450387ffe57ca3c10e51064f248"
+    },
+    {
+      "path": "worker/tests/login-failure-classification.test.ts",
+      "sha256": "e5327bc37680364b580e6cf94c5e2678935da0c9f372b1208063e0a0dc875721"
+    },
+    {
+      "path": "worker/tests/login-retry-consumers.test.ts",
+      "sha256": "b1c7d5d0c1320e0d76fed2722bc0829db4aff5d6ec2a4c297aed061dbe6f12c3"
+    },
+    {
+      "path": "worker/tests/login-tracking-recovery.test.ts",
+      "sha256": "8a5cbd903cb4b969df95672835178eb102a112e97f3fcfbf63485997ced0aac1"
+    },
+    {
+      "path": "worker/tests/promo-package-refresh.test.ts",
+      "sha256": "27c4c4472db1a3ac1080322906f303e48ca34a7f2802c39b190602034d30d592"
+    },
+    {
+      "path": "worker/tests/provider-report-browser.test.ts",
+      "sha256": "2eccf31e9644a3cc283d7d6ead61d4c11aef288bd06c838dd945e7315da2bddd"
+    },
+    {
+      "path": "worker/tests/renewal-worker-evidence.test.ts",
+      "sha256": "3ca1e900125a22d648289ca6a1d96be309e59203a8aaaac6f9721f2b58d31c73"
+    },
+    {
+      "path": "shared/bein/balance-refresh-store.ts",
+      "sha256": "0037d649ec751f5aa167506e61ed6ea04daa4266c8c468459c0615c5e006ecf1"
+    },
+    {
+      "path": "shared/bein/balance-refresh.ts",
+      "sha256": "896262861065182501c10d7aabef43def03b29575b4433eb76353dfe832105c8"
+    },
+    {
+      "path": "shared/bein/login-health.ts",
+      "sha256": "f3f721b1cdf2c10ca1678c5672ddf3198725e766406b082eb5ae1509bb69457e"
+    },
+    {
+      "path": "src/components/providers/PanelCommandProvider.tsx",
+      "sha256": "9e9b206f97b8602b9e20529fb684f351cc87a00e60e4250c32b6c1a8d8793aab"
+    },
+    {
+      "path": "src/hooks/useBeinBalanceRefresh.ts",
+      "sha256": "b6173f163029b1d81d0ecee763db1d331061132825ae04956b6718b0394aeff6"
+    },
+    {
+      "path": "src/lib/panel-balance-rejection.ts",
+      "sha256": "e070ea697f86731c91a5bd16280e8a37414500c2d4f0ecacad2cdb64a21ca6b4"
+    },
+    {
+      "path": "src/lib/panel-balance-tracker.ts",
+      "sha256": "63131f5ed8e18ca6064e5fa1cd2e96ea11938424cd84c5371505a83d43caeaba"
+    },
+    {
+      "path": "src/lib/panel-command-runner.ts",
+      "sha256": "769705199c1c4a7025841a1e8007889ea1b9ba1f65259ee3de138474e1c5ad0c"
+    },
+    {
+      "path": "src/lib/panel-command-state.ts",
+      "sha256": "c3e71605bbf6a71fafd24ac18e36a188331397d80a313aabd85d64f064d7b1c2"
+    },
+    {
+      "path": "tests/integration/bein-balance-refresh.test.ts",
+      "sha256": "c065f4c61fdb12689c560d3cc2a69289d4cbba62248ecb4a487d8148e109b182"
+    },
+    {
+      "path": "tests/unit/bein-balance-refresh-api.test.ts",
+      "sha256": "7c524b3afc3d0c990d993d8d8e9db60c5804b3023612da5cfaa28a07445a3475"
+    },
+    {
+      "path": "tests/unit/bein-balance-refresh.test.ts",
+      "sha256": "d0e07d595498ca38d7a1635a6d0b00d0c20b0609a0021883c33dbacb2a5da1f7"
+    },
+    {
+      "path": "tests/unit/panel-balance-rejection.test.ts",
+      "sha256": "c51ac400fa7adece129c03c6703ee6efee99f919c0976d9b43e1998d3b1eee44"
+    },
+    {
+      "path": "tests/unit/panel-balance-tracker.test.ts",
+      "sha256": "dfabad2a6406e803cddfe4250dfe41b5eb12e1d733bf240724935234e222ba16"
+    },
+    {
+      "path": "tests/unit/panel-command-runner.test.ts",
+      "sha256": "805bd890d311a7dfef93893854c295502370a9ed021c674b29b03e429de8f947"
+    },
+    {
+      "path": "tests/unit/panel-command-state.test.ts",
+      "sha256": "7edf7344f56ca8692df0188f912b96778eacda5e0d5d4ce69bdc739b5e91f927"
+    },
+    {
+      "path": "worker/src/lib/bein-balance-refresh.ts",
+      "sha256": "ad073c97d5874e58346dfeecfa4d64e185c3c5de2605e3d7f4845756050c6ca5"
+    },
+    {
+      "path": "worker/tests/balance-read-boundary.test.ts",
+      "sha256": "d38d43cf05a1346207003bb82ee501ddc761f71181e6f0a0ee19a72440aea768"
+    },
+    {
+      "path": "worker/tests/balance-refresh-job.test.ts",
+      "sha256": "08c9df63718ea1c07501abe893be663db1923feecd18677d94a9ec63d448a335"
+    },
+    {
+      "path": "worker/tests/login-health-policy.test.ts",
+      "sha256": "edf7cbf57a2f9b70701a5198de626a95ff906d9510695527ae837728dfb8e7e4"
+    }
+  ],
+  "checks": [
+    {
+      "name": "unit",
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "tests/unit/panel-command-state.test.ts",
+        "tests/unit/panel-command-runner.test.ts",
+        "tests/unit/panel-balance-rejection.test.ts",
+        "tests/unit/bein-balance-refresh.test.ts",
+        "tests/unit/bein-balance-refresh-api.test.ts",
+        "tests/unit/panel-balance-tracker.test.ts",
+        "tests/unit/bein-account-recovery.test.ts"
+      ],
+      "exitCode": 0,
+      "error": null,
+      "output": "current-unit.txt"
+    },
+    {
+      "name": "worker",
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "worker/tests/login-health-policy.test.ts",
+        "worker/tests/login-failure-classification.test.ts",
+        "worker/tests/login-tracking-recovery.test.ts",
+        "worker/tests/keepalive-login-recovery.test.ts",
+        "worker/tests/login-retry-consumers.test.ts",
+        "worker/tests/balance-refresh-job.test.ts",
+        "worker/tests/balance-read-boundary.test.ts",
+        "worker/tests/provider-report-browser.test.ts"
+      ],
+      "exitCode": 0,
+      "error": null,
+      "output": "current-worker.txt"
+    },
+    {
+      "name": "types-root",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--pretty",
+        "false"
+      ],
+      "exitCode": 0,
+      "error": null,
+      "output": "current-types-root.txt"
+    },
+    {
+      "name": "types-worker",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--pretty",
+        "false",
+        "-p",
+        "worker/tsconfig.json"
+      ],
+      "exitCode": 0,
+      "error": null,
+      "output": "current-types-worker.txt"
+    },
+    {
+      "name": "lint",
+      "command": [
+        "node",
+        "node_modules/eslint/bin/eslint.js",
+        "src/app/api/admin/bein-accounts/[id]/check-balance/route.ts",
+        "src/app/api/admin/bein-accounts/[id]/low-balance/reactivate/route.ts",
+        "src/app/api/admin/bein-accounts/[id]/route.ts",
+        "src/app/api/admin/bein-accounts/[id]/toggle/route.ts",
+        "src/app/api/admin/bein-accounts/login-failures/route.ts",
+        "src/app/api/admin/bein-accounts/route.ts",
+        "src/app/dashboard/admin/bein-accounts/page.tsx",
+        "src/components/admin/SettingsForm.tsx",
+        "src/components/admin/report-center/BalanceMonitorPanel.tsx",
+        "src/components/admin/report-center/LoginMonitorPanel.tsx",
+        "src/components/admin/users/AddBalanceDialog.tsx",
+        "src/components/admin/users/CreditControlDialog.tsx",
+        "src/components/admin/users/EditUserDialog.tsx",
+        "src/components/admin/users/UserStatsDialog.tsx",
+        "src/components/layout/DashboardShell.tsx",
+        "src/components/manager/users/ManagerAddBalanceDialog.tsx",
+        "src/components/ui/dialog.tsx",
+        "src/components/users/ResetPasswordDialog.tsx",
+        "src/hooks/usePanelRequest.ts",
+        "src/i18n/translations/ar.ts",
+        "src/i18n/translations/bn.ts",
+        "src/i18n/translations/en.ts",
+        "src/lib/bein-account-recovery.ts",
+        "shared/bein/balance-refresh-store.ts",
+        "shared/bein/balance-refresh.ts",
+        "shared/bein/login-health.ts",
+        "src/components/providers/PanelCommandProvider.tsx",
+        "src/hooks/useBeinBalanceRefresh.ts",
+        "src/lib/panel-balance-rejection.ts",
+        "src/lib/panel-balance-tracker.ts",
+        "src/lib/panel-command-runner.ts",
+        "src/lib/panel-command-state.ts"
+      ],
+      "exitCode": 0,
+      "error": null,
+      "output": "current-lint.txt"
+    }
+  ],
+  "notVerified": [
+    "full consumer migration",
+    "native integrated balance and health races",
+    "health UI browser acceptance",
+    "real App Router",
+    "builds",
+    "production"
+  ]
+}

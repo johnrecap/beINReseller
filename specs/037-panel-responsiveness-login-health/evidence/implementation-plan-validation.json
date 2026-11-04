@@ -1,0 +1,887 @@
+{
+  "scope": "037 planning artifacts only; no runtime or production acceptance",
+  "result": "PASS",
+  "originalTaskTemplate": ".specify/templates/tasks-template.md",
+  "originalTemplateSha256": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108",
+  "requiredTaskFields": [
+    "Reason",
+    "Expected",
+    "Possible bugs",
+    "Fix/Mitigation",
+    "Verification"
+  ],
+  "taskCount": 24,
+  "checkedRuntimeTasks": 0,
+  "requirementCount": 31,
+  "checklistItems": 34,
+  "documentCount": 15,
+  "coverage": [
+    {
+      "id": "FR-001",
+      "tasks": [
+        "T002",
+        "T004",
+        "T005",
+        "T006",
+        "T007",
+        "T008",
+        "T021"
+      ]
+    },
+    {
+      "id": "FR-002",
+      "tasks": [
+        "T002",
+        "T005",
+        "T006",
+        "T007",
+        "T008",
+        "T021"
+      ]
+    },
+    {
+      "id": "FR-003",
+      "tasks": [
+        "T003",
+        "T004",
+        "T006",
+        "T007",
+        "T008",
+        "T021"
+      ]
+    },
+    {
+      "id": "FR-004",
+      "tasks": [
+        "T003",
+        "T004",
+        "T006",
+        "T007",
+        "T008",
+        "T020",
+        "T021"
+      ]
+    },
+    {
+      "id": "FR-005",
+      "tasks": [
+        "T003",
+        "T004",
+        "T005",
+        "T006",
+        "T007",
+        "T008",
+        "T021"
+      ]
+    },
+    {
+      "id": "FR-006",
+      "tasks": [
+        "T002",
+        "T005",
+        "T007",
+        "T008",
+        "T021"
+      ]
+    },
+    {
+      "id": "FR-007",
+      "tasks": [
+        "T001",
+        "T002",
+        "T006",
+        "T007",
+        "T008",
+        "T021",
+        "T023"
+      ]
+    },
+    {
+      "id": "FR-008",
+      "tasks": [
+        "T009",
+        "T010",
+        "T011",
+        "T013",
+        "T021"
+      ]
+    },
+    {
+      "id": "FR-009",
+      "tasks": [
+        "T009",
+        "T010",
+        "T011",
+        "T012",
+        "T013",
+        "T020"
+      ]
+    },
+    {
+      "id": "FR-010",
+      "tasks": [
+        "T009",
+        "T010",
+        "T012",
+        "T013",
+        "T020"
+      ]
+    },
+    {
+      "id": "FR-011",
+      "tasks": [
+        "T009",
+        "T010",
+        "T011",
+        "T012",
+        "T013",
+        "T020",
+        "T024"
+      ]
+    },
+    {
+      "id": "FR-012",
+      "tasks": [
+        "T009",
+        "T011",
+        "T012",
+        "T013",
+        "T020",
+        "T024"
+      ]
+    },
+    {
+      "id": "FR-013",
+      "tasks": [
+        "T014",
+        "T015"
+      ]
+    },
+    {
+      "id": "FR-014",
+      "tasks": [
+        "T014",
+        "T015",
+        "T016"
+      ]
+    },
+    {
+      "id": "FR-015",
+      "tasks": [
+        "T014",
+        "T015",
+        "T016",
+        "T020"
+      ]
+    },
+    {
+      "id": "FR-016",
+      "tasks": [
+        "T014",
+        "T015",
+        "T016",
+        "T020"
+      ]
+    },
+    {
+      "id": "FR-017",
+      "tasks": [
+        "T012",
+        "T014",
+        "T015",
+        "T016",
+        "T017",
+        "T020",
+        "T024"
+      ]
+    },
+    {
+      "id": "FR-018",
+      "tasks": [
+        "T014",
+        "T018",
+        "T020",
+        "T021"
+      ]
+    },
+    {
+      "id": "FR-019",
+      "tasks": [
+        "T014",
+        "T017",
+        "T018",
+        "T020"
+      ]
+    },
+    {
+      "id": "FR-020",
+      "tasks": [
+        "T014",
+        "T015",
+        "T018",
+        "T024"
+      ]
+    },
+    {
+      "id": "FR-021",
+      "tasks": [
+        "T013",
+        "T018",
+        "T019",
+        "T021",
+        "T022"
+      ]
+    },
+    {
+      "id": "FR-022",
+      "tasks": [
+        "T003",
+        "T004",
+        "T009",
+        "T010",
+        "T011",
+        "T014",
+        "T015",
+        "T017",
+        "T019",
+        "T022"
+      ]
+    },
+    {
+      "id": "FR-023",
+      "tasks": [
+        "T001",
+        "T008",
+        "T012",
+        "T016",
+        "T020",
+        "T022",
+        "T023",
+        "T024"
+      ]
+    },
+    {
+      "id": "FR-024",
+      "tasks": [
+        "T001",
+        "T023"
+      ]
+    },
+    {
+      "id": "SC-001",
+      "tasks": [
+        "T002",
+        "T005",
+        "T006",
+        "T007",
+        "T008",
+        "T013",
+        "T021"
+      ]
+    },
+    {
+      "id": "SC-002",
+      "tasks": [
+        "T003",
+        "T004",
+        "T006",
+        "T007",
+        "T008",
+        "T020",
+        "T021",
+        "T022"
+      ]
+    },
+    {
+      "id": "SC-003",
+      "tasks": [
+        "T009",
+        "T010",
+        "T011",
+        "T012",
+        "T013",
+        "T020",
+        "T021"
+      ]
+    },
+    {
+      "id": "SC-004",
+      "tasks": [
+        "T014",
+        "T015",
+        "T016",
+        "T017",
+        "T020",
+        "T022"
+      ]
+    },
+    {
+      "id": "SC-005",
+      "tasks": [
+        "T014",
+        "T017",
+        "T018",
+        "T020",
+        "T021"
+      ]
+    },
+    {
+      "id": "SC-006",
+      "tasks": [
+        "T002",
+        "T005",
+        "T008",
+        "T018",
+        "T019",
+        "T021",
+        "T022"
+      ]
+    },
+    {
+      "id": "SC-007",
+      "tasks": [
+        "T001",
+        "T023",
+        "T024"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T001",
+      "story": null,
+      "requirements": [
+        "FR-007",
+        "FR-023",
+        "FR-024",
+        "SC-007"
+      ],
+      "dependencies": [],
+      "unitSha256": "e33bf074c9fca9a17df0da8cdb74a07580cd7e7e2842f155829f4129bdfba311"
+    },
+    {
+      "id": "T002",
+      "story": "US1",
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-006",
+        "FR-007",
+        "SC-001",
+        "SC-006"
+      ],
+      "dependencies": [
+        "T001"
+      ],
+      "unitSha256": "39d5a109af5cc5cd5f4bbfa0c3b47a2d22cbfe853d489b6983dab7e4fd2272b8"
+    },
+    {
+      "id": "T003",
+      "story": "US1",
+      "requirements": [
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-022",
+        "SC-002"
+      ],
+      "dependencies": [
+        "T001"
+      ],
+      "unitSha256": "6c5761a55027db152eb730aacba084de0f9e439d037e40e7c1592668e4259cb1"
+    },
+    {
+      "id": "T004",
+      "story": "US1",
+      "requirements": [
+        "FR-001",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-022",
+        "SC-002"
+      ],
+      "dependencies": [
+        "T002",
+        "T003"
+      ],
+      "unitSha256": "aadd019b603b03afb286e36011383a0bf27cc18bd7a5e68c25769288f6a5ac3d"
+    },
+    {
+      "id": "T005",
+      "story": "US1",
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-005",
+        "FR-006",
+        "SC-001",
+        "SC-006"
+      ],
+      "dependencies": [
+        "T004"
+      ],
+      "unitSha256": "d0877db57226b84ac93e9202f3192ddcb7d9cd2217953c0ddaa60cc36093d45d"
+    },
+    {
+      "id": "T006",
+      "story": "US1",
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-007",
+        "SC-001",
+        "SC-002"
+      ],
+      "dependencies": [
+        "T005"
+      ],
+      "unitSha256": "080ce5d6e42f58e06b8cdf7d0228771547fd00c8104e58e20b960fbb8b539f30"
+    },
+    {
+      "id": "T007",
+      "story": "US1",
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "SC-001",
+        "SC-002"
+      ],
+      "dependencies": [
+        "T006"
+      ],
+      "unitSha256": "8c2215c64ed14958e228fa735fc0fc1c13141185af0be95cb40ac996a1e4bb76"
+    },
+    {
+      "id": "T008",
+      "story": "US1",
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-023",
+        "SC-001",
+        "SC-002",
+        "SC-006"
+      ],
+      "dependencies": [
+        "T007"
+      ],
+      "unitSha256": "08108a58c126a53e0e6977e264730caf8eba272cfde5b492fc6c05df2206e4f0"
+    },
+    {
+      "id": "T009",
+      "story": "US2",
+      "requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-022",
+        "SC-003"
+      ],
+      "dependencies": [
+        "T001"
+      ],
+      "unitSha256": "3a39c347a1c4e98dba7aa44822a4cbe976c679a51901fd0bf5f4265fafd4c48e"
+    },
+    {
+      "id": "T010",
+      "story": "US2",
+      "requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-022",
+        "SC-003"
+      ],
+      "dependencies": [
+        "T009"
+      ],
+      "unitSha256": "d024edc363797c987df89ce5c06d8fcf3683af5645d51e965214110c26df1bcb"
+    },
+    {
+      "id": "T011",
+      "story": "US2",
+      "requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-011",
+        "FR-012",
+        "FR-022",
+        "SC-003"
+      ],
+      "dependencies": [
+        "T010"
+      ],
+      "unitSha256": "5f2647af154b7cefe2ad9f7dcecad5ad90109a1f128bfe48e3aa8d69ded865c0"
+    },
+    {
+      "id": "T012",
+      "story": "US2",
+      "requirements": [
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-017",
+        "FR-023",
+        "SC-003"
+      ],
+      "dependencies": [
+        "T011"
+      ],
+      "unitSha256": "e71d27f730782ab441f6d1d1d57a9cff757b1e5915e724364100a2b9c69166d7"
+    },
+    {
+      "id": "T013",
+      "story": "US2",
+      "requirements": [
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-021",
+        "SC-001",
+        "SC-003"
+      ],
+      "dependencies": [
+        "T005",
+        "T012"
+      ],
+      "unitSha256": "b3a20df30033734e12926ca42dd852bb1746a801621c8b0055efcf34af476e0c"
+    },
+    {
+      "id": "T014",
+      "story": "US3",
+      "requirements": [
+        "FR-013",
+        "FR-014",
+        "FR-015",
+        "FR-016",
+        "FR-017",
+        "FR-018",
+        "FR-019",
+        "FR-020",
+        "FR-022",
+        "SC-004",
+        "SC-005"
+      ],
+      "dependencies": [
+        "T001"
+      ],
+      "unitSha256": "dff6a348c0fc071e478c5b148a162b2395ad557ad9f8530107ebcf8a14447857"
+    },
+    {
+      "id": "T015",
+      "story": "US3",
+      "requirements": [
+        "FR-013",
+        "FR-014",
+        "FR-015",
+        "FR-016",
+        "FR-017",
+        "FR-020",
+        "FR-022",
+        "SC-004"
+      ],
+      "dependencies": [
+        "T014"
+      ],
+      "unitSha256": "25223ee59e95efde8ec152a6a6e06b41b15cf6a683d329dc7182913bd9a7bfbd"
+    },
+    {
+      "id": "T016",
+      "story": "US3",
+      "requirements": [
+        "FR-014",
+        "FR-015",
+        "FR-016",
+        "FR-017",
+        "FR-023",
+        "SC-004"
+      ],
+      "dependencies": [
+        "T012",
+        "T015"
+      ],
+      "unitSha256": "907125d199c31996a52f42cc7e6c88d231369ef962e6dbb72ebaad1a4be93b4a"
+    },
+    {
+      "id": "T017",
+      "story": "US3",
+      "requirements": [
+        "FR-017",
+        "FR-019",
+        "FR-022",
+        "SC-004",
+        "SC-005"
+      ],
+      "dependencies": [
+        "T015"
+      ],
+      "unitSha256": "9f720e52fc8790a51eeea0fbb39845477987f2317613e4f98702d1b6a079e2d5"
+    },
+    {
+      "id": "T018",
+      "story": "US3",
+      "requirements": [
+        "FR-018",
+        "FR-019",
+        "FR-020",
+        "FR-021",
+        "SC-005",
+        "SC-006"
+      ],
+      "dependencies": [
+        "T016",
+        "T017"
+      ],
+      "unitSha256": "e2059c40da6e399fe0f1f3885a102e3395e6dead1fb4c4a845eea2f401530d3b"
+    },
+    {
+      "id": "T019",
+      "story": null,
+      "requirements": [
+        "FR-021",
+        "FR-022",
+        "SC-006"
+      ],
+      "dependencies": [
+        "T008",
+        "T013",
+        "T018"
+      ],
+      "unitSha256": "20201197bc120ad9e8a87075279220a386635166de89f2b2aeaceba0806b7fbb"
+    },
+    {
+      "id": "T020",
+      "story": null,
+      "requirements": [
+        "FR-004",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-015",
+        "FR-016",
+        "FR-017",
+        "FR-018",
+        "FR-019",
+        "FR-023",
+        "SC-002",
+        "SC-003",
+        "SC-004",
+        "SC-005"
+      ],
+      "dependencies": [
+        "T013",
+        "T018"
+      ],
+      "unitSha256": "f9c53e161df9b40fc63850dfe8df1facef5389c92ffefaf9cb44cf2deca9f7b3"
+    },
+    {
+      "id": "T021",
+      "story": null,
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-018",
+        "FR-021",
+        "SC-001",
+        "SC-002",
+        "SC-003",
+        "SC-005",
+        "SC-006"
+      ],
+      "dependencies": [
+        "T019",
+        "T020"
+      ],
+      "unitSha256": "6eee44d119f113d1bf0379f6fa253be57f7444ef328a790776732ec8f0719ef7"
+    },
+    {
+      "id": "T022",
+      "story": null,
+      "requirements": [
+        "FR-021",
+        "FR-022",
+        "FR-023",
+        "SC-002",
+        "SC-004",
+        "SC-006"
+      ],
+      "dependencies": [
+        "T021"
+      ],
+      "unitSha256": "5f555e656146c1b9e3566c836b356c011c46402b483bd804c0e1227a60822197"
+    },
+    {
+      "id": "T023",
+      "story": null,
+      "requirements": [
+        "FR-007",
+        "FR-023",
+        "FR-024",
+        "SC-007"
+      ],
+      "dependencies": [
+        "T022"
+      ],
+      "unitSha256": "16610c7a19e09c600a18f463df0236e9f3dcf7330f3fb522e2684c77658219db"
+    },
+    {
+      "id": "T024",
+      "story": null,
+      "requirements": [
+        "FR-011",
+        "FR-012",
+        "FR-017",
+        "FR-020",
+        "FR-023",
+        "SC-007"
+      ],
+      "dependencies": [
+        "T023"
+      ],
+      "unitSha256": "e67e6700d2fd531a82807634e19c0916f6082fcf336c676683ddd42d81196605"
+    }
+  ],
+  "errors": [],
+  "changedPaths": [
+    ".specify/feature.json",
+    "AGENTS.md",
+    "PROJECT_MEMORY.md",
+    "docs/PROJECT_GUIDE.md",
+    "src/app/api/admin/bein-accounts/[id]/check-balance/route.ts",
+    "src/app/api/admin/bein-accounts/[id]/low-balance/reactivate/route.ts",
+    "src/app/api/admin/bein-accounts/[id]/route.ts",
+    "src/app/api/admin/bein-accounts/[id]/toggle/route.ts",
+    "src/app/api/admin/bein-accounts/login-failures/route.ts",
+    "src/app/api/admin/bein-accounts/route.ts",
+    "src/app/dashboard/admin/bein-accounts/page.tsx",
+    "src/components/admin/SettingsForm.tsx",
+    "src/components/admin/report-center/LoginMonitorPanel.tsx",
+    "src/components/admin/users/AddBalanceDialog.tsx",
+    "src/components/admin/users/CreditControlDialog.tsx",
+    "src/components/admin/users/EditUserDialog.tsx",
+    "src/components/admin/users/UserStatsDialog.tsx",
+    "src/components/layout/DashboardShell.tsx",
+    "src/components/manager/users/ManagerAddBalanceDialog.tsx",
+    "src/components/ui/dialog.tsx",
+    "src/components/users/ResetPasswordDialog.tsx",
+    "src/hooks/usePanelRequest.ts",
+    "src/i18n/translations/ar.ts",
+    "src/i18n/translations/bn.ts",
+    "src/i18n/translations/en.ts",
+    "src/lib/bein-account-recovery.ts",
+    "tests/browser/fixtures/panel-operations-data.js",
+    "tests/browser/fixtures/panel-ui-entry.jsx",
+    "tests/browser/panel-bein-dialog-cases.cjs",
+    "tests/browser/panel-command-cases.cjs",
+    "tests/browser/panel-dialog-cases.cjs",
+    "tests/browser/panel-report-cases.cjs",
+    "tests/browser/panel-ui-repairs.cjs",
+    "tests/helpers/promo-dispatch-harness.ts",
+    "tests/unit/account-cooldown-removal.test.ts",
+    "tests/unit/bein-account-recovery.test.ts",
+    "worker/src/http-queue-processor.ts",
+    "worker/src/http/HttpClientService.ts",
+    "worker/src/lib/bein-login-tracking.ts",
+    "worker/src/lib/provider-report-reader.ts",
+    "worker/src/lib/session-keepalive.ts",
+    "worker/tests/keepalive-login-recovery.test.ts",
+    "worker/tests/login-failure-classification.test.ts",
+    "worker/tests/login-retry-consumers.test.ts",
+    "worker/tests/login-tracking-recovery.test.ts",
+    "worker/tests/promo-package-refresh.test.ts",
+    "worker/tests/provider-report-browser.test.ts",
+    "worker/tests/renewal-worker-evidence.test.ts",
+    "shared/bein/balance-refresh-store.ts",
+    "shared/bein/balance-refresh.ts",
+    "shared/bein/login-health.ts",
+    "specs/037-panel-responsiveness-login-health/README.md",
+    "specs/037-panel-responsiveness-login-health/analysis.md",
+    "specs/037-panel-responsiveness-login-health/checklists/requirements.md",
+    "specs/037-panel-responsiveness-login-health/checklists/safety-and-coverage.md",
+    "specs/037-panel-responsiveness-login-health/contracts/balance-refresh.md",
+    "specs/037-panel-responsiveness-login-health/contracts/login-health.md",
+    "specs/037-panel-responsiveness-login-health/contracts/panel-commands.md",
+    "specs/037-panel-responsiveness-login-health/data-model.md",
+    "specs/037-panel-responsiveness-login-health/evidence/browser-bein-current.json",
+    "specs/037-panel-responsiveness-login-health/evidence/browser-command-current.json",
+    "specs/037-panel-responsiveness-login-health/evidence/browser-dialogs-checkpoint.json",
+    "specs/037-panel-responsiveness-login-health/evidence/browser-stats-checkpoint.json",
+    "specs/037-panel-responsiveness-login-health/evidence/current-checks.json",
+    "specs/037-panel-responsiveness-login-health/evidence/current-lint.log",
+    "specs/037-panel-responsiveness-login-health/evidence/current-lint.txt",
+    "specs/037-panel-responsiveness-login-health/evidence/current-types-root.log",
+    "specs/037-panel-responsiveness-login-health/evidence/current-types-root.txt",
+    "specs/037-panel-responsiveness-login-health/evidence/current-types-worker.log",
+    "specs/037-panel-responsiveness-login-health/evidence/current-types-worker.txt",
+    "specs/037-panel-responsiveness-login-health/evidence/current-unit.log",
+    "specs/037-panel-responsiveness-login-health/evidence/current-unit.txt",
+    "specs/037-panel-responsiveness-login-health/evidence/current-worker.log",
+    "specs/037-panel-responsiveness-login-health/evidence/current-worker.txt",
+    "specs/037-panel-responsiveness-login-health/evidence/implementation-plan-validation.json",
+    "specs/037-panel-responsiveness-login-health/evidence/implementation-template-validation.json",
+    "specs/037-panel-responsiveness-login-health/evidence/implementation.md",
+    "specs/037-panel-responsiveness-login-health/evidence/native-redis-checkpoint.json",
+    "specs/037-panel-responsiveness-login-health/evidence/plan-guard-documentation.json",
+    "specs/037-panel-responsiveness-login-health/evidence/plan-guard.json",
+    "specs/037-panel-responsiveness-login-health/evidence/planning-validation.json",
+    "specs/037-panel-responsiveness-login-health/evidence/representative-task.json",
+    "specs/037-panel-responsiveness-login-health/evidence/root-full-checkpoint.txt",
+    "specs/037-panel-responsiveness-login-health/evidence/template-initial-findings.json",
+    "specs/037-panel-responsiveness-login-health/evidence/template-initial-report.json",
+    "specs/037-panel-responsiveness-login-health/evidence/template-validation.json",
+    "specs/037-panel-responsiveness-login-health/evidence/validate-plan.mjs",
+    "specs/037-panel-responsiveness-login-health/evidence/verification.md",
+    "specs/037-panel-responsiveness-login-health/evidence/verify-implementation.mjs",
+    "specs/037-panel-responsiveness-login-health/evidence/worker-full-checkpoint.txt",
+    "specs/037-panel-responsiveness-login-health/plan.md",
+    "specs/037-panel-responsiveness-login-health/quickstart.md",
+    "specs/037-panel-responsiveness-login-health/research.md",
+    "specs/037-panel-responsiveness-login-health/spec.md",
+    "specs/037-panel-responsiveness-login-health/tasks.md",
+    "src/components/providers/PanelCommandProvider.tsx",
+    "src/hooks/useBeinBalanceRefresh.ts",
+    "src/lib/panel-balance-rejection.ts",
+    "src/lib/panel-balance-tracker.ts",
+    "src/lib/panel-command-runner.ts",
+    "src/lib/panel-command-state.ts",
+    "tests/integration/bein-balance-refresh.test.ts",
+    "tests/unit/bein-balance-refresh-api.test.ts",
+    "tests/unit/bein-balance-refresh.test.ts",
+    "tests/unit/panel-balance-rejection.test.ts",
+    "tests/unit/panel-balance-tracker.test.ts",
+    "tests/unit/panel-command-runner.test.ts",
+    "tests/unit/panel-command-state.test.ts",
+    "worker/src/lib/bein-balance-refresh.ts",
+    "worker/tests/balance-read-boundary.test.ts",
+    "worker/tests/balance-refresh-job.test.ts",
+    "worker/tests/login-health-policy.test.ts"
+  ],
+  "limits": "Structural coverage and labels are not semantic correctness, browser behavior, financial safety or user acceptance."
+}

@@ -1,0 +1,399 @@
+[DB] Pool configured: max=10, idleTimeout=30000ms, connectionTimeout=10000ms
+✔ dedicated balance client guards every request and forbids mutation-shaped renewal POSTs (2.4151ms)
+✔ balance job saves explicit observation; duplicate delivery does no provider work (6.0696ms)
+✔ balance job persists safe failure and rejects for BullMQ (4.3097ms)
+✔ wrong account, stale owner and invalid balance never report success (1.062ms)
+✔ deadline cancels provider work but waits for its drain before finishing (59.2942ms)
+[KeepAlive] beIN route for a: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] beIN route for b: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] beIN route for c: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: a
+[KeepAlive] Processing: b
+[KeepAlive] Processing: c
+[KeepAlive] a: No session in Redis, need login...
+[KeepAlive] a: Session expired on beIN, performing fresh login...
+[KeepAlive] b: Redis TTL 15 min, validating on beIN server...
+[KeepAlive] c: Redis TTL 15 min, validating on beIN server...
+[KeepAlive] b: Session validated on beIN and extended
+[KeepAlive] c: Session validated on beIN and extended
+[KeepAlive] beIN route for b: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: b
+[KeepAlive] b: Redis TTL 15 min, validating on beIN server...
+[KeepAlive] b: Session validated on beIN and extended
+[KeepAlive] beIN route for b: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: b
+[KeepAlive] b: No session in Redis, need login...
+[KeepAlive] b: Session expired on beIN, performing fresh login...
+[KeepAlive] b: Login successful
+[KeepAlive] beIN route for b: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: b
+[KeepAlive] b: Redis TTL 15 min, validating on beIN server...
+[KeepAlive] beIN route for a: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: a
+[KeepAlive] a: No session in Redis, need login...
+[KeepAlive] a: Session expired on beIN, performing fresh login...
+[KeepAlive] beIN route for a: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: a
+[KeepAlive] a: No session in Redis, need login...
+[KeepAlive] a: Session expired on beIN, performing fresh login...
+[KeepAlive] beIN route for a: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: a
+[KeepAlive] a: No session in Redis, need login...
+[KeepAlive] a: Session expired on beIN, performing fresh login...
+[KeepAlive] beIN route for a: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: a
+[KeepAlive] a: No session in Redis, need login...
+[KeepAlive] a: Session expired on beIN, performing fresh login...
+[KeepAlive] beIN route for a: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: a
+[KeepAlive] a: No session in Redis, need login...
+[KeepAlive] a: Session expired on beIN, performing fresh login...
+[KeepAlive] a: CAPTCHA required, auto-solving...
+[KeepAlive] a: No 2Captcha API key configured
+[KeepAlive] beIN route for a: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: a
+[KeepAlive] a: No session in Redis, need login...
+[KeepAlive] a: Session expired on beIN, performing fresh login...
+[KeepAlive] beIN route for a: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: a
+[KeepAlive] a: No session in Redis, need login...
+[KeepAlive] a: Session expired on beIN, performing fresh login...
+[KeepAlive] a: CAPTCHA required, auto-solving...
+[KeepAlive] a: CAPTCHA attempt 1/3...
+✔ KeepAlive uses current direct mode: one 402 does not affect two valid account sessions (145.1592ms)
+✔ KeepAlive cannot resurrect a deleted reusable session from its prior cycle (67.0591ms)
+✔ KeepAlive losing ownership cannot write a late cache result (51.8392ms)
+✔ KeepAlive passes all terminal categories and actual-attempt context to the common health writer (223.5278ms)
+✔ successful CAPTCHA login followed by cache failure never quarantines or retries authentication (23.7071ms)
+[DB] Pool configured: max=10, idleTimeout=30000ms, connectionTimeout=10000ms
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 407
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 407
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 429
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 429
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 500
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 500
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 502
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 502
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 503
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 503
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: PROXY_PAYMENT_REQUIRED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_CONNECTION_FAILED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_CONNECTION_FAILED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Authentication rejected: response still contains login form
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login form returned
+[HTTP] Red spans found: 0
+[HTTP] Login response body inspected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login verified by authenticated content
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Login response: 200
+[HTTP] Login verified by authenticated content
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 0)
+[HTTP] ViewState extracted: 0 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Submit login failed: PROXY_PAYMENT_REQUIRED
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: true
+[HTTP] CAPTCHA detected
+[HTTP] Fetching CAPTCHA image
+[HTTP] ⚠️ Session invalidated - will require fresh login
+✔ GET 402 blocks credential POST and classifies failure (4.0145ms)
+✔ POST 402 never authenticates or asserts bad credentials (11.5557ms)
+✔ GET 407 blocks credential POST and classifies failure (0.4254ms)
+✔ POST 407 never authenticates or asserts bad credentials (2.8563ms)
+✔ GET 429 blocks credential POST and classifies failure (0.597ms)
+✔ POST 429 never authenticates or asserts bad credentials (2.0412ms)
+✔ GET 500 blocks credential POST and classifies failure (0.4066ms)
+✔ POST 500 never authenticates or asserts bad credentials (1.9173ms)
+✔ GET 502 blocks credential POST and classifies failure (0.7332ms)
+✔ POST 502 never authenticates or asserts bad credentials (1.8898ms)
+✔ GET 503 blocks credential POST and classifies failure (0.4874ms)
+✔ POST 503 never authenticates or asserts bad credentials (1.537ms)
+✔ local revision failure is not an actual provider login attempt (1.3076ms)
+✔ transport exception 402 is safe and typed (1.2515ms)
+✔ transport exception ENOTFOUND is safe and typed (0.7412ms)
+✔ transport exception ETIMEDOUT is safe and typed (0.6139ms)
+✔ ambiguous 200 does not create a session: <title>Finance Dashboard</titl (6.3789ms)
+✔ ambiguous 200 does not create a session: <title>Finance</title><input i (3.2513ms)
+✔ ambiguous 200 does not create a session: <title>Error</title><p>Somethi (2.7152ms)
+✔ ambiguous 200 does not create a session: <input id="__VIEWSTATE" name=" (3.5254ms)
+✔ ambiguous 200 does not create a session: <title>Check</title><a id="ctl (4.7989ms)
+✔ explicit credential rejection is distinct from CAPTCHA and unknown failure (4.2217ms)
+✔ authenticated content succeeds and three account instances remain isolated (4.7171ms)
+✔ ambiguous GET 200 does not send credentials; authenticated GET reuses verified session (1.9604ms)
+✔ CONNECT 402 while submitting credentials stops and redacts the raw exception (4.4419ms)
+✔ CAPTCHA image HTTP 402 remains a transport failure and prevents credential submission (2.1745ms)
+✔ first final authentication failures quarantine; only credentials increment the counter (2.4269ms)
+✔ transport, 429 and local failures never become password rejection (0.3459ms)
+✔ intermediate CAPTCHA is not persisted as a terminal health failure (0.1361ms)
+✔ safe reason decoding supports legacy credentials but never returns arbitrary stored text (0.557ms)
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 1/3 for synthetic (read)
+[HTTP] ❌ Attempt 1/3 failed: Login response requires review
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 1/3 for synthetic (read)
+[HTTP] ❌ Attempt 1/3 failed: Login rate limited (HTTP 429)
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 1/3 for synthetic (read)
+[HTTP] 🧩 CAPTCHA required during login attempt 1, attempting auto-solve...
+[HTTP] ⚠️ Session expired (returned) during read, performing fresh login...
+[HTTP] Error was: Session expired
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 1/3 for synthetic (read)
+[HTTP] ❌ Attempt 1/3 failed: Login connection failed (HTTP 402)
+[HTTP] ⚠️ Session expired (thrown) during read, performing fresh login...
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 1/3 for synthetic (read)
+[HTTP] ❌ Attempt 1/3 failed: Login connection failed (HTTP 402)
+✔ re-login passes terminal typed outcomes, including an unsolvable CAPTCHA, to health tracking (467.3525ms)
+✔ session-retry consumer cannot replay its operation after rejected login (thrown=false) (186.2173ms)
+✔ session-retry consumer cannot replay its operation after rejected login (thrown=true) (115.7056ms)
+✔ transport and unknown errors never reach credential counter SQL (94.75ms)
+✔ credential rejection uses one conditional atomic increment/disable and revision fence (18.6388ms)
+✔ 037 terminal health write quarantines without a configurable threshold and fences old results (11.2937ms)
+✔ 037 transport health warning preserves activity and missing revision fails closed (10.5185ms)
+✔ 037 persistence errors are safe and stale results never retry against the recovered revision (24.9864ms)
+✔ 037 healthy login returns only its own revision and fails closed on stale or unavailable persistence (41.4443ms)
+[DB] Pool configured: max=10, idleTimeout=30000ms, connectionTimeout=10000ms
+[HTTP] No proxy - using wrapper() for automatic cookie handling
+[HTTP] No proxy - using wrapper() for automatic cookie handling
+✔ report login records explicit credential rejection under its current owner (3.0246ms)
+✔ report records terminal unknown without turning it into credential text (0.827ms)
+✔ report records terminal captcha without turning it into credential text (0.7053ms)
+✔ report records terminal rate_limit without turning it into credential text (0.5957ms)
+✔ report records terminal transport without turning it into credential text (0.8627ms)
+✔ report login 402 returns connection/rate classification without a retry (0.4564ms)
+✔ report login 407 returns connection/rate classification without a retry (0.2189ms)
+✔ report login 429 returns connection/rate classification without a retry (0.3592ms)
+✔ representative browser read uses exact account, date criteria, All, complete HTTP scan and safe rows (42.9775ms)
+✔ dates include today and six earlier Cairo calendar days, with 31-day inclusive cap (23.2374ms)
+✔ provider refusal to echo requested dates is incomplete, never empty success (18.6294ms)
+✔ report rejects reserved account without substitute (0.6269ms)
+✔ report rejects locked account without substitute (0.3265ms)
+✔ report rejects lost account without substitute (0.4979ms)
+✔ report rejects disabled account without substitute (0.1763ms)
+✔ cached session expiry permits one fresh login then a new report scan (7.3229ms)
+✔ CAPTCHA becomes a safe failure and releases account without scanning (0.6227ms)
+✔ aborted requests do not start HTTP and release acquired ownership (0.468ms)
+✔ display paging sorts invoices numerically, searches serials, hides worker tokens and times out pending work (1.7287ms)
+✔ report HTTP scope rejects provider mutations, foreign hosts and redirects before transport (30.3274ms)
+✔ report deadline aborts an in-flight HTTP adapter rather than leaving a detached read (21.455ms)
+ℹ tests 70
+ℹ suites 0
+ℹ pass 70
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2485.8286

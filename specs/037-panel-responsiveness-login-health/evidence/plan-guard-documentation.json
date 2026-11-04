@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "scope": "Spec Kit 037 documented requirements/design/tasks through analyze only; excludes runtime implementation, historical 027/036 acceptance and production",
+  "registry": "specs/037-panel-responsiveness-login-health/analysis.md",
+  "sources": [
+    {
+      "path": ".specify/memory/constitution.md",
+      "sha256": "904c785fd7f1aeb7a3c5c8a5c72a804b6ef0304d9d929199a46f7969bd75d8a5"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "bfa31e68be76216c760de29abcc91b90f825f2915b62b6c4de945b518c51ec6c"
+    },
+    {
+      "path": ".specify/templates/spec-template.md",
+      "sha256": "3945437fc35cd30a5b2bf7beea680337c3516826d3efa5a6b92c4a7eca1ba28e"
+    },
+    {
+      "path": ".specify/templates/plan-template.md",
+      "sha256": "e56c85da7dbf002307c29effa79639e51d993fd136f70951b55d75b0ce85d9e6"
+    },
+    {
+      "path": ".specify/templates/tasks-template.md",
+      "sha256": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108"
+    },
+    {
+      "path": ".specify/templates/checklist-template.md",
+      "sha256": "709d8ab8384a3a49f5e0f64479f71553ef6d6f8bb4f00281b05f47837993b536"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/spec.md",
+      "sha256": "0266b27e7ab6256b6dc375059d327c22cc0ca40a89849ec4d42d63b16f253a9e"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/plan.md",
+      "sha256": "12696ee136db485f429821e283fdfe615eab92c871be4b03ea9c9f70319701ce"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/tasks.md",
+      "sha256": "fa1bf1271d3d5ecd3833976da01cfac1ffc2803abc5cea8f7dc06ad5571f9a24"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/research.md",
+      "sha256": "785e7d43cbe0a40bd47d56dd12bbd78e7867c041e2f48ea23ae68f30e461e384"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/data-model.md",
+      "sha256": "8d413f08b281ca158d2783041a458b2d7efea4644d5a1d2ed8c9186eeff98885"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/contracts/panel-commands.md",
+      "sha256": "667dac9d5d35e5751a2f72ed3cd3e0570e65d6101be02fbe2bc0eca3ed533eeb"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/contracts/balance-refresh.md",
+      "sha256": "7b2bdb29ec1e187ea2e0148777c900da4b23ce2bd3bdf6f32af86b0d87694cc8"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/contracts/login-health.md",
+      "sha256": "c731d548afd136d7c6afadd5206772cac2572b956d837f3da1bcc6d2bbc53b67"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/quickstart.md",
+      "sha256": "edb7b38f0295e6aee70e62a6c7e9b0e8edbd43bde64822af69ea0ad704d969f3"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/analysis.md",
+      "sha256": "749bb70cdf5d1a30667cfa69be690ea367850a9c01116e2c2cde1381ae3baab5"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/checklists/requirements.md",
+      "sha256": "17ebf98638dcd0a871df907d7a137541004220801aa4bb17309ae9278346a34f"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/checklists/safety-and-coverage.md",
+      "sha256": "525156479544c08041b02580f95ae768c9a1592d7587004d51fdb03545e9d734"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/evidence/validate-plan.mjs",
+      "sha256": "95b02c22318a7cf86cc4e469d1d826772d9b036b4c9579e57ed4f07eb449adb3"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/evidence/verification.md",
+      "sha256": "4f9d1209d99e58d6ac6bb8840c4f536e33f92b832580de1c188a3a26246f2a72"
+    }
+  ],
+  "templates": [
+    {
+      "format": "speckit-markdown",
+      "path": ".specify/templates/spec-template.md",
+      "sha256": "3945437fc35cd30a5b2bf7beea680337c3516826d3efa5a6b92c4a7eca1ba28e",
+      "artifacts": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/spec.md",
+          "heading_bindings": {
+            "Feature Specification: [FEATURE NAME]": "Feature Specification: Panel Responsiveness and beIN Login Health",
+            "User Story 1 - [Brief Title] (Priority: P1)": "User Story 1 - Keep using the panel during work (Priority: P1)",
+            "User Story 2 - [Brief Title] (Priority: P2)": "User Story 2 - Follow a balance refresh without waiting on the page (Priority: P1)",
+            "User Story 3 - [Brief Title] (Priority: P3)": "User Story 3 - Identify and repair unusable provider logins (Priority: P1)"
+          }
+        }
+      ]
+    },
+    {
+      "format": "speckit-markdown",
+      "path": ".specify/templates/plan-template.md",
+      "sha256": "e56c85da7dbf002307c29effa79639e51d993fd136f70951b55d75b0ce85d9e6",
+      "artifacts": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/plan.md",
+          "heading_bindings": {
+            "Implementation Plan: [FEATURE]": "Implementation Plan: Panel Responsiveness and beIN Login Health"
+          }
+        }
+      ]
+    },
+    {
+      "format": "speckit-markdown",
+      "path": ".specify/templates/tasks-template.md",
+      "sha256": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108",
+      "artifacts": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/tasks.md",
+          "heading_bindings": {
+            "Tasks: [FEATURE NAME]": "Tasks: Panel Responsiveness and beIN Login Health",
+            "Phase 3: User Story 1 - [Title] (Priority: P1) 🎯 MVP": "Phase 3: User Story 1 - Keep using the panel during work (Priority: P1)",
+            "Phase 4: User Story 2 - [Title] (Priority: P2)": "Phase 4: User Story 2 - Follow a balance refresh (Priority: P1)",
+            "Phase 5: User Story 3 - [Title] (Priority: P3)": "Phase 5: User Story 3 - Repair unusable provider logins (Priority: P1)",
+            "Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️": "Tests for User Story 1 (required)",
+            "Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️": "Tests for User Story 2 (required)",
+            "Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️": "Tests for User Story 3 (required)"
+          }
+        }
+      ]
+    },
+    {
+      "format": "speckit-markdown",
+      "path": ".specify/templates/checklist-template.md",
+      "sha256": "709d8ab8384a3a49f5e0f64479f71553ef6d6f8bb4f00281b05f47837993b536",
+      "artifacts": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/checklists/requirements.md",
+          "heading_bindings": {
+            "[CHECKLIST TYPE] Checklist: [FEATURE NAME]": "Specification Quality Checklist: Panel Responsiveness and beIN Login Health",
+            "[Category 1]": "Content Quality",
+            "[Category 2]": "Requirement Completeness"
+          }
+        }
+      ]
+    },
+    {
+      "format": "speckit-markdown",
+      "path": ".specify/templates/checklist-template.md",
+      "sha256": "709d8ab8384a3a49f5e0f64479f71553ef6d6f8bb4f00281b05f47837993b536",
+      "artifacts": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/checklists/safety-and-coverage.md",
+          "heading_bindings": {
+            "[CHECKLIST TYPE] Checklist: [FEATURE NAME]": "Requirements Checklist: Responsiveness, Certainty and Login Health",
+            "[Category 1]": "Interaction and certainty",
+            "[Category 2]": "Refresh and concurrency"
+          }
+        }
+      ]
+    }
+  ],
+  "obligations": [
+    {
+      "id": "O01",
+      "source": "specs/037-panel-responsiveness-login-health/spec.md",
+      "source_quote": "This delivery MUST stop at documentation and analysis",
+      "action": "Keep runtime tasks unexecuted",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/tasks.md",
+          "sha256": "fa1bf1271d3d5ecd3833976da01cfac1ffc2803abc5cea8f7dc06ad5571f9a24",
+          "quote": "All 24 tasks are future implementation/verification work"
+        }
+      ]
+    },
+    {
+      "id": "O02",
+      "source": ".specify/memory/constitution.md",
+      "source_quote": "Every implementation plan and generated task list must preserve traceability",
+      "action": "Preserve original task details and mappings",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/tasks.md",
+          "sha256": "fa1bf1271d3d5ecd3833976da01cfac1ffc2803abc5cea8f7dc06ad5571f9a24",
+          "quote": "Reason: New consumers or source drift could invalidate the planned fix"
+        }
+      ]
+    },
+    {
+      "id": "O03",
+      "source": ".specify/templates/tasks-template.md",
+      "source_quote": "Every generated task MUST keep the checklist line format",
+      "action": "Verify representative task before scaling and all details with original-derived checker",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/evidence/representative-task.json",
+          "sha256": "406a066d5d709efa13d66dedfe9444ae2ab6088bd804f4550c210941c7db4e70",
+          "quote": "\"result\": \"PASS\""
+        }
+      ]
+    },
+    {
+      "id": "O04",
+      "source": ".specify/memory/constitution.md",
+      "source_quote": "Financially relevant operation changes must preserve clear evidence.",
+      "action": "Document financial uncertainty boundary",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/contracts/panel-commands.md",
+          "sha256": "667dac9d5d35e5751a2f72ed3cd3e0570e65d6101be02fbe2bc0eca3ed533eeb",
+          "quote": "An HTTP abort is never server cancellation."
+        }
+      ]
+    },
+    {
+      "id": "O05",
+      "source": ".specify/memory/constitution.md",
+      "source_quote": "require tests before implementation where a test seam exists.",
+      "action": "Prescribe test-first order and extraction seam",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/tasks.md",
+          "sha256": "fa1bf1271d3d5ecd3833976da01cfac1ffc2803abc5cea8f7dc06ad5571f9a24",
+          "quote": "Capture red behavioral evidence before runtime changes"
+        }
+      ]
+    },
+    {
+      "id": "O06",
+      "source": ".specify/memory/constitution.md",
+      "source_quote": "Plans must avoid exposing beIN passwords",
+      "action": "Specify private-data boundaries",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/contracts/login-health.md",
+          "sha256": "c731d548afd136d7c6afadd5206772cac2572b956d837f3da1bcc6d2bbc53b67",
+          "quote": "without exposing it."
+        }
+      ]
+    },
+    {
+      "id": "O07",
+      "source": "specs/037-panel-responsiveness-login-health/spec.md",
+      "source_quote": "All panel consumers of shared busy/command behavior MUST be covered",
+      "action": "Map connected consumers and all activation entry points",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/research.md",
+          "sha256": "785e7d43cbe0a40bd47d56dd12bbd78e7867c041e2f48ea23ae68f30e461e384",
+          "quote": "Each row is mandatory implementation/QA coverage"
+        }
+      ]
+    },
+    {
+      "id": "O08",
+      "source": "specs/037-panel-responsiveness-login-health/spec.md",
+      "source_quote": "Changed states MUST use ar/en/bn catalogs",
+      "action": "Specify locale/keyboard/visual checks",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/quickstart.md",
+          "sha256": "edb7b38f0295e6aee70e62a6c7e9b0e8edbd43bde64822af69ea0ad704d969f3",
+          "quote": "then all C01–C07 at 360/768/1280 and ar/en/bn"
+        }
+      ]
+    },
+    {
+      "id": "O09",
+      "source": ".specify/memory/constitution.md",
+      "source_quote": "Automated edits must preserve file encoding",
+      "action": "Retain encoding and current-artifact checks",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/quickstart.md",
+          "sha256": "edb7b38f0295e6aee70e62a6c7e9b0e8edbd43bde64822af69ea0ad704d969f3",
+          "quote": "Inspect changed text for added BOM or mojibake."
+        }
+      ]
+    },
+    {
+      "id": "O11",
+      "source": "specs/037-panel-responsiveness-login-health/spec.md",
+      "source_quote": "directly without sub-agents",
+      "action": "Honor single-chat work",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/analysis.md",
+          "sha256": "749bb70cdf5d1a30667cfa69be690ea367850a9c01116e2c2cde1381ae3baab5",
+          "quote": "All exploration, documentation and review performed directly"
+        }
+      ]
+    },
+    {
+      "id": "O12",
+      "source": "specs/037-panel-responsiveness-login-health/spec.md",
+      "source_quote": "Historical 027/036 evidence and release gaps remain open",
+      "action": "Keep missing historical evidence separate",
+      "status": "VERIFIED",
+      "reason": "Verified within documentation/design scope only; runtime acceptance remains unverified.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/analysis.md",
+          "sha256": "749bb70cdf5d1a30667cfa69be690ea367850a9c01116e2c2cde1381ae3baab5",
+          "quote": "historical scope INCOMPLETE"
+        }
+      ]
+    },
+    {
+      "id": "O10",
+      "source": ".agents/skills/web-project-memory/SKILL.md",
+      "source_quote": "A saved material project change is incomplete until every affected ledger record is synchronized and the ledger validates.",
+      "action": "Synchronize feature/decision/work/impact records and validate the project ledger",
+      "status": "VERIFIED",
+      "reason": "Planning-only project records updated; structure/source validation passed; settled freshness checked at final handoff.",
+      "evidence": [
+        {
+          "path": "specs/037-panel-responsiveness-login-health/evidence/verification.md",
+          "sha256": "4f9d1209d99e58d6ac6bb8840c4f536e33f92b832580de1c188a3a26246f2a72",
+          "quote": "Project memory structure/source validation | PASS; exactly one UPD-20261104-001 records NO_RUNTIME_IMPACT"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "scope": "Representative T001 against original task detail template only",
+  "result": "PASS",
+  "template": ".specify/templates/tasks-template.md",
+  "templateSha256": "17f849b5f22f7bb96c1f2a35744fb487c88e6c02203fc62350d754b91e445108",
+  "task": "T001",
+  "unitSha256": "e33bf074c9fca9a17df0da8cdb74a07580cd7e7e2842f155829f4129bdfba311",
+  "requiredLabels": [
+    "Reason",
+    "Expected",
+    "Possible bugs",
+    "Fix/Mitigation",
+    "Verification"
+  ],
+  "missing": [],
+  "semanticReview": "T001 independently verifies consumer coverage and source drift; it does not claim a reproduced navigation cause or completed runtime repair."
+}

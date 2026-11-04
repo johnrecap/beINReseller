@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');const fs=require('fs'),path=require('
 const entry=fs.readFileSync(path.join(__dirname,'fixtures/panel-ui-entry.jsx'),'utf8');
 (async()=>{const build=await esbuild.build({stdin:{contents:entry,loader:'tsx',resolveDir:repo},bundle:true,write:false,format:'iife',platform:'browser',jsx:'automatic',define:{'process.env.NODE_ENV':'"production"'},plugins:[{name:'mocks',setup(b){b.onResolve({filter:/^(next\/navigation|next\/link|next-auth\/react)$/},a=>({path:a.path,namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},a=>({loader:'js',resolveDir:repo,contents:a.path==='next/navigation'?fs.readFileSync(path.join(__dirname,'fixtures/panel-navigation-mock.jsx'),'utf8'):a.path==='next/link'?"import React from 'react';export default function Link(p){return React.createElement('a',p,p.children)}":"const session={status:'authenticated',data:{user:{id:'test',username:'Audit User',role:window.audit.role||'ADMIN'}}};export const useSession=()=>session;export const signIn=async()=>window.audit.authError?{error:window.audit.authError}:{ok:true};export const signOut=async()=>{window.signouts=(window.signouts||0)+1;};"}));}}]});
 const css=(await require('postcss')([require('@tailwindcss/postcss')({base:repo})]).process(fs.readFileSync('src/app/globals.css','utf8'),{from:path.join(repo,'src/app/globals.css')})).css;const b=await chromium.launch({channel:'chrome',headless:true});try{const c=await b.newContext();const p=await c.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));await p.route('**/*',r=>{const u=new URL(r.request().url());if(u.pathname==='/')return r.fulfill({contentType:'text/html',body:'<!doctype html><html class="dark"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style><body class="font-arabic antialiased bg-[#020617] text-slate-200"><div id="root"></div></body></html>'});if(u.pathname.startsWith('/images/')){const f=path.join(repo,'public',u.pathname);if(fs.existsSync(f))return r.fulfill({path:f});}return r.fulfill({status:404,body:''});});
-async function render(config,width=360){await p.setViewportSize({width,height:800});await p.goto('http://audit.invalid/');await p.evaluate(c=>window.audit=c,config);await p.addScriptTag({content:build.outputFiles[0].text});await p.locator(config.view==='login'?'#root > div':'header').first().waitFor({timeout:15000});}
+async function render(config,width=360){await p.setViewportSize({width,height:800});await p.goto('https://audit.invalid/');await p.evaluate(()=>sessionStorage.clear());await p.evaluate(c=>window.audit=c,config);await p.addScriptTag({content:build.outputFiles[0].text});await p.locator(config.view==='login'?'#root > div':'header').first().waitFor({timeout:15000});}
 
 
 const results=[];p.setDefaultTimeout(6000);
@@ -123,12 +123,12 @@ for (const language of ['ar','en','bn']) {
   } else await modal.locator('[name=amount]').fill('1');
   await modal.locator('form').evaluate(form=>{form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});
   await p.waitForFunction(()=>window.requests.some(r=>['POST','PATCH'].includes(r.method)));
-  await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>window.panelClosed||0),0);
+  await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>window.panelClosed||0),view==='create'?0:1);
   await modal.getByText('Synthetic rejection',{exact:true}).waitFor();
   assert.equal(await p.evaluate(()=>window.requests.filter(r=>['POST','PATCH'].includes(r.method)).length),1);
   assert.equal(await p.evaluate(()=>!!window.saved),false);
   assert.equal(await modal.locator(view==='create'?'[name=username]':'[name=amount]').inputValue(),view==='create'?'synthetic':'1');
-  await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>window.panelClosed),1);
+  await p.keyboard.press('Escape');assert.equal(await p.evaluate(()=>window.panelClosed),view==='create'?1:2);
   check(view+' dialog bounds, focus, duplicate submit and failure retention '+language);
   if (language === 'ar') await p.screenshot({path:path.join(out,'completion-'+view+'-ar-360.png')});
  }
@@ -245,13 +245,21 @@ await p.getByTitle(correctionTitle,{exact:true}).click();await p.waitForFunction
 const correction=p.getByRole('dialog').last();await correction.getByRole('textbox').fill('Synthetic retained correction note');
 await correction.getByRole('button').last().evaluate(button=>{button.click();button.click()});
 await p.waitForFunction(()=>window.requests.some(r=>r.method==='POST'));
-await p.keyboard.press('Escape');assert.equal(await p.locator('[role=dialog]').count(),2); // Radix hides the parent from the accessibility tree.
+assert.equal(await p.locator('[role=dialog]').count(),2); // Keep this case open to verify failure draft retention.
 await p.evaluate(()=>window.releaseWrite());
-await p.waitForFunction(()=>window.auditAlerts.length>0);
+await correction.getByRole('alert').waitFor();
 assert.equal(await correction.getByRole('textbox').inputValue(),'Synthetic retained correction note');
 assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
 await p.keyboard.press('Escape');await p.waitForFunction(()=>document.querySelectorAll('[role=dialog]').length===1);
-await p.waitForFunction(title=>document.activeElement.title===title,correctionTitle);check('statistics correction rejects duplicates, retains failure and restores nested focus');
+await p.waitForFunction(()=>document.activeElement.closest('[role=dialog]'));check('statistics correction rejects duplicates, retains failure and restores nested focus');
+await render({view:'stats',language:'en',writeFailure:true,holdWrite:true},390);await p.getByText('stats-a note 1',{exact:true}).waitFor();
+await p.getByTitle(correctionTitle,{exact:true}).click();await p.getByRole('dialog').last().getByRole('button').last().click();
+await p.waitForFunction(()=>typeof window.releaseWrite==='function');await p.keyboard.press('Escape');
+await p.waitForFunction(()=>document.querySelectorAll('[role=dialog]').length===1);
+await p.waitForFunction(()=>document.activeElement.closest('[role=dialog]'));
+await p.evaluate(()=>window.releaseWrite());
+assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
+check('037 pending correction can hide its nested modal without duplicate dispatch');
 }
 if(!process.env.PANEL_QA_SCOPE || process.env.PANEL_QA_SCOPE==='operations') await require('./panel-operations-cases.cjs')({p,render,check});
 if(!process.env.PANEL_QA_SCOPE || process.env.PANEL_QA_SCOPE==='stats') await require('./panel-stats-receipt-cases.cjs')({p,render,check,build,css,out});

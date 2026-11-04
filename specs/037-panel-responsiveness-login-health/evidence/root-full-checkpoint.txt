@@ -1,0 +1,1325 @@
+Redis error when getting pool status: Error: SYNTHETIC_REDIS_UNAVAILABLE
+    at Redis.get (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\tests\unit\account-cooldown-removal.test.ts:15:65)
+    at readAccountLockStatus (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\lib\operations\account-lock-release.ts:198:21)
+    at Object.GET (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\admin\bein-accounts\route.ts:63:91)
+    at async TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\tests\unit\account-cooldown-removal.test.ts:39:26)
+    at async Test.run (node:internal/test_runner/test:1409:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+✔ admin account list ignores historical cooldowns (Redis unavailable=false) (284.8914ms)
+✔ admin account list ignores historical cooldowns (Redis unavailable=true) (55.0856ms)
+✔ admin account detail reports no effective cooldown with old DB and Redis values (144.6016ms)
+✔ account cooldown removal retains admin authorization on list and detail (100.98ms)
+✔ retired account cooldown settings cannot be edited or seeded again (2.2192ms)
+✔ redacts secrets and beIN account usernames from activity log details (2.7987ms)
+✔ redacts JSON string and plain text activity log details before browser display (0.4179ms)
+✔ T008 admin unlock reason is required and normalized (1.2956ms)
+✔ T008 admin lock status exposes owner metadata without account secrets (0.4628ms)
+✔ T008 force unlock audit details do not mutate or decide money state (1.5982ms)
+✔ T008 release decision can match operation-aware owners by operation id (0.3605ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[AdminCardRelease] {"releaseId":"cmw1bu4ix000378uui1ueo28w","stage":"COMPLETED","operationIds":["migrated-review"],"cardReleased":0,"accountReleased":0}
+✔ administrative archive accepts the original migrated adjudication table (10451.8379ms)
+✔ administrative preview and decision reject anonymous before storage (271.8548ms)
+✔ administrative preview and decision reject USER before storage (68.4905ms)
+✔ administrative preview and decision reject AGENT before storage (110.5397ms)
+✔ administrative preview and decision reject MANAGER before storage (85.2476ms)
+✔ retired unlock creation is rejected for an admin without accessing storage (112.1057ms)
+✔ administrative progress polling is read-only and contains no card or provider data (93.4258ms)
+✔ historical unknown review no longer offers an administrative card unlock (1.7551ms)
+✔ archived waiting attempt exposes a neutral result without obsolete packages or device data (92.5807ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[AdminCardRelease] {"releaseId":"cmw1bu51o00045suuiafrxjmp","stage":"COMPLETED","operationIds":["completed-with-invoice"],"cardReleased":0,"accountReleased":0}
+✔ a successful invoiced attempt retains its receipt and money while its cooldown is waived and old jobs are stopped (9500.7506ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[AdminCardRelease] {"releaseId":"cmw1bu8rn00095suuixrqd88b","stage":"COMPLETED","operationIds":["restart-attempt"],"cardReleased":0,"accountReleased":0}
+[AdminCardRelease] {"releaseId":"cmw1bu8rn00095suuixrqd88b","stage":"LOCK_CLEANUP_RETRY_REQUIRED"}
+[AdminCardRelease] {"releaseId":"cmw1bu8rn00095suuixrqd88b","stage":"OWNED_LOCK_CLEANUP","cleared":1}
+✔ expired HTTP receipt resumes after restart and lock cleanup retries only the captured operation scope (4727.682ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+✔ migration upgrades the preceding structure without deleting a historical record or adding enum values (2430.9551ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[AdminCardRelease] {"releaseId":"cmw1bubzp000k5suuajhiu4fj","stage":"DRAINING","activeRequests":1}
+[AdminCardRelease] {"operationId":"first-paid-attempt","stage":"LATE_PROVIDER_OBSERVATION","resultCode":"HTTP_200"}
+[AdminCardRelease] {"releaseId":"cmw1bubzp000k5suuajhiu4fj","stage":"COMPLETED","operationIds":["first-paid-attempt","second-paid-attempt"],"cardReleased":0,"accountReleased":0}
+✔ HTTP drain, late observation, stale preview, multiple attempts and replay retain all original money and unrelated holds (1710.1802ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[AdminCardRelease] {"releaseId":"cmw1bud9e000s5suu1aofxy97","stage":"COMPLETED","operationIds":["unknown-review"],"cardReleased":1,"accountReleased":1}
+✔ actual SQL administrative release preserves unknown finances and issues, waives cooldown and admits a new attempt (1719.7375ms)
+✔ explicit NONE mode selects null snapshots without colliding with a real NONE group (2.0616ms)
+✔ invalid or conflicting source group modes are rejected (0.3817ms)
+✔ client option and query encoding preserve all, none, and literal group values (0.514ms)
+✔ manager user filter uses current ownership before legacy creator fallback (2.2553ms)
+✔ agent user filter includes only active assignments for that agent (0.2815ms)
+✔ owner filter rejects manager and agent parameters together (0.2419ms)
+✔ validates transfer target user and agent (8.1516ms)
+▶ source group presence semantics resolve nullable values without fake fallbacks
+  ✔ explicit text is trimmed and wins over current/default values (1.8533ms)
+  ✔ explicit null clears instead of applying the agent default (0.2048ms)
+  ✔ explicit whitespace clears instead of applying the agent default (0.1514ms)
+  ✔ omission preserves the same-agent value (0.1497ms)
+  ✔ omission uses the new agent default (0.2573ms)
+  ✔ omission stores null when the new agent has no default (0.3004ms)
+✔ source group presence semantics resolve nullable values without fake fallbacks (4.8808ms)
+✔ source group accepts 120 characters and rejects longer explicit values (0.418ms)
+✔ legacy Source Group resolution accepts omitted and blank values (0.3881ms)
+✔ builds direct user transfer plan (0.3665ms)
+✔ builds transfer plan for manager-owned user (0.2305ms)
+✔ builds transfer plan for agent-owned user (8.7676ms)
+✔ same-agent transfer updates only explicitly changed metadata in place (0.7083ms)
+✔ same-agent omitted source group is preserved while WhatsApp can be cleared independently (0.4365ms)
+✔ rejects unsafe explicit WhatsApp assignment URLs before storage (0.5694ms)
+✔ accepts an HTTPS WhatsApp group invitation URL (0.4836ms)
+✔ different-agent transfer never leaks previous Source Group or WhatsApp metadata (0.2542ms)
+✔ exact same-agent durable state is a no-op without assignment churn (0.256ms)
+✔ rejects replacing existing ownership when replaceExisting is false (0.1648ms)
+✔ selects one active slide and no preload work for empty or single-slide banners (2.4228ms)
+✔ wraps active slide indexes safely (0.3995ms)
+✔ preloads a single adjacent image for two-slide banners without duplication (1.2368ms)
+✔ preloads next then previous unique images for three or more slides (1.2996ms)
+✔ deduplicates adjacent preload images by resolved image URL (0.3412ms)
+✔ keeps hidden preload images inside the slider bounds to avoid horizontal page overflow (0.8406ms)
+✔ T005 fixture card identifiers satisfy the existing 10-16 digit API contract (1.9505ms)
+✔ T005 fixture wrapper refuses execution before database imports without opt-in (0.8447ms)
+✔ T003 ownership is exactly one source and replay cannot switch owner (1.3603ms)
+✔ T003 charge evidence is not installment settlement or refund authority (0.4231ms)
+✔ T003 every non-cancelled refund state vetoes incompatible mutation, including terminal refund (0.3514ms)
+✔ T003 outstanding reservations count against each original funding leg (0.3385ms)
+✔ T003 fixed claim deadline ignores heartbeat and missing legacy dates stay review (0.2075ms)
+✔ T003 only explicitly repeatable preparation can use a nonzero revision (0.1961ms)
+✔ T005 audit guard rejects real, malformed and redirected connection targets even with confirmation (1.0185ms)
+✔ T048 skipped, empty, failed or missing suites cannot become a green audit gate (18.6237ms)
+✔ builds all balance increase filters by default without excluding point conversions (30.0707ms)
+✔ builds admin-to-manager filters with legacy manager report parameters (2.2151ms)
+✔ builds manager-to-user filters with current owner filters (2.9778ms)
+✔ builds split summary wheres that count only recipient deposit rows (2.1114ms)
+✔ classifies balance movement sources from transaction evidence (1.4157ms)
+✔ maps source and actor evidence into report buckets (0.2936ms)
+✔ sums persisted beIN balances for active and inactive accounts only when finite (2.0033ms)
+✔ formats beIN balances as USD without forcing trailing zero decimals (44.4924ms)
+✔ combined edit and activation rejects busy recovery before changing credentials or audit (238.1939ms)
+✔ reset rejects a busy account without clearing another owner's lock (43.1211ms)
+✔ login-failures/reset rejects a busy account without clearing another owner's lock (18.5093ms)
+✔ toggle rejects a busy account without clearing another owner's lock (18.0593ms)
+✔ low-balance/reactivate rejects a busy account without clearing another owner's lock (23.1652ms)
+✔ owned recovery keeps other accounts, operations and budgets intact (activate=false) (1.4885ms)
+✔ owned recovery keeps other accounts, operations and budgets intact (activate=true) (0.5189ms)
+✔ reset enforces ADMIN before any recovery (40.8294ms)
+✔ login-failures/reset enforces ADMIN before any recovery (49.3591ms)
+✔ toggle enforces ADMIN before any recovery (34.724ms)
+✔ low-balance/reactivate enforces ADMIN before any recovery (19.1687ms)
+✔ failure list marks historical generic errors for review without claiming a password rejection (73.4849ms)
+✔ monitor includes zero-counter terminal failures and warnings, hides recovered evidence and provider text (46.6065ms)
+✔ balance refresh denies null before account/store/queue access (213.4458ms)
+✔ balance refresh denies USER before account/store/queue access (38.0736ms)
+✔ balance refresh denies MANAGER before account/store/queue access (44.2755ms)
+✔ balance refresh denies AGENT before account/store/queue access (27.3634ms)
+✔ async returns 202 and repeated admission never queues a second job (60.0498ms)
+✔ status is bound to account, hides owner token, and active lookup never enqueues (35.06ms)
+✔ invalid modes and ineligible accounts are rejected before admission (27.6792ms)
+✔ unacknowledged enqueue preserves request identity and status outage is not an empty result (32.1871ms)
+✔ legacy empty-body response uses attributed terminal observation, never a DB timestamp (29.9625ms)
+✔ balance projection never exposes run ownership or invents a value from a pending request (1.2861ms)
+✔ balance observation rejects missing, negative, nonfinite or malformed data (2.0926ms)
+✔ normalizes missing and invalid beIN connection mode to assigned proxy (1.1642ms)
+✔ accepts only assigned proxy and server IP mode values (1.1919ms)
+✔ admin settings read always exposes a safe beIN connection mode (0.2953ms)
+✔ normalizes card search input to digits (1.287ms)
+✔ parses normalized card number in beIN spend filters (0.5382ms)
+✔ builds matching ledger and review card filters (1.2797ms)
+✔ keeps exact parsed UTC instants in ledger and review date filters (1.6957ms)
+✔ includes legacy and final-pay confirmed spend rows in report filters (0.4459ms)
+✔ adds card number to summary and detail report request params (25.7645ms)
+✔ omits empty card number from report request params (2.3088ms)
+✔ builds report date range using Egypt day boundaries (1.2992ms)
+✔ builds report date range using selected Cairo time minutes (39.8943ms)
+✔ combines card, account, and operation type filters in query builders (3.188ms)
+✔ combines card and panel user filters in query builders (2.031ms)
+✔ no browser console logging: src\app\dashboard\admin\agents\page.tsx (22.6439ms)
+✔ no browser console logging: src\app\dashboard\admin\analytics\page.tsx (0.7632ms)
+✔ no browser console logging: src\app\dashboard\admin\bein-accounts\login-failures\page.tsx (0.4415ms)
+✔ no browser console logging: src\app\dashboard\admin\bein-accounts\low-balance\page.tsx (0.3221ms)
+✔ no browser console logging: src\app\dashboard\admin\bein-accounts\page.tsx (0.4496ms)
+✔ no browser console logging: src\app\dashboard\admin\bein-config\page.tsx (0.5106ms)
+✔ no browser console logging: src\app\dashboard\admin\credit-requests\page.tsx (0.3868ms)
+✔ no browser console logging: src\app\dashboard\admin\deleted-users\page.tsx (0.3584ms)
+✔ no browser console logging: src\app\dashboard\admin\eid-rewards\page.tsx (0.3238ms)
+✔ no browser console logging: src\app\dashboard\admin\financial-review\page.tsx (0.4804ms)
+✔ no browser console logging: src\app\dashboard\admin\logs\page.tsx (0.3703ms)
+✔ no browser console logging: src\app\dashboard\admin\page.tsx (0.3459ms)
+✔ no browser console logging: src\app\dashboard\admin\permissions\page.tsx (0.3315ms)
+✔ no browser console logging: src\app\dashboard\admin\points\page.tsx (0.2649ms)
+✔ no browser console logging: src\app\dashboard\admin\proxies\page.tsx (0.3505ms)
+✔ no browser console logging: src\app\dashboard\admin\recovery-health\page.tsx (0.2693ms)
+✔ no browser console logging: src\app\dashboard\admin\reports\bein-spend\page.tsx (0.239ms)
+✔ no browser console logging: src\app\dashboard\admin\reports\integrity\page.tsx (0.2571ms)
+✔ no browser console logging: src\app\dashboard\admin\reports\page.tsx (0.2759ms)
+✔ no browser console logging: src\app\dashboard\admin\rewards\page.tsx (0.2352ms)
+✔ no browser console logging: src\app\dashboard\admin\settings\announcements\page.tsx (0.2417ms)
+✔ no browser console logging: src\app\dashboard\admin\settings\page.tsx (0.336ms)
+✔ no browser console logging: src\app\dashboard\admin\users\activity\page.tsx (0.2587ms)
+✔ no browser console logging: src\app\dashboard\admin\users\page.tsx (0.246ms)
+✔ no browser console logging: src\app\dashboard\agent\page.tsx (0.245ms)
+✔ no browser console logging: src\app\dashboard\credit-requests\page.tsx (0.2365ms)
+✔ no browser console logging: src\app\dashboard\history\layout.tsx (0.2228ms)
+✔ no browser console logging: src\app\dashboard\history\page.tsx (0.2128ms)
+✔ no browser console logging: src\app\dashboard\layout.tsx (0.2677ms)
+✔ no browser console logging: src\app\dashboard\manager\deleted-users\page.tsx (0.2349ms)
+✔ no browser console logging: src\app\dashboard\manager\page.tsx (0.2184ms)
+✔ no browser console logging: src\app\dashboard\manager\users\page.tsx (0.2292ms)
+✔ no browser console logging: src\app\dashboard\notifications\page.tsx (0.2407ms)
+✔ no browser console logging: src\app\dashboard\operations\active\page.tsx (0.339ms)
+✔ no browser console logging: src\app\dashboard\operations\bulk\page.tsx (0.2261ms)
+✔ no browser console logging: src\app\dashboard\operations\layout.tsx (0.2149ms)
+✔ no browser console logging: src\app\dashboard\operations\[id]\receipt\page.tsx (0.2853ms)
+✔ no browser console logging: src\app\dashboard\page.tsx (0.2191ms)
+✔ no browser console logging: src\app\dashboard\profile\page.tsx (0.2297ms)
+✔ no browser console logging: src\app\dashboard\renew\layout.tsx (0.2138ms)
+✔ no browser console logging: src\app\dashboard\renew\page.tsx (0.4822ms)
+✔ no browser console logging: src\app\dashboard\rewards\page.tsx (0.2202ms)
+✔ no browser console logging: src\app\dashboard\transactions\page.tsx (0.2404ms)
+✔ no browser console logging: src\app\layout.tsx (0.2336ms)
+✔ no browser console logging: src\app\login\page.tsx (0.2987ms)
+✔ no browser console logging: src\app\page.tsx (0.1908ms)
+✔ no browser console logging: src\components\admin\ActivityOverviewCards.tsx (0.2044ms)
+✔ no browser console logging: src\components\admin\AdminDashboardClient.tsx (0.1818ms)
+✔ no browser console logging: src\components\admin\AdminStatsCards.tsx (0.1942ms)
+✔ no browser console logging: src\components\admin\agents\AdminAgentsClient.tsx (0.2289ms)
+✔ no browser console logging: src\components\admin\AnnouncementSettings.tsx (3.944ms)
+✔ no browser console logging: src\components\admin\BeINConfigForm.tsx (0.5569ms)
+✔ no browser console logging: src\components\admin\credit-requests\AdminCreditRequestsClient.tsx (0.3289ms)
+✔ no browser console logging: src\components\admin\eid-rewards\AdminEidRewardsClient.tsx (0.4604ms)
+✔ no browser console logging: src\components\admin\financial-review\FinancialReviewClient.tsx (0.4536ms)
+✔ no browser console logging: src\components\admin\InactiveUsersTable.tsx (0.2981ms)
+✔ no browser console logging: src\components\admin\LogsTable.tsx (0.3444ms)
+✔ no browser console logging: src\components\admin\NotificationSettingsForm.tsx (0.246ms)
+✔ no browser console logging: src\components\admin\OperationsChart.tsx (0.2225ms)
+✔ no browser console logging: src\components\admin\permissions\AdminPermissionsClient.tsx (0.2336ms)
+✔ no browser console logging: src\components\admin\points\AdminPointsSettingsClient.tsx (0.2655ms)
+✔ no browser console logging: src\components\admin\RecentDeposits.tsx (0.2151ms)
+✔ no browser console logging: src\components\admin\RecentFailures.tsx (0.1973ms)
+✔ no browser console logging: src\components\admin\RecoveryHealthClient.tsx (0.2615ms)
+✔ no browser console logging: src\components\admin\report-center\ActivityReportPanel.tsx (0.2611ms)
+✔ no browser console logging: src\components\admin\report-center\AdminReportCenterClient.tsx (0.2345ms)
+✔ no browser console logging: src\components\admin\report-center\AnalyticsReportPanel.tsx (0.3316ms)
+✔ no browser console logging: src\components\admin\report-center\BalanceMonitorPanel.tsx (0.2844ms)
+✔ no browser console logging: src\components\admin\report-center\BalanceMovementsReportPanel.tsx (0.3313ms)
+✔ no browser console logging: src\components\admin\report-center\BeinProviderReportPanel.tsx (0.2963ms)
+✔ no browser console logging: src\components\admin\report-center\BeinSpendReportPanel.tsx (0.2789ms)
+✔ no browser console logging: src\components\admin\report-center\CreditPaymentsReportPanel.tsx (0.2875ms)
+✔ no browser console logging: src\components\admin\report-center\IntegrityReportPanel.tsx (0.3085ms)
+✔ no browser console logging: src\components\admin\report-center\LoginMonitorPanel.tsx (0.3406ms)
+✔ no browser console logging: src\components\admin\report-center\LogsReportPanel.tsx (0.2606ms)
+✔ no browser console logging: src\components\admin\report-center\PointsAnalysisReportPanel.tsx (0.258ms)
+✔ no browser console logging: src\components\admin\report-center\report-panel-loaders.ts (0.1821ms)
+✔ no browser console logging: src\components\admin\report-center\report-tabs.ts (0.1715ms)
+✔ no browser console logging: src\components\admin\report-center\ReportCenterTabs.tsx (0.1774ms)
+✔ no browser console logging: src\components\admin\report-center\ReportPlaceholderPanel.tsx (0.2126ms)
+✔ no browser console logging: src\components\admin\reports\BeinSpendReportClient.tsx (0.3408ms)
+✔ no browser console logging: src\components\admin\rewards\AdminRewardsClient.tsx (0.3429ms)
+✔ no browser console logging: src\components\admin\SettingsForm.tsx (0.2409ms)
+✔ no browser console logging: src\components\admin\SimpleAnnouncementSettings.tsx (0.2512ms)
+✔ no browser console logging: src\components\admin\users\AddBalanceDialog.tsx (0.2315ms)
+✔ no browser console logging: src\components\admin\users\CreateUserDialog.tsx (0.255ms)
+✔ no browser console logging: src\components\admin\users\CreditControlDialog.tsx (0.2508ms)
+✔ no browser console logging: src\components\admin\users\DeletedUsersTable.tsx (0.2441ms)
+✔ no browser console logging: src\components\admin\users\EditUserDialog.tsx (0.216ms)
+✔ no browser console logging: src\components\admin\users\TransferOwnershipDialog.tsx (0.2143ms)
+✔ no browser console logging: src\components\admin\users\TransferToAgentDialog.tsx (0.3072ms)
+✔ no browser console logging: src\components\admin\users\UsersTable.tsx (0.3925ms)
+✔ no browser console logging: src\components\admin\users\UserStatsDialog.tsx (0.5266ms)
+✔ no browser console logging: src\components\admin\WorkerStatusCard.tsx (0.2346ms)
+✔ no browser console logging: src\components\agent\AgentDashboardClient.tsx (0.4063ms)
+✔ no browser console logging: src\components\AnnouncementBanner.tsx (0.2592ms)
+✔ no browser console logging: src\components\announcements\AnnouncementBannerView.tsx (0.3283ms)
+✔ no browser console logging: src\components\auth\AccessDenied.tsx (0.2076ms)
+✔ no browser console logging: src\components\auth\LoginCard.tsx (0.2149ms)
+✔ no browser console logging: src\components\auth\loginFeedback.ts (0.3099ms)
+✔ no browser console logging: src\components\auth\LoginForm.tsx (0.2097ms)
+✔ no browser console logging: src\components\auth\LoginPageClient.tsx (0.195ms)
+✔ no browser console logging: src\components\auth\ProtectedRoute.tsx (0.2367ms)
+✔ no browser console logging: src\components\auth\VideoFrame.tsx (0.1694ms)
+✔ no browser console logging: src\components\brand\BrandLogo.tsx (0.1897ms)
+✔ no browser console logging: src\components\credit-requests\RequestCreditEntry.tsx (0.2093ms)
+✔ no browser console logging: src\components\credit-requests\RequestCreditForm.tsx (0.2976ms)
+✔ no browser console logging: src\components\credit-requests\useCreditRequestVisibility.ts (0.2304ms)
+✔ no browser console logging: src\components\dashboard\DashboardBalanceCard.tsx (0.2061ms)
+✔ no browser console logging: src\components\dashboard\DashboardContent.tsx (0.1923ms)
+✔ no browser console logging: src\components\dashboard\DashboardHeader.tsx (0.2022ms)
+✔ no browser console logging: src\components\dashboard\QuickActionTile.tsx (0.2768ms)
+✔ no browser console logging: src\components\dashboard\RecentOperations.tsx (0.3871ms)
+✔ no browser console logging: src\components\dashboard\StatsCards.tsx (0.315ms)
+✔ no browser console logging: src\components\effects\AnimatedBackground.tsx (0.3133ms)
+✔ no browser console logging: src\components\effects\CursorEffects.tsx (0.3468ms)
+✔ no browser console logging: src\components\effects\index.ts (0.3085ms)
+✔ no browser console logging: src\components\effects\MouseSpotlight.tsx (0.259ms)
+✔ no browser console logging: src\components\effects\PageTransition.tsx (0.2492ms)
+✔ no browser console logging: src\components\eid-rewards\EidRewardEnvelope.tsx (0.2938ms)
+✔ no browser console logging: src\components\eid-rewards\EidRewardPopup.tsx (0.5695ms)
+✔ no browser console logging: src\components\ErrorBoundary.tsx (0.2871ms)
+✔ no browser console logging: src\components\history\HistoryFilters.tsx (0.2974ms)
+✔ no browser console logging: src\components\history\HistoryPageClient.tsx (0.2135ms)
+✔ no browser console logging: src\components\history\OperationsTable.tsx (0.2535ms)
+✔ no browser console logging: src\components\LanguageSwitcher.tsx (0.7749ms)
+✔ no browser console logging: src\components\layout\DashboardShell.tsx (0.3052ms)
+✔ no browser console logging: src\components\layout\Header.tsx (0.2961ms)
+✔ no browser console logging: src\components\layout\PageContainer.tsx (0.3601ms)
+✔ no browser console logging: src\components\layout\Sidebar.tsx (0.311ms)
+✔ no browser console logging: src\components\layout\SidebarFrame.tsx (0.2414ms)
+✔ no browser console logging: src\components\manager\CreateUserDialog.tsx (2.2317ms)
+✔ no browser console logging: src\components\manager\ManagerActionsLog.tsx (0.3616ms)
+✔ no browser console logging: src\components\manager\ManagerDeletedUsersTable.tsx (0.2082ms)
+✔ no browser console logging: src\components\manager\ManagerPageContent.tsx (0.2137ms)
+✔ no browser console logging: src\components\manager\ManagerStats.tsx (0.1435ms)
+✔ no browser console logging: src\components\manager\ManagerUsersList.tsx (0.1483ms)
+✔ no browser console logging: src\components\manager\users\ManagerAddBalanceDialog.tsx (0.1788ms)
+✔ no browser console logging: src\components\manager\users\ManagerUsersTable.tsx (0.7708ms)
+✔ no browser console logging: src\components\NotificationBell.tsx (0.3501ms)
+✔ no browser console logging: src\components\operations\BulkRenewForm.tsx (5.7249ms)
+✔ no browser console logging: src\components\profile\ChangePasswordForm.tsx (0.6021ms)
+✔ no browser console logging: src\components\profile\PasswordStrengthMeter.tsx (0.4011ms)
+✔ no browser console logging: src\components\profile\ProfileInfo.tsx (0.3565ms)
+✔ no browser console logging: src\components\profile\ProfilePageClient.tsx (0.3202ms)
+✔ no browser console logging: src\components\providers\PanelCommandProvider.tsx (0.3203ms)
+✔ no browser console logging: src\components\providers\Providers.tsx (0.2796ms)
+✔ no browser console logging: src\components\renewal\BeINExportTable.tsx (0.2415ms)
+✔ no browser console logging: src\components\renewal\CardCooldownNotice.tsx (0.3143ms)
+✔ no browser console logging: src\components\renewal\CardStatusDisplay.tsx (0.1989ms)
+✔ no browser console logging: src\components\renewal\ContractsTable.tsx (0.1945ms)
+✔ no browser console logging: src\components\renewal\index.ts (0.2846ms)
+✔ no browser console logging: src\components\renewal\InstallmentPaymentFlow.tsx (0.3401ms)
+✔ no browser console logging: src\components\renewal\SignalRefreshFlow.tsx (0.4726ms)
+✔ no browser console logging: src\components\rewards\RewardsClient.tsx (0.7059ms)
+✔ no browser console logging: src\components\shared\DeletedUsersPageHeader.tsx (0.4259ms)
+✔ no browser console logging: src\components\shared\MaintenanceOverlay.tsx (0.3572ms)
+✔ no browser console logging: src\components\shared\PageHeader.tsx (0.4122ms)
+✔ no browser console logging: src\components\shared\RTLProvider.tsx (0.3925ms)
+✔ no browser console logging: src\components\transactions\TransactionsHeading.tsx (0.2785ms)
+✔ no browser console logging: src\components\transactions\TransactionsTable.tsx (0.2823ms)
+✔ no browser console logging: src\components\transactions\TransactionStats.tsx (0.2076ms)
+✔ no browser console logging: src\components\ui\ActivityItem.tsx (0.2122ms)
+✔ no browser console logging: src\components\ui\ActivityStatusBadge.tsx (0.1973ms)
+✔ no browser console logging: src\components\ui\alert-dialog.tsx (0.2377ms)
+✔ no browser console logging: src\components\ui\alert.tsx (0.2005ms)
+✔ no browser console logging: src\components\ui\badge.tsx (0.2418ms)
+✔ no browser console logging: src\components\ui\button-variants.ts (0.3119ms)
+✔ no browser console logging: src\components\ui\button.tsx (0.2763ms)
+✔ no browser console logging: src\components\ui\card.tsx (0.4052ms)
+✔ no browser console logging: src\components\ui\DatePickerCalendar.tsx (0.2794ms)
+✔ no browser console logging: src\components\ui\dialog.tsx (0.2701ms)
+✔ no browser console logging: src\components\ui\FloatingInput.tsx (0.2172ms)
+✔ no browser console logging: src\components\ui\form.tsx (0.1946ms)
+✔ no browser console logging: src\components\ui\ImageUpload.tsx (0.233ms)
+✔ no browser console logging: src\components\ui\input.tsx (0.1933ms)
+✔ no browser console logging: src\components\ui\label.tsx (0.1972ms)
+✔ no browser console logging: src\components\ui\PanelLoadError.tsx (0.3235ms)
+✔ no browser console logging: src\components\ui\PanelTableControls.tsx (0.2163ms)
+✔ no browser console logging: src\components\ui\Skeleton.tsx (0.2488ms)
+✔ no browser console logging: src\components\ui\sonner.tsx (0.2389ms)
+✔ no browser console logging: src\components\ui\StatCard.tsx (0.2502ms)
+✔ no browser console logging: src\components\ui\switch.tsx (0.2874ms)
+✔ no browser console logging: src\components\ui\table.tsx (0.2014ms)
+✔ no browser console logging: src\components\ui\tabs.tsx (0.2517ms)
+✔ no browser console logging: src\components\ui\ThemeToggle.tsx (0.205ms)
+✔ no browser console logging: src\components\users\ResetPasswordDialog.tsx (0.2693ms)
+✔ no browser console logging: src\hooks\useBalance.ts (0.2707ms)
+✔ no browser console logging: src\hooks\useBeinBalanceRefresh.ts (0.2197ms)
+✔ no browser console logging: src\hooks\useCountUp.ts (0.2212ms)
+✔ no browser console logging: src\hooks\useMaintenance.ts (0.2124ms)
+✔ no browser console logging: src\hooks\useOperationHeartbeat.ts (0.2447ms)
+✔ no browser console logging: src\hooks\usePanelRequest.ts (0.3241ms)
+✔ no browser console logging: src\hooks\usePrices.ts (0.3169ms)
+✔ no browser console logging: src\hooks\useProviderReport.ts (0.2377ms)
+✔ no browser console logging: src\hooks\useRenewalCardCooldown.ts (0.2485ms)
+✔ no browser console logging: src\hooks\useTranslation.ts (0.3561ms)
+✔ package timer expiry requests server-side pre-Pay expiry and lock release (28.9121ms)
+✔ builds a today payment report range from Cairo date boundaries (32.0405ms)
+✔ builds this-week and this-month payment report ranges in Cairo time (7.0561ms)
+✔ builds custom payment report ranges and filters only recorded payments (3.5432ms)
+✔ summarizes payment report rows by amount, users, and recorders (0.4474ms)
+✔ summarizes pending requests plus unpaid approved debt against the configured limit (2.2288ms)
+✔ allows multiple pending requests while the total stays within remaining capacity (0.4533ms)
+✔ payment reduces outstanding debt and opens request capacity without changing pending requests (0.3657ms)
+✔ blocks requests when limit is missing or zero (0.2151ms)
+✔ rejects overpayment beyond outstanding debt (0.201ms)
+✔ allows admin-owned and agent-owned users to request credit (2.3782ms)
+✔ blocks manager-owned and unowned users from requesting credit (0.3186ms)
+✔ returns clear eligibility reasons from owner classification (0.4874ms)
+✔ blocks inactive, deleted, and non-user accounts regardless of owner (5.3578ms)
+✔ allows admins to manage all credit requests and debt limits (0.5831ms)
+✔ blocks agents from deciding credit requests while allowing own-user debt payments (0.2873ms)
+✔ formats agent-owned credit request with agent and group details (1.3561ms)
+✔ formats admin-owned credit request without fake agent values (0.4559ms)
+✔ formats legacy admin-owned retry without fake agent placeholders (0.252ms)
+✔ agent-owned request omits Group when the request-time snapshot is blank (0.1868ms)
+✔ historical null Source Group keeps no group metadata while assignment URL still falls back (1.7971ms)
+✔ uses the credit request group snapshot before the current assignment (0.4243ms)
+✔ historical null Source Group never inherits the current agent default group label (0.2754ms)
+✔ ignores unsafe group URLs and falls back to configured defaults (0.2187ms)
+✔ ignores non-WhatsApp HTTPS URLs when resolving handoff destinations (0.2304ms)
+✔ admin-owned requests skip current assignment lookup and use global defaults (0.2478ms)
+✔ watchdog considers preparation rows rather than only final confirmation (329.9326ms)
+✔ dispatch scans and stale-claim recovery cap their batches: undefined (84.0505ms)
+✔ dispatch scans and stale-claim recovery cap their batches: NaN (44.9212ms)
+✔ dispatch scans and stale-claim recovery cap their batches: Infinity (65.1412ms)
+✔ dispatch scans and stale-claim recovery cap their batches: -10 (32.6826ms)
+✔ dispatch scans and stale-claim recovery cap their batches: 1.5 (52.2941ms)
+✔ dispatch scans and stale-claim recovery cap their batches: 999 (78.8468ms)
+✔ unsupported card CHECK_BALANCE rejected before price, writes or dispatch: create (105.285ms)
+✔ unsupported card CHECK_BALANCE rejected before price, writes or dispatch: bulk (43.7987ms)
+✔ formats UTC instants as Egypt datetime-local values (35.8033ms)
+✔ parses Egypt datetime-local values into UTC instants (1.6383ms)
+✔ builds Egypt day boundaries for date inputs (3.7815ms)
+✔ builds Cairo local ranges with selected minute boundaries (72.0548ms)
+✔ uses inclusive UTC instants for repeated Cairo fallback minutes (56.5738ms)
+✔ builds mixed Cairo local ranges for date-only and datetime-local inputs (45.1162ms)
+✔ handles empty and invalid values safely (0.4161ms)
+✔ default Eid audience keeps all current roles allowed (1.9633ms)
+✔ allows an active user when their role is in the audience list (0.406ms)
+✔ denies an active user when their role is not in the audience list (0.1927ms)
+✔ allow override permits a user whose role is not selected (0.1563ms)
+✔ manual allow list is exclusive when any allow override exists (0.1658ms)
+✔ deny override wins even when the user role is selected (0.161ms)
+✔ inactive users are denied even with an allow override (0.1561ms)
+✔ deleted users are denied even with an allow override (0.1421ms)
+✔ selects weighted reward at deterministic boundaries (1.3356ms)
+✔ ignores inactive weighted tiers and falls back when no active weight exists (15.6653ms)
+✔ selects range reward inclusively (0.5819ms)
+✔ builds claim scope for event and Cairo day policies (22.0472ms)
+✔ event is active only when enabled and inside date window (0.3381ms)
+✔ calculates money preview with existing points conversion ratio (0.4441ms)
+✔ round-trips ISO instants through datetime-local without shifting the saved instant (24.3714ms)
+✔ handles empty and invalid datetime-local values safely (0.4159ms)
+✔ normalizes missing popup text bundle from legacy before and after text (3.813ms)
+✔ accepts a complete popup text bundle with supported placeholders (0.5751ms)
+✔ rejects required empty popup text fields (1.6371ms)
+✔ rejects unsupported placeholders outside allowed fields (0.713ms)
+✔ rejects unsupported placeholders in money preview text (0.4927ms)
+✔ settings schema accepts audience and popup text fields (3.49ms)
+✔ settings schema rejects invalid audience roles (1.3859ms)
+✔ formats popup text placeholders with runtime values (0.3158ms)
+✔ remembers Eid reward popup dismissal after successful redemption (1.0347ms)
+✔ does not remember Eid reward popup dismissal when user chooses later (0.2045ms)
+✔ ignores legacy later-dismissed popup storage values (0.1758ms)
+✔ uses an acknowledgement action when point conversion is unavailable (0.1496ms)
+✔ accepts valid Eid settings payload (5.8508ms)
+✔ rejects enabled settings without valid active dates (1.2063ms)
+✔ rejects min points greater than max points (0.6693ms)
+✔ rejects unsafe event key and inactive tier with invalid positive fields (1.3248ms)
+✔ T009 renewal final confirmation deducts once and clears stale waiting timers (1.8189ms)
+✔ T009 duplicate renewal final confirmation creates no second deduction or dispatch (0.3891ms)
+✔ T009 insufficient balance leaves renewal final confirmation retryable with no deduction (0.2734ms)
+✔ T009 worker pre-Pay renewal re-check rejects terminal and stale-disallowed operations (0.3953ms)
+✔ T009 final pay request-started phase blocks refund safety (0.4799ms)
+✔ T022 allows confirmed no-charge installment reseller refund once, then blocks duplicates (0.2259ms)
+✔ T022 blocks auto-refund and requires review for ambiguous installment after-Pay evidence (0.2092ms)
+✔ T018 installment final-pay evidence marks provider payment as started (0.2018ms)
+✔ T019 confirmed no-charge installment evidence is the only after-Pay auto-refund path (0.3034ms)
+✔ T023 charged financial review closure moves to confirmed tab (3.8196ms)
+✔ T023 no-charge refund financial review closure moves to refunded tab (2.5172ms)
+✔ T023 no-charge financial review refund is not duplicated when reseller refund already exists (0.4676ms)
+✔ T023 manual charged financial review closure does not require provider charge evidence (0.487ms)
+✔ T024 review capabilities: modern (2.2468ms)
+✔ T024 review capabilities: legacy (0.4281ms)
+✔ T024 review capabilities: installment (0.1573ms)
+✔ T024 review capabilities: unknown type (0.1083ms)
+✔ T024 review capabilities: already closed (0.5575ms)
+✔ T024 review capabilities: customer ownership (0.1777ms)
+✔ T024 review capabilities: missing deduction (0.203ms)
+✔ T024 review capabilities: wrong deduction owner (0.1459ms)
+✔ T024 review capabilities: duplicate deduction (0.1948ms)
+✔ T024 review capabilities: mismatched deduction amount (0.2275ms)
+✔ T024 review capabilities: nonfinite amount (0.1722ms)
+✔ T024 review capabilities: nonfinite deduction (0.1656ms)
+✔ T024 review capabilities: pending refund (0.1366ms)
+✔ T024 review capabilities: absent time does not mean unsent (0.1268ms)
+✔ T024 affirmative non-submission permits resolution only while final dispatch is fenced unsent (0.6857ms)
+✔ v2 selection preparation with no debit can be resolved only without final mutation or proof (0.3687ms)
+✔ T024 legacy post-attempt refund remains held without attributable rejection and independent non-execution (0.1745ms)
+✔ adds default payment status for no-refund and refund decisions while preserving history (1.6072ms)
+✔ does not force a payment status for keep-under-review decisions (0.2689ms)
+✔ blocks refund and no-refund for incomplete evidence without manual verification (0.2783ms)
+✔ does not synthesize manual renewal confirmation from no-refund action (0.2292ms)
+✔ does not synthesize no-charge evidence from the refund action (0.2176ms)
+✔ cardRenewed=true alone cannot complete a renewal review (0.2129ms)
+✔ allows no-refund when a unique automated composite proof exists (0.2167ms)
+✔ allows no-refund only with complete structured manual provider evidence (0.2726ms)
+✔ rejects incomplete manual provider evidence (0.2168ms)
+✔ does not accept a fulfillment proof from a different beIN account (0.9875ms)
+✔ admin decision route delegates structured manual completion to one atomic finalizer (0.822ms)
+✔ does not allow no-refund from provider charge evidence alone (0.2342ms)
+✔ manual no-renewal flags cannot replace a terminal no-charge verification (0.1211ms)
+✔ blocks refund when trusted provider debit exists unless escalated outside automatic flow (0.096ms)
+✔ allows recording no-refund admin decision for an already completed operation (0.1411ms)
+✔ does not allow refund decisions on already completed operations (0.1064ms)
+✔ admin refund delegates to the strict atomic no-charge finalizer (1.0458ms)
+✔ manual completion cannot promote an unsubmitted or unmarked provider mutation (0.7601ms)
+✔ shows confirmed final-pay beIN debit when both final balances have final-pay provenance (5.6236ms)
+✔ does not promote package-load diagnostic balance to confirmed beIN debit (0.5326ms)
+✔ marks inflated legacy ledger debit as legacy-unverified and preserves old amount (0.4302ms)
+✔ uses contract verified ledger as trusted provider evidence (0.2253ms)
+✔ uses manual verified paid decision as admin conclusion without hiding provenance (0.3421ms)
+✔ keeps admin no-refund closure visible in the confirmed tab (0.3131ms)
+✔ treats legacy admin no-refund decision as confirmed even without new payment fields (0.2659ms)
+✔ uses manual verified not-paid decision as admin conclusion (0.3222ms)
+✔ keeps admin refund closure visible in the refunded tab (1.2825ms)
+✔ shows open zero-amount renewal reviews because they still block the card (0.8551ms)
+✔ hides a zero-amount non-renewal row without financial impact (0.3326ms)
+✔ keeps zero-amount review rows visible when refund is blocked by evidence (0.2703ms)
+✔ admin review list does not age out open card-blocking operations (223.4628ms)
+✔ proof-backed financial review closure awards operation spend points after completion (1.2499ms)
+✔ manual no-refund closure without durable fulfillment proof does not award points (0.387ms)
+✔ refund and follow-up financial review decisions do not award operation spend points (0.3468ms)
+✔ financial review live card check uses one pending timestamp while polling worker result (2.725ms)
+✔ admin can reset active manager, agent, and user but not self or admin (2.1356ms)
+✔ manager can reset only one directly managed active user (0.4085ms)
+✔ agent can reset only one currently assigned active user (0.3384ms)
+✔ dirty mixed ownership, invalid roles, and inactive accounts fail closed (0.2469ms)
+✔ audit payload and success response do not expose password material (1.0703ms)
+✔ detects supported image bytes and derives safe extensions (3.862ms)
+✔ rejects svg and unknown image bytes (0.565ms)
+✔ rejects mismatched claimed mime type and unsupported extensions (0.6215ms)
+✔ login attempt constants match the requested three tries and two minute wait (1.038ms)
+✔ attempt keys preserve login name case and punctuation (0.5612ms)
+✔ submitted login names trim only outer spaces and keep letter case (0.19ms)
+✔ first and second failed attempts report remaining attempts without cooldown (0.6274ms)
+✔ third failed attempt starts cooldown and repeated clicks do not extend it (1.4738ms)
+✔ successful login can clear the normal mistake counter (0.5725ms)
+✔ login diagnostic event keeps safe context and drops secrets (3.6679ms)
+✔ redaction removes forbidden direct fields from diagnostic input (0.3944ms)
+✔ AuthJS Configuration and CredentialsSignin never display raw error text (3.8247ms)
+✔ feedback messages include remaining attempts for first and second failures (0.311ms)
+✔ cooldown feedback formats countdown as minutes and seconds (0.2532ms)
+✔ login feedback translations exist for supported panel languages (0.2582ms)
+✔ T034 maintenance rejects unbounded scans at every batch input (349.8048ms)
+✔ T034 maintenance logs safe context without raw provider/connection exceptions (129.7226ms)
+✔ saved off maintenance is effectively open (1.4528ms)
+✔ future timed maintenance blocks users until its server-time deadline (0.3407ms)
+✔ expired timed maintenance is effectively open without mutating saved settings (0.175ms)
+✔ missing or invalid pause time keeps true maintenance manual (0.1743ms)
+✔ admin settings read normalizes expired timed maintenance for display only (0.2587ms)
+✔ server computes maintenance pause deadline from duration on settings update (0.3599ms)
+✔ disabled maintenance clears pause deadline on settings update (0.1819ms)
+✔ PM2 gives maintenance a bounded five-minute drain window (209.8519ms)
+✔ one process never overlaps a long cycle even after leader TTL expires (128.6202ms)
+✔ each cycle has a distinct lease token (80.5065ms)
+✔ shutdown drains active work before closing connections and is idempotent (84.6293ms)
+✔ shutdown is registered during the first cycle and prevents a later interval (105.8612ms)
+✔ a failed leader acquisition recovers without releasing a foreign lease (114.525ms)
+✔ once mode runs one cycle without timers or signal handlers (84.5807ms)
+✔ dashboard exposes the operation count consumed by the table and serializable dates (274.9622ms)
+✔ MANAGER: exclude deleted linked users without hiding action history (41.6488ms)
+✔ ADMIN: exclude deleted linked users without hiding action history (85.6752ms)
+✔ dashboard denies revoked or wrong-role users before querying data (236.3088ms)
+✔ server page uses the authorized shared query without self HTTP or cookie forwarding (115.1642ms)
+✔ manager deposit guard only matches when manager has enough balance (2.1586ms)
+✔ manager credit guard requires an active manager-like account (0.2848ms)
+✔ user withdrawal guard requires active managed user balance (0.2264ms)
+✔ user credit guard requires the user to still belong to the manager (0.157ms)
+✔ delete guard matches the exact captured balance before refunding manager (0.2521ms)
+✔ in-transaction ownership guard rejects non-user targets (0.8393ms)
+✔ rejects deposit above manager balance before crediting user (0.8832ms)
+✔ guarded manager debit prevents sequential double spend beyond manager balance (0.5589ms)
+✔ guarded manager debit prevents simultaneous double spend beyond manager balance (0.5522ms)
+✔ rejects non-owned target before moving either balance (0.4431ms)
+✔ rejects withdrawal above user balance before crediting manager (0.5829ms)
+✔ delete refund aborts when user balance changes after capture (0.7226ms)
+✔ in-transaction ownership guard rejects users outside the manager (0.296ms)
+✔ builds long immutable cache headers for public uploaded images (3.0605ms)
+✔ builds moderate cache headers for non-versioned static images (0.4871ms)
+✔ recognizes current ETag and Last-Modified validators as not modified (32.7801ms)
+✔ next cache headers exclude public media from blanket no-store rule (0.5276ms)
+✔ 2026-08 mobile Stripe regression: only the exact preterminal pair can enter completing (1.1938ms)
+✔ mobile Stripe success requires exact provider amount, currency, and metadata linkage (0.639ms)
+✔ mobile Stripe routes use the shared CAS persistence/finalization boundary (1.1022ms)
+✔ delayed Stripe failure events cannot downgrade succeeded or refunded payments (0.3975ms)
+✔ root layout does not depend on Google font downloads during build (1.4525ms)
+✔ customer JWT using the fallback shared secret cannot become a panel identity or query with an absent ID (289.991ms)
+✔ operation collection opts into actual middleware current-user validation (164.7702ms)
+✔ current-user denial before domain effects: POST bulk\route.ts (136.2136ms)
+✔ current-user denial before domain effects: POST create\route.ts (44.9114ms)
+✔ current-user denial before domain effects: POST signal-activate\route.ts (32.9922ms)
+✔ current-user denial before domain effects: POST signal-check\route.ts (34.6642ms)
+✔ current-user denial before domain effects: POST signal-refresh\route.ts (100.8974ms)
+✔ current-user denial before domain effects: POST start-installment\route.ts (37.8406ms)
+✔ current-user denial before domain effects: GET start-renewal\route.ts (90.155ms)
+✔ current-user denial before domain effects: POST start-renewal\route.ts (60.2955ms)
+✔ current-user denial before domain effects: GET [id]\route.ts (33.8866ms)
+✔ current-user denial before domain effects: POST [id]\apply-promo\route.ts (48.3263ms)
+✔ current-user denial before domain effects: POST [id]\cancel\route.ts (46.5395ms)
+✔ current-user denial before domain effects: POST [id]\cancel-confirm\route.ts (17.6791ms)
+✔ current-user denial before domain effects: GET [id]\captcha\route.ts (15.9661ms)
+✔ current-user denial before domain effects: POST [id]\captcha\route.ts (15.9329ms)
+✔ current-user denial before domain effects: POST [id]\confirm-installment\route.ts (56.0874ms)
+✔ current-user denial before domain effects: POST [id]\confirm-purchase\route.ts (48.4906ms)
+✔ current-user denial before domain effects: GET [id]\heartbeat\route.ts (36.4483ms)
+✔ current-user denial before domain effects: POST [id]\heartbeat\route.ts (31.3462ms)
+✔ current-user denial before domain effects: GET [id]\installment\route.ts (10.1663ms)
+✔ current-user denial before domain effects: GET [id]\packages\route.ts (11.3138ms)
+✔ current-user denial before domain effects: POST [id]\select-package\route.ts (15.0041ms)
+✔ actual central auth guard validates disabled persisted actor (17.7538ms)
+✔ actual central auth guard validates deleted persisted actor (18.072ms)
+✔ actual central auth guard validates reset persisted actor (23.0434ms)
+✔ actual central auth guard validates missing persisted actor (18.6447ms)
+✔ actual central auth guard validates demoted persisted actor (20.3881ms)
+✔ actual central auth guard validates valid persisted actor (31.0834ms)
+✔ normalizes operation history card search to digits with minimum length (1.0142ms)
+✔ builds operation list where with user ownership and card search (1.3627ms)
+✔ preserves existing type, status, and date filters (0.5662ms)
+✔ preserves active and fulfillment-review status expansion with card filter (0.2443ms)
+✔ ignores empty and too-short card searches without dropping ownership (0.2312ms)
+✔ T043 actual expired package GET has no writable dependency and never invents EXPIRED (260.977ms)
+✔ T043 safe additive projection distinguishes review, payment and actual refund (0.5007ms)
+✔ T043 expiry keeps authoritative status and gives a read-only pending outcome (0.2901ms)
+✔ T043 pending refund overrides terminal display; raw evidence never enters DTO (0.2753ms)
+✔ T043 actual package GET preserves the pending-refund message over an older review message (110.2906ms)
+✔ smartcard form failure is localized without claiming a quote change or refund (137.3367ms)
+✔ selection failure message is limited to verified pre-final, zero-debit attempts (7.4554ms)
+✔ redacts session and provider secrets from operation response data (2.0655ms)
+✔ prefers confirmed ledger account evidence over operation account fallback (0.4566ms)
+✔ hides confirmed beIN account evidence from non-admin operation owners (0.2215ms)
+✔ returns operation account fallback only for admins (0.1677ms)
+✔ T001 exposes the agreed operation timing windows (1.8611ms)
+✔ T004 package selection expires after its deadline without customer deduction (0.7012ms)
+✔ T004 package selection blocks low balance without deduction (0.2954ms)
+✔ selected package clears browser waiting deadlines before slow provider preparation (0.2742ms)
+✔ T005 final confirmation rejects an expired 10 second window before deduction (0.3305ms)
+✔ T005 final confirmation deducts once only inside the valid window (0.2331ms)
+✔ T006 stale heartbeat cancels before Pay but sends after-Pay operations to review (0.6517ms)
+✔ expires abandoned package selection with no customer deduction (2.4596ms)
+✔ expires abandoned final confirmation before customer deduction (0.2572ms)
+✔ retries completing operation when dispatch is pending before final pay (0.2571ms)
+✔ safe-refunds completing operation when dispatch retries are exhausted before final pay (0.1801ms)
+✔ moves completing operation to review when final pay evidence is incomplete (1.4659ms)
+✔ expires stale completing operation before customer deduction and final pay (0.3696ms)
+✔ fresh package preparation is not expired after customer waiting deadlines are cleared (0.2786ms)
+✔ completes recovery when provider charge evidence is confirmed (0.2605ms)
+✔ expires exhausted completing operation when no deduction or refund is needed (0.2386ms)
+✔ moves confirmed provider charge to review when recovery proof is missing (0.393ms)
+✔ safe-refunds recovery when provider no-charge evidence is confirmed (0.2534ms)
+✔ expires provider no-charge recovery when no customer deduction exists (0.2056ms)
+✔ expires stale processing operation with no customer deduction (0.1831ms)
+✔ safe-refunds stale processing operation with deduction before final pay (0.7407ms)
+✔ moves stale processing operation to review when final pay may have started (0.2763ms)
+✔ moves stale processing operation with legacy deduction evidence to review (0.1926ms)
+✔ skips account lock release when expected owner is unknown (1.4654ms)
+✔ allows account lock release only for the matching owner (0.32ms)
+✔ keeps existing response data while adding recovery evidence (2.7453ms)
+✔ treats pre-final phases as before final pay (0.3996ms)
+✔ does not treat zero-amount pre-final recovery as financial review exposure (0.3867ms)
+✔ keeps zero-amount rows reviewable when hidden financial evidence exists (0.2457ms)
+✔ preserves foreign-owned account lock during recovery release (1.4323ms)
+✔ releases account lock when expected owner matches current owner (0.4211ms)
+✔ skips account lock release when owner evidence is unavailable (0.2574ms)
+✔ provider balance ledger alone is not recovery completion proof (1.5846ms)
+✔ installment recovery preserves its prior confirmed provider balance proof (0.499ms)
+✔ ordinary renewal cannot relabel balance evidence as installment proof (0.2062ms)
+✔ matching unique fulfillment proof permits recovery completion (0.2031ms)
+✔ mismatched proof context does not permit recovery completion (0.2114ms)
+✔ legacy contract-only proof cannot permit recovery completion (0.195ms)
+✔ structured manual provider evidence permits labeled recovery completion (0.1924ms)
+✔ maintenance award-run bounds reject fresh runs and cap each retry batch (2.3069ms)
+✔ maintenance retries only stale captured runs whose persisted backoff elapsed (1.2774ms)
+✔ the operation maintenance cycle includes the bounded award-run retry (0.5966ms)
+✔ capture stores one completion-time owner and rate snapshot in the caller transaction (13.3489ms)
+✔ capture is idempotent only for an exact immutable identity match (1.9775ms)
+✔ customer-only Worker completion sources capture one evidence-free idempotent skip (1.6473ms)
+✔ every immutable operation identity field participates in conflict detection (3.1653ms)
+✔ capture re-reads owner state after waiting for lexical owner locks (0.8007ms)
+✔ capture locks point settings before reading settings and rates (0.7171ms)
+✔ finalization uses only captured recipients after ownership and rates change (2.1866ms)
+✔ recipient insertion failure rolls back the whole finalization transaction (2.2573ms)
+✔ failed finalization backoff is bounded and exhaustion requires manual review (2.8033ms)
+✔ repeated finalization failures persist only a safe code and stop at the attempt limit (3.6079ms)
+✔ unlinked operation-spend history blocks captured-run finalization (0.96ms)
+✔ post-cutover missing run creates one idempotent review sentinel (1.0296ms)
+✔ a raced sentinel with mismatched immutable identity becomes a safe review conflict (0.9561ms)
+✔ pre-cutover missing run stays untouched and returns not found (0.4506ms)
+✔ skipped run finalization is an idempotent no-op (0.7684ms)
+✔ web and Worker Prisma schemas expose the additive operation-spend award run model (3.4416ms)
+✔ migration is additive and makes Source Group nullable without rewriting historical values (1.2007ms)
+✔ completed agent-owned operation produces a complete serializable captured snapshot (6.7711ms)
+✔ mixed zero and positive rates preserve the zero recipient without skipping the run (0.6329ms)
+✔ all-zero rates produce a durable skipped decision with zero evidence (0.7674ms)
+✔ completion-level skip reasons never retain positive recipient awards (0.3848ms)
+✔ snapshot ownership evidence allowlists safe fields and drops credentials (0.4593ms)
+✔ snapshot retains completion-time owner and rates after source evidence changes (4.6552ms)
+✔ equivalent completion evidence serializes deterministically regardless of recipient query order (0.4831ms)
+✔ snapshot cutover is dry-run by default (3.1877ms)
+✔ snapshot cutover refuses activation without a release attestation (0.4112ms)
+✔ snapshot cutover accepts an explicit non-empty compatible release id (0.3223ms)
+✔ snapshot cutover rejects unknown and duplicate command arguments (0.2412ms)
+✔ audit bounds identifiers and defaults to a safe batch (0.4113ms)
+✔ preflight reports complete totals with bounded safe samples (4.9941ms)
+✔ historical unlinked ledger is reported without blocking first activation (0.7512ms)
+✔ preflight blocks unresolved stale, exhausted, and post-cutover invariants (0.8342ms)
+✔ preflight refuses an unsafe sample limit even when called outside a command (0.7399ms)
+✔ ownership evidence is canonical regardless of database row order (20.1841ms)
+✔ ownership token changes for assignment metadata without exposing a WhatsApp invite (1.0147ms)
+✔ owner row locks use unique lexical ids and never include the subject twice (0.4407ms)
+✔ untouched agent metadata is omitted so the server resolves preserve/default semantics (1.2121ms)
+✔ explicit clearing remains present as empty text for independent server normalization (0.3369ms)
+✔ non-agent targets never send assignment metadata (0.2214ms)
+✔ ownership transfer dialog copy has matching AR EN and BN keys (0.4289ms)
+✔ balance retry requires a known pre-write or rolled-back endpoint error (39.8873ms)
+✔ balance acceptance remains pending, polling settles the exact receipt and shares resource conflicts (40.3316ms)
+✔ same-tab reload resumes status without replaying POST; no payload or balance is persisted (2.6055ms)
+✔ 404 and lost replies stay uncertain; polls never overlap or replay (1.5901ms)
+✔ foreign account or request identity cannot settle the claimed resource (9.0027ms)
+✔ explicit status retry resumes a stopped read without POST or releasing another action (2.4521ms)
+✔ balance reconciliation cannot release financial uncertainty; logout stops polling (0.7792ms)
+✔ claims before dispatch; separate resources run while the first response is pending (37.5037ms)
+✔ browser caller abort does not cancel the owned command (1.6881ms)
+✔ body timeout and late completion cannot clear uncertainty or replay (39.6389ms)
+✔ only an explicit pre-effect rejection releases failed transport responses (3.1864ms)
+✔ bad bodies remain uncertain and storage denial sends nothing (1.138ms)
+✔ an HTTP 200 business failure does not become a success receipt (0.9382ms)
+✔ claims the complete sorted resource set atomically; independent commands proceed (2.5139ms)
+✔ a pending tombstone becomes uncertain on reload and is never replayed or expired (0.5023ms)
+✔ failed persistence refuses dispatch and leaves no partial in-memory claim (0.3136ms)
+✔ settlement requires the exact immutable attempt and unknown outcomes retain their claim (0.4248ms)
+✔ known terminal outcomes free resources and clear only their own tombstone (0.4171ms)
+✔ corrupt storage fails closed, never silently loses an unresolved financial request (0.2359ms)
+✔ only settled receipts can be dismissed; a new command does not erase an unseen result (0.3797ms)
+✔ panel change-password route allows every panel role to change only its own password (2.464ms)
+✔ admin manager and agent reset routes delegate to one protected request handler (1.3846ms)
+✔ admin manager and agent user tables use the shared reset-password dialog (1.2738ms)
+✔ profile page shows self-service password form for all panel accounts (0.827ms)
+✔ panel user APIs use the database-backed dual session guard (1.5685ms)
+✔ reset-password permission defaults to supervisors and still honors overrides (1.9787ms)
+✔ login forgot-password guidance has no public reset link or username reset form (0.722ms)
+✔ T041 both PM2 entry points use one explicit reviewed panel process count (58.1422ms)
+✔ panel workers bound database connections and allow active tasks to drain (0.527ms)
+✔ T041 topology never guesses the production process count (0.8526ms)
+✔ login redirect accepts only dashboard destinations on the same origin (1.9051ms)
+✔ concurrent login failures count atomically and cooldown does not extend (2.9564ms)
+✔ server sorting validates bounds and the allowed column set (0.539ms)
+✔ login middleware permits revoked cookies to reach the server login check (0.3993ms)
+✔ fresh web session rejects deleted before returning a user (324.3621ms)
+✔ fresh web session rejects inactive before returning a user (126.2948ms)
+✔ fresh web session rejects password-changed before returning a user (127.2458ms)
+✔ fresh web session rejects missing before returning a user (41.1766ms)
+✔ transactions rejects revoked web identity without trying a bearer fallback (65.8721ms)
+✔ notifications rejects revoked web identity without trying a bearer fallback (18.8172ms)
+✔ new panel messages have identical nonempty keys in all supported languages (3.2784ms)
+✔ server login entry handles valid without redirect loops (52.9541ms)
+✔ server login entry handles revoked without redirect loops (11.4994ms)
+✔ server login entry handles unavailable without redirect loops (82.3858ms)
+✔ server login entry handles anonymous without redirect loops (22.4999ms)
+✔ manager user filtering excludes deleted users before pagination and count (107.4708ms)
+✔ transaction query preserves owner scope and web sorting (35.8288ms)
+✔ transaction query preserves owner scope and existing bearer ordering (18.427ms)
+✔ blocks inactive or deleted users before permission settings are evaluated (2.4109ms)
+✔ global user creation freeze overrides role and user allows (0.4227ms)
+✔ user override wins over role setting (0.2854ms)
+✔ role setting wins over static default (0.2501ms)
+✔ falls back to catalog defaults when no dynamic setting exists (0.2714ms)
+✔ detects panel user creation freeze setting (0.1998ms)
+✔ allows all point-owning account roles to access the points wallet (1.2916ms)
+✔ rejects non point-owning roles from the points wallet (0.3118ms)
+✔ current point setting field names win over legacy aliases (3.8628ms)
+✔ legacy point setting aliases remain fallback values (0.4905ms)
+✔ zero override values are preserved as explicit rates (1.7863ms)
+✔ duplicate override owners are reported before persistence (0.166ms)
+✔ settings copy uses matching semantic AR EN and BN catalog entries (0.5188ms)
+✔ point analysis classifies source labels and directions safely (4.5894ms)
+✔ point analysis summary separates earned, available, converted, reversed, pending, cancelled, and legacy points (0.4287ms)
+✔ point analysis row maps owner, source, references, and cairo display time (20.3565ms)
+✔ point analysis filters are bounded and validate enum values (2.4815ms)
+✔ owner timeline summary can use all owner rows while displayed rows stay paginated (0.257ms)
+✔ point analysis query builder combines filters without dropping owner search (0.926ms)
+✔ calculates spend points from operation amount with four decimal rounding (2.421ms)
+✔ treats a zero owner override as an explicit zero rate (0.3652ms)
+✔ legacy credit request rate lookup also preserves zero overrides (0.3326ms)
+✔ falls back to default rate only when no owner override exists (0.0915ms)
+✔ validates enabled point settings require start date and positive conversion ratio (0.2181ms)
+✔ calculates cash conversion from configured ratio (0.1524ms)
+✔ rejects cash conversion when requested points exceed available points (0.0961ms)
+✔ summarizes spend-earned, converted, reversed, and legacy point totals separately (0.2297ms)
+✔ routes manager-owned user spend to the manager only when manager-owned user points are disabled (3.7252ms)
+✔ routes manager-owned user spend to manager and user when manager-owned user points are enabled (1.5777ms)
+✔ builds manager-owned user entries with a dedicated rate bucket (0.5999ms)
+✔ routes agent-owned user spend to both user and agent (0.2883ms)
+✔ routes transferred user future spend to user and agent when manager link is removed (0.2727ms)
+✔ routes direct admin-created user spend to the user only (0.2302ms)
+✔ routes direct admin-owned user spend to the user only (0.2ms)
+✔ does not fall back to user points without a valid owner path (0.2605ms)
+✔ does not route direct user spend to inactive or deleted admin creator (0.2685ms)
+✔ builds admin-owned direct user entries with the normal user rate bucket (0.3988ms)
+✔ skips non-completed and before-start operations (0.3095ms)
+✔ builds one operation spend entry per owner with stable idempotency keys (0.2701ms)
+✔ builds idempotent reversal entries from original operation spend entries (0.3069ms)
+✔ policy disables all spend points when program is off (2.0665ms)
+✔ policy awards admin-owned direct users to the user only (0.3408ms)
+✔ policy awards legacy admin-created users to the user only (0.1888ms)
+✔ policy does not award unowned active users by default (0.1451ms)
+✔ policy preserves manager precedence when dirty data also has an agent (0.2255ms)
+✔ policy keeps agent-owned user and agent recipients (0.1725ms)
+✔ policy rejects incomplete and before-start operations (0.1871ms)
+✔ policy builds positive entries and skips explicit zero rates (0.3696ms)
+✔ classifies manager-owned user operation spend as a safe historical candidate (2.967ms)
+✔ does not classify legitimate admin-created direct user points as historical candidates (0.4346ms)
+✔ does not classify legitimate agent-owned user points as historical candidates (0.2722ms)
+[Renewal] Package preparation claimed: {"operationId":"synthetic-op","waitingDeadlinesCleared":true}
+✔ T015: a second promo revision creates a distinct durable preparation (436.9689ms)
+✔ T015: identical revision and payload replay the same durable preparation (73.6004ms)
+✔ T015: changed payload cannot reuse one preparation identity (101.8497ms)
+✔ legacy omitted and explicit zero revisions replay while changed business values conflict (43.6592ms)
+✔ T015: final payment rejects a nonzero preparation revision before writing (45.9575ms)
+✔ T015: queue identity distinguishes changed offers and preserves identical replay (18.8735ms)
+✔ T015: legacy final-payment queue identity remains stable (10.8078ms)
+✔ T015: durable outbox delivery preserves each preparation revision through the real dispatcher (93.115ms)
+✔ T015: panel selection current quote is validated before state/dispatch changes (119.3834ms)
+✔ T015: panel selection stale quote is validated before state/dispatch changes (62.077ms)
+✔ T015: panel selection refreshing quote is validated before state/dispatch changes (68.3295ms)
+✔ actual packages endpoint exposes pending revision instead of certifying its old list (350.7585ms)
+✔ actual final confirmation rejects stale consent before any transaction or deduction writes (331.0852ms)
+✔ quote projection binds display packages to revision without exposing provider controls (0.3458ms)
+✔ stale/reordered quote and conflicting draft promo cannot change the selected package (1.05ms)
+✔ PENDING response with old packages is never selectable (0.488ms)
+✔ FAILED response with old packages is never selectable (0.462ms)
+✔ a renamed new quote invalidates the old selection and uses the provider display name (2.2074ms)
+✔ final confirmation requires the accepted current quote and never a stale revision (0.6735ms)
+✔ an explicitly removed promo produces a ready ordinary quote; draft input is not authority (0.259ms)
+✔ actual apply API creates one pending revision, replays it, and rejects changed payload identity (171.9356ms)
+✔ provider identity comparison is canonical while the login credential preserves case (1.25ms)
+✔ all provider account creation paths preserve the trimmed credential and compare case-insensitively (1.5046ms)
+✔ ordered migration fails on aliases and enforces canonical uniqueness without rewriting credentials (0.6296ms)
+✔ provider report endpoints deny anonymous before storage or queue (217.047ms)
+✔ provider report endpoints deny USER before storage or queue (77.935ms)
+✔ provider report endpoints deny MANAGER before storage or queue (97.2843ms)
+✔ provider report endpoints deny AGENT before storage or queue (189.7816ms)
+✔ admitted admin read queues only the report ID, without business operation or credentials (117.0023ms)
+✔ invalid dates and inactive account stop before dispatch (43.8488ms)
+✔ queue failure marks request failed and does not claim accepted execution (49.081ms)
+✔ polling reads only cached result, never invokes beIN or queues work, and strips worker token (83.4694ms)
+✔ report account options require admin and select only public account metadata (82.0937ms)
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+[RenewalReservation] {"operationId":"operation","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+✔ maintenance frees ended reservations once without financial or status writes (212.3752ms)
+✔ maintenance preserves manual provider evidence while releasing ended ownership (54.4501ms)
+✔ maintenance frees FAILED after the domain finalizer closed the card (19.0383ms)
+✔ maintenance frees CANCELLED after the domain finalizer closed the card (70.8001ms)
+✔ maintenance frees EXPIRED after the domain finalizer closed the card (14.5008ms)
+✔ an ended read-only card check does not reserve the account while waiting for Activate (43.4286ms)
+✔ maintenance releases ended ownership despite unknown payment, open issues or absent proof; active work stays held (357.6824ms)
+✔ a cancelled attempt releases ownership even while contradictory evidence remains reviewable (76.0664ms)
+✔ active Redis execution and in-flight HTTP must drain before release (31.8635ms)
+✔ maintenance runner invokes terminal account cleanup and reports it independently (0.7894ms)
+✔ parses Webshare proxy rows and ignores blank lines (5.701ms)
+✔ keeps plaintext passwords out of preview rows (0.9178ms)
+✔ reports invalid proxy rows with line numbers (0.43ms)
+✔ calculates next proxy label number from existing labels (0.392ms)
+✔ builds preview with duplicates skipped and labels assigned only to importable rows (0.531ms)
+✔ manual proxy URLs default to HTTP and encode credentials (1.6617ms)
+✔ refund transactions are protected by the existing partial unique index per operation (1.8448ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[RenewalCancellation] {"operationId":"cmw1bu8de000290uubaticn7f","stage":"PENDING"}
+Failed to dispatch cancel-confirm; saved for retry: cmw1bu8de000290uubaticn7f
+[RenewalCancellation] {"operationId":"cmw1bu8de000290uubaticn7f","stage":"PENDING"}
+Failed to dispatch cancel-confirm; saved for retry: cmw1bu8de000290uubaticn7f
+[RenewalHold] Closure: {"operationId":"cmw1bu8de000290uubaticn7f","stage":"PRE_PAYMENT","decision":"CLOSURE_PREPARED","resolved":0,"remaining":0,"cardReleased":1,"accountReleased":1}
+[RenewalHold] Finalization: {"operationId":"cmw1bu8de000290uubaticn7f","stage":"PRE_PAYMENT","decision":"TERMINATED","committed":true}
+[RenewalHold] Closure: {"operationId":"cmw1bu8de000290uubaticn7f","stage":"PRE_PAYMENT","decision":"CLOSURE_PREPARED","resolved":0,"remaining":0,"cardReleased":0,"accountReleased":0}
+[RenewalHold] Finalization: {"operationId":"cmw1bu8de000290uubaticn7f","stage":"PRE_PAYMENT","decision":"ALREADY_TERMINATED","committed":true}
+[RenewalCancellation] {"operationId":"cmw1bu8de000290uubaticn7f","stage":"COMPLETED"}
+[RenewalCancellation] {"operationId":"cmw1bu8pk000690uubx2jljpp","stage":"PENDING"}
+Failed to dispatch cancel-confirm; saved for retry: cmw1bu8pk000690uubx2jljpp
+[RenewalCancellation] {"operationId":"cmw1bu8pk000690uubx2jljpp","stage":"PENDING"}
+Failed to dispatch cancel-confirm; saved for retry: cmw1bu8pk000690uubx2jljpp
+[RenewalHold] Closure: {"operationId":"cmw1bu8pk000690uubx2jljpp","stage":"PRE_PAYMENT","decision":"CLOSURE_PREPARED","resolved":0,"remaining":0,"cardReleased":1,"accountReleased":1}
+[RenewalHold] Finalization: {"operationId":"cmw1bu8pk000690uubx2jljpp","stage":"PRE_PAYMENT","decision":"TERMINATED","committed":true}
+[RenewalHold] Closure: {"operationId":"cmw1bu8pk000690uubx2jljpp","stage":"PRE_PAYMENT","decision":"CLOSURE_PREPARED","resolved":0,"remaining":0,"cardReleased":0,"accountReleased":0}
+[RenewalHold] Finalization: {"operationId":"cmw1bu8pk000690uubx2jljpp","stage":"PRE_PAYMENT","decision":"ALREADY_TERMINATED","committed":true}
+[RenewalCancellation] {"operationId":"cmw1bu8pk000690uubx2jljpp","stage":"COMPLETED"}
+✔ SQL: second-confirm cancellation survives replay and preserves the cooldown without financial review (7494.3358ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+✔ actual cooldown migration stamps every attempt outcome once using the database UTC clock (5683.9366ms)
+✔ a finished renewal blocks a fresh operation before reservation, debit or dispatch (5.3223ms)
+✔ server cooldown guard: repeat (1.1509ms)
+✔ server cooldown guard: other-user (0.587ms)
+✔ server cooldown guard: expired (1.0068ms)
+✔ server cooldown guard: other-card (0.5141ms)
+✔ server cooldown guard: review (0.415ms)
+✔ server cooldown guard: installment (0.3876ms)
+✔ countdown uses the server clock and the original deadline after refresh, not a fresh five minutes (0.5255ms)
+✔ reading another card or an expired cooldown returns zero without writing or exposing history (0.7389ms)
+✔ cooldown lookup is read-only, authenticated and contains no operation or account identity (329.9433ms)
+✔ cooldown lookup rejects 401 before a database read (116.6656ms)
+✔ cooldown lookup rejects 403 before a database read (89.6114ms)
+✔ cooldown lookup rejects 429 before a database read (107.0522ms)
+✔ renewal guard exposes stable machine-readable failure codes (2.1272ms)
+✔ store cancellation is safe only before payment, mutation, proof, or integrity evidence (8.578ms)
+✔ 2026-08 duplicate-charge regression: every supported renewal entry and continuation uses the durable guard (3.1759ms)
+✔ unsupported generic and legacy mobile RENEW jobs fail closed before deduction or dispatch (1.1295ms)
+✔ mobile payment intent asserts reservation and uses one stable provider idempotency key (0.6074ms)
+✔ store admission uses active execution and cooldown without blocking on old subscription review (0.6016ms)
+✔ renewal fulfillment proof mode fails closed to REVIEW_ONLY (13.4028ms)
+✔ ENFORCE requires an exact current live read-only smoke attestation (0.8991ms)
+✔ live smoke attestation parser rejects malformed and extended schemas (0.7399ms)
+✔ live smoke attestation fails closed for stale future and release-mismatched evidence (0.542ms)
+✔ admin config API exposes the safe default and rejects malformed proof mode updates (1.2443ms)
+✔ admin UI cannot submit unavailable ENFORCE or echo enforcement metadata (0.7483ms)
+✔ Sold Report bounds are deterministic and invalid values fail to safe defaults (0.6576ms)
+✔ Sold Report configuration is same-origin and credential-free (0.8929ms)
+✔ beIN account admin APIs and UI expose explicit automation exclusivity attestation (1.4379ms)
+✔ all locales expose proof-mode and account-attestation labels (0.7075ms)
+✔ fixture smoke proves one sanitized report invoice equals one active contract invoice (2996.4075ms)
+✔ missing mode fails closed with sanitized evidence (1652.3779ms)
+✔ live mode without explicit authorization fails closed with sanitized evidence (1462.9566ms)
+✔ authorized live mode without a safe session adapter fails closed with sanitized evidence (1148.2413ms)
+✔ all locales expose renewal fulfillment safety messages (1.4909ms)
+✔ Arabic renewal fulfillment messages are real localized text (0.4318ms)
+✔ active operations keeps review-required renewals visible (0.6421ms)
+✔ public operation API keeps existing state fields and exposes only safe fulfillment authority metadata (0.5589ms)
+✔ admin review API requests complete manual evidence and may expose its safe audit fields (0.8384ms)
+[DB] Pool configured: max=10, idleTimeout=30000ms, connectionTimeout=10000ms
+✔ normalizes a string invoice without dropping leading zeroes and rejects unsafe values (1.5463ms)
+✔ same operation and context can replay its proof idempotently (0.8673ms)
+✔ same operation with different invoice is a proof conflict (0.2141ms)
+✔ same invoice claimed by another operation is not idempotent (0.1322ms)
+✔ same operation and invoice with different composite context is a proof conflict (0.2117ms)
+✔ legacy contract-only row cannot be replayed as a composite proof (0.1577ms)
+✔ composite proof requires every baseline, report, contract, amount, and dealer field (1.509ms)
+✔ manual authority requires complete attributed provider evidence rather than a boolean (0.5035ms)
+✔ follow-up migration upgrades legacy claims before enabling cross-kind uniqueness (2.5029ms)
+✔ requires bounded timestamps and exact apply confirmation (2.5534ms)
+✔ parses the exact Cairo incident filter as a dry run (1.6584ms)
+✔ validates a bounded duplicate detection window (0.4398ms)
+✔ rejects ambiguous timestamps, unknown flags, duplicate flags, and missing values (0.3201ms)
+✔ finds same-card package and amount charge bursts inside the window (1.534ms)
+✔ matching provider balance debit proves charge but not fulfillment (2.7282ms)
+✔ only verified fulfillment can complete a charged renewal (0.2896ms)
+✔ verification outcome mapping keeps review-only matches unverified until structured manual review (0.219ms)
+✔ all non-matched verification outcomes map to safe fulfillment states (0.2014ms)
+✔ legacy contract-only proof cannot authorize renewal completion (0.1995ms)
+✔ complete structured manual evidence can authorize a labeled completion in review-only mode (0.1687ms)
+✔ not-charged plus verified fulfillment is contradictory and never completes or refunds (0.1122ms)
+✔ no charge and no contract permits the existing safe refund path (0.1382ms)
+✔ report-only evidence never authorizes a no-charge refund (0.2058ms)
+✔ unknown payment and every unsafe fulfillment outcome require review (0.2754ms)
+✔ a request that was not submitted remains a pre-pay failure (0.1691ms)
+✔ maintenance uses the same deterministic next-attempt job identity as the Worker (1.9078ms)
+✔ maintenance enqueues missing due jobs and leaves an active copy untouched (2.4105ms)
+✔ maintenance replaces a terminal stale job when the database still says the attempt is due (0.6207ms)
+✔ the operation-maintenance leader invokes and reports verification job repair (1.4544ms)
+✔ maintenance also continues a stranded matched attempt with no due timestamp (0.8767ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[RenewalHold] Closure: {"operationId":"synthetic-first","stage":"PRE_PAYMENT","decision":"CLOSURE_PREPARED","resolved":1,"remaining":0,"cardReleased":1,"accountReleased":1}
+[RenewalHold] Finalization: {"operationId":"synthetic-first","stage":"PRE_PAYMENT","decision":"TERMINATED","committed":true,"remainingHolds":0}
+[RenewalHold] Closure: {"operationId":"synthetic-first","stage":"PRE_PAYMENT","decision":"CLOSURE_PREPARED","resolved":0,"remaining":0,"cardReleased":0,"accountReleased":0}
+[RenewalHold] Finalization: {"operationId":"synthetic-first","stage":"PRE_PAYMENT","decision":"ALREADY_TERMINATED","committed":true,"remainingHolds":0}
+[RenewalHold] Maintenance: {"operationId":"synthetic-second","stage":"ASSESSMENT","decision":"HELD","reason":"HISTORICAL_REVIEW_REQUIRES_ADMIN"}
+[RenewalHold] Finalization: {"operationId":"versioned-busy","stage":"PRE_PAYMENT","decision":"EVIDENCE_CONFLICT","committed":true}
+[RenewalHold] Maintenance: {"operationId":"versioned-busy","stage":"PRE_PAYMENT","decision":"EVIDENCE_CONFLICT","reason":"PROVIDER_EXECUTION_ACTIVE_OR_UNAVAILABLE"}
+[RenewalHold] Maintenance: {"operationId":"versioned-duplicate","stage":"ASSESSMENT","decision":"HELD","reason":"EVIDENCE_NOT_RELEASABLE"}
+[RenewalHold] Closure: {"operationId":"versioned-review","stage":"PRE_PAYMENT","decision":"CLOSURE_PREPARED","resolved":0,"remaining":0,"cardReleased":0,"accountReleased":0}
+[RenewalHold] Finalization: {"operationId":"versioned-review","stage":"PRE_PAYMENT","decision":"TERMINATED","committed":true,"remainingHolds":0}
+[RenewalHold] Maintenance: {"operationId":"versioned-review","stage":"PRE_PAYMENT","decision":"TERMINATED","reason":"CLOSURE_COMMITTED"}
+[RenewalHold] Maintenance: {"operationId":"versioned-submitted","stage":"ASSESSMENT","decision":"HELD","reason":"EVIDENCE_NOT_RELEASABLE"}
+[RenewalHold] Maintenance: {"operationId":"synthetic-second","stage":"ASSESSMENT","decision":"HELD","reason":"HISTORICAL_REVIEW_REQUIRES_ADMIN"}
+[RenewalHold] Finalization: {"operationId":"versioned-busy","stage":"PRE_PAYMENT","decision":"EVIDENCE_CONFLICT","committed":true}
+[RenewalHold] Maintenance: {"operationId":"versioned-busy","stage":"PRE_PAYMENT","decision":"EVIDENCE_CONFLICT","reason":"PROVIDER_EXECUTION_ACTIVE_OR_UNAVAILABLE"}
+[RenewalHold] Maintenance: {"operationId":"versioned-duplicate","stage":"ASSESSMENT","decision":"HELD","reason":"EVIDENCE_NOT_RELEASABLE"}
+[RenewalHold] Closure: {"operationId":"isolated-terminal","stage":"PRE_PAYMENT","decision":"CLOSURE_PREPARED","resolved":1,"remaining":0,"cardReleased":1,"accountReleased":0}
+[RenewalHold] Finalization: {"operationId":"isolated-terminal","stage":"PRE_PAYMENT","decision":"ALREADY_TERMINATED","committed":true,"remainingHolds":0}
+✔ actual SQL closure is atomic, preserves another operation and the original cooldown, and settles once (6577.6559ms)
+✔ positive pre-payment evidence and admin capability agree on absent, final, dispatch and sale evidence (6.8176ms)
+✔ hold projection exposes only translated stage/reason/update, never raw response or provider identifiers (3.6836ms)
+✔ full store refund is automatic only before provider work and queue claim (1.3967ms)
+✔ full mobile renewal refund uses the same pre-provider safety boundary (0.2334ms)
+✔ partial, claimed, mutated, conflicting, and terminal refunds require review (0.2806ms)
+✔ an exact already-refunded terminal state is an idempotent replay (0.1409ms)
+✔ renewal refund webhook uses one atomic finalizer for store and mobile sources (1.5578ms)
+✔ recovery recognizes only the live execution owner for the same operation (185.8555ms)
+✔ recovery leaves in-flight Add/Sell/STB operation and reservation untouched (134.7868ms)
+✔ maintenance logs the operation and recovery reason without provider details (105.5514ms)
+✔ historical provider-account cooldowns no longer block renewal admission (1.8225ms)
+✔ T035 requested ENFORCE is blocked when attestation is missing even if fallback mode is REVIEW_ONLY (0.4704ms)
+✔ T036 actual installment confirmation rejects an unavailable owned account before any debit or dispatch (280.709ms)
+✔ receipt projects immutable provider sale and customer charge separately (3.025ms)
+✔ unverified, legacy or incomplete proof cannot expose a confirmed receipt (0.275ms)
+✔ anonymous cannot query a receipt and another user cannot view it (200.2568ms)
+✔ owner and admin can reopen the local receipt without raw provider evidence (78.8913ms)
+✔ an unresolved review and open evidence do not block a new renewal after cooldown (5.6244ms)
+✔ cancel preparation is not payment (JSON string=false) (0.6953ms)
+✔ cancel preparation is not payment (JSON string=true) (0.2207ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[RenewalReservation] {"operationId":"old-review","stage":"EXECUTION_ENDED","cardReleased":1,"accountReleased":1}
+✔ SQL: review ownership drains, releases once, preserves money/evidence/cooldown, and cannot reopen (5516.0244ms)
+✔ execution owner check preserves foreign owners and defers malformed or same-operation leases (0.7959ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+✔ SQL: an unclaimed same-day invoice cannot be attributed across unresolved attempts (2101.7688ms)
+✔ report center registry exposes all required report tabs once (2.2808ms)
+✔ report center tabs keep stable legacy routes (0.4218ms)
+✔ report center resolves unknown tab values to the default tab (0.3227ms)
+✔ report center builds stable deep links for tab keys (0.2533ms)
+✔ report center resolves tab values against visible tabs (0.2574ms)
+✔ report center panel modules are importable (6362.2026ms)
+✔ report center selects only the active panel loader (0.2912ms)
+✔ network deadline releases a request even when transport ignores abort (22.3639ms)
+✔ network deadline covers stalled response body parsing (33.6763ms)
+✔ network deadline cancels on unmount and preserves a completed response (1.0116ms)
+✔ review note uses the same whitespace and 2000 character boundary as the API (0.3706ms)
+✔ actual review API rejects invalid note length 0 before financial effects (231.2438ms)
+✔ actual review API rejects invalid note length 3 before financial effects (78.0736ms)
+✔ actual review API rejects invalid note length 2001 before financial effects (58.934ms)
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+✔ same-day report enum values commit before constraints use them (3478.5633ms)
+✔ start renewal admission no longer queries unresolved reviews (1.4165ms)
+✔ card admission has no financial issue predicates (0.6174ms)
+✔ start renewal atomically acquires the durable card lifecycle reservation before dispatch (0.633ms)
+✔ 2026-08 store renewal regression: provider idempotency key is stable per operation subscription and package (1.513ms)
+✔ 2026-08 store renewal regression: concurrent payment claim never starts a second provider intent (0.4593ms)
+✔ persisted payment and intent are reused without deducting credit again (0.2079ms)
+✔ cancelled or refunded provider payment evidence is never reused (0.1898ms)
+✔ stale or partially persisted provider claim fails closed for review (0.2906ms)
+✔ a different package cannot replace an existing payment claim (0.1845ms)
+✔ a completed claim is idempotently recognized as already advanced (0.1709ms)
+✔ payment evidence in a pre-selection or partial advanced state requires review (0.2215ms)
+✔ store-credit debit ledger requires one exact immutable minor-unit entry (0.2632ms)
+✔ store-credit migration fails closed on stale concurrent negative balances (0.8698ms)
+✔ 2026-08 store renewal regression: local claim and zero-credit outbox precede provider delivery (0.7224ms)
+✔ 2026-08 store renewal regression: confirm and webhook share one idempotent finalizer (0.6026ms)
+✔ 2026-08 store renewal regression: failure refund is ledger-backed and provider-safe (0.4587ms)
+✔ 2026-08 store renewal regression: cancellation rechecks the payment claim under locks (0.5213ms)
+✔ builds the user balance summary filter for non-deleted users, agents, and managers only (2.3497ms)
+✔ formats loaded finite balances without false zeroes (23.2216ms)
+✔ classifies direct admin-owned user from manager link owner role (1.5621ms)
+✔ classifies manager-owned user separately from admin-owned user (0.3648ms)
+✔ classifies agent-owned user and keeps assignment evidence (0.3176ms)
+✔ current ownership beats legacy admin creator fallback (0.2036ms)
+✔ uses legacy admin creator only when no current owner exists (0.2314ms)
+✔ reports unowned when no active current or legacy owner exists (0.1658ms)
+✔ summarizes duplicate current owner evidence for audit (1.2414ms)
+✔ ownership conflict audit uses a bounded default sample (2.0429ms)
+✔ ownership conflict audit accepts only safe bounded limits (0.3643ms)
+✔ validates target user and expected target owner role (2.9119ms)
+✔ builds admin target plan that closes active assignments and removes manager links (0.676ms)
+✔ builds manager target plan for agent-owned user (0.3256ms)
+✔ builds agent target plan for admin-owned user (0.2483ms)
+✔ exact desired state becomes NO_OP before stale-token rejection (0.7757ms)
+✔ stale token rejects a different desired state without a mutation plan (0.3543ms)
+✔ summarizes current owners without assignment metadata (0.4739ms)
+✔ maps a Prisma uniqueness race to a safe ownership conflict response (0.4602ms)
+✔ rejects an overlong agent default before it can be copied (0.3096ms)
+✔ rejects an invalid explicit WhatsApp URL in the canonical ownership plan (0.5144ms)
+✔ same-agent metadata change with a current token updates the assignment in place (0.3251ms)
+✔ exact manager ownership is a NO_OP before stale-token rejection (0.2137ms)
+✔ stale token cannot redirect one manager owner to another manager (0.2036ms)
+✔ rejects inactive agent profile as transfer target (0.2053ms)
+✔ admin statistics link only eligible receipts using one owner-scoped batch, including off-page deductions (162.1599ms)
+✔ default manager statistics neither query nor return receipt metadata (50.4434ms)
+✔ receipt availability failure rejects the read and logs a safe code, without raw database errors (68.0247ms)
+✔ only the admin stats endpoint opts in; manager, foreign user and anonymous access remain fenced (100.7689ms)
+✔ web cancellation delegates renewals to one atomic pre-mutation finalizer (1.5884ms)
+✔ cleanup cron delegates stale renewals to the atomic finalizer (0.8466ms)
+✔ explicit renewal unload delegates to the atomic finalizer (0.4586ms)
+✔ expired installment confirmation delegates to the atomic finalizer (0.4125ms)
+✔ web finalizer locks evidence and commits money, terminal state, and reservations together (0.8538ms)
+✔ package exposes the exact personal skill identity and Codex UI metadata (199.4244ms)
+✔ schema declares the exact compact record and feature contracts (1.7535ms)
+✔ helper exercises a Git-backed multi-layer project without live services (4337.7405ms)
+✔ keeps package-load balance diagnostic when final-pay before balance is missing (3.0592ms)
+✔ confirms provider spend only when final-pay before and after balances exist (0.4439ms)
+✔ confirms provider spend when after balance is verified by delayed balance check (0.2777ms)
+✔ does not confirm provider spend when final-pay after balance is missing (0.1731ms)
+✔ worker keeps manager-only recipients when manager-owned user points are disabled (2.531ms)
+✔ worker adds user recipient when manager-owned user points are enabled (0.3525ms)
+✔ worker builds manager and manager-owned user point entries with distinct rates (0.4765ms)
+✔ worker routes admin-owned direct user spend to the user only (0.2223ms)
+✔ worker routes legacy admin-created user spend to the user only (0.2402ms)
+✔ worker does not award unowned active users by default (0.196ms)
+ℹ tests 961
+ℹ suites 0
+ℹ pass 961
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 22846.4353

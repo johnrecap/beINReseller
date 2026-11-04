@@ -1,0 +1,9 @@
+{
+  "passed": [
+    "037 hidden pending account releases pointer and navigation without replay",
+    "037 async balance polls while independent controls remain usable ar",
+    "037 async balance polls while independent controls remain usable en",
+    "037 async balance polls while independent controls remain usable bn"
+  ],
+  "errors": []
+}

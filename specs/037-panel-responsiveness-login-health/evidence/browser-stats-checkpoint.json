@@ -1,0 +1,22 @@
+{
+  "passed": [
+    "statistics rejects old user response",
+    "statistics load more deduplicates admission and rows",
+    "statistics hides prior data after HTTP 401",
+    "statistics hides prior data after HTTP 403",
+    "statistics hides prior data after HTTP 500",
+    "manager statistics uses manager endpoint without correction",
+    "statistics correction rejects duplicates, retains failure and restores nested focus",
+    "037 pending correction can hide its nested modal without duplicate dispatch",
+    "same saved receipt, original amounts, new tab, print and operation pagination ar 390",
+    "same saved receipt, original amounts, new tab, print and operation pagination ar 1280",
+    "same saved receipt, original amounts, new tab, print and operation pagination en 390",
+    "same saved receipt, original amounts, new tab, print and operation pagination en 1280",
+    "same saved receipt, original amounts, new tab, print and operation pagination bn 390",
+    "same saved receipt, original amounts, new tab, print and operation pagination bn 1280",
+    "deduction pagination keeps the linked receipt without loading its operation row",
+    "user switch cannot restore another user receipt link",
+    "manager statistics hides receipt columns and links even with forged availability"
+  ],
+  "errors": []
+}

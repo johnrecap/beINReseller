@@ -1,11 +1,12 @@
 'use client'
 
 import { PanelCommandWarning } from '@/components/ui/PanelLoadError'
-import { usePanelCommand } from '@/hooks/usePanelRequest'
+import { useResourcePanelCommand, usePanelViewGuard } from '@/hooks/usePanelRequest'
 import { PanelDialog } from '@/components/ui/dialog'
 import { useState, useRef } from 'react'
 import { Wallet, X, Loader2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import { useTranslation } from '@/hooks/useTranslation'
+import { isBalancePreEffectRejection } from '@/lib/panel-balance-rejection'
 
 interface AddBalanceDialogProps {
     isOpen: boolean
@@ -19,24 +20,26 @@ type OperationType = 'deposit' | 'withdraw'
 
 export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, username }: AddBalanceDialogProps) {
     const { t } = useTranslation()
-    const { request: command, unconfirmed } = usePanelCommand(isOpen ? userId : null)
-    const [loading, setLoading] = useState(false)
-    const submitting = useRef(false)
+    const { request: command, unconfirmed, loading, drafts } = useResourcePanelCommand([`user/${userId}`], 'user.balance', isBalancePreEffectRejection, username ?? undefined)
+    const viewGuard = usePanelViewGuard(userId, isOpen)
+    const submitting = useRef(new Set<string>())
     const [error, setError] = useState<string | null>(null)
-    const [operationType, setOperationType] = useState<OperationType>('deposit')
+    const [operationType, setOperationType] = useState<OperationType>(() =>
+        (drafts?.get(`balance/${userId}`) as { operationType?: OperationType } | undefined)?.operationType ?? 'deposit')
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        if (unconfirmed || submitting.current) return
+        if (unconfirmed || loading || (userId && submitting.current.has(userId))) return
         if (!userId) return
 
-        submitting.current = true
-        setLoading(true)
+        submitting.current.add(userId)
+        const isCurrent = viewGuard()
         setError(null)
 
         const formData = new FormData(e.currentTarget)
         const rawAmount = Number(formData.get('amount'))
         const notes = formData.get('notes')
+        drafts?.set(`balance/${userId}`, { amount: String(formData.get('amount') ?? ''), notes: String(notes ?? ''), operationType })
 
         // For withdraw, send negative amount
         const amount = operationType === 'withdraw' ? -rawAmount : rawAmount
@@ -54,20 +57,18 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                 throw new Error(json.error || t.admin.users.messages.error)
             }
 
-            onSuccess()
-            onClose()
+            drafts?.delete(`balance/${userId}`)
+            if (isCurrent()) { onSuccess(); onClose() }
         } catch (err) {
-            setError(err instanceof Error ? err.message : t.admin.users.messages.error)
+            if (isCurrent()) setError(err instanceof Error ? err.message : t.admin.users.messages.error)
         } finally {
-            submitting.current = false
-            setLoading(false)
+            submitting.current.delete(userId)
         }
     }
 
     // Reset state when dialog closes
     const handleClose = () => {
-        if (submitting.current) return
-        setOperationType('deposit')
+        if (!loading && !unconfirmed) setOperationType('deposit')
         setError(null)
         onClose()
     }
@@ -77,7 +78,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
     const isDeposit = operationType === 'deposit'
 
     return (
-        <PanelDialog onClose={handleClose} busy={loading} title={<>
+        <PanelDialog onClose={handleClose} busy={loading} allowPendingClose title={<>
                         <Wallet className="w-5 h-5" />
                         {isDeposit ? (t.admin?.users?.dialogs?.depositBalance || 'Deposit Balance') : (t.admin?.users?.dialogs?.withdrawBalance || 'Withdraw Balance')}
                     </>} className="max-w-sm">
@@ -102,6 +103,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                     <button
                         type="button"
                         onClick={() => setOperationType('deposit')}
+                        disabled={loading || unconfirmed}
                         className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${isDeposit
                                 ? 'bg-green-600 text-white'
                                 : 'bg-card text-muted-foreground hover:bg-green-50 dark:hover:bg-green-900/20'
@@ -113,6 +115,7 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                     <button
                         type="button"
                         onClick={() => setOperationType('withdraw')}
+                        disabled={loading || unconfirmed}
                         className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${!isDeposit
                                 ? 'bg-red-600 text-white'
                                 : 'bg-card text-muted-foreground hover:bg-red-50 dark:hover:bg-red-900/20'
@@ -135,6 +138,8 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                         </label>
                         <input
                             name="amount"
+                            disabled={loading || unconfirmed}
+                            defaultValue={(drafts?.get(`balance/${userId}`) as { amount?: string } | undefined)?.amount}
                             type="number"
                             min="0.01"
                             step="0.01"
@@ -154,6 +159,8 @@ export default function AddBalanceDialog({ isOpen, onClose, onSuccess, userId, u
                         </label>
                         <textarea
                             name="notes"
+                            disabled={loading || unconfirmed}
+                            defaultValue={(drafts?.get(`balance/${userId}`) as { notes?: string } | undefined)?.notes}
                             rows={2}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-purple-500 text-sm bg-background"
                             placeholder={isDeposit ? (t.admin?.users?.dialogs?.depositReason || 'Reason for deposit (optional)') : (t.admin?.users?.dialogs?.withdrawReason || 'Reason for withdrawal (optional)')}

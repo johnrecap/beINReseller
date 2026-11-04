@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { DollarSign, Loader2, RefreshCw, Power } from 'lucide-react'
@@ -16,7 +16,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import { usePanelRequest, PanelRequestError } from '@/hooks/usePanelRequest'
+import { usePanelRequest, PanelRequestError, useOwnedPanelCommand, usePanelViewGuard } from '@/hooks/usePanelRequest'
 import { PanelLoadError } from '@/components/ui/PanelLoadError'
 import { useTranslation } from '@/hooks/useTranslation'
 
@@ -55,9 +55,11 @@ export default function BalanceMonitorPanel() {
     const router = useRouter()
     const { dir } = useTranslation()
     const { run, loading, error, cancel } = usePanelRequest()
-    const mutationPending = useRef(false)
+    const { request: command, receipts } = useOwnedPanelCommand()
+    const viewGuard = usePanelViewGuard(session?.user?.id ?? null, status === 'authenticated')
+    const accountBlocked = (id: string) => receipts.some(r => r.resources.includes(`beinAccount/${id}`) && ['PENDING', 'UNCERTAIN'].includes(r.state))
+    const accountPending = (id: string) => receipts.some(r => r.resources.includes(`beinAccount/${id}`) && r.state === 'PENDING')
     const refreshing = loading
-    const [reactivatingId, setReactivatingId] = useState<string | null>(null)
     const [threshold, setThreshold] = useState(300)
     const [accounts, setAccounts] = useState<LowBalanceAccount[]>([])
 
@@ -89,28 +91,25 @@ export default function BalanceMonitorPanel() {
     }, [fetchAccounts, cancel, router, session, status])
 
     const handleReactivate = async (accountId: string) => {
-        if (mutationPending.current) return
-        mutationPending.current = true
-        setReactivatingId(accountId)
+        if (accountBlocked(accountId)) return
+        const isCurrent = viewGuard()
 
         try {
-            const res = await fetch(`/api/admin/bein-accounts/${accountId}/low-balance/reactivate`, {
-                method: 'POST'
+            const res = await command({ action: 'bein.reactivate', resources: [`beinAccount/${accountId}`],
+                displayLabel: accounts.find(a => a.id === accountId)?.username,
+                url: `/api/admin/bein-accounts/${accountId}/low-balance/reactivate`, init: { method: 'POST' },
+                knownRejection: (response, body) => response.status === 409 && !!body && typeof body === 'object' && 'code' in body && body.code === 'BEIN_ACCOUNT_BUSY',
             })
             const data = await res.json()
 
             if (!res.ok || !data.success) {
-                throw new Error(data.error || t.panelUi.reportCopy.reactivateFailed)
+                throw new Error(data.code === 'BEIN_ACCOUNT_BUSY' ? t.panelUi.reportCopy.accountBusy : t.panelUi.reportCopy.reactivateFailed)
             }
 
-            toast.success(data.message || t.panelUi.reportCopy.reactivateSuccess)
-            await fetchAccounts()
+            if (isCurrent()) { toast.success(t.panelUi.reportCopy.reactivateSuccess); await fetchAccounts() }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : t.panelUi.reportCopy.reactivateFailed
-            toast.error(message)
-        } finally {
-            mutationPending.current = false
-            setReactivatingId(null)
+            if (isCurrent()) toast.error(message)
         }
     }
 
@@ -225,9 +224,9 @@ export default function BalanceMonitorPanel() {
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => handleReactivate(account.id)}
-                                                disabled={reactivatingId === account.id}
+                                                disabled={accountBlocked(account.id)}
                                             >
-                                                {reactivatingId === account.id ? (
+                                                {accountPending(account.id) ? (
                                                     <Loader2 className="h-4 w-4 animate-spin" />
                                                 ) : (
                                                     <Power className="h-4 w-4" />

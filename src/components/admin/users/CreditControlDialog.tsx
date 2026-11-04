@@ -2,7 +2,7 @@
 
 import { PanelDialog } from '@/components/ui/dialog'
 import { FormEvent, useCallback, useEffect, useState, useRef } from 'react'
-import { usePanelRequest, usePanelCommand } from '@/hooks/usePanelRequest'
+import { usePanelRequest, useResourcePanelCommand, usePanelViewGuard } from '@/hooks/usePanelRequest'
 import { useTranslation } from '@/hooks/useTranslation'
 import { PanelLoadError, PanelCommandWarning } from '@/components/ui/PanelLoadError'
 import { CreditCard, Loader2, ReceiptText, X } from 'lucide-react'
@@ -52,16 +52,17 @@ export default function CreditControlDialog({
     username,
 }: CreditControlDialogProps) {
     const { t, language } = useTranslation()
-    const { request: command, isUnconfirmed, reconcile } = usePanelCommand()
-    const limitKey = `limit:${userId}`
-    const paymentKey = `payment:${userId}`
+    const { request: command, unconfirmed, loading: commandPending } = useResourcePanelCommand([`user/${userId}`], 'user.credit', undefined, username ?? undefined)
+    const viewGuard = usePanelViewGuard(userId, isOpen)
     const copy = t.panelUi.creditControl
     const formatUsd = (value: number) => new Intl.NumberFormat(language === 'ar' ? 'ar-EG' : language === 'bn' ? 'bn-BD' : 'en-US', {style: 'currency', currency: 'USD'}).format(value)
     const formatDate = (value: string) => new Intl.DateTimeFormat(language, {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(value))
     const { load, loading, error: readError, cancel } = usePanelRequest()
-    const submitting = useRef(false)
-    const [savingLimit, setSavingLimit] = useState(false)
-    const [recordingPayment, setRecordingPayment] = useState(false)
+    const submitting = useRef(new Set<string>())
+    const [savingLimitId, setSavingLimitId] = useState<string | null>(null)
+    const [recordingPaymentId, setRecordingPaymentId] = useState<string | null>(null)
+    const savingLimit = !!userId && savingLimitId === userId
+    const recordingPayment = !!userId && recordingPaymentId === userId
     const [error, setError] = useState<string | null>(null)
     const [payload, setPayload] = useState<CreditDebtPayload | null>(null)
     const [limitUsd, setLimitUsd] = useState('')
@@ -84,35 +85,36 @@ export default function CreditControlDialog({
 
     async function updateLimit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
-        if (isUnconfirmed(limitKey) || !userId || payload?.user.id !== userId || submitting.current || loading || readError !== null) return
-        submitting.current = true
-        setSavingLimit(true)
+        if (unconfirmed || commandPending || !userId || payload?.user.id !== userId || submitting.current.has(userId) || loading || readError !== null) return
+        const isCurrent = viewGuard()
+        submitting.current.add(userId)
+        setSavingLimitId(userId)
         setError(null)
         try {
             const response = await command(`/api/credit-debts/${userId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ creditDebtLimitUsd: limitUsd }),
-            }, limitKey)
+            })
             const data = await response.json().catch(() => null)
             if (!response.ok) throw new Error(data?.error || copy.limitFailed)
-            await loadData()
-            onSuccess()
+            if (isCurrent()) { await loadData(); onSuccess() }
         } catch (err) {
-            setError(err instanceof Error ? err.message : copy.limitFailed)
+            if (isCurrent()) setError(err instanceof Error ? err.message : copy.limitFailed)
         } finally {
-            submitting.current = false
-            setSavingLimit(false)
+            submitting.current.delete(userId)
+            setSavingLimitId(current => current === userId ? null : current)
         }
     }
 
     async function recordPayment(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
-        if (isUnconfirmed(paymentKey) || !userId || payload?.user.id !== userId || submitting.current || loading || readError !== null || !payload || payload.summary.outstandingDebtUsd <= 0) return
-        submitting.current = true
+        if (unconfirmed || commandPending || !userId || payload?.user.id !== userId || submitting.current.has(userId) || loading || readError !== null || !payload || payload.summary.outstandingDebtUsd <= 0) return
+        const isCurrent = viewGuard()
+        submitting.current.add(userId)
         const form = event.currentTarget
         const formData = new FormData(form)
-        setRecordingPayment(true)
+        setRecordingPaymentId(userId)
         setError(null)
         try {
             const response = await command(`/api/credit-debts/${userId}`, {
@@ -122,17 +124,15 @@ export default function CreditControlDialog({
                     amountUsd: formData.get('amountUsd'),
                     note: formData.get('note'),
                 }),
-            }, paymentKey)
+            })
             const data = await response.json().catch(() => null)
             if (!response.ok) throw new Error(data?.error || copy.paymentFailed)
-            form.reset()
-            await loadData()
-            onSuccess()
+            if (isCurrent()) { form.reset(); await loadData(); onSuccess() }
         } catch (err) {
-            setError(err instanceof Error ? err.message : copy.paymentFailed)
+            if (isCurrent()) setError(err instanceof Error ? err.message : copy.paymentFailed)
         } finally {
-            submitting.current = false
-            setRecordingPayment(false)
+            submitting.current.delete(userId)
+            setRecordingPaymentId(current => current === userId ? null : current)
         }
     }
 
@@ -141,7 +141,7 @@ export default function CreditControlDialog({
     const summary = payload?.user.id === userId ? payload.summary : undefined
 
     return (
-        <PanelDialog onClose={() => { if (!submitting.current) onClose() }} busy={savingLimit || recordingPayment} title={<>
+        <PanelDialog onClose={onClose} busy={commandPending} allowPendingClose title={<>
                         <CreditCard className="h-5 w-5 text-cyan-500" />
                         {copy.title}
                     </>} className="max-w-2xl">
@@ -153,8 +153,7 @@ export default function CreditControlDialog({
                     </h3>
                     <button
                         type="button"
-                        onClick={() => { if (!submitting.current) onClose() }}
-                        disabled={savingLimit || recordingPayment}
+                        onClick={onClose}
                         className="rounded-lg p-1 text-muted-foreground hover:bg-secondary"
                         title={t.panelUi.close}
                     >
@@ -167,8 +166,7 @@ export default function CreditControlDialog({
                 </div>
 
                 <div className="space-y-4 p-4">
-                    <PanelCommandWarning show={isUnconfirmed(limitKey)} reviewing={loading || savingLimit || recordingPayment} onReview={() => { void reconcile([limitKey], loadData) }} />
-                    <PanelCommandWarning show={isUnconfirmed(paymentKey)} />
+                    <PanelCommandWarning show={unconfirmed} />
                     {readError !== null && <PanelLoadError status={readError} retry={() => void loadData()} />}
                     {error && (
                         <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-300">
@@ -206,7 +204,7 @@ export default function CreditControlDialog({
                                 <div className="mt-3 flex justify-end">
                                     <button
                                         type="submit"
-                                        disabled={isUnconfirmed(limitKey) || savingLimit || recordingPayment}
+                                        disabled={unconfirmed || commandPending || savingLimit || recordingPayment}
                                         className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-60"
                                     >
                                         {savingLimit && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -242,7 +240,7 @@ export default function CreditControlDialog({
                                 <div className="mt-3 flex justify-end">
                                     <button
                                         type="submit"
-                                        disabled={isUnconfirmed(paymentKey) || savingLimit || recordingPayment || summary.outstandingDebtUsd <= 0}
+                                        disabled={unconfirmed || commandPending || savingLimit || recordingPayment || summary.outstandingDebtUsd <= 0}
                                         className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
                                     >
                                         {recordingPayment && <Loader2 className="h-4 w-4 animate-spin" />}

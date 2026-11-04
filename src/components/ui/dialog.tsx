@@ -112,11 +112,13 @@ const DialogDescription = React.forwardRef<
 DialogDescription.displayName = DialogPrimitive.Description.displayName
 
 /** Adopt the existing Radix focus/scroll contract around legacy panel forms. */
-function PanelDialog({ children, title, onClose, busy = false, className }: {
+function PanelDialog({ children, title, onClose, busy = false, allowPendingClose = false, className }: {
     children: React.ReactNode
     title: React.ReactNode
     onClose: () => void
     busy?: boolean
+    /** Enable only after the caller hands requests to the dashboard command owner. */
+    allowPendingClose?: boolean
     className?: string
 }) {
     const { dir } = useTranslation()
@@ -124,13 +126,17 @@ function PanelDialog({ children, title, onClose, busy = false, className }: {
     const [opener] = React.useState<HTMLElement | null>(() =>
         typeof document !== "undefined" && document.activeElement instanceof HTMLElement
             ? document.activeElement : null)
-    return <Dialog open onOpenChange={open => { if (!open && !busy) onClose() }}>
+    return <Dialog open onOpenChange={open => { if (!open && (!busy || allowPendingClose)) onClose() }}>
         <DialogContent panel dir={dir} showClose={false} aria-describedby={undefined}
             className={cn("block gap-0 border-0 bg-card p-0", className)}
             onCloseAutoFocus={event => {
-                if (opener?.isConnected) { event.preventDefault(); opener.focus() }
+                const eligible = opener?.isConnected && !opener.matches(':disabled')
+                const fallback = opener?.closest('[role=dialog]')?.querySelector<HTMLElement>('button:not(:disabled)')
+                    ?? document.querySelector<HTMLElement>('[data-panel-focus-target]')
+                const target = eligible ? opener : fallback
+                if (target?.isConnected) { event.preventDefault(); target.focus() }
             }}
-            onEscapeKeyDown={event => { if (busy) event.preventDefault() }}
+            onEscapeKeyDown={event => { if (busy && !allowPendingClose) event.preventDefault() }}
             onInteractOutside={event => { event.preventDefault() }}>
             <DialogTitle className="sr-only">{title}</DialogTitle>
             {children}

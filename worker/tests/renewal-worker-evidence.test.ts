@@ -18,7 +18,7 @@ test('actual verification worker requires stored cart evidence before attributin
         './utils/error-handler', './lib/prisma', './utils/captcha-solver', './lib/activity-tracker', './lib/integrity-detector',
         './lib/crypto', './lib/bein-spend-ledger', './lib/installment-finalization', '../../shared/operations/audit-financial-context',
         '../../shared/operations/completion-effects', './lib/redis', './lib/points', './lib/session-cache', './lib/package-cache',
-        './lib/bein-login-tracking', './lib/bein-connection-mode', './lib/final-pay-evidence', './lib/fulfillment-finalization',
+        './lib/bein-login-tracking', './lib/bein-connection-mode', './lib/bein-balance-refresh', './lib/final-pay-evidence', './lib/fulfillment-finalization',
         './lib/renewal-no-charge-finalization', './lib/pre-mutation-renewal-finalization', './lib/renewal-verification-retry',
         './lib/provider-account-reservation', './lib/same-day-report-fulfillment',
         '../../shared/operations/financial-lock',

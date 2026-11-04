@@ -1,0 +1,12 @@
+{
+  "passed": [
+    "037 owner survives child navigation and retains uncertain resource without duplicate dispatch",
+    "037 hidden balance write remains owned and cannot be repeated after remount ar manager=false",
+    "037 hidden balance write remains owned and cannot be repeated after remount ar manager=true",
+    "037 hidden balance write remains owned and cannot be repeated after remount en manager=false",
+    "037 hidden balance write remains owned and cannot be repeated after remount en manager=true",
+    "037 hidden balance write remains owned and cannot be repeated after remount bn manager=false",
+    "037 hidden balance write remains owned and cannot be repeated after remount bn manager=true"
+  ],
+  "errors": []
+}

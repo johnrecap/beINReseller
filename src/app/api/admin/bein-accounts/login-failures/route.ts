@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoleAPIWithMobile } from '@/lib/auth-utils'
-import { getBeinLoginFailureThreshold } from '@/lib/get-bein-login-failure-threshold'
-import { isCredentialLoginFailure } from '../../../../../../shared/bein/login-failure'
+import { decodeLoginHealthReason } from '../../../../../../shared/bein/login-health'
 
 export async function GET(request: NextRequest) {
     try {
@@ -11,11 +10,11 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: authResult.error }, { status: authResult.status })
         }
 
-        const threshold = await getBeinLoginFailureThreshold()
+        const threshold = 1 // Deprecated compatibility metadata; never read the old setting.
 
         const accounts = await prisma.beinAccount.findMany({
             where: {
-                consecutiveLoginFailures: { gte: threshold }
+                OR: [{ lastLoginFailureAt: { not: null } }, { consecutiveLoginFailures: { gt: 0 } }],
             },
             orderBy: [
                 { lastLoginFailureAt: 'desc' },
@@ -23,6 +22,7 @@ export async function GET(request: NextRequest) {
             ],
             select: {
                 id: true,
+                isActive: true,
                 username: true,
                 label: true,
                 consecutiveLoginFailures: true,
@@ -36,12 +36,18 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             success: true,
             threshold,
-            accounts: accounts.map((account) => ({
-                ...account,
-                requiresLoginReview: account.consecutiveLoginFailures >= threshold,
-                needsPasswordUpdate: account.consecutiveLoginFailures >= threshold && isCredentialLoginFailure(account.lastLoginFailureReason ?? undefined),
-                failureCategory: isCredentialLoginFailure(account.lastLoginFailureReason ?? undefined) ? 'credentials' : 'unknown',
-            })),
+            policy: 'first_terminal_failure',
+            accounts: accounts.filter(account => !account.lastSuccessfulLoginAt ||
+                (account.lastLoginFailureAt && account.lastLoginFailureAt > account.lastSuccessfulLoginAt))
+                .map(account => {
+                    const code = decodeLoginHealthReason(account.lastLoginFailureReason)
+                    const category = code === 'CREDENTIALS_REJECTED' ? 'credentials' : code === 'CAPTCHA_EXHAUSTED' ? 'captcha' :
+                        code === 'CONNECTION_FAILED' ? 'transport' : code === 'RATE_LIMITED' ? 'rate_limit' : code === 'SYSTEM_ERROR' ? 'system' : 'unknown'
+                    const review = code !== null && ['credentials', 'captcha', 'unknown'].includes(category)
+                    return { ...account, lastLoginFailureReason: code, failureCode: code, failureCategory: category,
+                        requiresLoginReview: review, needsPasswordUpdate: code === 'CREDENTIALS_REJECTED',
+                        recoveryGuidance: review ? 'ADMIN_REVIEW_AND_RECOVER' : 'CHECK_CONNECTION_AND_RETRY' }
+                }),
         })
     } catch (error) {
         console.error('Get beIN login failures error:', error)

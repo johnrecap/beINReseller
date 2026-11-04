@@ -7,14 +7,13 @@ import { findActiveProviderAccountReservationForAccount } from './provider-accou
 import { lockAccount, unlockAccount, extendLock, getAccountLockStatus, isAccountExecutionLeaseActive } from '../pool/account-locking'
 import type { HttpClientService } from '../http/HttpClientService'
 import type { LoginResult } from '../http/types'
-import { isCredentialLoginFailure } from '../../../shared/bein/login-failure'
-import { recordLoginFailure, recordLoginSuccess } from './bein-login-tracking'
+import { recordLoginHealthFailure, recordLoginSuccess } from './bein-login-tracking'
 import { readReportRequest, claimReportRequest, finishReportRequest } from '../../../shared/reports/bein-provider-store'
 import { PROVIDER_REPORT_READ_MS, type ProviderReportRequest, type ProviderReportError } from '../../../shared/reports/bein-provider'
 
 type Account = BeinAccount & { proxy: Proxy | null }
 type ReportClient = Pick<HttpClientService, 'restrictToReportReads' | 'isSessionActive' | 'invalidateSession' | 'login' | 'scanSoldPackagesReport'> &
-    Partial<Pick<HttpClientService, 'getLoginTrackingRevision'>>
+    Partial<Pick<HttpClientService, 'getLoginTrackingRevision' | 'didAttemptLogin'>>
 export interface ReportReaderRuntime {
     account(id: string): Promise<Account | null>
     reserved(id: string): Promise<boolean>
@@ -23,7 +22,7 @@ export interface ReportReaderRuntime {
     renew(id: string, owner: string): Promise<boolean>
     release(id: string, owner: string): Promise<unknown>
     client(account: Account): Promise<ReportClient>
-    recordLoginResult?(id: string, result: LoginResult, revision?: Date): Promise<void>
+    recordLoginResult?(id: string, result: LoginResult, revision: Date | undefined, attempted: boolean): Promise<void>
 }
 export class ReportReadError extends Error {
     constructor(public readonly code: ProviderReportError) { super(code) }
@@ -66,10 +65,8 @@ export async function readProviderReport(
             const result = await client.login(account.username, account.password, account.totpSecret ?? undefined)
             cancellation.signal.throwIfAborted()
             await guard()
-            if (result.success || isCredentialLoginFailure(result)) {
-                await runtime.recordLoginResult?.(account.id, result, client.getLoginTrackingRevision?.())
-                await guard()
-            }
+            await runtime.recordLoginResult?.(account.id, result, client.getLoginTrackingRevision?.(), client.didAttemptLogin?.() === true)
+            await guard()
             if (result.failureCategory === 'transport') throw new ReportReadError('CONNECTION_FAILED')
             if (result.failureCategory === 'rate_limit') throw new ReportReadError('PROVIDER_RATE_LIMITED')
             if (result.requiresCaptcha || result.failureCategory === 'captcha') throw new ReportReadError('CAPTCHA_REQUIRED')
@@ -114,8 +111,10 @@ export function providerReportRuntime(redis: Redis, workerId: string, createClie
             if (!lock.locked || lock.ownerWorkerId !== workerId || lock.ownerOperationId !== owner) throw new ReportReadError('ACCOUNT_BUSY')
         },
         client: createClient,
-        recordLoginResult: (id, result, revision) => result.success
-            ? recordLoginSuccess(id, revision) : recordLoginFailure(id, result.error, revision),
+        recordLoginResult: async (id, result, revision, attempted) => {
+            if (result.success) await recordLoginSuccess(id, revision)
+            else if (!await recordLoginHealthFailure(id, result, revision, { attempted, terminal: true })) throw new Error('LOGIN_HEALTH_STALE')
+        },
     }
 }
 export async function handleProviderReportJob(requestId: string, redis: Redis, runtime: ReportReaderRuntime): Promise<void> {

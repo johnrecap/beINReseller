@@ -39,6 +39,13 @@ export function loginExceptionFailure(error: unknown): LoginFailure {
     const tunnel = /(?:CONNECT|tunnel|proxy).*?\b(402|407|429|5\d\d)\b/i.exec(value.message || '')
     const status = value.response?.status ?? (tunnel ? Number(tunnel[1]) : undefined)
     if (status !== undefined) return loginHttpFailure(status) || loginMessageFailure()
+    if (/^(?:ERR_TLS_|ERR_SSL_)/.test(value.code || '') ||
+        ['CERT_HAS_EXPIRED', 'CERT_NOT_YET_VALID', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN',
+            'UNABLE_TO_GET_ISSUER_CERT', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+            'CERT_SIGNATURE_FAILURE', 'CERT_REVOKED'].includes(value.code || '')) {
+        return { success: false, failureCategory: 'transport', failureCode: 'LOGIN_TLS_FAILED',
+            retryable: false, error: 'Login secure connection failed' }
+    }
     if (/^(E(?:CONN|HOST|NET|AI_|NOTFOUND|TIMEDOUT)|ETIMEDOUT|ECONNABORTED)/.test(value.code || '') ||
         /network|socket|timed? ?out|connect/i.test(value.message || '')) {
         return { success: false, failureCategory: 'transport', failureCode: 'LOGIN_CONNECTION_FAILED',

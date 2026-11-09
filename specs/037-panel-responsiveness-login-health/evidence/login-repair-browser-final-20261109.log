@@ -1,0 +1,40 @@
+PASS 037 low-balance activation owns its resource ar
+PASS login repair reason/tooltip/direction ar 360
+PASS login repair reason/tooltip/direction ar 768
+PASS login repair reason/tooltip/direction ar 1280
+PASS 037 localized login reason/activity ar CREDENTIALS_REJECTED
+PASS 037 localized login reason/activity ar CAPTCHA_EXHAUSTED
+PASS 037 localized login reason/activity ar AUTH_REVIEW_REQUIRED
+PASS 037 localized login reason/activity ar CONNECTION_FAILED
+PASS 037 localized login reason/activity ar RATE_LIMITED
+PASS 037 localized login reason/activity ar SYSTEM_ERROR
+PASS login recovery ar pending read has loader and no stale actions
+PASS login recovery ar unknown review / busy / single pending action / retained row
+PASS login recovery ar empty state
+PASS 037 low-balance activation owns its resource en
+PASS login repair reason/tooltip/direction en 360
+PASS login repair reason/tooltip/direction en 768
+PASS login repair reason/tooltip/direction en 1280
+PASS 037 localized login reason/activity en CREDENTIALS_REJECTED
+PASS 037 localized login reason/activity en CAPTCHA_EXHAUSTED
+PASS 037 localized login reason/activity en AUTH_REVIEW_REQUIRED
+PASS 037 localized login reason/activity en CONNECTION_FAILED
+PASS 037 localized login reason/activity en RATE_LIMITED
+PASS 037 localized login reason/activity en SYSTEM_ERROR
+PASS login recovery en pending read has loader and no stale actions
+PASS login recovery en unknown review / busy / single pending action / retained row
+PASS login recovery en empty state
+PASS 037 low-balance activation owns its resource bn
+PASS login repair reason/tooltip/direction bn 360
+PASS login repair reason/tooltip/direction bn 768
+PASS login repair reason/tooltip/direction bn 1280
+PASS 037 localized login reason/activity bn CREDENTIALS_REJECTED
+PASS 037 localized login reason/activity bn CAPTCHA_EXHAUSTED
+PASS 037 localized login reason/activity bn AUTH_REVIEW_REQUIRED
+PASS 037 localized login reason/activity bn CONNECTION_FAILED
+PASS 037 localized login reason/activity bn RATE_LIMITED
+PASS 037 localized login reason/activity bn SYSTEM_ERROR
+PASS login recovery bn pending read has loader and no stale actions
+PASS login recovery bn unknown review / busy / single pending action / retained row
+PASS login recovery bn empty state
+TOTAL 39

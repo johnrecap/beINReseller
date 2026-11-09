@@ -1451,83 +1451,8 @@ export class HttpClientService {
                 return loginMessageFailure();
             }
 
-            // Use selector from database config (e.g., Login1_ImageVerificationDealer_Image)
-            // Remove any leading # to avoid duplication
-            const captchaSelectorRaw = this.config.selCaptchaImg;
-            const captchaSelector = captchaSelectorRaw.replace(/^#/, '');
-
-            // Try both ID selector and partial ID match
-            let captchaImg = $(`#${captchaSelector}`);
-            if (!captchaImg.length) {
-                captchaImg = $(`img[id*="${captchaSelector}"]`);
-            }
-
-            // Fallback to generic selectors if not found
-            if (!captchaImg.length) {
-                captchaImg = $('img[src*="captcha"], img[id*="Captcha"], img[id*="captcha"], img[id*="Verification"]');
-            }
-
-            console.log(`[HTTP] CAPTCHA selector: #${captchaSelector}, found: ${captchaImg.length > 0}`);
-
-            if (captchaImg.length) {
-                if (this.reportReadScope) return { ...loginMessageFailure('CAPTCHA'), requiresCaptcha: true };
-                const captchaSrc = captchaImg.attr('src');
-                console.log('[HTTP] CAPTCHA detected');
-
-                // Check if it's already a data URI (base64 embedded)
-                if (captchaSrc?.startsWith('data:image')) {
-                    // Extract base64 from data URI
-                    const base64Match = captchaSrc.match(/^data:image\/[^;]+;base64,(.+)$/);
-                    if (base64Match) {
-                        console.log('[HTTP] CAPTCHA is embedded data URI');
-                        return {
-                            ...loginMessageFailure('CAPTCHA'),
-                            requiresCaptcha: true,
-                            captchaImage: base64Match[1] // Raw base64 without prefix
-                        };
-                    }
-                }
-
-                // Fetch CAPTCHA image from URL
-                const captchaUrl = captchaSrc?.startsWith('http')
-                    ? captchaSrc
-                    : this.buildFullUrl(captchaSrc || '');
-
-                console.log('[HTTP] Fetching CAPTCHA image');
-
-                // Let axios-cookiejar-support handle Cookie header automatically
-                const captchaRes = await this.axios.get(captchaUrl, {
-                    responseType: 'arraybuffer',
-                    headers: {
-                        'Referer': this.config.loginUrl,
-                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
-                    }
-                });
-
-                const captchaFailure = loginHttpFailure(captchaRes.status);
-                if (captchaFailure) { this.invalidateSession(); return captchaFailure; }
-                const contentType = captchaRes.headers['content-type'] || 'image/png';
-                console.log(`[HTTP] CAPTCHA content-type: ${contentType}, size: ${captchaRes.data.length} bytes`);
-
-                // Check if we got an image or HTML error page
-                if (contentType.includes('text/html')) {
-                    console.error('[HTTP] CAPTCHA request returned HTML instead of image - session issue');
-                    console.error('[HTTP] CAPTCHA response could not be parsed');
-                    throw new Error('CAPTCHA fetch failed - server returned HTML');
-                }
-
-                const captchaBase64 = Buffer.from(captchaRes.data).toString('base64');
-
-                // Note: Do NOT refresh ViewState here - it would generate a NEW CAPTCHA
-                // The original ViewState from the login page is the correct one
-                // that matches the CAPTCHA we just fetched
-
-                return {
-                    ...loginMessageFailure('CAPTCHA'),
-                    requiresCaptcha: true,
-                    captchaImage: captchaBase64
-                };
-            }
+            const challenge = await this.readLoginChallenge(loginPageRes.data, 'login_page');
+            if (challenge) return challenge;
 
             // No CAPTCHA - proceed with login
             return await this.submitLogin(username, password, totpSecret);
@@ -1538,6 +1463,38 @@ export class HttpClientService {
             console.error('[HTTP] Login failed:', failure.failureCode);
             return failure;
         }
+    }
+
+    private async readLoginChallenge(html: string, stage: 'login_page' | 'submit'): Promise<LoginResult | null> {
+        const $ = cheerio.load(html);
+        if (!$('#Login1_UserName, input[name="Login1$UserName"]').length) return null;
+        const selector = this.config.selCaptchaImg.replace(/^#/, '');
+        let image = $(`#${selector}`);
+        if (!image.length) image = $(`img[id*="${selector}"]`);
+        if (!image.length) image = $('img[src*="captcha"], img[id*="Captcha"], img[id*="captcha"], img[id*="Verification"]');
+        if (!image.length) return null;
+        console.log(`[HTTP] Login challenge: stage=${stage} code=LOGIN_CAPTCHA_REQUIRED`);
+
+        this.invalidateSession();
+        // Each challenge must use hidden fields from the very response that supplied its image.
+        this.currentViewState = this.extractHiddenFields(html);
+        if (!this.currentViewState.__VIEWSTATE) return loginMessageFailure();
+        const challenge: LoginResult = { ...loginMessageFailure('CAPTCHA'), requiresCaptcha: true, retryable: true };
+        if (this.reportReadScope) return challenge;
+        const source = image.attr('src') || '';
+        const embedded = source.match(/^data:image\/[^;]+;base64,(.+)$/);
+        if (embedded) return { ...challenge, captchaImage: embedded[1] };
+        const captcha = await this.axios.get(source.startsWith('http') ? source : this.buildFullUrl(source), {
+            responseType: 'arraybuffer', headers: { Referer: this.config.loginUrl,
+                Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' }
+        });
+        const failure = loginHttpFailure(captcha.status);
+        if (failure) { this.invalidateSession(); return failure; }
+        if ((captcha.headers['content-type'] || '').includes('text/html')) {
+            this.invalidateSession();
+            return loginMessageFailure('CAPTCHA image unavailable');
+        }
+        return { ...challenge, captchaImage: Buffer.from(captcha.data).toString('base64') };
     }
 
     /**
@@ -1606,14 +1563,24 @@ export class HttpClientService {
             }
 
             // Check for errors in HTML
+            const $ = cheerio.load(loginRes.data);
+            // Inspect each login error separately; the general page filter also ignores navigation labelled Password.
+            const credentialError = $('span[style*="Red"], span[style*="red"], .alert-danger, [id*="Error"]')
+                .toArray().map(element => $(element).text().trim())
+                .find(message => loginMessageFailure(message).failureCategory === 'credentials');
+            if (credentialError) {
+                this.invalidateSession();
+                return loginMessageFailure(credentialError);
+            }
             const error = this.checkForErrors(loginRes.data);
+            const challenge = await this.readLoginChallenge(loginRes.data, 'submit');
+            if (challenge) return challenge;
             if (error) {
                 this.invalidateSession();
                 return loginMessageFailure(error);
             }
 
             // Check if still on login page (login failed)
-            const $ = cheerio.load(loginRes.data);
             const pageTitle = $('title').text().trim();
 
             // A familiar title still requires authenticated content and no login form.

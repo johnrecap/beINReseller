@@ -8,6 +8,7 @@ import { lockAccount, unlockAccount, extendLock, getAccountLockStatus, isAccount
 import type { HttpClientService } from '../http/HttpClientService'
 import type { LoginResult } from '../http/types'
 import { recordLoginHealthFailure, recordLoginSuccess } from './bein-login-tracking'
+import type { LoginHealthContext } from '../../../shared/bein/login-health'
 import { readReportRequest, claimReportRequest, finishReportRequest } from '../../../shared/reports/bein-provider-store'
 import { PROVIDER_REPORT_READ_MS, type ProviderReportRequest, type ProviderReportError } from '../../../shared/reports/bein-provider'
 
@@ -22,7 +23,7 @@ export interface ReportReaderRuntime {
     renew(id: string, owner: string): Promise<boolean>
     release(id: string, owner: string): Promise<unknown>
     client(account: Account): Promise<ReportClient>
-    recordLoginResult?(id: string, result: LoginResult, revision: Date | undefined, attempted: boolean): Promise<void>
+    recordLoginResult?(id: string, result: LoginResult, revision: Date | undefined, context: LoginHealthContext): Promise<void>
 }
 export class ReportReadError extends Error {
     constructor(public readonly code: ProviderReportError) { super(code) }
@@ -65,7 +66,9 @@ export async function readProviderReport(
             const result = await client.login(account.username, account.password, account.totpSecret ?? undefined)
             cancellation.signal.throwIfAborted()
             await guard()
-            await runtime.recordLoginResult?.(account.id, result, client.getLoginTrackingRevision?.(), client.didAttemptLogin?.() === true)
+            const challenge = result.requiresCaptcha || result.failureCategory === 'captcha'
+            await runtime.recordLoginResult?.(account.id, result, client.getLoginTrackingRevision?.(),
+                { attempted: client.didAttemptLogin?.() === true, terminal: !challenge })
             await guard()
             if (result.failureCategory === 'transport') throw new ReportReadError('CONNECTION_FAILED')
             if (result.failureCategory === 'rate_limit') throw new ReportReadError('PROVIDER_RATE_LIMITED')
@@ -111,9 +114,9 @@ export function providerReportRuntime(redis: Redis, workerId: string, createClie
             if (!lock.locked || lock.ownerWorkerId !== workerId || lock.ownerOperationId !== owner) throw new ReportReadError('ACCOUNT_BUSY')
         },
         client: createClient,
-        recordLoginResult: async (id, result, revision, attempted) => {
+        recordLoginResult: async (id, result, revision, context) => {
             if (result.success) await recordLoginSuccess(id, revision)
-            else if (!await recordLoginHealthFailure(id, result, revision, { attempted, terminal: true })) throw new Error('LOGIN_HEALTH_STALE')
+            else if (context.terminal && !await recordLoginHealthFailure(id, result, revision, context)) throw new Error('LOGIN_HEALTH_STALE')
         },
     }
 }

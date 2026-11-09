@@ -209,7 +209,7 @@ export const en = {
             loginFailuresHint: "Current login failures and connection warnings. Review the reason and account activity before recovery.",
             currentThreshold: "Current threshold",
             loginThresholdHint: "The first terminal authentication failure disables the account. Connection failures do not disable it.",
-            loginHealthReasons: { CREDENTIALS_REJECTED: 'Credentials rejected', CAPTCHA_EXHAUSTED: 'CAPTCHA attempts exhausted', AUTH_REVIEW_REQUIRED: 'Authentication requires review', CONNECTION_FAILED: 'Connection failed', RATE_LIMITED: 'Provider rate limit', SYSTEM_ERROR: 'Local system error' },
+            loginHealthReasons: { CREDENTIALS_REJECTED: 'Credentials rejected', CAPTCHA_EXHAUSTED: 'CAPTCHA attempts exhausted', AUTH_REVIEW_REQUIRED: 'beIN login could not be confirmed; review the latest login attempt', CONNECTION_FAILED: 'Connection failed', RATE_LIMITED: 'Provider rate limit', SYSTEM_ERROR: 'Local system error' },
             loginConnectionWarning: 'Connection or system warning',
             loginActive: 'Active',
             loginInactive: 'Disabled',

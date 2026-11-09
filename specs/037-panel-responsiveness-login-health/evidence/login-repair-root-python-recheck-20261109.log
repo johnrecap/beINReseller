@@ -1,0 +1,37 @@
+✔ package exposes the exact personal skill identity and Codex UI metadata (103.7082ms)
+✔ schema declares the exact compact record and feature contracts (1.0664ms)
+✖ helper exercises a Git-backed multi-layer project without live services (278.3524ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 2
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 714.402
+
+✖ failing tests:
+
+test at tests\unit\web-project-memory.test.ts:6:2615
+✖ helper exercises a Git-backed multi-layer project without live services (278.3524ms)
+  AssertionError [ERR_ASSERTION]: error: could not write config file C:/Users/UTD/AppData/Local/Packages/sandbox.{4371e41a-d410-4549-8f2a-6f6ccbfed2ff}/AC/Temp/web-project-memory-demo-tC9XfZ/.git/config: Permission denied
+  fatal: could not set 'core.repositoryformatversion' to '0'
+  
+  
+  128 !== 0
+  
+      at runGit (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\tests\unit\web-project-memory.test.ts:112:10)
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\tests\unit\web-project-memory.test.ts:208:5)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 128,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

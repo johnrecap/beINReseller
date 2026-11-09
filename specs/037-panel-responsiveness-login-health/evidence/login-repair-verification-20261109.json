@@ -1,0 +1,223 @@
+{
+  "date": "2026-11-09",
+  "scope": "Accepted false login quarantine repair; local verification only",
+  "baseline": "67c982fc052649a10c00338238787624bfd2cbd9",
+  "runtime": "IMPLEMENTED_LOCALLY_NOT_DEPLOYED",
+  "checks": {
+    "root": {
+      "result": "PASS",
+      "passed": 964,
+      "receipt": "login-repair-root-final-20261109.log",
+      "receiptSha256": "6b54b485468c76bd3acb52a1bbdda2973e5569828585da7d7e3691394a747c60"
+    },
+    "worker": {
+      "result": "PASS",
+      "passed": 573,
+      "skipped": 5,
+      "total": 578,
+      "receipt": "login-repair-worker-final2-20261109.log",
+      "receiptSha256": "91e8c01fd0f852364e267ea956296a7ba25c60c2801155b070e21d61f7744318"
+    },
+    "nativeRedis": {
+      "result": "PASS",
+      "passed": 11,
+      "includesAllFiveSkippedWorkerCases": true,
+      "distinctWorkerCasesAcrossRuns": 578,
+      "receipt": "login-repair-native-redis-20261109.log",
+      "receiptSha256": "22a1730d526efc2e9ea3497e152d544125c9a32fd35a3cd710cb9b8820861c6c"
+    },
+    "integration": {
+      "result": "PASS",
+      "engine": "Prisma SQL in single-connection PGlite + native loopback Redis + HTTP",
+      "compoundChecks": 3,
+      "receipt": "login-repair-integration-final-20261109.log",
+      "receiptSha256": "a3d859aed09b8cfe71f48e4833ad4bd158fbd5e29b0b804249c429ee28f2b0e1"
+    },
+    "rootTypes": {
+      "result": "PASS",
+      "receipt": "login-repair-root-types-final-20261109.log",
+      "receiptSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "workerTypes": {
+      "result": "PASS",
+      "receipt": "login-repair-worker-types-final-20261109.log",
+      "receiptSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "webBuild": {
+      "result": "PASS",
+      "receipt": "login-repair-web-build-final-20261109.log",
+      "receiptSha256": "3d8aacf1452cbdfe524dd91764fac12fc6906dcbb35e1282a87827da648246eb"
+    },
+    "workerBuild": {
+      "result": "PASS",
+      "receipt": "login-repair-worker-build-20261109.log",
+      "receiptSha256": "75ba4745b060a1b03ef5fcdad091989c28366576808d0235917593ccf4eaf0da"
+    },
+    "browser": {
+      "result": "PASS",
+      "checks": 39,
+      "receipt": "login-repair-browser-final-20261109.log",
+      "receiptSha256": "52d436b4c1c1f920b25da05962f08468c8e5670becee84fc502d597bc9ff4172"
+    },
+    "lint": {
+      "scopedProductionAndNewTests": "PASS",
+      "global": "NOT_CLEAN_BASELINE_DEBT",
+      "addedViolations": 0,
+      "comparison": "login-repair-lint-comparison-20261109.json"
+    },
+    "encoding": {
+      "result": "PASS",
+      "receipt": "login-repair-encoding-20261109.json",
+      "receiptSha256": "8c62b71e10cbce08a13173351fc7131071b72abdbd6014069e0d757a1cb06f23"
+    },
+    "templates": {
+      "result": "PASS",
+      "receipt": "login-repair-template-check-20261109.json",
+      "receiptSha256": "1a56680ed7bdea8f57218c39cdf709cde2093106768935510f2ec9f864006cdd"
+    },
+    "taskDetails": {
+      "result": "PASS",
+      "receipt": "login-repair-plan-validation-20261109.log",
+      "receiptSha256": "00f36ef017a871567fee01a13d8c4477728303317d662ccaa2350e66fc5073b7"
+    },
+    "lifecycle": {
+      "evidence": "PASS",
+      "execution": "IN_PROGRESS",
+      "completed": 0,
+      "total": 24,
+      "receipt": "login-repair-lifecycle-validation-20261109.log",
+      "receiptSha256": "1b2cf7128f3ef2000610e1070c56335304fde449b90db9706621f939c764c7c8"
+    },
+    "memoryStructure": {
+      "result": "PASS",
+      "receipt": "login-repair-memory-validation-20261109.log",
+      "receiptSha256": "245983f3653753daca843a231b10d449044579a757c71e3422a155668ff066e6"
+    },
+    "redisCleanup": {
+      "result": "PASS",
+      "receipt": "login-repair-redis-cleanup-20261109.json",
+      "receiptSha256": "7f9e7a536af02d025ba6d936a5bc48c79bc490eb13c7cdc3825a30431a853a26"
+    }
+  },
+  "semanticEvidence": "specs/037-panel-responsiveness-login-health/evidence/implementation.md#false-login-quarantine-repair--2026-11-09",
+  "visuals": [
+    {
+      "path": "output/login-repair-20261109/browser/login-reason-ar-360.png",
+      "sha256": "3dd74dc0a765ab61702ebf8684d47cd0cab9698faeeaac12d39240b2ed7a67de",
+      "reviewed": true
+    },
+    {
+      "path": "output/login-repair-20261109/browser/login-reason-ar-768.png",
+      "sha256": "e2e002b96cd5e65068ee608322133721a7e2a345a827ff77209e46758d8a334a",
+      "reviewed": true
+    },
+    {
+      "path": "output/login-repair-20261109/browser/login-reason-ar-1280.png",
+      "sha256": "feee641b193fde4044a51b3c92ce46fd1801da34223d2a5ea8fdadacc8505fd4",
+      "reviewed": true
+    },
+    {
+      "path": "output/login-repair-20261109/browser/login-reason-en-360.png",
+      "sha256": "b47e81670dd3fbfef8b7b25b59b942d47bd9326333b85380f380b4115acda818",
+      "reviewed": true
+    },
+    {
+      "path": "output/login-repair-20261109/browser/login-reason-bn-360.png",
+      "sha256": "545dbc013fa6374b74f13c3786d637cae305eb7edc540ea55ac4c46c0b0bf658",
+      "reviewed": true
+    }
+  ],
+  "limits": [
+    "Provider account incident and two KeepAlive cycles on production NOT_VERIFIED",
+    "Native PostgreSQL multi-process contention NOT_VERIFIED by this run",
+    "Global lint and broader 037 acceptance remain open",
+    "Browser uses existing actual components with fixtures; narrow table keeps horizontal scrolling and truncation",
+    "No user acceptance, commit, push or deployment inferred"
+  ],
+  "sources": [
+    {
+      "path": "docs/PROJECT_GUIDE.md",
+      "sha256": "4bac5796ce7dac34723e8f03bf654e98e3cf25b036dc2e00e3d6af926ce4fa74"
+    },
+    {
+      "path": "shared/bein/login-failure.ts",
+      "sha256": "d42174b24785166fe507779e3ae990a7a881dd09ec9e9a14881a171f167a78b1"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/analysis.md",
+      "sha256": "7c069d5d159fe03bb75ef1526143e6b31c930d03cced396e185d081e6ab17849"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/evidence/implementation.md",
+      "sha256": "d5b8dc2bd024c319e13e11a5e08cff931628ae01d282b1ff0e89e1707db59b6a"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/evidence/plan-guard.json",
+      "sha256": "bcbcda699732de9ec6c3bcfc6b97c061dc0ba0c460cef49ce539a117cf9040ef"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/evidence/verification.md",
+      "sha256": "042f37b35bd3d55c638789421ea7c77d3b49df545c5befcc849602612dae01f7"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/quickstart.md",
+      "sha256": "a3fc863ec65e44a26c213e91d3845867abc5853eb1c483b92e81d92527871f58"
+    },
+    {
+      "path": "src/i18n/translations/ar.ts",
+      "sha256": "94232325055d3a6c5ca908d4d061b3b09c84b6b3a76258551275c244485940e8"
+    },
+    {
+      "path": "src/i18n/translations/bn.ts",
+      "sha256": "4073f455b8e4ab0779b986a82e7b6b6a31cf3f1de7370a51e6d706a99de8a1bc"
+    },
+    {
+      "path": "src/i18n/translations/en.ts",
+      "sha256": "8315a3db1c2645daeeb3f9b0b2a6441dc02690f4f94604b9d5e007841d68bfa8"
+    },
+    {
+      "path": "tests/browser/panel-report-cases.cjs",
+      "sha256": "30c865755136528af9cd351814ada50007f99991630333b2965cc2276ff03bda"
+    },
+    {
+      "path": "worker/src/http-queue-processor.ts",
+      "sha256": "02cb157c63d87bc5b6256fe257c7d8c9738046215826a3476c4db462274a4fde"
+    },
+    {
+      "path": "worker/src/http/HttpClientService.ts",
+      "sha256": "9f3f65a6d4fb8ba890e9340a7ac0f096623b72172167dd3831c83e261aef6d22"
+    },
+    {
+      "path": "worker/src/lib/provider-report-reader.ts",
+      "sha256": "22288e6eb0ec315a08aa9e397f353c3e3324a34ab32ae6bfd34d67cdee10bb8f"
+    },
+    {
+      "path": "worker/src/lib/session-keepalive.ts",
+      "sha256": "da416048ba85514600652208e153adf347b1925bb61b977daf95ecebb80ee609"
+    },
+    {
+      "path": "worker/tests/login-failure-classification.test.ts",
+      "sha256": "4cc906f45634c11d5773b023cc3cb32f9aa4e163057f3e1331c1bb58143e088d"
+    },
+    {
+      "path": "worker/tests/login-retry-consumers.test.ts",
+      "sha256": "e2f7ac447990bce18261e7350bd1524cc545f9c0bc80f85f4f175172cf0d66b1"
+    },
+    {
+      "path": "worker/tests/provider-report-browser.test.ts",
+      "sha256": "b2843256d7f291835ac1a207187cd5ceb09c220c8ef5f570bd2e8d312cbd2d80"
+    },
+    {
+      "path": "worker/tests/login-challenge-recovery.test.ts",
+      "sha256": "439266605160a4f9ab1042f723ec1fb5054cef65debda3502c5d1cf799f5f9ce"
+    },
+    {
+      "path": "tests/integration/bein-login-challenge.cjs",
+      "sha256": "3d4549f8662bc89a96823dd514311516e16372ea948d99029f0edccf4f8fc73e"
+    },
+    {
+      "path": "specs/037-panel-responsiveness-login-health/evidence/template-contract.json",
+      "sha256": "7dcff11ca288144c3a937251d8adba1f249c834d0be03400463a997452ce071e"
+    }
+  ]
+}

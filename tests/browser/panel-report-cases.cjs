@@ -66,6 +66,17 @@ module.exports = async function reportCases({p,render,check}) {
   assert.equal(await p.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),1);
   await p.evaluate(()=>window.releaseWrite());
   check('037 low-balance activation owns its resource '+language);
+  for(const width of [360,768,1280]) {
+   await render({view:'loginMonitor',language,loginHealthCode:'AUTH_REVIEW_REQUIRED'},width);
+   const text=await p.evaluate(()=>window.qaText.panelUi.reportCopy.loginHealthReasons.AUTH_REVIEW_REQUIRED);
+   const reason=p.getByText(text,{exact:true});
+   await reason.waitFor();await reason.scrollIntoViewIfNeeded();
+   assert.equal(await reason.getAttribute('title'),text);
+   assert.equal(await p.locator('html').getAttribute('dir'),language==='ar'?'rtl':'ltr');
+   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+   await p.screenshot({path:require('node:path').join(process.env.PANEL_QA_OUTPUT||'output/panel-ui',`login-reason-${language}-${width}.png`),fullPage:true});
+   check('login repair reason/tooltip/direction '+language+' '+width);
+  }
   for(const code of ['CREDENTIALS_REJECTED','CAPTCHA_EXHAUSTED','AUTH_REVIEW_REQUIRED','CONNECTION_FAILED','RATE_LIMITED','SYSTEM_ERROR']) {
    await render({view:'loginMonitor',language,loginHealthCode:code},390);
    const healthCopy=await p.evaluate(()=>window.qaText.panelUi.reportCopy);

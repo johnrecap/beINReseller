@@ -1,0 +1,56 @@
+📡 Redis connected
+✅ Redis ready
+💰 [HTTP] Checking balance for account qa-login-38130f71-64ae-4d6f-b7ba-cd44c2434ce1
+[HTTP] beIN route for balance:qa-login-38130f71-64ae-4d6f-b7ba-cd44c2434ce1-read (qa-login-38130f71-64ae-4d6f-b7ba-cd44c2434ce1): mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] No proxy - using wrapper() for automatic cookie handling
+[HTTP] Config loaded: {
+  loginUrl: 'http://127.0.0.1:63577/login',
+  checkUrl: '/Dealers/Pages/frmCheck.aspx',
+  renewUrl: '/renew'
+}
+[HTTP] HttpClientService initialized
+[HTTP] Created operation client for qa-login-38130f71-64ae-4d6f-b7ba-cd44c2434ce1: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[Session Cache] ❌ MISS for account qa-login...
+[HTTP] No cached session for qa-login-38130f71-64ae-4d6f-b7ba-cd44c2434ce1; will login fresh
+[HTTP] Using cached config
+[HTTP] Logging in to fetch balance...
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] ViewState extracted: 15 chars ⚠️ SMALL (likely login page)
+[HTTP] Login challenge: stage=login_page code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] ViewState extracted: 15 chars ⚠️ SMALL (likely login page)
+PASS real balance dispatcher + HTTP + Redis + Prisma: pending CAPTCHA does not quarantine
+PASS actual SQL revision fencing, one terminal write, inactive-success denial and transport warning
+PASS foreign account lock and dealer balance remain unchanged
+📡 Redis connection closed gracefully
+📡 Redis connection closed
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+[HTTP] WARNING: ViewState appears invalid or missing (length: 15)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] WARNING: ViewState appears invalid or missing (length: 15)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail

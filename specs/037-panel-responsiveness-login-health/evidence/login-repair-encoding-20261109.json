@@ -1,0 +1,29 @@
+{
+  "utf8": "PASS",
+  "bom": "NONE",
+  "addedMojibake": "NONE",
+  "diffCheck": "PASS",
+  "files": [
+    "PROJECT_MEMORY.md",
+    "docs/PROJECT_GUIDE.md",
+    "shared/bein/login-failure.ts",
+    "specs/037-panel-responsiveness-login-health/analysis.md",
+    "specs/037-panel-responsiveness-login-health/evidence/implementation.md",
+    "specs/037-panel-responsiveness-login-health/evidence/plan-guard.json",
+    "specs/037-panel-responsiveness-login-health/evidence/verification.md",
+    "specs/037-panel-responsiveness-login-health/quickstart.md",
+    "src/i18n/translations/ar.ts",
+    "src/i18n/translations/bn.ts",
+    "src/i18n/translations/en.ts",
+    "tests/browser/panel-report-cases.cjs",
+    "worker/src/http-queue-processor.ts",
+    "worker/src/http/HttpClientService.ts",
+    "worker/src/lib/provider-report-reader.ts",
+    "worker/src/lib/session-keepalive.ts",
+    "worker/tests/login-failure-classification.test.ts",
+    "worker/tests/login-retry-consumers.test.ts",
+    "worker/tests/provider-report-browser.test.ts",
+    "worker/tests/login-challenge-recovery.test.ts",
+    "tests/integration/bein-login-challenge.cjs"
+  ]
+}

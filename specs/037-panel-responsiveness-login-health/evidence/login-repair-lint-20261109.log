@@ -1,0 +1,454 @@
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\shared\db\ownership-evidence-lock.js
+   9:23  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  10:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\shared\operations\completion-effects.js
+  5:23  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\shared\operations\consumer-progress.js
+  4:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\shared\points\operation-spend-award-runs.js
+   7:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   8:35  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   9:42  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  10:34  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\shared\points\operation-spend-award-snapshot.d.ts
+  91:18  warning  'safeManagerOwnership' is defined but only used as a type  @typescript-eslint/no-unused-vars
+  96:18  warning  'safeAgentAssignment' is defined but only used as a type   @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\shared\points\operation-spend-release-preflight.d.ts
+  2:15  warning  'RUN_STATUSES' is defined but only used as a type  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\shared\points\operation-spend-release-preflight.js
+  153:38  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\shared\reports\bein-provider-store.js
+  8:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\customer-index.js
+  17:1   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  18:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  19:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  20:16  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  21:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\http-queue-processor.js
+   8:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  17:23  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  18:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  19:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  20:16  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  21:16  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  22:27  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  23:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  24:24  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  25:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  26:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  27:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  28:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  29:29  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  30:36  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  31:35  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  32:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  33:23  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  34:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  35:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  36:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  37:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  38:31  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  39:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  40:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  41:36  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  42:42  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  43:45  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  44:38  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  45:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  46:40  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  47:43  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  48:31  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\http\HttpClientService.js
+    58:33  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    59:39  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    60:35  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    61:24  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    62:30  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    63:18  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    64:26  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    65:25  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    67:16  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    68:29  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    69:29  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    70:25  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    71:25  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    72:34  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    73:32  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+    74:38  error    A `require()` style import is forbidden                     @typescript-eslint/no-require-imports
+  3199:23  warning  '$response' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  3511:19  warning  'hasInstallmentKeyword' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  3601:32  warning  'cardNumber' is defined but never used                      @typescript-eslint/no-unused-vars
+  3979:23  warning  'popupViewState' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\http\final-pay-outcome-simulations.js
+  4:29  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\http\index.js
+  23:27  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  26:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\http\renewal-purchase-guard.js
+  45:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  46:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\http\sold-packages-report.js
+  39:23  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  40:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  41:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  42:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\http\webforms-form.js
+  38:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\index.js
+  20:1   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  21:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  22:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  23:34  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  24:16  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  25:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  26:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\keepalive.js
+  20:1   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  21:29  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  22:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  23:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\activity-tracker.js
+  12:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\bein-login-tracking.js
+  7:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\bein-spend-ledger.js
+  4:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  5:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:35  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\contract-verification.js
+  8:43  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\crypto.js
+  8:34  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\fulfillment-baseline.js
+  11:38  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  12:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\fulfillment-finalization.js
+   6:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   7:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   8:38  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   9:29  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  10:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\fulfillment-proof.js
+   9:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  10:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\installment-finalization.js
+  38:23  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  39:35  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  40:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  41:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  51:93  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\integrity-detector.js
+  5:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\package-cache.js
+  22:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\points.js
+  7:34  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  8:38  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\pre-mutation-renewal-finalization.js
+  4:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  5:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\prisma.js
+  18:1   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  19:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  20:22  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  21:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\promo-quote.js
+   9:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  10:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\provider-report-reader.js
+   7:23  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   8:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   9:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  10:40  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  11:27  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  12:31  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  13:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\redis.js
+  22:35  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\renewal-fulfillment-correlation.js
+  6:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\renewal-no-charge-finalization.js
+  4:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  5:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:35  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\session-cache.js
+  44:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  45:16  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  46:27  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\lib\session-keepalive.js
+  19:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  20:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  21:29  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  22:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  23:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  24:31  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  25:27  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  26:40  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  27:24  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  28:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  29:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\pool\account-pool-manager.js
+   11:18  error    A `require()` style import is forbidden                                                                @typescript-eslint/no-require-imports
+   12:17  error    A `require()` style import is forbidden                                                                @typescript-eslint/no-require-imports
+   13:24  error    A `require()` style import is forbidden                                                                @typescript-eslint/no-require-imports
+   14:27  error    A `require()` style import is forbidden                                                                @typescript-eslint/no-require-imports
+   15:18  error    A `require()` style import is forbidden                                                                @typescript-eslint/no-require-imports
+   16:40  error    A `require()` style import is forbidden                                                                @typescript-eslint/no-require-imports
+   59:9   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  179:9   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  584:9   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  650:9   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\pool\account-queue-manager.js
+   52:17  error    A `require()` style import is forbidden                  @typescript-eslint/no-require-imports
+   63:7   warning  'QUEUE_POSITION_KEY' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  246:80  error    A `require()` style import is forbidden                  @typescript-eslint/no-require-imports
+  262:76  error    A `require()` style import is forbidden                  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\pool\health-checker.js
+  10:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  11:40  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\pool\index.js
+   9:30  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  14:31  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  18:22  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  24:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  32:24  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\utils\error-handler.js
+  10:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  11:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\utils\notification.js
+  11:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  12:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\utils\proxy-manager.js
+  5:29  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:29  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\utils\selector-manager.js
+  10:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\output\verify-smartcard-worker\worker\src\utils\totp-generator.js
+  10:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\admin\keepalive-stats\route.ts
+  17:27  warning  'request' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\admin\mobile-app\payments\route.ts
+  27:15  warning  'status' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\mobile\profile\route.ts
+  92:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  96:56  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\mobile\store\orders\route.ts
+  140:17  error  'creditDeduction' is never reassigned. Use 'const' instead  prefer-const
+  141:17  error  'walletDeduction' is never reassigned. Use 'const' instead  prefer-const
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\mobile\subscriptions\signal\route.ts
+  77:17  error  'creditDeduction' is never reassigned. Use 'const' instead  prefer-const
+  78:17  error  'walletDeduction' is never reassigned. Use 'const' instead  prefer-const
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\mobile\subscriptions\status\[operationId]\route.ts
+  17:98  warning  'routeContext' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\store\auth\register\route.ts
+  8:23  warning  'NextResponse' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\app\api\store\categories\route.ts
+  13:27  warning  'request' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\components\operations\BulkRenewForm.tsx
+  79:18  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\components\ui\ActivityItem.tsx
+  5:10  warning  'Card' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\components\ui\badge.tsx
+  4:10  warning  'Slot' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\components\ui\button.tsx
+  5:22  warning  'MouseEvent' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\lib\activity-status.ts
+  195:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\lib\activityLogHelpers.ts
+  157:96  warning  '_action' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\lib\customer-auth.ts
+  13:15  warning  'SignOptions' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\lib\points\cash-redemption.ts
+  3:15  warning  'Prisma' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\src\lib\services\activityTracker.ts
+   37:5  warning  'RoleMetrics' is defined but never used                         @typescript-eslint/no-unused-vars
+  542:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\tests\integration\bein-login-recovery.test.ts
+  46:45  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  88:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\tests\unit\bein-account-recovery.test.ts
+    9:15  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   14:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   35:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   51:15  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   59:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   79:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   94:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  102:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  114:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  126:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  127:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  128:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  129:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\src\customer-index.ts
+  76:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\src\http-queue-processor.ts
+  1279:63  warning  'accountId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\src\http\HttpClientService.ts
+    14:32  warning  'AxiosResponse' is defined but never used                   @typescript-eslint/no-unused-vars
+    19:8   warning  'https' is defined but never used                           @typescript-eslint/no-unused-vars
+  1426:22  warning  'ipErr' is defined but never used                           @typescript-eslint/no-unused-vars
+  3919:23  warning  '$response' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  4283:19  warning  'hasInstallmentKeyword' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  4392:60  warning  '_cardNumber' is defined but never used                     @typescript-eslint/no-unused-vars
+  4786:23  warning  'popupViewState' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\src\lib\activity-tracker.ts
+  99:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\src\pool\account-queue-manager.ts
+  36:7   warning  'QUEUE_POSITION_KEY' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  38:11  warning  'QueueEntry' is defined but never used                   @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\balance-read-boundary.test.ts
+  6:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  6:45  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\deferred-verification-route.test.ts
+  12:32   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:54   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:102  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  44:36   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  50:33   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:33   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\keepalive-login-recovery.test.ts
+   9:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  11:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  12:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  12:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  13:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  18:74  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  35:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  46:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-challenge-recovery.test.ts
+   25:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   50:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   51:74  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  118:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-failure-classification.test.ts
+   31:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   32:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   33:51  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   40:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   41:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   63:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   64:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   81:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   90:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  122:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  143:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-retry-consumers.test.ts
+  12:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  16:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  31:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-tracking-recovery.test.ts
+  9:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\provider-report-browser.test.ts
+  14:102  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:89   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:33   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  21:33   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:20   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  30:45   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:83   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\relogin-execution-lease.test.ts
+  16:44   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  16:118  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:78   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  60:42   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  60:108  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  61:70   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 285 problems (247 errors, 38 warnings)
+  4 errors and 4 warnings potentially fixable with the `--fix` option.
+
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme

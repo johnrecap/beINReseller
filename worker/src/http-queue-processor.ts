@@ -72,12 +72,11 @@ import {
     invalidatePackageCache
 } from './lib/package-cache';
 import {
-    recordLoginFailure,
     recordLoginSuccess,
     recordLoginHealthSuccess,
     recordLoginHealthFailure,
-    shouldCountAsCredentialFailure,
 } from './lib/bein-login-tracking';
+import type { LoginHealthContext } from '../../shared/bein/login-health';
 import {
     BEIN_CONNECTION_MODE_SETTING_KEY,
     DEFAULT_BEIN_CONNECTION_MODE,
@@ -873,16 +872,10 @@ function isSessionExpiredError(message: string | undefined): boolean {
         message.includes('Login page');
 }
 
-async function trackCredentialLoginFailure(accountId: string, reason: string | LoginResult | undefined, revision?: Date,
-    attempted = false, terminal = true): Promise<void> {
-    if (typeof reason === 'object') {
-        if (!terminal) return;
-        if (!await recordLoginHealthFailure(accountId, reason, revision, { attempted, terminal })) throw new Error('LOGIN_HEALTH_STALE');
-        return;
-    }
-    if (shouldCountAsCredentialFailure(reason)) {
-        await recordLoginFailure(accountId, reason, revision);
-    }
+async function trackCredentialLoginFailure(accountId: string, failure: LoginResult, revision: Date | undefined,
+    context: LoginHealthContext): Promise<void> {
+    if (!context.terminal) return;
+    if (!await recordLoginHealthFailure(accountId, failure, revision, context)) throw new Error('LOGIN_HEALTH_STALE');
 }
 
 async function trackFreshLoginSuccess(accountId: string, revision?: Date): Promise<void> {
@@ -892,7 +885,7 @@ async function trackFreshLoginSuccess(accountId: string, revision?: Date): Promi
 /**
  * Perform re-login with CAPTCHA handling and retry logic
  * Retries up to MAX_LOGIN_RETRIES times before giving up.
- * Each failure is recorded (consecutive counter increments).
+ * Only the terminal outcome updates login health; credential rejection alone increments its counter.
  * On success, the counter resets to 0.
  * After threshold consecutive failures, the account is auto-disabled.
  * 
@@ -948,7 +941,7 @@ export interface ReLoginRuntime {
     ) => Promise<void>;
     getCaptchaApiKey: () => Promise<string | null>;
     solveCaptcha: (apiKey: string, captchaImage: string) => Promise<string>;
-    trackCredentialLoginFailure: (accountId: string, reason: string | LoginResult | undefined, revision?: Date, attempted?: boolean, terminal?: boolean) => Promise<void>;
+    trackCredentialLoginFailure: typeof trackCredentialLoginFailure;
     trackFreshLoginSuccess: (accountId: string, revision?: Date) => Promise<void>;
     saveSessionToCacheFenced: (input: ReLoginFencedSessionInput) => Promise<boolean>;
     captureSharedSessionGuard?: (accountId: string) => Promise<SharedSessionGuard | undefined>;
@@ -976,6 +969,7 @@ export async function performReLogin(
     runtime: ReLoginRuntime = DEFAULT_RELOGIN_RUNTIME
 ): Promise<boolean> {
     let lastError: string = 'Login failed';
+    let pendingChallenge: LoginResult | undefined;
     // Capture ownership before HTTP. Never publish a late result under a newer owner's guard.
     const sharedGuard = executionLease ? undefined : await runtime.captureSharedSessionGuard?.(account.id);
 
@@ -992,11 +986,12 @@ export async function performReLogin(
 
             // Perform fresh login
             await runtime.assertExecutionLeaseCurrent(executionLease);
-            const loginResult = await httpClient.login(
+            const loginResult = pendingChallenge ?? await httpClient.login(
                 account.username,
                 account.password,
                 account.totpSecret || undefined
             );
+            pendingChallenge = undefined;
             await runtime.assertExecutionLeaseCurrent(executionLease);
 
             if (loginResult.requiresCaptcha && loginResult.captchaImage) {
@@ -1021,8 +1016,8 @@ export async function performReLogin(
 
                         if (!loginWithCaptcha.success) {
                             lastError = loginWithCaptcha.error || 'Login failed after CAPTCHA';
-                            await runtime.trackCredentialLoginFailure(account.id, loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin?.() === true,
-                                loginWithCaptcha.retryable === false || attempt === MAX_LOGIN_RETRIES);
+                            if (loginWithCaptcha.requiresCaptcha && loginWithCaptcha.captchaImage) pendingChallenge = loginWithCaptcha;
+                            await runtime.trackCredentialLoginFailure(account.id, loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin?.() === true, terminal: loginWithCaptcha.retryable === false || attempt === MAX_LOGIN_RETRIES });
                             console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
                             if (loginWithCaptcha.retryable === false) return false;
 
@@ -1038,7 +1033,7 @@ export async function performReLogin(
                         if (getErrMsg(captchaError).startsWith('LOGIN_HEALTH_')) throw captchaError;
                         if (isProviderExecutionLeaseLostError(captchaError)) throw captchaError;
                         if (attempt === MAX_LOGIN_RETRIES) await runtime.trackCredentialLoginFailure(account.id, loginResult,
-                            httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin?.() === true);
+                            httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin?.() === true, terminal: true });
                         lastError = 'CAPTCHA auto-solve failed';
                         console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${lastError}`);
 
@@ -1050,14 +1045,13 @@ export async function performReLogin(
                     }
                 } else {
                     lastError = 'Re-login requires CAPTCHA but no API key configured';
-                    await runtime.trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin?.() === true);
+                    await runtime.trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin?.() === true, terminal: true });
                     // Don't retry for missing API key — won't change between attempts
                     return false;
                 }
             } else if (!loginResult.success) {
                 lastError = loginResult.error || 'Login failed';
-                await runtime.trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin?.() === true,
-                    loginResult.retryable === false || attempt === MAX_LOGIN_RETRIES);
+                await runtime.trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin?.() === true, terminal: loginResult.retryable === false || attempt === MAX_LOGIN_RETRIES });
                 console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
                 if (loginResult.retryable === false) return false;
 
@@ -1722,7 +1716,7 @@ async function handleStartRenewalHttp(
                 solution = await waitForCaptchaSolution(operationId);
                 if (!solution) {
                     // Release lock before throwing
-                    await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), client.didAttemptLogin());
+                    await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), { attempted: client.didAttemptLogin(), terminal: true });
                     await releaseLoginLock(selectedAccount.id, WORKER_ID);
                     throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                 }
@@ -1740,7 +1734,7 @@ async function handleStartRenewalHttp(
             if (!loginWithCaptcha.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginWithCaptcha, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
+                    loginWithCaptcha, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
                 // Release lock before throwing
                 await releaseLoginLock(selectedAccount.id, WORKER_ID);
                 throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
@@ -1748,7 +1742,7 @@ async function handleStartRenewalHttp(
         } else if (!loginResult.success) {
             await trackCredentialLoginFailure(
                 selectedAccount.id,
-                loginResult, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
+                loginResult, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
             // Release lock before throwing
             await releaseLoginLock(selectedAccount.id, WORKER_ID);
             throw new Error(loginResult.error || 'Login failed');
@@ -4921,7 +4915,7 @@ async function handleSignalRefreshHttp(
 
                     solution = await waitForCaptchaSolution(operationId);
                     if (!solution) {
-                        await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision(), httpClient.didAttemptLogin());
+                        await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision(), { attempted: httpClient.didAttemptLogin(), terminal: true });
                         await releaseLoginLock(account.id, WORKER_ID);
                         throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                     }
@@ -4940,13 +4934,13 @@ async function handleSignalRefreshHttp(
                 if (!loginWithCaptcha.success) {
                     await trackCredentialLoginFailure(
                         account.id,
-                        loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin());
+                        loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin(), terminal: true });
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
                 console.log('🔑 [HTTP] Login with CAPTCHA successful');
             } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin());
+                await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin(), terminal: true });
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             } else {
@@ -5199,7 +5193,7 @@ async function handleSignalCheckHttp(
 
                     solution = await waitForCaptchaSolution(operationId);
                     if (!solution) {
-                        await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision(), httpClient.didAttemptLogin());
+                        await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision(), { attempted: httpClient.didAttemptLogin(), terminal: true });
                         await releaseLoginLock(account.id, WORKER_ID);
                         throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                     }
@@ -5216,12 +5210,12 @@ async function handleSignalCheckHttp(
                 if (!loginWithCaptcha.success) {
                     await trackCredentialLoginFailure(
                         account.id,
-                        loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin());
+                        loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin(), terminal: true });
                     await releaseLoginLock(account.id, WORKER_ID);
                     throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
                 }
             } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), httpClient.didAttemptLogin());
+                await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin(), terminal: true });
                 await releaseLoginLock(account.id, WORKER_ID);
                 throw new Error(loginResult.error || 'Login failed');
             }
@@ -5660,9 +5654,8 @@ async function handleCheckAccountBalance(
         );
         await assertBalanceGuardOwnership();
 
-        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            await recordLoginHealthFailure(account.id, loginResult, client.getLoginTrackingRevision(),
-                { attempted: client.didAttemptLogin(), terminal: true });
+        if (loginResult.requiresCaptcha || loginResult.failureCategory === 'captcha') {
+            // This display read cannot solve challenges; it has not exhausted authentication.
             throw new BalanceRefreshFailure('CAPTCHA_REQUIRED');
         }
 
@@ -5670,8 +5663,7 @@ async function handleCheckAccountBalance(
             await recordLoginHealthFailure(account.id, loginResult, client.getLoginTrackingRevision(),
                 { attempted: client.didAttemptLogin(), terminal: true });
             throw new BalanceRefreshFailure(loginResult.failureCategory === 'transport' ? 'CONNECTION_FAILED' :
-                loginResult.failureCategory === 'rate_limit' ? 'PROVIDER_RATE_LIMITED' :
-                    loginResult.failureCategory === 'captcha' ? 'CAPTCHA_REQUIRED' : 'LOGIN_FAILED');
+                loginResult.failureCategory === 'rate_limit' ? 'PROVIDER_RATE_LIMITED' : 'LOGIN_FAILED');
         }
 
         balanceAccountRevision = await recordLoginHealthSuccess(account.id, client.getLoginTrackingRevision?.());
@@ -5889,7 +5881,7 @@ async function handleStartInstallmentHttp(
 
                 solution = await waitForCaptchaSolution(operationId);
                 if (!solution) {
-                    await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), client.didAttemptLogin());
+                    await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), { attempted: client.didAttemptLogin(), terminal: true });
                     await releaseLoginLock(selectedAccount.id, WORKER_ID);
                     throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
                 }
@@ -5906,14 +5898,14 @@ async function handleStartInstallmentHttp(
             if (!loginWithCaptcha.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginWithCaptcha, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
+                    loginWithCaptcha, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
                 await releaseLoginLock(selectedAccount.id, WORKER_ID);
                 throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
             }
         } else if (!loginResult.success) {
             await trackCredentialLoginFailure(
                 selectedAccount.id,
-                loginResult, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
+                loginResult, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
             await releaseLoginLock(selectedAccount.id, WORKER_ID);
             throw new Error(loginResult.error || 'Login failed');
         }
@@ -6132,14 +6124,13 @@ async function handleConfirmInstallmentHttp(
                 selectedAccount.password,
                 selectedAccount.totpSecret || undefined
             );
-            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), client.didAttemptLogin());
+            if (loginResult.requiresCaptcha || loginResult.failureCategory === 'captcha') {
                 throw new Error('Login requires CAPTCHA for installment confirm');
             }
             if (!loginResult.success) {
                 await trackCredentialLoginFailure(
                     selectedAccount.id,
-                    loginResult, client.getLoginTrackingRevision?.(), client.didAttemptLogin());
+                    loginResult, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
                 throw new Error(loginResult.error || 'Login failed for installment confirm');
             }
             await trackFreshLoginSuccess(selectedAccount.id, client.getLoginTrackingRevision?.());

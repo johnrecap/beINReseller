@@ -1,0 +1,7 @@
+{
+  "processAbsent": true,
+  "listenerAbsent": true,
+  "shutdownSent": "NOSAVE",
+  "shutdownReply": "connection closed by server",
+  "remainingKeys": "NOT_VERIFIED after shutdown; fixtures clean unique test keys"
+}

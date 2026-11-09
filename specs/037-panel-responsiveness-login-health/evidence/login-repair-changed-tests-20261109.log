@@ -1,0 +1,512 @@
+[DB] Pool configured: max=10, idleTimeout=30000ms, connectionTimeout=10000ms
+[KeepAlive] beIN route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: synthetic
+[KeepAlive] synthetic: No session in Redis, need login...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: Session expired on beIN, performing fresh login...
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] Login challenge: stage=login_page code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA required, auto-solving...
+[KeepAlive] synthetic: CAPTCHA attempt 1/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login challenge: stage=submit code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA wrong on attempt 1, retrying...
+[KeepAlive] synthetic: CAPTCHA attempt 2/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Session marked as valid (expires in 15 min)
+[KeepAlive] synthetic: Login successful (CAPTCHA solved on attempt 2)
+[KeepAlive] beIN route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: synthetic
+[KeepAlive] synthetic: No session in Redis, need login...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: Session expired on beIN, performing fresh login...
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] Login challenge: stage=login_page code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[KeepAlive] synthetic: CAPTCHA required, auto-solving...
+[KeepAlive] synthetic: CAPTCHA attempt 1/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login challenge: stage=submit code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[KeepAlive] synthetic: CAPTCHA wrong on attempt 1, retrying...
+[KeepAlive] synthetic: CAPTCHA attempt 2/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login challenge: stage=submit code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA wrong on attempt 2, retrying...
+[KeepAlive] synthetic: CAPTCHA attempt 3/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login challenge: stage=submit code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA wrong on attempt 3, retrying...
+[KeepAlive] synthetic: Login failed after 3 CAPTCHA attempts
+[KeepAlive] beIN route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: synthetic
+[KeepAlive] synthetic: No session in Redis, need login...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: Session expired on beIN, performing fresh login...
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] Login challenge: stage=login_page code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA required, auto-solving...
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[KeepAlive] synthetic: CAPTCHA attempt 1/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: Login failed after 1 CAPTCHA attempts
+[KeepAlive] beIN route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: synthetic
+[KeepAlive] synthetic: No session in Redis, need login...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: Session expired on beIN, performing fresh login...
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] Login challenge: stage=login_page code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[KeepAlive] synthetic: CAPTCHA required, auto-solving...
+[KeepAlive] synthetic: CAPTCHA attempt 1/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] Login challenge: stage=login_page code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 1/3 for synthetic (read)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] Login challenge: stage=login_page code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] 🧩 CAPTCHA required during login attempt 1, attempting auto-solve...
+[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login challenge: stage=submit code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] ❌ Attempt 1/3 failed: Login CAPTCHA verification requires attention
+[HTTP] ⏳ Retrying in 2000ms...
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 2/3 for synthetic (read)
+[HTTP] 🧩 CAPTCHA required during login attempt 2, attempting auto-solve...
+[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] ✅ Login with CAPTCHA successful on attempt 2
+[HTTP] ✅ Fresh login successful for read (attempt 2)
+✔ KeepAlive completes renewed CAPTCHA with matching state instead of quarantining a valid account (183.3312ms)
+✔ KeepAlive exhausts exactly three challenges and quarantines once without counting password failures (251.1539ms)
+✔ KeepAlive reports one actual attempt when explicit credentials are rejected (36.2717ms)
+✔ ownership lost during challenge submission prevents late health and session writes (40.5969ms)
+✔ report challenge fails the read without a credential POST or account quarantine (69.9108ms)
+✔ re-login consumes renewed CAPTCHA within its three-attempt budget and saves only after success (278.4484ms)
+[DB] Pool configured: max=10, idleTimeout=30000ms, connectionTimeout=10000ms
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] POST login credentials...
+[HTTP] Login response: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 407
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 407
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 429
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] POST login credentials...
+[HTTP] Login response: 429
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 500
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] POST login credentials...
+[HTTP] Login response: 500
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 502
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 502
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 503
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 503
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: PROXY_PAYMENT_REQUIRED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_CONNECTION_FAILED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_CONNECTION_FAILED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Authentication rejected: response still contains login form
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login form returned
+[HTTP] Red spans found: 0
+[HTTP] Login response body inspected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login response: 200
+[HTTP] Login verified by authenticated content
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Login verified by authenticated content
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 0)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 0 chars ⚠️ SMALL (likely login page)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] POST login credentials...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Submit login failed: PROXY_PAYMENT_REQUIRED
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] Login challenge: stage=login_page code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): unknown
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login challenge: stage=submit code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 9)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 9 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login verified by authenticated content
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): unknown
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] Login challenge: stage=submit code=LOGIN_CAPTCHA_REQUIRED
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 9)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 9 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login verified by authenticated content
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_TLS_FAILED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_TLS_FAILED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_TLS_FAILED
+✔ GET 402 blocks credential POST and classifies failure (2.169ms)
+✔ POST 402 never authenticates or asserts bad credentials (5.8574ms)
+✔ GET 407 blocks credential POST and classifies failure (0.1947ms)
+✔ POST 407 never authenticates or asserts bad credentials (1.2016ms)
+✔ GET 429 blocks credential POST and classifies failure (0.1679ms)
+✔ POST 429 never authenticates or asserts bad credentials (1.0175ms)
+✔ GET 500 blocks credential POST and classifies failure (0.1564ms)
+✔ POST 500 never authenticates or asserts bad credentials (0.7061ms)
+✔ GET 502 blocks credential POST and classifies failure (0.1609ms)
+✔ POST 502 never authenticates or asserts bad credentials (0.6991ms)
+✔ GET 503 blocks credential POST and classifies failure (0.1517ms)
+✔ POST 503 never authenticates or asserts bad credentials (0.644ms)
+✔ local revision failure is not an actual provider login attempt (0.3815ms)
+✔ transport exception 402 is safe and typed (0.3705ms)
+✔ transport exception ENOTFOUND is safe and typed (0.2396ms)
+✔ transport exception ETIMEDOUT is safe and typed (0.1696ms)
+✔ ambiguous 200 does not create a session: <title>Finance Dashboard</titl (2.9721ms)
+✔ ambiguous 200 does not create a session: <title>Finance</title><input i (1.4522ms)
+✔ ambiguous 200 does not create a session: <title>Error</title><p>Somethi (1.2087ms)
+✔ ambiguous 200 does not create a session: <input id="__VIEWSTATE" name=" (1.0539ms)
+✔ ambiguous 200 does not create a session: <title>Check</title><a id="ctl (1.5657ms)
+✔ explicit credential rejection is distinct from CAPTCHA and unknown failure (2.8971ms)
+✔ authenticated content succeeds and three account instances remain isolated (2.4526ms)
+✔ ambiguous GET 200 does not send credentials; authenticated GET reuses verified session (0.7708ms)
+✔ CONNECT 402 while submitting credentials stops and redacts the raw exception (0.7405ms)
+✔ CAPTCHA image HTTP 402 remains a transport failure and prevents credential submission (0.8389ms)
+✔ renewed CAPTCHA preserves fresh form state until successful resubmission (no message) (1.6814ms)
+✔ renewed CAPTCHA preserves fresh form state until successful resubmission (Incorrect CAPTCHA) (1.668ms)
+✔ explicit rejection takes precedence over a returned CAPTCHA: Invalid username or password (0.8088ms)
+✔ explicit rejection takes precedence over a returned CAPTCHA: Invalid Username or Password (0.6124ms)
+✔ TLS ERR_TLS_CERT_ALTNAME_INVALID cannot quarantine a valid account (0.2894ms)
+✔ TLS CERT_HAS_EXPIRED cannot quarantine a valid account (0.145ms)
+✔ TLS UNABLE_TO_VERIFY_LEAF_SIGNATURE cannot quarantine a valid account (0.1202ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5052.1756

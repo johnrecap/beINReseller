@@ -4,6 +4,22 @@ Feature: 037. Review date: 2026-11-04. Scope: application implementation authori
 
 ## Implementation phase reconciliation
 
+### Authorized login repair — 2026-11-09
+
+The user explicitly requested implementation of the reviewed false-quarantine repair. This is a bounded correction to existing T014–T019 behavior, not authorization to finish unrelated panel work, deploy, or change financial semantics. Baseline: `67c982fc052649a10c00338238787624bfd2cbd9`, clean worktree. All original task acceptance states remain open.
+
+| ID | Requirement / source | Action and verification | Evidence / status |
+| --- | --- | --- | --- |
+| LR01 | Accepted repair; FR-014/016 | Preserve renewed CAPTCHA and matching form state; complete existing bounded recovery; explicit finality at every caller | VERIFIED locally; parser and composed KeepAlive/re-login regressions; three submissions and one final write |
+| LR02 | Accepted repair; FR-014/017 | Display/read-only CAPTCHA fails that job without quarantine; preserve account/operation ownership | VERIFIED locally; real balance dispatcher and composed report test; non-solving installment-confirm login branch inspected |
+| LR03 | Accepted repair; FR-015/022 | Certificate errors remain safe transport failures; diagnostic stages and actual attempt counts contain no secrets | VERIFIED locally; TLS/redaction cases, challenge-stage log and actual KeepAlive count; no TLS option changed |
+| LR04 | Accepted repair; FR-013/017/019 | Genuine terminal failures retain quarantine; old results cannot overwrite ADMIN recovery; no automatic activation | VERIFIED locally; SQL revision recovery, ownership and native Redis cache/lock tests; native PostgreSQL multi-process contention NOT_VERIFIED |
+| LR05 | Accepted repair; FR-021 | Reuse ar/en/bn message keys; check Arabic/RTL and narrow views | VERIFIED scoped fixture: 39 checks and inspected screenshots; existing horizontal table/ellipsis limitations retained |
+| LR06 | Execution workflow; accepted repair | Full root/Worker tests, types, builds, lint and encoding; semantic diff review separately | Tests/types/build VERIFIED: 964 root and 578 distinct Worker passes. Scoped lint passes without added violations; global lint remains NOT_CLEAN due baseline debt. See implementation.md |
+| LR07 | Execution workflow; accepted repair | Separate template contract from lifecycle task-evidence schema; update this register, guide and project memory | Current validators recorded in login-repair-verification-20261109.json; lifecycle remains 0/24 tasks complete |
+
+Representative gate: HTTP classification first failed five cases, then passed before orchestration verification; KeepAlive/report reproduction initially failed three cases. Repaired regressions now pass. The template contract moved to `evidence/template-contract.json`, while `plan-guard-documentation.json` retains the historical snapshot. `plan-guard.json` now uses lifecycle schema/current hashes and an empty task map. No historical task or author acceptance is inferred. Current details: `evidence/implementation.md`, "False login quarantine repair — 2026-11-09".
+
 The user authorized the accepted T001–T024 workflow on 2026-11-04. O01's documentation-only restriction describes the completed preceding phase; it no longer prohibits runtime changes. O02–O12 and all FR/SC mappings remain binding. No requirement, original template or historical evidence gap is waived. Source discovery reconfirmed C01–C07 and the queue/report/keepalive tracking callers before runtime edits. Planning structural analysis must run with explicit implementation-phase scope; it does not certify runtime tests. No deployment, provider purchase or automatic commit is authorized by this phase change.
 
 Current runtime status is PARTIAL. T004–T006 have foundation/C01/C02 and scoped unit/browser evidence. T009–T012 have async balance store/API/Worker lifecycle with selected tests and temporary native Redis concurrency; UI polling and integrated SQL/Worker acceptance remain open. T014–T015 have health helpers; balance uses the revision-returning success writer, while first-terminal failure policy is not wired across callers. All task boxes remain open. C03–C07, remaining US2/US3 and T020–T024 gates are required work, not accepted omissions. See evidence/implementation.md, evidence/current-checks.json and evidence/native-redis-checkpoint.json. Design resolutions below do not imply zero outstanding runtime issues.

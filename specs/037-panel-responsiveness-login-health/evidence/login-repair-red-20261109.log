@@ -1,0 +1,429 @@
+[DB] Pool configured: max=10, idleTimeout=30000ms, connectionTimeout=10000ms
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 407
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 407
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 429
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 429
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 500
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 500
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 502
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 502
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 503
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 503
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: PROXY_PAYMENT_REQUIRED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_CONNECTION_FAILED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_CONNECTION_FAILED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Authentication rejected: response still contains login form
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login form returned
+[HTTP] Red spans found: 0
+[HTTP] Login response body inspected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 402
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login verified by authenticated content
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Login response: 200
+[HTTP] Login verified by authenticated content
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 0)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 0 chars ⚠️ SMALL (likely login page)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Submit login failed: PROXY_PAYMENT_REQUIRED
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: true
+[HTTP] CAPTCHA detected
+[HTTP] Fetching CAPTCHA image
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): unknown
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Login form returned
+[HTTP] Red spans found: 0
+[HTTP] Login response body inspected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): unknown
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 12)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 12 chars ⚠️ SMALL (likely login page)
+[HTTP] CAPTCHA selector: #captcha, found: false
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_REVIEW_REQUIRED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_REVIEW_REQUIRED
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Login failed: LOGIN_REVIEW_REQUIRED
+✔ GET 402 blocks credential POST and classifies failure (1.6876ms)
+✔ POST 402 never authenticates or asserts bad credentials (4.6781ms)
+✔ GET 407 blocks credential POST and classifies failure (0.1538ms)
+✔ POST 407 never authenticates or asserts bad credentials (0.9751ms)
+✔ GET 429 blocks credential POST and classifies failure (0.1321ms)
+✔ POST 429 never authenticates or asserts bad credentials (0.6805ms)
+✔ GET 500 blocks credential POST and classifies failure (0.105ms)
+✔ POST 500 never authenticates or asserts bad credentials (0.6071ms)
+✔ GET 502 blocks credential POST and classifies failure (0.1415ms)
+✔ POST 502 never authenticates or asserts bad credentials (0.5428ms)
+✔ GET 503 blocks credential POST and classifies failure (0.127ms)
+✔ POST 503 never authenticates or asserts bad credentials (0.5129ms)
+✔ local revision failure is not an actual provider login attempt (0.3434ms)
+✔ transport exception 402 is safe and typed (0.3004ms)
+✔ transport exception ENOTFOUND is safe and typed (0.2077ms)
+✔ transport exception ETIMEDOUT is safe and typed (0.1331ms)
+✔ ambiguous 200 does not create a session: <title>Finance Dashboard</titl (2.1662ms)
+✔ ambiguous 200 does not create a session: <title>Finance</title><input i (1.0418ms)
+✔ ambiguous 200 does not create a session: <title>Error</title><p>Somethi (0.9171ms)
+✔ ambiguous 200 does not create a session: <input id="__VIEWSTATE" name=" (0.7692ms)
+✔ ambiguous 200 does not create a session: <title>Check</title><a id="ctl (1.2509ms)
+✔ explicit credential rejection is distinct from CAPTCHA and unknown failure (2.2305ms)
+✔ authenticated content succeeds and three account instances remain isolated (2.2244ms)
+✔ ambiguous GET 200 does not send credentials; authenticated GET reuses verified session (0.7375ms)
+✔ CONNECT 402 while submitting credentials stops and redacts the raw exception (0.6428ms)
+✔ CAPTCHA image HTTP 402 remains a transport failure and prevents credential submission (0.6448ms)
+✖ renewed CAPTCHA preserves fresh form state until successful resubmission (no message) (2.8946ms)
+✖ renewed CAPTCHA preserves fresh form state until successful resubmission (Incorrect CAPTCHA) (0.8796ms)
+✔ explicit credential rejection takes precedence over a returned CAPTCHA (0.6602ms)
+✖ TLS ERR_TLS_CERT_ALTNAME_INVALID cannot quarantine a valid account (0.3669ms)
+✖ TLS CERT_HAS_EXPIRED cannot quarantine a valid account (0.2739ms)
+✖ TLS UNABLE_TO_VERIFY_LEAF_SIGNATURE cannot quarantine a valid account (0.241ms)
+ℹ tests 32
+ℹ suites 0
+ℹ pass 27
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 987.7079
+
+✖ failing tests:
+
+test at worker\tests\login-failure-classification.test.ts:2:8092
+✖ renewed CAPTCHA preserves fresh form state until successful resubmission (no message) (2.8946ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - true
+  
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-failure-classification.test.ts:151:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at worker\tests\login-failure-classification.test.ts:2:8092
+✖ renewed CAPTCHA preserves fresh form state until successful resubmission (Incorrect CAPTCHA) (0.8796ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - true
+  
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-failure-classification.test.ts:151:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at worker\tests\login-failure-classification.test.ts:2:9907
+✖ TLS ERR_TLS_CERT_ALTNAME_INVALID cannot quarantine a valid account (0.3669ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'unknown'
+  - 'transport'
+  
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-failure-classification.test.ts:173:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'unknown',
+    expected: 'transport',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at worker\tests\login-failure-classification.test.ts:2:9907
+✖ TLS CERT_HAS_EXPIRED cannot quarantine a valid account (0.2739ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'unknown'
+  - 'transport'
+  
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-failure-classification.test.ts:173:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'unknown',
+    expected: 'transport',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at worker\tests\login-failure-classification.test.ts:2:9907
+✖ TLS UNABLE_TO_VERIFY_LEAF_SIGNATURE cannot quarantine a valid account (0.241ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'unknown'
+  - 'transport'
+  
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-failure-classification.test.ts:173:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'unknown',
+    expected: 'transport',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

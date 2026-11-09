@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-09",
+  "scope": "Commit/push tested login repair; provide user-operated server commands",
+  "branch": "codex/037-panel-responsiveness-login-health",
+  "remoteBaseline": "67c982fc052649a10c00338238787624bfd2cbd9",
+  "runtimeSourceAndTestReceiptRecheck": "PASS",
+  "priorVerification": {
+    "path": "specs/037-panel-responsiveness-login-health/evidence/login-repair-verification-20261109.json",
+    "sha256": "6cfdae53e66567ca9f889810251ba74d2573342a7095800f4860aa941d576825"
+  },
+  "documentationChanges": [
+    {
+      "path": "docs/PROJECT_GUIDE.md",
+      "previous": "4bac5796ce7dac34723e8f03bf654e98e3cf25b036dc2e00e3d6af926ce4fa74",
+      "current": "d0fe3a177da62c686d709f4ff6aaadfc11ef7529fe34c0de535b17390f48f4cf",
+      "reason": "User-authorized publication handoff only"
+    }
+  ],
+  "serverCommands": {
+    "path": "docs/deployment/login-quarantine-20261109.md",
+    "sha256": "bf06fe3716d22c5121fec8aa0ad4217abbc4de8a928836ba1181693b46b906fd"
+  },
+  "deployment": "NOT_EXECUTED",
+  "remoteHeadVerification": "Performed after push; exact SHA reported in chat",
+  "authorAcceptance": "Publication authorized; broader task and production acceptance not inferred",
+  "packaging": {
+    "sourceAndDocumentationWhitespace": "PASS",
+    "rawCommandLogs": "Preserved byte content; original trailing whitespace retained rather than editing test evidence",
+    "bashSyntax": "Manually reviewed against repository command conventions; no Bash interpreter available locally"
+  }
+}

@@ -1,0 +1,72 @@
+🔄 Redis: Retrying connection in 100ms (attempt 1)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 200ms (attempt 2)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 300ms (attempt 3)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 400ms (attempt 4)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 500ms (attempt 5)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 600ms (attempt 6)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 700ms (attempt 7)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 800ms (attempt 8)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 900ms (attempt 9)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+🔄 Redis: Retrying connection in 1000ms (attempt 10)
+📡 Redis connection closed
+🔄 Redis reconnecting...
+📡 Redis connection closed
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+The system cannot find the path specified.
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis connection error: connect EACCES 127.0.0.1:16379
+❌ Redis: Max retry attempts reached
+Error: Connection is closed.
+    at EventEmitter.sendCommand (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\node_modules\ioredis\built\Redis.js:333:28)
+    at EventEmitter.scan (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\node_modules\ioredis\built\utils\Commander.js:90:25)
+    at main (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\tests\integration\bein-login-challenge.cjs:83:38)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)

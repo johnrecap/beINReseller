@@ -1,0 +1,18 @@
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\src\http-queue-processor.ts
+  1279:63  warning  'accountId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\src\http\HttpClientService.ts
+    14:32  warning  'AxiosResponse' is defined but never used                   @typescript-eslint/no-unused-vars
+    19:8   warning  'https' is defined but never used                           @typescript-eslint/no-unused-vars
+  1426:22  warning  'ipErr' is defined but never used                           @typescript-eslint/no-unused-vars
+  3919:23  warning  '$response' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  4283:19  warning  'hasInstallmentKeyword' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  4392:60  warning  '_cardNumber' is defined but never used                     @typescript-eslint/no-unused-vars
+  4786:23  warning  'popupViewState' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+✖ 8 problems (0 errors, 8 warnings)
+
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme

@@ -18,7 +18,7 @@ Scope: Spec Kit 037 documentation through analyze. Baseline runtime commit: `7dd
 | Existing-file encoding / git diff --check | PASS; no introduced BOM/mojibake; Git only warns about configured LF/CRLF normalization | Scoped documentation check |
 | Project memory structure/source validation | PASS; exactly one UPD-20261104-001 records NO_RUNTIME_IMPACT | Freshness is refreshed only after all other artifacts settle |
 
-The generic checker reads original spec/plan/task/checklist templates; the companion validator extracts all five task-detail labels from the original task template's fenced example. No reduced handwritten substitute template was used. The feature contract is [plan-guard.json](plan-guard.json). The historical missing 027 contract was not created or recertified.
+The generic checker reads original spec/plan/task/checklist templates; the companion validator extracts all five task-detail labels from the original task template's fenced example. No reduced handwritten substitute template was used. The feature contract is [template-contract.json](template-contract.json), relocated on 2026-11-09 to distinguish it from lifecycle task evidence. The original planning snapshot remains in `plan-guard-documentation.json`. The historical missing 027 contract was not created or recertified.
 
 ## Semantic design review
 

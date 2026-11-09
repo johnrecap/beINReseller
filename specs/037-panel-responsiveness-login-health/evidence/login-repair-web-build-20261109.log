@@ -1,0 +1,74 @@
+
+> bein-reseller-panel@0.1.0 prebuild
+> node scripts/check-prisma-schema-sync.js && prisma generate
+
+Prisma schema sync check passed.
+
+✔ Generated Prisma Client (v7.2.0) to .\node_modules\@prisma\client in 335ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+
+> bein-reseller-panel@0.1.0 build
+> next build
+
+▲ Next.js 16.1.1 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to C:\Users\UTD\AppData\Local\Packages\sandbox.{9df80747-4bf4-492a-a269-735a80a8a707}\AC\Temp\next-panic-e8b50db975e74b7e7524bea5411619e8.log.
+
+To help make Turbopack better, report this error by clicking here: https://github.com/vercel/next.js/discussions/new?category=turbopack-error-report&title=Turbopack%20Error%3A%20%5Bproject%5D%2Fsrc%2Fapp%2Fglobals.css%20%5Bapp-client%5D%20%28css%29&body=Turbopack%20version%3A%20%60d1bd5b58%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0ATurbopack%20Error%3A%20%5Bproject%5D%2Fsrc%2Fapp%2Fglobals.css%20%5Bapp-client%5D%20%28css%29%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+
+> Build error occurred
+Error [TurbopackInternalError]: [project]/src/app/globals.css [app-client] (css)
+
+Caused by:
+- creating new process
+- node process exited before we could connect to it with exit code: 0
+
+Debug info:
+- Execution of get_all_written_entrypoints_with_issues_operation failed
+- Execution of EntrypointsOperation::new failed
+- Execution of all_entrypoints_write_to_disk_operation failed
+- Execution of Project::emit_all_output_assets failed
+- Execution of *emit_assets failed
+- Execution of all_assets_from_entries_operation failed
+- Execution of *all_assets_from_entries failed
+- Execution of output_assets_operation failed
+- Execution of <MiddlewareEndpoint as Endpoint>::output failed
+- Execution of MiddlewareEndpoint::output_assets failed
+- Execution of MiddlewareEndpoint::edge_chunk_group failed
+- Execution of *evaluated_chunk_group_assets failed
+- Execution of Project::edge_chunking_context failed
+- Execution of *get_edge_chunking_context failed
+- Execution of Project::module_ids failed
+- Execution of whole_app_module_graph_operation failed
+- Execution of *ModuleGraph::from_single_graph failed
+- Execution of SingleModuleGraph::new_with_entries failed
+- [project]/src/app/globals.css [app-client] (css)
+- Execution of primary_chunkable_referenced_modules failed
+- Execution of <CssModuleAsset as Module>::references failed
+- Execution of parse_css failed
+- Execution of <PostCssTransformedAsset as Asset>::content failed
+- Execution of PostCssTransformedAsset::process failed
+- Execution of evaluate_webpack_loader failed
+- creating new process
+- node process exited before we could connect to it with exit code: 0
+  Process output:
+  
+  Process error output:
+    at <unknown> (TurbopackInternalError: [project]/src/app/globals.css [app-client] (css)) {
+  type: 'TurbopackInternalError',
+  location: undefined
+}

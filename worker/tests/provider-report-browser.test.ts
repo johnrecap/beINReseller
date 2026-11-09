@@ -22,7 +22,7 @@ test('report login records explicit credential rejection under its current owner
 })
 
 for (const failure of [loginMessageFailure(), loginMessageFailure('CAPTCHA'), loginHttpFailure(429), loginHttpFailure(402)])
-test(`report records terminal ${failure!.failureCategory} without turning it into credential text`, async () => {
+test(`report distinguishes pending challenges from final ${failure!.failureCategory} outcomes`, async () => {
     const tracked: any[] = []
     const r = runtime({ recordLoginResult: async (...args: unknown[]) => { tracked.push(args) } })
     r.client.isSessionActive = () => false
@@ -31,7 +31,7 @@ test(`report records terminal ${failure!.failureCategory} without turning it int
     await assert.rejects(readProviderReport(request, r.services, new AbortController().signal))
     assert.equal(tracked.length, 1)
     assert.equal(tracked[0][1].failureCategory, failure!.failureCategory)
-    assert.equal(tracked[0][3], true)
+    assert.deepEqual(tracked[0][3], { attempted: true, terminal: failure!.failureCategory !== 'captcha' })
 })
 
 for (const status of [402, 407, 429]) test(`report login ${status} returns connection/rate classification without a retry`, async () => {

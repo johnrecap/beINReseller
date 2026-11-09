@@ -1,0 +1,13 @@
+
+> bein-worker@1.0.0 build
+> node ../scripts/check-prisma-schema-sync.js && node -e "require('fs').mkdirSync('prisma',{recursive:true})" && node -e "require('fs').copyFileSync('../prisma/schema.prisma','prisma/schema.prisma')" && prisma generate && tsc && node -e "const fs=require('fs');fs.writeFileSync('dist/index.js', \"require('./worker/src/index.js')\\n\");fs.writeFileSync('dist/keepalive.js', \"require('./worker/src/keepalive.js')\\n\");"
+
+Prisma schema sync check passed.
+
+✔ Generated Prisma Client (v7.2.0) to .\node_modules\@prisma\client in 322ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+Prisma schema loaded from prisma\schema.prisma.

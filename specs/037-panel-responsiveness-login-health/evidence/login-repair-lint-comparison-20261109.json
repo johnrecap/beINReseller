@@ -1,0 +1,86 @@
+[
+  {
+    "file": "shared/bein/login-failure.ts",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "src/i18n/translations/ar.ts",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "src/i18n/translations/bn.ts",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "src/i18n/translations/en.ts",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "tests/browser/panel-report-cases.cjs",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "worker/src/http-queue-processor.ts",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 1,
+    "currentWarnings": 1
+  },
+  {
+    "file": "worker/src/http/HttpClientService.ts",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 7,
+    "currentWarnings": 7
+  },
+  {
+    "file": "worker/src/lib/provider-report-reader.ts",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "worker/src/lib/session-keepalive.ts",
+    "baselineErrors": 0,
+    "currentErrors": 0,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "worker/tests/login-failure-classification.test.ts",
+    "baselineErrors": 10,
+    "currentErrors": 9,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "worker/tests/login-retry-consumers.test.ts",
+    "baselineErrors": 5,
+    "currentErrors": 5,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  },
+  {
+    "file": "worker/tests/provider-report-browser.test.ts",
+    "baselineErrors": 7,
+    "currentErrors": 7,
+    "baselineWarnings": 0,
+    "currentWarnings": 0
+  }
+]

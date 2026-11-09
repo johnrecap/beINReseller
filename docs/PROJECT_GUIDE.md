@@ -1,5 +1,17 @@
 # Project Guide
 
+## Login repair publication handoff (2026-11-09)
+
+The user authorized commit/push of the tested login repair to `codex/037-panel-responsiveness-login-health` and requested server pull commands. This supersedes the prior no-publication boundary, not the unverified production status. Runtime source hashes and test receipts were rechecked before packaging; no application code changed during publication. Use [server commands](deployment/login-quarantine-20261109.md) in `/www/wwwroot/deshpanel.com`. Existing PM2 worker count/environment are preserved; web stops before replacing `.next`. Production login and two KeepAlive cycles remain pending the user's server execution.
+
+## False login quarantine repair (2026-11-09)
+
+The accepted repair preserves renewed CAPTCHA images and matching hidden form fields after GET or POST. KeepAlive and re-login continue within their existing three-attempt budgets; only the terminal result updates login health. Balance/report reads return `CAPTCHA_REQUIRED` without disabling the account. Explicit bad credentials and final unknown authentication retain quarantine; certificate failures are transport warnings without immediate retries. No TLS verification bypass was added.
+
+Local verification: 964 root tests; 573 Worker passes plus all five Redis-gated cases passing separately (578 distinct cases). Both types and production builds pass. Loopback Redis plus Prisma/PGlite exercise the real balance dispatcher and recovery fences; native PostgreSQL contention and production-provider behavior remain unverified. Browser fixtures pass 39 ar/en/bn checks, including 360/768/1280 reason rendering. Scoped production/new-test lint passes; global lint retains baseline violations. See [repair evidence](../specs/037-panel-responsiveness-login-health/evidence/implementation.md#false-login-quarantine-repair--2026-11-09).
+
+The template contract is separated from lifecycle `plan-guard.json`; all original 037 tasks remain unchecked. No migration, automatic reactivation, financial policy change, commit, push or deployment. After separately authorized deployment, verify the affected account under existing locks and observe two full KeepAlive cycles. No production recovery is claimed.
+
 ## Spec Kit 037 implementation checkpoint (2026-11-04)
 
 Follow-up to published baseline 5b32ecb: native browser fetch now dispatches balance and other panel commands without binding the tracker as its receiver. The header tracker starts closed. Balance submissions confirm actual queue delivery, and expired receipts reconcile against current work. Run Q04b in the feature quickstart for the real Chrome → BullMQ → provider fixture → Prisma/PGlite → account row regression. See the follow-up in the implementation evidence for boundaries and results.

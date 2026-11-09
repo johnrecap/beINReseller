@@ -21,7 +21,8 @@ test('re-login passes terminal typed outcomes, including an unsolvable CAPTCHA, 
             { mode: 'server_ip', routeKey: 'direct' }, 'read', undefined, runtime), false)
         assert.equal(records.length, 1)
         assert.equal(records[0][1].failureCategory, outcome!.failureCategory)
-        assert.equal(records[0][3], true)
+        assert.equal(records[0][3].attempted, true)
+        assert.equal(records[0][3].terminal, true)
     }
 })
 

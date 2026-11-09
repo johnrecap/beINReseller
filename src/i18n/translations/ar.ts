@@ -209,7 +209,7 @@ export const ar = {
             loginFailuresHint: "أعطال الدخول وتحذيرات الاتصال الحالية. راجع السبب وحالة الحساب قبل الاستعادة.",
             currentThreshold: "الحد الحالي",
             loginThresholdHint: "يتعطل الحساب بعد أول فشل مصادقة نهائي. أعطال الاتصال لا تعطل الحساب.",
-            loginHealthReasons: { CREDENTIALS_REJECTED: 'رُفضت بيانات الدخول', CAPTCHA_EXHAUSTED: 'استُنفدت محاولات CAPTCHA', AUTH_REVIEW_REQUIRED: 'تحتاج المصادقة إلى مراجعة', CONNECTION_FAILED: 'تعذر الاتصال', RATE_LIMITED: 'تجاوز حد طلبات المزود', SYSTEM_ERROR: 'خطأ في النظام المحلي' },
+            loginHealthReasons: { CREDENTIALS_REJECTED: 'رُفضت بيانات الدخول', CAPTCHA_EXHAUSTED: 'استُنفدت محاولات CAPTCHA', AUTH_REVIEW_REQUIRED: 'تعذر تأكيد تسجيل الدخول إلى beIN؛ راجع آخر محاولة دخول', CONNECTION_FAILED: 'تعذر الاتصال', RATE_LIMITED: 'تجاوز حد طلبات المزود', SYSTEM_ERROR: 'خطأ في النظام المحلي' },
             loginConnectionWarning: 'تحذير اتصال أو نظام',
             loginActive: 'نشط',
             loginInactive: 'معطل',

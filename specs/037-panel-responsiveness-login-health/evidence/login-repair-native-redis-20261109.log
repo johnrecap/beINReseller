@@ -1,0 +1,19 @@
+✔ 2026-08-24 regression: legacy account lock needs the exact structured worker and operation owner (2.0514ms)
+✔ legacy-to-execution lease transition is one atomic exact-owner operation (1.3617ms)
+✔ T028 Redis lease has one atomic winner and exact-owner renew/assert/release (110.5243ms)
+✔ T028 exact legacy owner has one atomic transition winner (6.5436ms)
+✔ T028 expired execution lease cannot interfere with a delayed verification job (1116.252ms)
+✔ prepared owner is explicit and cannot reacquire the legacy lock (1.7249ms)
+✔ actual reservation orchestrator transfers a parked legacy owner to another worker using real Redis (300.8617ms)
+✔ handoff refuses missing, changed and foreign owners before publication (0.341ms)
+✔ T028 fenced session cache rejects a stale writer without replacing fresh state (1.7817ms)
+✔ prepared purchase identity is kept only in the fenced operation session and rejects another account (0.9651ms)
+✔ T028 Redis session CAS remains fenced after lease handoff (23.2746ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1555.6262

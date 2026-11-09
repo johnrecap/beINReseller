@@ -1,0 +1,219 @@
+[DB] Pool configured: max=10, idleTimeout=30000ms, connectionTimeout=10000ms
+[KeepAlive] beIN route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: synthetic
+[KeepAlive] synthetic: No session in Redis, need login...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: Session expired on beIN, performing fresh login...
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA required, auto-solving...
+[KeepAlive] synthetic: CAPTCHA attempt 1/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[KeepAlive] synthetic: CAPTCHA wrong on attempt 1, retrying...
+[KeepAlive] synthetic: CAPTCHA attempt 2/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Session marked as valid (expires in 15 min)
+[KeepAlive] synthetic: Login successful (CAPTCHA solved on attempt 2)
+[KeepAlive] beIN route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: synthetic
+[KeepAlive] synthetic: No session in Redis, need login...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: Session expired on beIN, performing fresh login...
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[KeepAlive] synthetic: CAPTCHA required, auto-solving...
+[KeepAlive] synthetic: CAPTCHA attempt 1/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA wrong on attempt 1, retrying...
+[KeepAlive] synthetic: CAPTCHA attempt 2/3...
+[HTTP] POST login credentials...
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA wrong on attempt 2, retrying...
+[KeepAlive] synthetic: CAPTCHA attempt 3/3...
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA wrong on attempt 3, retrying...
+[KeepAlive] synthetic: All 3 CAPTCHA attempts failed
+[KeepAlive] beIN route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[KeepAlive] Processing: synthetic
+[KeepAlive] synthetic: No session in Redis, need login...
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: Session expired on beIN, performing fresh login...
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[KeepAlive] synthetic: CAPTCHA required, auto-solving...
+[KeepAlive] synthetic: CAPTCHA attempt 1/3...
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] Provider error detected
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[KeepAlive] synthetic: All 3 CAPTCHA attempts failed
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 1/3 for synthetic (read)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] 🧩 CAPTCHA required during login attempt 1, attempting auto-solve...
+[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] ❌ Attempt 1/3 failed: Login CAPTCHA verification requires attention
+[HTTP] ⏳ Retrying in 2000ms...
+[HTTP] Re-login route for synthetic: mode=server_ip routeKey=direct using emergency server IP; assigned proxy ignored
+[HTTP] 🔑 Login attempt 2/3 for synthetic (read)
+[HTTP] Starting login
+[HTTP] 🌐 Current IP (via proxy): 192.0.2.1
+[HTTP] GET login page
+[HTTP] Login page status: 200
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] ⚠️ Session invalidated - will require fresh login
+[HTTP] WARNING: ViewState appears invalid or missing (length: 13)
+[HTTP] WARNING: EventValidation is missing - POST requests may fail
+[HTTP] ViewState extracted: 13 chars ⚠️ SMALL (likely login page)
+[HTTP] 🧩 CAPTCHA required during login attempt 2, attempting auto-solve...
+[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]
+[HTTP] POST login credentials...
+[HTTP] Login response: 200
+[HTTP] Session marked as valid (expires in 15 min)
+[HTTP] ✅ Login with CAPTCHA successful on attempt 2
+[HTTP] ✅ Fresh login successful for read (attempt 2)
+✔ KeepAlive completes renewed CAPTCHA with matching state instead of quarantining a valid account (92.7082ms)
+✔ KeepAlive exhausts exactly three challenges and quarantines once without counting password failures (33.6284ms)
+✖ KeepAlive reports one actual attempt when explicit credentials are rejected (24.6461ms)
+✖ report challenge fails the read without a credential POST or account quarantine (35.6853ms)
+✖ re-login consumes renewed CAPTCHA within its three-attempt budget and saves only after success (151.0507ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 2
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1894.4153
+
+✖ failing tests:
+
+test at worker\tests\login-challenge-recovery.test.ts:2:6095
+✖ KeepAlive reports one actual attempt when explicit credentials are rejected (24.6461ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /3 attempts/. Input:
+  
+  'CAPTCHA failed after 3 attempts: Invalid username or password'
+  
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-challenge-recovery.test.ts:86:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'CAPTCHA failed after 3 attempts: Invalid username or password',
+    expected: /3 attempts/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at worker\tests\login-challenge-recovery.test.ts:2:6568
+✖ report challenge fails the read without a credential POST or account quarantine (35.6853ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-challenge-recovery.test.ts:100:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at worker\tests\login-challenge-recovery.test.ts:2:7776
+✖ re-login consumes renewed CAPTCHA within its three-attempt budget and saves only after success (151.0507ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'initial-state'
+  - 'renewed-state'
+  
+      at TestContext.<anonymous> (C:\Users\UTD\Documents\Codex\RecoveredProjects\local-824ed535bfa79f5f6a87f278afd66bb8\bein-reseller-panel\worker\tests\login-challenge-recovery.test.ts:115:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'initial-state',
+    expected: 'renewed-state',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -209,7 +209,7 @@ export const bn = {
             loginFailuresHint: "বর্তমান লগইন ব্যর্থতা ও সংযোগ সতর্কতা। পুনরুদ্ধারের আগে কারণ ও অ্যাকাউন্টের অবস্থা পরীক্ষা করুন।",
             currentThreshold: "বর্তমান সীমা",
             loginThresholdHint: "প্রথম চূড়ান্ত প্রমাণীকরণ ব্যর্থতায় অ্যাকাউন্ট নিষ্ক্রিয় হয়। সংযোগ ব্যর্থতায় নিষ্ক্রিয় হয় না।",
-            loginHealthReasons: { CREDENTIALS_REJECTED: 'লগইন তথ্য প্রত্যাখ্যাত', CAPTCHA_EXHAUSTED: 'CAPTCHA প্রচেষ্টা শেষ', AUTH_REVIEW_REQUIRED: 'প্রমাণীকরণ পর্যালোচনা প্রয়োজন', CONNECTION_FAILED: 'সংযোগ ব্যর্থ', RATE_LIMITED: 'প্রদানকারীর অনুরোধ সীমা', SYSTEM_ERROR: 'স্থানীয় সিস্টেম ত্রুটি' },
+            loginHealthReasons: { CREDENTIALS_REJECTED: 'লগইন তথ্য প্রত্যাখ্যাত', CAPTCHA_EXHAUSTED: 'CAPTCHA প্রচেষ্টা শেষ', AUTH_REVIEW_REQUIRED: 'beIN লগইন নিশ্চিত করা যায়নি; সর্বশেষ লগইন প্রচেষ্টা পর্যালোচনা করুন', CONNECTION_FAILED: 'সংযোগ ব্যর্থ', RATE_LIMITED: 'প্রদানকারীর অনুরোধ সীমা', SYSTEM_ERROR: 'স্থানীয় সিস্টেম ত্রুটি' },
             loginConnectionWarning: 'সংযোগ বা সিস্টেম সতর্কতা',
             loginActive: 'সক্রিয়',
             loginInactive: 'নিষ্ক্রিয়',

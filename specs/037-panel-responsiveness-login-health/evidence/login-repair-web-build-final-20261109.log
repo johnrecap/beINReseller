@@ -1,0 +1,330 @@
+
+> bein-reseller-panel@0.1.0 prebuild
+> node scripts/check-prisma-schema-sync.js && prisma generate
+
+Prisma schema sync check passed.
+
+✔ Generated Prisma Client (v7.2.0) to .\node_modules\@prisma\client in 310ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+
+> bein-reseller-panel@0.1.0 build
+> next build
+
+▲ Next.js 16.1.1 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 14.4s
+  Running TypeScript ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/179) ...
+  Generating static pages using 15 workers (44/179) 
+  Generating static pages using 15 workers (89/179) 
+  Generating static pages using 15 workers (134/179) 
+✓ Generating static pages using 15 workers (179/179) in 410.3ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/admin/agent-assignments
+├ ƒ /api/admin/agents/[id]
+├ ƒ /api/admin/analytics
+├ ƒ /api/admin/analytics/activity
+├ ƒ /api/admin/announcement
+├ ƒ /api/admin/announcement/[id]
+├ ƒ /api/admin/bein-accounts
+├ ƒ /api/admin/bein-accounts/[id]
+├ ƒ /api/admin/bein-accounts/[id]/assign-proxy
+├ ƒ /api/admin/bein-accounts/[id]/check-balance
+├ ƒ /api/admin/bein-accounts/[id]/login-failures/reset
+├ ƒ /api/admin/bein-accounts/[id]/low-balance/reactivate
+├ ƒ /api/admin/bein-accounts/[id]/reset
+├ ƒ /api/admin/bein-accounts/[id]/toggle
+├ ƒ /api/admin/bein-accounts/[id]/unlock
+├ ƒ /api/admin/bein-accounts/login-failures
+├ ƒ /api/admin/bein-accounts/low-balance
+├ ƒ /api/admin/bein-config
+├ ƒ /api/admin/credit-requests
+├ ƒ /api/admin/credit-requests/[id]/decision
+├ ƒ /api/admin/credit-requests/[id]/escalate
+├ ƒ /api/admin/credit-requests/[id]/notification-retry
+├ ƒ /api/admin/dashboard
+├ ƒ /api/admin/eid-rewards/claims
+├ ƒ /api/admin/eid-rewards/settings
+├ ƒ /api/admin/eid-rewards/transactions
+├ ƒ /api/admin/financial-review
+├ ƒ /api/admin/financial-review/[operationId]/decision
+├ ƒ /api/admin/financial-review/[operationId]/verify-card
+├ ƒ /api/admin/financial-review/card-release
+├ ƒ /api/admin/keepalive-stats
+├ ƒ /api/admin/logs
+├ ƒ /api/admin/mobile-app/customers
+├ ƒ /api/admin/mobile-app/customers/[id]
+├ ƒ /api/admin/mobile-app/customers/[id]/balance
+├ ƒ /api/admin/mobile-app/orders
+├ ƒ /api/admin/mobile-app/orders/[id]
+├ ƒ /api/admin/mobile-app/payments
+├ ƒ /api/admin/mobile-app/settings
+├ ƒ /api/admin/mobile-app/subscriptions
+├ ƒ /api/admin/notification-settings
+├ ƒ /api/admin/notification-settings/telegram/test
+├ ƒ /api/admin/permissions/audit
+├ ƒ /api/admin/permissions/catalog
+├ ƒ /api/admin/permissions/effective
+├ ƒ /api/admin/permissions/global
+├ ƒ /api/admin/permissions/global/panel-user-creation-freeze
+├ ƒ /api/admin/permissions/roles
+├ ƒ /api/admin/permissions/roles/[role]
+├ ƒ /api/admin/permissions/users/[userId]
+├ ƒ /api/admin/points/release
+├ ƒ /api/admin/points/settings
+├ ƒ /api/admin/proxies
+├ ƒ /api/admin/proxies/[id]
+├ ƒ /api/admin/proxies/[id]/test
+├ ƒ /api/admin/proxies/import
+├ ƒ /api/admin/recovery-health
+├ ƒ /api/admin/reports/balance-movements
+├ ƒ /api/admin/reports/bein-provider
+├ ƒ /api/admin/reports/bein-provider/[requestId]
+├ ƒ /api/admin/reports/bein-spend
+├ ƒ /api/admin/reports/bein-spend/operations
+├ ƒ /api/admin/reports/credit-payments
+├ ƒ /api/admin/reports/integrity
+├ ƒ /api/admin/reports/integrity/[id]
+├ ƒ /api/admin/reports/integrity/backfill-balances
+├ ƒ /api/admin/reports/integrity/scan
+├ ƒ /api/admin/reports/integrity/summary
+├ ƒ /api/admin/reports/points-analysis
+├ ƒ /api/admin/reports/points-analysis/owners/[id]
+├ ƒ /api/admin/rewards
+├ ƒ /api/admin/rewards/[id]
+├ ƒ /api/admin/rewards/redemptions/[id]/decision
+├ ƒ /api/admin/seed-pool-settings
+├ ƒ /api/admin/sidebar-settings
+├ ƒ /api/admin/store/categories
+├ ƒ /api/admin/store/categories/[id]
+├ ƒ /api/admin/store/products
+├ ƒ /api/admin/store/products/[id]
+├ ƒ /api/admin/store/settings
+├ ƒ /api/admin/store/shipping
+├ ƒ /api/admin/store/shipping/[id]
+├ ƒ /api/admin/upload
+├ ƒ /api/admin/user-ownership
+├ ƒ /api/admin/user-ownership/targets
+├ ƒ /api/admin/users
+├ ƒ /api/admin/users/[id]
+├ ƒ /api/admin/users/[id]/activity
+├ ƒ /api/admin/users/[id]/balance
+├ ƒ /api/admin/users/[id]/correct-balance
+├ ƒ /api/admin/users/[id]/permanent
+├ ƒ /api/admin/users/[id]/reset-password
+├ ƒ /api/admin/users/[id]/restore
+├ ƒ /api/admin/users/[id]/stats
+├ ƒ /api/admin/users/counts
+├ ƒ /api/admin/users/deleted
+├ ƒ /api/admin/users/inactive
+├ ƒ /api/admin/worker-status
+├ ƒ /api/agent/dashboard
+├ ƒ /api/agent/users/[id]/reset-password
+├ ƒ /api/announcement/active
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/auth/login-attempt-status
+├ ƒ /api/credit-debts/[userId]
+├ ƒ /api/credit-requests
+├ ƒ /api/cron/cleanup-stuck-operations
+├ ƒ /api/cron/dispatch-operation-jobs
+├ ƒ /api/cron/timeout-operations
+├ ƒ /api/eid-rewards/claim
+├ ƒ /api/eid-rewards/redeem
+├ ƒ /api/eid-rewards/status
+├ ƒ /api/maintenance-status
+├ ƒ /api/manager/actions
+├ ƒ /api/manager/dashboard
+├ ƒ /api/manager/users
+├ ƒ /api/manager/users/[id]
+├ ƒ /api/manager/users/[id]/balance
+├ ƒ /api/manager/users/[id]/reset-password
+├ ƒ /api/manager/users/[id]/stats
+├ ƒ /api/manager/users/deleted
+├ ƒ /api/mobile/auth/forgot-password
+├ ƒ /api/mobile/auth/login
+├ ƒ /api/mobile/auth/refresh
+├ ƒ /api/mobile/auth/register
+├ ƒ /api/mobile/auth/reset-password
+├ ƒ /api/mobile/auth/verify-otp
+├ ƒ /api/mobile/login
+├ ƒ /api/mobile/profile
+├ ƒ /api/mobile/profile/addresses
+├ ƒ /api/mobile/profile/addresses/[id]
+├ ƒ /api/mobile/profile/password
+├ ƒ /api/mobile/store/categories
+├ ƒ /api/mobile/store/orders
+├ ƒ /api/mobile/store/orders/[id]
+├ ƒ /api/mobile/store/products
+├ ƒ /api/mobile/store/products/[id]
+├ ƒ /api/mobile/subscriptions/active
+├ ƒ /api/mobile/subscriptions/check
+├ ƒ /api/mobile/subscriptions/create-payment-intent
+├ ƒ /api/mobile/subscriptions/history
+├ ƒ /api/mobile/subscriptions/renew
+├ ƒ /api/mobile/subscriptions/signal
+├ ƒ /api/mobile/subscriptions/status/[operationId]
+├ ƒ /api/mobile/wallet
+├ ƒ /api/mobile/wallet/add
+├ ƒ /api/mobile/wallet/transactions
+├ ƒ /api/mobile/wallet/webhook
+├ ƒ /api/notifications
+├ ƒ /api/operations
+├ ƒ /api/operations/[id]
+├ ƒ /api/operations/[id]/apply-promo
+├ ƒ /api/operations/[id]/cancel
+├ ƒ /api/operations/[id]/cancel-confirm
+├ ƒ /api/operations/[id]/captcha
+├ ƒ /api/operations/[id]/confirm-installment
+├ ƒ /api/operations/[id]/confirm-purchase
+├ ƒ /api/operations/[id]/heartbeat
+├ ƒ /api/operations/[id]/installment
+├ ƒ /api/operations/[id]/packages
+├ ƒ /api/operations/[id]/select-package
+├ ƒ /api/operations/bulk
+├ ƒ /api/operations/create
+├ ƒ /api/operations/signal-activate
+├ ƒ /api/operations/signal-check
+├ ƒ /api/operations/signal-refresh
+├ ƒ /api/operations/start-installment
+├ ƒ /api/operations/start-renewal
+├ ƒ /api/permissions/global
+├ ƒ /api/points/cash-redemptions
+├ ƒ /api/points/wallet
+├ ƒ /api/prices
+├ ƒ /api/rewards
+├ ƒ /api/rewards/redemptions
+├ ƒ /api/settings
+├ ƒ /api/store/addresses
+├ ƒ /api/store/addresses/[id]
+├ ƒ /api/store/auth/forgot-password
+├ ƒ /api/store/auth/login
+├ ƒ /api/store/auth/me
+├ ƒ /api/store/auth/register
+├ ƒ /api/store/auth/reset-password
+├ ƒ /api/store/auth/verify-email
+├ ƒ /api/store/categories
+├ ƒ /api/store/orders
+├ ƒ /api/store/orders/[id]
+├ ƒ /api/store/orders/[id]/cancel
+├ ƒ /api/store/products
+├ ƒ /api/store/products/[id]
+├ ƒ /api/store/shipping
+├ ƒ /api/store/subscriptions
+├ ƒ /api/store/subscriptions/[id]
+├ ƒ /api/store/subscriptions/[id]/cancel
+├ ƒ /api/store/subscriptions/[id]/captcha
+├ ƒ /api/store/subscriptions/[id]/confirm
+├ ƒ /api/store/subscriptions/[id]/confirm-payment
+├ ƒ /api/store/subscriptions/[id]/heartbeat
+├ ƒ /api/store/subscriptions/[id]/select-package
+├ ƒ /api/store/subscriptions/history
+├ ƒ /api/store/subscriptions/start
+├ ƒ /api/store/webhooks/stripe
+├ ƒ /api/transactions
+├ ƒ /api/uploads/[...path]
+├ ƒ /api/user/activity
+├ ƒ /api/user/activity/history
+├ ƒ /api/user/change-password
+├ ƒ /api/user/profile
+├ ƒ /api/user/recent-operations
+├ ƒ /api/user/stats
+├ ƒ /dashboard
+├ ƒ /dashboard/admin
+├ ƒ /dashboard/admin/agents
+├ ƒ /dashboard/admin/analytics
+├ ƒ /dashboard/admin/bein-accounts
+├ ƒ /dashboard/admin/bein-accounts/login-failures
+├ ƒ /dashboard/admin/bein-accounts/low-balance
+├ ƒ /dashboard/admin/bein-config
+├ ƒ /dashboard/admin/credit-requests
+├ ƒ /dashboard/admin/deleted-users
+├ ƒ /dashboard/admin/eid-rewards
+├ ƒ /dashboard/admin/financial-review
+├ ƒ /dashboard/admin/logs
+├ ƒ /dashboard/admin/permissions
+├ ƒ /dashboard/admin/points
+├ ƒ /dashboard/admin/proxies
+├ ƒ /dashboard/admin/recovery-health
+├ ƒ /dashboard/admin/reports
+├ ƒ /dashboard/admin/reports/bein-spend
+├ ƒ /dashboard/admin/reports/integrity
+├ ƒ /dashboard/admin/rewards
+├ ƒ /dashboard/admin/settings
+├ ƒ /dashboard/admin/settings/announcements
+├ ƒ /dashboard/admin/users
+├ ƒ /dashboard/admin/users/activity
+├ ƒ /dashboard/agent
+├ ƒ /dashboard/credit-requests
+├ ƒ /dashboard/history
+├ ƒ /dashboard/manager
+├ ƒ /dashboard/manager/deleted-users
+├ ƒ /dashboard/manager/users
+├ ƒ /dashboard/notifications
+├ ƒ /dashboard/operations/[id]/receipt
+├ ƒ /dashboard/operations/active
+├ ƒ /dashboard/operations/bulk
+├ ƒ /dashboard/profile
+├ ƒ /dashboard/renew
+├ ƒ /dashboard/rewards
+├ ƒ /dashboard/transactions
+└ ƒ /login
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+(node:12856) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:24672) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:9324) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:15176) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:20208) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:4304) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:16780) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:16332) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:16856) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:27752) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:2884) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:20716) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:26364) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:26072) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:26224) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+npm notice To update run: npm install -g npm@12.2.2
+npm notice

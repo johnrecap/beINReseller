@@ -522,8 +522,10 @@ export class SessionKeepAliveService {
             let lastCaptchaError = '';
             let currentCaptchaImage = loginResult.captchaImage;
             let finalFailure = loginResult;
+            let attemptsMade = 0;
 
             for (let attempt = 1; attempt <= MAX_CAPTCHA_RETRIES; attempt++) {
+                attemptsMade = attempt;
                 try {
                     console.log(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt}/${MAX_CAPTCHA_RETRIES}...`);
                     const solver = new CaptchaSolver(apiKey);
@@ -560,12 +562,6 @@ export class SessionKeepAliveService {
                         currentCaptchaImage = finalLogin.captchaImage;
                         lastCaptchaError = finalLogin.error || 'CAPTCHA incorrect';
                         continue;
-                    } else if (finalLogin.error && finalLogin.error.includes('cached title')) {
-                        // FAKE LOGIN — beIN returned login page with cached title
-                        // Record failure PER ATTEMPT so 3 fake logins = threshold reached
-                        lastCaptchaError = finalLogin.error;
-                        // A final invalid authentication response is not another CAPTCHA challenge.
-                        break;
                     } else {
                         // Non-CAPTCHA failure (e.g., wrong password, account locked)
                         lastCaptchaError = finalLogin.error || 'Login failed after CAPTCHA';
@@ -610,12 +606,12 @@ export class SessionKeepAliveService {
 
             // Only the final outcome changes login health; intermediate challenges do not.
             await recordTerminal(finalFailure);
-            console.error(`[KeepAlive] ${username}: All ${MAX_CAPTCHA_RETRIES} CAPTCHA attempts failed`);
+            console.error(`[KeepAlive] ${username}: Login failed after ${attemptsMade} CAPTCHA attempts`);
             return {
                 accountId,
                 username,
                 status: 'failed',
-                error: `CAPTCHA failed after ${MAX_CAPTCHA_RETRIES} attempts: ${lastCaptchaError}`,
+                error: `Login failed after ${attemptsMade} CAPTCHA attempts: ${lastCaptchaError}`,
                 captchaSolved: false,
                 durationMs: Date.now() - startTime
             };

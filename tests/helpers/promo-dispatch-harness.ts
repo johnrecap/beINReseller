@@ -14,6 +14,7 @@ import * as renewalHold from '../../shared/operations/renewal-hold'
 import * as administrativeRelease from '../../shared/operations/admin-card-release'
 import * as loginFailure from '../../shared/bein/login-failure'
 import * as loginHealth from '../../shared/bein/login-health'
+import * as loginChallenge from '../../worker/src/lib/login-challenge'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { mergeOperationPhaseEvidence } from '../../src/lib/operation-safety'
 
@@ -37,6 +38,7 @@ export function loadIsolatedModule<T>(path: string, dependencies: Record<string,
             if (name === 'node:async_hooks') return { AsyncLocalStorage }
             if (/^(\.\.\/)+shared\/bein\/login-failure$/.test(name)) return loginFailure
             if (/^(\.\.\/)+shared\/bein\/login-health$/.test(name)) return loginHealth
+            if (name === './lib/login-challenge' || name === './login-challenge') return loginChallenge
             if (/^(\.\.\/)+shared\/operations\/admin-card-release$/.test(name)) return administrativeRelease
             if (/^(\.\.\/)+shared\/operations\/consumer-progress$/.test(name)) return consumerProgress
             if (/^(\.\.\/)+shared\/operations\/renewal-pre-payment$/.test(name)) return renewalPrePayment

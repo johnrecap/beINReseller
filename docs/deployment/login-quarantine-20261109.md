@@ -1,5 +1,7 @@
 # Login quarantine repair — publication handoff
 
+2026-11-11 follow-up: the same authorized branch now carries complete challenge handling across primary callers, safe solver failure handling and session continuity fixes. Current local verification is in [the follow-up evidence](../../specs/037-panel-responsiveness-login-health/evidence/implementation.md#login-flow-and-session-continuity-follow-up--2026-11-11). The commands below remain applicable; no dependencies or migrations were added. Production recovery is not yet verified.
+
 The user authorized pushing the tested correction to `codex/037-panel-responsiveness-login-health`, then will execute the server commands. This is not evidence of production deployment. Current local acceptance and limits remain in [implementation evidence](../../specs/037-panel-responsiveness-login-health/evidence/implementation.md#false-login-quarantine-repair--2026-11-09). Scope: publish the reviewed diff, verify the remote head, and hand over these commands; do not change task acceptance or live data.
 
 Run in Bash as the existing PM2 owner after current operations finish. These commands use the supplied production path and ten-worker topology. Dependencies must already be installed; this repair changes no package lockfile, schema or migration. A different server baseline may require its normal dependency installation. No backup, Git cleanup, reset, database push or lock deletion is included. The subshell stops at the first failure; retain the error instead of continuing manually past a failed build.

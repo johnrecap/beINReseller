@@ -4,6 +4,20 @@ Feature: 037. Review date: 2026-11-04. Scope: application implementation authori
 
 ## Implementation phase reconciliation
 
+### Login flow regression follow-up — 2026-11-11
+
+Continuation of the authorized repair/publish request, following the user's correction to inspect every login consumer and session continuity against historical GitHub versions. Baseline `a3f190b`; direct work only, no subagents. No financial replay, schema change, automatic account activation or production execution. The 2026-11-09 receipts do not establish coverage of the newly reproduced failures.
+
+| ID | Requirement / source | Action and verification | Evidence / status |
+| --- | --- | --- | --- |
+| LF01 | User: restore working login steps; historical `7dd89fd` / `5b32ecb` comparison | Missing solver key/timeout must not disable accounts; distinguish solver attempts from provider submissions | VERIFIED locally: pending solver failures send zero credential POSTs and make zero health writes; actual three-challenge exhaustion records once |
+| LF02 | User: all login callers | Share bounded challenge completion across KeepAlive, re-login, renewal, signal refresh/check and installment start; preserve manual fallback and matching cookies/fields | VERIFIED scoped: all four primary call sites use loginForOperation; actual parser/orchestrator auto/manual tests pass; no financial operation replay tested or added |
+| LF03 | User: session continuity | Transient validation failure preserves cookies and stops the operation without fresh login; renew cache only after valid provider evidence | VERIFIED locally: native cookie/image/redirect/import control and transient 503 recovery pass; signal check exports current jar with lease fencing; cadence subtracts elapsed cycle time |
+| LF04 | Existing ownership/recovery contract | Assert current ownership before and after solving/submission; reject late results; preserve genuine credential and terminal unknown protections | VERIFIED locally: lost-owner/cancel/manual-timeout controls, native Redis CAS and SQL revision recovery; native PostgreSQL multi-process contention remains NOT_VERIFIED |
+| LF05 | Persistent execution workflow | Representative regression first, combined tests/types/builds, encoding, localized errors and semantic review; update existing guide/memory/evidence | Local receipts and semantic limits in implementation.md and login-flow-verification-20261111.json; server recovery and broader 037 acceptance remain NOT_VERIFIED |
+
+Design: extend the existing login client and health policy with one bounded challenge-completion helper, rather than restoring whole historical files or merely changing the disabled badge. Keep the three provider-submission limit. Solver/configuration/manual-wait failures are incomplete login attempts, not provider CAPTCHA exhaustion. Retain public API and database shapes.
+
 ### Authorized login repair — 2026-11-09
 
 The user explicitly requested implementation of the reviewed false-quarantine repair. This is a bounded correction to existing T014–T019 behavior, not authorization to finish unrelated panel work, deploy, or change financial semantics. Baseline: `67c982fc052649a10c00338238787624bfd2cbd9`, clean worktree. All original task acceptance states remain open.

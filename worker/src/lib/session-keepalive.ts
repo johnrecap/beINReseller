@@ -19,6 +19,7 @@ import { getRedisConnection } from './redis';
 import { HttpClientService } from '../http/HttpClientService';
 import type { LoginResult } from '../http/types';
 import { CaptchaSolver } from '../utils/captcha-solver';
+import { completeLoginChallenge } from './login-challenge';
 import {
     getSessionFromCache,
     saveSessionToCache,
@@ -136,8 +137,9 @@ async function getHttpClient(
                 await client.importSession(cachedSession);
                 client.markSessionValidFromCache(cachedSession.expiresAt);
             }
-        } catch {
+        } catch (error) {
             console.log(`[KeepAlive] Could not restore cached session for ${account.username}`);
+            throw error;
         }
     }
 
@@ -213,19 +215,21 @@ export class SessionKeepAliveService {
         this.isRunning = true;
         console.log(`[KeepAlive] Starting periodic refresh (initial: ${this.refreshIntervalMs / 60000} minutes)`);
 
-        const scheduleNext = () => {
+        const scheduleNext = (delayMs = this.refreshIntervalMs) => {
             this.intervalId = setTimeout(async () => {
+                const cycleStartedAt = Date.now();
                 console.log('[KeepAlive] Starting scheduled refresh cycle...');
                 try {
                     await this.loadConfig(); // Reload — interval may have changed
                     const result = await this.refreshAllSessions();
-                    console.log(`[KeepAlive] Cycle complete: ${result.success}/${result.total} accounts refreshed (next in ${this.refreshIntervalMs / 60000} min)`);
+                    console.log(`[KeepAlive] Cycle complete: ${result.success}/${result.total} accounts refreshed`);
                 } catch (error) {
                     console.error('[KeepAlive] Refresh cycle error:', error);
                 }
-                // Schedule next with CURRENT interval (respects DB changes)
-                if (this.isRunning) scheduleNext();
-            }, this.refreshIntervalMs);
+                // Start-to-start cadence, without overlapping cycles or adding a full
+                // interval to the time already spent validating accounts.
+                if (this.isRunning) scheduleNext(Math.max(0, this.refreshIntervalMs - (Date.now() - cycleStartedAt)));
+            }, delayMs);
         };
 
         scheduleNext();
@@ -462,16 +466,18 @@ export class SessionKeepAliveService {
         if (ttl > 0) {
             // Session exists in Redis - validate it's still alive on beIN
             console.log(`[KeepAlive] ${username}: Redis TTL ${ttlMinutes} min, validating on beIN server...`);
+            await assertGuard();
             const sessionValid = await client.validateSession();
+            await assertGuard();
 
             if (sessionValid) {
                 // Session is truly alive on beIN - extend Redis TTL
                 const sessionData = await client.exportSession();
                 const now = Date.now();
-                sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+                sessionData.expiresAt = now + client.getSessionTimeout() * 60_000;
                 sessionData.loginTimestamp = now;
                 await assertGuard();
-                await saveSessionToCache(accountId, route.routeKey, sessionData, 16, cacheGuard);
+                await saveSessionToCache(accountId, route.routeKey, sessionData, client.getSessionTimeout(), cacheGuard);
                 console.log(`[KeepAlive] ${username}: Session validated on beIN and extended`);
                 return {
                     accountId,
@@ -493,146 +499,41 @@ export class SessionKeepAliveService {
         client.resetSession();
         console.log(`[KeepAlive] ${username}: Session expired on beIN, performing fresh login...`);
 
-        const loginResult = await client.login(username, account.password, account.totpSecret || undefined);
+        await assertGuard();
+        const initialLogin = await client.login(username, account.password, account.totpSecret || undefined);
+        await assertGuard();
+        const completion = await completeLoginChallenge(initialLogin, {
+            assertCurrent: assertGuard,
+            getApiKey: getCaptchaApiKey,
+            solve: (key, image) => new CaptchaSolver(key).solve(image),
+            submit: solution => client.submitLogin(username, account.password, account.totpSecret || undefined, solution),
+            attempted: client.didAttemptLogin(),
+        });
+        const loginResult = completion.result;
         const recordTerminal = async (result: LoginResult) => {
+            if (!completion.context.terminal) return;
             await assertGuard();
             if (!await recordLoginHealthFailure(accountId, result, client.getLoginTrackingRevision(),
-                { attempted: client.didAttemptLogin(), terminal: true })) throw new Error('LOGIN_HEALTH_STALE');
+                completion.context)) throw new Error('LOGIN_HEALTH_STALE');
         };
 
-        // Handle CAPTCHA if required
-        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            console.log(`[KeepAlive] ${username}: CAPTCHA required, auto-solving...`);
-
-            const apiKey = await getCaptchaApiKey();
-            if (!apiKey) {
-                await recordTerminal(loginResult);
-                console.error(`[KeepAlive] ${username}: No 2Captcha API key configured`);
-                return {
-                    accountId,
-                    username,
-                    status: 'failed',
-                    error: 'CAPTCHA required but no API key configured',
-                    durationMs: Date.now() - startTime
-                };
-            }
-
-            // CAPTCHA retry loop — up to 3 attempts
-            const MAX_CAPTCHA_RETRIES = 3;
-            let lastCaptchaError = '';
-            let currentCaptchaImage = loginResult.captchaImage;
-            let finalFailure = loginResult;
-            let attemptsMade = 0;
-
-            for (let attempt = 1; attempt <= MAX_CAPTCHA_RETRIES; attempt++) {
-                attemptsMade = attempt;
-                try {
-                    console.log(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt}/${MAX_CAPTCHA_RETRIES}...`);
-                    const solver = new CaptchaSolver(apiKey);
-                    const solution = await solver.solve(currentCaptchaImage);
-
-                    const finalLogin = await client.submitLogin(
-                        username,
-                        account.password,
-                        account.totpSecret || undefined,
-                        solution
-                    );
-                    finalFailure = finalLogin;
-
-                    if (finalLogin.success) {
-                        await assertGuard();
-                        await recordLoginSuccess(accountId, client.getLoginTrackingRevision());
-                        const sessionData = await client.exportSession();
-                        const now = Date.now();
-                        sessionData.expiresAt = now + (15 * 60 * 1000);
-                        sessionData.loginTimestamp = now;
-                        await assertGuard();
-                        await saveSessionToCache(accountId, route.routeKey, sessionData, 16, cacheGuard);
-                        console.log(`[KeepAlive] ${username}: Login successful (CAPTCHA solved on attempt ${attempt})`);
-                        return {
-                            accountId,
-                            username,
-                            status: 'logged_in',
-                            captchaSolved: true,
-                            durationMs: Date.now() - startTime
-                        };
-                    } else if (finalLogin.requiresCaptcha && finalLogin.captchaImage) {
-                        // CAPTCHA was wrong — beIN gave us a new one to try
-                        console.log(`[KeepAlive] ${username}: CAPTCHA wrong on attempt ${attempt}, retrying...`);
-                        currentCaptchaImage = finalLogin.captchaImage;
-                        lastCaptchaError = finalLogin.error || 'CAPTCHA incorrect';
-                        continue;
-                    } else {
-                        // Non-CAPTCHA failure (e.g., wrong password, account locked)
-                        lastCaptchaError = finalLogin.error || 'Login failed after CAPTCHA';
-                        break;
-                    }
-                } catch (error) {
-                    if (finalFailure.success) throw error; // persistence/cache failure is not failed authentication
-                    if (error instanceof Error && error.message.startsWith('LOGIN_HEALTH_')) throw error;
-                    await assertGuard();
-                    console.error(`[KeepAlive] ${username}: CAPTCHA attempt ${attempt} failed`);
-                    lastCaptchaError = 'CAPTCHA processing failed';
-                    // On solve error, we need a fresh CAPTCHA — re-login to get one
-                    if (attempt < MAX_CAPTCHA_RETRIES) {
-                        try {
-                            client.resetSession();
-                            const retryLogin = await client.login(username, account.password, account.totpSecret || undefined);
-                            finalFailure = retryLogin;
-                            if (retryLogin.success) {
-                                await assertGuard();
-                                await recordLoginSuccess(accountId, client.getLoginTrackingRevision());
-                                const sessionData = await client.exportSession();
-                                const now = Date.now();
-                                sessionData.expiresAt = now + (15 * 60 * 1000);
-                                sessionData.loginTimestamp = now;
-                                await assertGuard();
-                                await saveSessionToCache(accountId, route.routeKey, sessionData, 16, cacheGuard);
-                                return { accountId, username, status: 'logged_in', durationMs: Date.now() - startTime };
-                            }
-                            if (retryLogin.requiresCaptcha && retryLogin.captchaImage) {
-                                currentCaptchaImage = retryLogin.captchaImage;
-                                continue;
-                            }
-                        } catch (error) {
-                            if (finalFailure.success) throw error;
-                            if (error instanceof Error && error.message.startsWith('LOGIN_HEALTH_')) throw error;
-                            await assertGuard();
-                        }
-                    }
-                    break;
-                }
-            }
-
-            // Only the final outcome changes login health; intermediate challenges do not.
-            await recordTerminal(finalFailure);
-            console.error(`[KeepAlive] ${username}: Login failed after ${attemptsMade} CAPTCHA attempts`);
-            return {
-                accountId,
-                username,
-                status: 'failed',
-                error: `Login failed after ${attemptsMade} CAPTCHA attempts: ${lastCaptchaError}`,
-                captchaSolved: false,
-                durationMs: Date.now() - startTime
-            };
-        }
-
-        // Login without CAPTCHA
+        // Publish only after authentication and ownership have both been verified.
         if (loginResult.success) {
             await assertGuard();
             await recordLoginSuccess(accountId, client.getLoginTrackingRevision());
             const sessionData = await client.exportSession();
             // FIX: Update timestamps before saving
             const now = Date.now();
-            sessionData.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+            sessionData.expiresAt = now + client.getSessionTimeout() * 60_000;
             sessionData.loginTimestamp = now;
             await assertGuard();
-            await saveSessionToCache(accountId, route.routeKey, sessionData, 16, cacheGuard);
+            await saveSessionToCache(accountId, route.routeKey, sessionData, client.getSessionTimeout(), cacheGuard);
             console.log(`[KeepAlive] ${username}: Login successful`);
             return {
                 accountId,
                 username,
                 status: 'logged_in',
+                captchaSolved: (completion.context.captchaSubmissions ?? 0) > 0,
                 durationMs: Date.now() - startTime
             };
         }

@@ -7,7 +7,7 @@ import { loadIsolatedModule } from '../../tests/helpers/promo-dispatch-harness'
 import { isCredentialLoginFailure, loginHttpFailure } from '../../shared/bein/login-failure'
 import { loginMessageFailure } from '../../shared/bein/login-failure'
 
-test('re-login passes terminal typed outcomes, including an unsolvable CAPTCHA, to health tracking', async () => {
+test('re-login distinguishes final failures from CAPTCHA waiting for an unavailable solver', async () => {
     const path = 'worker/src/http-queue-processor.ts'
     const deps: Record<string, any> = Object.fromEntries(ts.preProcessFile(readFileSync(path, 'utf8')).importedFiles.map(f => [f.fileName, {}]))
     Object.assign(deps, { '@prisma/client': { OperationStatus, Prisma }, './lib/redis': { getRedisConnection: () => ({}) } })
@@ -22,7 +22,7 @@ test('re-login passes terminal typed outcomes, including an unsolvable CAPTCHA, 
         assert.equal(records.length, 1)
         assert.equal(records[0][1].failureCategory, outcome!.failureCategory)
         assert.equal(records[0][3].attempted, true)
-        assert.equal(records[0][3].terminal, true)
+        assert.equal(records[0][3].terminal, outcome!.failureCategory !== 'captcha')
     }
 })
 

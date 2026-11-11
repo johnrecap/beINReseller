@@ -37,6 +37,7 @@ import {
 import { refundUser, markOperationFailed } from './utils/error-handler';
 import { createNotification, notifyAdminLowBalance, checkAndNotifyLowBalance } from './utils/notification';
 import { CaptchaSolver } from './utils/captcha-solver';
+import { completeLoginChallenge } from './lib/login-challenge';
 import { BeinAccount, OperationStatus, Prisma, Proxy } from '@prisma/client';
 import { detectAndRecordOperationIntegrity } from './lib/integrity-detector';
 import { decryptAccountPassword } from './lib/crypto';
@@ -57,7 +58,6 @@ import {
     saveOperationSessionToCache,
     getOperationSessionFromCache,
     deleteOperationSessionFromCache,
-    extendSessionTTL,
     acquireLoginLock,
     releaseLoginLock,
     waitForLoginComplete,
@@ -848,9 +848,9 @@ async function createOperationClient(account: OperationBeinAccount, route: Effec
         } else {
             console.log(`[HTTP] No cached session for ${account.username}; will login fresh`);
         }
-    } catch {
-        console.log(`[HTTP] Failed to restore cached session for ${account.username}; will login fresh`);
-        await deleteSessionFromCache(account.id, route.routeKey);
+    } catch (error) {
+        console.log('[HTTP] Reusable session unavailable; authentication deferred');
+        throw error;
     }
 
     return client;
@@ -880,6 +880,45 @@ async function trackCredentialLoginFailure(accountId: string, failure: LoginResu
 
 async function trackFreshLoginSuccess(accountId: string, revision?: Date): Promise<void> {
     await recordLoginSuccess(accountId, revision);
+}
+
+/** Interactive operations share the same challenge chain as KeepAlive/re-login.
+ * Ownership is rechecked after external/manual waiting, before any credential POST. */
+async function loginForOperation(input: {
+    client: HttpClientService; account: OperationBeinAccount; operationId: string;
+    assertCurrent: () => Promise<void>;
+}): Promise<void> {
+    const { client, account, operationId, assertCurrent } = input;
+    try {
+        await assertCurrent();
+        const initial = await client.login(account.username, account.password, account.totpSecret || undefined);
+        await assertCurrent();
+        const completion = await completeLoginChallenge(initial, {
+            assertCurrent, getApiKey: getCaptchaApiKey,
+            solve: (key, image) => new CaptchaSolver(key).solve(image),
+            submit: solution => client.submitLogin(account.username, account.password, account.totpSecret || undefined, solution),
+            attempted: client.didAttemptLogin(),
+            requestManual: async image => {
+                await assertCurrent();
+                const now = new Date();
+                if (!await updateOperationIfActive(operationId, {
+                    status: 'AWAITING_CAPTCHA', captchaImage: image, captchaSolution: null,
+                    captchaExpiry: new Date(now.getTime() + CAPTCHA_TIMEOUT_MS),
+                    lastHeartbeat: now, heartbeatExpiry: new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000),
+                }, 'LOGIN captcha update')) throw new OperationCancelledError(operationId);
+                return waitForCaptchaSolution(operationId, assertCurrent);
+            },
+        });
+        if (!completion.result.success) {
+            await assertCurrent();
+            await trackCredentialLoginFailure(account.id, completion.result, client.getLoginTrackingRevision(), completion.context);
+            throw new Error(completion.context.terminal ? completion.result.error || 'Login failed' :
+                'CAPTCHA_TIMEOUT: Verification code was not entered');
+        }
+    } catch (error) {
+        await releaseLoginLock(account.id, WORKER_ID);
+        throw error;
+    }
 }
 
 /**
@@ -945,6 +984,7 @@ export interface ReLoginRuntime {
     trackFreshLoginSuccess: (accountId: string, revision?: Date) => Promise<void>;
     saveSessionToCacheFenced: (input: ReLoginFencedSessionInput) => Promise<boolean>;
     captureSharedSessionGuard?: (accountId: string) => Promise<SharedSessionGuard | undefined>;
+    assertSharedSessionGuardCurrent?: (guard?: SharedSessionGuard) => Promise<void>;
 }
 
 const DEFAULT_RELOGIN_RUNTIME: ReLoginRuntime = {
@@ -958,6 +998,10 @@ const DEFAULT_RELOGIN_RUNTIME: ReLoginRuntime = {
     trackFreshLoginSuccess,
     saveSessionToCacheFenced: (input) => saveSessionToCacheFenced(getRedisConnection(), input),
     captureSharedSessionGuard: (accountId) => captureSharedSessionGuard(accountId, WORKER_ID),
+    assertSharedSessionGuardCurrent: async guard => {
+        if (!guard || await getRedisConnection().get(guard.key) !== guard.owner)
+            throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_RELOGIN');
+    },
 };
 
 export async function performReLogin(
@@ -969,13 +1013,18 @@ export async function performReLogin(
     runtime: ReLoginRuntime = DEFAULT_RELOGIN_RUNTIME
 ): Promise<boolean> {
     let lastError: string = 'Login failed';
-    let pendingChallenge: LoginResult | undefined;
+    let attemptsMade = 0;
+    let captchaSubmissions = 0;
     // Capture ownership before HTTP. Never publish a late result under a newer owner's guard.
     const sharedGuard = executionLease ? undefined : await runtime.captureSharedSessionGuard?.(account.id);
+    const assertCurrent = async () => {
+        await runtime.assertExecutionLeaseCurrent(executionLease);
+        if (!executionLease) await runtime.assertSharedSessionGuardCurrent?.(sharedGuard);
+    };
 
     for (let attempt = 1; attempt <= MAX_LOGIN_RETRIES; attempt++) {
         try {
-            await runtime.assertExecutionLeaseCurrent(executionLease);
+            await assertCurrent();
             console.log(`[HTTP] Re-login route for ${account.username}: ${safeRouteLogSuffix(route)}`);
             console.log(`[HTTP] 🔑 Login attempt ${attempt}/${MAX_LOGIN_RETRIES} for ${account.username} (${operationName})`);
 
@@ -985,97 +1034,55 @@ export async function performReLogin(
             }
 
             // Perform fresh login
-            await runtime.assertExecutionLeaseCurrent(executionLease);
-            const loginResult = pendingChallenge ?? await httpClient.login(
+            await assertCurrent();
+            attemptsMade = attempt;
+            const loginResult = await httpClient.login(
                 account.username,
                 account.password,
                 account.totpSecret || undefined
             );
-            pendingChallenge = undefined;
-            await runtime.assertExecutionLeaseCurrent(executionLease);
+            await assertCurrent();
 
-            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                // Try 2Captcha auto-solve
-                console.log(`[HTTP] 🧩 CAPTCHA required during login attempt ${attempt}, attempting auto-solve...`);
-                const captchaApiKey = await runtime.getCaptchaApiKey();
-
-                if (captchaApiKey) {
-                    try {
-                        const solution = await runtime.solveCaptcha(captchaApiKey, loginResult.captchaImage);
-                        console.log('[HTTP] ✅ CAPTCHA auto-solved: [REDACTED]');
-
-                        // Submit login with CAPTCHA solution
-                        await runtime.assertExecutionLeaseCurrent(executionLease);
-                        const loginWithCaptcha = await httpClient.submitLogin(
-                            account.username,
-                            account.password,
-                            account.totpSecret || undefined,
-                            solution
-                        );
-                        await runtime.assertExecutionLeaseCurrent(executionLease);
-
-                        if (!loginWithCaptcha.success) {
-                            lastError = loginWithCaptcha.error || 'Login failed after CAPTCHA';
-                            if (loginWithCaptcha.requiresCaptcha && loginWithCaptcha.captchaImage) pendingChallenge = loginWithCaptcha;
-                            await runtime.trackCredentialLoginFailure(account.id, loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin?.() === true, terminal: loginWithCaptcha.retryable === false || attempt === MAX_LOGIN_RETRIES });
-                            console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
-                            if (loginWithCaptcha.retryable === false) return false;
-
-                            if (attempt < MAX_LOGIN_RETRIES) {
-                                console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
-                                await waitForReLoginRetry(executionLease, runtime.assertExecutionLeaseCurrent);
-                            }
-                            continue; // Try next attempt
-                        }
-
-                        console.log(`[HTTP] ✅ Login with CAPTCHA successful on attempt ${attempt}`);
-                    } catch (captchaError: unknown) {
-                        if (getErrMsg(captchaError).startsWith('LOGIN_HEALTH_')) throw captchaError;
-                        if (isProviderExecutionLeaseLostError(captchaError)) throw captchaError;
-                        if (attempt === MAX_LOGIN_RETRIES) await runtime.trackCredentialLoginFailure(account.id, loginResult,
-                            httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin?.() === true, terminal: true });
-                        lastError = 'CAPTCHA auto-solve failed';
-                        console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES}: ${lastError}`);
-
-                        if (attempt < MAX_LOGIN_RETRIES) {
-                            console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
-                            await waitForReLoginRetry(executionLease, runtime.assertExecutionLeaseCurrent);
-                        }
-                        continue; // Try next attempt
-                    }
-                } else {
-                    lastError = 'Re-login requires CAPTCHA but no API key configured';
-                    await runtime.trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin?.() === true, terminal: true });
-                    // Don't retry for missing API key — won't change between attempts
-                    return false;
+            const completion = await completeLoginChallenge(loginResult, {
+                assertCurrent,
+                getApiKey: runtime.getCaptchaApiKey,
+                solve: runtime.solveCaptcha,
+                submit: solution => httpClient.submitLogin(account.username, account.password, account.totpSecret || undefined, solution),
+                attempted: httpClient.didAttemptLogin?.() === true,
+                captchaSubmissions,
+            });
+            const completedLogin = completion.result;
+            captchaSubmissions = completion.context.captchaSubmissions ?? captchaSubmissions;
+            attemptsMade = completion.context.captchaSubmissions || attempt;
+            if (!completedLogin.success) {
+                lastError = completedLogin.error || 'Login failed';
+                await runtime.trackCredentialLoginFailure(account.id, completedLogin,
+                    httpClient.getLoginTrackingRevision?.(), { ...completion.context,
+                        terminal: completion.context.terminal && (completedLogin.failureCategory === 'captcha' ||
+                            completedLogin.requiresCaptcha === true || completedLogin.retryable === false || attempt === MAX_LOGIN_RETRIES) });
+                if (completedLogin.requiresCaptcha || completedLogin.failureCategory === 'captcha') {
+                    if (!completion.context.terminal) return false;
+                    break;
                 }
-            } else if (!loginResult.success) {
-                lastError = loginResult.error || 'Login failed';
-                await runtime.trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin?.() === true, terminal: loginResult.retryable === false || attempt === MAX_LOGIN_RETRIES });
-                console.log(`[HTTP] ❌ Attempt ${attempt}/${MAX_LOGIN_RETRIES} failed: ${lastError}`);
-                if (loginResult.retryable === false) return false;
-
-                if (attempt < MAX_LOGIN_RETRIES) {
-                    console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
-                    await waitForReLoginRetry(executionLease, runtime.assertExecutionLeaseCurrent);
-                }
-                continue; // Try next attempt
+                if (completedLogin.retryable === false) return false;
+                if (attempt < MAX_LOGIN_RETRIES) await waitForReLoginRetry(executionLease, assertCurrent);
+                continue;
             }
 
             // === LOGIN SUCCESS ===
             await runtime.trackFreshLoginSuccess(account.id, httpClient.getLoginTrackingRevision?.());
 
             // Save new session to cache
-            await runtime.assertExecutionLeaseCurrent(executionLease);
+            await assertCurrent();
             const newSession = await httpClient.exportSession();
-            await runtime.assertExecutionLeaseCurrent(executionLease);
+            await assertCurrent();
             // FIX: Update timestamps before saving
             const now = Date.now();
-            newSession.expiresAt = now + (15 * 60 * 1000);  // 15 min from now
+            newSession.expiresAt = now + httpClient.getSessionTimeout() * 60_000;
             newSession.loginTimestamp = now;
             const sharedSession = prepareSharedSessionForCache(newSession);
             if (executionLease) {
-                await runtime.assertExecutionLeaseCurrent(executionLease);
+                await assertCurrent();
                 const saved = await runtime.saveSessionToCacheFenced({
                     accountId: account.id,
                     routeKey: route.routeKey,
@@ -1084,7 +1091,7 @@ export async function performReLogin(
                     lease: executionLease,
                 });
                 if (!saved) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
-                await runtime.assertExecutionLeaseCurrent(executionLease);
+                await assertCurrent();
             } else if (sharedGuard) {
                 await saveSessionToCache(account.id, route.routeKey, sharedSession, httpClient.getSessionTimeout(), sharedGuard);
             }
@@ -1101,14 +1108,14 @@ export async function performReLogin(
 
             if (attempt < MAX_LOGIN_RETRIES) {
                 console.log(`[HTTP] ⏳ Retrying in ${LOGIN_RETRY_DELAY_MS}ms...`);
-                await waitForReLoginRetry(executionLease, runtime.assertExecutionLeaseCurrent);
+                await waitForReLoginRetry(executionLease, assertCurrent);
             }
         }
     }
 
     // All attempts exhausted
-    console.error(`[HTTP] 🚫 All ${MAX_LOGIN_RETRIES} login attempts failed for ${account.username}. Last error: ${lastError}`);
-    throw new Error(`Login failed after ${MAX_LOGIN_RETRIES} attempts: ${lastError}`);
+    console.error(`[HTTP] Login failed: attempts=${attemptsMade} stage=relogin`);
+    throw new Error(`Login failed after ${attemptsMade} attempts: ${lastError}`);
 }
 
 /**
@@ -1661,92 +1668,20 @@ async function handleStartRenewalHttp(
                     needsFreshLogin = false;
                 }
             }
+            if (needsFreshLogin && !await acquireLoginLock(selectedAccount.id, WORKER_ID))
+                throw new Error('ACCOUNT_BUSY');
         }
     }
 
     if (needsFreshLogin) {
         // Perform actual login
         await startHeartbeat?.assertCurrent();
-        const loginResult = await client.login(
-            selectedAccount.username,
-            selectedAccount.password,
-            selectedAccount.totpSecret || undefined
-        );
-        await startHeartbeat?.assertCurrent();
-
-        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
-
-            let solution: string | null = null;
-
-            // Try auto-solve with 2Captcha first
-            const captchaApiKey = await getCaptchaApiKey();
-            if (captchaApiKey) {
-                try {
-                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
-                    const captchaSolver = new CaptchaSolver(captchaApiKey);
-                    solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
-                } catch (autoSolveError: unknown) {
-                    console.log(`⚠️ [HTTP] Auto-solve failed: ${getErrMsg(autoSolveError)}, falling back to manual`);
-                }
-            } else {
-                console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
-            }
-
-            // Fallback to manual if auto-solve failed or not configured
-            if (!solution) {
-                // Set heartbeat expiry for auto-cancel if user leaves page
-                const now = new Date();
-                const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
-
-                if (!await updateOperationIfActive(operationId, {
-                    status: 'AWAITING_CAPTCHA',
-                    captchaImage: loginResult.captchaImage,
-                    captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS),
-                    // Heartbeat system - allows cleanup cron to auto-cancel stuck operations
-                    lastHeartbeat: now,
-                    heartbeatExpiry: heartbeatExpiry
-                }, 'START_RENEWAL captcha update')) {
-                    await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                    await accountPool.markAccountUsed(selectedAccount.id, operationId);
-                    return;
-                }
-
-                solution = await waitForCaptchaSolution(operationId);
-                if (!solution) {
-                    // Release lock before throwing
-                    await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), { attempted: client.didAttemptLogin(), terminal: true });
-                    await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                    throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
-                }
-            }
-
-            // Submit with CAPTCHA
-            const loginWithCaptcha = await client.submitLogin(
-                selectedAccount.username,
-                selectedAccount.password,
-                selectedAccount.totpSecret || undefined,
-                solution
-            );
-            await startHeartbeat?.assertCurrent();
-
-            if (!loginWithCaptcha.success) {
-                await trackCredentialLoginFailure(
-                    selectedAccount.id,
-                    loginWithCaptcha, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
-                // Release lock before throwing
-                await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
-            }
-        } else if (!loginResult.success) {
-            await trackCredentialLoginFailure(
-                selectedAccount.id,
-                loginResult, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
-            // Release lock before throwing
-            await releaseLoginLock(selectedAccount.id, WORKER_ID);
-            throw new Error(loginResult.error || 'Login failed');
-        }
+        await loginForOperation({ client, account: selectedAccount, operationId,
+            assertCurrent: async () => {
+                if (startHeartbeat) return startHeartbeat.assertCurrent();
+                if (!sharedGuard || await getRedisConnection().get(sharedGuard.key) !== sharedGuard.owner)
+                    throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_RELOGIN');
+            } });
 
         await trackFreshLoginSuccess(selectedAccount.id, client.getLoginTrackingRevision?.());
 
@@ -4872,80 +4807,15 @@ async function handleSignalRefreshHttp(
                         needsFreshLogin = false;
                     }
                 }
+                if (needsFreshLogin && !await acquireLoginLock(account.id, WORKER_ID))
+                    throw new Error('ACCOUNT_BUSY');
             }
         }
 
         if (needsFreshLogin) {
             await signalRefreshLeaseHeartbeat.assertCurrent();
-            const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
-            await signalRefreshLeaseHeartbeat.assertCurrent();
-
-            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                console.log(`🧩 [HTTP] CAPTCHA required for signal refresh ${operationId}`);
-
-                let solution: string | null = null;
-
-                // Try auto-solve with 2Captcha first
-                const captchaApiKey = await getCaptchaApiKey();
-                if (captchaApiKey) {
-                    try {
-                        console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
-                        const captchaSolver = new CaptchaSolver(captchaApiKey);
-                        solution = await captchaSolver.solve(loginResult.captchaImage);
-                        console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
-                    } catch (autoSolveError: unknown) {
-                        console.log(`⚠️ [HTTP] Auto-solve failed: ${getErrMsg(autoSolveError)}, falling back to manual`);
-                    }
-                } else {
-                    console.log(`⚠️ [HTTP] No 2Captcha API key configured, using manual entry`);
-                }
-
-                // Fallback to manual if auto-solve failed or not configured
-                if (!solution) {
-                    if (!await updateOperationIfActive(operationId, {
-                        status: 'AWAITING_CAPTCHA',
-                        captchaImage: loginResult.captchaImage,
-                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
-                    }, 'SIGNAL_REFRESH captcha update')) {
-                        await releaseLoginLock(account.id, WORKER_ID);
-                        await accountPool.markAccountUsed(account.id);
-                        await releaseSafeTerminalReservations(operationId, 'SIGNAL_REFRESH_ABORTED');
-                        return;
-                    }
-
-                    solution = await waitForCaptchaSolution(operationId);
-                    if (!solution) {
-                        await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision(), { attempted: httpClient.didAttemptLogin(), terminal: true });
-                        await releaseLoginLock(account.id, WORKER_ID);
-                        throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
-                    }
-                }
-
-                // Submit with CAPTCHA
-                await signalRefreshLeaseHeartbeat.assertCurrent();
-                const loginWithCaptcha = await httpClient.submitLogin(
-                    account.username,
-                    account.password,
-                    account.totpSecret || undefined,
-                    solution
-                );
-                await signalRefreshLeaseHeartbeat.assertCurrent();
-
-                if (!loginWithCaptcha.success) {
-                    await trackCredentialLoginFailure(
-                        account.id,
-                        loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin(), terminal: true });
-                    await releaseLoginLock(account.id, WORKER_ID);
-                    throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
-                }
-                console.log('🔑 [HTTP] Login with CAPTCHA successful');
-            } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin(), terminal: true });
-                await releaseLoginLock(account.id, WORKER_ID);
-                throw new Error(loginResult.error || 'Login failed');
-            } else {
-                console.log('🔑 [HTTP] Login successful');
-            }
+            await loginForOperation({ client: httpClient, account, operationId,
+                assertCurrent: () => signalRefreshLeaseHeartbeat.assertCurrent() });
 
             await trackFreshLoginSuccess(account.id, httpClient.getLoginTrackingRevision?.());
 
@@ -5140,7 +5010,7 @@ async function handleSignalCheckHttp(
             // Try to acquire login lock to prevent race conditions
             const lockAcquired = await acquireLoginLock(account.id, WORKER_ID);
 
-            if (!lockAcquired) {
+        if (!lockAcquired) {
                 // Another worker is logging in, wait for it to complete
                 console.log(`[HTTP] ⏳ Another worker is logging in, waiting...`);
                 const loginCompleted = await waitForLoginComplete(account.id);
@@ -5155,70 +5025,14 @@ async function handleSignalCheckHttp(
                         needsFreshLogin = false;
                     }
                 }
+                if (needsFreshLogin && !await acquireLoginLock(account.id, WORKER_ID))
+                    throw new Error('ACCOUNT_BUSY');
             }
         }
 
         if (needsFreshLogin) {
-            const loginResult = await httpClient.login(account.username, account.password, account.totpSecret || undefined);
-
-            if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-                console.log(`🧩 [HTTP] CAPTCHA required for signal check ${operationId}`);
-
-                let solution: string | null = null;
-
-                // Try auto-solve with 2Captcha first
-                const captchaApiKey = await getCaptchaApiKey();
-                if (captchaApiKey) {
-                    try {
-                        console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
-                        const captchaSolver = new CaptchaSolver(captchaApiKey);
-                        solution = await captchaSolver.solve(loginResult.captchaImage);
-                        console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
-                    } catch (autoSolveError: unknown) {
-                        console.log(`⚠️ [HTTP] Auto-solve failed: ${getErrMsg(autoSolveError)}, falling back to manual`);
-                    }
-                }
-
-                // Fallback to manual if needed
-                if (!solution) {
-                    if (!await updateOperationIfActive(operationId, {
-                        status: 'AWAITING_CAPTCHA',
-                        captchaImage: loginResult.captchaImage,
-                        captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS)
-                    }, 'SIGNAL_CHECK captcha update')) {
-                        await releaseLoginLock(account.id, WORKER_ID);
-                        await accountPool.markAccountUsed(account.id);
-                        return;
-                    }
-
-                    solution = await waitForCaptchaSolution(operationId);
-                    if (!solution) {
-                        await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision(), { attempted: httpClient.didAttemptLogin(), terminal: true });
-                        await releaseLoginLock(account.id, WORKER_ID);
-                        throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
-                    }
-                }
-
-                // Submit with CAPTCHA
-                const loginWithCaptcha = await httpClient.submitLogin(
-                    account.username,
-                    account.password,
-                    account.totpSecret || undefined,
-                    solution
-                );
-
-                if (!loginWithCaptcha.success) {
-                    await trackCredentialLoginFailure(
-                        account.id,
-                        loginWithCaptcha, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin(), terminal: true });
-                    await releaseLoginLock(account.id, WORKER_ID);
-                    throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
-                }
-            } else if (!loginResult.success) {
-                await trackCredentialLoginFailure(account.id, loginResult, httpClient.getLoginTrackingRevision?.(), { attempted: httpClient.didAttemptLogin(), terminal: true });
-                await releaseLoginLock(account.id, WORKER_ID);
-                throw new Error(loginResult.error || 'Login failed');
-            }
+            await loginForOperation({ client: httpClient, account, operationId,
+                assertCurrent: () => signalLeaseHeartbeat.assertCurrent() });
 
             await trackFreshLoginSuccess(account.id, httpClient.getLoginTrackingRevision?.());
 
@@ -5312,8 +5126,15 @@ async function handleSignalCheckHttp(
         }
         await awardCompletedOperationPointsSafely(operationId);
 
-        // Extend session TTL on successful operation
-        await extendSessionTTL(account.id, route.routeKey, httpClient.getSessionTimeout());
+        // Publish the cookies actually refreshed by this check under its current lease.
+        await signalLeaseHeartbeat.assertCurrent();
+        const refreshedSession = await httpClient.exportSession();
+        refreshedSession.expiresAt = Date.now() + httpClient.getSessionTimeout() * 60_000;
+        if (!await saveSessionToCacheFenced(getRedisConnection(), {
+            accountId: account.id, routeKey: route.routeKey,
+            session: prepareSharedSessionForCache(refreshedSession),
+            ttlSeconds: httpClient.getSessionTimeout() * 60, lease: reservedSignalExecution.lease,
+        })) throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE');
 
         await accountPool.markAccountUsed(account.id);
         console.log(`✅ [HTTP] Signal check completed for ${operationId}`);
@@ -5475,11 +5296,12 @@ async function handleSignalActivateHttp(
 /**
  * Wait for CAPTCHA solution from user
  */
-async function waitForCaptchaSolution(operationId: string): Promise<string | null> {
+async function waitForCaptchaSolution(operationId: string, assertCurrent: () => Promise<void>): Promise<string | null> {
     const startTime = Date.now();
     const pollInterval = 2000;
 
     while (Date.now() - startTime < CAPTCHA_TIMEOUT_MS) {
+        await assertCurrent();
         const op = await prisma.operation.findUnique({
             where: { id: operationId },
             select: { captchaSolution: true, status: true }
@@ -5490,6 +5312,7 @@ async function waitForCaptchaSolution(operationId: string): Promise<string | nul
         }
 
         if (op?.captchaSolution) {
+            await assertCurrent();
             console.log(`🧩 [HTTP] CAPTCHA solution received`);
             return op.captchaSolution;
         }
@@ -5833,82 +5656,14 @@ async function handleStartInstallmentHttp(
                     needsFreshLogin = false;
                 }
             }
+            if (needsFreshLogin && !await acquireLoginLock(selectedAccount.id, WORKER_ID))
+                throw new Error('ACCOUNT_BUSY');
         }
     }
 
     if (needsFreshLogin) {
-        const loginResult = await client.login(
-            selectedAccount.username,
-            selectedAccount.password,
-            selectedAccount.totpSecret || undefined
-        );
-
-        // Handle CAPTCHA if needed (similar to renewal)
-        if (loginResult.requiresCaptcha && loginResult.captchaImage) {
-            console.log(`🧩 [HTTP] CAPTCHA required for ${operationId}`);
-
-            let solution: string | null = null;
-
-            // Try auto-solve with 2Captcha first
-            const captchaApiKey = await getCaptchaApiKey();
-            if (captchaApiKey) {
-                try {
-                    console.log(`🤖 [HTTP] Attempting auto-solve with 2Captcha...`);
-                    const captchaSolver = new CaptchaSolver(captchaApiKey);
-                    solution = await captchaSolver.solve(loginResult.captchaImage);
-                    console.log('✅ [HTTP] CAPTCHA auto-solved: [REDACTED]');
-                } catch (autoSolveError: unknown) {
-                    console.log(`⚠️ [HTTP] Auto-solve failed: ${getErrMsg(autoSolveError)}, falling back to manual`);
-                }
-            }
-
-            // Fallback to manual if auto-solve failed
-            if (!solution) {
-                const now = new Date();
-                const heartbeatExpiry = new Date(now.getTime() + HEARTBEAT_TTL_SECONDS * 1000);
-
-                if (!await updateOperationIfActive(operationId, {
-                    status: 'AWAITING_CAPTCHA',
-                    captchaImage: loginResult.captchaImage,
-                    captchaExpiry: new Date(Date.now() + CAPTCHA_TIMEOUT_MS),
-                    lastHeartbeat: now,
-                    heartbeatExpiry: heartbeatExpiry
-                }, 'START_INSTALLMENT captcha update')) {
-                    await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                    await accountPool.markAccountUsed(selectedAccount.id);
-                    return;
-                }
-
-                solution = await waitForCaptchaSolution(operationId);
-                if (!solution) {
-                    await trackCredentialLoginFailure(selectedAccount.id, loginResult, client.getLoginTrackingRevision(), { attempted: client.didAttemptLogin(), terminal: true });
-                    await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                    throw new Error('CAPTCHA_TIMEOUT: Verification code was not entered');
-                }
-            }
-
-            // Submit with CAPTCHA
-            const loginWithCaptcha = await client.submitLogin(
-                selectedAccount.username,
-                selectedAccount.password,
-                selectedAccount.totpSecret || undefined,
-                solution
-            );
-
-            if (!loginWithCaptcha.success) {
-                await trackCredentialLoginFailure(
-                    selectedAccount.id,
-                    loginWithCaptcha, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
-                await releaseLoginLock(selectedAccount.id, WORKER_ID);
-                throw new Error(loginWithCaptcha.error || 'Login failed after CAPTCHA');
-            }
-        } else if (!loginResult.success) {
-            await trackCredentialLoginFailure(
-                selectedAccount.id,
-                loginResult, client.getLoginTrackingRevision?.(), { attempted: client.didAttemptLogin(), terminal: true });
-            await releaseLoginLock(selectedAccount.id, WORKER_ID);
-            throw new Error(loginResult.error || 'Login failed');
-        }
+        await loginForOperation({ client, account: selectedAccount, operationId,
+            assertCurrent: () => installmentLeaseHeartbeat.assertCurrent() });
 
         await trackFreshLoginSuccess(selectedAccount.id, client.getLoginTrackingRevision?.());
 

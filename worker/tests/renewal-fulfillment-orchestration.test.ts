@@ -225,101 +225,32 @@ test('package preparation cannot persist a confirmation session after execution 
     assert.ok(finalStateUpdate > fencedSessionSave)
 })
 
-test('2026-08-25 regression: re-login fences every provider login, CAPTCHA submit, export, and session save', () => {
-    const reLoginSource = functionSource(
-        'async function performReLogin(',
-        'async function withSessionRetry'
-    )
-    const loopIndex = reLoginSource.indexOf('for (let attempt = 1;')
-    const attemptFenceIndex = reLoginSource.indexOf(
-        'await runtime.assertExecutionLeaseCurrent(executionLease);',
-        loopIndex
-    )
-    const loginIndex = reLoginSource.indexOf('await httpClient.login(', attemptFenceIndex)
-    const postLoginFenceIndex = reLoginSource.indexOf(
-        'await runtime.assertExecutionLeaseCurrent(executionLease);',
-        loginIndex
-    )
-    const captchaSubmitIndex = reLoginSource.indexOf(
-        'await httpClient.submitLogin(',
-        postLoginFenceIndex
-    )
-    const preCaptchaFenceIndex = reLoginSource.lastIndexOf(
-        'await runtime.assertExecutionLeaseCurrent(executionLease);',
-        captchaSubmitIndex
-    )
-    const postCaptchaFenceIndex = reLoginSource.indexOf(
-        'await runtime.assertExecutionLeaseCurrent(executionLease);',
-        captchaSubmitIndex
-    )
-    const exportIndex = reLoginSource.indexOf('await httpClient.exportSession()', postCaptchaFenceIndex)
-    const preExportFenceIndex = reLoginSource.lastIndexOf(
-        'await runtime.assertExecutionLeaseCurrent(executionLease);',
-        exportIndex
-    )
-    const postExportFenceIndex = reLoginSource.indexOf(
-        'await runtime.assertExecutionLeaseCurrent(executionLease);',
-        exportIndex
-    )
-    const saveIndex = reLoginSource.indexOf('await runtime.saveSessionToCacheFenced(', postExportFenceIndex)
-    const preSaveFenceIndex = reLoginSource.lastIndexOf(
-        'await runtime.assertExecutionLeaseCurrent(executionLease);',
-        saveIndex
-    )
-    const postSaveFenceIndex = reLoginSource.indexOf(
-        'await runtime.assertExecutionLeaseCurrent(executionLease);',
-        saveIndex
-    )
-
-    assert.ok(attemptFenceIndex > loopIndex && attemptFenceIndex < loginIndex)
-    assert.ok(postLoginFenceIndex > loginIndex && postLoginFenceIndex < captchaSubmitIndex)
-    assert.ok(preCaptchaFenceIndex > postLoginFenceIndex && preCaptchaFenceIndex < captchaSubmitIndex)
-    assert.ok(postCaptchaFenceIndex > captchaSubmitIndex)
-    assert.ok(preExportFenceIndex > postCaptchaFenceIndex && preExportFenceIndex < exportIndex)
-    assert.ok(postExportFenceIndex > exportIndex && postExportFenceIndex < saveIndex)
-    assert.ok(preSaveFenceIndex > postExportFenceIndex && preSaveFenceIndex < saveIndex)
-    assert.ok(postSaveFenceIndex > saveIndex)
+test('2026-08-25 regression: re-login fences provider login, challenge completion, export and save', () => {
+    const body = functionSource('async function performReLogin(', 'async function withSessionRetry')
+    for (const boundary of ['const loginResult = await httpClient.login(', 'const newSession = await httpClient.exportSession()', 'const saved = await runtime.saveSessionToCacheFenced(']) {
+        const offset = body.indexOf(boundary)
+        assert.ok(offset > 0)
+        assert.match(body.slice(Math.max(0, offset - 80), offset), /await assertCurrent\(\);/)
+        assert.ok(body.indexOf('await assertCurrent();', offset) > offset)
+    }
+    assert.match(body, /completeLoginChallenge\(loginResult, \{\s*assertCurrent,/)
+    // The shared helper owns the fences around CAPTCHA waiting and submission.
+    const challenge = readFileSync(join(process.cwd(), 'worker/src/lib/login-challenge.ts'), 'utf8')
+    assert.match(challenge, /await runtime.assertCurrent\(\);\s*if \(!solution\)/)
+    assert.match(challenge, /await runtime.submit\(solution\);\s*captchaSubmissions\+\+;\s*await runtime.assertCurrent\(\);/)
 })
 
-test('2026-08-25 regression: CAPTCHA or fenced-save lease loss escapes before a second login attempt', () => {
-    const reLoginSource = functionSource(
-        'async function performReLogin(',
-        'async function withSessionRetry'
-    )
-    const captchaCatchIndex = reLoginSource.indexOf('catch (captchaError: unknown)')
-    const captchaEscapeIndex = reLoginSource.indexOf(
-        'if (isProviderExecutionLeaseLostError(captchaError)) throw captchaError;',
-        captchaCatchIndex
-    )
-    const captchaRetryIndex = reLoginSource.indexOf('await waitForReLoginRetry(', captchaCatchIndex)
-    const saveLostIndex = reLoginSource.indexOf(
-        "throw new Error('PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE')"
-    )
-    const outerCatchIndex = reLoginSource.indexOf('catch (error: unknown)', saveLostIndex)
-    const outerEscapeIndex = reLoginSource.indexOf(
-        'if (isProviderExecutionLeaseLostError(error)) throw error;',
-        outerCatchIndex
-    )
-    const outerRetryIndex = reLoginSource.indexOf('await waitForReLoginRetry(', outerCatchIndex)
-    const retryGuardSource = functionSource(
-        'async function waitForReLoginRetry(',
-        'async function performReLogin('
-    )
-    const firstRetryFenceIndex = retryGuardSource.indexOf(
-        'await assertExecutionLeaseCurrent(executionLease);'
-    )
-    const delayIndex = retryGuardSource.indexOf('await new Promise')
-    const secondRetryFenceIndex = retryGuardSource.indexOf(
-        'await assertExecutionLeaseCurrent(executionLease);',
-        firstRetryFenceIndex + 1
-    )
-
-    assert.ok(captchaCatchIndex >= 0)
-    assert.ok(captchaEscapeIndex > captchaCatchIndex && captchaEscapeIndex < captchaRetryIndex)
-    assert.ok(saveLostIndex >= 0)
-    assert.ok(outerEscapeIndex > outerCatchIndex && outerEscapeIndex < outerRetryIndex)
-    assert.ok(firstRetryFenceIndex >= 0 && firstRetryFenceIndex < delayIndex)
-    assert.ok(secondRetryFenceIndex > delayIndex)
+test('2026-08-25 regression: lease loss escapes challenge completion/save before retry', () => {
+    const body = functionSource('async function performReLogin(', 'async function withSessionRetry')
+    const outerCatch = body.indexOf('catch (error: unknown)')
+    const escape = body.indexOf('if (isProviderExecutionLeaseLostError(error)) throw error;', outerCatch)
+    const retry = body.indexOf('await waitForReLoginRetry(', outerCatch)
+    assert.ok(escape > outerCatch && retry > escape)
+    assert.match(body, /PROVIDER_EXECUTION_LEASE_LOST_DURING_SESSION_SAVE/)
+    const retryBody = functionSource('async function waitForReLoginRetry(', 'async function performReLogin(')
+    assert.match(retryBody, /await assertExecutionLeaseCurrent\(executionLease\);[\s\S]*await new Promise[\s\S]*await assertExecutionLeaseCurrent\(executionLease\);/)
+    // Runtime cancellation during solver waiting and fenced saves is exercised by
+    // relogin-execution-lease.test.ts and login-challenge-recovery.test.ts.
 })
 
 test('database proof-claim conflicts overwrite the matched attempt and persisted operation state', () => {

@@ -4,10 +4,10 @@
 > Memory role: derived index and resumption state; use it to locate evidence, never as proof.
 > Record states: VERIFIED | INFERRED | PLANNED | PARTIAL | STALE | CONFLICT | DEPRECATED | UNKNOWN
 > Feature states: PLANNED | PARTIAL | WORKING | BLOCKED | DEPRECATED | BROKEN | UNKNOWN
-> Last synchronized: 2026-11-09
-> Last synchronized commit: 67c982fc052649a10c00338238787624bfd2cbd9
+> Last synchronized: 2026-11-11
+> Last synchronized commit: a3f190b22e1974c25867ce31a285bda7a9c2aecc
 > Working tree at synchronization: DIRTY
-> Working tree fingerprint: SHA256:efc9e5611b8680b5ab3ad6d5a6b68a4f43eb593997dd715ac95e21a64834472b
+> Working tree fingerprint: SHA256:a55e6957c82fe74c0716f77b40c9336c396ad2eb6f6b1ec1854b7260a41b8a80
 
 ## 1. Project Identity
 
@@ -22,7 +22,7 @@
 
 - Publication scope 2026-11-09: the user authorized commit/push of the tested login repair to `codex/037-panel-responsiveness-login-health` and requested pull/build commands. Production execution and account recovery remain user-operated and unverified. Sources: `docs/deployment/login-quarantine-20261109.md`; `UPD-20261109-002`.
 
-- Current login repair: `UPD-20261109-001` preserves renewed CAPTCHA state, explicit caller finality and non-quarantining read failures; TLS failures remain transport. Local tests/builds and recovery fences pass; global lint debt, broader 037 acceptance and production/provider recovery remain open. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; `docs/PROJECT_GUIDE.md`.
+- Current login repair: `UPD-20261111-001` completes challenges across all solving callers, preserves sessions during uncertain probes, rejects unavailable cache/locks and corrects KeepAlive cadence. This supersedes incomplete solver-failure coverage in `UPD-20261109-001`. Local verification passes; broad 037 acceptance and production/provider recovery remain open. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; `docs/PROJECT_GUIDE.md`.
 
 - Latest 037 follow-up: `UPD-20261104-003` supersedes the older incident status below. Chrome reproduced a pre-dispatch illegal invocation. Browser-to-Worker test and current builds pass locally; see `specs/037-panel-responsiveness-login-health/evidence/followup-background.json`. The published baseline is 5b32ecb.
 
@@ -830,6 +830,8 @@
 
 ### JOB-003 — HTTP operation worker
 
+- 2026-11-11: Renewal, signal refresh/check, installment start and re-login use bounded challenge completion; manual answers are cleared per image and ownership is checked around waits/POSTs. Signal check publishes refreshed cookies with lease CAS. Sources: `worker/src/lib/login-challenge.ts`; `worker/src/http-queue-processor.ts`; `UPD-20261111-001`.
+
 - 2026-10-30: All login-result consumers stop on terminal transport/rate errors. Boolean re-login failure stops action replay; only explicit credential rejection reaches revision-fenced counters. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
 
 - Review policy 2026-10-13: Ended mutating jobs do not reopen ownership; released review Reports can acquire only a temporary account lease and retain observations. Sources: `docs/PROJECT_GUIDE.md#review-is-not-a-card-block--delivery-register-2026-10-13`; `UPD-20261013-015`.
@@ -851,6 +853,8 @@
 - Phase 4: Exact card/type reload for apply/remove, unverified fallback rejected, fresh package must uniquely match name/price. Publication is fenced; promo errors bypass financial closure. Explicit null means removal. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### JOB-004 — beIN session keepalive
+
+- 2026-11-11: Missing/failed solver work is incomplete and cannot quarantine. Uncertain probes preserve cookies. Sequential cadence subtracts elapsed work; capacity beyond session lifetime remains an operational limit. Sources: `worker/src/lib/session-keepalive.ts`; `worker/tests/login-runtime-boundaries.test.ts`; `UPD-20261111-001`.
 
 - 2026-11-09: Renewed CAPTCHA continues with matching hidden fields within three attempts; one terminal health write and actual attempt counts replace early unknown quarantine. Owner loss blocks late session/health publication. Sources: `worker/src/lib/session-keepalive.ts`; `worker/tests/login-challenge-recovery.test.ts`.
 
@@ -879,6 +883,8 @@
 - Connections: `APP-006`, `API-003`, `DATA-002`, `JOB-002`, `RISK-001`
 
 ### INT-001 — beIN HTTP/provider automation
+
+- 2026-11-11: Explicit login forms/redirects expire sessions; unavailable/ambiguous checks throw while retaining cookies. Shared challenge handling retains the response's image/form/jar. Solver HTTPS requests have bounded waits and safe allowlisted errors; cache/lock outages fail closed. Native local cookie/image/redirect/import/503 reuse control passes. Sources: `tests/integration/bein-login-challenge.cjs`; `worker/src/utils/captcha-solver.ts`; `worker/src/lib/session-cache.ts`; `UPD-20261111-001`.
 
 - 2026-11-09: GET and POST share challenge extraction. Explicit rejection precedes challenge handling; positive authentication remains mandatory. Non-solving balance/report reads fail with CAPTCHA_REQUIRED without quarantine. Certificate codes remain transport with no immediate retry and no TLS option change. Sources: `worker/src/http/HttpClientService.ts`; `shared/bein/login-failure.ts`; `worker/src/lib/provider-report-reader.ts`; `worker/src/http-queue-processor.ts`.
 
@@ -1089,6 +1095,8 @@
 
 ### TEST-001 — Fast unit and source-contract suites
 
+- 2026-11-11: 964 root cases and 601 distinct Worker cases pass, including five native Redis gates; types/builds and native HTTP/SQL integration pass. Generated `output/` snapshots are excluded from web type checking. Sources: `specs/037-panel-responsiveness-login-health/evidence/login-flow-verification-20261111.json`; `UPD-20261111-001`.
+
 - 2026-11-09: Current root suite passes 964/964; Worker 573/578 with five native Redis gates passing separately. Types and both builds pass. Scoped production/new-test lint passes, global baseline lint does not. Browser fixtures pass 39 checks including ar/en/bn at 360/768/1280; wide-table/ellipsis limitations persist. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; `UPD-20261109-001`.
 
 - 2026-10-30: Current incident root gate: 922 tests, no failures/skips. This supersedes historical counts only for the current checked source. Sources: `specs/027-bein-connection-mode/evidence/verification.md`; `UPD-20261030-001`.
@@ -1129,6 +1137,8 @@
 - Phase 4: 76 focused unit/worker cases pass with zero skips, including actual isolated API/HTTP/orchestrator and connected proof/source-contract cases. Earlier T015 red evidence is historical. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ### TEST-002 — Database-gated integration suites
+
+- 2026-11-11: Native Redis ownership/session CAS and actual Prisma SQL in single-connection PGlite pass with the local balance/login HTTP integration. Native PostgreSQL multi-process contention remains unverified. Sources: `tests/integration/bein-login-challenge.cjs`; `UPD-20261111-001`.
 
 - 2026-11-09: The real balance dispatcher, local HTTP, Redis and Prisma/PGlite prove challenge read failure without quarantine, stale-result rejection after recovery, one terminal write, foreign-lock safety and unchanged balance. PGlite is single-connection; native PostgreSQL multi-process races remain unverified by this run. Sources: `tests/integration/bein-login-challenge.cjs`; `specs/037-panel-responsiveness-login-health/evidence/login-repair-integration-final-20261109.log`.
 
@@ -1381,6 +1391,8 @@
 
 ### FEAT-024 — Panel responsiveness and provider login health
 
+- 2026-11-11: Bounded login follow-up repairs incomplete challenge callers and continuity without closing whole-feature acceptance. Sources: `UPD-20261111-001`.
+
 - 2026-11-09 bounded correction: renewed CAPTCHA no longer becomes terminal unknown; read-only challenges do not disable accounts; TLS codes are transport. Local repair verification and lifecycle-schema correction are recorded; full 037 remains PARTIAL. Sources: `specs/037-panel-responsiveness-login-health/analysis.md`; `specs/037-panel-responsiveness-login-health/evidence/implementation.md`.
 
 - Continuation: Dashboard-owned async balance polling/row observations, status-only retry and C03 edit/reset are wired with focused tests. Missing status remains uncertain; specific error copy and remaining creation/transfers/consumers are unfinished. Sources: `src/lib/panel-balance-tracker.ts`; `src/hooks/useBeinBalanceRefresh.ts`; `specs/037-panel-responsiveness-login-health/evidence/implementation.md`.
@@ -1545,6 +1557,8 @@
 
 ### FEAT-014 — beIN accounts, sessions, proxies, and automation configuration
 
+- 2026-11-11: Shared challenge completion and session-probe semantics supersede earlier incomplete coverage. Actual three-submit exhaustion and credential/unknown policy remain; no automatic activation. Production acceptance remains open. Sources: `UPD-20261111-001`.
+
 - 2026-11-09: False-quarantine repair is locally tested under unchanged locks/revision fences. Disabled accounts remain disabled until existing explicit recovery; no bulk activation, financial change or production action. Sources: `worker/tests/login-challenge-recovery.test.ts`; `tests/integration/bein-login-challenge.cjs`; `UPD-20261109-001`.
 
 - Partial 2026-11-04: `FEAT-024` wires first-terminal quarantine and async balance refresh locally. Full acceptance and production parity remain unverified. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`.
@@ -1684,6 +1698,8 @@
 
 ### IMPACT-010 — Planned command lifecycle and login-health consumers
 
+- 2026-11-11: All solving callers route through login-challenge; non-solving balance/report/installment-confirm retain CAPTCHA_REQUIRED behavior. Session validation, Redis admission/cache and scheduler consumers were checked together. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; `UPD-20261111-001`.
+
 - 2026-11-09 source review: login repair fans out through HTTP challenge parsing, queue re-login/start/signal/check/installment consumers, KeepAlive, balance/report reads, health persistence and ar/en/bn monitoring. Caller finality is explicit; current auth/recovery/cache fences and financial paths remain unchanged. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`.
 
 - State: PLANNED
@@ -1791,6 +1807,8 @@
 ## 19. Technical Decisions
 
 ### DEC-013 — Document responsive work and first-terminal quarantine
+
+- 2026-11-11 clarification: Terminal CAPTCHA exhaustion requires three provider submissions. Missing solver configuration, solver failure and incomplete manual entry are not terminal beIN rejection. Existing explicit credential/unknown protection and guarded manual recovery remain. Sources: `shared/bein/login-health.ts`; `UPD-20261111-001`.
 
 - State: VERIFIED
 - Date: 2026-11-04
@@ -1911,6 +1929,8 @@
 ## 20. Known Issues and Technical Debt
 
 ### RISK-012 — Responsiveness diagnosis and historical evidence
+
+- 2026-11-11: Local solver/caller/probe regressions are covered; real beIN acceptance, actual solver account availability and two complete production KeepAlive cycles remain NOT_VERIFIED. Long cycles beyond session lifetime remain a capacity/latency limitation. Sources: `UPD-20261111-001`.
 
 - 2026-11-09: False-quarantine regressions are locally repaired; the reported production account's exact cause and two-cycle recovery are NOT_VERIFIED. Global lint has baseline debt and narrow monitor tables retain scroll/ellipsis limitations. The 037 plan-guard schema collision is fixed without checking any runtime task. Sources: `specs/037-panel-responsiveness-login-health/evidence/implementation.md`; `specs/037-panel-responsiveness-login-health/evidence/plan-guard.json`.
 
@@ -2047,6 +2067,8 @@
 
 ### WORK-010 — Implement Spec Kit 037 after documentation handoff
 
+- 2026-11-11: Bounded login follow-up is locally verified and authorized for publication on the existing branch. Server deployment, affected-account login and two KeepAlive cycles remain pending user execution. All original feature tasks remain open. Sources: `UPD-20261111-001`; `docs/deployment/login-quarantine-20261109.md`.
+
 - Publication authorization 2026-11-09: push the completed bounded login correction and provide server commands; this does not close broader 037 tasks or establish deployment. Sources: `user:ارفع وادديني اوامر السحب`; `docs/deployment/login-quarantine-20261109.md`.
 
 - State: PARTIAL
@@ -2146,6 +2168,16 @@
 - Phase 4: Phase 4 T015-T017 complete, 10/46 accepted; synthetic API/worker/DB and six mocked browser groups verified with independent review. Later phases and T007/T008/T012 remain open. Saved locally, no commit/push/deploy. Source: `specs/036-audit-remediation/evidence/phase-4-implementation.md`; `UPD-20260907-015`.
 
 ## 22. Change Ledger
+
+### UPD-20261111-001 — Complete CAPTCHA callers and preserve reusable sessions
+
+- State: VERIFIED
+- Date: 2026-11-11
+- Sources: `worker/src/lib/login-challenge.ts`; `worker/src/http-queue-processor.ts`; `worker/src/http/HttpClientService.ts`; `worker/src/lib/session-keepalive.ts`; `worker/src/utils/captcha-solver.ts`; `specs/037-panel-responsiveness-login-health/evidence/implementation.md`
+- Affected IDs: `JOB-003`, `JOB-004`, `INT-001`, `TEST-001`, `TEST-002`, `FEAT-014`, `FEAT-024`, `IMPACT-010`, `DEC-013`, `RISK-012`, `WORK-010`, `FRESH-001`
+- Delta: Separate incomplete solver/manual work from actual three-submit exhaustion; use one challenge chain across all solving callers; preserve sessions during uncertain validation, fail closed on cache/lock outages and correct cycle cadence. Publish refreshed signal-check cookies under the current lease.
+- Evidence: Current source hashes and receipts are indexed in `specs/037-panel-responsiveness-login-health/evidence/login-flow-verification-20261111.json`; semantic limits remain in implementation.md.
+- Impact: RUNTIME_CHANGE_NOT_DEPLOYED. Commit/push is authorized; provider/server acceptance is separate. No schema, financial policy change, automatic activation or live provider action.
 
 ### UPD-20261109-002 — Authorize login repair publication and server handoff
 
@@ -2590,6 +2622,8 @@
 - Connections: `FE-002`, `FEAT-022`, `RISK-001`, `RISK-010`
 
 ### FRESH-001 — Local synchronization baseline
+
+- 2026-11-11: Header records the settled pre-publication worktree at baseline a3f190b; publishing changes Git freshness without invalidating unchanged runtime checks. Sources: `UPD-20261111-001`.
 
 - Publication handoff: `UPD-20261109-002` changes only authorization/operations documentation beyond the tested repair. The header records the pre-commit packaging baseline; committing changes Git freshness without invalidating unchanged runtime tests. Sources: `docs/deployment/login-quarantine-20261109.md`.
 

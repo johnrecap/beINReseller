@@ -5,14 +5,28 @@
  * Cost: ~$3 per 1000 CAPTCHAs
  */
 
+import { setTimeout as wait } from 'node:timers/promises';
+
 interface CaptchaResponse {
     status: number;
     request: string;
 }
 
+const SOLVER_FAILURE_CODES = new Set(['ERROR_WRONG_USER_KEY', 'ERROR_KEY_DOES_NOT_EXIST', 'ERROR_ZERO_BALANCE',
+    'ERROR_NO_SLOT_AVAILABLE', 'ERROR_CAPTCHA_UNSOLVABLE', 'ERROR_IP_NOT_ALLOWED', 'ERROR_IP_BLOCKED',
+    'ERROR_ZERO_CAPTCHA_FILESIZE', 'ERROR_TOO_BIG_CAPTCHA_FILESIZE', 'ERROR_WRONG_FILE_EXTENSION', 'ERROR_IMAGE_TYPE_NOT_SUPPORTED']);
+
+export class CaptchaSolverError extends Error {
+    constructor(readonly code: string) { super(code); }
+}
+
+function solverFailure(code: string): CaptchaSolverError {
+    return new CaptchaSolverError(SOLVER_FAILURE_CODES.has(code) ? code : 'CAPTCHA_SOLVER_REJECTED');
+}
+
 export class CaptchaSolver {
     private apiKey: string
-    private readonly API_URL = 'http://2captcha.com'
+    private readonly API_URL = 'https://2captcha.com'
 
     constructor(apiKey: string) {
         this.apiKey = apiKey
@@ -39,9 +53,6 @@ export class CaptchaSolver {
             return 'BMP';
         }
 
-        // Unknown - log first bytes for debugging
-        const hexBytes = Array.from(bytes.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' ');
-        console.log(`[2Captcha] Unknown image format, first bytes: ${hexBytes}`);
         return 'UNKNOWN';
     }
 
@@ -51,56 +62,46 @@ export class CaptchaSolver {
      * @returns The solved CAPTCHA text
      */
     async solve(imageBase64: string): Promise<string> {
-        if (!this.apiKey) {
-            throw new Error('2Captcha API key not configured')
-        }
-
-        // Detect and log image format
+        if (!this.apiKey) throw new CaptchaSolverError('CAPTCHA_SOLVER_NOT_CONFIGURED');
+        const signal = AbortSignal.timeout(60_000);
+        const deadline = Date.now() + 60_000;
         const format = this.detectImageFormat(imageBase64);
-        console.log(`[2Captcha] Image format detected: ${format}, size: ${imageBase64.length} chars`);
-
-        // Step 1: Submit CAPTCHA
-        const submitResponse = await fetch(`${this.API_URL}/in.php`, {
-            method: 'POST',
+        console.log(`[2Captcha] Image format=${format} size=${imageBase64.length}`);
+        const submitted = await this.request(`${this.API_URL}/in.php`, {
+            method: 'POST', signal,
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                key: this.apiKey,
-                method: 'base64',
-                body: imageBase64,
-                json: '1'
-            })
-        })
-
-        const submitResult = await submitResponse.json() as CaptchaResponse
-
-        if (submitResult.status !== 1) {
-            throw new Error(`CAPTCHA submission failed: ${submitResult.request}`)
-        }
-
-        const requestId = submitResult.request
-        console.log(`🧩 CAPTCHA submitted, ID: ${requestId}`)
-
-        // Step 2: Poll for result (with timeout)
-        const maxAttempts = 30 // 30 * 2 = 60 seconds max
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            await this.delay(2000) // Wait 2 seconds between polls
-
-            const resultResponse = await fetch(
-                `${this.API_URL}/res.php?key=${this.apiKey}&action=get&id=${requestId}&json=1`
-            )
-            const resultData = await resultResponse.json() as CaptchaResponse
-
-            if (resultData.status === 1) {
-                console.log('CAPTCHA solved')
-                return resultData.request
+            body: new URLSearchParams({ key: this.apiKey, method: 'base64', body: imageBase64, json: '1' }),
+        });
+        if (submitted.status !== 1) throw solverFailure(submitted.request);
+        while (Date.now() < deadline) {
+            try { await wait(5000, undefined, { signal }); }
+            catch { throw new CaptchaSolverError('CAPTCHA_SOLVER_TIMEOUT'); }
+            const solved = await this.request(
+                `${this.API_URL}/res.php?key=${encodeURIComponent(this.apiKey)}&action=get&id=${encodeURIComponent(submitted.request)}&json=1`,
+                { signal });
+            if (solved.status === 1) {
+                const solution = solved.request.trim();
+                if (!solution) throw new CaptchaSolverError('CAPTCHA_SOLVER_INVALID_RESPONSE');
+                return solution;
             }
-
-            if (resultData.request !== 'CAPCHA_NOT_READY') {
-                throw new Error(`CAPTCHA solving failed: ${resultData.request}`)
-            }
+            if (solved.request !== 'CAPCHA_NOT_READY') throw solverFailure(solved.request);
         }
+        throw new CaptchaSolverError('CAPTCHA_SOLVER_TIMEOUT');
+    }
 
-        throw new Error('CAPTCHA solving timeout')
+    private async request(url: string, options: RequestInit): Promise<CaptchaResponse> {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) throw new CaptchaSolverError(response.status === 429 ? 'CAPTCHA_SOLVER_RATE_LIMITED' : 'CAPTCHA_SOLVER_UNAVAILABLE');
+            const payload: unknown = await response.json();
+            if (!payload || typeof payload !== 'object' || !('status' in payload) || !('request' in payload) ||
+                ![0, 1].includes(payload.status as number) || typeof payload.request !== 'string')
+                throw new CaptchaSolverError('CAPTCHA_SOLVER_INVALID_RESPONSE');
+            return payload as CaptchaResponse;
+        } catch (error) {
+            if (error instanceof CaptchaSolverError) throw error;
+            throw new CaptchaSolverError(options.signal?.aborted ? 'CAPTCHA_SOLVER_TIMEOUT' : 'CAPTCHA_SOLVER_UNAVAILABLE');
+        }
     }
 
     /**
@@ -125,7 +126,4 @@ export class CaptchaSolver {
         return parseFloat(data.request)
     }
 
-    private delay(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms))
-    }
 }

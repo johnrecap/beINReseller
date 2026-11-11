@@ -256,10 +256,10 @@ export async function getSessionFromCache(accountId: string, routeKey: string): 
         maybeLogMetrics();
 
         return session;
-    } catch (error) {
-        console.error(`[Session Cache] Error reading session:`, error);
+    } catch {
+        console.error('[Session Cache] Session read unavailable');
         cacheMisses++;
-        return null;
+        throw new Error('PROVIDER_SESSION_CACHE_UNAVAILABLE');
     }
 }
 
@@ -663,9 +663,9 @@ export async function acquireLoginLock(accountId: string, workerId: string): Pro
             console.log(`[Session Cache] ⏳ Login lock busy for account ${accountId.substring(0, 8)}... (another worker is logging in)`);
             return false;
         }
-    } catch (error) {
-        console.error(`[Session Cache] Error acquiring login lock:`, error);
-        return true; // Allow login on error (graceful degradation)
+    } catch {
+        console.error('[Session Cache] Login lock unavailable');
+        throw new Error('PROVIDER_LOGIN_LOCK_UNAVAILABLE');
     }
 }
 
@@ -727,9 +727,9 @@ export async function waitForLoginComplete(accountId: string, timeoutMs: number 
 
         console.log(`[Session Cache] ⚠️ Timeout waiting for login (${timeoutMs}ms)`);
         return false; // Timeout
-    } catch (error) {
-        console.error(`[Session Cache] Error waiting for login:`, error);
-        return true; // Allow proceeding on error
+    } catch {
+        console.error('[Session Cache] Login lock wait unavailable');
+        throw new Error('PROVIDER_LOGIN_LOCK_UNAVAILABLE');
     }
 }
 

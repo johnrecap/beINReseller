@@ -1134,13 +1134,15 @@ export class HttpClientService {
             }
 
             console.log('[HTTP] Session imported successfully');
-        } catch (error) {
-            console.error('[HTTP] Failed to import session:', error);
+        } catch {
+            console.error('[HTTP] Failed to import reusable session');
             // Reset to clean state
             this.jar = new CookieJar();
             this.sessionExpiresAt = null;
             this.preparedRenewal = null;
             this.currentViewState = null;
+            this.invalidateSession();
+            throw new Error('PROVIDER_SESSION_INVALID');
         }
     }
 
@@ -1312,7 +1314,9 @@ export class HttpClientService {
      * Validate session on beIN server
      * Makes a lightweight request to check if session is still valid
      * 
-     * @returns true if session is valid on beIN server, false if expired
+     * @returns true when verified, false on an explicit login redirect/form.
+     * Throws PROVIDER_SESSION_UNAVAILABLE on transport/ambiguous responses so
+     * callers cannot mistake a failed probe for permission to replace cookies.
      */
     public async validateSession(): Promise<boolean> {
         this.renewalSelection = null;
@@ -1339,16 +1343,23 @@ export class HttpClientService {
                 validateStatus: (status) => status < 400 || status === 302
             });
 
-            // Check if we got redirected to login page (session expired)
-            const sessionExpiry = this.checkForSessionExpiry(response.data);
-            if (loginHttpFailure(response.status) || !this.hasAuthenticatedContent(response.data)) {
+            const loginUrl = new URL(this.config.loginUrl);
+            const location = response.headers?.location;
+            const redirectedToLogin = [302, 303, 307, 308].includes(response.status) && typeof location === 'string' &&
+                new URL(location, checkUrl).origin === loginUrl.origin &&
+                new URL(location, checkUrl).pathname.toLowerCase() === loginUrl.pathname.toLowerCase();
+            const failure = loginHttpFailure(response.status);
+            if (failure && !redirectedToLogin) throw Object.assign(new Error(failure.error), {
+                code: 'PROVIDER_SESSION_UNAVAILABLE', failureCode: failure.failureCode,
+            });
+            const $ = cheerio.load(typeof response.data === 'string' ? response.data : '');
+            const loginForm = $('#Login1_UserName, input[name="Login1$UserName"], input[name="Login1$Password"]').length > 0;
+            if (redirectedToLogin || loginForm) {
                 this.invalidateSession();
                 return false;
             }
-            if (sessionExpiry) {
-                console.log(`[HTTP] validateSession: Session expired - ${sessionExpiry}`);
-                this.invalidateSession();
-                return false;
+            if (!this.hasAuthenticatedContent(response.data) || this.checkForSessionExpiry(response.data)) {
+                throw Object.assign(new Error(loginMessageFailure().error), { code: 'PROVIDER_SESSION_UNAVAILABLE' });
             }
 
             // Update ViewState for future requests
@@ -1367,9 +1378,11 @@ export class HttpClientService {
             return true;
 
         } catch (error: unknown) {
-            console.error('[HTTP] Session validation failed:', loginExceptionFailure(error).failureCode);
-            // Don't invalidate on network error - might be temporary
-            return false;
+            if ((error as { code?: string })?.code === 'PROVIDER_SESSION_UNAVAILABLE') throw error;
+            if (error instanceof Error && /^(?:PROVIDER_EXECUTION_LEASE_LOST|ADMIN_OPERATION_|ACCOUNT_SESSION_GUARD_LOST)/.test(error.message)) throw error;
+            const failure = loginExceptionFailure(error);
+            console.error('[HTTP] Session validation unavailable:', failure.failureCode);
+            throw Object.assign(new Error(failure.error), { code: 'PROVIDER_SESSION_UNAVAILABLE', failureCode: failure.failureCode });
         }
     }
 

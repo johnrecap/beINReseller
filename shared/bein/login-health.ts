@@ -4,7 +4,7 @@ import { isCredentialLoginFailure } from './login-failure'
 export const LOGIN_HEALTH_REASONS = ['CREDENTIALS_REJECTED', 'CAPTCHA_EXHAUSTED', 'AUTH_REVIEW_REQUIRED',
     'CONNECTION_FAILED', 'RATE_LIMITED', 'SYSTEM_ERROR'] as const
 export type LoginHealthReason = typeof LOGIN_HEALTH_REASONS[number]
-export type LoginHealthContext = { attempted: boolean; terminal: boolean }
+export type LoginHealthContext = { attempted: boolean; terminal: boolean; captchaSubmissions?: number }
 
 /** Called at the final login boundary, never merely because an existing session expired. */
 export function decideLoginHealth(
@@ -15,7 +15,7 @@ export function decideLoginHealth(
     const reason: LoginHealthReason = !context.attempted ? 'SYSTEM_ERROR' :
         category === 'transport' ? 'CONNECTION_FAILED' : category === 'rate_limit' ? 'RATE_LIMITED' :
         isCredentialLoginFailure(failure) ? 'CREDENTIALS_REJECTED' :
-        category === 'captcha' ? 'CAPTCHA_EXHAUSTED' : 'AUTH_REVIEW_REQUIRED'
+        category === 'captcha' ? ((context.captchaSubmissions ?? 0) >= 3 ? 'CAPTCHA_EXHAUSTED' : 'SYSTEM_ERROR') : 'AUTH_REVIEW_REQUIRED'
     const disable = context.terminal && context.attempted &&
         (reason === 'CREDENTIALS_REJECTED' || reason === 'CAPTCHA_EXHAUSTED' || reason === 'AUTH_REVIEW_REQUIRED')
     return { record: context.terminal, disable, credentialIncrement: disable && reason === 'CREDENTIALS_REJECTED' ? 1 : 0,

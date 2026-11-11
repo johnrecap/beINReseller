@@ -36,6 +36,7 @@ function fixture(result: any = loginHttpFailure(402), attempted = true, failCapt
             markSessionValidFromCache() { this.active = true }
             resetSession() { this.active = false }
             async validateSession() { return this.active }
+            getSessionTimeout() { return 15 }
             async exportSession() { return { accountId: this.id, cookies: this.id } }
             getLoginTrackingRevision() { return new Date(0) }
             didAttemptLogin() { return attempted }
@@ -77,8 +78,7 @@ test('KeepAlive losing ownership cannot write a late cache result', async () => 
 })
 
 test('KeepAlive passes all terminal categories and actual-attempt context to the common health writer', async () => {
-    for (const result of [loginHttpFailure(402), loginHttpFailure(429), loginMessageFailure(), loginMessageFailure('Invalid username or password'),
-        { ...loginMessageFailure('CAPTCHA'), requiresCaptcha: true, captchaImage: 'synthetic' }]) {
+    for (const result of [loginHttpFailure(402), loginHttpFailure(429), loginMessageFailure(), loginMessageFailure('Invalid username or password')]) {
         const f = fixture(result)
         await f.refresh('a')
         assert.equal(f.health.length, 1)

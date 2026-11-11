@@ -1,0 +1,184 @@
+{
+  "date": "2026-11-11",
+  "scope": "Login challenge callers and reusable-session continuity; local verification",
+  "baseline": "a3f190b22e1974c25867ce31a285bda7a9c2aecc",
+  "runtime": "IMPLEMENTED_LOCALLY_NOT_DEPLOYED",
+  "checks": {
+    "root": {
+      "status": "PASS",
+      "receipt": "output/login-flow-root-20261111.log",
+      "sha256": "be9de333c0226fc90ae8e6aae19d362408efa02d719eaf1012a3284095a343df",
+      "tests": 964,
+      "passed": 964,
+      "failed": 0,
+      "skipped": 0
+    },
+    "worker": {
+      "status": "PASS",
+      "receipt": "output/login-flow-worker-final-20261111.log",
+      "sha256": "e8a2d9893e28b7b4d40225b915a57fd000de729569e641a2d88a9ca003f03b85",
+      "tests": 601,
+      "passed": 596,
+      "failed": 0,
+      "skipped": 5
+    },
+    "rootTypes": {
+      "status": "PASS",
+      "receipt": "output/login-flow-root-types-final-20261111.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "workerTypes": {
+      "status": "PASS",
+      "receipt": "output/login-flow-worker-types-20261111.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "webBuild": {
+      "status": "PASS",
+      "receipt": "output/login-flow-web-build-20261111.log",
+      "sha256": "a309a2d5ccd933f38b049a1f451794302148445df828b2564921af2b934aca8c"
+    },
+    "workerBuild": {
+      "status": "PASS",
+      "receipt": "output/login-flow-worker-build-final-20261111.log",
+      "sha256": "ee6f03d9c262e334d83087ee11b8ac041c8d0802ac68805437d5ab6c71c39e4f"
+    },
+    "nativeRedis": {
+      "status": "PASS",
+      "receipt": "output/login-flow-native-redis-20261111.log",
+      "sha256": "cb7acf9d6bb2c580b80b57928658b4e49a5939f5f7b21f1d93807270e56ec009",
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "integration": {
+      "status": "PASS",
+      "receipt": "output/login-flow-integration-final-20261111.log",
+      "sha256": "ae4234413bbfd25ef8c05f9e0ec4c7d6686a58cff986dfced8aa6b8746118a9a"
+    },
+    "browser": {
+      "status": "PASS",
+      "receipt": "output/login-flow-browser-final-20261111.log",
+      "sha256": "f5a67dc52fc617af8e408b657d6db160b739e3f600b9b01a54c6b0c8764d26b4",
+      "checks": 39
+    },
+    "lint": {
+      "status": "PASS_SCOPED",
+      "errors": 0,
+      "baselineWarnings": 8,
+      "receipt": "output/login-flow-lint-final-20261111.json",
+      "sha256": "19744efbe959f828870ec03ea215faa3b4b87ba1f3f53c9e8c7c6f8f28b962fd",
+      "global": "NOT_CLEAN_BASELINE_DEBT"
+    },
+    "templates": {
+      "status": "PASS",
+      "receipt": "output/login-flow-template-final-20261111.json",
+      "sha256": "d371b51ed8aef57c1f26e37bcc730b2ddcd9065de1eb832a0edc6f3031a93356"
+    },
+    "plan": {
+      "status": "PASS",
+      "receipt": "output/login-flow-plan-validation-20261111.json",
+      "sha256": "6868dd7016187dd629fd5c1c47ede1eb7f47119e8490c70ceb33059e3e077c8e"
+    }
+  },
+  "encoding": {
+    "status": "PASS",
+    "files": 24,
+    "addedMojibakeLines": 0,
+    "addedBom": 0
+  },
+  "semanticReview": {
+    "status": "REVIEWED_BY_PRIMARY_AGENT",
+    "independentReview": false,
+    "providerAcceptance": "NOT_VERIFIED",
+    "financialMutations": "NONE",
+    "nativePostgresMultiprocessContention": "NOT_VERIFIED",
+    "realSolverAvailability": "NOT_VERIFIED",
+    "notes": [
+      "Three actual CAPTCHA submissions retain terminal protection; zero-submission solver/manual failure is incomplete.",
+      "Native HTTP control verifies cookie-bound images, renewed state, redirect authentication, import and transient 503 reuse.",
+      "Arabic 360 visual inspection retains existing horizontally scrolling/clipped table; no UI redesign or full responsiveness acceptance.",
+      "KeepAlive does not overlap cycles; cycles longer than session lifetime remain an operational capacity limit."
+    ]
+  },
+  "lifecycle": {
+    "evidence": "PASS",
+    "originalTasksComplete": 0,
+    "originalTasksTotal": 24,
+    "productionKeepAliveCycles": "NOT_VERIFIED"
+  },
+  "sources": [
+    {
+      "path": "shared/bein/login-health.ts",
+      "sha256": "8f17e06373ef39ac7c58a062edaead3f54c345adb1533cc971b8e55c37220cb1"
+    },
+    {
+      "path": "tests/helpers/promo-dispatch-harness.ts",
+      "sha256": "fc8e19a1397275e4c728374371bfbd7d9a310fbf6a69deb2f4703aada3449e12"
+    },
+    {
+      "path": "tests/integration/bein-login-challenge.cjs",
+      "sha256": "53b2c1c028fa7fe7e97112e93c772550b31906623c6f580ee3e53eac07d2fa27"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "c3bd8583655051845ca731f2e9d5b86ef2d4880766968e69aacbf7b429deb0cf"
+    },
+    {
+      "path": "worker/src/http-queue-processor.ts",
+      "sha256": "d3d28e7ff2c7b808e94f636f40f80153163456bb60f9bc906a8158f213f1f627"
+    },
+    {
+      "path": "worker/src/http/HttpClientService.ts",
+      "sha256": "2c9ef259f5cd8513bde226e5eeeda92ac587e29ddb94b2efa891191aebd456f3"
+    },
+    {
+      "path": "worker/src/lib/session-cache.ts",
+      "sha256": "1c86e596e667e14f859883b67ea43425a11eb2cdd4c73afb2a8ad23f12727e59"
+    },
+    {
+      "path": "worker/src/lib/session-keepalive.ts",
+      "sha256": "13a1c73f5695b3ddc5ce3e3e3cb1819599a65e695675fe655c735c1de677f21c"
+    },
+    {
+      "path": "worker/src/utils/captcha-solver.ts",
+      "sha256": "d0105168446a9fba8a24f73f9453a14eba54640fbdaee485fb3286d904a63870"
+    },
+    {
+      "path": "worker/tests/keepalive-login-recovery.test.ts",
+      "sha256": "4c2804434f53b91c4754881988eabc0a26981af8bd1e6891e1e2f62fa4fd1667"
+    },
+    {
+      "path": "worker/tests/login-challenge-recovery.test.ts",
+      "sha256": "bccabda57f1b01f4589e74e73bdf93dad05ce12eb5e189ef08f6a2e30973a212"
+    },
+    {
+      "path": "worker/tests/login-failure-classification.test.ts",
+      "sha256": "d398c4ee55c6508869b107ea6135f2b7150c36a6441b92a624bcde82927f05a4"
+    },
+    {
+      "path": "worker/tests/login-health-policy.test.ts",
+      "sha256": "910ec010a365cfdad0ceb8e3f049d0e15334e979cec56e4b02672925ce7f2c49"
+    },
+    {
+      "path": "worker/tests/login-retry-consumers.test.ts",
+      "sha256": "d35aa61a32c0de1db341bef73facd32435072934c95044376250a05f3adede5e"
+    },
+    {
+      "path": "worker/tests/login-tracking-recovery.test.ts",
+      "sha256": "12f9e2152b965bd01b8bd1a438d6dba65aad717a6f38b8e99b7bc80c5c2e523e"
+    },
+    {
+      "path": "worker/tests/renewal-fulfillment-orchestration.test.ts",
+      "sha256": "d362ccd4d11f094e06a08ece746338c1d07d62918f8ff169379cf73cd86f8ea4"
+    },
+    {
+      "path": "worker/src/lib/login-challenge.ts",
+      "sha256": "a285dd2fd64e7c997b47a1b12cbe5495c22e52edf05e9dbe3ad300fecbb03f2b"
+    },
+    {
+      "path": "worker/tests/login-runtime-boundaries.test.ts",
+      "sha256": "bbbbba34a4d20e53bd2e51c924dda5dba9e8413428d6027b738014a28bffabf7"
+    }
+  ]
+}

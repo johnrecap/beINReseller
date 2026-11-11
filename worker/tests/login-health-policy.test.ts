@@ -8,7 +8,7 @@ test('first final authentication failures quarantine; only credentials increment
         ['captcha', 'LOGIN_CAPTCHA_REQUIRED', 'CAPTCHA_EXHAUSTED', 0],
         ['unknown', 'LOGIN_REVIEW_REQUIRED', 'AUTH_REVIEW_REQUIRED', 0],
     ] as const) {
-        assert.deepEqual(decideLoginHealth({ failureCategory, failureCode }, { attempted: true, terminal: true }),
+        assert.deepEqual(decideLoginHealth({ failureCategory, failureCode }, { attempted: true, terminal: true, captchaSubmissions: 3 }),
             { record: true, disable: true, credentialIncrement: increment, reason: `LOGIN_HEALTH_V1:${reason}` })
     }
 })
@@ -27,6 +27,15 @@ test('transport, 429 and local failures never become password rejection', () => 
 test('intermediate CAPTCHA is not persisted as a terminal health failure', () => {
     assert.equal(decideLoginHealth({ failureCategory: 'captcha' }, { attempted: true, terminal: false }).record, false)
 })
+
+test('a terminal flag cannot substitute for three actual CAPTCHA submissions', () => {
+    for (const captchaSubmissions of [undefined, 0, 1, 2]) {
+        const decision = decideLoginHealth({ failureCategory: 'captcha' }, { attempted: true, terminal: true, captchaSubmissions });
+        assert.equal(decision.disable, false);
+        assert.equal(decision.credentialIncrement, 0);
+        assert.notEqual(decision.reason, 'LOGIN_HEALTH_V1:CAPTCHA_EXHAUSTED');
+    }
+});
 
 test('safe reason decoding supports legacy credentials but never returns arbitrary stored text', () => {
     assert.equal(decodeLoginHealthReason('Invalid username or password'), 'CREDENTIALS_REJECTED')

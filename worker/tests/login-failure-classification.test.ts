@@ -21,6 +21,25 @@ function fixture(getResponse: unknown, postResponse: unknown = { status: 200, da
     return { client, calls }
 }
 
+for (const response of [Object.assign(new Error('synthetic timeout'), { code: 'ETIMEDOUT' }),
+    { status: 429, data: '' }, { status: 503, data: '' }, { status: 200, data: '<html>temporary provider page</html>' }]) {
+    test(`2026-11-11: unavailable validation preserves the session and never falls into a new login: ${response instanceof Error ? 'timeout' : response.status}`, async () => {
+        const { client, calls } = fixture(response);
+        Object.assign(client, { sessionValid: true, sessionExpiresAt: Date.now() + 600_000, lastLoginTime: new Date() });
+        await assert.rejects(client.login('synthetic', 'private-password'), { code: 'PROVIDER_SESSION_UNAVAILABLE' });
+        assert.equal(client.isSessionActive(), true);
+        assert.deepEqual(calls, ['GET']);
+        assert.equal(client.didAttemptLogin(), false);
+    });
+}
+
+test('an explicit login page expires a cached session and permits a fresh authentication', async () => {
+    const { client, calls } = fixture({ status: 200, data: loginForm });
+    Object.assign(client, { sessionValid: true, sessionExpiresAt: Date.now() + 600_000, lastLoginTime: new Date() });
+    assert.equal((await client.login('synthetic', 'private-password')).success, true);
+    assert.deepEqual(calls, ['GET', 'GET', 'POST']);
+});
+
 for (const status of [402, 407, 429, 500, 502, 503]) {
     test(`GET ${status} blocks credential POST and classifies failure`, async () => {
         const { client, calls } = fixture({ status, data: loginForm })

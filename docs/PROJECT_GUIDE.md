@@ -1,5 +1,11 @@
 # Project Guide
 
+## Login flow and session continuity repair (2026-11-11)
+
+Follow-up to `a3f190b`: all six solving entry points now share bounded CAPTCHA completion, including renewed challenges and manual input. Solver/key/timeouts cannot quarantine an account without actual provider CAPTCHA exhaustion. Transient session checks preserve cookies; cache/lock outages stop fresh login; signal checks publish the current jar under a lease. KeepAlive schedules from cycle start rather than adding the full interval after work.
+
+Local root/Worker tests, native HTTP/Redis/Prisma integration, types and production builds passed. Evidence and limits: [implementation record](../specs/037-panel-responsiveness-login-health/evidence/implementation.md#login-flow-and-session-continuity-follow-up--2026-11-11). The root compiler excludes generated `output/` snapshots. There is no schema/dependency change or automatic reactivation. Publication remains authorized on `codex/037-panel-responsiveness-login-health`; use the existing [pull/build/restart commands](deployment/login-quarantine-20261109.md). Actual server login and two full KeepAlive cycles are still required.
+
 ## Login repair publication handoff (2026-11-09)
 
 The user authorized commit/push of the tested login repair to `codex/037-panel-responsiveness-login-health` and requested server pull commands. This supersedes the prior no-publication boundary, not the unverified production status. Runtime source hashes and test receipts were rechecked before packaging; no application code changed during publication. Use [server commands](deployment/login-quarantine-20261109.md) in `/www/wwwroot/deshpanel.com`. Existing PM2 worker count/environment are preserved; web stops before replacing `.next`. Production login and two KeepAlive cycles remain pending the user's server execution.

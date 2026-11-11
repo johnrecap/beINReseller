@@ -51,7 +51,7 @@ test('credential rejection uses one conditional atomic increment/disable and rev
 test('037 terminal health write quarantines without a configurable threshold and fences old results', async () => {
     const api = fixture()
     const revision = new Date('2026-11-04T00:00:00Z')
-    await api.recordLoginHealthFailure('a', failures.loginMessageFailure('CAPTCHA'), revision, { attempted: true, terminal: true })
+    await api.recordLoginHealthFailure('a', failures.loginMessageFailure('CAPTCHA'), revision, { attempted: true, terminal: true, captchaSubmissions: 3 })
     assert.equal(api.writes.length, 1)
     assert.ok(api.writes[0].values.includes('LOGIN_HEALTH_V1:CAPTCHA_EXHAUSTED'))
     assert.ok(api.writes[0].values.includes(true))

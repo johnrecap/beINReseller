@@ -188,6 +188,32 @@ test('a compact Sell confirmation with the same offer proceeds to receiver entry
         post.has('ctl00$ContentPlaceHolder1$BtnPay')), false)
 })
 
+// The Nov 25 Add and Sell pages showed the wallet note on this 30 USD offer.
+const togetherQuote = { ...selected, name: 'Together 3 Months (3 Months)', price: 30 }
+const extendedValidityCart = observedCart(togetherQuote.name, '30')
+const walletCart = extendedValidityCart.replace('current package as extended validity', 'customer wallet')
+
+for (const stage of ['ADD', 'SELL'] as const) {
+    test(`${stage} accepts both observed Remaining notes for the same quote`, () => {
+        for (const page of [extendedValidityCart, walletCart]) {
+            const evidence = purchaseGuard.readRenewalSummary(page, togetherQuote, fullCard, 'CISCO', stage)
+            assert.equal(evidence.packageName, togetherQuote.name)
+            assert.equal(evidence.price, togetherQuote.price)
+            assert.equal(evidence.currency, togetherQuote.currency)
+        }
+    })
+
+    for (const [change, page, reason] of [
+        ['unknown note', walletCart.replace('customer wallet', 'customer wallet after fees'), 'CART_TOTAL_ROW_UNVERIFIED'],
+        ['different footer amount', walletCart.replace('<div>30USD</div>', '<div>31USD</div>'), 'CART_TOTAL_MISMATCH'],
+        ['different footer currency', walletCart.replace('<div>30USD</div>', '<div>30EUR</div>'), 'CART_TOTAL_MISMATCH'],
+    ] as const) test(`${stage} rejects wallet cart with ${change}`, () => {
+        assert.throws(() => purchaseGuard.readRenewalSummary(page, togetherQuote, fullCard, 'CISCO', stage),
+            (error: unknown) => error instanceof purchaseGuard.RenewalSummaryConflict &&
+                error.stage === stage && error.reason === reason)
+    })
+}
+
 // Reconstructed from the 2026-10-13 production structural diagnostic, not
 // captured provider HTML: item above, then colspan=2 Remaining/note, exact
 // money, empty tail. The diagnostic's terminal #_ was the money cell.

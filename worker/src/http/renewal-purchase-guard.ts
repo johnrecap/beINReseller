@@ -314,7 +314,7 @@ export function readRenewalSummary(html: string, expected: QuotePackage, cardNum
         const trailingEmpty = total.length === 3 && total.eq(0).attr('colspan') === '2'
         const totalLabel = normalized((trailingEmpty ? total.eq(0) : total.slice(0, -1)).text())
         const knownTotalLabel = /^(?:remaining|grand total|total amount|total|amount due|net total|net amount)\s*[:：*\-]?\s*$/.test(totalLabel) ||
-            /^remaining\s*\*?\s*money due if any will be added to the current package as extended validity\.?$/.test(totalLabel)
+            /^remaining\s*\*?\s*money due if any will be added to the (?:current package as extended validity|customer wallet)\.?$/.test(totalLabel)
         const validTwoCell = total.length === 2 && total.eq(1).attr('colspan') === undefined &&
             (total.eq(0).attr('colspan') === '2' || stage !== 'ADD' && total.eq(0).attr('colspan') === undefined)
         const validThreeCell = trailingEmpty
